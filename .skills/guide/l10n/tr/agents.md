@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Ajanlar ve ajan atölyesi
 
-Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Bir yanıttan sonra sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir sayaç, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim sayacı, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Ajanlar için henüz bir Yardım makalesi yok.
+Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Bir yanıttan sonra sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir sayaç, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim sayacı, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
 
 ## Bir ajan nelerden oluşur
 
@@ -15,7 +15,7 @@ Bir ajan veridir, kod değildir. Düzenleyicide **kartların** **tellerle** birl
 
 **Paneller** (sayaçlar, numaratörler, tablolar, bir karo tahtası) ajanın tuttuklarını gösterir; panelde hiçbir şey çalışmaz ve düğmeleri yalnızca mesaj kutusuna metin koyar.
 
-Ne zaman çalışacağı ajan başına ayarlanır: yanıttan önce, yanıtla birlikte, yanıttan sonra veya elle; her N. yanıtta; veya yalnızca seçilen sözcükler göründüğünde.
+Ne zaman çalışacağı ajan başına ayarlanır: her yanıttan sonra (bu sürümün çalıştırdığı tek zamanlama); her N. yanıtta; veya yalnızca seçilen sözcükler göründüğünde.
 
 ## Hazır ajanlar
 

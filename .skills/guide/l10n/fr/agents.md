@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Agents et la forge d'agents
 
-Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Après une réponse, il lit une partie de la discussion, peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. Il n'existe pas encore d'article d'aide pour les agents.
+Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Après une réponse, il lit une partie de la discussion, peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
 
 ## De quoi un agent est-il fait
 
@@ -15,7 +15,7 @@ Un agent est une donnée, pas du code. Dans l'éditeur, c'est un tableau de **ca
 
 Les **panneaux** (compteurs, jauges, tables, plateau de tuiles) affichent ce que l'agent garde ; rien dans un panneau ne s'exécute, et ses boutons ne font que mettre du texte dans la zone de message.
 
-Quand il s'exécute est défini pour chaque agent : avant la réponse, avec elle, après elle, ou à la main ; toutes les N réponses ; ou seulement lorsque des mots choisis apparaissent.
+Quand il s'exécute est défini pour chaque agent : après chaque réponse (le seul moment que cette version exécute) ; toutes les N réponses ; ou seulement lorsque des mots choisis apparaissent.
 
 ## Agents prêts à l'emploi
 

@@ -75,3 +75,34 @@ describe("composer fills", () => {
     expect(await useApp.getState().sendMessage("A", "lost words")).toBe("not-sent");
   });
 });
+
+// "Reset look and local settings" resets what its dialog lists (appearance settings, themes, quick replies, tags)
+// and keeps the library collections that carry user data (folders, backgrounds, connection profiles): they are
+// written through to the engine, so emptying them deleted them for good. Lives here, not in a file of its own:
+// every test file that loads the store adds one "location is not defined" error to the full run.
+describe("reset look and local settings", () => {
+  it("empties quick replies and tags, keeps folders, backgrounds and connection profiles, goes Home", async () => {
+    fetchImpl = () => Promise.resolve(json({}));
+    const folder = { id: "f1", name: "Fantasy", color: "#8ec9a8" };
+    const background = { id: "b1", name: "Forest", url: "/x.png", type: "image", folderId: null, fitting: "cover" };
+    const profile = { id: "p1", name: "Cheap", modelId: "m" };
+    useApp.setState({
+      folders: [folder],
+      backgrounds: [background],
+      connectionProfiles: [profile],
+      qrSets: [{ id: "q1", name: "Set", replies: [] }],
+      tags: [{ id: "t1", name: "Tag", color: "#fff", textColor: "#000", visible: true, asFolder: false, order: 0 }],
+      view: "characters",
+    });
+    useApp.getState().resetAll();
+    const st = useApp.getState();
+    expect(st.qrSets).toEqual([]);
+    expect(st.tags).toEqual([]);
+    expect(st.folders).toEqual([folder]);
+    expect(st.backgrounds).toEqual([background]);
+    expect(st.connectionProfiles).toEqual([profile]);
+    expect(st.view).toBe("home");
+    // the library write-through is debounced (500 ms): let it run while this file's fetch exists
+    await new Promise((r) => setTimeout(r, 700));
+  });
+});

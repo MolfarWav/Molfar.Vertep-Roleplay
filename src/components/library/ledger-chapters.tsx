@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { BookmarkSimple, CaretRight, ChatText, DotsThree, PencilSimple, Plus, Quotes, ArrowCounterClockwise, Trash, WarningCircle } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { LitArc, LitChapter, LitChat, LitSkipped, LitView } from './litopys-api'
 import { ArcCard, arcOfChapter } from './arcs'
-import { editLitChapter, rewriteLitChapter, deleteLitChapter, unmarkLitScene, isRebuilding } from './litopys-api'
+import { editLitChapter, rewriteLitChapter, deleteLitChapter, unmarkLitScene, isRebuilding, fetchLitConfig } from './litopys-api'
 import type { TabProps } from './ledger-facts'
 import { TONE } from './tones'
 import { MessagesDialog, type MessagesRange } from './messages-dialog'
@@ -83,8 +83,9 @@ function ChapterEditor({ chapter, onSave, onCancel }: ChapterEditorProps) {
   )
 }
 
-const VIEW_MAX = 300
 const VIEWS_MAX = 8
+/** The default length of one recollection; the Litopys setting "Length of one recollection" (150 to 1000) replaces it. */
+const VIEW_MAX_DEFAULT = 300
 /** Short enough to show at once: two people at most and not much text. */
 const viewsAreLong = (views: LitView[]) => views.length > 2 || views.reduce((n, v) => n + v.text.length, 0) > 220
 
@@ -135,12 +136,18 @@ function Recollections({ views, onEdit, disabled }: { views: LitView[]; onEdit: 
 
 interface ViewRow extends LitView { key: number; fresh: boolean }
 
-/** Edits what each person remembers: one box per person (300 characters), remove a person, add one (name and text). */
+/** Edits what each person remembers: one box per person (up to the Length of one recollection setting, 300 characters by default), remove a person, add one (name and text). */
 function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (views: LitView[]) => Promise<void>; onCancel: () => void }) {
   const t = useT()
   const [rows, setRows] = useState<ViewRow[]>(() => views.map((v, i) => ({ ...v, key: i, fresh: false })))
   const [next, setNext] = useState(views.length)
   const [busy, setBusy] = useState(false)
+  const [viewMax, setViewMax] = useState(VIEW_MAX_DEFAULT)
+  useEffect(() => {
+    let live = true
+    fetchLitConfig().then((c) => { if (live && typeof c.recollectChars === 'number') setViewMax(c.recollectChars) }).catch(() => undefined)
+    return () => { live = false }
+  }, [])
   const clean = rows.filter((r) => r.who.trim() && r.text.trim()).map((r) => ({ who: r.who.trim(), text: r.text.trim() }))
   const incomplete = rows.some((r) => !!r.who.trim() !== !!r.text.trim() || (r.fresh && !r.who.trim() && !r.text.trim()))
   const same = JSON.stringify(clean) === JSON.stringify(views)
@@ -177,8 +184,8 @@ function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (v
           </div>
           <Textarea
             value={r.text}
-            onChange={(e) => patch(r.key, { text: e.target.value.slice(0, VIEW_MAX) })}
-            maxLength={VIEW_MAX}
+            onChange={(e) => patch(r.key, { text: e.target.value.slice(0, viewMax) })}
+            maxLength={viewMax}
             rows={3}
             placeholder={t('lit.views.textPh')}
             aria-label={t('lit.views.text', { who: r.who || t('lit.views.who') })}
@@ -188,7 +195,7 @@ function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (v
               if (e.key === 'Escape') onCancel()
             }}
           />
-          <span className="self-end text-[11px] text-muted-foreground">{r.text.length}/{VIEW_MAX}</span>
+          <span className="self-end text-[11px] text-muted-foreground">{r.text.length}/{viewMax}</span>
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-2">

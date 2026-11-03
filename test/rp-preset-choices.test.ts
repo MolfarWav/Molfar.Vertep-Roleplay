@@ -472,7 +472,7 @@ describe("built-in Vertep Lite", () => {
   it("stays light: under 3k tokens with the heaviest picks", () => {
     const p = read();
     const costs = eng.presetCosts(p, {}, false) as { total: number; vars: Record<string, Record<string, number>> };
-    expect(costs.total).toBeLessThan(2500);
+    expect(costs.total).toBeLessThan(2700); // 2500 before the message format block (about 120 tokens)
     const heaviest = Object.entries(costs.vars).map(([name, by]) => {
       const def = p.studio.variables.find((v: { name: string }) => v.name === name).defaults[0];
       return Math.max(...Object.values(by)) - (by[def] ?? 0);
@@ -563,6 +563,29 @@ describe("built-in Vertep Lite", () => {
     expect(first.slice(lastUser + 1).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
     call("POST", `/chats/${meta.id}/preset`, { vars: { html: "html_off" } });
     expect(msgs(meta.id).map((m) => m.content).join("\n")).not.toContain("## HTML panels");
+  });
+
+  it("has a message format that is on by default and that Off takes away", () => {
+    fs.copyFileSync(path.join(shipped, "vertep-lite.json"), path.join(root, "presets", "vertep-lite.json"));
+    const meta = newChat({ presetId: "vertep-lite" });
+    const all = (m: { content: string }[]) => m.map((x) => x.content).join("\n");
+    const on = msgs(meta.id);
+    expect(all(on)).toContain("## Message format");
+    expect(all(on)).toContain("in *asterisks*");
+    expect(all(on)).toContain("Speech in quotation marks");
+    // it is in the fixed start of the request, not after the newest message
+    const lastUser = on.map((m) => m.role).lastIndexOf("user");
+    expect(all(on.slice(0, lastUser + 1))).toContain("## Message format");
+    expect(all(on.slice(lastUser + 1))).not.toContain("## Message format");
+    // Form keeps the rule about headings and lists, with or without the format
+    expect(all(on)).toContain("no headings, lists, notes or options");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { format: "format_off" } });
+    const off = all(msgs(meta.id));
+    expect(off).not.toContain("## Message format");
+    expect(off).not.toContain("in *asterisks*");
+    expect(off).toContain("no headings, lists, notes or options");
+    call("POST", `/chats/${meta.id}/preset`, { vars: { format: "format_on" } });
+    expect(all(msgs(meta.id))).toContain("## Message format");
   });
 
   it("has a fiction frame that is off until picked, then sits in the fixed start with a reminder after the newest message", () => {

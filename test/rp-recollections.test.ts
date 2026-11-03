@@ -137,6 +137,49 @@ describe("recollections: the worker", () => {
     expect(views[1].text.length).toBeLessThanOrEqual(300);
   });
 
+  it("cuts a long recollection after a whole sentence, never in the middle of a word", () => {
+    const text = "I fled my burning capital and bled my palm to summon a man who bowed to me only to mock me to my face. He folded my door like paper and crushed the Minotauress's head, then told me the mark binds me to a Kael Vorn of his choosing. I will not beg, but I need his results, so I am bargaining with him and more words follow here.";
+    const cut = L.cleanViews([{ who: "Rhea", text }], null)[0].text;
+    expect(cut.length).toBeLessThanOrEqual(300);
+    expect(cut.endsWith("choosing.")).toBe(true);
+    expect(text.startsWith(cut)).toBe(true);
+    // no sentence end in the second half: the last whole word
+    expect(L.cutAtSentence("one two three four five six seven", 20)).toBe("one two three four");
+    // a text that fits stays whole
+    expect(L.cutAtSentence("Short.", 300)).toBe("Short.");
+  });
+
+  it("takes the length of one recollection from recollectChars, tells the model, and keeps your edit within it", () => {
+    const ln = L.activeLine(cast(0));
+    const st = L.emptyChat("tav");
+    const long = ("I kept the key and said nothing about it. ").repeat(10).trim(); // 419 characters
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "The key", text: "Jude gave Aria a key." }, views: [{ who: "Aria", text: long }] }));
+    const keep = (chars?: number) => {
+      const s = L.emptyChat("tav");
+      L.applyWorkerResult(s, { scene: scene(ln), replaces: null }, parsed, { now: 1, line: ln, cast: ["Aria"], recollectChars: chars });
+      return s.chapters[0].views[0].text.length;
+    };
+    expect(keep()).toBeLessThanOrEqual(300);
+    expect(keep(300)).toBeLessThanOrEqual(300);
+    expect(keep(500)).toBe(long.length);
+    // the prompt names the length (300 by default)
+    expect(L.buildWorkerRequest(st, { scene: scene(ln), replaces: null }, ln, null, cfg, { userName: "Jude" }).systemPrompt).toContain("at most 300 characters each");
+    expect(L.buildWorkerRequest(st, { scene: scene(ln), replaces: null }, ln, null, { ...cfg, recollectChars: 600 }, { userName: "Jude" }).systemPrompt).toContain("at most 600 characters each");
+    // the setting: 150 to 1000, 300 when missing
+    const { host } = mockHost();
+    expect(route(host, "GET", "/litopys/config").json.recollectChars).toBe(300);
+    expect(route(host, "PUT", "/litopys/config", { recollectChars: 5000 }).json.recollectChars).toBe(1000);
+    expect(route(host, "PUT", "/litopys/config", { recollectChars: 10 }).json.recollectChars).toBe(150);
+    expect(route(host, "PUT", "/litopys/config", { recollectChars: 450 }).json.recollectChars).toBe(450);
+    // your edit in the chapter uses the same length
+    seed();
+    const chat = readJson("litopys/chats/tav.json");
+    const id = chat.chapters[0].id;
+    route(host, "POST", "/litopys/chapters", { op: "edit", chatId: "tav", id, views: [{ who: "Aria", text: long }] });
+    expect(readJson("litopys/chats/tav.json").chapters[0].views[0].text.length).toBe(long.length);
+    writeJson("litopys/config.json", {});
+  });
+
   it("keeps the view of a single named character, and writes none when the scene had no character", () => {
     const ln = L.activeLine(cast(0));
     const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, views: VIEWS }));

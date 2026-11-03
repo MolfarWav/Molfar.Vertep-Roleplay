@@ -195,6 +195,8 @@ export const DEFAULT_CONFIG = {
   recollections: true,
   // the room of the "what the character remembers" blocks (head and tail together), in tokens
   recollectBudget: 300,
+  // how long one person's recollection of a scene may be, in characters (the model is told; a longer one is cut at a sentence)
+  recollectChars: 300,
   // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
   castKnowledge: true,
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
@@ -298,9 +300,9 @@ export const HABITS_RULE = [
 export const HABITS_SHAPE = ',"habits":[{"who":"","name":"","rule":"","when":"","evidence":""},{"reinforce":"k2","evidence":""}]';
 
 /** Added to the chapter prompt when the scene has a named character besides the player (#99: one is enough). */
-export const RECOLLECTIONS_RULE = [
+export const recollectionsRule = (chars) => [
   "Recollections:",
-  "- For each character listed under Characters, write what THEY remember of this scene: 1-2 short sentences, first person, past tense for what happened, in their own voice.",
+  "- For each character listed under Characters, write what THEY remember of this scene: first person, past tense for what happened, in their own voice, whole sentences, at most " + clamp(intOf(chars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX) + " characters each (a longer one is cut).",
   "- Only what that character saw, heard, did or was told in this scene, how it left them feeling, and what they want or mean to do now as a result of it (present tense, one short clause). Nothing they were not present for, nothing another character thought in private.",
   "- Different characters remember the same event differently: keep each one's own view. Never invent; use only the messages. Skip a character who has nothing of their own to remember.",
 ].join("\n");
@@ -345,6 +347,8 @@ const indexText = (x) => (str(x.label) ? str(x.label) + " " : "") + str(x.text) 
 /** At most this many recollections to a chapter, each this long (the worker may ramble). */
 const VIEWS_MAX = 8;
 const VIEW_CHARS = 300;
+const VIEW_CHARS_MIN = 150;
+const VIEW_CHARS_MAX = 1000;
 /** The words a scene's speaker list leaves out: the voice of the story, not a character. */
 const NOT_A_CAST = new Set(["narrator", "system", "user", "you", "assistant", "game master", "gm", "dm"]);
 
@@ -483,6 +487,7 @@ export function loadConfig(fsx) {
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
   cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
+  cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.searchWords = cfg.searchWords !== false;
@@ -540,6 +545,7 @@ export function patchConfig(fsx, body) {
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
   if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
+  if (b.recollectChars !== undefined) next.recollectChars = clamp(intOf(b.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
@@ -1142,7 +1148,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const alsoOn = cfg.searchWords !== false;
   const baseAlso = alsoOn ? base.replace(/("weight":"everyday\|important\|key"(?:,"because":"f3"\?)?)\}/, "$1" + SEARCH_SHAPE + "}").replace('"text":"3-6 sentences"', '"text":"3-6 sentences"' + SEARCH_SHAPE) : base;
   const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + RECOLLECTIONS_RULE : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + "\n\nOutput shape\n" + shape;
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + recollectionsRule(cfg.recollectChars) : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
   // the first answer retold the scene at full length: ask again, shorter
@@ -2205,7 +2211,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
   // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a named character
-  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast) : [];
+  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast, ctx.recollectChars) : [];
   if (views.length) newChapter.views = views;
   // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
   const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
@@ -2437,11 +2443,22 @@ function viewList(v) {
   return list.filter(isObj).slice(0, 2 * VIEWS_MAX);
 }
 
+/** A text of at most n characters: whole when it fits, else cut after the last sentence end in its second half, else at the last space (never in the middle of a word). */
+export function cutAtSentence(text, n) {
+  if (text.length <= n) return text;
+  const head = text.slice(0, n);
+  const ends = [...head.matchAll(/[.!?…](?=["'”»)\]]*(?:\s|$))/g)].map((m) => m.index + 1);
+  const end = ends.length ? ends[ends.length - 1] : 0;
+  if (end >= n / 2) return head.slice(0, end).trim();
+  const space = head.lastIndexOf(" ");
+  return (space > 0 ? head.slice(0, space) : head).trim();
+}
+
 /**
  * The recollections of one chapter as kept: only a name of the scene's cast (spelled as the scene spells it), one per
  * character, text trimmed. `cast` empty = unknown, then any name stays.
  */
-export function cleanViews(list, cast) {
+export function cleanViews(list, cast, max = VIEW_CHARS) {
   const byLower = new Map(arr(cast).map((n) => [str(n).toLowerCase(), str(n)]));
   const done = new Set();
   const out = [];
@@ -2449,7 +2466,7 @@ export function cleanViews(list, cast) {
     if (!isObj(x)) continue;
     const key = str(x.who || x.name || x.character).toLowerCase();
     const who = byLower.size ? byLower.get(key) : str(x.who || x.name || x.character);
-    const text = cut(str(x.text || x.memory || x.view), VIEW_CHARS);
+    const text = cutAtSentence(str(x.text || x.memory || x.view).trim(), max);
     if (!who || !text || done.has(who.toLowerCase())) continue;
     done.add(who.toLowerCase());
     out.push({ who, text });
@@ -3343,6 +3360,7 @@ export function onTick(_ctx, host) {
                 habits: cfg.habits !== false,
                 causes: cfg.causes !== false,
                 searchWords: cfg.searchWords !== false,
+                recollectChars: cfg.recollectChars,
                 habitsStore: cur,
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
@@ -4710,7 +4728,7 @@ export function chapterRoute(fsx, body) {
       // #99: what each character remembers of the scene, written by the worker or by the user; an empty list takes them away
       if (b.views !== undefined) {
         if (!Array.isArray(b.views)) return bad("views must be a list of { who, text }");
-        const views = cleanViews(b.views, null);
+        const views = cleanViews(b.views, null, loadConfig(fsx).recollectChars);
         if (views.length) next.views = views;
         else next.views = undefined;
       }

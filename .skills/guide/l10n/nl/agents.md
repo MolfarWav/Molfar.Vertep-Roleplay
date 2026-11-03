@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Agents en de agentensmederij
 
-Een agent is een kleine helper die je bouwt uit kaarten en draden. Na een antwoord leest hij een deel van de chat, stelt een model misschien een of meer korte vragen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. Er is nog geen Help-artikel voor agents.
+Een agent is een kleine helper die je bouwt uit kaarten en draden. Na een antwoord leest hij een deel van de chat, stelt een model misschien een of meer korte vragen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
 
 ## Waar een agent van is gemaakt
 
@@ -15,7 +15,7 @@ Een agent is data, geen code. In de editor is het een bord met **kaarten** verbo
 
 **Panelen** (meters, tellers, tabellen, een bord met tegels) tonen wat de agent bewaart; niets in een paneel draait, en de knoppen zetten alleen tekst in het berichtvak.
 
-Wanneer hij draait, stel je per agent in: voor het antwoord, ermee, erna, of met de hand; elke N-de antwoord; of alleen wanneer gekozen woorden verschijnen.
+Wanneer hij draait, stel je per agent in: na elk antwoord (het enige moment dat deze versie uitvoert); elke N-de antwoord; of alleen wanneer gekozen woorden verschijnen.
 
 ## Kant-en-klare agents
 

@@ -1,7 +1,7 @@
-<!-- source: f1a3e4ba962c -->
+<!-- source: a06a17fd0667 -->
 # Agents und die Agenten-Schmiede
 
-Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Nach einer Antwort liest er einen Teil des Chats, kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Einen Hilfeartikel zu Agents gibt es noch nicht.
+Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Nach einer Antwort liest er einen Teil des Chats, kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
 
 ## Woraus ein Agent besteht
 
@@ -15,7 +15,7 @@ Ein Agent sind Daten, kein Code. Im Editor ist er ein Brett aus **Karten**, die 
 
 **Panels** (Anzeigen, Zähler, Tabellen, ein Brett aus Kacheln) zeigen an, was der Agent behält; in einem Panel läuft nichts, und seine Schaltflächen fügen nur Text in das Nachrichtenfeld ein.
 
-Wann er läuft, wird pro Agent festgelegt: vor der Antwort, mit ihr, nach ihr oder von Hand; bei jeder N-ten Antwort; oder nur, wenn bestimmte Wörter auftauchen.
+Wann er läuft, wird pro Agent festgelegt: nach jeder Antwort (der einzige Zeitpunkt, den diese Version ausführt); bei jeder N-ten Antwort; oder nur, wenn bestimmte Wörter auftauchen.
 
 ## Fertige Agents
 

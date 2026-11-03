@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RichText } from '@/components/rich-blocks'
 import { DialogueVoices, Markdown, VoiceLeadOnly } from '@/components/markdown'
-import { cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
+import { cardQuoteColor, cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
 import { pickSprite } from '@/lib/sprite-pick'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
@@ -491,6 +491,9 @@ export const MessageRow = memo(function MessageRow({
   const groupChar = character.isGroup && character.group ? character : null
   const speakingMember = groupChar && !isUser && speaker && 'isGroup' in speaker && !speaker.isGroup && groupChar.group!.memberIds.includes(speaker.id) ? speaker : null
   const memberQuoteColor = groupChar && speakingMember && groupChar.group!.colorDialogue !== false ? memberColor(groupChar, speakingMember) : undefined
+  // a single card's own replies take the card's "Dialogue highlight" as the base colour of its quotes; a voice that is
+  // named on a line paints that line over it (see voiceQuotes), and a group member's colour is memberQuoteColor above
+  const cardQuote = cardQuoteColor(character, { isUser, inGroup: !!groupChar })
   // the user's own lines take the colour of the persona they were sent under
   const personaQuoteColor = isUser ? (speaker as Persona | undefined)?.dialogueColor : undefined
   // a single card that plays several characters (Narrator type) lists them in its `voices`
@@ -851,10 +854,11 @@ export const MessageRow = memo(function MessageRow({
               // dialogue; without a character colour it falls back to the
               // theme's italics colour via the CSS variable default.
               style={
-                (!isUser && (character?.colors.name || memberQuoteColor)) || personaQuoteColor
+                (!isUser && (character?.colors.name || memberQuoteColor || cardQuote)) || personaQuoteColor
                   ? ({
                       ...(!isUser && character?.colors.name ? { '--tap-italics': `color-mix(in oklab, ${character.colors.name} 55%, var(--muted-foreground))` } : {}),
                       ...(!isUser && memberQuoteColor ? { '--tap-quotes': voiceInk(memberQuoteColor) } : {}),
+                      ...(!isUser && cardQuote ? { '--tap-quotes': voiceInk(cardQuote) } : {}),
                       ...(personaQuoteColor ? { '--tap-quotes': voiceInk(personaQuoteColor) } : {}),
                     } as React.CSSProperties)
                   : undefined
