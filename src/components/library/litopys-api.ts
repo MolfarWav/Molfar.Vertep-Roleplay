@@ -326,6 +326,8 @@ export interface LitConfig {
   habits?: boolean
   habitsEarnAfter?: number
   recollectBudget?: number
+  /** the longest one person's recollection of a scene, in characters (150 to 1000, default 300); missing from an older plugin */
+  recollectChars?: number
   /** #99: the chapter worker also writes what each character remembers of a scene (default on); missing from an older plugin */
   recollections?: boolean
   /** #184: a "who knows what" brief for a reply that voices several characters (default on); missing from an older plugin */

@@ -179,7 +179,7 @@ two new candidates a chapter and twelve live ones a chat.
 `[{ "who": "<name as the scene spells it>", "text": "<1-2 sentences, first person, at most 300 characters>" }]`, at most 8, one per
 name. The chapter worker writes them in the same call as the chapter, only when the scene has at least one named character
 besides the player (a 1:1 scene counts, since the character journal) (Litopys setting `recollections`, default on; the player's name, "Narrator" and a narrator group's own
-name never count), and only what that character saw, heard or was told, how it left them feeling and what they want or mean to do now because of it. `POST /litopys/chapters { chatId, op: "edit", id, views }`
+name never count), and only what that character saw, heard or was told, how it left them feeling and what they want or mean to do now because of it. Each one is at most `recollectChars` characters (Litopys setting, default 300, 150 to 1000): the worker is told the number, and a longer text is cut after its last whole sentence (else at a word), never in the middle of a word. `POST /litopys/chapters { chatId, op: "edit", id, views }`
 replaces them (an empty list removes them; a views-only edit does not mark the chapter `edited`). A reply carries the
 recollections of the scenes that have left the prompt, newest first within `recollectBudget` tokens (Litopys setting, default 300,
 100 to 1500), whole scenes only: the speaking card's own, or everyone's it voices (a group in narrator mode, a narrator card).
