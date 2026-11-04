@@ -154,11 +154,11 @@ describe("what a character said (#98)", () => {
   it("the sensor prompt asks for it, the shape names it, and the old default is a past default", () => {
     expect(P.DEFAULT_PROMPTS.sensor).toContain("- said:");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.at(-6)).not.toContain("- said:");
-    expect(past.at(-6)).toContain("who: the character who learned it");
-    expect(past.at(-4)!.replace(/- said:.*\n/, "")).toBe(past.at(-6));
+    expect(past.at(-7)).not.toContain("- said:");
+    expect(past.at(-7)).toContain("who: the character who learned it");
+    expect(past.at(-5)!.replace(/- said:.*\n/, "")).toBe(past.at(-7));
     // the first wording of the rule is a past default too: it did not name what is not said
-    expect(past.at(-5)).toContain("- said: the strong statements");
+    expect(past.at(-6)).toContain("- said: the strong statements");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("NOT said, never report");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("strength: 1 to 3");
     writeChat("c1", three());

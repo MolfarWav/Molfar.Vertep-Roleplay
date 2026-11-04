@@ -1690,11 +1690,11 @@ describe("prompt insert", () => {
     // the next sensor call is shown the lists, and told to report changes only
     text = step(mock, 1, { present: ["Aria"], chars: { Aria: { outfit: { add: ["cardigan", "a leather belt"] } } } });
     const req = mock.requests[mock.requests.length - 1]!.req;
-    expect(req.messages[0].content).toContain("Wearing: i1 pink soft knit cardigan; i2 white tee; i3 grey jeans.");
+    expect(req.messages[0].content).toContain("Wearing: t1 pink soft knit cardigan; t2 white tee; t3 grey jeans.");
     expect(req.messages[0].content).toContain("At: by the fireplace.");
-    expect(req.messages[0].content).toContain("Objects here: leather armchair (by the window).");
+    expect(req.messages[0].content).toContain("Objects here: t4 leather armchair (by the window).");
     expect(req.messages[0].content).toContain("You: at the table.");
-    expect(req.systemPrompt).toContain("every item with an id");
+    expect(req.systemPrompt).toContain("every one with an id");
     // "cardigan" says less than what is listed: the listed wording stands, the belt is new
     expect(text).toContain("Wearing: pink soft knit cardigan, white tee, grey jeans, a leather belt.");
 
@@ -1723,7 +1723,7 @@ describe("prompt insert", () => {
     expect(text).toContain("Still wearing: white tee, grey jeans, a leather belt.");
     // what lay in the place left behind stays on the snapshot for the World DM's sweep
     const newest = Object.values(readStateFile("c1").snapshots as Record<string, any>).sort((a, b) => b.at - a.at)[0];
-    expect(newest.layout.left).toEqual({ place: "the study", objects: [{ item: "leather armchair", where: "by the window" }] });
+    expect(newest.layout.left).toEqual({ place: "the study", objects: [{ id: "t4", item: "leather armchair", where: "by the window" }] });
   });
 
   it("11d. a character with no clothes on record is asked to be described once; it stops when clothes are known or the switch is off", () => {
@@ -1739,7 +1739,8 @@ describe("prompt insert", () => {
     text = step(mock, 2, { present: ["Aria"], chars: { Aria: { outfit: { remove: ["cloak"] } } } });
     expect(text).not.toContain("not described yet");
     expect(text).not.toContain("wearing");
-    expect(text).toContain("Objects: a grey cloak (set down by Aria).");
+    // taken off with no place said: it only leaves her, nothing is set down by anyone
+    expect(text).not.toContain("Objects:");
   });
 
   it("11e. applyStackDelta and applyObjects", () => {
@@ -1751,12 +1752,12 @@ describe("prompt insert", () => {
     expect(P.applyStackDelta("a cardigan", { add: ["pink soft knit cardigan"] }).text).toBe("pink soft knit cardigan");
     // an empty or word-less change does nothing
     expect(P.applyStackDelta("grey jeans", { add: ["", "a"], remove: [] })).toMatchObject({ text: "grey jeans", changed: false });
-    const objs = P.applyObjects([{ item: "oak desk", where: "by the window" }], { objects: { add: [{ item: "a candle", where: "on the desk" }], remove: ["desk"] } }, [{ item: "grey cloak", who: "Aria" }], [], false);
-    expect(objs).toEqual([
-      { item: "a candle", where: "on the desk" },
-      { item: "grey cloak", where: "set down by Aria" },
-    ]);
-    expect(P.applyObjects(objs, {}, [], ["cloak"], false).map((o: any) => o.item)).toEqual(["a candle"]);
+    // the older words format; a thing taken off with no place is not invented one ("set down by Aria" is gone)
+    const objs = P.applyObjects([{ item: "oak desk", where: "by the window" }], { objects: { add: [{ item: "a candle", where: "on the desk" }], remove: ["desk"] } }, [{ item: "grey cloak", who: "Aria", where: "" }], [], false);
+    expect(objs).toEqual([{ item: "a candle", where: "on the desk" }]);
+    const put = P.applyObjects(objs, {}, [{ id: "t5", item: "grey cloak", who: "Aria", where: "on the chair" }], [], false);
+    expect(put).toEqual([{ item: "a candle", where: "on the desk" }, { id: "t5", item: "grey cloak", where: "on the chair" }]);
+    expect(P.applyObjects(put, {}, [], [{ id: "t5", text: "grey cloak" }], false).map((o: any) => o.item)).toEqual(["a candle"]);
     expect(P.applyObjects(objs, {}, [], [], true)).toEqual([]);
   });
 
@@ -3482,7 +3483,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(17);
+    expect(past.length).toBe(18);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
@@ -4990,9 +4991,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-9)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-10)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-8)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-9)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -5022,7 +5023,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-12)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-13)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -5076,10 +5077,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-7)!;
+    const before = past.at(-8)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-8));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-9));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {
@@ -5304,7 +5305,8 @@ describe("the word scan of the new messages (#236)", () => {
     const objects = (snap.layout.objects as { item: string }[]).map((o) => o.item);
     expect(snap.chars.Aria.outfit).toBe("dirty torn gown");
     expect(objects.some((o) => /gown/.test(o))).toBe(false);
-    expect(objects.some((o) => /boots/.test(o))).toBe(true);
+    // the older format names no place for the boots: they leave her and lie nowhere
+    expect(objects.some((o) => /boots/.test(o))).toBe(false);
   });
 
   it("the hint block tells the sensor the owner is not decided and may be a stranger", () => {
@@ -5400,7 +5402,7 @@ describe("the ledger of worn and held items (#236)", () => {
     const start = [item("i1", "wear", "black boots"), item("i2", "hold", "an axe")];
     let r = P.applyLedger(start, 2, "wear", { off: [{ id: "i1", where: "by the door" }] });
     expect(r.items).toEqual([item("i2", "hold", "an axe")]);
-    expect(r.off).toEqual([{ item: "black boots", where: "by the door" }]);
+    expect(r.off).toEqual([{ id: "i1", item: "black boots", where: "by the door" }]);
     r = P.applyLedger(start, 2, "wear", { off: [{ id: "i7" }, { id: "i2" }] });
     expect(r.items).toEqual(start); // i2 is held, not worn: the wear report cannot drop it
     expect(r.off).toEqual([]);
@@ -5416,29 +5418,40 @@ describe("the ledger of worn and held items (#236)", () => {
     expect(r2.items.length).toBe(1);
   });
 
-  it("the scene's objects leave out what a character wears or holds", () => {
-    const objects = [{ item: "mirror shard", where: "in her hand" }, { item: "stone head", where: "on the floor" }];
-    const chars = { Aria: { items: [item("i1", "hold", "sharp mirror shard of a broken shield")] } };
-    expect(P.withoutCarried(objects, chars)).toEqual([{ item: "stone head", where: "on the floor" }]);
+  it("a thing she holds is not a lying object, by words or by id", () => {
+    const carried = [{ id: "t1", text: "sharp mirror shard of a broken shield" }];
+    const prev = [{ id: "t2", item: "stone head", where: "on the floor" }];
+    const out = { objects: { add: [{ text: "mirror shard", where: "in her hand" }, { id: "t1", where: "on the floor" }] } };
+    expect(P.applyObjects(prev, out, [], [], false, { carried })).toEqual(prev);
+  });
+
+  it("settleThings: what a character reports in see leaves where it was", () => {
+    const chars: any = { Aria: { items: [item("t1", "hold", "an axe"), item("t2", "wear", "boots")] }, Bram: { items: [item("t3", "hold", "a rope")] } };
+    const lost = P.settleThings(chars, new Map([["t1", { name: "Bram", kind: "hold" }]]));
+    expect(lost).toEqual(["Aria"]);
+    expect(chars.Aria.items.map((i: any) => i.id)).toEqual(["t2"]);
+    expect(chars.Aria.holding).toBeNull();
+    expect(chars.Aria.outfit).toBe("boots");
+    expect(chars.Bram.items.length).toBe(1);
   });
 
   it("through the route: ids in the Previous state, a torn gown stays one item, a boot taken off lies where the sensor said, nothing is put down by accident", () => {
     writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots and holds an axe.")]);
     const mock = mockHost([
       reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ text: "white and gold gown" }, { text: "black boots" }] }, holding: { see: [{ text: "an axe" }] } } } }),
-      reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ id: "i1", text: "white and gold gown, torn" }], off: [{ id: "i2", where: "by the door" }] } } } }),
+      reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ id: "t1", text: "white and gold gown, torn" }], off: [{ id: "t2", where: "by the door" }] } } } }),
     ]);
     update(mock, "c1");
     writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots and holds an axe."), U("m3", "Go on."), A("m4", "The gown tears; she kicks off her boots.")]);
     update(mock, "c1");
     const second = String(mock.requests[1]!.req.messages[0].content);
-    expect(second).toContain("Wearing: i1 white and gold gown; i2 black boots.");
-    expect(second).toContain("Holding: i3 an axe.");
+    expect(second).toContain("Wearing: t1 white and gold gown; t2 black boots.");
+    expect(second).toContain("Holding: t3 an axe.");
     const st = readStateFile("c1");
     const snap = st.snapshots[Object.keys(st.snapshots).pop()!];
     expect(snap.chars.Aria.outfit).toBe("white and gold gown torn");
     expect(snap.chars.Aria.holding).toBe("an axe");
-    expect(snap.layout.objects).toEqual([{ item: "black boots", where: "by the door" }]);
+    expect(snap.layout.objects).toEqual([{ id: "t2", item: "black boots", where: "by the door" }]);
   });
 });
 

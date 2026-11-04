@@ -607,10 +607,14 @@ const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given 
 // What the sensor does with clothes, hands and places (#185). It reports changes only; code keeps the lists, so the sensor
 // never rewrites a garment it was not asked about (a colour drifted, "pink soft knit cardigan" became "a cardigan").
 const OUTFIT_RULE =
+  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), and the things lying in the scene (Objects here), every one with an id (t3, t4 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"t3\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. A thing the character picks up from Objects here, or is handed by another character, is given by its id too. For one that is not listed anywhere, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"t3\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost. Give where only when the text says where it lies: the thing then lies there under the same id. Without where the item just leaves the character. Handing a thing to someone is off on the giver and see with its id on the receiver. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
+const OUTFIT_RULE_18 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), every item with an id (i1, i2 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"i1\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. For one that is not listed, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"i1\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost, with where it lies when the text says. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
 const OUTFIT_RULE_17 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding). Report only changes, each as { \"add\": [...], \"remove\": [...] }. add: a garment or thing the new messages first describe, or a character puts on or picks up. remove: one the text says is taken off, put down, dropped or lost; name it as the Previous state does. Give an added item once, with all its details (colour, fabric, cut) as the text states them. Never add what is already listed, never shorten it, never change a colour on a guess. When the text shows no change, leave the key out.";
 const LAYOUT_RULE =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"t9\", \"where\": \"...\" } ], \"remove\": [\"t9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
+const LAYOUT_RULE_18 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; code puts it among the objects. A thing picked up leaves objects by itself. A body or a fallen thing is an object too.";
 const LAYOUT_RULE_17 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
@@ -705,9 +709,11 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The eighteenth sensor prompt (before things got registry ids that follow them between hands and the floor: i1 per character, objects as words).
+const SENSOR_PROMPT_18 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE, OUTFIT_RULE_18).replace(LAYOUT_RULE, LAYOUT_RULE_18);
 // The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
 // The seventeenth sensor prompt (before outfit and holding became a ledger of items with ids, #236).
-const SENSOR_PROMPT_17 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE, OUTFIT_RULE_17).replace(LAYOUT_RULE, LAYOUT_RULE_17);
+const SENSOR_PROMPT_17 = SENSOR_PROMPT_18.replace(OUTFIT_RULE_18, OUTFIT_RULE_17).replace(LAYOUT_RULE_18, LAYOUT_RULE_17);
 const SENSOR_PROMPT_16 = SENSOR_PROMPT_17.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
 // The fifteenth sensor prompt (before the outfit and layout rules: clothes were rewritten from whatever the new text mentioned, #185).
 const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE_17 + "\n" + LAYOUT_RULE_17 + "\n", "");
@@ -772,7 +778,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -784,8 +790,8 @@ export const OUTPUT_SHAPE = [
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"i1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"i2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"text\": \"item\" } ], \"off\": [ { \"id\": \"i3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
-  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"t1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"t2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"id\": \"t4\" }, { \"text\": \"item\" } ], \"off\": [ { \"id\": \"t3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
+  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"text\": \"text\", \"where\": \"text\" } ], \"move\": [ { \"id\": \"t9\", \"where\": \"text\" } ], \"remove\": [\"t9\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
@@ -3316,7 +3322,7 @@ function previousStateText(ctx) {
   }
   if (isObj(B.layout)) {
     if (B.layout.userAt) lines.push(ctx.userName + ": " + B.layout.userAt + ".");
-    if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map(objectText).join("; ") + ".");
+    if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map((o) => (o.id ? o.id + " " : "") + objectText(o)).join("; ") + ".");
   }
   if (journalOnOf(ctx.cfg)) lines.push(...journalPreviousLines(ctx, B));
   const open = arr(ctx.threads).filter((t) => t.status === "open");
@@ -4327,6 +4333,8 @@ function ensureRegistry(ctx) {
   // a card that is no person is no character of the chat; the persons of a person card are the cast it starts with
   ctx.characters = unique(members.filter((x) => cardPerson.has(x.id)).map((x) => personName(ctx, str(x.card.name))).filter((n) => n && n !== "user"));
   registerShown(ctx, Object.keys((ctx.base && ctx.base.snap && ctx.base.snap.chars) || {}));
+  // an update gives the things and places of an older state their registry ids (the state is written back with them)
+  if (ctx.migrateThings === true && isObj(state.snapshots)) migrateThings(ctx);
   return reg;
 }
 
@@ -4643,6 +4651,7 @@ export function keepOutfit(old, next) {
 // ("she dropped five kilos") changes nothing.
 const STACK_MAX = 14;
 const OBJECTS_MAX = 12;
+const BY_PLACE_MAX = 8;
 const stackItems = (v) => str(v).split(/\s*[,;]\s*/).map((x) => x.trim()).filter(Boolean);
 const listOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []);
 const itemText = (v) => cut(str(isObj(v) ? v.item : v).replace(/[,;]+/g, " ").replace(/\s+/g, " ").trim(), 120);
@@ -4687,14 +4696,20 @@ export function applyStackDelta(old, delta) {
 }
 
 // ---------- the ledger of what a character wears and holds (#236) ----------
-// Each item has an id (i1, i2 ...), a kind (wear, hold) and its text. The sensor sees the ids in the Previous state and
-// refers to them: `see` names what the new messages show (an id for a listed item, none for a new one; a new text on an id is
-// the same item in a new state), `off` names ids taken off or put down. Code never has to match words to find out which item a
-// report means, so a torn gown stays one gown and nothing is "put down" by accident. Words are used only as a safety net, when
-// the sensor forgot the id of an item that is listed (never twice) and for the older formats (a plain text, { add, remove }).
-// A snapshot from before the ledger gets its items from the outfit and holding texts.
+// Each item has an id, a kind (wear, hold) and its text. Since the entity registry (docs/ENTITY-REGISTRY.md, phase B1) the id
+// is the thing's registry id (t1, t2 ...), the same wherever the thing is: worn, held or lying in the scene. The sensor sees the
+// ids in the Previous state and refers to them: `see` names what the new messages show (an id for a listed item, or for a thing
+// lying around or carried by another character, which then moves to this one; none for a new one; a new text on an id is the same
+// item in a new state), `off` names ids taken off or put down (with `where` the thing lies there under the same id). Code never
+// has to match words to find out which item a report means, so a torn gown stays one gown and nothing is "put down" by accident.
+// Words are used only as a safety net, when the sensor forgot the id of a thing that is listed (never twice) and for the older
+// formats (a plain text, { add, remove }). A snapshot from before the ledger gets its items from the outfit and holding texts,
+// and one from before the registry ids (i1, i2 per character) is migrated by ensureRegistry (migrateThings).
 const ITEMS_MAX = 14;
+const THING_ID = /^t\d+$/;
+const LEGACY_ID = /^i\d+$/;
 const idNum = (id) => Number(String(id).replace(/^\D+/, "")) || 0;
+const idOfEntry = (e) => (isObj(e) ? str(e.id) : "");
 
 /** The items of a character entry: [{ id, kind, text }]. */
 export function itemsOf(c) {
@@ -4708,50 +4723,89 @@ export function itemsOf(c) {
 /** The text of one kind of a character's items, as the older fields kept it. */
 export const itemsText = (items, kind) => items.filter((i) => i.kind === kind).map((i) => i.text).join(", ");
 
+/** The outfit and holding texts of an entry, made from its items. */
+function setItemTexts(entry) {
+  entry.outfit = itemsText(entry.items, "wear") ? cut(itemsText(entry.items, "wear"), 600) : null;
+  entry.holding = itemsText(entry.items, "hold") ? cut(itemsText(entry.items, "hold"), 600) : null;
+}
+
 /**
  * Apply the sensor's report for one field ("outfit" = wear, "holding" = hold) to the items.
- * Returns { items, seq, changed, off: [{ item, where }], added: [text] }.
+ * lying = the scene's objects ([{ id, item }]) a picked-up thing may come from. opts (all optional, so the function stays pure):
+ * newId(text) gives the id of a new thing (default: i1, i2 ... from seq), known = Map id -> text of the things other characters
+ * carry (a `see` with such an id takes the thing over), resolve(text, pool) finds a thing among { id, text } by the registry's
+ * resolver, limbo = [{ id, item }] things that left a character this turn without a place (handed over by words).
+ * Returns { items, seq, changed, off: [{ id, item, where }], added: [text], picked: [{ id, text }], seen: [id] }.
  */
-export function applyLedger(items0, seq0, kind, report, lying = []) {
+export function applyLedger(items0, seq0, kind, report, lying = [], opts = {}) {
   let items = items0.map((i) => ({ ...i }));
   let seq = Math.max(seq0 || 0, ...items.map((i) => idNum(i.id)));
+  const mint = typeof opts.newId === "function" ? opts.newId : () => "i" + ++seq;
+  const known = opts.known instanceof Map ? opts.known : new Map();
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const limbo = arr(opts.limbo);
   const off = [];
   const added = [];
+  const picked = [];
+  const seen = [];
   let changed = false;
   const of = (id) => items.find((i) => i.id === id && i.kind === kind);
-  const newItem = (text) => {
-    const pickedUp = lying.find((o) => isObj(o) && covers(o.item, text));
-    const item = { id: "i" + ++seq, kind, text: pickedUp ? str(pickedUp.item) : text };
-    items.push(item);
-    added.push(item.text);
+  const pool = lying.filter((o) => isObj(o) && str(o.id) && str(o.item)).map((o) => ({ id: str(o.id), text: str(o.item) }));
+  const put = (id, text) => {
+    items.push({ id, kind, text });
+    added.push(text);
+    picked.push({ id, text });
+    seen.push(id);
     changed = true;
   };
+  const newItem = (text) => {
+    // a thing lying around, or one just handed over: the same thing, in the wording it had
+    const lay = lying.find((o) => isObj(o) && covers(o.item, text));
+    const gone = limbo.find((l) => l.id && (covers(l.item, text) || covers(text, l.item)));
+    const found = lay ? { id: str(lay.id), text: str(lay.item) } : gone ? { id: gone.id, text: gone.item } : resolve ? resolve(text, pool) : null;
+    const id = found && found.id && !items.some((i) => i.id === found.id) ? found.id : mint(text);
+    if (id) put(id, found ? found.text : text);
+  };
   const see = (entry) => {
-    const id = isObj(entry) ? str(entry.id) : "";
+    const id = idOfEntry(entry);
     const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
-    const known = id ? of(id) : null;
-    if (known) {
+    const mine = id ? of(id) : null;
+    if (mine) {
       // a new state of the same item (torn, wet); a report that says less than the list does changes nothing (#185)
-      if (text && outfitWords(text).length && !covers(known.text, text) && text !== known.text) {
-        known.text = text;
+      if (text && outfitWords(text).length && !covers(mine.text, text) && text !== mine.text) {
+        mine.text = text;
         changed = true;
       }
+      seen.push(id);
       return;
+    }
+    // the id of a thing lying in the scene or carried by someone else: this character has it now
+    if (id && !items.some((i) => i.id === id)) {
+      const lay = lying.find((o) => isObj(o) && str(o.id) === id);
+      const there = lay ? str(lay.item) : known.get(id);
+      if (there) {
+        put(id, text && outfitWords(text).length && !covers(there, text) ? text : there);
+        return;
+      }
     }
     if (!text || !outfitWords(text).length) return;
     // the sensor forgot the id of a listed item: the words find it, once
     const same = items.find((i) => i.kind === kind && covers(i.text, text));
-    if (same) return;
+    if (same) {
+      seen.push(same.id);
+      return;
+    }
     const poorer = items.find((i) => i.kind === kind && covers(text, i.text));
     if (poorer) {
       poorer.text = text;
+      seen.push(poorer.id);
       changed = true;
       return;
     }
     newItem(text);
   };
   const takeOff = (entry) => {
-    const id = isObj(entry) ? str(entry.id) : "";
+    const id = idOfEntry(entry);
     const where = isObj(entry) ? cut(str(entry.where).replace(/\s+/g, " "), 100) : "";
     let at = id ? items.findIndex((i) => i.id === id && i.kind === kind) : -1;
     // no such id: the words of an older report find it
@@ -4761,7 +4815,7 @@ export function applyLedger(items0, seq0, kind, report, lying = []) {
     }
     if (at < 0) return;
     const [gone] = items.splice(at, 1);
-    off.push({ item: gone.text, where });
+    off.push({ id: gone.id, item: gone.text, where });
     changed = true;
   };
   if (isObj(report) && (report.see !== undefined || report.off !== undefined)) {
@@ -4788,45 +4842,265 @@ export function applyLedger(items0, seq0, kind, report, lying = []) {
     const drop = new Set(mine.slice(0, mine.length - ITEMS_MAX).map((i) => i.id));
     items = items.filter((i) => !drop.has(i.id));
   }
-  return { items, seq, changed, off, added };
+  return { items, seq, changed, off, added, picked, seen };
 }
 
-/** The scene's objects without the things a character wears or holds: a held thing is not lying around (#236). */
-export function withoutCarried(objects, chars) {
-  const carried = Object.values(isObj(chars) ? chars : {}).flatMap((c) => itemsOf(c).map((i) => i.text));
-  if (!carried.length) return objects;
-  const named = (t) => outfitWords(t).some((w) => w.length >= 4);
-  return objects.filter((o) => !carried.some((t) => named(o.item) && named(t) && (covers(o.item, t) || covers(t, o.item))));
+/**
+ * One place for every thing: a thing is on one character (worn or held), or among the objects, never in two places.
+ * claims = Map id -> { name, kind } of the things a character reported in `see` this turn: they win over where the thing was.
+ * Changes the entries of `chars` in place (their items and the texts made from them) and returns the names that lost a thing.
+ */
+export function settleThings(chars, claims) {
+  const changed = [];
+  for (const [name, c] of Object.entries(isObj(chars) ? chars : {})) {
+    if (!isObj(c) || !Array.isArray(c.items)) continue;
+    const have = new Set();
+    const items = c.items.filter((i) => {
+      const claim = claims.get(i.id);
+      if (claim && (claim.name !== name || claim.kind !== i.kind)) return false;
+      if (have.has(i.id)) return false;
+      have.add(i.id);
+      return true;
+    });
+    if (items.length === c.items.length) continue;
+    c.items = items;
+    setItemTexts(c);
+    changed.push(name);
+  }
+  return changed;
 }
 
-/** The scene's objects after this turn: [{ item, where }]. down = worn/held things just put down, up = just picked up or put on. */
-export function applyObjects(prev, out, down, up, placeMoved) {
-  const list = placeMoved ? [] : arr(prev).filter((o) => isObj(o) && str(o.item)).map((o) => ({ item: str(o.item), where: str(o.where) }));
+const objectOf = (id, item, where) => (id ? { id, item, where } : { item, where });
+
+/**
+ * The scene's objects after this turn: [{ id, item, where }].
+ * The sensor's `objects` is { add: [{ text, where, id? }], move: [{ id, where }], remove: [id] }; the older { add: [{ item, where }],
+ * remove: [item] } (words) works too. down = worn/held things just taken off ({ id, item, where }): with a `where` the same id
+ * lies there, without it the thing only left the character. up = things just picked up or put on ({ id, text }).
+ * opts: newId(text), resolve(text, pool) (as in applyLedger), carried = [{ id, text }] what characters wear or hold now (a thing
+ * held is not lying around: an object that is one of them is dropped).
+ */
+export function applyObjects(prev, out, down, up, placeMoved, opts = {}) {
+  const mint = typeof opts.newId === "function" ? opts.newId : null;
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const carried = arr(opts.carried);
+  const list = placeMoved ? [] : arr(prev).filter((o) => isObj(o) && str(o.item)).map((o) => objectOf(str(o.id) || (mint ? mint(str(o.item)) || "" : ""), str(o.item), str(o.where)));
+  const lost = arr(down).filter((d) => isObj(d) && !str(d.where));
   const o = isObj(out && out.objects) ? out.objects : {};
+  const at = (id) => (id ? list.findIndex((x) => x.id === id) : -1);
+  const whereOf = (v) => cut(str(isObj(v) ? v.where : "").replace(/\s+/g, " "), 100);
   for (const r of listOf(o.remove)) {
-    const at = list.findIndex((x) => covers(x.item, itemText(r)));
-    if (at >= 0) list.splice(at, 1);
+    const rid = isObj(r) ? str(r.id) : THING_ID.test(str(r)) ? str(r) : "";
+    const k = rid ? at(rid) : list.findIndex((x) => covers(x.item, itemText(r)));
+    if (k >= 0) list.splice(k, 1);
+  }
+  for (const m of listOf(o.move)) {
+    const k = isObj(m) ? at(str(m.id)) : -1;
+    if (k >= 0 && whereOf(m)) list[k] = { ...list[k], where: whereOf(m) };
   }
   for (const a of listOf(o.add)) {
-    const item = itemText(a);
-    if (!item || !outfitWords(item).length) continue;
-    const where = cut(str(isObj(a) ? a.where : "").replace(/\s+/g, " "), 100);
-    const at = list.findIndex((x) => covers(x.item, item) || covers(item, x.item));
-    if (at >= 0) list[at] = { item: outfitWords(item).length > outfitWords(list[at].item).length ? item : list[at].item, where: where || list[at].where };
-    else list.push({ item, where });
+    const text = itemText(isObj(a) ? (a.text ?? a.item ?? "") : a);
+    const aid = isObj(a) ? str(a.id) : "";
+    const where = whereOf(a);
+    if (aid) {
+      // an object that names a thing by its id: that thing lies here now
+      if (carried.some((c) => c.id === aid)) continue;
+      const k = at(aid);
+      const gone = lost.find((d) => d.id === aid);
+      if (k >= 0) list[k] = objectOf(aid, list[k].item, where || list[k].where);
+      else if (text || gone) list.push(objectOf(aid, gone ? gone.item : text, where));
+      continue;
+    }
+    if (!text || !outfitWords(text).length) continue;
+    // the thing the character just took off, said in other words: the same thing, in the wording it had
+    const dropped = lost.find((d) => d.id && (covers(d.item, text) || covers(text, d.item)));
+    if (dropped) {
+      const k = at(dropped.id);
+      const entry = objectOf(dropped.id, dropped.item, where || (k >= 0 ? list[k].where : ""));
+      if (k >= 0) list[k] = entry;
+      else list.push(entry);
+      continue;
+    }
+    const k = list.findIndex((x) => covers(x.item, text) || covers(text, x.item));
+    if (k >= 0) {
+      list[k] = objectOf(list[k].id, outfitWords(text).length > outfitWords(list[k].item).length ? text : list[k].item, where || list[k].where);
+      continue;
+    }
+    // held by a character: not lying around
+    if (carried.some((c) => covers(c.text, text) || covers(text, c.text))) continue;
+    const pool = [...list.map((x) => ({ id: x.id, text: x.item })), ...lost.map((d) => ({ id: d.id, text: d.item }))].filter((p) => p.id);
+    const hit = resolve ? resolve(text, pool) : null;
+    if (hit) {
+      const j = at(hit.id);
+      if (j >= 0) list[j] = objectOf(hit.id, list[j].item, where || list[j].where);
+      else list.push(objectOf(hit.id, hit.text, where));
+      continue;
+    }
+    list.push(objectOf(mint ? mint(text) || "" : "", text, where));
   }
   // a worn or held thing put down keeps the wording it had on the character and lies where the sensor said
-  for (const d of down) {
-    const at = list.findIndex((x) => covers(d.item, x.item) || covers(x.item, d.item));
-    if (at >= 0) list[at] = { item: d.item, where: d.where || list[at].where || "set down by " + d.who };
-    else list.push({ item: d.item, where: d.where || "set down by " + d.who });
+  for (const d of arr(down)) {
+    if (!isObj(d) || !str(d.where)) continue;
+    const k = d.id ? at(d.id) : list.findIndex((x) => covers(d.item, x.item) || covers(x.item, d.item));
+    if (k >= 0) list[k] = objectOf(d.id || list[k].id, d.item, d.where);
+    else list.push(objectOf(str(d.id), d.item, d.where));
   }
-  for (const u of up) {
-    const at = list.findIndex((x) => covers(u, x.item) || covers(x.item, u));
-    if (at >= 0) list.splice(at, 1);
+  for (const u of arr(up)) {
+    const uid = isObj(u) ? str(u.id) : "";
+    const text = isObj(u) ? str(u.text) : str(u);
+    let k = at(uid);
+    if (k < 0 && text) k = list.findIndex((x) => covers(text, x.item) || covers(x.item, text));
+    if (k >= 0) list.splice(k, 1);
   }
   while (list.length > OBJECTS_MAX) list.shift();
   return list;
+}
+
+// ---------- things and places in the registry (entity registry phase B1) ----------
+/** A thing among { id, text } for a wording, by the registry's resolver (exact, transliteration, first/last word, words inside; never the fuzzy step). */
+function resolveThing(reg, text, pool) {
+  const t = itemText(text);
+  if (!t || !arr(pool).length) return null;
+  const ents = [];
+  for (const p of pool) {
+    const e = reg ? regGet(reg, p.id) : null;
+    if (e && e.kind === "thing") ents.push({ id: e.id, kind: "thing", name: e.name, aliases: [...e.aliases, { text: p.text, src: "seen" }] });
+  }
+  if (!ents.length) return null;
+  const r = resolveName({ entities: ents, apart: [] }, t, "thing");
+  return r && r.id && r.step <= 3.5 ? pool.find((p) => p.id === r.id) || null : null;
+}
+
+/** The registry id of a place text (a spelling the registry knows, else a new place), "" for no text. */
+function placeIdFor(ctx, text) {
+  const t = cut(str(text).replace(/\s+/g, " "), 200);
+  if (!t) return "";
+  ensureRegistry(ctx);
+  if (!ctx.placeCache) ctx.placeCache = new Map();
+  if (ctx.placeCache.has(t)) return ctx.placeCache.get(t);
+  let id = "";
+  const r = resolveName(ctx.reg, t, "place");
+  if (r && r.id) {
+    id = r.id;
+    if (r.step > 1) regLearn(ctx.reg, id, t);
+  } else {
+    const made = regAdd(ctx.reg, { kind: "place", name: t, src: "seen" });
+    id = made ? made.id : "";
+  }
+  ctx.placeCache.set(t, id);
+  return id;
+}
+
+/** What one turn needs to keep things in one place: ids, the scene's objects, who held what, who claims what. */
+function thingsContext(ctx, B) {
+  const reg = ctx.reg;
+  const mint = (text) => {
+    const e = regAdd(reg, { kind: "thing", name: text, src: "seen" });
+    return e ? e.id : null;
+  };
+  const holders = new Map();
+  for (const [n, c] of Object.entries((B && B.chars) || {})) for (const i of itemsOf(c)) holders.set(i.id, { name: n, text: i.text });
+  const claims = new Map();
+  return {
+    mint,
+    holders,
+    claims,
+    lying: arr(B && B.layout && B.layout.objects).filter((o) => isObj(o) && str(o.item)),
+    knownFor: (name) => new Map([...holders].filter(([, h]) => h.name !== name).map(([id, h]) => [id, h.text])),
+    resolve: (text, pool) => resolveThing(reg, text, pool),
+    // a thing a character reports in `see` is theirs now; the one who held it before keeps it only against a later claimant
+    claim: (id, name, kind) => {
+      const cur = claims.get(id);
+      if (cur && cur.name !== name && holders.has(id) && holders.get(id).name === name) return;
+      claims.set(id, { name, kind });
+    },
+    // a new wording of a thing is a spelling of it
+    learn: (items) => {
+      for (const i of items) {
+        const e = THING_ID.test(i.id) ? regGet(reg, i.id) : null;
+        if (e && regFold(e.name) !== regFold(i.text)) regAlias(reg, e.id, i.text, "seen");
+      }
+    },
+  };
+}
+
+/** The ids of an older report (i1 per character) read as the registry ids they became in migrateThings. */
+function legacyIds(ctx, name, report) {
+  const ids = ctx.state && ctx.state.thingIds;
+  if (!isObj(ids) || !isObj(report)) return report;
+  const fix = (list) => (Array.isArray(list) ? list.map((e) => (isObj(e) && LEGACY_ID.test(str(e.id)) && ids[name + "|" + str(e.id)] ? { ...e, id: ids[name + "|" + str(e.id)] } : e)) : list);
+  const out = { ...report };
+  for (const k of ["see", "off", "remove"]) if (k in out) out[k] = fix(out[k]);
+  return out;
+}
+
+/**
+ * A state from before the registry ids: the worn and held items (i1, i2 per character) and the scene's objects (words) get
+ * registry thing ids, and each clock gets the place id of its place. The same character + i# gives the same t# in every snapshot,
+ * so a thing keeps its id along the chat (state.thingIds keeps the keys). Run once by ensureRegistry for an update; the state is
+ * written back with the ids.
+ */
+function migrateThings(ctx) {
+  const { state, reg } = ctx;
+  const snaps = Object.values(isObj(state.snapshots) ? state.snapshots : {}).filter(isObj).sort((a, b) => (a.turn || 0) - (b.turn || 0) || (a.at || 0) - (b.at || 0));
+  if (isObj(state.inherited) && isObj(state.inherited.snap)) snaps.unshift(state.inherited.snap);
+  const legacy = (c) => isObj(c) && (Array.isArray(c.items) ? c.items.some((i) => isObj(i) && LEGACY_ID.test(str(i.id))) : !!(str(c.outfit) || str(c.holding)));
+  const needs = (s) =>
+    Object.values(isObj(s.chars) ? s.chars : {}).some(legacy) ||
+    arr(s.layout && s.layout.objects).some((o) => isObj(o) && str(o.item) && !str(o.id)) ||
+    arr(s.layout && s.layout.left && s.layout.left.objects).some((o) => isObj(o) && str(o.item) && !str(o.id)) ||
+    (isObj(s.clock) && str(s.clock.place) && !str(s.clock.placeId));
+  if (!snaps.some(needs)) return;
+  if (!isObj(state.thingIds)) state.thingIds = {};
+  const ids = state.thingIds;
+  const mint = (text) => {
+    const e = regAdd(reg, { kind: "thing", name: text, src: "seen" });
+    return e ? e.id : null;
+  };
+  const idFor = (key, text) => {
+    let id = ids[key];
+    if (!id || !regGet(reg, id)) {
+      id = mint(text);
+      if (id) ids[key] = id;
+    }
+    return id;
+  };
+  let prevItems = [];
+  let prevObjects = [];
+  for (const snap of snaps) {
+    const here = [];
+    for (const [name, c] of Object.entries(isObj(snap.chars) ? snap.chars : {})) {
+      if (!legacy(c)) {
+        here.push(...itemsOf(c));
+        continue;
+      }
+      const positional = !Array.isArray(c.items);
+      c.items = itemsOf(c).map((i) => {
+        if (!LEGACY_ID.test(i.id)) return i;
+        const id = idFor(positional ? name + "|" + i.kind + "|" + regFold(i.text) : name + "|" + i.id, i.text);
+        return id ? { ...i, id } : i;
+      });
+      here.push(...c.items);
+    }
+    const objectIds = (list) =>
+      arr(list).map((o) => {
+        if (!isObj(o) || !str(o.item) || str(o.id)) return o;
+        // a thing the character put down is the item they had in the turn before; else a thing of its own, keyed by its words
+        const hit = [...here, ...prevItems].map((i) => ({ id: i.id, text: i.text })).concat(prevObjects).find((x) => THING_ID.test(x.id) && (covers(x.text, str(o.item)) || covers(str(o.item), x.text)));
+        const id = hit ? hit.id : idFor("o|" + regFold(o.item), str(o.item));
+        return id ? { ...o, id } : o;
+      });
+    if (isObj(snap.layout)) {
+      if (Array.isArray(snap.layout.objects)) snap.layout.objects = objectIds(snap.layout.objects);
+      if (isObj(snap.layout.left) && Array.isArray(snap.layout.left.objects)) snap.layout.left.objects = objectIds(snap.layout.left.objects);
+    }
+    if (isObj(snap.clock) && str(snap.clock.place) && !str(snap.clock.placeId)) {
+      const pid = placeIdFor(ctx, snap.clock.place);
+      if (pid) snap.clock.placeId = pid;
+    }
+    prevItems = here;
+    prevObjects = arr(snap.layout && snap.layout.objects).filter((o) => isObj(o) && str(o.id)).map((o) => ({ id: str(o.id), text: str(o.item) }));
+  }
 }
 
 /** Numbers and text of one character for this turn. */
@@ -4847,7 +5121,8 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const moves = ctx.layoutMoves || { down: [], up: [] };
   let items = itemsOf(old);
   let seq = old && Number.isFinite(old.itemSeq) ? old.itemSeq : 0;
-  const lying = arr(B && B.layout && B.layout.objects);
+  const T = ctx.things || null;
+  const lying = T ? T.lying : arr(B && B.layout && B.layout.objects);
   let outfitListed = false;
   for (const [f, kind] of [["outfit", "wear"], ["holding", "hold"]]) {
     const report = isObj(sensorChar) ? sensorChar[f] : undefined;
@@ -4859,17 +5134,22 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
       const keep = f === "outfit" && old && old.outfit ? keepOutfit(old.outfit, text) : text;
       const texts = stackItems(keep);
       const same = items.filter((i) => i.kind === kind && texts.includes(i.text));
-      const fresh = texts.filter((t) => !same.some((i) => i.text === t)).map((t) => ({ id: "i" + ++seq, kind, text: t }));
+      const fresh = texts.filter((t) => !same.some((i) => i.text === t)).map((t) => ({ id: (T && T.mint(t)) || "i" + ++seq, kind, text: t }));
       if (same.length !== items.filter((i) => i.kind === kind).length || fresh.length) entry.fresh.push(f);
       items = [...items.filter((i) => i.kind !== kind), ...same, ...fresh];
       continue;
     }
-    const res = applyLedger(items, seq, kind, report, lying);
+    const opts = T ? { newId: T.mint, known: T.knownFor(name), resolve: T.resolve, limbo: moves.down.filter((d) => !d.where && d.who !== name) } : {};
+    const res = applyLedger(items, seq, kind, legacyIds(ctx, name, report), lying, opts);
     items = res.items;
     seq = res.seq;
     if (res.changed) entry.fresh.push(f);
-    for (const o of res.off) moves.down.push({ item: o.item, who: name, where: o.where });
-    moves.up.push(...res.added);
+    if (T) {
+      for (const id of res.seen) T.claim(id, name, kind);
+      T.learn(res.items);
+    }
+    for (const o of res.off) moves.down.push({ id: o.id, item: o.item, who: name, where: o.where });
+    moves.up.push(...res.picked);
   }
   entry.items = items;
   entry.itemSeq = seq;
@@ -4883,8 +5163,7 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const hits = ctx.wearHits || (ctx.wearHits = wordScanHits(ctx).filter((h) => h.kinds.includes("wear")));
   const namedInHits = hits.some((h) => h.named.some((n) => sameName(n, name)));
   entry.shownTurn = reported || namedInHits ? thisTurn : old && Number.isFinite(old.shownTurn) ? old.shownTurn : thisTurn;
-  entry.outfit = itemsText(items, "wear") ? cut(itemsText(items, "wear"), 600) : null;
-  entry.holding = itemsText(items, "hold") ? cut(itemsText(items, "hold"), 600) : null;
+  setItemTexts(entry);
   // an outfit the sensor has reported once (even an empty one after undressing) is known: the reply prompt asks for a description only while it is not
   entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit || items.some((i) => i.kind === "wear");
   // where the character is in the place: carried until the sensor moves them or the place changes
@@ -5269,11 +5548,15 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const B = ctx.base && ctx.base.snap;
   // things put down or picked up this turn (charEntry fills it), and whether the story moved to another place: positions and objects start over
   ctx.layoutMoves = { down: [], up: [] };
-  ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && !samePlace(B.clock.place, out.place));
   const turn = (B ? B.turn || 0 : 0) + 1;
   // every name below goes through the registry: one person is one Dashboard character, whatever the sensor calls them.
   // A name the user had earlier in the chat is the user; a label (a card title, a narrator) is no character.
   ensureRegistry(ctx);
+  // the scene's place is a registry place: "did the story move" compares ids, and the words only when an id is missing
+  const prevPlaceId = B && B.clock && str(B.clock.place) ? str(B.clock.placeId) || placeIdFor(ctx, B.clock.place) : "";
+  const newPlaceId = str(out.place) ? placeIdFor(ctx, out.place) : "";
+  ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && (prevPlaceId && newPlaceId ? prevPlaceId !== newPlaceId : !samePlace(B.clock.place, out.place)));
+  ctx.things = thingsContext(ctx, B);
   // the people this turn knows: the cast of the cards and souls, the last snapshot's, and those the sensor puts in the scene
   const knownIds = new Set(castEntries(ctx).map((c) => c.e.id));
   const dashboardNames = (names) => names.map((n) => entityOf(ctx, personName(ctx, n))).filter(Boolean);
@@ -5321,13 +5604,36 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const clock = advanceClock(B && B.clock, out, op);
   noteCalendar(state, clock.day, out.date, ctx.today);
   const prevLayout = isObj(B && B.layout) ? B.layout : {};
+  // one place for every thing: what a character reports in `see` this turn leaves where it was
+  settleThings(chars, ctx.things.claims);
+  const carried = Object.values(chars).flatMap((c) => itemsOf(c));
+  // the objects of a place the story left stay under its id, and come back with the story (layout.byPlace)
+  const byPlace = {};
+  for (const [pid, list] of Object.entries(isObj(prevLayout.byPlace) ? prevLayout.byPlace : {})) if (/^l\d+$/.test(pid) && arr(list).length) byPlace[pid] = arr(list);
+  if (ctx.placeMoved && prevPlaceId && arr(prevLayout.objects).length) byPlace[prevPlaceId] = prevLayout.objects.slice(-OBJECTS_MAX);
+  const start = ctx.placeMoved ? (newPlaceId && byPlace[newPlaceId]) || [] : prevLayout.objects;
+  if (ctx.placeMoved && newPlaceId) delete byPlace[newPlaceId];
+  const made = applyObjects(start, out, ctx.layoutMoves.down, ctx.layoutMoves.up, false, {
+    newId: ctx.things.mint,
+    resolve: ctx.things.resolve,
+    carried: carried.map((i) => ({ id: i.id, text: i.text })),
+  });
+  const held = new Set(carried.map((i) => i.id));
   const layout = {
-    objects: withoutCarried(applyObjects(prevLayout.objects, out, ctx.layoutMoves.down, ctx.layoutMoves.up, ctx.placeMoved), chars),
+    objects: made.filter((o) => !held.has(o.id)),
     userAt: str(out.userAt) ? cut(str(out.userAt), 120) : ctx.placeMoved ? null : prevLayout.userAt ?? null,
   };
   // what lay in the place the story just left: the World DM's sweep offers it for the book, so the place keeps it (kept until the next move)
+  // a thing is in one place only: not held, not lying here, then not lying in a place left behind
+  const here = new Set([...held, ...layout.objects.map((o) => o.id)]);
+  const kept = Object.entries(byPlace).map(([pid, list]) => [pid, list.filter((o) => isObj(o) && !here.has(str(o.id)))]).filter(([, list]) => list.length);
+  if (kept.length) layout.byPlace = Object.fromEntries(kept.slice(-BY_PLACE_MAX));
   if (ctx.placeMoved && arr(prevLayout.objects).length) layout.left = { place: cut(str(B.clock.place), 120), objects: prevLayout.objects.slice(-OBJECTS_MAX) };
   else if (isObj(prevLayout.left)) layout.left = prevLayout.left;
+  if (str(clock.place)) {
+    const pid = str(out.place) ? newPlaceId : prevPlaceId || placeIdFor(ctx, clock.place);
+    if (pid) clock.placeId = pid;
+  } else delete clock.placeId;
   const snapshot = {
     turn,
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
@@ -5699,6 +6005,7 @@ function planUpdate(fsx, chatId, op) {
     userNames: userNamesOf(fsx, chat),
     state,
     before,
+    migrateThings: true,
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
@@ -5733,6 +6040,7 @@ function writeDebug(fsx, ctx, info) {
 /** Record a failed update: only lastError changes. */
 function failUpdate(fsx, ctx, message, debug) {
   ctx.state.lastError = { at: Date.now(), message };
+  saveRegistry(fsx, ctx);
   saveState(fsx, ctx);
   writeDebug(fsx, ctx, { error: message, ...debug });
   return ok({ ok: false, error: message, state: ctx.state });
@@ -5778,6 +6086,8 @@ function commitUpdate(fsx, ctx, r) {
   } catch (e) {
     // a half-applied report must not leave notes or history behind
     ctx.state = JSON.parse(ctx.before);
+    // the registry goes back with it: the ids a half-applied report minted are not kept
+    if (ctx.regBefore) ctx.reg = JSON.parse(ctx.regBefore);
     return failUpdate(fsx, ctx, "could not apply the sensor reply: " + (e && e.message ? e.message : String(e)), { raw: String(r.text), parsed: out });
   }
 }
@@ -5786,6 +6096,7 @@ function commitUpdate(fsx, ctx, r) {
 function dropStale(fsx, ctx) {
   for (const key of ctx.drop) dropSnapshot(ctx.state, key);
   ctx.state.lastError = null;
+  saveRegistry(fsx, ctx);
   saveState(fsx, ctx);
   return ok({ ok: true, state: ctx.state, dropped: ctx.drop.length });
 }
@@ -7304,7 +7615,8 @@ function moveItems(target, source) {
   const have = itemsOf(target);
   let seq = Math.max(Number(target.itemSeq) || 0, ...have.map((i) => idNum(i.id)));
   const more = [];
-  for (const it of itemsOf(source)) if (!have.some((x) => x.kind === it.kind && sameText(x.text) === sameText(it.text))) more.push({ ...it, id: "i" + ++seq });
+  // a thing keeps its registry id; only a legacy id (i1) is renumbered, since it was per character
+  for (const it of itemsOf(source)) if (!have.some((x) => x.id === it.id || (x.kind === it.kind && sameText(x.text) === sameText(it.text)))) more.push(LEGACY_ID.test(it.id) ? { ...it, id: "i" + ++seq } : { ...it });
   if (!more.length) return;
   const items = [...have, ...more].slice(0, ITEMS_MAX);
   target.items = items;

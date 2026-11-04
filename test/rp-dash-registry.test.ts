@@ -299,12 +299,11 @@ describe("a state that already holds the same person twice", () => {
     expect(after.snapshots["m1#0"].edges).toEqual([]);
     const merged = after.snapshots[key].chars["Queen Seraphina"];
     expect(merged.stats.trust).not.toBe(11);
-    // things of the short name join with new ids from the target's counter
+    // things of the short name join the target's, each keeping its registry id (the update gave them t1, t2)
     expect(merged.items).toEqual([
-      { id: "i1", kind: "wear", text: "a red gown" },
-      { id: "i2", kind: "hold", text: "a silver key" },
+      { id: "t1", kind: "wear", text: "a red gown" },
+      { id: "t2", kind: "hold", text: "a silver key" },
     ]);
-    expect(merged.itemSeq).toBe(2);
     expect(merged.holding).toBe("a silver key");
     // notes without a duplicate, and a note told by the target stays its own
     expect(after.notebook["Queen Seraphina"].map((n: any) => n.text).sort()).toEqual(["The user keeps a secret", "The user owes her a debt"]);

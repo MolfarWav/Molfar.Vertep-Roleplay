@@ -103,6 +103,12 @@ Variants considered: (a) menu in the header plus the callout (chosen: the action
 
 **Order and measures.** B1 the Dashboard (ids for items and objects, the sensor protocol for objects, migration), B2 the World DM (thing and place records linked, holder and place by registry, `hereOf` by ids). The replay corpus counts duplicates and phantom objects as now and gets one more check: the same thing keeps one id across hands and the floor (the Kaede sneakers: worn, taken off at the entrance, still `t#` there).
 
+## Where things are: one pointer per thing (owner, 2026-11-04)
+
+Every thing and person points to where it is, by id: a thing at a person (worn or held), at a place, or at a spot of a place; a person at a place. One pointer per entity, never a list kept on both sides: "what is in the café" is the list of everything that points to the café, worked out when asked. Two lists (the café lists the cup, the cup says it is in the café) drift apart the moment one write is missed, which is the kind of drift this work removes.
+
+The pointers belong to the Dashboard's snapshot of each message, not to the registry: a swiped or deleted reply must take its moves back with it, and the registry is not kept per message. In practice: the items of each character (on that person), `layout.objects` (at the scene's place), and, new, the objects of places the story left keep their place id, so walking back into the café finds the cup where it was left instead of an empty room (today the objects are cleared when the place changes). Spots ("by the window") are text inside a place for now; they become ids when the World DM records them as places.
+
 ## Measured, not guessed
 
 `scripts/sensor-replay.ts` with the local corpus gets cases with name variants (Kaede and Каэде, Sina and Sina Rose, a card title as a speaker) and a count of duplicate persons; the two chats with real duplicates are replayed before and after.

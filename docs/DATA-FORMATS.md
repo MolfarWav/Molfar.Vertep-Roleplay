@@ -493,6 +493,8 @@ player switches it on for that chat. It writes:
   URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
   image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
 
+  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `t#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
+
 - Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
   (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only
   when the player accepts it. `state.origin` says where the world came from (`cards` / `recipe` with the recipe and
@@ -651,13 +653,24 @@ character saw, heard or guessed), `names` and `history`:
   present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
   and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
   for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
-  **Worn and held things (#236).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]` and `itemSeq` (the last id number);
+  **Worn and held things (#236, ids from the entity registry).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]`; `id` is the thing's registry id (`t1`, `t2` ... in `registry/<chatId>.json`), the same wherever the thing is (`itemSeq` is a leftover of the old per-character `i1` ids);
   `outfit` and `holding` are those items' texts joined with commas, so every reader of the old fields works as before. A snapshot from before
-  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: i1 white top; i2 skirt`),
-  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "i1" }, { "id": "i2", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "i3", "where": "on the sofa" } ] }`:
+  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: t3 white top; t4 skirt`, `Holding: t7 axe`, `Objects here: t9 sneakers (at the entrance)`),
+  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "t3" }, { "id": "t4", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "t5", "where": "on the sofa" } ] }`:
   `see` names what the new messages show (an id for a listed item, with a `text` only for more detail or a new state, which is the same item;
-  no id for a new one), `off` names ids taken off or put down (`where` is where it lies; code puts it among the scene objects). Words find an
-  item only when the sensor forgot an id (a listed item is not added twice). The older formats still work for a sensor prompt a user saved
+  an id of an object lying in the scene or of a thing another character carries picks it up or takes it over; no id for a new thing), `off` names ids taken
+  off or put down: with `where` the same id lies there among the scene objects, without `where` the thing only leaves the character (no place is invented).
+  Handing a thing over is `off` on one and `see` with the id on the other. Words find a thing only when the sensor gave no id: first the character's own items,
+  then the objects (and a thing just taken off), by the Dashboard's word match and then the registry's `resolveName` (never its one-letter-off step); else it is new.
+  **One place only:** after a turn a thing id is on one character (worn or held), or among the objects, never both; a thing a character reports in `see` this turn wins over where it was.
+  The scene's `layout.objects` are `[{ id, item, where }]`; the sensor reports them as `objects: { add: [ { "text", "where" } ], move: [ { "id", "where" } ], "remove": [ id ] }`
+  (the older `{ add: [ { item, where } ], remove: [ item ] }` in words still works). `layout.byPlace` is `{ "<place id>": [ objects ] }`: what lay in a place the story left, kept
+  under its id (at most 8 places); when the scene comes back to that place id its objects return, and a thing taken along is not also left there.
+  `clock.placeId` is the registry place id (`l1` ...) of `clock.place`; "did the scene move" compares place ids first (a respelling the registry resolves to the same place is not a move)
+  and the words only when an id is missing. **Migration:** a state from before these ids (items `i1` per character, objects without ids, clocks without `placeId`) is migrated on the next
+  update, once: the same `character + i#` gives the same `t#` in every snapshot (`thingIds` in the state file keeps the keys; a snapshot from before the ledger keys by the item's words),
+  an object without an id takes the id of the item a character had in the turn before when its words match, else gets its own, and the state is written back with the ids and the registry with the things and places.
+  A sensor reply that still uses an `i1` id is read through `thingIds`. The older formats still work for a sensor prompt a user saved
   before: a plain text (the full list) and `{ add, remove }`. A held or worn item is never also kept among the scene `objects`. Each character
   also keeps `shownTurn`, the turn the story last showed their clothes; when it is `layout.clothesEvery` turns old (default 6, `0` switches it off, in
   `data/dashboard/config.json`) the prompt insert asks the writer to mention one or two characters' clothing again, briefly. This does not depend on the preset or the sensor prompt.
@@ -703,7 +716,7 @@ character saw, heard or guessed), `names` and `history`:
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
   Carried notebook, names, `journal` and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
-- Joining two characters (#240). `POST /dashboard/notes { chatId, op: "merge-character", from, into }` (Dashboard names): `from` is the same person as `into`. In the registry `from` is merged into `into` (its names become spellings of `into`); in this file every snapshot (and `inherited.snap`) drops `from` where `into` is there (`into`'s numbers stay; `from`'s items join `into`'s with new ids from `into`'s `itemSeq`) and renames it where `into` is not; `present`, `events` (from, to), `edges`, `notebook` (also the `from` of a note), `said`, `names`, `history`, `journal` (also `about`), `leaks` and the user's own notes in the overlay move to `into` (a near copy of a note is not added twice); `personIds[from]` is removed. Refused with an `error`: the user's character (400), an empty or the same name (400), a name the Dashboard does not show (404), a pair marked different (409). `{ op: "apart-characters", a, b }` records the pair as different people in the registry and drops its suggestion; later reports never join them. Both answer `{ ok: true, view }`.
+- Joining two characters (#240). `POST /dashboard/notes { chatId, op: "merge-character", from, into }` (Dashboard names): `from` is the same person as `into`. In the registry `from` is merged into `into` (its names become spellings of `into`); in this file every snapshot (and `inherited.snap`) drops `from` where `into` is there (`into`'s numbers stay; `from`'s items join `into`'s, each keeping its registry id) and renames it where `into` is not; `present`, `events` (from, to), `edges`, `notebook` (also the `from` of a note), `said`, `names`, `history`, `journal` (also `about`), `leaks` and the user's own notes in the overlay move to `into` (a near copy of a note is not added twice); `personIds[from]` is removed. Refused with an `error`: the user's character (400), an empty or the same name (400), a name the Dashboard does not show (404), a pair marked different (409). `{ op: "apart-characters", a, b }` records the pair as different people in the registry and drops its suggestion; later reports never join them. Both answer `{ ok: true, view }`.
 
 ### The entity registry: `data/registry/<chatId>.json` (#240)
 

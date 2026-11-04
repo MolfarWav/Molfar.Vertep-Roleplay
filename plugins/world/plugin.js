@@ -1111,7 +1111,11 @@ export function normalizeState(raw, chatId) {
   // the entity registry's person for each NPC record: { "n3": "p7" } (the registry file is data/registry/<chatId>.json)
   if (isObj(s.regIds)) {
     const ids = {};
-    for (const [rid, pid] of Object.entries(s.regIds)) if (typeof pid === "string" && /^p\d{1,6}$/.test(pid) && entities.some((e) => e.id === rid)) ids[rid] = pid;
+    // a person links to p#, a thing to t#, a place to l#
+    for (const [rid, pid] of Object.entries(s.regIds)) {
+      const rec = entities.find((e) => e.id === rid);
+      if (typeof pid === "string" && rec && REG_LINK_LETTER[rec.kind] && pid.startsWith(REG_LINK_LETTER[rec.kind]) && /^[ptl]\d{1,6}$/.test(pid)) ids[rid] = pid;
+    }
     if (Object.keys(ids).length) out.regIds = ids;
   }
   // what the last run changed: record ids and characters whose carry moved, for the Dashboard's counters
@@ -1119,6 +1123,8 @@ export function normalizeState(raw, chatId) {
   // the message the last full run (fronts, events) read up to, and the place the last run saw
   if (typeof s.levelKey === "string" && s.levelKey) out.levelKey = s.levelKey;
   if (typeof s.lastPlace === "string" && s.lastPlace) out.lastPlace = cut(s.lastPlace, NAME_MAX * 2);
+  // the registry id of that place, when the Dashboard gave one (the move check compares ids first)
+  if (typeof s.lastPlaceId === "string" && /^l\d{1,6}$/.test(s.lastPlaceId)) out.lastPlaceId = s.lastPlaceId;
   if (arr(s.sweepAsked).length) out.sweepAsked = arr(s.sweepAsked).map(str).filter(Boolean).slice(-SWEEP_ASKED_MAX);
   if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
@@ -1249,7 +1255,10 @@ export function behindOf(unread) {
  * key, stagnant } (stagnant = turns since the place, the cast or the scene last changed), or
  * null when the Dashboard has no snapshot for this chat.
  */
-const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
+const THING_ID = /^t\d{1,6}$/;
+const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ ...(THING_ID.test(str(o.id)) ? { id: str(o.id) } : {}), item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
+/** A character's worn and held things as the Dashboard registered them: [{ id: "t#", kind: "wear" | "hold", text }]. Entries without an id are dropped (the words stay in outfit / holding). */
+const sceneItems = (list) => arr(list).filter((x) => isObj(x) && THING_ID.test(str(x.id))).slice(0, 24).map((x) => ({ id: str(x.id), kind: x.kind === "hold" ? "hold" : "wear", text: cut(str(x.text), ITEM_MAX) }));
 
 export function sceneOf(fsx, chatId, msgs) {
   const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
@@ -1273,13 +1282,19 @@ export function sceneOf(fsx, chatId, msgs) {
     stagnant,
     // where the sensor puts the scene now (free text), and who is in it
     place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
+    // the registry id of that place, when the sensor's place was resolved (clock.placeId)
+    ...(isObj(last.clock) && /^l\d{1,6}$/.test(str(last.clock.placeId)) ? { placeId: str(last.clock.placeId) } : {}),
     present: arr(last.present).map(str).filter(Boolean).slice(0, 12),
     // every place the sensor named along the line (newest first), the things lying around now and the ones left in the place the story just left (#185)
     places: placesAlong(snaps, line),
     objects: layoutThings(isObj(last.layout) ? last.layout.objects : []),
     left: isObj(last.layout) && isObj(last.layout.left) ? { place: cut(str(last.layout.left.place), NAME_MAX * 2), objects: layoutThings(last.layout.left.objects) } : null,
     // the sensor's own lines per character (free text), for the outfit when the sensor keeps it
-    chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding))).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200) }])),
+    chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding) || sceneItems(c.items).length)).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200), ...(sceneItems(c.items).length ? { items: sceneItems(c.items) } : {}) }])),
+    // objects of the places the scene left, kept by place id (layout.byPlace, when the Dashboard writes it)
+    ...(isObj(last.layout) && isObj(last.layout.byPlace) && Object.keys(last.layout.byPlace).length
+      ? { byPlace: Object.fromEntries(Object.entries(last.layout.byPlace).filter(([k]) => /^l\d{1,6}$/.test(k)).slice(0, 12).map(([k, v]) => [k, layoutThings(v)])) }
+      : {}),
   };
 }
 
@@ -1323,17 +1338,20 @@ export function sweepCandidates(state, scene) {
   const out = { places: [], things: [] };
   if (!scene) return out;
   const asked = arr(state.sweepAsked);
+  const linked = new Set(Object.values(isObj(state.regIds) ? state.regIds : {}));
   const seen = (kind, name) => state.entities.some((e) => e.kind === kind && namesOf(e).some((n) => covered(n, name))) || asked.some((k) => covered(k, name));
   for (const name of arr(scene.places)) {
     if (out.places.length >= SWEEP_PLACES) break;
     if (!seen("place", name) && !out.places.some((o) => looseSame(o, name))) out.places.push(name);
   }
   const lying = [
-    ...arr(scene.objects).map((o) => ({ name: o.item, where: o.where, place: scene.place })),
-    ...arr(scene.left && scene.left.objects).map((o) => ({ name: o.item, where: o.where, place: scene.left.place })),
+    ...arr(scene.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.place })),
+    ...arr(scene.left && scene.left.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.left.place })),
   ];
   for (const t of lying) {
     if (out.things.length >= SWEEP_THINGS) break;
+    // a thing the World already linked by its registry id is on record, whatever it is called now
+    if (t.id && linked.has(t.id)) continue;
     if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ name: t.name, where: str(t.where), place: str(t.place) });
   }
   return out;
@@ -1373,7 +1391,7 @@ export function dueReason(state, msgs, scene) {
   if (state.settings.onTransition && scene && scene.direction === "transition" && state.transitionKey !== scene.key) return "transition";
   // the story left a place: write the scene it was. Two new replies at least, so a place the sensor words
   // differently from one reply to the next does not run the DM every time
-  if (state.settings.onPlace && scene && placeKey(scene.place) && state.lastPlace && placeKey(scene.place) !== state.lastPlace && repliesSince(msgs, state.lastKey) >= 2) return "place";
+  if (state.settings.onPlace && scene && placeKey(scene.place) && state.lastPlace && placeMoved(state, scene) && repliesSince(msgs, state.lastKey) >= 2) return "place";
   const due = dueParts(state, msgs);
   if (due.full === 0) return "every";
   if (due.records === 0) return "records";
@@ -1461,6 +1479,15 @@ export function openRegistry(fsx, chatId, meta) {
   return { reg, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null, dirty: false };
 }
 
+/** The chat's registry for reading only (nothing is seeded or saved), or null. */
+function regView(fsx, chatId) {
+  try {
+    return regLoad(fsx, chatId);
+  } catch {
+    return null;
+  }
+}
+
 /** Save the registry when this run changed it. Call it right after the change, with a registry opened right before it. */
 export function regFlush(fsx, rc) {
   if (!rc || !rc.dirty) return;
@@ -1513,6 +1540,76 @@ function npcRecordOf(state, rc, text) {
     return !!t && t.id === e.id;
   });
   return rid ? state.entities.find((x) => x.id === rid) || null : null;
+}
+
+/** The registry id letter of each record kind that is linked: a person p#, a thing t#, a place l# (state.regIds). */
+const REG_LINK_LETTER = { person: "p", thing: "t", place: "l" };
+
+/** The registry id after merges (the Dashboard may hold an id that was merged into another); the same text when the registry does not know it. */
+const regCanonId = (reg, id) => {
+  const e = reg && str(id) ? regGet(reg, str(id)) : null;
+  return e ? e.id : str(id);
+};
+
+/** The registry thing or place (kind) a word means, or null; a learned spelling is kept as an alias. */
+function regKindOf(rc, text, kind) {
+  const w = str(text);
+  if (!rc || !w) return null;
+  const r = resolveName(rc.reg, w, kind);
+  if (!r || !r.id) return null;
+  const e = regGet(rc.reg, r.id);
+  if (!e || e.kind !== kind) return null;
+  if (r.step > 1 && regLearn(rc.reg, e.id, w)) rc.dirty = true;
+  return e;
+}
+
+/** The record of this kind linked to the registry entity a word means (any spelling of it), or null. */
+function recordOfKind(state, rc, text, kind) {
+  const e = regKindOf(rc, text, kind);
+  if (!e || !isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => regCanonId(rc.reg, state.regIds[k]) === e.id && state.entities.some((x) => x.id === k && x.kind === kind && x.status === "active"));
+  return rid ? state.entities.find((x) => x.id === rid) : null;
+}
+
+/**
+ * Link a thing or place record to the registry (state.regIds): the registry entity its name means (the Dashboard may have
+ * registered it already), else a new one made by the World. Already linked, retired and other kinds are left alone.
+ */
+function linkRecord(state, rc, rec) {
+  if (!rc || !rec || (rec.kind !== "thing" && rec.kind !== "place") || rec.status !== "active") return;
+  const now = isObj(state.regIds) ? state.regIds[rec.id] : "";
+  if (now && regGet(rc.reg, now)) return;
+  let e = null;
+  for (const n of namesOf(rec)) {
+    e = regKindOf(rc, n, rec.kind);
+    if (e) break;
+  }
+  if (e) {
+    if (regAlias(rc.reg, e.id, rec.name, "world")) rc.dirty = true;
+  } else {
+    e = regAdd(rc.reg, { kind: rec.kind, name: rec.name, src: "world", aliases: rec.aliases });
+    if (e) rc.dirty = true;
+  }
+  if (e) (state.regIds ||= {})[rec.id] = e.id;
+}
+
+/** The parent place or the place a record names (inside / place), written as the linked place record's name; the text when no record answers to it. */
+function canonPlaceName(state, rc, text, self) {
+  const w = str(text);
+  if (!rc || !w) return w;
+  const p = recordOfKind(state, rc, w, "place");
+  return p && (!self || p.id !== self.id) ? p.name : w;
+}
+
+/** After a report: every thing and place record is linked, and an inside / place that names a recorded place uses that record's name. */
+function settleLinks(state, rc) {
+  if (!rc) return;
+  for (const e of state.entities) linkRecord(state, rc, e);
+  for (const e of state.entities) {
+    if (e.status !== "active") continue;
+    if (e.kind === "place" && e.inside) e.inside = cut(canonPlaceName(state, rc, e.inside, e), NAME_MAX);
+    else if (e.kind === "thing" && e.place) e.place = cut(canonPlaceName(state, rc, e.place), NAME_MAX);
+  }
 }
 
 /** The cast line of a DM run: the cards' people with the other names they answer to. */
@@ -2004,7 +2101,15 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     const e = rc ? regPersonOf(rc, name) : null;
     return !!e && (e.id === "user" || REG_OWN_SRC.includes(e.src));
   };
-  const canonSpace = (raw) => (rc && str(raw.holder) ? { ...raw, holder: cut(regCanon(rc, str(raw.holder)), NAME_MAX) } : raw);
+  const canonSpace = (raw, self) => {
+    if (!rc) return raw;
+    const out = { ...raw };
+    if (str(raw.holder)) out.holder = cut(regCanon(rc, str(raw.holder)), NAME_MAX);
+    // a parent place or a place written in another spelling is the record the registry says it is
+    if (str(raw.inside)) out.inside = cut(canonPlaceName(state, rc, raw.inside, self), NAME_MAX);
+    if (str(raw.place)) out.place = cut(canonPlaceName(state, rc, raw.place), NAME_MAX);
+    return out;
+  };
   let changes = 0;
   // a draft (a world built without a chat) has no settings of its own: the defaults
   const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
@@ -2020,11 +2125,12 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     const text = cut(str(raw.text), textMax);
     let known = findEntity(state.entities, { name });
     if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
+    if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
     if (known) {
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
       known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases), ...(sameName(known.name, name) ? [] : [name])], known.name);
-      applySpace(known, canonSpace(raw));
+      applySpace(known, canonSpace(raw, known));
       known.at = at;
       if (touched) touched.add(known.id);
       changes++;
@@ -2033,6 +2139,7 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!text || state.entities.length >= ENTITIES_MAX) continue;
     const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...canonSpace(raw), background: undefined }) };
     state.entities.push(fresh);
+    if (kind === "thing" || kind === "place") linkRecord(state, rc, fresh);
     if (kind === "person" && rc) {
       // the NPC joins the registry (or the person the story already made there), and the record keeps its id
       const seen = regPersonOf(rc, name);
@@ -2048,11 +2155,11 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
   }
   for (const raw of arr(out.update)) {
     if (!room() || !isObj(raw)) continue;
-    const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) : null);
+    const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) || recordOfKind(state, rc, str(raw.name), "thing") || recordOfKind(state, rc, str(raw.name), "place") : null);
     if (!e || e.status === "past") continue;
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
-    const moved = applySpace(e, { ...canonSpace(raw), background: undefined });
+    const moved = applySpace(e, { ...canonSpace(raw, e), background: undefined });
     if ((!text || text === e.text) && aliases.length === e.aliases.length && !moved) continue;
     if (text) e.text = text;
     e.aliases = aliases;
@@ -2060,6 +2167,8 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (touched) touched.add(e.id);
     changes++;
   }
+  // the records the Dashboard or an older run left unlinked join the registry now; a parent named before it was recorded is settled
+  settleLinks(state, rc);
   for (const raw of arr(out.retire)) {
     if (!room() || !isObj(raw)) continue;
     const e = findEntity(state.entities, raw);
@@ -2188,11 +2297,36 @@ const OPS_WITH_EVENT = ["send", "next", "swipe"];
 const samePlace = (a, b) => !!placeKey(a) && placeKey(a) === placeKey(b);
 const refersTo = (rec, name) => !!rec && namesOf(rec).some((n) => samePlace(n, name));
 
+/**
+ * The story moved to another place since the last run: by registry ids when the scene and the last run both have one,
+ * else by the words (case, punctuation and spaces do not count). False when the scene has no place.
+ */
+export function placeMoved(state, scene) {
+  if (!scene || !placeKey(scene.place)) return false;
+  if (scene.placeId && state.lastPlaceId) return scene.placeId !== state.lastPlaceId;
+  return state.lastPlace !== placeKey(scene.place);
+}
+
+/**
+ * The active place record of the scene: the one linked to the scene's place id (clock.placeId), else the one the words
+ * point at (findPlace), skipping records that are linked to another place. reg = the chat's registry (merged ids), if loaded.
+ */
+export function placeRecordOf(state, scene, reg) {
+  if (!scene) return null;
+  const links = isObj(state.regIds) ? state.regIds : {};
+  const sid = scene.placeId ? regCanonId(reg, scene.placeId) : "";
+  if (sid) {
+    const linked = state.entities.filter((e) => e.kind === "place" && e.status === "active" && links[e.id] && regCanonId(reg, links[e.id]) === sid);
+    if (linked.length) return linked.find((e) => e.size === "spot") || linked[0];
+  }
+  return findPlace(state.entities, scene.place, sid ? (e) => !links[e.id] || regCanonId(reg, links[e.id]) === sid : undefined);
+}
+
 /** The active place record the sensor's free-text place points at: a name or alias, else the longest name (4+ letters) inside the text. */
-export function findPlace(entities, text) {
+export function findPlace(entities, text, accept) {
   const k = placeKey(text);
   if (!k) return null;
-  const places = entities.filter((e) => e.kind === "place" && e.status === "active");
+  const places = entities.filter((e) => e.kind === "place" && e.status === "active" && (!accept || accept(e)));
   const exact = places.find((e) => namesOf(e).some((n) => placeKey(n) === k));
   if (exact) return exact;
   // several names inside the text ("the apartment, the living room"): the more specific one, a spot, else the longest name
@@ -2218,9 +2352,12 @@ export function splitItems(text) {
 export function sensorCarry(scene) {
   const out = {};
   for (const [who, c] of Object.entries(scene && isObj(scene.chars) ? scene.chars : {})) {
-    const wearing = splitItems(c.outfit);
-    const hands = cut(str(c.holding), ITEM_MAX * 2);
-    if (wearing.length || hands) out[who] = { wearing, carried: [], nearby: [], hands, at: 0 };
+    // the sensor's lines first; a registered item list stands in for a line that is missing
+    const items = arr(c.items);
+    const wearing = str(c.outfit) ? splitItems(c.outfit) : cleanItems(items.filter((x) => x.kind === "wear").map((x) => x.text), WEARING_MAX);
+    const hands = str(c.holding) ? cut(str(c.holding), ITEM_MAX * 2) : cut(items.filter((x) => x.kind === "hold").map((x) => x.text).join(", "), ITEM_MAX * 2);
+    const ids = items.map((x) => x.id).filter(Boolean);
+    if (wearing.length || hands || ids.length) out[who] = { wearing, carried: [], nearby: [], hands, ...(ids.length ? { ids } : {}), at: 0 };
   }
   return out;
 }
@@ -2229,28 +2366,61 @@ export function sensorCarry(scene) {
  * What is here: the record of the scene's place and its parent, the things placed here (in the place, its
  * parent or one of its spots), the things held by people in the scene, the things asleep elsewhere, and what
  * the people in the scene wear and carry. extra = names always counted in (the user's character).
+ * reg = the chat's registry (optional): records and the Dashboard's places and things are matched by registry id first,
+ * by words when an id is missing on either side. `link` maps a thing record to its registry id.
  */
-export function hereOf(state, scene, extra) {
+export function hereOf(state, scene, extra, reg) {
   const entities = state.entities;
-  const place = scene && scene.place ? findPlace(entities, scene.place) : null;
-  const parent = place && place.inside ? entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, place.inside)) || null : null;
+  const links = isObj(state.regIds) ? state.regIds : {};
+  const canon = (id) => regCanonId(reg, id);
+  const linkOf = (e) => (links[e.id] ? canon(links[e.id]) : "");
+  const places = entities.filter((e) => e.kind === "place" && e.status === "active");
+  const place = scene ? placeRecordOf(state, scene, reg) : null;
+  // the active place record a name means: by the registry when it knows the name and a record is linked to it, else by the words
+  const placeNamed = (name) => {
+    const r = reg && str(name) ? resolveName(reg, name, "place") : null;
+    const id = r && r.id ? canon(r.id) : "";
+    const byId = id ? places.find((e) => linkOf(e) === id) : null;
+    return byId || places.find((e) => refersTo(e, name)) || null;
+  };
+  const parent = place && place.inside ? placeNamed(place.inside) : null;
   const related = new Set();
   if (place) {
     related.add(place.id);
     if (parent) related.add(parent.id);
-    for (const e of entities) if (e.kind === "place" && e.status === "active" && e.inside && refersTo(place, e.inside)) related.add(e.id);
+    for (const e of places) if (e.inside && placeNamed(e.inside) === place) related.add(e.id);
   }
-  const placeOf = (t) => (t.place ? entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, t.place)) || null : null);
+  const placeOf = (t) => (t.place ? placeNamed(t.place) : null);
   // `user` (the registry's name for the user's character) is the first name of extra
   const asName = (n) => (n === "user" && str(arr(extra)[0]) ? str(arr(extra)[0]) : n);
   const present = [...(scene ? arr(scene.present) : []), ...arr(extra)].filter((n, i, a) => a.findIndex((m) => samePlace(m, n)) === i);
   const inScene = (name) => !scene || !present.length || present.some((n) => samePlace(n, name));
+  // where the Dashboard has each registered thing: in someone's items, or among the objects lying here
+  const dash = new Map();
+  for (const [who, c] of Object.entries(scene && isObj(scene.chars) ? scene.chars : {})) for (const it of arr(c.items)) if (it.id) dash.set(canon(it.id), { holder: asName(who) });
+  for (const o of arr(scene && scene.objects)) if (o.id && !dash.has(canon(o.id))) dash.set(canon(o.id), { here: true });
+  // objects kept by place id for this scene's place (layout.byPlace) lie here as well
+  if (scene && scene.placeId && isObj(scene.byPlace)) for (const k of Object.keys(scene.byPlace)) if (canon(k) === canon(scene.placeId)) for (const o of arr(scene.byPlace[k])) if (o.id && !dash.has(canon(o.id))) dash.set(canon(o.id), { here: true });
   const things = [];
   const held = {};
   const asleep = [];
+  const link = {};
+  const shown = new Set();
   for (const t of entities) {
     if (t.kind !== "thing" || t.status !== "active") continue;
-    if (t.holder) {
+    const id = linkOf(t);
+    // one registry thing is one entry, even when two records were made of it
+    if (id && shown.has(id)) continue;
+    if (id) shown.add(id);
+    if (id) link[t.id] = id;
+    const at = id ? dash.get(id) : null;
+    if (at && at.holder) {
+      // the Dashboard says who has it, whether or not the DM recorded a holder
+      if (inScene(at.holder)) (held[at.holder] ||= []).push(t);
+      else asleep.push(t);
+    } else if (at && at.here) {
+      things.push(t);
+    } else if (t.holder) {
       if (inScene(asName(t.holder))) (held[asName(t.holder)] ||= []).push(t);
       else asleep.push(t);
     } else if (t.place) {
@@ -2261,9 +2431,9 @@ export function hereOf(state, scene, extra) {
   }
   const carry = {};
   const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
-  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c;
-  const spots = place ? entities.filter((e) => e.kind === "place" && e.status === "active" && e.size === "spot" && e.inside && refersTo(place, e.inside)) : [];
-  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
+  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c.ids ? { ...c, ids: c.ids.map(canon) } : c;
+  const spots = place ? places.filter((e) => e.size === "spot" && e.inside && placeNamed(e.inside) === place) : [];
+  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, link, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
 
 const firstSentence = (s) => {
@@ -2286,7 +2456,7 @@ export function hereInsert(h) {
     const bits = [];
     if (c && c.wearing.length) bits.push("wears " + c.wearing.slice(0, 8).join(", "));
     if (c && c.hands) bits.push("holds " + c.hands);
-    const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+    const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).filter((t) => !(c && c.ids && h.link && h.link[t.id] && c.ids.includes(h.link[t.id]))).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
     if (has.length) bits.push("has " + has.slice(0, 8).join(", "));
     if (c && c.nearby.length) bits.push("near them " + c.nearby.slice(0, 4).join(", "));
     if (bits.length) out.push(name + " " + bits.join("; ") + ".");
@@ -2530,7 +2700,7 @@ export function llmRequest(ctx, host) {
     if (dir === "explicit") return null;
     const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
     const parts = [];
-    const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : []));
+    const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : [], regView(fsx, chatId)));
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
     const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
@@ -3859,7 +4029,7 @@ function hereRoute(req, host) {
   const { state, existed } = loadState(host.fs, chatId);
   const on = existed ? state.settings.level !== "off" : autoOn(host.fs, chat.meta);
   const userName = userNameOf(host.fs, chat.meta);
-  const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : []);
+  const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : [], regView(host.fs, chatId));
   const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) });
   const heldRows = Object.entries(h.held).flatMap(([who, list]) => list.map((t) => ({ ...rec(t), who })));
   return ok({
@@ -4086,11 +4256,13 @@ function updateRoute(req, host) {
   if (!recordsOnly) state.levelKey = state.lastKey;
   if (scene && placeKey(scene.place)) {
     // a new visit: the story came to a place it was not in at the last run
-    if (state.lastPlace !== placeKey(scene.place)) {
-      const here = findPlace(state.entities, scene.place);
+    if (placeMoved(state, scene)) {
+      const here = placeRecordOf(state, scene, rc.reg);
       if (here) here.visits = (here.visits || 0) + 1;
     }
     state.lastPlace = placeKey(scene.place);
+    if (scene.placeId) state.lastPlaceId = scene.placeId;
+    else delete state.lastPlaceId;
   }
   state.lastRunAt = Date.now();
   if (str(r.model)) state.lastModel = str(r.model);
