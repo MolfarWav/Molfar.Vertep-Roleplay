@@ -53,7 +53,7 @@ describe("distinct voice colours", () => {
   });
 
   it("a chat's people are found by any of their names, in either alphabet", async () => {
-    const { peopleVoices, } = await import("../src/lib/chat-voices");
+    const { peopleVoices, } = await import("../src/lib/chat-voices-core");
     const v = peopleVoices({ mode: "on", active: true, people: [
       { id: "p1", name: "Kaede Fuji", aliases: ["Каэде"], color: "#111111", hand: false },
       { id: "p2", name: "Sina Rose", aliases: [], color: "#222222", hand: false },
