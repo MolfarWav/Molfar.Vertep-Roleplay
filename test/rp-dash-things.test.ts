@@ -285,3 +285,72 @@ describe("a state from before the registry ids", () => {
     expect(Object.values(readState("c1").thingIds as Record<string, string>)).toContain(skirt[0]);
   });
 });
+
+describe("repairs of states the first id version migrated", () => {
+  it("a thing keyed once by its words and once by its item id gets one id", () => {
+    const { play } = story();
+    play({ place: "the hall", chars: { Aria: { outfit: { see: [{ text: "grey skirt" }] } } } });
+    play({ chars: { Aria: { mood: "calm" } } });
+    // the first snapshot as the oldest format (words only), the second with item ids i1
+    const st = readState("c1");
+    const [s1, s2] = Object.values(st.snapshots as Record<string, any>).sort((a, b) => a.turn - b.turn);
+    s1.chars.Aria = { ...s1.chars.Aria, outfit: "grey skirt" };
+    delete s1.chars.Aria.items;
+    s2.chars.Aria.items = [{ id: "i1", kind: "wear", text: "grey skirt" }];
+    for (const sn of [s1, s2]) delete sn.clock.placeId;
+    delete st.thingIds;
+    delete st.thingsFixed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+    fs.rmSync(path.join(root, "registry"), { recursive: true, force: true });
+
+    const mock = mockHost();
+    chat("c1", 3);
+    mock.push(JSON.stringify({ minutes: 5, present: ["Aria"], chars: { Aria: { mood: "fine" } } }));
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c1", op: "send" } }).json.ok).toBe(true);
+    const ids = snaps("c1").map((sn) => sn.chars.Aria.items.find((i: any) => i.text === "grey skirt").id);
+    expect(new Set(ids).size).toBe(1);
+    expect(readRegistry("c1").entities.filter((e: any) => e.kind === "thing" && !e.merged).length).toBe(1);
+  });
+
+  it("twins already in a state are joined: the later id merges into the earlier and the snapshots use the earlier", () => {
+    const { play } = story();
+    play({ place: "the hall", chars: { Aria: { outfit: { see: [{ text: "grey skirt" }] } } } });
+    const st = readState("c1");
+    const reg = readRegistry("c1");
+    const first = reg.entities.find((e: any) => e.kind === "thing").id;
+    reg.entities.push({ id: "o9", kind: "thing", name: "grey skirt", aliases: [], src: "seen" });
+    reg.next.o = 10;
+    fs.writeFileSync(path.join(root, "registry", "c1.json"), JSON.stringify(reg));
+    st.thingIds = { "Aria|wear|grey skirt": first, "Aria|i1": "o9" };
+    const sn = Object.values(st.snapshots as Record<string, any>)[0];
+    sn.chars.Aria.items = sn.chars.Aria.items.map((i: any) => ({ ...i, id: "o9" }));
+    delete st.thingsFixed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+
+    const mock = mockHost();
+    chat("c1", 2);
+    mock.push(JSON.stringify({ minutes: 5, present: ["Aria"], chars: { Aria: { mood: "fine" } } }));
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c1", op: "send" } }).json.ok).toBe(true);
+    expect(snaps("c1").map((s) => s.chars.Aria.items[0].id)).toEqual([first, first]);
+    expect(readRegistry("c1").entities.find((e: any) => e.id === "o9").merged).toBe(first);
+  });
+
+  it("what an older snapshot kept in layout.left waits under the place id, and is there when the story comes back", () => {
+    const { play } = story();
+    play({ place: "the cellar", objects: { add: [{ text: "brass lamp", where: "on the shelf" }] } });
+    play({ place: "the garden" });
+    // the older shape: the cellar's things only in layout.left, no byPlace
+    const st = readState("c1");
+    const last = Object.values(st.snapshots as Record<string, any>).sort((a, b) => b.turn - a.turn)[0];
+    expect(last.layout.left.objects.length).toBe(1);
+    delete last.layout.byPlace;
+    delete st.thingsFixed;
+    fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
+
+    const mock = mockHost();
+    chat("c1", 3);
+    mock.push(JSON.stringify({ minutes: 5, present: ["Aria", "Bram"], place: "the cellar" }));
+    expect(drive(mock, { method: "POST", path: "/dashboard/update", body: { chatId: "c1", op: "send" } }).json.ok).toBe(true);
+    expect(objectsOf(lastSnap("c1")).join(" ")).toContain("brass lamp");
+  });
+});

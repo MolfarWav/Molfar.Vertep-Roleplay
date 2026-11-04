@@ -493,7 +493,7 @@ player switches it on for that chat. It writes:
   URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
   image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
 
-  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `o#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
+  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `o#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. The DM's input shows the scene tracker's ids (the scene's place `l#`, the swept things `o#`), and an `add` or `update` may carry `"ref": "o31"` (or `l2`): the record is linked to that registry entity whatever language it is named in, its name becomes an alias there, and an update's ref folds a registry copy the World had made itself (`src: "world"`) into it. A ref of the wrong kind or unknown to the registry is ignored. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
 
 - Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
   (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only
@@ -670,6 +670,7 @@ character saw, heard or guessed), `names` and `history`:
   and the words only when an id is missing. **Migration:** a state from before these ids (items `i1` per character, objects without ids, clocks without `placeId`) is migrated on the next
   update, once: the same `character + i#` gives the same `o#` in every snapshot (`thingIds` in the state file keeps the keys; a snapshot from before the ledger keys by the item's words),
   an object without an id takes the id of the item a character had in the turn before when its words match, else gets its own, and the state is written back with the ids and the registry with the things and places.
+  Once per state (`thingsFixed: 1`): one character's thing that the first migration gave two ids (by its words and by its item id) is joined, the later id merged into the earlier in the registry and in every snapshot, and what a snapshot kept only in `layout.left` is put under its place id in `layout.byPlace`.
   A sensor reply that still uses an `i1` id is read through `thingIds`. The older formats still work for a sensor prompt a user saved
   before: a plain text (the full list) and `{ add, remove }`. A held or worn item is never also kept among the scene `objects`. Each character
   also keeps `shownTurn`, the turn the story last showed their clothes; when it is `layout.clothesEvery` turns old (default 6, `0` switches it off, in
@@ -792,7 +793,8 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `present` (the names in the scene, joined with ", "), `place`, `weather`. Character fields: text `mood`, `condition`,
   `outfit`, `holding`, `goal`, and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (the Dashboard's
   disposition numbers). `as` is `number` for the numbers and `text` for the rest (`E_DASH_TYPE`). `of` names a character
-  (case does not matter; `E_DASH_OF` on a scene field or an empty name); without it a character field is about whoever
+  (case does not matter, and any other name of that person in the chat's entity registry finds it too: "Rhea" for "Rhea Faeth";
+  `E_DASH_OF` on a scene field or an empty name); without it a character field is about whoever
   wrote the last reply in the chat, else the first character in the scene. The permission is the field alone
   (`read:state.comfort`), whichever character it is read for. The host reads `dashboard/state/<chatId>.json` and takes
   the newest snapshot among the chat's own messages (a swiped-away branch is not seen; a chat that continues another

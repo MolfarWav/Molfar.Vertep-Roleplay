@@ -127,7 +127,7 @@ export function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) 
   if (!regFold(nm)) return null;
   const k = regKindLetter[kind] ? kind : "person";
   const letter = regKindLetter[k];
-  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, t: 1, l: 1 };
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, o: 1, l: 1 };
   let n = Number(reg.next[letter]) || 1;
   while (reg.entities.some((e) => e.id === letter + n)) n++;
   reg.next[letter] = n + 1;
@@ -179,6 +179,66 @@ function regWithin1(a, b) {
 
 const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
 const regLen = (s) => s.replace(/ /g, "").length;
+
+/** Words (folded) that join two names into one text: "hallway and kitchen" names two places, not one. */
+const REG_JOIN = new Set(["and", "und", "et", "y", "e", "och", "og", "en", "oraz", "\u0438", "\u0456", "\u0439", "\u0442\u0430"]);
+
+/** A place text as its levels, outer first: "Denis's house, kitchen" is [[denis, s, house], [kitchen]] (folded words, titles out). */
+function regPlaceSegs(s) {
+  return String(s == null ? "" : s)
+    .split(/[,;:()]|\s[\u2014\u2013-]\s/)
+    .map(regTokens)
+    .filter((t) => t.length);
+}
+
+/** True when the innermost level of a place text names two places ("hallway and kitchen", "kitchen / hall"). */
+function regJoined(s) {
+  const parts = String(s == null ? "" : s).split(/[,;:()]|\s[\u2014\u2013-]\s/).filter((x) => regFold(x));
+  const last = parts.length ? regFold(parts[parts.length - 1]).split(" ") : [];
+  return last.some((w) => REG_JOIN.has(w)) || /[&/+]/.test(String(s == null ? "" : s));
+}
+
+/**
+ * The places a text that names two of them means, each with the outer levels: "Denis's house, hallway and kitchen" is
+ * ["Denis's house, hallway", "Denis's house, kitchen"]. A text that names one place is itself.
+ */
+export function regPlaceParts(s) {
+  const text = regOneLine(s);
+  if (!regJoined(text)) return text ? [text] : [];
+  const levels = text.split(/[,;:()]|\s[\u2014\u2013-]\s/).map((x) => x.trim()).filter((x) => regFold(x));
+  if (!levels.length) return [];
+  const outer = levels.slice(0, -1).join(", ");
+  const join = new RegExp("\\s*[&/+]\\s*|\\s+(?:" + [...REG_JOIN].join("|") + ")\\s+", "iu");
+  return levels[levels.length - 1]
+    .split(join)
+    .map((x) => x.trim())
+    .filter((x) => regFold(x))
+    .map((x) => (outer ? outer + ", " + x : x));
+}
+
+/** Every word of `small` inside `big`, in order (by fold or translit key). */
+const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
+
+/**
+ * Could two place texts be one place? Their innermost levels must hold one another ("forest clearing" and "forest clearing
+ * under the moon", "hidden chamber" and "dungeon, hidden chamber"), and when both name an outer level those must hold one
+ * another too. "Denis's house, hallway" and "Denis's house, kitchen" are two places; so are "Denis's house" and "Denis's
+ * street, in front of his house" (the inner levels differ), and a text that names two places is never one of them.
+ */
+function regPlaceFits(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
+  const xi = x[x.length - 1];
+  const yi = y[y.length - 1];
+  if (!regWithin(xi, yi) && !regWithin(yi, xi)) return false;
+  if (x.length > 1 && y.length > 1) {
+    const xo = x.slice(0, -1).flat();
+    const yo = y.slice(0, -1).flat();
+    if (!regWithin(xo, yo) && !regWithin(yo, xo)) return false;
+  }
+  return true;
+}
 
 /** True when the user said these two are different people (ids are followed through merges). */
 export function regIsApart(reg, a, b) {
@@ -252,7 +312,11 @@ function regFind(reg, text, kind, notWith, skip) {
     );
     if (r) return r;
   }
-  if (toks.length >= 2) {
+  if (toks.length >= 2 && want === "place") {
+    // a place: the same innermost level (and outer level, when both have one); a part or a whole of it is another place
+    r = done(hit((s) => regPlaceFits(raw, s)), 3.5);
+    if (r) return r;
+  } else if (toks.length >= 2) {
     // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
     const tk = toks.map(regTranslit);
     r = done(
@@ -296,6 +360,8 @@ export function resolveName(reg, text, kind = "person", notWith) {
 /** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
 export function regLearn(reg, id, text) {
   if (!regTokens(text).length) return false;
+  const e = regGet(reg, id);
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceFits(text, e.name))) return false;
   return regAlias(reg, id, text, "seen");
 }
 
@@ -675,6 +741,9 @@ function regValidate(raw, chatId, from) {
     if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
     const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
     regAliasList(out, e.aliases, "seen");
+    // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
+    // one in another alphabet cannot be judged by words and stays
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceFits(a.text, name));
     if (typeof e.card === "string" && e.card) out.card = e.card;
     if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
     ids.add(e.id);

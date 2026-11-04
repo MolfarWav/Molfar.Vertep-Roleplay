@@ -613,6 +613,9 @@ const OUTFIT_RULE_18 =
 const OUTFIT_RULE_17 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding). Report only changes, each as { \"add\": [...], \"remove\": [...] }. add: a garment or thing the new messages first describe, or a character puts on or picks up. remove: one the text says is taken off, put down, dropped or lost; name it as the Previous state does. Give an added item once, with all its details (colour, fabric, cut) as the text states them. Never add what is already listed, never shorten it, never change a colour on a guess. When the text shows no change, leave the key out.";
 const LAYOUT_RULE =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"...\" } ], \"remove\": [\"o9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. An object is a thing a hand can pick up or move: never what a character wears or holds, never a living creature, and never a liquid, a stain, smoke, light, a sound or a spell. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
+// before an object was defined as a thing a hand can move (a puddle, a stain and a cocoon of mist were listed as objects)
+const LAYOUT_RULE_19 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"...\" } ], \"remove\": [\"o9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
 const LAYOUT_RULE_18 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; code puts it among the objects. A thing picked up leaves objects by itself. A body or a fallen thing is an object too.";
@@ -709,8 +712,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
+const SENSOR_PROMPT_19 = DEFAULT_PROMPTS.sensor.replace(LAYOUT_RULE, LAYOUT_RULE_19);
 // The eighteenth sensor prompt (before things got registry ids that follow them between hands and the floor: i1 per character, objects as words).
-const SENSOR_PROMPT_18 = DEFAULT_PROMPTS.sensor.replace(OUTFIT_RULE, OUTFIT_RULE_18).replace(LAYOUT_RULE, LAYOUT_RULE_18);
+const SENSOR_PROMPT_18 = SENSOR_PROMPT_19.replace(OUTFIT_RULE, OUTFIT_RULE_18).replace(LAYOUT_RULE_19, LAYOUT_RULE_18);
 // The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
 // The seventeenth sensor prompt (before outfit and holding became a ledger of items with ids, #236).
 const SENSOR_PROMPT_17 = SENSOR_PROMPT_18.replace(OUTFIT_RULE_18, OUTFIT_RULE_17).replace(LAYOUT_RULE_18, LAYOUT_RULE_17);
@@ -778,7 +783,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -947,7 +952,7 @@ function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
   if (!regFold(nm)) return null;
   const k = regKindLetter[kind] ? kind : "person";
   const letter = regKindLetter[k];
-  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, t: 1, l: 1 };
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, o: 1, l: 1 };
   let n = Number(reg.next[letter]) || 1;
   while (reg.entities.some((e) => e.id === letter + n)) n++;
   reg.next[letter] = n + 1;
@@ -999,6 +1004,66 @@ function regWithin1(a, b) {
 
 const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
 const regLen = (s) => s.replace(/ /g, "").length;
+
+/** Words (folded) that join two names into one text: "hallway and kitchen" names two places, not one. */
+const REG_JOIN = new Set(["and", "und", "et", "y", "e", "och", "og", "en", "oraz", "\u0438", "\u0456", "\u0439", "\u0442\u0430"]);
+
+/** A place text as its levels, outer first: "Denis's house, kitchen" is [[denis, s, house], [kitchen]] (folded words, titles out). */
+function regPlaceSegs(s) {
+  return String(s == null ? "" : s)
+    .split(/[,;:()]|\s[\u2014\u2013-]\s/)
+    .map(regTokens)
+    .filter((t) => t.length);
+}
+
+/** True when the innermost level of a place text names two places ("hallway and kitchen", "kitchen / hall"). */
+function regJoined(s) {
+  const parts = String(s == null ? "" : s).split(/[,;:()]|\s[\u2014\u2013-]\s/).filter((x) => regFold(x));
+  const last = parts.length ? regFold(parts[parts.length - 1]).split(" ") : [];
+  return last.some((w) => REG_JOIN.has(w)) || /[&/+]/.test(String(s == null ? "" : s));
+}
+
+/**
+ * The places a text that names two of them means, each with the outer levels: "Denis's house, hallway and kitchen" is
+ * ["Denis's house, hallway", "Denis's house, kitchen"]. A text that names one place is itself.
+ */
+function regPlaceParts(s) {
+  const text = regOneLine(s);
+  if (!regJoined(text)) return text ? [text] : [];
+  const levels = text.split(/[,;:()]|\s[\u2014\u2013-]\s/).map((x) => x.trim()).filter((x) => regFold(x));
+  if (!levels.length) return [];
+  const outer = levels.slice(0, -1).join(", ");
+  const join = new RegExp("\\s*[&/+]\\s*|\\s+(?:" + [...REG_JOIN].join("|") + ")\\s+", "iu");
+  return levels[levels.length - 1]
+    .split(join)
+    .map((x) => x.trim())
+    .filter((x) => regFold(x))
+    .map((x) => (outer ? outer + ", " + x : x));
+}
+
+/** Every word of `small` inside `big`, in order (by fold or translit key). */
+const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
+
+/**
+ * Could two place texts be one place? Their innermost levels must hold one another ("forest clearing" and "forest clearing
+ * under the moon", "hidden chamber" and "dungeon, hidden chamber"), and when both name an outer level those must hold one
+ * another too. "Denis's house, hallway" and "Denis's house, kitchen" are two places; so are "Denis's house" and "Denis's
+ * street, in front of his house" (the inner levels differ), and a text that names two places is never one of them.
+ */
+function regPlaceFits(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
+  const xi = x[x.length - 1];
+  const yi = y[y.length - 1];
+  if (!regWithin(xi, yi) && !regWithin(yi, xi)) return false;
+  if (x.length > 1 && y.length > 1) {
+    const xo = x.slice(0, -1).flat();
+    const yo = y.slice(0, -1).flat();
+    if (!regWithin(xo, yo) && !regWithin(yo, xo)) return false;
+  }
+  return true;
+}
 
 /** True when the user said these two are different people (ids are followed through merges). */
 function regIsApart(reg, a, b) {
@@ -1072,7 +1137,11 @@ function regFind(reg, text, kind, notWith, skip) {
     );
     if (r) return r;
   }
-  if (toks.length >= 2) {
+  if (toks.length >= 2 && want === "place") {
+    // a place: the same innermost level (and outer level, when both have one); a part or a whole of it is another place
+    r = done(hit((s) => regPlaceFits(raw, s)), 3.5);
+    if (r) return r;
+  } else if (toks.length >= 2) {
     // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
     const tk = toks.map(regTranslit);
     r = done(
@@ -1116,6 +1185,8 @@ function resolveName(reg, text, kind = "person", notWith) {
 /** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
 function regLearn(reg, id, text) {
   if (!regTokens(text).length) return false;
+  const e = regGet(reg, id);
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceFits(text, e.name))) return false;
   return regAlias(reg, id, text, "seen");
 }
 
@@ -1495,6 +1566,9 @@ function regValidate(raw, chatId, from) {
     if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
     const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
     regAliasList(out, e.aliases, "seen");
+    // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
+    // one in another alphabet cannot be judged by words and stays
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceFits(a.text, name));
     if (typeof e.card === "string" && e.card) out.card = e.card;
     if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
     ids.add(e.id);
@@ -3569,6 +3643,11 @@ export const DEFAULT_LEXICON = {
     "bolsa!", "celular", "guarda-chuva", "carteira", "chaves", "faca", "espada",
     "borsa!", "zaino", "cellulare", "ombrello", "portafoglio", "chiavi", "coltello", "spada",
     "torebk", "plecak", "parasol", "portfel", "klucz", "nóż", "miecz",
+    // weapons, vessels and small things of fantasy and everyday scenes
+    "vial", "flask", "potion", "axe!", "axes!", "spear", "staff!", "wand!", "hammer", "lantern", "torch", "scroll!", "goblet", "cup!", "mug!", "candle", "coin!", "coins!", "rope!",
+    "флакон", "фиал", "пузыр", "склянк", "зелье", "зелья", "топор", "секир", "копьё", "копье", "копья", "посох", "жезл", "молот", "фонар", "факел", "свиток", "свитк", "кубок", "бокал", "стакан", "свеч", "монет", "верёвк", "веревк", "кинжал",
+    "пляшечк", "зілля", "сокир", "спис!", "списа", "палиц", "ліхтар", "смолоскип", "сувій", "сувою", "келих", "свічк", "мотуз", "кинджал",
+    "fiole", "potion", "hache", "dague", "fläschchen", "trank", "axt!", "dolch", "frasco", "poción", "poção", "hacha", "machado", "daga", "fiala", "pozione", "ascia", "pugnale", "fiolk", "eliksir", "topór", "sztylet",
   ],
   touch: [
     "kiss", "hug!", "hugg", "embrac", "caress", "cuddle", "nuzzle", "lick", "grope",
@@ -5039,11 +5118,22 @@ function resolveThing(reg, text, pool) {
   return r && r.id && r.step <= 3.5 ? pool.find((p) => p.id === r.id) || null : null;
 }
 
-/** The registry id of a place text (a spelling the registry knows, else a new place), "" for no text. */
-function placeIdFor(ctx, text) {
-  const t = cut(str(text).replace(/\s+/g, " "), 200);
+/**
+ * The registry id of a place text (a spelling the registry knows, else a new place), "" for no text. A text that names two
+ * places ("the hallway and the kitchen") means the one the scene is in (here), else the first; it is never learned as a name.
+ */
+function placeIdFor(ctx, text, here) {
+  let t = cut(str(text).replace(/\s+/g, " "), 200);
   if (!t) return "";
   ensureRegistry(ctx);
+  const parts = regPlaceParts(t);
+  if (parts.length > 1) {
+    const at = here ? regGet(ctx.reg, here) : null;
+    const names = at ? [at.name, ...at.aliases.map((a) => a.text)] : [];
+    const mine = parts.find((pt) => names.some((n) => regPlaceFits(pt, n)));
+    if (mine && at) return at.id;
+    t = parts[0];
+  }
   if (!ctx.placeCache) ctx.placeCache = new Map();
   if (ctx.placeCache.has(t)) return ctx.placeCache.get(t);
   let id = "";
@@ -5103,6 +5193,58 @@ function legacyIds(ctx, name, report) {
 }
 
 /**
+ * A repair for states the first id version migrated: one character's thing that got two ids (once by its words, once by
+ * its item id) is one again. Twins are the same character's things whose registry names fold the same; the later id is
+ * merged into the earlier and every snapshot uses the earlier.
+ */
+function joinTwinThings(ctx, snaps) {
+  const { state, reg } = ctx;
+  const ids = isObj(state.thingIds) ? state.thingIds : {};
+  const first = new Map();
+  const to = new Map();
+  const order = (id) => Number(String(id).slice(1)) || 0;
+  const keys = Object.keys(ids).sort((a, b) => order(ids[a]) - order(ids[b]));
+  for (const k of keys) {
+    const owner = k.split("|")[0];
+    if (!owner || owner === "o") continue;
+    const e = regGet(reg, ids[k]);
+    if (!e || e.kind !== "thing") continue;
+    const key = owner + "|" + regFold(e.name);
+    const was = first.get(key);
+    if (!was) first.set(key, e.id);
+    else if (was !== e.id && regMerge(reg, e.id, was)) to.set(e.id, was);
+  }
+  if (!to.size) return;
+  for (const k of keys) if (to.has(ids[k])) ids[k] = to.get(ids[k]);
+  const fix = (x) => (isObj(x) && to.has(str(x.id)) ? { ...x, id: to.get(str(x.id)) } : x);
+  for (const snap of snaps) {
+    for (const c of Object.values(isObj(snap.chars) ? snap.chars : {})) if (isObj(c) && Array.isArray(c.items)) c.items = c.items.map(fix);
+    const lay = isObj(snap.layout) ? snap.layout : null;
+    if (!lay) continue;
+    if (Array.isArray(lay.objects)) lay.objects = lay.objects.map(fix);
+    if (isObj(lay.left) && Array.isArray(lay.left.objects)) lay.left.objects = lay.left.objects.map(fix);
+    if (isObj(lay.byPlace)) for (const pk of Object.keys(lay.byPlace)) lay.byPlace[pk] = arr(lay.byPlace[pk]).map(fix);
+  }
+}
+
+/**
+ * A repair for snapshots made before places kept their things by id: what lay in the place the story left (layout.left)
+ * is kept under that place's id (layout.byPlace), so the things are there again when the story comes back.
+ */
+function leftToByPlace(ctx, snaps) {
+  for (const snap of snaps) {
+    const lay = isObj(snap.layout) ? snap.layout : null;
+    if (!lay || !isObj(lay.left) || !str(lay.left.place) || !arr(lay.left.objects).length) continue;
+    const pid = placeIdFor(ctx, lay.left.place);
+    const here = isObj(snap.clock) ? str(snap.clock.placeId) : "";
+    if (!pid || pid === here || (isObj(lay.byPlace) && lay.byPlace[pid])) continue;
+    const taken = new Set([...arr(lay.objects), ...Object.values(isObj(snap.chars) ? snap.chars : {}).flatMap((c) => itemsOf(c))].map((o) => str(o && o.id)).filter(Boolean));
+    const list = lay.left.objects.filter((o) => isObj(o) && !taken.has(str(o.id)));
+    if (list.length) lay.byPlace = { ...(isObj(lay.byPlace) ? lay.byPlace : {}), [pid]: list.slice(-OBJECTS_MAX) };
+  }
+}
+
+/**
  * A state from before the registry ids: the worn and held items (i1, i2 per character) and the scene's objects (words) get
  * registry thing ids, and each clock gets the place id of its place. The same character + i# gives the same t# in every snapshot,
  * so a thing keeps its id along the chat (state.thingIds keeps the keys). Run once by ensureRegistry for an update; the state is
@@ -5112,6 +5254,11 @@ function migrateThings(ctx) {
   const { state, reg } = ctx;
   const snaps = Object.values(isObj(state.snapshots) ? state.snapshots : {}).filter(isObj).sort((a, b) => (a.turn || 0) - (b.turn || 0) || (a.at || 0) - (b.at || 0));
   if (isObj(state.inherited) && isObj(state.inherited.snap)) snaps.unshift(state.inherited.snap);
+  if (state.thingsFixed !== 1) {
+    joinTwinThings(ctx, snaps);
+    leftToByPlace(ctx, snaps);
+    state.thingsFixed = 1;
+  }
   const legacy = (c) => isObj(c) && (Array.isArray(c.items) ? c.items.some((i) => isObj(i) && LEGACY_ID.test(str(i.id))) : !!(str(c.outfit) || str(c.holding)));
   const needs = (s) =>
     Object.values(isObj(s.chars) ? s.chars : {}).some(legacy) ||
@@ -5125,30 +5272,39 @@ function migrateThings(ctx) {
     const e = regAdd(reg, { kind: "thing", name: text, src: "seen" });
     return e ? e.id : null;
   };
-  const idFor = (key, text) => {
+  // one thing, two keys: an older version keyed a character's thing by its words (name|kind|words), a newer one by its
+  // item id (name|i1); the same character's same words, or the thing it had the turn before under close words, is one id
+  const idFor = (key, text, alt, near) => {
     let id = ids[key];
     if (!id || !regGet(reg, id)) {
-      id = mint(text);
+      id = (alt && ids[alt] && regGet(reg, ids[alt]) ? ids[alt] : "") || near || mint(text);
       if (id) ids[key] = id;
     }
+    if (id && alt && !ids[alt]) ids[alt] = id;
     return id;
   };
   let prevItems = [];
   let prevObjects = [];
+  let prevBy = {};
   for (const snap of snaps) {
     const here = [];
+    const by = {};
     for (const [name, c] of Object.entries(isObj(snap.chars) ? snap.chars : {})) {
       if (!legacy(c)) {
         here.push(...itemsOf(c));
+        by[name] = itemsOf(c);
         continue;
       }
       const positional = !Array.isArray(c.items);
       c.items = itemsOf(c).map((i) => {
         if (!LEGACY_ID.test(i.id)) return i;
-        const id = idFor(positional ? name + "|" + i.kind + "|" + regFold(i.text) : name + "|" + i.id, i.text);
+        const words = name + "|" + i.kind + "|" + regFold(i.text);
+        const before = arr(prevBy[name]).find((x) => x.kind === i.kind && THING_ID.test(str(x.id)) && (covers(x.text, i.text) || covers(i.text, x.text)));
+        const id = idFor(positional ? words : name + "|" + i.id, i.text, words, before ? before.id : "");
         return id ? { ...i, id } : i;
       });
       here.push(...c.items);
+      by[name] = c.items;
     }
     const objectIds = (list) =>
       arr(list).map((o) => {
@@ -5167,6 +5323,7 @@ function migrateThings(ctx) {
       if (pid) snap.clock.placeId = pid;
     }
     prevItems = here;
+    prevBy = by;
     prevObjects = arr(snap.layout && snap.layout.objects).filter((o) => isObj(o) && str(o.id)).map((o) => ({ id: str(o.id), text: str(o.item) }));
   }
 }
@@ -5622,7 +5779,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
   ensureRegistry(ctx);
   // the scene's place is a registry place: "did the story move" compares ids, and the words only when an id is missing
   const prevPlaceId = B && B.clock && str(B.clock.place) ? str(B.clock.placeId) || placeIdFor(ctx, B.clock.place) : "";
-  const newPlaceId = str(out.place) ? placeIdFor(ctx, out.place) : "";
+  const newPlaceId = str(out.place) ? placeIdFor(ctx, out.place, prevPlaceId) : "";
   ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && (prevPlaceId && newPlaceId ? prevPlaceId !== newPlaceId : !samePlace(B.clock.place, out.place)));
   ctx.things = thingsContext(ctx, B);
   // the people this turn knows: the cast of the cards and souls, the last snapshot's, and those the sensor puts in the scene

@@ -267,7 +267,7 @@ function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
   if (!regFold(nm)) return null;
   const k = regKindLetter[kind] ? kind : "person";
   const letter = regKindLetter[k];
-  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, t: 1, l: 1 };
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, o: 1, l: 1 };
   let n = Number(reg.next[letter]) || 1;
   while (reg.entities.some((e) => e.id === letter + n)) n++;
   reg.next[letter] = n + 1;
@@ -319,6 +319,66 @@ function regWithin1(a, b) {
 
 const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
 const regLen = (s) => s.replace(/ /g, "").length;
+
+/** Words (folded) that join two names into one text: "hallway and kitchen" names two places, not one. */
+const REG_JOIN = new Set(["and", "und", "et", "y", "e", "och", "og", "en", "oraz", "\u0438", "\u0456", "\u0439", "\u0442\u0430"]);
+
+/** A place text as its levels, outer first: "Denis's house, kitchen" is [[denis, s, house], [kitchen]] (folded words, titles out). */
+function regPlaceSegs(s) {
+  return String(s == null ? "" : s)
+    .split(/[,;:()]|\s[\u2014\u2013-]\s/)
+    .map(regTokens)
+    .filter((t) => t.length);
+}
+
+/** True when the innermost level of a place text names two places ("hallway and kitchen", "kitchen / hall"). */
+function regJoined(s) {
+  const parts = String(s == null ? "" : s).split(/[,;:()]|\s[\u2014\u2013-]\s/).filter((x) => regFold(x));
+  const last = parts.length ? regFold(parts[parts.length - 1]).split(" ") : [];
+  return last.some((w) => REG_JOIN.has(w)) || /[&/+]/.test(String(s == null ? "" : s));
+}
+
+/**
+ * The places a text that names two of them means, each with the outer levels: "Denis's house, hallway and kitchen" is
+ * ["Denis's house, hallway", "Denis's house, kitchen"]. A text that names one place is itself.
+ */
+function regPlaceParts(s) {
+  const text = regOneLine(s);
+  if (!regJoined(text)) return text ? [text] : [];
+  const levels = text.split(/[,;:()]|\s[\u2014\u2013-]\s/).map((x) => x.trim()).filter((x) => regFold(x));
+  if (!levels.length) return [];
+  const outer = levels.slice(0, -1).join(", ");
+  const join = new RegExp("\\s*[&/+]\\s*|\\s+(?:" + [...REG_JOIN].join("|") + ")\\s+", "iu");
+  return levels[levels.length - 1]
+    .split(join)
+    .map((x) => x.trim())
+    .filter((x) => regFold(x))
+    .map((x) => (outer ? outer + ", " + x : x));
+}
+
+/** Every word of `small` inside `big`, in order (by fold or translit key). */
+const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
+
+/**
+ * Could two place texts be one place? Their innermost levels must hold one another ("forest clearing" and "forest clearing
+ * under the moon", "hidden chamber" and "dungeon, hidden chamber"), and when both name an outer level those must hold one
+ * another too. "Denis's house, hallway" and "Denis's house, kitchen" are two places; so are "Denis's house" and "Denis's
+ * street, in front of his house" (the inner levels differ), and a text that names two places is never one of them.
+ */
+function regPlaceFits(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
+  const xi = x[x.length - 1];
+  const yi = y[y.length - 1];
+  if (!regWithin(xi, yi) && !regWithin(yi, xi)) return false;
+  if (x.length > 1 && y.length > 1) {
+    const xo = x.slice(0, -1).flat();
+    const yo = y.slice(0, -1).flat();
+    if (!regWithin(xo, yo) && !regWithin(yo, xo)) return false;
+  }
+  return true;
+}
 
 /** True when the user said these two are different people (ids are followed through merges). */
 function regIsApart(reg, a, b) {
@@ -392,7 +452,11 @@ function regFind(reg, text, kind, notWith, skip) {
     );
     if (r) return r;
   }
-  if (toks.length >= 2) {
+  if (toks.length >= 2 && want === "place") {
+    // a place: the same innermost level (and outer level, when both have one); a part or a whole of it is another place
+    r = done(hit((s) => regPlaceFits(raw, s)), 3.5);
+    if (r) return r;
+  } else if (toks.length >= 2) {
     // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
     const tk = toks.map(regTranslit);
     r = done(
@@ -436,6 +500,8 @@ function resolveName(reg, text, kind = "person", notWith) {
 /** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
 function regLearn(reg, id, text) {
   if (!regTokens(text).length) return false;
+  const e = regGet(reg, id);
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceFits(text, e.name))) return false;
   return regAlias(reg, id, text, "seen");
 }
 
@@ -815,6 +881,9 @@ function regValidate(raw, chatId, from) {
     if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
     const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
     regAliasList(out, e.aliases, "seen");
+    // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
+    // one in another alphabet cannot be judged by words and stays
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceFits(a.text, name));
     if (typeof e.card === "string" && e.card) out.card = e.card;
     if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
     ids.add(e.id);
@@ -1358,6 +1427,9 @@ export function sweepCandidates(state, scene) {
     if (out.places.length >= SWEEP_PLACES) break;
     if (!seen("place", name) && !out.places.some((o) => looseSame(o, name))) out.places.push(name);
   }
+  // the scene's own place has the tracker's id: the DM's record of it carries that id (ref) whatever language it is named in
+  const here = scene.placeId ? out.places.find((n) => looseSame(n, str(scene.place))) : "";
+  if (here) out.placeIds = { [here]: scene.placeId };
   const lying = [
     ...arr(scene.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.place })),
     ...arr(scene.left && scene.left.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.left.place })),
@@ -1366,7 +1438,7 @@ export function sweepCandidates(state, scene) {
     if (out.things.length >= SWEEP_THINGS) break;
     // a thing the World already linked by its registry id is on record, whatever it is called now
     if (t.id && linked.has(t.id)) continue;
-    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ name: t.name, where: str(t.where), place: str(t.place) });
+    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ ...(t.id ? { id: str(t.id) } : {}), name: t.name, where: str(t.where), place: str(t.place) });
   }
   return out;
 }
@@ -1384,8 +1456,9 @@ function markSwept(state, c) {
 /** The block of a DM run that lists what the sweep found. */
 function sweepInput(c) {
   const rows = [];
-  if (c.places.length) rows.push("Places: " + c.places.join("; ") + ".");
-  if (c.things.length) rows.push("Things: " + c.things.map((t) => t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
+  const ids = isObj(c.placeIds) ? c.placeIds : {};
+  if (c.places.length) rows.push("Places: " + c.places.map((n) => (ids[n] ? ids[n] + " " : "") + n).join("; ") + ".");
+  if (c.things.length) rows.push("Things: " + c.things.map((t) => (t.id ? t.id + " " : "") + t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
   return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it) and each thing that matters or lies somewhere it can be found again. Leave out what is only passing. Name them as the story does.";
 }
 
@@ -1585,6 +1658,40 @@ function recordOfKind(state, rc, text, kind) {
   return rid ? state.entities.find((x) => x.id === rid) : null;
 }
 
+/** A tracker id the DM wrote (ref): o# for a thing, l# for a place. */
+const REF_ID = /^[ol]\d{1,6}$/;
+
+/** The registry entity a DM's ref means: the right letter for the kind, known to the registry, of that kind; else null. */
+function refEntity(rc, ref, kind) {
+  const r = str(ref);
+  if (!rc || !REF_ID.test(r) || r[0] !== REG_LINK_LETTER[kind]) return null;
+  const e = regGet(rc.reg, r);
+  return e && e.kind === kind ? e : null;
+}
+
+/** The active record of this kind already linked to that registry entity, or null. */
+function recordOfRef(state, rc, e, kind) {
+  if (!isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => regCanonId(rc.reg, state.regIds[k]) === e.id && state.entities.some((x) => x.id === k && x.kind === kind && x.status === "active"));
+  return rid ? state.entities.find((x) => x.id === rid) : null;
+}
+
+/**
+ * Link a record to the tracker's entity the DM named by ref. The record's name (the story's language) becomes an alias of
+ * it. A record the World had linked to an entity of its own (a copy made before the ids were shown) has that copy merged
+ * into the tracker's, so the two stay one. A record linked to another tracker entity is left alone: the DM may be wrong.
+ */
+function linkToRef(state, rc, rec, e) {
+  const now = isObj(state.regIds) ? state.regIds[rec.id] : "";
+  const cur = now ? regGet(rc.reg, now) : null;
+  if (cur && cur.id === e.id) return;
+  if (cur && cur.src !== "world") return;
+  if (recordOfRef(state, rc, e, rec.kind)) return;
+  if (cur && regMerge(rc.reg, cur.id, e.id)) rc.dirty = true;
+  (state.regIds ||= {})[rec.id] = e.id;
+  for (const n of namesOf(rec)) if (regAlias(rc.reg, e.id, n, "world")) rc.dirty = true;
+}
+
 /**
  * Link a thing or place record to the registry (state.regIds): the registry entity its name means (the Dashboard may have
  * registered it already), else a new one made by the World. Already linked, retired and other kinds are left alone.
@@ -1671,8 +1778,9 @@ const SPACE_RULES = [
 // the reply's shape: locked, parseReply and applyReport depend on it
 const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"..."}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"..."}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
+  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
   "size, inside, holder and place are only for places and things; leave out what does not apply.",
+  "ref: the scene tracker's id of that thing (o3) or place (l2), when the input shows one before its name; the same thing or place keeps that id however you name it. Leave it out otherwise, never make one up.",
 ];
 const CARRY_JSON = '"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],';
 const CARRY_SHAPE = '"carry":[...],';
@@ -1896,7 +2004,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, carry, sweep }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -1909,7 +2017,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "The user's character (do not record): " + (userName || "the user") + ".",
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
-    ...(str(place) ? ["Where the scene is now (from the scene tracker): " + str(place) + "."] : []),
+    ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
@@ -2137,7 +2245,9 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
     if (kind === "person" && isOwn(name)) continue;
     const text = cut(str(raw.text), textMax);
-    let known = findEntity(state.entities, { name });
+    const ref = kind === "thing" || kind === "place" ? refEntity(rc, raw.ref, kind) : null;
+    let known = ref ? recordOfRef(state, rc, ref, kind) : null;
+    if (!known) known = findEntity(state.entities, { name });
     if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
     if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
     if (known) {
@@ -2153,6 +2263,7 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!text || state.entities.length >= ENTITIES_MAX) continue;
     const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...canonSpace(raw), background: undefined }) };
     state.entities.push(fresh);
+    if (ref) linkToRef(state, rc, fresh, ref);
     if (kind === "thing" || kind === "place") linkRecord(state, rc, fresh);
     if (kind === "person" && rc) {
       // the NPC joins the registry (or the person the story already made there), and the record keeps its id
@@ -2171,6 +2282,8 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!room() || !isObj(raw)) continue;
     const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) || recordOfKind(state, rc, str(raw.name), "thing") || recordOfKind(state, rc, str(raw.name), "place") : null);
     if (!e || e.status === "past") continue;
+    const ref = e.kind === "thing" || e.kind === "place" ? refEntity(rc, raw.ref, e.kind) : null;
+    if (ref) linkToRef(state, rc, e, ref);
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
     const moved = applySpace(e, { ...canonSpace(raw, e), background: undefined });
@@ -4210,7 +4323,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],

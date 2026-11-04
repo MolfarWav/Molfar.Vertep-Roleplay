@@ -203,3 +203,54 @@ describe("objects kept by place id", () => {
     expect(W.hereOf(st, scene, [], rc.reg).things.map((t: any) => t.name)).toEqual(["silver sword"]);
   });
 });
+
+describe("the DM names the tracker's id (ref)", () => {
+  it("a thing named in another language links to the tracker's o# by ref, and the name becomes its alias", () => {
+    const fsx = setup();
+    const rc = W.openRegistry(fsx, "c1", meta);
+    const st = W.emptyState("c1");
+    W.applyReport(st, { add: [{ kind: "thing", name: "серебряный меч", text: "Клинок со стёртой рукоятью.", holder: "Kaede", ref: "o5" }] }, ctxOf(rc));
+    expect(st.regIds).toEqual({ n1: "o5" });
+    W.regFlush(fsx, rc);
+    const file = JSON.parse(fsx.files["registry/c1.json"]!);
+    expect(file.entities.filter((e: any) => e.kind === "thing").length).toBe(1);
+    expect(file.entities.find((e: any) => e.id === "o5").aliases.map((a: any) => a.text)).toContain("серебряный меч");
+  });
+
+  it("a ref of the wrong kind, an unknown id or a made-up one is ignored", () => {
+    const fsx = setup();
+    const rc = W.openRegistry(fsx, "c1", meta);
+    const st = W.emptyState("c1");
+    W.applyReport(st, { add: [
+      { kind: "thing", name: "лампа", text: "Медная.", ref: "l3" },
+      { kind: "thing", name: "кружка", text: "Пустая.", ref: "o99" },
+      { kind: "place", name: "подвал", text: "Сырой.", ref: "kitchen" },
+    ] }, ctxOf(rc));
+    expect(Object.values(st.regIds).every((id) => !["l3", "o5"].includes(id as string))).toBe(true);
+  });
+
+  it("an update with ref folds the World's own copy into the tracker's thing", () => {
+    const fsx = setup();
+    const rc = W.openRegistry(fsx, "c1", meta);
+    const st = W.emptyState("c1");
+    W.applyReport(st, { add: [{ kind: "thing", name: "клинок", text: "Старый клинок." }] }, ctxOf(rc));
+    const own = st.regIds.n1;
+    expect(own).not.toBe("o5");
+    W.applyReport(st, { update: [{ id: "n1", text: "Старый клинок, теперь в ножнах.", ref: "o5" }] }, ctxOf(rc));
+    expect(st.regIds.n1).toBe("o5");
+    W.regFlush(fsx, rc);
+    const file = JSON.parse(fsx.files["registry/c1.json"]!);
+    expect(file.entities.find((e: any) => e.id === own).merged).toBe("o5");
+  });
+
+  it("the sweep and the scene line show the tracker's ids", () => {
+    const st = W.emptyState("c1");
+    const scene = { place: "forest clearing", placeId: "l3", places: ["forest clearing"], objects: [{ id: "o5", item: "a vial", where: "at Ember's feet" }] };
+    const sweep = W.sweepCandidates(st, scene);
+    const text = W.dmInput({ cards: [], userName: "Taras", entities: [], msgs: [{ role: "assistant", name: "N", text: "Ember picks up the vial." }], place: scene.place, placeId: scene.placeId, sweep });
+    expect(text).toContain("Where the scene is now (from the scene tracker): l3 forest clearing.");
+    expect(text).toContain("Places: l3 forest clearing.");
+    expect(text).toContain("Things: o5 a vial (at Ember's feet");
+    expect(W.CHRONICLER_SYSTEM).toContain('"ref":"o3"');
+  });
+});
