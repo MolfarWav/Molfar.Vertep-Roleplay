@@ -6,7 +6,10 @@
 // A corpus dir (kept outside the repository: it holds a user's chats) has `root/` (a copy of the data folder with the chat,
 // its card and lorebooks, dashboard/config.json) and `labels.json`:
 //   { chat, turns: { "<index of a char reply>": { must: { Name: { wear: [[synonyms]], hold: [[synonyms]] } }, mustNot: { Name: { wear: [words] } } } },
-//     never: { Name: { wear: [words], hold: [words] } }, oneOf: [[synonyms]], objectsNever: [words] }
+//     never: { Name: { wear: [words], hold: [words] } }, oneOf: [[synonyms]], objectsNever: [words],
+//     persons: { expected: ["Exact Name"], maybe: ["Acceptable Extra NPC"] },   // any character name outside both lists is a duplicate person (#236)
+//     maxTurns: N,                 // replay only the first N char replies of `turns` (or of `replayTurns`)
+//     replayTurns: [indexes] }     // which char replies to replay when `turns` is empty (persons-only labels)
 // The key is read from NANOGPT_API_KEY or a keys.env of the ask-model skill; it is never printed.
 import fs from "node:fs";
 import os from "node:os";
@@ -151,23 +154,29 @@ const charOf = (snap: Snap, name: string) => {
 const has = (text: string, alts: string[]) => alts.some((a) => text.toLowerCase().includes(a.toLowerCase()));
 const entries = (text: string | null | undefined) => String(text ?? "").split(/\s*[,;]\s*/).filter(Boolean);
 
-type Row = { turn: number; must: number; mustOk: number; bad: string[]; dups: string[]; phantoms: string[]; outfit: Record<string, string>; objects: string[] };
+type Row = { turn: number; must: number; mustOk: number; bad: string[]; dups: string[]; phantoms: string[]; outfit: Record<string, string>; objects: string[]; names: string[]; dupPersons: string[] };
 const rows: Row[] = [];
 
-const turnKeys = Object.keys(labels.turns).map(Number).sort((a, b) => a - b);
+const wantedTurns = new Set<number>([...Object.keys(labels.turns ?? {}).map(Number), ...(Array.isArray(labels.replayTurns) ? labels.replayTurns.map(Number) : [])]);
+let turnKeys = [...wantedTurns].sort((a, b) => a - b);
+if (typeof labels.maxTurns === "number") turnKeys = turnKeys.slice(0, labels.maxTurns);
+const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+const knownPersons = labels.persons ? new Set<string>([...(labels.persons.expected ?? []), ...(labels.persons.maybe ?? [])].map(norm)) : null;
 for (const k of turnKeys) {
   fs.writeFileSync(path.join(root, "chats", chatId + ".jsonl"), lines.slice(0, k + 1).join("\n") + "\n");
   await update();
   const snap = lastSnap();
-  const row: Row = { turn: k, must: 0, mustOk: 0, bad: [], dups: [], phantoms: [], outfit: {}, objects: [] };
+  const row: Row = { turn: k, must: 0, mustOk: 0, bad: [], dups: [], phantoms: [], outfit: {}, objects: [], names: [], dupPersons: [] };
   rows.push(row);
   if (!snap) {
     row.bad.push("no snapshot");
     continue;
   }
+  row.names = Object.keys(snap.chars);
+  if (knownPersons) row.dupPersons = row.names.filter((n) => !knownPersons.has(norm(n)));
   for (const [n, c] of Object.entries(snap.chars)) row.outfit[n] = "wear: " + (c.outfit ?? "-") + " | hold: " + (c.holding ?? "-");
   row.objects = (snap.layout?.objects ?? []).map((o) => o.item + (o.where ? " (" + o.where + ")" : ""));
-  const spec = labels.turns[String(k)];
+  const spec = labels.turns?.[String(k)] ?? {};
   for (const [name, want] of Object.entries<any>(spec.must ?? {})) {
     const c = charOf(snap, name);
     for (const field of ["wear", "hold"]) {
@@ -203,21 +212,25 @@ let ok = 0;
 let bad = 0;
 let dups = 0;
 let phantoms = 0;
+let dupPersons = 0;
 for (const r of rows) {
   must += r.must;
   ok += r.mustOk;
   bad += r.bad.filter((b) => !b.startsWith("missing")).length;
   dups += r.dups.length;
   phantoms += r.phantoms.length;
+  dupPersons += r.dupPersons.length;
   console.log(`\n== turn ${r.turn}: ${r.mustOk}/${r.must} expected items`);
   for (const [n, t] of Object.entries(r.outfit)) console.log(`   ${n}: ${t}`);
+  if (knownPersons) console.log(`   persons: ${r.names.join("; ") || "-"}`);
   if (r.objects.length) console.log(`   objects: ${r.objects.join("; ")}`);
   for (const b of r.bad) console.log(`   ! ${b}`);
   for (const d of r.dups) console.log(`   ! duplicate: ${d}`);
+  for (const d of r.dupPersons) console.log(`   ! duplicate person: ${d}`);
   for (const p of r.phantoms) console.log(`   ! phantom object: ${p}`);
 }
-console.log(`\nSUMMARY ${tag}: recall ${ok}/${must} (${must ? Math.round((100 * ok) / must) : 0}%), wrong items ${bad}, duplicates ${dups}, phantom objects ${phantoms}; model calls ${calls}, tokens in/out ${tokensIn}/${tokensOut}`);
-fs.writeFileSync(path.join(corpus, `results-${tag}.json`), JSON.stringify({ tag, ok, must, bad, dups, phantoms, rows }, null, 1));
+console.log(`\nSUMMARY ${tag}: recall ${ok}/${must} (${must ? Math.round((100 * ok) / must) : 0}%), wrong items ${bad}, duplicates ${dups}, phantom objects ${phantoms}, duplicate persons ${dupPersons}; model calls ${calls}, tokens in/out ${tokensIn}/${tokensOut}`);
+fs.writeFileSync(path.join(corpus, `results-${tag}.json`), JSON.stringify({ tag, ok, must, bad, dups, phantoms, dupPersons, rows }, null, 1));
 try {
   fs.copyFileSync(path.join(root, "_debug", "dashboard-runs.json"), path.join(corpus, `runs-${tag}.json`));
 } catch {}

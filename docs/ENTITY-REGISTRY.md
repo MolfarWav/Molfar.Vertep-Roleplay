@@ -78,6 +78,17 @@ Phase B, things and places:
 Phase C, outside:
 - the Forge reads and writes Dashboard fields by id; the RPG app contract carries ids with names for display (`{ v, entities: [{ id, kind, name }] }`), so "silver sword" handed to the RPG app comes back as the same `t3`.
 
+## Dashboard UI for phase A (plan, before code)
+
+Where: the Person tab of the Dashboard (`src/components/dashboard/dash-tabs.tsx` `PersonPanel`) and the side strip, on the character the user is looking at. The header of `AttitudeCard` (`src/components/dashboard/dash-cards.tsx`) already has "Remove from the Dashboard" (`UserMinus`) for "the same person is listed twice"; merge belongs next to it. Steps from a chat: click a portrait in the strip (or open the Dashboard), then the header button: two steps, each labelled.
+
+1. **The header button becomes a small menu** (`src/components/ui/dropdown-menu.tsx`, trigger: icon button with `aria-label` "Manage {name}", 40 px on phones): "Same person as..." (a list of the other characters with portrait and name; picking one opens `src/components/ui/confirm.tsx` saying what moves: relationship, notes, history and things go to the chosen one, this name becomes another name of theirs) and "Remove from the Dashboard" (the existing action and dialog, destructive).
+2. **A suggestion callout** at the top of `PersonPanel` when the registry suggests a pair with the focused character: soft background, border and icon in the people tone (as other callouts in the Dashboard), one line "{name} may be the same person as {other}" with the reason ("same first name", "same name in another alphabet", "one letter apart"), and two buttons: "Merge into {other}" (tonal primary) and "Different people" (outline). On phones the buttons stack full width, 40 px. The "Since your last reply" row gets a chip for it, so the user sees it without opening the person.
+3. **States:** none (nothing shown), suggestion, working (buttons disabled, spinner on the pressed one), done (toast "Merged into {other}" / "Kept apart"; the merged portrait disappears, the target's numbers show the merged history), error (toast with the reason; nothing changed). A merge is confirmed first; there is no undo in phase A (the dialog says so). "Different people" needs no confirmation (it only stops the suggestion).
+4. Strings in English and Ukrainian (`src/lib/i18n.ts`); guide page `.skills/guide/pages/dashboard.md` updated.
+
+Variants considered: (a) menu in the header plus the callout (chosen: the action sits on the thing it changes, and the suggestion comes to the user); (b) a "Cast" section in Dashboard settings with all characters (one place for everything, but far from where a duplicate is noticed); (c) dragging one portrait onto another (quick with a mouse, invisible and awkward on phones).
+
 ## Measured, not guessed
 
 `scripts/sensor-replay.ts` with the local corpus gets cases with name variants (Kaede and Каэде, Sina and Sina Rose, a card title as a speaker) and a count of duplicate persons; the two chats with real duplicates are replayed before and after.

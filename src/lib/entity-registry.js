@@ -1,0 +1,595 @@
+/**
+ * Entity registry: one id per person (later thing and place) in a chat. Design: docs/ENTITY-REGISTRY.md.
+ *
+ * Plain JavaScript with no imports and no dependencies, because plugins load one file each and cannot import
+ * from src/. `bun scripts/sync-registry.ts` copies this file (with `export ` removed) into plugins/relations,
+ * plugins/world and plugins/litopys; a test fails when a copy differs. Edit only this file, then run the script.
+ *
+ * Everything takes and returns plain objects. Nothing here runs at load time except constant definitions.
+ * Names that plugins might already use are prefixed `reg`; `resolveName` is the one exception.
+ */
+
+/** Title and honorific words (folded) that never count as a word of a name. */
+export const REG_TITLES = new Set([
+  "queen", "king", "sir", "lady", "lord", "dr", "mr", "mrs", "ms", "miss", "prince", "princess", "captain", "master",
+  "mistress", "professor", "sensei", "san", "kun", "chan", "sama", "the", "of", "and",
+  "\u043a\u043e\u0440\u043e\u043b\u0435\u0432\u0430", "\u043a\u043e\u0440\u043e\u043b\u044c", "\u0441\u044d\u0440", "\u043b\u0435\u0434\u0438", "\u0433\u043e\u0441\u043f\u043e\u0436\u0430", "\u0433\u043e\u0441\u043f\u043e\u0434\u0438\u043d", "\u043f\u0440\u0438\u043d\u0446", "\u043f\u0440\u0438\u043d\u0446\u0435\u0441\u0441\u0430", "\u043f\u0430\u043d", "\u043f\u0430\u043d\u0456", "\u043f\u0430\u043d\u0438",
+  "\u043a\u0430\u043f\u0438\u0442\u0430\u043d", "\u043a\u0430\u043f\u0456\u0442\u0430\u043d", "\u043f\u0440\u043e\u0444\u0435\u0441\u0441\u043e\u0440", "\u043f\u0440\u043e\u0444\u0435\u0441\u043e\u0440", "\u043c\u0438\u0441\u0441", "\u043c\u0456\u0441",
+]);
+
+/** Headings of a card description that are sections of text, not names of people (folded first words). */
+const REG_STOP = new Set([
+  "personality", "appearance", "background", "backstory", "description", "scenario", "history", "abilities", "ability",
+  "skills", "skill", "relationships", "relationship", "setting", "world", "notes", "note", "traits", "trait", "likes",
+  "dislikes", "physical", "clothing", "outfit", "behavior", "behaviour", "speech", "example", "examples", "dialogue",
+  "greeting", "plot", "story", "rules", "rule", "instructions", "instruction", "characters", "character", "overview",
+  "info", "information", "details", "summary", "goals", "goal", "secrets", "hobbies", "family", "occupation", "age",
+  "gender", "body", "voice", "kinks", "quirks", "habits", "fears", "motivation", "role", "roles", "profile", "bio",
+  "biography", "introduction", "intro", "mannerisms", "speaking", "special", "other", "additional", "important", "ooc",
+  "system", "narrator", "tags", "genre", "tone", "style", "format", "stats", "stat", "inventory", "location", "locations",
+  "\u043b\u0438\u0447\u043d\u043e\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u043e\u0441\u0442\u044c", "\u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440", "\u043f\u0440\u0435\u0434\u044b\u0441\u0442\u043e\u0440\u0438\u044f", "\u0438\u0441\u0442\u043e\u0440\u0438\u044f", "\u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439", "\u0441\u0446\u0435\u043d\u0430\u0440\u0456\u0439", "\u043d\u0430\u0432\u044b\u043a\u0438", "\u043d\u0430\u0432\u0438\u0447\u043a\u0438",
+  "\u0441\u043f\u043e\u0441\u043e\u0431\u043d\u043e\u0441\u0442\u0438", "\u0437\u0434\u0456\u0431\u043d\u043e\u0441\u0442\u0456", "\u043e\u0442\u043d\u043e\u0448\u0435\u043d\u0438\u044f", "\u0432\u0456\u0434\u043d\u043e\u0441\u0438\u043d\u0438", "\u043c\u0438\u0440", "\u0441\u0432\u0456\u0442", "\u0437\u0430\u043c\u0435\u0442\u043a\u0438", "\u043d\u043e\u0442\u0430\u0442\u043a\u0438", "\u043f\u0440\u0430\u0432\u0438\u043b\u0430", "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0438",
+  "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0456", "\u043f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435", "\u043f\u0440\u0438\u043c\u0456\u0442\u043a\u0430", "\u0438\u043d\u0442\u0435\u0440\u0435\u0441\u044b", "\u0456\u043d\u0442\u0435\u0440\u0435\u0441\u0438", "\u043f\u0440\u0438\u0432\u044b\u0447\u043a\u0438", "\u0437\u0432\u0438\u0447\u043a\u0438", "\u043e\u0441\u043e\u0431\u0438\u0441\u0442\u0456\u0441\u0442\u044c", "\u043f\u0435\u0440\u0435\u0434\u0456\u0441\u0442\u043e\u0440\u0456\u044f",
+  "\u043e\u043f\u0438\u0441", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u0438\u0439", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0439", "\u0431\u0438\u043e\u0433\u0440\u0430\u0444\u0438\u044f", "\u0431\u0456\u043e\u0433\u0440\u0430\u0444\u0456\u044f", "\u0441\u044e\u0436\u0435\u0442", "\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a", "\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447",
+]);
+
+/** A card name or heading that is a narrator or a scenario, not a person. */
+const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a|\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447|\u043d\u0430\u0440\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0446\u0456\u044f|\u043d\u0430\u0440\u0430\u0446\u0438\u044f|storyteller|game ?master/iu;
+
+/** Cyrillic (Russian and Ukrainian) to Latin, applied to folded text, so no \u0439 or \u0451 or \u0457. */
+const REG_CYR = {
+  "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0491": "g", "\u0434": "d", "\u0435": "e", "\u0451": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "i",
+  "\u0456": "i", "\u0457": "i", "\u044b": "i", "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o", "\u043f": "p", "\u0440": "r", "\u0441": "s", "\u0442": "t",
+  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "kh", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
+  "\u044e": "iu", "\u044f": "ia", "\u0454": "ie",
+};
+
+/** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
+export function regFold(s) {
+  return String(s == null ? "" : s)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
+    .trim();
+}
+
+/**
+ * A key for comparing a name across Cyrillic and Latin spelling. Fold, Cyrillic to Latin, then one phonetic key:
+ * ch->k, ph->f, ck->k, h after a consonant dropped (Rhea, Sh, Zh), c before e/i/y -> s else k, q->k, x->ks, y/j->i,
+ * z->s, w->v, an i between a vowel and a vowel dropped (Reia = Rea), doubled letters collapsed.
+ * Equal keys (Cyrillic and Latin spellings): Kaede, Isabella, Ember, Rhea, Geralt, Yor, Bayonetta, Denis, Sina, Mei,
+ * Saki. One letter apart: Alisa and Alice (alisa/alise, the a/e ending). Alice/Alex and Mark/Mary have different keys;
+ * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
+ */
+export function regTranslit(s) {
+  let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
+  t = t
+    .replace(/ch/g, "k")
+    .replace(/ph/g, "f")
+    .replace(/ck/g, "k")
+    .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1")
+    .replace(/c(?=[eiy])/g, "s")
+    .replace(/[cq]/g, "k")
+    .replace(/x/g, "ks")
+    .replace(/[yj]/g, "i")
+    .replace(/z/g, "s")
+    .replace(/w/g, "v")
+    .replace(/([a-z0-9])\1+/g, "$1")
+    .replace(/([aeou])i(?=[aeiou])/g, "$1")
+    .replace(/([a-z0-9])\1+/g, "$1");
+  return t.trim();
+}
+
+/** The folded words of a name without titles. */
+export function regTokens(name) {
+  return regFold(name).split(" ").filter((w) => w && !REG_TITLES.has(w));
+}
+
+/** An empty registry. */
+export function regNew(chatId, from) {
+  return { v: 1, chatId, from: from || null, next: { p: 1, t: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+}
+
+/** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
+export function regGet(reg, id) {
+  const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
+  const find = (x) => ents.find((e) => e && e.id === x) || null;
+  let cur = find(id);
+  for (let i = 0; cur && cur.merged; i++) {
+    if (i > ents.length) return null;
+    cur = find(cur.merged);
+  }
+  return cur;
+}
+
+const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+const regKindLetter = { person: "p", thing: "t", place: "l" };
+
+function regAliasList(entity, list, src) {
+  for (const a of Array.isArray(list) ? list : []) {
+    const t0 = a && typeof a === "object" ? a.text : a;
+    if (typeof t0 !== "string") continue;
+    const text = regOneLine(t0).slice(0, 80);
+    const f = regFold(text);
+    if (!f || f === regFold(entity.name) || entity.aliases.some((x) => regFold(x.text) === f)) continue;
+    const s = a && typeof a === "object" && typeof a.src === "string" && a.src ? a.src : src;
+    entity.aliases.push({ text, src: s });
+  }
+}
+
+/** A new entity with the next id (p1, t1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+export function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
+  const nm = regOneLine(name).slice(0, 80);
+  if (!regFold(nm)) return null;
+  const k = regKindLetter[kind] ? kind : "person";
+  const letter = regKindLetter[k];
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, t: 1, l: 1 };
+  let n = Number(reg.next[letter]) || 1;
+  while (reg.entities.some((e) => e.id === letter + n)) n++;
+  reg.next[letter] = n + 1;
+  const e = { id: letter + n, kind: k, name: nm, aliases: [], src: src || "seen" };
+  if (card) e.card = String(card);
+  regAliasList(e, aliases, e.src);
+  reg.entities.push(e);
+  return e;
+}
+
+/** Make or update the entity `user` (the persona). Old names stay as aliases. */
+export function regUser(reg, name) {
+  const nm = regOneLine(name).slice(0, 80);
+  let e = reg.entities.find((x) => x.id === "user");
+  if (!regFold(nm)) return e || null;
+  if (!e) {
+    e = { id: "user", kind: "person", name: nm, aliases: [], src: "persona" };
+    reg.entities.push(e);
+    return e;
+  }
+  if (regFold(e.name) !== regFold(nm)) {
+    const old = e.name;
+    e.name = nm;
+    e.aliases = e.aliases.filter((a) => regFold(a.text) !== regFold(nm));
+    regAliasList(e, [old], "persona");
+  }
+  return e;
+}
+
+/** Add an alias (deduped by fold; empty and the entity's own name are ignored). On a merged id it goes to the target. True when added. */
+export function regAlias(reg, id, text, src) {
+  const e = regGet(reg, id);
+  if (!e) return false;
+  const before = e.aliases.length;
+  regAliasList(e, [text], src || "seen");
+  return e.aliases.length > before;
+}
+
+function regWithin1(a, b) {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1);
+  return la > lb ? a.slice(i + 1) === b.slice(i) : b.slice(i + 1) === a.slice(i);
+}
+
+const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
+const regLen = (s) => s.replace(/ /g, "").length;
+
+/** True when the user said these two are different people (ids are followed through merges). */
+export function regIsApart(reg, a, b) {
+  const ga = regGet(reg, a);
+  const gb = regGet(reg, b);
+  if (!ga || !gb) return false;
+  return (reg.apart || []).some((p) => {
+    const x = regGet(reg, p[0]);
+    const y = regGet(reg, p[1]);
+    return !!x && !!y && ((x.id === ga.id && y.id === gb.id) || (x.id === gb.id && y.id === ga.id));
+  });
+}
+
+function regFind(reg, text, kind, notWith, skip) {
+  const raw = String(text == null ? "" : text);
+  const f = regFold(raw);
+  if (!f) return null;
+  const want = kind || "person";
+  const cands = [];
+  const seen = new Map();
+  for (const e of reg && Array.isArray(reg.entities) ? reg.entities : []) {
+    const o = regGet(reg, e.id);
+    if (!o || o.kind !== want) continue;
+    if (skip && skip.indexOf(o.id) >= 0) continue;
+    if (notWith && regIsApart(reg, o.id, notWith)) continue;
+    let c = seen.get(o.id);
+    if (!c) {
+      c = { id: o.id, strs: [] };
+      seen.set(o.id, c);
+      cands.push(c);
+    }
+    c.strs.push(e.name);
+    for (const a of e.aliases || []) c.strs.push(a.text);
+  }
+  const hit = (pred) => cands.filter((c) => c.strs.some(pred)).map((c) => c.id);
+  const done = (ids, step) => (ids.length === 1 ? { id: ids[0], step } : ids.length > 1 ? { ambiguous: ids } : null);
+  let r = done(hit((s) => regFold(s) === f), 1);
+  if (r) return r;
+  const key = regTranslit(raw);
+  if (key) {
+    r = done(hit((s) => regTranslit(s) === key), 2);
+    if (r) return r;
+  }
+  const toks = regTokens(raw);
+  if (toks.length === 1) {
+    const w = toks[0];
+    const wk = regTranslit(w);
+    r = done(
+      hit((s) => {
+        const t = regTokens(s);
+        if (!t.length) return false;
+        // the same word, or the same in another alphabet (one letter off, as Alisa and Alice)
+        return [t[0], t[t.length - 1]].some((x) => {
+          if (x === w || regTranslit(x) === wk) return true;
+          const xk = regTranslit(x);
+          return regScript(x) !== regScript(w) && regLen(xk) >= 4 && regLen(wk) >= 4 && xk[0] === wk[0] && regWithin1(xk, wk);
+        });
+      }),
+      3,
+    );
+    if (r) return r;
+  }
+  const sc = regScript(raw);
+  r = done(
+    hit((s) => {
+      const fs = regFold(s);
+      if (regLen(fs) >= 6 && regLen(f) >= 6 && regWithin1(fs, f)) return true;
+      if (regScript(s) === sc) return false;
+      const ks = regTranslit(s);
+      return regLen(ks) >= 3 && regLen(key) >= 3 && ks[0] === key[0] && regWithin1(ks, key);
+    }),
+    4,
+  );
+  return r;
+}
+
+/**
+ * Which entity does this word mean? `{ id, step }`, `{ ambiguous: [ids] }` or null. Steps, first hit wins:
+ * 1 exact fold of a name or alias; 2 equal regTranslit key; 3 a single word (titles removed) equal to the first or
+ * last word of exactly one entity's name or alias; 4 near (fold keys one letter apart when both are 6+ letters, or
+ * translit keys one letter apart when the spellings are in different scripts, 3+ letters, same first letter).
+ * Merged entities are not candidates but their names point to the target. `notWith` (an id) skips candidates the
+ * user marked apart from it. `user` is a candidate like the others: the caller decides what to do with it.
+ */
+export function resolveName(reg, text, kind = "person", notWith) {
+  return regFind(reg, text, kind, notWith, null);
+}
+
+/** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
+export function regLearn(reg, id, text) {
+  if (!regTokens(text).length) return false;
+  return regAlias(reg, id, text, "seen");
+}
+
+const regPairHas = (p, a, b) => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a);
+
+/** Merge `fromId` into `intoId`. False (nothing changed) for `user` as the source, the same entity, an apart pair, or a missing id. */
+export function regMerge(reg, fromId, intoId) {
+  const from = reg.entities.find((e) => e.id === fromId);
+  const into = regGet(reg, intoId);
+  if (!from || !into || from.merged || from.id === "user" || from.id === into.id) return false;
+  if (from.kind !== into.kind || regIsApart(reg, from.id, into.id)) return false;
+  from.merged = into.id;
+  regAliasList(into, [from.name], "merged");
+  regAliasList(into, from.aliases, "merged");
+  const redirect = (x) => (x === from.id ? into.id : x);
+  const apart = [];
+  for (const p of reg.apart || []) {
+    const a = redirect(p[0]);
+    const b = redirect(p[1]);
+    if (a !== b && !apart.some((q) => regPairHas(q, a, b))) apart.push([a, b]);
+  }
+  reg.apart = apart;
+  const suggest = [];
+  for (const s of reg.suggest || []) {
+    const a = redirect(s.a);
+    const b = redirect(s.b);
+    if (a !== b && !suggest.some((q) => regPairHas([q.a, q.b], a, b))) suggest.push({ ...s, a, b });
+  }
+  reg.suggest = suggest;
+  return true;
+}
+
+/** Record that two entities are different people (unordered, once); drops the suggestion for the pair. False when an id is missing or equal. */
+export function regApart(reg, a, b) {
+  const x = regGet(reg, a);
+  const y = regGet(reg, b);
+  if (!x || !y || x.id === y.id) return false;
+  if (!(reg.apart || []).some((p) => regPairHas(p, x.id, y.id))) {
+    if (!Array.isArray(reg.apart)) reg.apart = [];
+    reg.apart.push(x.id < y.id ? [x.id, y.id] : [y.id, x.id]);
+  }
+  reg.suggest = (reg.suggest || []).filter((s) => !regPairHas([s.a, s.b], x.id, y.id));
+  return true;
+}
+
+/** Suggest that two entities may be one. Not when they are apart, already suggested, equal, or one is merged. True when added. */
+export function regSuggest(reg, a, b, why) {
+  const x = reg.entities.find((e) => e.id === a);
+  const y = reg.entities.find((e) => e.id === b);
+  if (!x || !y || x.merged || y.merged || x.id === y.id) return false;
+  if (regIsApart(reg, x.id, y.id)) return false;
+  if (!Array.isArray(reg.suggest)) reg.suggest = [];
+  if (reg.suggest.some((s) => regPairHas([s.a, s.b], x.id, y.id))) return false;
+  reg.suggest.push({ a: x.id, b: y.id, why: regOneLine(why).slice(0, 80) });
+  return true;
+}
+
+// ---------- names out of a character card ----------
+
+const REG_NAME_LINE = /^(?:name|full name|\u0438\u043c\u044f|\u043f\u043e\u043b\u043d\u043e\u0435 \u0438\u043c\u044f|\u0456\u043c['’ʼ]\u044f|\u043f\u043e\u0432\u043d\u0435 \u0456\u043c['’ʼ]\u044f)\s*[:：]\s*(.+)$/iu;
+const REG_ALIAS_LINE =
+  /^(?:also called|also known as|aka|a\.k\.a\.?|nicknames?|aliases|alias|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0435|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0430|\u043f\u0441\u0435\u0432\u0434\u043e\u043d\u0438\u043c|\u0442\u0430\u043a\u0436\u0435\s+\p{L}+\s+\u043a\u0430\u043a|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u043e|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u0430|\u0442\u0430\u043a\u043e\u0436\s+\p{L}+\s+\u044f\u043a)\s*[:：]\s*(.+)$/iu;
+
+/** Placeholders and markup out of a card text. */
+function regTidy(s) {
+  return String(s == null ? "" : s)
+    .replace(/\{\{[^}]*\}\}|<\/?(?:char|user|bot)>/gi, " ")
+    .replace(/[*`~#]+/g, "")
+    .replace(/(^|\s)_+|_+(?=\s|$)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The part of a card name before a separator ( - , — , – , | , ": " , "(" ), or the whole name. */
+function regHead(n) {
+  const m = n.match(/^(.+?)(?:\s+[-–—|]\s+|:\s+|\s*[(（[])/u);
+  return m && m[1].trim() ? m[1].trim() : n;
+}
+
+/** Could this be a person's name: letters, at most three words that are not titles, short. */
+function regPlausible(n) {
+  return !!n && n.length <= 40 && /\p{L}/u.test(n) && regTokens(n).length >= 1 && regTokens(n).length <= 3;
+}
+
+function regCardPersonName(raw) {
+  const n = regTidy(raw);
+  if (!n || REG_NARR.test(n)) return null;
+  if (/^(?:the|a|an)\s/i.test(n) && /[(（]/.test(n)) return null;
+  const head = regHead(n);
+  return regPlausible(head) ? head : null;
+}
+
+function regHeadingName(raw) {
+  const n = regTidy(raw).replace(/:+$/, "").trim();
+  if (!n || REG_NARR.test(n)) return null;
+  const head = regHead(n);
+  const words = regFold(head).split(" ");
+  if (!regPlausible(head)) return null;
+  if (REG_STOP.has(regFold(head)) || (words.length <= 3 && REG_STOP.has(words[0]))) return null;
+  return head;
+}
+
+function regLineName(v) {
+  const n = regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/[,;，；]/)[0].replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+  return regPlausible(n) ? n : null;
+}
+
+function regSplitAliases(v) {
+  const out = [];
+  for (let a of regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/\s*[,;，；]\s*|\s+(?:or|\u0438\u043b\u0438|\u0430\u0431\u043e)\s+/iu)) {
+    a = a.replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+    if (a && a.length <= 40 && /\p{L}/u.test(a) && a.split(" ").length <= 5 && !REG_NARR.test(a)) out.push(a);
+  }
+  return out;
+}
+
+const regSame = (a, b) => {
+  if (regFold(a) === regFold(b)) return true;
+  const x = regTokens(a);
+  const y = regTokens(b);
+  if (!x.length || !y.length) return false;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  return s.every((w) => l.indexOf(w) >= 0);
+};
+
+function regPushAlias(p, a) {
+  const f = regFold(a);
+  if (f && f !== regFold(p.name) && !p.aliases.some((x) => regFold(x) === f)) p.aliases.push(a);
+}
+
+/**
+ * The people a character card names, for messy imported cards (nothing is required): the card name (or the part
+ * before a separator), `### Name` / `## Name` sections, and lines like `Name:`, `Aliases:`, `Nickname:` (English,
+ * Russian, Ukrainian). A card name that is a narrator, a scenario or a long title is not a person; two or more
+ * name sections also make the card name not a person. Returns `{ persons: [{ name, aliases: [] }], cardIsPerson }`.
+ */
+export function regCardNames(card) {
+  const d = card && typeof card === "object" ? (card.data && typeof card.data === "object" ? card.data : card) : {};
+  const cardName = regCardPersonName(d.name != null ? d.name : card && card.name);
+  const desc = String(d.description != null ? d.description : card && card.description ? card.description : "");
+  const secs = [{ head: null, declared: null, aliases: [] }];
+  let cur = secs[0];
+  for (const line of desc.split(/\r?\n/)) {
+    const h = line.match(/^\s{0,3}#{2,3}\s+(.+?)\s*#*\s*$/);
+    if (h) {
+      const nm = regHeadingName(h[1]);
+      if (nm) {
+        cur = secs.find((s) => s.head && regFold(s.head) === regFold(nm)) || { head: nm, declared: null, aliases: [] };
+        if (secs.indexOf(cur) < 0) secs.push(cur);
+      }
+      continue;
+    }
+    const cl = line.replace(/^[\s>*\-+•·]+/u, "").replace(/[*_`]+/g, "").trim();
+    let m = cl.match(REG_NAME_LINE);
+    if (m) {
+      const v = regLineName(m[1]);
+      if (v) {
+        if (!cur.declared) cur.declared = v;
+        else cur.aliases.push(v);
+      }
+      continue;
+    }
+    m = cl.match(REG_ALIAS_LINE);
+    if (m) for (const a of regSplitAliases(m[1])) cur.aliases.push(a);
+  }
+  const heads = secs.slice(1);
+  const cardIsPerson = !!cardName && heads.length < 2;
+  const out = [];
+  const put = (nm, al) => {
+    let p = out.find((q) => regSame(q.name, nm));
+    if (p) {
+      if (regTokens(nm).length > regTokens(p.name).length) {
+        const old = p.name;
+        p.name = nm;
+        regPushAlias(p, old);
+      } else regPushAlias(p, nm);
+    } else {
+      p = { name: nm, aliases: [] };
+      out.push(p);
+    }
+    for (const a of al) regPushAlias(p, a);
+    return p;
+  };
+  let cp = null;
+  if (cardIsPerson) cp = put(cardName, []);
+  for (const s of heads) put(s.declared || s.head, [...(s.declared && s.declared !== s.head ? [s.head] : []), ...s.aliases]);
+  const s0 = secs[0];
+  const target = cp || out[0] || null;
+  if (target) {
+    if (s0.declared) {
+      if (regSame(target.name, s0.declared)) put(s0.declared, []);
+      else if (cp) {
+        const old = target.name;
+        target.name = s0.declared;
+        regPushAlias(target, old);
+      } else regPushAlias(target, s0.declared);
+    }
+    for (const a of s0.aliases) regPushAlias(target, a);
+  } else if (s0.declared) {
+    put(s0.declared, s0.aliases);
+  }
+  return { persons: out, cardIsPerson };
+}
+
+// ---------- seeding ----------
+
+function regSeedOne(reg, p, src, cardId) {
+  const first = regFind(reg, p.name, "person", null, null);
+  if (first && first.id === "user" && src === "card") return null;
+  const r = regFind(reg, p.name, "person", null, ["user"]);
+  let e = null;
+  if (r && r.id) {
+    e = regGet(reg, r.id);
+    regAlias(reg, e.id, p.name, src);
+    if (cardId && src === "card" && !e.card) e.card = String(cardId);
+  } else {
+    e = regAdd(reg, { kind: "person", name: p.name, src, card: src === "card" ? cardId : undefined });
+  }
+  if (!e) return null;
+  for (const a of p.aliases || []) regAlias(reg, e.id, a, src);
+  return e;
+}
+
+/**
+ * Make sure the people the chat starts with exist: the persona as `user`, every person of each card (`cards` are
+ * card objects or { id, card }), and the card souls (`souls`: { [name]: { aliases? } }). Resolves first, so doing it
+ * twice changes nothing. Returns the registry.
+ */
+export function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
+  if (personaName) regUser(reg, personaName);
+  for (const item of Array.isArray(cards) ? cards : []) {
+    if (!item || typeof item !== "object") continue;
+    const wrapped = item.card && typeof item.card === "object";
+    const card = wrapped ? item.card : item;
+    const id = item.id;
+    for (const p of regCardNames(card).persons) regSeedOne(reg, p, "card", id);
+  }
+  const names = souls && typeof souls === "object" ? Object.keys(souls) : [];
+  for (const name of names) {
+    const s = souls[name];
+    regSeedOne(reg, { name, aliases: s && Array.isArray(s.aliases) ? s.aliases.filter((x) => typeof x === "string") : [] }, "soul");
+  }
+  return reg;
+}
+
+// ---------- files ----------
+
+/** Where a chat's registry lives under the app's data folder. */
+export const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
+
+const REG_ID = /^(?:user|[ptl]\d+)$/;
+
+/** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
+function regValidate(raw, chatId, from) {
+  const reg = regNew(chatId, from);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
+  const ids = new Set();
+  const kinds = { person: 1, thing: 1, place: 1 };
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
+    const name = regOneLine(e.name).slice(0, 80);
+    if (!regFold(name) || !kinds[e.kind]) continue;
+    if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
+    const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
+    regAliasList(out, e.aliases, "seen");
+    if (typeof e.card === "string" && e.card) out.card = e.card;
+    if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
+    ids.add(e.id);
+    reg.entities.push(out);
+  }
+  for (const e of reg.entities) {
+    if (e.merged && (!ids.has(e.merged) || e.merged === e.id || e.id === "user")) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.merged && !regGet(reg, e.id)) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.id === "user") continue;
+    const n = Number(e.id.slice(1));
+    const k = e.id[0];
+    if (n >= reg.next[k]) reg.next[k] = n + 1;
+  }
+  for (const k of ["p", "t", "l"]) {
+    const stored = raw.next && Number(raw.next[k]);
+    if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
+  }
+  for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
+    if (Array.isArray(p) && p.length === 2 && p[0] !== p[1] && ids.has(p[0]) && ids.has(p[1]) && !reg.apart.some((q) => regPairHas(q, p[0], p[1]))) {
+      reg.apart.push([p[0], p[1]]);
+    }
+  }
+  for (const s of Array.isArray(raw.suggest) ? raw.suggest : []) {
+    if (s && typeof s === "object" && s.a !== s.b && ids.has(s.a) && ids.has(s.b) && !reg.suggest.some((q) => regPairHas([q.a, q.b], s.a, s.b))) {
+      reg.suggest.push({ a: s.a, b: s.b, why: regOneLine(s.why).slice(0, 80) });
+    }
+  }
+  return reg;
+}
+
+/**
+ * The chat's registry: its own file; else a copy of the registry of chat `from` (a chat that continues another);
+ * else an empty one. A malformed file gives an empty registry. `fsx` has read(rel) (throws when missing).
+ */
+export function regLoad(fsx, chatId, from) {
+  const readJson = (rel) => {
+    try {
+      return { ok: true, value: JSON.parse(fsx.read(rel)) };
+    } catch (e) {
+      return { ok: false, missing: !(e instanceof SyntaxError) };
+    }
+  };
+  const own = readJson(regPath(chatId));
+  if (own.ok) return regValidate(own.value, chatId, from || (own.value && own.value.from) || null);
+  if (!own.missing) return regNew(chatId, from);
+  if (from) {
+    const base = readJson(regPath(from));
+    if (base.ok) return regValidate(base.value, chatId, from);
+  }
+  return regNew(chatId, from);
+}
+
+/** Write the registry to its file. */
+export function regSave(fsx, reg) {
+  fsx.write(regPath(reg.chatId), JSON.stringify(reg));
+  return reg;
+}
