@@ -8370,18 +8370,26 @@ function voiceSettle(file, people, mode) {
   return { v: 1, mode, colors: pickVoiceColors(ids, kept), hand };
 }
 
-function voiceReply(chatId, file, people, active) {
+/** The name a person is shown by: the Dashboard's own name for them, else the longest of their names that ends the entity's name
+ *  (a card heading "The Class Representative Yuki Tanaka" is shown as "Yuki Tanaka"), else the entity's name. */
+function voiceName(e, shown) {
+  if (shown) return shown;
+  const own = arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter((a) => typeof a === "string" && a);
+  const tail = own.filter((a) => a !== e.name && String(e.name).toLowerCase().endsWith(" " + a.toLowerCase())).sort((x, y) => y.length - x.length)[0];
+  return tail || e.name;
+}
+
+function voiceReply(chatId, file, people, active, shownBy) {
   return {
     chatId,
     mode: file.mode,
     active,
-    people: people.map((e) => ({
-      id: e.id,
-      name: e.name,
-      aliases: arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter(Boolean),
-      color: active ? file.colors[e.id] || "" : "",
-      hand: file.hand.includes(e.id),
-    })),
+    people: people.map((e) => {
+      const name = voiceName(e, shownBy[e.id]);
+      // the other names a line can say them by; the long heading with a role in front of the name is not one of them (its first word is "The")
+      const others = arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter((a) => typeof a === "string" && a && a !== name && a !== e.name);
+      return { id: e.id, name, aliases: others.filter((a, i) => others.indexOf(a) === i), color: active ? file.colors[e.id] || "" : "", hand: file.hand.includes(e.id) };
+    }),
   };
 }
 
@@ -8428,7 +8436,11 @@ function voicesRoute(req, fsx) {
       fsx.write(VOICE_DIR + chatId + ".json", JSON.stringify(file));
     } catch {}
   }
-  return ok(voiceReply(chatId, file, people, active));
+  // the names the Dashboard shows (its personIds map a shown name to the registry id)
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const shownBy = {};
+  if (isObj(dash) && isObj(dash.personIds)) for (const [n, id] of Object.entries(dash.personIds)) if (typeof id === "string" && !shownBy[id]) shownBy[id] = n;
+  return ok(voiceReply(chatId, file, people, active, shownBy));
 }
 
 export function handleRoute(req, host) {

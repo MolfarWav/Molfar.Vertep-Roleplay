@@ -133,3 +133,26 @@ describe("voice colours", () => {
     expect(r.active).toBe(false);
   });
 });
+
+describe("voice names of imported cards", () => {
+  it("a heading with a role in front is shown and matched by the name after it, never by 'The'", () => {
+    registry("c10", [
+      user,
+      { id: "p1", name: "The Class Representative Yuki Tanaka", src: "card", card: "s", aliases: [{ text: "Yuki Tanaka", src: "card" }, { text: "Tanaka Yuki", src: "card" }] },
+      { id: "p2", name: "The Gyaru Akari Hayashi", src: "card", card: "s", aliases: [{ text: "Akari Hayashi", src: "card" }] },
+      { id: "p3", name: "Kaito Sato", src: "seen" },
+    ]);
+    const r = get("c10");
+    expect(r.active).toBe(true);
+    expect(r.people.map((p: any) => p.name)).toEqual(["Yuki Tanaka", "Akari Hayashi", "Kaito Sato"]);
+    expect(r.people[0].aliases).toEqual(["Tanaka Yuki"]);
+    expect(JSON.stringify(r.people)).not.toContain("The Class");
+  });
+
+  it("the name the Dashboard shows wins", () => {
+    registry("c11", [user, { id: "p1", name: "Queen Seraphina", src: "card", card: "q" }, { id: "p2", name: "Isabella", src: "card", card: "q" }]);
+    fs.mkdirSync(path.join(root, "dashboard/state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "dashboard/state/c11.json"), JSON.stringify({ personIds: { Seraphina: "p1" } }));
+    expect(get("c11").people.map((p: any) => p.name)).toEqual(["Seraphina", "Isabella"]);
+  });
+});
