@@ -979,6 +979,12 @@ export function normalizeState(raw, chatId) {
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
+  // the entity registry's person for each NPC record: { "n3": "p7" } (the registry file is data/registry/<chatId>.json)
+  if (isObj(s.regIds)) {
+    const ids = {};
+    for (const [rid, pid] of Object.entries(s.regIds)) if (typeof pid === "string" && /^p\d{1,6}$/.test(pid) && entities.some((e) => e.id === rid)) ids[rid] = pid;
+    if (Object.keys(ids).length) out.regIds = ids;
+  }
   // what the last run changed: record ids and characters whose carry moved, for the Dashboard's counters
   if (isObj(s.lastChange)) out.lastChange = { at: Number.isFinite(s.lastChange.at) ? s.lastChange.at : 0, ids: arr(s.lastChange.ids).map(str).filter(Boolean).slice(0, CHANGED_MAX), carry: arr(s.lastChange.carry).map(str).filter(Boolean).slice(0, CARRY_WHO_MAX) };
   // the message the last full run (fronts, events) read up to, and the place the last run saw
@@ -1294,6 +1300,112 @@ function userNameOf(fsx, meta) {
   return "";
 }
 
+// ---------- the entity registry (#240): a person keeps one name across the World DM, Litopys and the Dashboard ----------
+// Persons whose own source is not the story: the DM never records them as NPCs.
+const REG_OWN_SRC = ["persona", "card", "soul", "group"];
+
+function cardObjects(fsx, meta) {
+  const out = [];
+  for (const id of memberIds(fsx, meta)) {
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    if (isObj(card)) out.push({ id, card });
+  }
+  return out;
+}
+
+/**
+ * The chat's registry context: the registry (loaded, seeded with the chat's cards and the persona, saved when seeding
+ * added something: regSeed is idempotent) and the Dashboard's display names for people (read only). `dirty` = the
+ * registry changed since; save it with regFlush.
+ */
+export function openRegistry(fsx, chatId, meta) {
+  let reg;
+  try {
+    reg = regLoad(fsx, chatId);
+    const before = JSON.stringify(reg);
+    regSeed(reg, { cards: cardObjects(fsx, meta), personaName: userNameOf(fsx, meta) });
+    if (JSON.stringify(reg) !== before) regSave(fsx, reg);
+  } catch {
+    reg = regNew(chatId);
+  }
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  return { reg, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null, dirty: false };
+}
+
+/** Save the registry when this run changed it. Call it right after the change, with a registry opened right before it. */
+export function regFlush(fsx, rc) {
+  if (!rc || !rc.dirty) return;
+  rc.dirty = false;
+  try {
+    regSave(fsx, rc.reg);
+  } catch {}
+}
+
+/** The registry person a word means (a learned spelling is kept as an alias), or null. */
+function regPersonOf(rc, text) {
+  const s = str(text);
+  if (!rc || !s) return null;
+  const r = resolveName(rc.reg, s, "person");
+  if (!r || !r.id) return null;
+  const e = regGet(rc.reg, r.id);
+  if (e && r.step > 1 && e.id !== "user" && regLearn(rc.reg, e.id, s)) rc.dirty = true;
+  return e;
+}
+
+/** How the Dashboard and the rest of the app name this person: `user` for the user's character, else the Dashboard's display name for the id, else the registry name. */
+function regDisplay(rc, e) {
+  if (e.id === "user") return "user";
+  if (rc.ids) {
+    for (const [k, v] of Object.entries(rc.ids)) {
+      if (typeof v === "string" && typeof k === "string") {
+        const t = regGet(rc.reg, v);
+        if (t && t.id === e.id && !/^(?:user|[ptl]\d+)$/.test(k)) return k;
+      }
+      if (typeof v === "string" && regGet(rc.reg, k) && regGet(rc.reg, k).id === e.id && /^(?:user|[ptl]\d+)$/.test(k)) return v;
+    }
+  }
+  return e.name;
+}
+
+/** A name written by the DM, as the app names that person; unknown names stay as written. */
+function regCanon(rc, text) {
+  const s = str(text);
+  if (!rc || !s) return s;
+  const e = regPersonOf(rc, s);
+  return e ? regDisplay(rc, e) : s;
+}
+
+/** The NPC record of the person this word means (by the registry), or null. */
+function npcRecordOf(state, rc, text) {
+  const e = regPersonOf(rc, text);
+  if (!e || !isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => {
+    const t = regGet(rc.reg, state.regIds[k]);
+    return !!t && t.id === e.id;
+  });
+  return rid ? state.entities.find((x) => x.id === rid) || null : null;
+}
+
+/** The cast line of a DM run: the cards' people with the other names they answer to. */
+export function castOf(rc, cards) {
+  if (!rc) return cards;
+  const out = [];
+  const seen = new Set();
+  const put = (e, fallback) => {
+    if (e && seen.has(e.id)) return;
+    if (e) seen.add(e.id);
+    const name = e ? e.name : fallback;
+    const also = e ? e.aliases.map((a) => a.text).slice(0, 6) : [];
+    out.push(name + (also.length ? " (also " + also.join(", ") + ")" : ""));
+  };
+  for (const c of cards) {
+    const e = regPersonOf(rc, c);
+    put(e && e.id !== "user" ? e : null, c);
+  }
+  for (const e of rc.reg.entities) if (!e.merged && e.kind === "person" && ["card", "soul", "group"].includes(e.src)) put(e, e.name);
+  return out;
+}
+
 // ---------- the DM call ----------
 const CHRONICLER_RULES = [
   "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups, things and facts that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
@@ -1558,7 +1670,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + str(place) + "."] : []),
-    ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w, c)).join("\n") : ": nothing recorded yet.")]),
+    ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
@@ -1753,10 +1865,17 @@ const pastMaxOf = (settings) => clamp(Math.round((settings ? settings.textMax : 
  * recorded; a name already on record becomes an update; retired records stay retired.
  * Returns how many records changed.
  */
-export function applyReport(state, out, { cards, userName, now, touched }) {
+export function applyReport(state, out, { cards, userName, now, touched, rc }) {
   const at = now || Date.now();
   const skip = [...cards, ...(userName ? [userName] : [])];
   const isSkipped = (name) => skip.some((n) => sameName(n, name));
+  // with the registry (rc): a person it knows from a card, a soul or the persona is never an NPC, whatever the spelling;
+  // an NPC person is one record whatever the spelling; a holder is written as the app names that person
+  const isOwn = (name) => {
+    const e = rc ? regPersonOf(rc, name) : null;
+    return !!e && (e.id === "user" || REG_OWN_SRC.includes(e.src));
+  };
+  const canonSpace = (raw) => (rc && str(raw.holder) ? { ...raw, holder: cut(regCanon(rc, str(raw.holder)), NAME_MAX) } : raw);
   let changes = 0;
   // a draft (a world built without a chat) has no settings of its own: the defaults
   const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
@@ -1767,32 +1886,44 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
     if (!room() || !isObj(raw)) continue;
     const name = cut(str(raw.name), NAME_MAX);
     if (!name || isSkipped(name)) continue;
+    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
+    if (kind === "person" && isOwn(name)) continue;
     const text = cut(str(raw.text), textMax);
-    const known = findEntity(state.entities, { name });
+    let known = findEntity(state.entities, { name });
+    if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
     if (known) {
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
-      known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases)], known.name);
-      applySpace(known, raw);
+      known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases), ...(sameName(known.name, name) ? [] : [name])], known.name);
+      applySpace(known, canonSpace(raw));
       known.at = at;
       if (touched) touched.add(known.id);
       changes++;
       continue;
     }
     if (!text || state.entities.length >= ENTITIES_MAX) continue;
-    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
-    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...raw, background: undefined }) };
+    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...canonSpace(raw), background: undefined }) };
     state.entities.push(fresh);
+    if (kind === "person" && rc) {
+      // the NPC joins the registry (or the person the story already made there), and the record keeps its id
+      const seen = regPersonOf(rc, name);
+      const pe = seen || regAdd(rc.reg, { kind: "person", name, src: "world" });
+      if (pe) {
+        if (seen) regAlias(rc.reg, pe.id, name, "world");
+        else rc.dirty = true;
+        (state.regIds ||= {})[fresh.id] = pe.id;
+      }
+    }
     if (touched) touched.add(fresh.id);
     changes++;
   }
   for (const raw of arr(out.update)) {
     if (!room() || !isObj(raw)) continue;
-    const e = findEntity(state.entities, raw);
+    const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) : null);
     if (!e || e.status === "past") continue;
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
-    const moved = applySpace(e, { ...raw, background: undefined });
+    const moved = applySpace(e, { ...canonSpace(raw), background: undefined });
     if ((!text || text === e.text) && aliases.length === e.aliases.length && !moved) continue;
     if (text) e.text = text;
     e.aliases = aliases;
@@ -1818,14 +1949,19 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
  * (others are records). A list that is sent replaces the old one; one that is left out stays. Returns the
  * names whose carry changed.
  */
-export function applyCarry(state, list, { cards, userName, now }) {
+export function applyCarry(state, list, { cards, userName, now, rc }) {
   const known = [...cards, ...(userName ? [userName] : [])];
   const changed = [];
   for (const raw of arr(list)) {
     if (!isObj(raw) || changed.length >= 6) continue;
-    const who = known.find((n) => sameName(n, str(raw.who)));
+    let who = known.find((n) => sameName(n, str(raw.who)));
+    // with the registry: any spelling of the user's character or of a card character, kept under the name the app uses
+    const legacy = who;
+    const e = rc ? regPersonOf(rc, str(raw.who)) : null;
+    if (e && (e.id === "user" || REG_OWN_SRC.includes(e.src))) who = regDisplay(rc, e);
     if (!who) continue;
-    const old = state.carry[who] || { wearing: [], carried: [], nearby: [], at: 0 };
+    const old = state.carry[who] || (legacy && state.carry[legacy]) || { wearing: [], carried: [], nearby: [], at: 0 };
+    if (legacy && legacy !== who && state.carry[legacy]) delete state.carry[legacy];
     const next = {
       wearing: raw.wearing !== undefined ? cleanItems(raw.wearing, WEARING_MAX) : old.wearing,
       carried: raw.carried !== undefined ? cleanCarried(raw.carried) : old.carried,
@@ -1976,6 +2112,8 @@ export function hereOf(state, scene, extra) {
     for (const e of entities) if (e.kind === "place" && e.status === "active" && e.inside && refersTo(place, e.inside)) related.add(e.id);
   }
   const placeOf = (t) => (t.place ? entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, t.place)) || null : null);
+  // `user` (the registry's name for the user's character) is the first name of extra
+  const asName = (n) => (n === "user" && str(arr(extra)[0]) ? str(arr(extra)[0]) : n);
   const present = [...(scene ? arr(scene.present) : []), ...arr(extra)].filter((n, i, a) => a.findIndex((m) => samePlace(m, n)) === i);
   const inScene = (name) => !scene || !present.length || present.some((n) => samePlace(n, name));
   const things = [];
@@ -1984,7 +2122,7 @@ export function hereOf(state, scene, extra) {
   for (const t of entities) {
     if (t.kind !== "thing" || t.status !== "active") continue;
     if (t.holder) {
-      if (inScene(t.holder)) (held[t.holder] ||= []).push(t);
+      if (inScene(asName(t.holder))) (held[asName(t.holder)] ||= []).push(t);
       else asleep.push(t);
     } else if (t.place) {
       const p = placeOf(t);
@@ -1994,7 +2132,7 @@ export function hereOf(state, scene, extra) {
   }
   const carry = {};
   const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
-  for (const [who, c] of Object.entries(source)) if (inScene(who)) carry[who] = c;
+  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c;
   const spots = place ? entities.filter((e) => e.kind === "place" && e.status === "active" && e.size === "spot" && e.inside && refersTo(place, e.inside)) : [];
   return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
@@ -3747,6 +3885,7 @@ function updateRoute(req, host) {
   const r = host.llm.results[key];
   const cards = cardNames(fsx, chat.meta);
   const userName = userNameOf(fsx, chat.meta);
+  const cast = castOf(openRegistry(fsx, chatId, chat.meta), cards);
   const play = playModel(fsx, cfg, chat.meta);
   // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
   const take = takeUnread(unread);
@@ -3758,7 +3897,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
@@ -3802,8 +3941,11 @@ function updateRoute(req, host) {
   const out = parseReply(r.text);
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const touched = new Set();
-  const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now() }) : [];
-  const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched }) + carried.length;
+  // the registry is read right before it may change, and saved right after
+  const rc = openRegistry(fsx, chatId, chat.meta);
+  const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
+  const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
+  regFlush(fsx, rc);
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
   let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;

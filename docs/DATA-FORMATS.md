@@ -189,6 +189,8 @@ and listed together as `recollections { scenes, who, tokens, text }` in `GET /li
 
 **Who witnessed a scene (#184).** A chapter may carry `cast`: `["<name as the scene spells it>", ...]`, at most 12, the named characters of the scene besides the player (the same list the recollections use, kept even when there are fewer than two). The chapter worker writes it; a chapter without it (older, hand-made, or a scene with nobody named) is visible to every reply. A reply spoken by one character leaves out a chapter whose cast does not include that character (and an arc that holds such a chapter; its witnessed chapters ride alone), in the story insert and in the backstory of a continued chat. A reply that voices several characters (a narrator, a group in narrator mode) gets every chapter. Facts have their own `knownBy`: a fact whose `knownBy` is missing or unusable is written with the scene's cast instead of `"all"`. `GET /litopys/chat?chatId=` lists `cast` on each chapter.
 
+**Names go through the entity registry.** When a chapter is written, a fact's `subject`, its `knownBy` names, the chapter's `cast` and the `views` names are resolved through the chat's registry (`registry/<chatId>.json`, read; seeded from the chat's cards and persona if it is missing): the user's names become the user's name as the chat knows it (`meta.userName`), a person becomes the Dashboard's display name for it (`personIds`), else the registry name; `world`, `all` and a name nobody answers to stay as written. Litopys never adds a person to the registry. When a reply is built, `knownBy`, `subject` and the present names are compared the same way, so `Seraphina` in `knownBy` counts for `Queen Seraphina`.
+
 **Recall scoring (#99).** Which facts and chapters go into the Litopys insert when they do not all fit is ranked by the words of
 the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by how few facts have it, a name found in the text
 (a capitalised word that does not open a sentence, a fact's `subject` or who knows it) weighs 1.6 times more, two content words in a
@@ -422,6 +424,10 @@ player switches it on for that chat. It writes:
   onTransition, onPlace, insert, textMax, changesMax }, lastKey, levelKey?, lastPlace?, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
   fronts: [{ id, name, goal, clock, size, status, at? }], event, direction?, transitionKey?, log: [{ at, key,
   reason, changes, fronts, summary }], lastRunAt?, lastModel?, lastError? }`.
+  - `regIds` (optional): `{ "n3": "p7" }`, the entity registry person (`registry/<chatId>.json`) of each NPC `person` record. A card
+    character or the user (registry source `persona`, `card`, `soul`, `group`) is never recorded as an NPC, whatever the spelling; an NPC
+    spelled two ways is one record (the second spelling joins its aliases). A thing's `holder` and the keys of `carry` are written
+    as the person's name in the Dashboard (its `personIds`), else the registry name; the user's character is the key/holder `user`.
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
     `antagonist`, `chaos` (a hard event for the next reply).
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
@@ -624,6 +630,8 @@ character saw, heard or guessed), `names` and `history`:
 
 - `calendar` (#113): `{ start: "YYYY-MM-DD", src: "text" | "today" | "user", off?: true, inherited?: true }`, the date of story day 1. A snapshot keeps only the day number (`clock.day`); the date of a day is `start` plus `day - 1`, worked out when read, so moving the calendar moves every day at once. `src: "text"` = the sensor read a whole date in the text (its `date` key, `YYYY-MM-DD`, or null); `today` = counted from the clock of the machine; `user` = set by the user and never moved by the text; `off` hides the date; `inherited` = carried from the earlier chat of a continued one (dropped with the rest of the inherited state). `clock.time` may be a time guessed from the part of the day, then `clock.approx: true`. `POST /dashboard/calendar { chatId, date?, off? }` (`date` null = automatic again); `GET /dashboard/state` has `calendar` (where it stands) and `clock.date`.
 - `removed`: `["<character>"]`, names the user took off the Dashboard (`POST /dashboard/notes` `{ op: "remove-character", name }`): the name is gone from every snapshot's `chars` and `present` and the sensor's next reading does not bring it back. Notes, history and what the character said stay under the name.
+- `personIds` (#240): `{ "<Dashboard name>": "<registry id>" }`, which person of the chat's entity registry (below) each character name of the Dashboard stands for. The first name a person has on the Dashboard stays its name, so snapshots and the UI keep their keys; a name written later by the sensor is looked up in the registry and shown under that first name. Two names that older versions kept for one person get an id each (and a suggestion), never one id: the user decides. A continued chat copies it from the earlier chat.
+- `notPersons` (#240): `["campus sluts"]`, labels that are no people (a card title or a narrator, folded: lower case, punctuation as a space), up to 100. The Dashboard never makes a character from one of these names, and an older snapshot that kept one hides it. A card that is not a person (a narrator, several `### Name` sections, a long title) contributes its name and the speaker names of its messages; a card that is a person contributes them as spellings of that person instead.
 - `said`: `{ "<character>": [ { id: "s1", text, kind, hidden?, turn, src, source: "chat" } ] }`, what the character said
   and is held to (#98). `kind` is `vow`, `promise`, `threat`, `confession`, `secret`, `order`, `refusal`, `lie` or
   `other`; a `lie` is stored `hidden: true` (the user sees it only after revealing). `src` is the message key that wrote
@@ -695,6 +703,28 @@ character saw, heard or guessed), `names` and `history`:
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
   Carried notebook, names, `journal` and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
+- Joining two characters (#240). `POST /dashboard/notes { chatId, op: "merge-character", from, into }` (Dashboard names): `from` is the same person as `into`. In the registry `from` is merged into `into` (its names become spellings of `into`); in this file every snapshot (and `inherited.snap`) drops `from` where `into` is there (`into`'s numbers stay; `from`'s items join `into`'s with new ids from `into`'s `itemSeq`) and renames it where `into` is not; `present`, `events` (from, to), `edges`, `notebook` (also the `from` of a note), `said`, `names`, `history`, `journal` (also `about`), `leaks` and the user's own notes in the overlay move to `into` (a near copy of a note is not added twice); `personIds[from]` is removed. Refused with an `error`: the user's character (400), an empty or the same name (400), a name the Dashboard does not show (404), a pair marked different (409). `{ op: "apart-characters", a, b }` records the pair as different people in the registry and drops its suggestion; later reports never join them. Both answer `{ ok: true, view }`.
+
+### The entity registry: `data/registry/<chatId>.json` (#240)
+
+One file per chat, written by the Dashboard plugin (World DM and Litopys read it). One id per person, so one person is never two Dashboard characters. Design: `docs/ENTITY-REGISTRY.md`.
+
+```json
+{ "v": 1, "chatId": "c2", "from": "c1", "next": { "p": 6, "t": 1, "l": 1 },
+  "entities": [
+    { "id": "user", "kind": "person", "name": "Denis", "aliases": [{ "text": "Dan", "src": "persona" }], "src": "persona" },
+    { "id": "p1", "kind": "person", "name": "Kaede Fuji", "aliases": [{ "text": "Kae", "src": "card" }, { "text": "Каэде", "src": "seen" }], "src": "card", "card": "kaede" },
+    { "id": "p4", "kind": "person", "name": "Seraphina", "aliases": [], "src": "seen", "merged": "p2" } ],
+  "apart": [["p2", "p5"]],
+  "suggest": [{ "a": "p5", "b": "p2", "why": "same first name" }] }
+```
+
+- `kind` is `person` (`thing` and `place` come later); ids are `p1`, `t1`, `l1`, and `user` for the user's character (the persona's name; every earlier name of the user is an alias).
+- `src`: `persona`, `card` (also `card` = the card id on the entity), `soul`, `group`, `seen` (the sensor wrote the name), `user`. An alias has its own `src` (`card`, `soul`, `seen`, `merged`, `persona`).
+- `merged`: the entity was joined into another; every lookup of it returns the target. `apart`: pairs the user said are different people. `suggest`: pairs that may be one person, with a short `why` (`same first name`, `same name in another alphabet`, `one letter apart`, `two people fit`, `shares a word of the name`, `same name`).
+- A name is found in this order: an exact name or alias, the same after transliteration, a single word that is the first or last word of exactly one person's name (titles do not count), a name one letter off. Two candidates at one step is no match: a new person and a suggestion. A spelling found by the last three steps is saved as an alias.
+- Filled on every sensor run (idempotent): the persona and the user's names, the people of each member card (the card name, `### Name` sections, `Name:` / `Aliases:` lines), the card souls, the card name and the speaker names of the card's messages (aliases of the card's person). A chat that continues another starts as a copy of that chat's file (`from`), so ids stay the same.
+- `GET /dashboard/state?view=1` has `suggest: [{ a, b, why }]`, the Dashboard names of two characters that may be one person (both are on the Dashboard); empty when there is none. The sensor's "Characters" block lists each person once with up to four other spellings (`Kaede Fuji (ally, she; also: Kae, Каэде)`), never the user's.
 
 ## Letters from cards: `data/letters/` (the Letters plugin; leave it to the Letters dialog)
 

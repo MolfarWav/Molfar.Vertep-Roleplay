@@ -25,7 +25,8 @@
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
- *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject)
+ *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject),
+ *                                          remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/other-seen {id?}      forget one event id the sensor invented that nobody could place, or all (GET /dashboard/config lists them as otherSeen)
  *  DELETE /dashboard/events                back to the default vocabulary
@@ -1845,13 +1846,6 @@ function cleanNames(raw) {
   return out;
 }
 
-/** `names` plus every soul key no listed name already stands for (an alias is not listed twice). */
-function withSoulNames(souls, names) {
-  const list = unique(names);
-  for (const key of Object.keys(souls)) if (!list.some((n) => soulOf(souls, n) === souls[key])) list.push(key);
-  return list;
-}
-
 /** name -> the key of the saved soul that name stands for (spelling, alias, lorebook key, near-miss), or undefined. */
 function savedKeyResolver(fsx, cardId, own) {
   const lookup = withLorebookAliases(fsx, own, [cardId], []);
@@ -2120,16 +2114,18 @@ function chatCharacters(fsx, meta) {
   const names = [];
   const souls = {};
   const cards = [];
+  const members = [];
   for (const id of memberIds(fsx, meta)) {
     const card = readCard(fsx, id);
     if (!isObj(card) || !card.name) continue;
     cards.push(id);
+    members.push({ id, card });
     names.push(String(card.name));
     for (const [n, soul] of Object.entries(cardSoulsOf(card))) if (!souls[n]) souls[n] = soul;
   }
   // a proposal the user has not settled yet plays as a provisional soul, behind the souls the cards hold
   for (const id of cards) addProvisional(souls, readDraft(fsx, id));
-  return { names: unique(names), souls: withLorebookAliases(fsx, souls, cards, arr(meta.lorebookIds)) };
+  return { names: unique(names), souls: withLorebookAliases(fsx, souls, cards, arr(meta.lorebookIds)), members };
 }
 
 // what the user is called when the chat and the persona give no name
@@ -2165,6 +2161,8 @@ function emptyState(chatId) {
     history: {},
     said: {},
     journal: {},
+    personIds: {},
+    notPersons: [],
     counters: { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 },
     proposals: [],
     removed: [],
@@ -2183,6 +2181,8 @@ function normalizeState(raw, chatId) {
   if (!isObj(st.lastError)) st.lastError = null;
   if (!isObj(st.keptOut)) st.keptOut = null;
   if (!Array.isArray(st.proposals)) st.proposals = [];
+  if (!isObj(st.personIds)) st.personIds = {};
+  st.notPersons = arr(st.notPersons).filter((n) => typeof n === "string" && n);
   st.removed = arr(st.removed).filter((n) => typeof n === "string" && n);
   return st;
 }
@@ -2191,6 +2191,18 @@ function normalizeState(raw, chatId) {
 function loadState(fsx, chatId) {
   const raw = readJson(fsx, STATE_DIR + chatId + ".json", null);
   return { state: normalizeState(raw, chatId), existed: raw !== null };
+}
+
+/** The registry file, when the run changed it or the chat has none yet (it starts as a copy of the earlier chat's). */
+function saveRegistry(fsx, ctx) {
+  if (!ctx.reg) return;
+  let has = true;
+  try {
+    fsx.read(regPath(ctx.chatId));
+  } catch {
+    has = false;
+  }
+  if (!has || JSON.stringify(ctx.reg) !== ctx.regBefore) regSave(fsx, ctx.reg);
 }
 
 function saveState(fsx, ctx) {
@@ -2286,6 +2298,8 @@ function buildInherit(fsx, chatId) {
     journal,
     counters: end.state.counters,
     calendar: isObj(end.state.calendar) ? end.state.calendar : null,
+    personIds: isObj(end.state.personIds) ? end.state.personIds : {},
+    notPersons: arr(end.state.notPersons),
   };
 }
 
@@ -2295,6 +2309,9 @@ function applyInherit(state, seed) {
     state[bag] = isObj(state[bag]) ? state[bag] : {};
     for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
+  // the same people keep the same ids (the registry of the earlier chat is the start of this one's)
+  state.personIds = { ...(isObj(seed.personIds) ? seed.personIds : {}), ...(isObj(state.personIds) ? state.personIds : {}) };
+  state.notPersons = unique([...arr(seed.notPersons), ...arr(state.notPersons)]);
   // the date of day 1 goes on from the earlier chat, unless the chat has a calendar of its own
   if (isObj(seed.calendar) && !(isObj(state.calendar) && state.calendar.inherited !== true)) state.calendar = { ...seed.calendar, inherited: true };
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
@@ -3533,18 +3550,18 @@ function threadCheckText(ctx) {
 
 /** The "Characters" block: the user, and every character with what the card says they are. */
 function castText(ctx) {
-  const listed = withSoulNames(ctx.souls, [...ctx.characters, ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
-  // a card without a soul may be a narrator card; the sensor decides from the text
-  const label = (n) => {
-    const soul = soulOf(ctx.souls, n);
-    return soul ? classOf(soul) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
-  };
-  // pronouns when the soul has them, so notes and moods use the right gender
-  const pronounWord = (n) => {
-    const soul = soulOf(ctx.souls, n);
-    return soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
-  };
-  const classes = listed.map((n) => n + " (" + label(n) + pronounWord(n) + ")").join(", ");
+  // one line per person: the class, the pronouns, and the other spellings the sensor can meet (never the user's)
+  const classes = castEntries(ctx)
+    .map(({ name, e }) => {
+      const soul = soulFor(ctx, name);
+      // a card without a soul may be a narrator card; the sensor decides from the text
+      const label = soul ? classOf(soul) : ctx.characters.includes(name) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
+      // pronouns when the soul has them, so notes and moods use the right gender
+      const pronouns = soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
+      const also = aliasesShown(e, name);
+      return name + " (" + label + pronouns + (also.length ? "; also: " + also.join(", ") : "") + ")";
+    })
+    .join(", ");
   return "Characters\nuser: " + ctx.userName + ". " + classes + ".";
 }
 
@@ -3980,38 +3997,303 @@ export function calendarView(state) {
 /** A clock with its date, for views and prompts. */
 export const clockWithDate = (clock, cal) => (isObj(clock) ? { ...clock, date: dateOf(cal, clock.day) } : clock);
 
+// ---------- one person, one name: the entity registry (docs/ENTITY-REGISTRY.md) ----------
+// Every name the sensor writes goes through personName(): "user", the Dashboard name of a person the chat already has, a new
+// person, or null when the name is no person (a card title, a narrator). The registry file keeps the ids, state.personIds the
+// Dashboard names ({ [name]: entity id }, the first name of a person stays the one the Dashboard shows) and state.notPersons
+// the labels that are no people (folded). A guess is never merged silently: the pair goes to the registry's suggestions.
+const NOT_PERSONS_MAX = 100;
+const ALIASES_SHOWN = 4;
+const ALIAS_WORDS_MAX = 3;
+
+/** True for a name that was found to be a label (a card title, a narrator), not a person. */
+const isNotPerson = (state, name) => {
+  const f = regFold(name);
+  return !!f && arr(state.notPersons).includes(f);
+};
+
+/** The id of the entity a Dashboard name stands for (state.personIds, merges followed), or null. */
+function shownId(reg, state, name) {
+  const low = String(name).toLowerCase();
+  for (const [k, id] of Object.entries(isObj(state.personIds) ? state.personIds : {})) {
+    if (k.toLowerCase() !== low) continue;
+    const e = regGet(reg, id);
+    if (e) return e.id;
+  }
+  return null;
+}
+
+/** The first Dashboard name of an entity, or null when it has none yet. */
+function shownName(reg, state, id) {
+  let via = null;
+  for (const [k, v] of Object.entries(isObj(state.personIds) ? state.personIds : {})) {
+    const e = regGet(reg, v);
+    if (!e || e.id !== id) continue;
+    if (v === id) return k;
+    via = via || k;
+  }
+  return via;
+}
+
+const setShown = (state, name, id) => {
+  if (!isObj(state.personIds)) state.personIds = {};
+  if (safeKey(name)) state.personIds[name] = id;
+};
+
+/** Why two entities may be one person ("same first name" ...), or null when nothing says so. Compares every spelling of both. */
+function whyAlike(a, b) {
+  const sa = [a.name, ...a.aliases.map((x) => x.text)];
+  const sb = [b.name, ...b.aliases.map((x) => x.text)];
+  let why = null;
+  for (const x of sa) {
+    for (const y of sb) {
+      const kx = regTranslit(x);
+      if (kx && regScript(x) !== regScript(y) && kx === regTranslit(y)) return "same name in another alphabet";
+      const tx = regTokens(x);
+      const ty = regTokens(y);
+      // a single word that is a word of the other name; two full names that share a word (Alice Yamada, Alice Cooper) are two people
+      if (!why && tx.length && ty.length && Math.min(tx.length, ty.length) === 1 && tx.some((w) => ty.includes(w))) why = tx[0] === ty[0] ? "same first name" : "shares a word of the name";
+      const fx = regFold(x);
+      const fy = regFold(y);
+      if (!why && fx !== fy && regLen(fx) >= 4 && regLen(fy) >= 4 && regWithin1(fx, fy)) why = "one letter apart";
+    }
+  }
+  return why;
+}
+
+/** Suggest the people a new entity looks like (at most three). */
+function suggestLikeness(reg, made) {
+  let n = 0;
+  for (const e of reg.entities) {
+    if (n >= 3) break;
+    if (e.kind !== "person" || e.merged || e.id === "user" || e.id === made.id) continue;
+    const why = whyAlike(made, e);
+    if (why && regSuggest(reg, made.id, e.id, why)) n++;
+  }
+}
+
+const isUserName = (ctx, s) => isUser(s) || userAll(ctx).some((n) => String(n).toLowerCase() === String(s).toLowerCase());
+
 /**
- * The story name a sensor spelling stands for (case-insensitive), else the name of the same soul the story already
- * uses (a card name or a name in the last snapshot: "Sina Rose" for "Sina"), else as given. A soul key nobody used
- * is not a story name: the story's own spelling of an alias stays (a soul key Medli, a story that writes it in Cyrillic).
+ * The people the Dashboard already shows (the last snapshot) get their ids: a name that is already mapped stays; a name
+ * that resolves to a person another shown name stands for becomes a person of its own with a suggestion, never a silent merge.
  */
-function canonName(name, known, ctx) {
-  const s = str(name);
-  if (!s || known.includes(s)) return s;
-  const same = known.find((k) => k.toLowerCase() === s.toLowerCase());
-  if (same) return same;
-  const soul = ctx && ctx.souls ? soulOf(ctx.souls, s) : undefined;
-  return (soul && known.find((k) => arr(ctx.used).includes(k) && soulOf(ctx.souls, k) === soul)) || s;
+function registerShown(ctx, names) {
+  const { reg, state } = ctx;
+  const taken = new Map();
+  const open = [];
+  for (const n of names) {
+    if (isUserName(ctx, n) || isNotPerson(state, n)) continue;
+    const id = shownId(reg, state, n);
+    if (id && id !== "user") {
+      if (!taken.has(id)) taken.set(id, n);
+      setShown(state, n, id);
+    } else open.push(n);
+  }
+  for (const n of open) {
+    const r = resolveName(reg, n, "person");
+    const e = r && r.id ? regGet(reg, r.id) : null;
+    if (e && e.id === "user") continue;
+    let id;
+    if (e && !taken.has(e.id)) {
+      if (r.step > 1) regLearn(reg, e.id, n);
+      id = e.id;
+    } else {
+      const made = regAdd(reg, { name: n, src: "seen" });
+      if (!made) continue;
+      id = made.id;
+      if (e) regSuggest(reg, made.id, e.id, whyAlike(made, e) || "same name");
+      else if (r && r.ambiguous) for (const c of r.ambiguous) regSuggest(reg, made.id, c, "two people fit");
+      else suggestLikeness(reg, made);
+    }
+    taken.set(id, n);
+    setShown(state, n, id);
+  }
+}
+
+/** The chat this one continues, for the registry: the carried state's, else the Litopys link. */
+const regFromOf = (fsx, chatId, state) => (isObj(state.inherited) && CHAT_ID.test(str(state.inherited.from)) ? str(state.inherited.from) : "") || linkedFrom(fsx, chatId) || null;
+
+/**
+ * The chat's registry in ctx.reg, seeded every time (it is idempotent): the persona and every name the user had as `user`;
+ * the people of the member cards; the soul keys; the card names and the speaker names of its messages (aliases of the card's
+ * person, or, for a card that is no person, entries of state.notPersons). Saved by commitUpdate with the state.
+ */
+function ensureRegistry(ctx) {
+  if (ctx.reg) return ctx.reg;
+  const { fsx, chatId, state } = ctx;
+  // no data folder (the size estimate of fast mode): an empty registry in memory
+  const chat = fsx ? readChat(fsx, chatId) : null;
+  const reg = fsx ? regLoad(fsx, chatId, regFromOf(fsx, chatId, state)) : regNew(chatId || "sample", null);
+  ctx.reg = reg;
+  ctx.regBefore = JSON.stringify(reg);
+  ctx.nameCache = new Map();
+  ctx.disp = new Map();
+  ctx.idOf = new Map();
+  ctx.cardDisplay = new Map();
+  if (!isObj(state.personIds)) state.personIds = {};
+  if (!Array.isArray(state.notPersons)) state.notPersons = [];
+  const users = userAll(ctx).filter((n) => n && n !== NO_USER_NAME);
+  const members = chat ? chatCharacters(fsx, chat.meta).members : [];
+  regSeed(reg, { cards: members, personaName: ctx.userName !== NO_USER_NAME ? ctx.userName : users[0] || "", souls: isObj(ctx.souls) ? ctx.souls : {} });
+  for (const n of users) regAlias(reg, "user", n, "persona");
+  const notPerson = (label) => {
+    const f = regFold(label);
+    if (!f || state.notPersons.includes(f)) return;
+    const r = resolveName(reg, label, "person");
+    // a label that means a person (or maybe one of several) is a name, not a title
+    if (r && (r.id || r.ambiguous)) return;
+    state.notPersons = [...state.notPersons, f].slice(-NOT_PERSONS_MAX);
+  };
+  const cardPerson = new Map();
+  for (const { id, card } of members) {
+    const named = regCardNames(card);
+    const cardName = str(card.name);
+    const r = named.cardIsPerson && named.persons[0] ? resolveName(reg, named.persons[0].name, "person") : null;
+    const e = r && r.id ? regGet(reg, r.id) : null;
+    if (e && e.id !== "user") {
+      regAlias(reg, e.id, cardName, "card");
+      if (!ctx.cardDisplay.has(e.id)) ctx.cardDisplay.set(e.id, cardName);
+      cardPerson.set(id, e.id);
+    } else notPerson(cardName);
+  }
+  // the name on a message belongs to the card that spoke it: an alias of its person, or a label that is no person
+  const spokenBy = (m) =>
+    members.find((x) => x.id === m.characterId) || members.find((x) => regFold(x.card.name) === regFold(m.name)) || (!m.characterId && ctx.meta ? members.find((x) => x.id === ctx.meta.characterId) : null) || null;
+  const labels = new Set();
+  for (const m of chat ? chat.msgs : []) {
+    if (!isObj(m) || m.role !== "char" || !str(m.name) || labels.has(str(m.name))) continue;
+    labels.add(str(m.name));
+    const label = str(m.name);
+    const card = spokenBy(m);
+    if (!card || isUserName(ctx, label)) continue;
+    const eid = cardPerson.get(card.id);
+    if (eid) {
+      const r = resolveName(reg, label, "person");
+      const other = r && r.id ? regGet(reg, r.id) : null;
+      // a label that already means someone else is that person's name
+      if ((r && r.ambiguous) || (other && other.id !== eid)) continue;
+      regAlias(reg, eid, label, "card");
+    } else notPerson(label);
+  }
+  // a card that is no person is no character of the chat; the persons of a person card are the cast it starts with
+  ctx.characters = unique(members.filter((x) => cardPerson.has(x.id)).map((x) => personName(ctx, str(x.card.name))).filter((n) => n && n !== "user"));
+  registerShown(ctx, Object.keys((ctx.base && ctx.base.snap && ctx.base.snap.chars) || {}));
+  return reg;
+}
+
+/** The Dashboard name of an entity: the one the Dashboard shows already, else the card's, else the story's spelling. */
+function displayFor(ctx, e, raw) {
+  const { reg, state } = ctx;
+  const mine = shownName(reg, state, e.id);
+  let name = mine || ctx.disp.get(e.id);
+  if (!name) {
+    name = ctx.cardDisplay.get(e.id) || (e.card || regFold(raw) === regFold(e.name) ? e.name : raw);
+    ctx.disp.set(e.id, name);
+  }
+  ctx.idOf.set(name, e.id);
+  return name;
+}
+
+function resolvePerson(ctx, s) {
+  const { reg, state } = ctx;
+  if (isUserName(ctx, s)) return "user";
+  // a name the Dashboard already shows is that person, whatever the registry would say
+  const owned = shownId(reg, state, s);
+  if (owned) {
+    const e = regGet(reg, owned);
+    return e.id === "user" ? "user" : displayFor(ctx, e, s);
+  }
+  const r = resolveName(reg, s, "person");
+  if (r && r.id) {
+    const e = regGet(reg, r.id);
+    if (e.id === "user") return "user";
+    // the story's own spelling is kept as an alias, so the next lookup is exact
+    if (r.step > 1) regLearn(reg, e.id, s);
+    return displayFor(ctx, e, s);
+  }
+  if (isNotPerson(state, s)) return null;
+  const made = regAdd(reg, { name: s, src: "seen" });
+  if (!made) return null;
+  if (r && r.ambiguous) for (const c of r.ambiguous) regSuggest(reg, made.id, c, "two people fit");
+  else suggestLikeness(reg, made);
+  return displayFor(ctx, made, s);
+}
+
+/** The Dashboard name for a name of the sensor: "user", the name of a person (new ones included), or null when it is no person. */
+function personName(ctx, raw) {
+  const s = str(raw);
+  if (!s) return null;
+  ensureRegistry(ctx);
+  if (ctx.nameCache.has(s)) return ctx.nameCache.get(s);
+  const out = resolvePerson(ctx, s);
+  ctx.nameCache.set(s, out);
+  return out;
+}
+
+/** The entity a Dashboard name stands for, or null. */
+function entityOf(ctx, name) {
+  if (!ctx.reg || !name || name === "user") return null;
+  const id = ctx.idOf.get(name) || shownId(ctx.reg, ctx.state, name);
+  return id ? regGet(ctx.reg, id) : null;
+}
+
+/** A soul by the name, or by any other spelling the registry knows for the same person. */
+function soulWith(souls, reg, name) {
+  const direct = soulOf(souls, name);
+  if (direct || !reg || !isObj(souls)) return direct;
+  const r = resolveName(reg, name, "person");
+  const e = r && r.id ? regGet(reg, r.id) : null;
+  if (!e) return undefined;
+  for (const x of [e.name, ...e.aliases.map((a) => a.text)]) {
+    const s = soulOf(souls, x);
+    if (s) return s;
+  }
+  return undefined;
+}
+const soulFor = (ctx, name) => soulWith(ctx.souls, ctx.reg, name);
+
+/** The people of the cast, one line each: the cards' persons, the last snapshot's, then the rest the registry has from cards and souls. */
+function castEntries(ctx) {
+  ensureRegistry(ctx);
+  const { reg, state } = ctx;
+  const out = [];
+  const seen = new Set();
+  const add = (e, name) => {
+    if (!e || e.id === "user" || e.merged || seen.has(e.id) || !name || isNotPerson(state, name)) return;
+    seen.add(e.id);
+    out.push({ name, e });
+  };
+  for (const n of [...ctx.characters, ...Object.keys((ctx.base && ctx.base.snap && ctx.base.snap.chars) || {})]) {
+    const d = personName(ctx, n);
+    add(entityOf(ctx, d), d);
+  }
+  for (const e of reg.entities) {
+    if (e.kind !== "person" || e.merged || (!e.card && e.src !== "soul")) continue;
+    // the name this person has on the Dashboard once it joins: the one already shown, the card's, or the registry's own
+    add(e, shownName(reg, state, e.id) || ctx.cardDisplay.get(e.id) || e.name);
+  }
+  return out;
+}
+
+/** Up to four other spellings of a person for the sensor (short ones; the user's are never listed). */
+function aliasesShown(e, name) {
+  const f = regFold(name);
+  const out = [];
+  for (const x of [e.name, ...e.aliases.map((a) => a.text)]) {
+    const k = regFold(x);
+    if (!k || k === f || out.some((o) => regFold(o) === k) || k.split(" ").length > ALIAS_WORDS_MAX) continue;
+    out.push(x);
+  }
+  return out.slice(0, ALIASES_SHOWN);
 }
 
 /** The names the user removed from this chat's cast: the sensor does not bring them back. */
 const removedOf = (state) => arr(state.removed).filter((n) => typeof n === "string");
 const isRemoved = (state, n) => removedOf(state).some((r) => r.toLowerCase() === String(n).toLowerCase());
 
-/** Names that stand for the same soul as an earlier name in the list, a card's own name first: one character, so the later ones go. */
-function twinNames(souls, cards, names) {
-  if (!isObj(souls)) return [];
-  const ordered = [...names.filter((n) => cards.includes(n)), ...names.filter((n) => !cards.includes(n))];
-  const seen = new Set();
-  const twins = [];
-  for (const n of ordered) {
-    const soul = soulOf(souls, n);
-    if (!soul) continue;
-    if (seen.has(soul)) twins.push(n);
-    else seen.add(soul);
-  }
-  return twins;
-}
+/** The names in the list that are labels, not people (card titles, narrators): out of every view. */
+const notPersonsIn = (state, names) => names.filter((n) => isNotPerson(state, n));
 
 /** The snapshot without the named characters (chars and present). */
 function withoutNames(snap, drop) {
@@ -4021,15 +4303,16 @@ function withoutNames(snap, drop) {
   return { ...snap, chars, present: arr(snap.present).filter((n) => !drop.includes(n)) };
 }
 
-/** "user" for any of the user's names (one, or every one the chat had), else the character's known name. */
+/** The user's names: every one the chat had (or the one it has). */
 const userAll = (ctx) => (arr(ctx.userNames).length ? ctx.userNames : [ctx.userName]);
 
+/** "user" for any of the user's names, else the Dashboard name of the person (or null). Without a ctx: only the "is this the user?" check. */
 function sideOf(v, userName, known, ctx) {
   const s = str(v);
   if (!s) return null;
   const mine = (Array.isArray(userName) ? userName : [userName]).map((n) => String(n).toLowerCase());
   if (isUser(s) || mine.includes(s.toLowerCase())) return "user";
-  return canonName(s, known, ctx);
+  return ctx ? personName(ctx, s) : s;
 }
 
 function readEvents(list, ctx, known, unknownIds) {
@@ -4105,7 +4388,7 @@ const NAMED_TO_JOIN = 2;
 
 /** Is the name (or an alias of its soul, in any script) in the text, allowing for endings? */
 function mentionsName(ctx, text, name) {
-  const soul = soulOf(ctx.souls, name);
+  const soul = soulFor(ctx, name);
   const names = nameForms(name, soul);
   const words = String(text).toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean).map(nameKey);
   return names.some((n) => {
@@ -4135,14 +4418,15 @@ function scenePresent(ctx, out, known) {
   if (Array.isArray(out.present) && isObj(ctx.souls)) {
     const text = ctx.newMsgs.filter((m) => m.role !== "user").map((m) => String(m.text)).join("\n");
     for (const [key, soul] of Object.entries(ctx.souls)) {
-      if (!isObj(soul) || list.includes(key) || struck.includes(key) || sideOf(key, userAll(ctx), []) !== key) continue;
-      // a soul keyed by the first name is the card's character already in the scene under its full name
-      if (list.some((n) => soulOf(ctx.souls, n) === soul)) continue;
-      if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(key);
+      if (!isObj(soul)) continue;
+      // a soul keyed by the first name is the card's character already in the scene under its full name: the same person
+      const nm = personName(ctx, key);
+      if (!nm || nm === "user" || list.includes(nm) || struck.includes(nm)) continue;
+      if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(nm);
     }
   }
-  // only characters this turn knows (a twin spelling or a removed name is not in `known`)
-  return unique(list).filter((n) => known.includes(n));
+  // only characters this turn knows (a removed name or a label is not)
+  return unique(list).filter((n) => ctx.isKnown(n));
 }
 
 /** Present characters first named in this turn's events, then the old order. */
@@ -4384,7 +4668,7 @@ export function applyObjects(prev, out, down, up, placeMoved) {
 
 /** Numbers and text of one character for this turn. */
 function charEntry(ctx, name, events, sensorChar, blind, B) {
-  const soul = soulOf(ctx.souls, name);
+  const soul = soulFor(ctx, name);
   const cls = classOf(soul);
   const old0 = B && B.chars ? B.chars[name] : null;
   // start values saved after the character entered shift the stats by the difference
@@ -4569,7 +4853,7 @@ function applyNotebook(ctx, out, present, turn, K) {
   const holders = {};
   for (const l of arr(out.learned)) {
     if (!isObj(l) || sideOf(l.who, userAll(ctx), present, ctx) === "user") continue;
-    const who = canonName(l.who, present, ctx);
+    const who = personName(ctx, l.who);
     if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
   }
   const generic = Object.keys(holders).filter((t) => unique(holders[t]).length >= 3);
@@ -4585,7 +4869,7 @@ function applyNotebook(ctx, out, present, turn, K) {
       if (str(l.text)) keptOut.user++;
       continue;
     }
-    const who = canonName(l.who, present, ctx);
+    const who = personName(ctx, l.who);
     const text = cut(str(l.text), 300);
     if (!text) continue;
     if (!present.includes(who)) {
@@ -4605,8 +4889,8 @@ function applyNotebook(ctx, out, present, turn, K) {
   }
   for (const t of arr(out.told)) {
     if (!isObj(t)) continue;
-    const from = canonName(t.from, present, ctx);
-    const to = canonName(t.to, present, ctx);
+    const from = personName(ctx, t.from);
+    const to = personName(ctx, t.to);
     const note = arr(live[from]).find((n) => n.id === str(t.note));
     if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true, weight: weightOf(note.weight) });
   }
@@ -4640,7 +4924,7 @@ function applySaid(ctx, out, present, turn, K) {
       kept.user++;
       continue;
     }
-    const who = canonName(s.who, present, ctx);
+    const who = personName(ctx, s.who);
     if (!present.includes(who)) {
       kept.absent++;
       continue;
@@ -4682,7 +4966,7 @@ function applyJournal(ctx, out, present, turn, K) {
       kept.user++;
       continue;
     }
-    const who = canonName(p.who, present, ctx);
+    const who = personName(ctx, p.who);
     if (!present.includes(who)) {
       kept.absent++;
       continue;
@@ -4690,8 +4974,8 @@ function applyJournal(ctx, out, present, turn, K) {
     let about;
     if (sideOf(p.about, userAll(ctx), present, ctx) === "user") about = ctx.userName;
     else {
-      about = canonName(p.about, known, ctx);
-      if (!known.includes(about)) continue;
+      about = personName(ctx, p.about);
+      if (!about || !known.includes(about)) continue;
     }
     if (about.toLowerCase() === who.toLowerCase()) continue;
     const text = cut(str(p.text), 200);
@@ -4708,7 +4992,7 @@ function applyNames(ctx, out, present, turn, K) {
   for (const n of arr(out.names)) {
     if (!isObj(n)) continue;
     if (sideOf(n.who, userAll(ctx), present, ctx) === "user") continue;
-    const who = canonName(n.who, present, ctx);
+    const who = personName(ctx, n.who);
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
     const knows = n.heardUserName === true || !!(before && before.knowsUserName);
@@ -4800,12 +5084,12 @@ function applyThreads(ctx, out, turn) {
 }
 const RESOLVED_THREADS_KEPT = 20;
 
-function applyEdges(B, out, known) {
+function applyEdges(ctx, B, out) {
   const edges = arr(B && B.edges).map((e) => ({ ...e }));
   for (const e of arr(out.edges)) {
     if (!isObj(e)) continue;
-    const from = canonName(e.from, known);
-    const to = canonName(e.to, known);
+    const from = personName(ctx, e.from);
+    const to = personName(ctx, e.to);
     if (!from || !to || from === to || isUser(from) || isUser(to)) continue;
     const edge = { from, to, role: cut(str(e.role), 40), warmth: cut(str(e.warmth), 40) };
     const at = edges.findIndex((x) => x.from === from && x.to === to);
@@ -4824,30 +5108,35 @@ function applySensor(ctx, out, op, model, unknownIds) {
   ctx.layoutMoves = { down: [], up: [] };
   ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && !samePlace(B.clock.place, out.place));
   const turn = (B ? B.turn || 0 : 0) + 1;
-  // a name the user had earlier in the chat may sit in an older snapshot: not a character
-  // the names the story already uses: the card's own and those the last snapshot kept
-  ctx.used = unique([...ctx.characters, ...Object.keys((B && B.chars) || {})]);
-  const withTwins = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n));
-  // one soul under two names (an old state kept "Sina" beside the card's "Sina Rose"): the second goes
-  const twins = twinNames(ctx.souls, ctx.characters, withTwins);
-  const known0 = withTwins.filter((n) => !twins.includes(n));
-  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0, ctx)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n))]);
+  // every name below goes through the registry: one person is one Dashboard character, whatever the sensor calls them.
+  // A name the user had earlier in the chat is the user; a label (a card title, a narrator) is no character.
+  ensureRegistry(ctx);
+  // the people this turn knows: the cast of the cards and souls, the last snapshot's, and those the sensor puts in the scene
+  const knownIds = new Set(castEntries(ctx).map((c) => c.e.id));
+  const dashboardNames = (names) => names.map((n) => entityOf(ctx, personName(ctx, n))).filter(Boolean);
+  for (const e of dashboardNames(Object.keys((B && B.chars) || {}))) knownIds.add(e.id);
+  for (const e of dashboardNames(arr(out.present).map(str))) knownIds.add(e.id);
+  ctx.isKnown = (n) => {
+    const e = n && n !== "user" && !isRemoved(state, n) ? entityOf(ctx, n) : null;
+    return !!e && knownIds.has(e.id);
+  };
+  const known = [...ctx.idOf.keys()].filter((n) => ctx.isKnown(n));
   const present = scenePresent(ctx, out, known);
   // charEntry writes a thought only for a character present this turn
   ctx.presentNow = present;
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
-  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known, ctx)] = v;
+  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[personName(ctx, n)] = v;
   const blind = {};
-  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known, ctx) !== "user") blind[canonName(n, known, ctx)] = v;
+  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known, ctx) !== "user") blind[personName(ctx, n)] = v;
 
-  const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && known.includes(n));
-  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && known.includes(n)), ...present, ...targets]);
+  const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && ctx.isKnown(n));
+  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && ctx.isKnown(n)), ...present, ...targets]);
   const chars = {};
   for (const name of names) {
     if (!present.includes(name) && !targets.includes(name) && B && B.chars[name]) {
-      const re = reseed(ctx, name, B.chars[name], soulOf(ctx.souls, name));
+      const re = reseed(ctx, name, B.chars[name], soulFor(ctx, name));
       chars[name] = { ...re.entry, compact: true };
       if (re.line) state.history[name] = [...arr(state.history[name]), re.line];
       continue;
@@ -4891,7 +5180,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     events,
     chars,
     layout,
-    edges: applyEdges(B, out, known),
+    edges: applyEdges(ctx, B, out),
     threads: applyThreads(ctx, out, turn),
     extra: {},
   };
@@ -4899,6 +5188,10 @@ function applySensor(ctx, out, op, model, unknownIds) {
     // the pick holds until the sensor names another image of the folder
     const picked = readBackdrop(out.background, ctx.backdrops) || (B && readBackdrop(B.background, ctx.backdrops));
     if (picked) snapshot.background = picked;
+  }
+  for (const name of Object.keys(chars)) {
+    const e = entityOf(ctx, name);
+    if (e && !shownId(ctx.reg, state, name)) setShown(state, name, e.id);
   }
   state.snapshots[K] = snapshot;
   const order = Object.keys(state.snapshots).sort((a, b) => (state.snapshots[b].at || 0) - (state.snapshots[a].at || 0));
@@ -5221,7 +5514,7 @@ function planUpdate(fsx, chatId, op) {
   const from = bi + 2 + line.slice(bi + 1).findIndex((l) => str(l.msg.text));
   const earlier = cut && (at !== keys.length - 1 || !existing || !("base" in existing) || existing.base !== (base ? base.key : null));
   const reread = earlier ? { from, ...(newMessagesBody(newMsgs, storyView(fsx, chat.meta)).trimmed ? { trimmed: true } : {}) } : null;
-  return {
+  const ctx = {
     fsx,
     chatId,
     overlay,
@@ -5248,6 +5541,8 @@ function planUpdate(fsx, chatId, op) {
     backdrops: backdropChoices(fsx, chat.meta),
     leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
   };
+  ensureRegistry(ctx);
+  return ctx;
 }
 
 function askSensor(host, ctx, key) {
@@ -5312,6 +5607,7 @@ function commitUpdate(fsx, ctx, r) {
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
     ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}) } : null;
+    saveRegistry(fsx, ctx);
     saveState(fsx, ctx);
     noteUnknownEvents(fsx, unknownIds, ctx.unknownQuotes);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds, keptOut: kept });
@@ -5832,7 +6128,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   if (!at || !isObj(at.snap.chars)) return null;
   const { names: cards, souls } = chatCharacters(fsx, chat.meta);
   // what the user removed and a second name of one soul never reach the prompt
-  const snap = withoutNames(at.snap, [...removedOf(state), ...twinNames(souls, cards, Object.keys(at.snap.chars))]);
+  const snap = withoutNames(at.snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(at.snap.chars))]);
   const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
@@ -6149,7 +6445,10 @@ function fastContext(fsx, chatId, turn, cfg) {
   const at = snapshotFor(state, activeLine(chat.msgs), turn);
   const overlay = loadOverlay(fsx, chatId);
   const { names, souls } = chatCharacters(fsx, chat.meta);
-  return {
+  const ctx = {
+    fsx,
+    chatId,
+    meta: chat.meta,
     cfg,
     vocab: loadVocab(fsx),
     state,
@@ -6165,6 +6464,9 @@ function fastContext(fsx, chatId, turn, cfg) {
     userName: userNameOf(fsx, chat.meta),
     userNames: userNamesOf(fsx, chat),
   };
+  // read only: the registry is saved by an update, not by a look at the story
+  ensureRegistry(ctx);
+  return ctx;
 }
 
 /** About how many tokens fast mode adds to one reply: three characters in the scene, two open threads, the user's own event list. */
@@ -6522,8 +6824,9 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const chat = readChat(fsx, chatId);
   const cast = chat ? chatCharacters(fsx, chat.meta) : { names: [], souls: {} };
   const souls = cast.souls;
-  // the user's removals and a second name of one soul stay off the Dashboard, whatever an older snapshot kept
-  const shown = withoutNames(snap, [...removedOf(state), ...twinNames(souls, cast.names, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
+  // the user's removals and the labels that are no people (a card title) stay off the Dashboard, whatever an older snapshot kept
+  const shown = withoutNames(snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
+  const reg = regLoad(fsx, chatId, regFromOf(fsx, chatId, state));
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
   // the journal as it counts: each character's people lines (the player's and the others', present or not)
   const journalLive = effectiveJournal(state, keys);
@@ -6531,7 +6834,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   for (const [name, c] of Object.entries(isObj(shown.chars) ? shown.chars : {})) {
     if (!isObj(c)) continue;
     const p = prevSnap && isObj(prevSnap.chars) ? prevSnap.chars[name] : null;
-    const soul = soulOf(souls, name);
+    const soul = soulWith(souls, reg, name);
     chars[name] = {
       ...c,
       pronouns: soul && soul.pronouns ? soul.pronouns : null,
@@ -6550,6 +6853,13 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       thoughtFresh: thoughtFreshOf(snap, c, cfg),
       journal: arr(journalLive[name]).map(({ id, about, text, by, turn }) => ({ id, about, text, by, turn })),
     };
+  }
+  // pairs that may be one person, by the names the Dashboard shows them under (both must be on it)
+  const suggest = [];
+  for (const s of arr(reg.suggest)) {
+    const a = shownName(reg, state, s.a);
+    const b = shownName(reg, state, s.b);
+    if (a && b && a !== b && chars[a] && chars[b]) suggest.push({ a, b, why: s.why });
   }
   const present = arr(shown.present).filter((n) => chars[n]);
   const order = [...present.filter((n) => !chars[n].compact), ...present.filter((n) => chars[n].compact), ...Object.keys(chars).filter((n) => !present.includes(n))];
@@ -6581,6 +6891,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     proposalsDropped: Number(state.proposalsDropped) || 0,
     edges: arr(snap.edges),
     chars,
+    suggest,
     usage: state.usage,
     lastError: state.lastError,
     keptOut: isObj(state.keptOut) ? state.keptOut : null,
@@ -6825,6 +7136,139 @@ function viewOf(fsx, chatId) {
   return existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null;
 }
 
+/** Another character's items join this one's, with new ids from its own counter (the sensor refers to items by id). */
+function moveItems(target, source) {
+  const have = itemsOf(target);
+  let seq = Math.max(Number(target.itemSeq) || 0, ...have.map((i) => idNum(i.id)));
+  const more = [];
+  for (const it of itemsOf(source)) if (!have.some((x) => x.kind === it.kind && sameText(x.text) === sameText(it.text))) more.push({ ...it, id: "i" + ++seq });
+  if (!more.length) return;
+  const items = [...have, ...more].slice(0, ITEMS_MAX);
+  target.items = items;
+  target.itemSeq = seq;
+  target.outfit = itemsText(items, "wear") ? cut(itemsText(items, "wear"), 600) : null;
+  target.holding = itemsText(items, "hold") ? cut(itemsText(items, "hold"), 600) : null;
+}
+
+/** One snapshot with the Dashboard character `from` folded into `into`: their numbers stay `into`'s, `from` is renamed when `into` is not there. */
+function foldSnapshot(sn, from, into) {
+  if (!isObj(sn)) return;
+  const rename = (v) => (v === from ? into : v);
+  if (isObj(sn.chars) && ownKey(sn.chars, from)) {
+    const both = ownKey(sn.chars, into) && isObj(sn.chars[into]);
+    if (both && isObj(sn.chars[from])) moveItems(sn.chars[into], sn.chars[from]);
+    const chars = {};
+    for (const [k, v] of Object.entries(sn.chars)) {
+      if (k !== from) chars[k] = v;
+      else if (!both) chars[into] = v;
+    }
+    sn.chars = chars;
+  }
+  if (Array.isArray(sn.present)) sn.present = unique(sn.present.map(rename));
+  for (const e of arr(sn.events)) {
+    if (!isObj(e)) continue;
+    if (e.from === from) e.from = into;
+    if (e.to === from) e.to = into;
+  }
+  if (Array.isArray(sn.edges)) {
+    const edges = [];
+    for (const e of sn.edges) {
+      if (!isObj(e)) continue;
+      const x = { ...e, from: rename(e.from), to: rename(e.to) };
+      if (x.from !== x.to && !edges.some((y) => y.from === x.from && y.to === x.to)) edges.push(x);
+    }
+    sn.edges = edges;
+  }
+}
+
+/** Everything the chat keeps under the name `from` goes to `into`: snapshots, the notebook, history, what was said, the journal, the user's own notes. */
+function foldCharacter(state, ov, from, into) {
+  for (const sn of Object.values(state.snapshots)) foldSnapshot(sn, from, into);
+  if (isObj(state.inherited) && isObj(state.inherited.snap)) foldSnapshot(state.inherited.snap, from, into);
+  for (const bag of ["notebook", "said"]) {
+    const b = state[bag];
+    if (!isObj(b)) continue;
+    if (ownKey(b, from)) {
+      const keep = arr(b[into]).slice();
+      for (const n of arr(b[from])) if (!(isObj(n) && str(n.text) && duplicateNote(n.text, keep))) keep.push(n);
+      b[into] = keep;
+      delete b[from];
+    }
+    // a note remembers who told it
+    for (const list of Object.values(b)) for (const n of arr(list)) if (isObj(n) && n.from === from) n.from = into;
+  }
+  for (const bag of ["names", "history", "journal"]) {
+    const b = state[bag];
+    if (!isObj(b) || !ownKey(b, from)) continue;
+    b[into] = [...arr(b[into]), ...arr(b[from])].map((x, i) => ({ x, i })).sort((a, c) => (Number(a.x && a.x.turn) || 0) - (Number(c.x && c.x.turn) || 0) || a.i - c.i).map((y) => y.x);
+    delete b[from];
+  }
+  // the journal also names who a line is about
+  if (isObj(state.journal)) {
+    for (const [who, list] of Object.entries(state.journal)) {
+      for (const j of arr(list)) if (isObj(j) && j.about === from) j.about = into;
+      state.journal[who] = arr(list).filter((j) => !(isObj(j) && j.about === who));
+    }
+  }
+  for (const rec of Object.values(isObj(state.leaks) ? state.leaks : {})) for (const it of arr(isObj(rec) ? rec.items : [])) if (isObj(it) && it.who === from) it.who = into;
+  if (isObj(ov.added) && ownKey(ov.added, from)) {
+    const keep = arr(ov.added[into]).slice();
+    for (const n of arr(ov.added[from])) if (!(isObj(n) && str(n.text) && keep.some((k) => isObj(k) && sameText(k.text) === sameText(n.text)))) keep.push(n);
+    ov.added[into] = keep;
+    delete ov.added[from];
+  }
+}
+
+/**
+ * merge-character { from, into } and apart-characters { a, b } of POST /dashboard/notes: two Dashboard names, one person or two.
+ * The registry decides who is who (and is saved); a merge then folds the Dashboard's own state. Returns an error reply, or null when done.
+ */
+function peopleOp(fsx, chatId, state, ov, op, b) {
+  const bad = (msg, status) => ok({ error: msg }, status || 400);
+  const chat = readChat(fsx, chatId);
+  const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
+  const last = keys.slice().reverse().find((k) => state.snapshots[k]);
+  const snap = last ? state.snapshots[last] : activeInherit(state) ? state.inherited.snap : null;
+  const ctx = {
+    fsx,
+    chatId,
+    meta: chat ? chat.meta : {},
+    state,
+    souls: chat ? chatCharacters(fsx, chat.meta).souls : {},
+    userName: chat ? userNameOf(fsx, chat.meta) : NO_USER_NAME,
+    userNames: chat ? userNamesOf(fsx, chat) : [],
+    characters: [],
+    base: snap ? { key: last || null, snap } : null,
+  };
+  ensureRegistry(ctx);
+  const { reg } = ctx;
+  const merging = op === "merge-character";
+  const first = str(merging ? b.from : b.a);
+  const second = str(merging ? b.into : b.b);
+  if (!first || !second) return bad("two names required");
+  if (isUserName(ctx, first) || isUserName(ctx, second)) return bad("the user's character is not one of the characters to join");
+  if (first.toLowerCase() === second.toLowerCase()) return bad("pick two different characters");
+  const x = regGet(reg, shownId(reg, state, first));
+  const y = regGet(reg, shownId(reg, state, second));
+  if (!x || !y || x.id === "user" || y.id === "user") return bad("no such character", 404);
+  if (!merging) {
+    if (!regApart(reg, x.id, y.id)) return bad("those are the same person already");
+    regSave(fsx, reg);
+    return null;
+  }
+  if (x.id !== y.id) {
+    if (regIsApart(reg, x.id, y.id)) return bad("you marked these as different people", 409);
+    if (!regMerge(reg, x.id, y.id)) return bad("these cannot be joined");
+  }
+  // the name stays a spelling of the person, so the sensor writing it again finds them
+  regAlias(reg, y.id, first, "merged");
+  foldCharacter(state, ov, first, second);
+  for (const k of Object.keys(state.personIds)) if (k.toLowerCase() === first.toLowerCase()) delete state.personIds[k];
+  regSave(fsx, reg);
+  fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  return null;
+}
+
 /** POST /dashboard/notes { chatId, op, ... }: edits go to the overlay file, never to the state. */
 function notesRoute(req, fsx) {
   const b = isObj(req.body) ? req.body : {};
@@ -6907,6 +7351,10 @@ function notesRoute(req, fsx) {
       sn.present = arr(sn.present).filter((n) => n !== name);
     }
     fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  } else if (op === "merge-character" || op === "apart-characters") {
+    if (!existed) return bad("no Dashboard state yet", 404);
+    const refused = peopleOp(fsx, chatId, state, ov, op, b);
+    if (refused) return refused;
   } else if (op === "thread-add") {
     const text = cut(str(b.text), 300);
     if (!text) return bad("text required");

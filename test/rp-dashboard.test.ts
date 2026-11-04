@@ -423,7 +423,7 @@ describe("update route", () => {
     writeChat("c3", three(), { characterId: "bram" });
     mock.push(reply({ present: [] }));
     update(mock, "c3");
-    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene)");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene; also: Aria)");
   });
 
   it("a newest reply with no text (only reasoning) asks no sensor and writes nothing", () => {
@@ -1884,7 +1884,7 @@ describe("souls", () => {
     const mock = mockHost([reply({ present: ["Медли"], minutes: 1 })]);
     update(mock, "c1");
     // the first call lists the soul key (nobody has used the alias yet)
-    expect(mock.requests[0]!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene), Medli (ally).");
+    expect(mock.requests[0]!.req.messages[0].content).toContain("Bram (the card: a character, or a narrator who is no person in the scene; also: Aria), Medli (ally; also: Медли).");
     const first = readStateFile("c1").snapshots["m3#0"].chars;
     expect(Object.keys(first)).toEqual(["Медли"]);
     expect(first["Медли"].cls).toBe("ally");
@@ -1894,8 +1894,8 @@ describe("souls", () => {
     mock.push(reply({ present: ["Медли"] }));
     update(mock, "c1");
     const asked = mock.requests[1]!.req.messages[0].content as string;
-    expect(asked).toContain("Медли (ally)");
-    expect(asked).not.toContain("Medli");
+    expect(asked).toContain("Медли (ally; also: Medli)"); // the sensor is told the other spelling, under the one the story uses
+    expect(asked).not.toContain("Medli (ally");
     expect(readStateFile("c1").snapshots["m5#0"].chars["Медли"].stats.trust).toBe(5);
   });
 
@@ -2504,7 +2504,7 @@ describe("souls", () => {
       expect(readDraftFile("bram")).toMatchObject({ by: "auto", note: "Chosen from the card" });
       expect(fs.existsSync(path.join(root, "dashboard/state"))).toBe(false);
       // the sensor already knows the new soul
-      expect(mock.requests[1]!.req.messages[0].content).toContain("Medli (ally, she)");
+      expect(mock.requests[1]!.req.messages[0].content).toContain("Medli (ally, she; also: Медли)");
       const c = pass(mock, call, b);
       expect(c.json.ok).toBe(true);
       const snap = readStateFile("c1").snapshots["m3#0"];
@@ -2540,7 +2540,7 @@ describe("souls", () => {
         autoOn(mock);
         expect(update(mock, "c1").json.ok).toBe(true);
         expect(mock.requests.map((x) => x.key)).toEqual(["sensor"]);
-        expect(mock.requests[0]!.req.messages[0].content).not.toContain("Medli (ally, she)");
+        expect(mock.requests[0]!.req.messages[0].content).not.toContain("Medli (ally, she; also: Медли)");
         const who = readStateFile("c1").snapshots["m3#0"].chars.Medli;
         expect(who.cls).toBe("neutral");
         expect(who.stats.trust).toBe(0);
@@ -5164,7 +5164,7 @@ describe("one character, two names", () => {
     expect(snap.chars["Sina Rose"].mood).toBe("playful");
   });
 
-  it("a state that already holds both names shows one and the next turn drops the other", () => {
+  it("a state that already holds both names is not merged in silence: both stay, the pair is suggested", () => {
     sinaCard();
     writeChat("c1", story(), { characterId: "sina" });
     const mock = mockHost([soloReply]);
@@ -5174,13 +5174,16 @@ describe("one character, two names", () => {
     snap.chars.Sina = { ...snap.chars["Sina Rose"] };
     snap.present = ["Sina Rose", "Sina"];
     fs.writeFileSync(stateFile("c1"), JSON.stringify(st));
-    expect(Object.keys(drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view.chars)).toEqual(["Sina Rose"]);
+    // the view shows what the state holds; the next update registers the second name as a person of its own and suggests the pair
+    expect(Object.keys(drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view.chars)).toEqual(["Sina Rose", "Sina"]);
     writeChat("c1", [...story(), { id: "m4", role: "char", name: "Sina Rose", text: "Sina laughed.", swipe: 0 }, U("m5", "Ok")], { characterId: "sina" });
     mock.push(soloReply);
     expect(update(mock, "c1").json.ok).toBe(true);
     const next = readStateFile("c1").snapshots["m5#0"];
-    expect(next.present).toEqual(["Sina Rose"]);
-    expect(Object.keys(next.chars)).toEqual(["Sina Rose"]);
+    expect(next.present).toEqual(["Sina Rose", "Sina"]);
+    expect(Object.keys(next.chars)).toEqual(["Sina Rose", "Sina"]);
+    const view = drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json.view;
+    expect(view.suggest).toEqual([{ a: "Sina", b: "Sina Rose", why: "same first name" }]);
   });
 });
 

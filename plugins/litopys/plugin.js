@@ -1564,6 +1564,90 @@ function workList(st, line, dash, cfg, limit) {
   return out;
 }
 
+// ---------- the entity registry (#240): a person keeps one name across Litopys, the World DM and the Dashboard ----------
+/** One name per person: a function that lower-cases a name, or its canonical form through the registry's canon. */
+const keyOf = (canon) => (typeof canon === "function" ? (n) => str(canon(str(n))).toLowerCase() : (n) => str(n).toLowerCase());
+
+/** The same name once (case-insensitive), first spelling kept. */
+function dedupeNames(list) {
+  const seen = new Set();
+  return list.filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+}
+
+/**
+ * name -> the canonical name of the person it means, through the chat's registry: the user's names give the user's name as
+ * Litopys writes it (`userName`), a person the Dashboard's display name for the id (`ids` = its `personIds`) else the
+ * registry's name. "world", "all", the empty name and a name no person answers to stay as written. Nothing is written.
+ */
+export function makeCanon(reg, { userName, ids } = {}) {
+  if (!isObj(reg) || !Array.isArray(reg.entities)) return (n) => str(n);
+  const memo = new Map();
+  const idLike = /^(?:user|[ptl]\d+)$/;
+  const display = (e) => {
+    if (e.id === "user") return str(userName) || e.name;
+    if (isObj(ids)) {
+      for (const [k, v] of Object.entries(ids)) {
+        if (typeof v === "string" && !idLike.test(k)) {
+          const t = regGet(reg, v);
+          if (t && t.id === e.id) return k;
+        }
+        if (typeof v === "string" && idLike.test(k)) {
+          const t = regGet(reg, k);
+          if (t && t.id === e.id) return v;
+        }
+      }
+    }
+    return e.name;
+  };
+  return (name) => {
+    const s = str(name);
+    const low = s.toLowerCase();
+    if (!s || low === "world" || low === "all") return s;
+    if (memo.has(low)) return memo.get(low);
+    const r = resolveName(reg, s, "person");
+    const e = r && r.id ? regGet(reg, r.id) : null;
+    const out = e ? display(e) : s;
+    memo.set(low, out);
+    return out;
+  };
+}
+
+/** The member cards of a chat as { id, card }, for seeding the registry. */
+function chatCards(fsx, meta) {
+  const ids = [];
+  if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
+  else if (meta && meta.characterId) ids.push(str(meta.characterId));
+  const out = [];
+  for (const id of ids) {
+    if (!SAFE_ID.test(id)) continue;
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    if (isObj(card)) out.push({ id, card });
+  }
+  return out;
+}
+
+/**
+ * The canon function of a chat. The registry file is the Dashboard's and the World DM's too: it is only read, except that a
+ * chat with no registry yet (or `seed`, on the write path) gets the cards' people and the persona added (regSeed is
+ * idempotent, saved only when it changed something). Litopys never makes a person of a name it only meets.
+ */
+export function litCanon(fsx, chatId, meta, dash, seed) {
+  try {
+    const reg = regLoad(fsx, chatId);
+    if (seed || !reg.entities.length) {
+      const before = JSON.stringify(reg);
+      let persona = str(meta && meta.userName);
+      if (!persona && meta && SAFE_ID.test(str(meta.personaId))) persona = str((readJson(fsx, "personas/" + str(meta.personaId) + ".json", null) || {}).name);
+      regSeed(reg, { cards: chatCards(fsx, meta), personaName: persona });
+      if (JSON.stringify(reg) !== before) regSave(fsx, reg);
+    }
+    const d = isObj(dash) ? dash : readDash(fsx, chatId);
+    return makeCanon(reg, { userName: meta && meta.userName, ids: isObj(d) && isObj(d.personIds) ? d.personIds : null });
+  } catch {
+    return (n) => str(n);
+  }
+}
+
 /** The scene's character names: message names + user + present names from snapshots. */
 export function sceneNames(scene, line, dash, meta) {
   const names = new Set();
@@ -1586,7 +1670,8 @@ export function sceneNames(scene, line, dash, meta) {
  * name and the voice of the story (a narrator, a group in narrator mode: `notCast`) are left out. Fewer than two
  * means there is no one to tell a different story from, so the worker is not asked.
  */
-export function sceneCast(scene, line, dash, meta, notCast = []) {
+export function sceneCast(scene, line, dash, meta, notCast = [], canon) {
+  const nm = typeof canon === "function" ? (n) => str(canon(str(n))) : (n) => str(n);
   // a name the Dashboard's user removed from the cast is no one to remember the scene either
   const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase()), ...arr(dash && dash.removed).map((n) => str(n).toLowerCase())]);
   const userNames = new Set();
@@ -1595,10 +1680,11 @@ export function sceneCast(scene, line, dash, meta, notCast = []) {
   const seen = new Set();
   const out = [];
   for (const n of sceneNames(scene, line, dash, meta)) {
-    const key = str(n).toLowerCase();
-    if (!key || skip.has(key) || userNames.has(key) || seen.has(key)) continue;
+    const own = str(n).toLowerCase();
+    const key = nm(n).toLowerCase();
+    if (!key || skip.has(own) || skip.has(key) || userNames.has(own) || userNames.has(key) || seen.has(key)) continue;
     seen.add(key);
-    out.push(str(n));
+    out.push(nm(n));
   }
   return out;
 }
@@ -1714,17 +1800,18 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   }).sort((a, b) => rangeOf(b, line).toIdx - rangeOf(a, line).toIdx)[0];
   if (prevCh) parts.push("Previous chapter\n" + prevCh.text);
 
-  // Known facts
+  // Known facts. Names are compared through the entity registry (opts.canon): "Seraphina" counts for "Queen Seraphina"
+  const key = keyOf(opts.canon);
   const names = sceneNames(scene, line, dash, meta);
-  const nameSet = new Set(names.map((n) => n.toLowerCase()));
+  const nameSet = new Set(names.map(key));
   const activeFacts = st.facts.filter((f) => {
     if (f.status !== "active") return false;
     const subj = str(f.subject).toLowerCase();
     if (subj === "world") return true;
-    if (nameSet.has(subj)) return true;
+    if (nameSet.has(key(f.subject))) return true;
     if (f.knownBy === "all") return false;
     if (Array.isArray(f.knownBy)) {
-      return f.knownBy.some((k) => nameSet.has(str(k).toLowerCase()));
+      return f.knownBy.some((k) => nameSet.has(key(k)));
     }
     return false;
   });
@@ -1747,7 +1834,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const sceneCap = fairCap(sceneMsgs.map((x) => x.text.length), SCENE_TEXT_MAX, SCENE_MSG_FLOOR);
   const msgLines = sceneMsgs.map((x) => "[" + x.name + "] " + cutMiddle(x.text, sceneCap));
   // #99: who could remember this scene on their own: any named character besides the player
-  const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast) : [];
+  const cast = cfg.recollections !== false ? sceneCast(scene, line, dash, meta, opts.notCast, opts.canon) : [];
   const viewsOn = cast.length >= 1;
   if (viewsOn) parts.push("Characters\n" + cast.map((n) => "- " + n).join("\n"));
   parts.push("Scene messages\n" + msgLines.join("\n"));
@@ -1755,7 +1842,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const habitsOn = cfg.habits !== false;
   if (habitsOn) {
     const known = (st.habits || [])
-      .filter((k) => k.status !== "rejected" && nameSet.has(str(k.who).toLowerCase()))
+      .filter((k) => k.status !== "rejected" && nameSet.has(key(k.who)))
       .slice(0, 12)
       .map((k) => k.id + ": " + k.who + " - " + k.name + ": " + str(k.rule).split("\n").join(" "));
     if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
@@ -2136,9 +2223,9 @@ const CAST_MAX = 12;
  * Did this speaker witness the chapter (#184 P2)? A chapter with no cast (written before the cast was kept, or a scene
  * with nobody named) is visible to all. `voices` null means a reply that voices several: everything is visible.
  */
-export function witnessed(ch, voices) {
+export function witnessed(ch, voices, key = (n) => str(n).toLowerCase()) {
   if (!(voices instanceof Set) || !voices.size) return true;
-  const cast = arr(ch && ch.cast).map((n) => str(n).toLowerCase()).filter(Boolean);
+  const cast = arr(ch && ch.cast).map(key).filter(Boolean);
   return !cast.length || cast.some((n) => voices.has(n));
 }
 
@@ -2150,18 +2237,24 @@ const CAST_TOKENS = 250;
  * knows them ("Only Aria and Bram know: ..."): the narrator sees at a glance what each character may use. Built from
  * the record, no model call. null when everyone here knows everything that is restricted, or nothing is.
  */
-export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = [] }) {
+export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = [], canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
+  const kf = keyOf(canon);
   const { present } = presentNames({ line, dash, meta, speakerName });
   const skip = new Set([...NOT_A_CAST, ...arr(notCast).map((n) => str(n).toLowerCase())]);
   const userKey = (str(meta && meta.userName) || "You").toLowerCase();
-  const people = [...present].filter((n) => !skip.has(n.toLowerCase()) || n.toLowerCase() === userKey);
+  // one entry per person, however the scene spells the name (the registry), shown by its canonical name
+  const seenPeople = new Set();
+  const people = [...present]
+    .filter((n) => !skip.has(n.toLowerCase()) || n.toLowerCase() === userKey)
+    .map((n) => (typeof canon === "function" ? str(canon(n)) || n : n))
+    .filter((n) => !seenPeople.has(n.toLowerCase()) && seenPeople.add(n.toLowerCase()));
   if (people.length < 2) return null;
   const groups = new Map();
   for (const f of arr(st.facts)) {
     if (!isObj(f) || f.status !== "active" || !str(f.text) || !Array.isArray(f.knownBy)) continue;
-    const by = new Set(f.knownBy.map((k) => str(k).toLowerCase()));
-    const who = people.filter((n) => by.has(n.toLowerCase()));
+    const by = new Set(f.knownBy.map(kf));
+    const who = people.filter((n) => by.has(kf(n)));
     if (who.length === people.length) continue;
     const key = who.join("\u0000");
     if (!groups.has(key)) groups.set(key, { who, texts: [] });
@@ -2195,7 +2288,7 @@ export function hiddenPlanNote() {
 const PLAN_OPS = ["send", "next", "swipe", ""];
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices }) {
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
   // window may have dropped more than the recent window allows: what lies before is carried here. In
@@ -2204,18 +2297,21 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const own = cutCount(st, line, cfg);
   const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
   const { present, userName } = presentNames({ line, dash, meta, speakerName });
-  const here = new Set([...present].map((n) => n.toLowerCase()));
-  const subj = (f) => str(f.subject).toLowerCase();
+  // names are compared through the entity registry (canon): "Seraphina" in knownBy counts for "Queen Seraphina" here
+  const key = keyOf(canon);
+  const here = new Set([...present].map(key));
+  const subj = (f) => (str(f.subject).toLowerCase() === "world" ? "world" : key(f.subject));
+  const voices = voices0 instanceof Set && voices0.size ? new Set([...voices0].map(key)) : voices0;
 
   // #184 P2: a character's reply gets what that character knows (or everyone does), never what only the player or
   // another one present knows; a reply that voices several (`voices` unset) gets what anyone present knows
   const knowers = voices instanceof Set && voices.size ? voices : here;
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(key(k))));
   const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
   // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
   // chapters then ride by themselves)
-  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices));
+  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices, key));
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
@@ -2457,7 +2553,7 @@ export function llmRequest(ctx, host) {
     const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -2523,7 +2619,7 @@ export function llmRequest(ctx, host) {
     let castKn = null;
     if (st && line.length && cfg.castKnowledge !== false && !soleVoice(fsx, rc.meta, speakerName)) {
       try {
-        castKn = castKnowledgeFor({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta) });
+        castKn = castKnowledgeFor({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta), canon: litCanon(fsx, chatId, rc.meta) });
       } catch (e) {
         try {
           host.log("litopys who knows what: " + (e && e.message ? e.message : String(e)));
@@ -2810,6 +2906,8 @@ export function causeOf(st, op) {
 export function applyWorkerResult(st, work, parsed, ctx) {
   const { scene, replaces } = work;
   const { now, model, usage, ms, line } = ctx;
+  // the entity registry (ctx.canon): a person keeps one name; "world" and "all" and unknown names stay as written
+  const canon = typeof ctx.canon === "function" ? (n) => str(ctx.canon(str(n))) || str(n) : (n) => str(n);
   const chapterId = replaces || "c" + ++st.counters.chapter;
   const factAdds = [];
   let skipped = 0;
@@ -2830,10 +2928,10 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   if (scene.marked) newChapter.marked = true;
   if (scene.place) newChapter.place = scene.place;
   // #99: what each character remembers of the scene; only asked for (and kept) when the scene had a named character
-  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast, ctx.recollectChars) : [];
+  const views = ctx.cast && ctx.cast.length >= 1 ? cleanViews(parsed.views, ctx.cast, ctx.recollectChars, typeof ctx.canon === "function" ? canon : undefined) : [];
   if (views.length) newChapter.views = views;
   // #184 P2: who witnessed the scene, so a character's reply can leave out a chapter that character did not see
-  const cast = arr(ctx.witnesses).map(str).filter(Boolean).slice(0, CAST_MAX);
+  const cast = dedupeNames(arr(ctx.witnesses).map(str).filter(Boolean).map(canon)).slice(0, CAST_MAX);
   if (cast.length) newChapter.cast = cast;
   if (model) newChapter.model = model;
   const at = replaces ? st.chapters.findIndex((c) => c.id === replaces) : -1;
@@ -2853,15 +2951,15 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     if (opName === "add") {
       const text = cut(op.text, 300);
       if (!text) continue;
-      const subject = str(op.subject) || "world";
+      const subject = canon(op.subject) || "world";
       // a model that says nothing (or nothing usable) about who knows gets the people of the scene, not everyone (#184 P1a)
-      const told = Array.isArray(op.knownBy) ? op.knownBy.map((x) => str(x)).filter(Boolean) : [];
-      const witnesses = arr(ctx.witnesses).map(str).filter(Boolean);
+      const told = Array.isArray(op.knownBy) ? dedupeNames(op.knownBy.map((x) => str(x)).filter(Boolean).map(canon)) : [];
+      const witnesses = dedupeNames(arr(ctx.witnesses).map(str).filter(Boolean).map(canon));
       let knownBy = op.knownBy === "all" ? "all" : told.length ? told : witnesses.length ? witnesses : "all";
       // #184 P3: a fact that says what a flagged reply leaked does not make the leaking character a knower
       for (const h of arr(ctx.held)) {
         if (!h.texts.some((t) => saysHeld(text, t))) continue;
-        const without = (list) => list.filter((k) => k.toLowerCase() !== h.who.toLowerCase());
+        const without = (list) => list.filter((k) => k.toLowerCase() !== canon(h.who).toLowerCase());
         knownBy = knownBy === "all" ? (witnesses.length ? without(witnesses) : knownBy) : without(knownBy);
         if (Array.isArray(knownBy) && !knownBy.length) knownBy = [subject];
       }
@@ -3077,14 +3175,16 @@ export function cutAtSentence(text, n) {
  * The recollections of one chapter as kept: only a name of the scene's cast (spelled as the scene spells it), one per
  * character, text trimmed. `cast` empty = unknown, then any name stays.
  */
-export function cleanViews(list, cast, max = VIEW_CHARS) {
-  const byLower = new Map(arr(cast).map((n) => [str(n).toLowerCase(), str(n)]));
+export function cleanViews(list, cast, max = VIEW_CHARS, canon) {
+  // with a canon (the entity registry), a name is the person's canonical name, whichever way the model spells it
+  const nm = typeof canon === "function" ? (n) => str(canon(str(n))) || str(n) : (n) => str(n);
+  const byLower = new Map(arr(cast).map((n) => [nm(n).toLowerCase(), nm(n)]));
   const done = new Set();
   const out = [];
   for (const x of arr(list)) {
     if (!isObj(x)) continue;
-    const key = str(x.who || x.name || x.character).toLowerCase();
-    const who = byLower.size ? byLower.get(key) : str(x.who || x.name || x.character);
+    const key = nm(x.who || x.name || x.character).toLowerCase();
+    const who = byLower.size ? byLower.get(key) : nm(x.who || x.name || x.character);
     const text = cutAtSentence(str(x.text || x.memory || x.view).trim(), max);
     if (!who || !text || done.has(who.toLowerCase())) continue;
     done.add(who.toLowerCase());
@@ -3947,9 +4047,11 @@ export function onTick(_ctx, host) {
             gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
             if (!saveChatFile(fsx, st)) return;
             beat(fsx, chatId, now);
-            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords, view: storyView(fsx, meta), notCast: narratorNames(fsx, meta) }));
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, cfg, meta, { maxWords, view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) }));
             return;
           }
+          // the registry is read (and seeded) right before the names are written
+          const canon = litCanon(fsx, chatId, meta, dash, true);
           // applied to the record as it is on disk; a save that lost a race is redone once
           let cur = st;
           for (let attempt = 0; attempt < 2; attempt++) {
@@ -3984,8 +4086,9 @@ export function onTick(_ctx, host) {
                 earnAfter: cfg.habitsEarnAfter,
                 userName: meta && meta.userName,
                 cardRules: cfg.habits !== false ? cardHabitRules(fsx, meta) : [],
-                cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)) : [],
-                witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta)),
+                canon,
+                cast: cfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta), canon) : [],
+                witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta), canon),
                 held: heldLeaks(dash, line, w.scene),
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
@@ -4019,7 +4122,7 @@ export function onTick(_ctx, host) {
         gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta) });
+        const req = buildWorkerRequest(gen, work, line, dash, cfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) });
         if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {
@@ -6830,7 +6933,7 @@ function carriesRoute(fsx, query) {
   const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
   let insert = null;
   try {
-    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName) }) : null;
+    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta, dash) }) : null;
   } catch {}
   const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
   let card = null;
