@@ -1654,14 +1654,48 @@ export function dashSnapshot(fsx, view) {
   if (!snap && isObj(state.inherited) && state.inherited.off !== true && isObj(state.inherited.snap)) snap = state.inherited.snap;
   if (!snap) return null;
   const removed = new Set((Array.isArray(state.removed) ? state.removed : []).filter((n) => typeof n === "string").map((n) => n.trim().toLowerCase()));
-  return { snap, removed, key, state };
+  return { snap, removed, key, state, names: dashNames(readJsonAt(fsx, "registry/" + String(view.chatId).replace(/[^\w-]/g, "_") + ".json", null), state) };
+}
+
+const foldName = (s) => str(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * Every other name of a Dashboard character, from the chat's entity registry (docs/ENTITY-REGISTRY.md): its name, its aliases
+ * and those of the entries merged into it, each mapped to the Dashboard's own key (state.personIds). An agent then finds
+ * "Rhea" or "Эмбер" as the Dashboard's "Rhea Faeth" or "Ember". Empty without a registry.
+ */
+function dashNames(reg, state) {
+  const out = new Map();
+  if (!isObj(reg) || !Array.isArray(reg.entities) || !isObj(state.personIds)) return out;
+  const byId = new Map(reg.entities.filter((e) => isObj(e) && typeof e.id === "string").map((e) => [e.id, e]));
+  const root = (id) => {
+    let e = byId.get(id);
+    for (let n = 0; e && typeof e.merged === "string" && n < 20; n++) e = byId.get(e.merged) || null;
+    return e ? e.id : id;
+  };
+  const keyOf = new Map();
+  for (const [k, id] of Object.entries(state.personIds)) if (typeof id === "string") keyOf.set(root(id), k);
+  for (const e of byId.values()) {
+    if (e.kind !== "person") continue;
+    const k = keyOf.get(root(e.id));
+    if (!k) continue;
+    for (const n of [e.name, ...(Array.isArray(e.aliases) ? e.aliases.map((a) => (isObj(a) ? a.text : a)) : [])]) {
+      const f = foldName(n);
+      if (f && !out.has(f)) out.set(f, k);
+    }
+  }
+  return out;
 }
 
 /** The key of `chars` that matches a name (case does not matter; a character the user removed is not there). */
 function dashCharKey(d, name) {
   const want = str(name).toLowerCase();
   if (!want || d.removed.has(want) || !isObj(d.snap.chars)) return "";
-  return Object.keys(d.snap.chars).find((k) => k.trim().toLowerCase() === want && isObj(d.snap.chars[k])) || "";
+  const exact = Object.keys(d.snap.chars).find((k) => k.trim().toLowerCase() === want && isObj(d.snap.chars[k]));
+  if (exact) return exact;
+  // another name of the same person (registry), never one the user removed
+  const k = d.names instanceof Map ? d.names.get(foldName(name)) : "";
+  return k && isObj(d.snap.chars[k]) && !d.removed.has(k.trim().toLowerCase()) ? k : "";
 }
 
 /** The character a field without `of` is about: whoever wrote the last reply in this view, else the first one in the scene. */

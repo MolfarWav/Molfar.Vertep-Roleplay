@@ -125,8 +125,8 @@ export function SuggestCalloutView({ name, other, why, busy, onMerge, onApart }:
       <div className="flex min-w-0 items-start gap-2">
         <UsersThree className={cn('mt-0.5 size-4 shrink-0', TONE.people.text)} aria-hidden="true" />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-[13px] leading-snug font-semibold break-words text-foreground">{t('dash.merge.maybe', { name, other })}</p>
-          {reason && <p className="text-[12px] leading-snug text-muted-foreground">{reason}</p>}
+          <p className="text-body font-semibold break-words text-foreground">{t('dash.merge.maybe', { name, other })}</p>
+          {reason && <p className="text-caption text-muted-foreground">{reason}</p>}
         </div>
       </div>
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">

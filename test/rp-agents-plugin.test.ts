@@ -770,6 +770,31 @@ describe("Dashboard fields for agents", () => {
     expect(d).toEqual({ present: "Aria, Ghost" });
   });
 
+  it("`of` finds a character by another of its names, from the chat's entity registry", () => {
+    writeDash("c1", { snapshots: SNAPS, personIds: { Aria: "p1", Maren: "p2" } });
+    fs.mkdirSync(path.join(root, "registry"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "registry", "c1.json"),
+      JSON.stringify({
+        v: 1,
+        chatId: "c1",
+        entities: [
+          { id: "p1", kind: "person", name: "Aria", aliases: [] },
+          { id: "p2", kind: "person", name: "Maren Vale", aliases: [{ text: "Марен", src: "seen" }] },
+          { id: "p3", kind: "person", name: "Mare", aliases: [], merged: "p2" },
+        ],
+      }),
+    );
+    const d = dashRead([
+      { id: "a", source: "state", field: "mood", of: "Maren Vale" },
+      { id: "b", source: "state", field: "mood", of: "марен" },
+      { id: "c", source: "state", field: "mood", of: "Mare" },
+      { id: "d", source: "state", field: "mood", of: "Nobody" },
+    ]);
+    expect(d).toEqual({ "mood@Maren Vale": "calm", "mood@марен": "calm", "mood@Mare": "calm" });
+    fs.rmSync(path.join(root, "registry", "c1.json"));
+  });
+
   it("no Dashboard state gives nothing, a chat that continues another gives the state it carried", () => {
     expect(dashRead([{ id: "p", source: "state", field: "place" }])).toEqual({});
     writeDash("c1", { snapshots: {}, inherited: { from: "old", snap: SNAPS["m2#0"] } });
