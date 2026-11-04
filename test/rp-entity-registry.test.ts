@@ -356,6 +356,114 @@ describe("regSeed", () => {
   });
 });
 
+describe("role-prefixed headings (a card of several characters)", () => {
+  const desc = [
+    "### Queen of Elves Rhea Faeth", "Full name: Queen of Elves Rhea Faeth", "Occupation: Queen of Damorae", "",
+    "### Maid and Familiar of Rhea Ember Feath", "Full name: Maid and Familiar of Rhea Ember Feath", "Age: 20", "",
+    "### Royal Knight Isabella Falafel", "Full name: Royal Knight Isabella Falafel", "Backstory: A knight.",
+  ].join("\r\n");
+  const card = { name: "Summoned to the Queen", description: desc };
+  it("reads every heading, whatever the line ending, and the card title is no person", () => {
+    const n = R.regCardNames(card);
+    expect(n.cardIsPerson).toBe(false);
+    expect(n.persons).toEqual([
+      { name: "Queen of Elves Rhea Faeth", aliases: ["Rhea Faeth"] },
+      { name: "Maid and Familiar of Rhea Ember Feath", aliases: ["Ember Feath"] },
+      { name: "Royal Knight Isabella Falafel", aliases: ["Isabella Falafel"] },
+    ]);
+    expect(R.regCardNames({ name: card.name, description: desc.replace(/\r\n/g, "\n") }).persons).toHaveLength(3);
+  });
+  it("the trailing name is the last two capitalized words, else the last word; a title is not part of it", () => {
+    const one = (h: string) => R.regCardNames({ name: "T", description: `### ${h}\nx\n### Zed Zeta\ny` }).persons[0]!;
+    expect(one("Dark Lord Sauron").aliases).toEqual(["Sauron"]);
+    expect(one("Королева ельфів Рея Фаетх").aliases).toEqual(["Рея Фаетх"]);
+    expect(one("Rhea Faeth").aliases).toEqual([]);
+  });
+  it("a long heading that is a sentence is not a name", () => {
+    const n = R.regCardNames({ name: "Kaede Fuji", description: "### Her relationship With The Player\nx\n### How She Talks To Others Often\ny" });
+    expect(n.persons.map((p: Json) => p.name)).toEqual(["Kaede Fuji"]);
+  });
+  it("a guidelines section is no person", () => {
+    const n = R.regCardNames({ name: "Ava Mir", description: "Name: Ava Mir\n## Characterization Guidelines\nx" });
+    expect(n.persons.map((p: Json) => p.name)).toEqual(["Ava Mir"]);
+  });
+  it("souls resolve to the sections: one entity per person", () => {
+    const reg = R.regNew("c1");
+    R.regSeed(reg, { cards: [{ id: "q", card }], souls: { "Rhea Faeth": {}, Ember: {}, "Isabella Falafel": {} } });
+    expect(reg.entities.map((e: Json) => e.name)).toEqual(["Queen of Elves Rhea Faeth", "Maid and Familiar of Rhea Ember Feath", "Royal Knight Isabella Falafel"]);
+    expect(reg.entities.every((e: Json) => e.src === "card")).toBe(true);
+    expect(R.resolveName(reg, "Ember")).toMatchObject({ id: "p2" });
+    expect(R.resolveName(reg, "Rhea")).toEqual({ id: "p1", step: 3 });
+  });
+});
+
+describe("resolveName, step 3b: several words inside one name", () => {
+  const reg = people("Queen of Elves Rhea Faeth", "Maid and Familiar of Rhea Ember Feath");
+  it("the text is inside a longer name", () => {
+    expect(R.resolveName(reg, "Rhea Faeth")).toEqual({ id: "p1", step: 3.5 });
+    expect(R.resolveName(reg, "Ember Feath")).toEqual({ id: "p2", step: 3.5 });
+  });
+  it("a longer text holds a name of two or more words", () => {
+    const r = people("Rhea Faeth", "Ember Feath");
+    expect(R.resolveName(r, "Queen of Elves Rhea Faeth")).toEqual({ id: "p1", step: 3.5 });
+    expect(R.resolveName(r, "Queen Rhea Faeth of Damorae")).toEqual({ id: "p1", step: 3.5 });
+  });
+  it("order matters, a missing word is no match, two candidates are ambiguous, a single name is not a part", () => {
+    expect(R.resolveName(reg, "Faeth Rhea")).toBeNull();
+    expect(R.resolveName(reg, "Ember Rhea")).toBeNull();
+    expect(R.resolveName(people("Alice Yamada Cooper", "Alice Brooks Cooper"), "Alice Cooper")).toEqual({ ambiguous: ["p1", "p2"] });
+    expect(R.resolveName(people("Kaede"), "Kaede Fuji")).toBeNull();
+    expect(R.resolveName(people("Alice Yamada"), "Alice Cooper")).toBeNull();
+  });
+});
+
+describe("regPrune and regReconcile: a registry made by the old card reader", () => {
+  const card = { name: "Summoned to the Queen", description: "### Queen of Elves Rhea Faeth\nFull name: Queen of Elves Rhea Faeth\n### Maid and Familiar of Rhea Ember Feath\nx\n### Royal Knight Isabella Falafel\nx" };
+  const old = () => {
+    const reg = R.regNew("c1");
+    R.regAdd(reg, { name: "Summoned to the Queen", src: "card", card: "q" });
+    R.regAdd(reg, { name: "Queen of Elves Rhea Faeth", src: "card", card: "q" });
+    R.regAdd(reg, { name: "Rhea Faeth", src: "soul" });
+    R.regAdd(reg, { name: "Ember", src: "soul" });
+    R.regAdd(reg, { name: "Isabella Falafel", src: "soul" });
+    return reg;
+  };
+  it("drops the unreferenced card title, merges souls into the sections", () => {
+    const reg = old();
+    expect(R.regPrune(reg, [{ id: "q", card }], [])).toBe(1);
+    R.regSeed(reg, { cards: [{ id: "q", card }], souls: { "Rhea Faeth": {}, Ember: {}, "Isabella Falafel": {} } });
+    const live = reg.entities.filter((e: Json) => !e.merged);
+    expect(live.map((e: Json) => e.name)).toEqual(["Queen of Elves Rhea Faeth", "Maid and Familiar of Rhea Ember Feath", "Royal Knight Isabella Falafel"]);
+    expect(R.regGet(reg, "p3")!.id).toBe("p2");
+    expect(R.regGet(reg, "p4")!.name).toBe("Maid and Familiar of Rhea Ember Feath");
+    expect(R.regGet(reg, "p5")!.name).toBe("Royal Knight Isabella Falafel");
+    const once = JSON.stringify(reg);
+    R.regPrune(reg, [{ id: "q", card }], []);
+    R.regSeed(reg, { cards: [{ id: "q", card }], souls: { "Rhea Faeth": {} } });
+    expect(JSON.stringify(reg)).toBe(once);
+  });
+  it("keeps what is referenced: kept ids, merge targets, entities of cards that were not given", () => {
+    const reg = old();
+    expect(R.regPrune(reg, [{ id: "q", card }], ["p1"])).toBe(0);
+    expect(R.regPrune(reg, [{ id: "other", card: { name: "Kaede Fuji" } }], [])).toBe(0);
+    expect(R.regPrune(reg, [], [])).toBe(0);
+    const reg2 = old();
+    R.regMerge(reg2, "p3", "p1");
+    expect(R.regPrune(reg2, [{ id: "q", card }], [])).toBe(0);
+  });
+  it("does not merge a soul that fits two card people, or one marked apart", () => {
+    const reg = R.regNew("c1");
+    R.regAdd(reg, { name: "Alice Yamada", src: "card" });
+    R.regAdd(reg, { name: "Alice Cooper", src: "card" });
+    R.regAdd(reg, { name: "Alice", src: "soul" });
+    expect(R.regReconcile(reg)).toBe(0);
+    const r2 = people("Sina Rose");
+    R.regAdd(r2, { name: "Sina", src: "seen" });
+    R.regApart(r2, "p1", "p2");
+    expect(R.regReconcile(r2)).toBe(0);
+  });
+});
+
 describe("regLoad and regSave", () => {
   it("names the file after the chat", () => {
     expect(R.regPath("cmw1")).toBe("registry/cmw1.json");

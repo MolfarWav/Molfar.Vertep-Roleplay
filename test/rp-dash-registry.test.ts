@@ -359,6 +359,78 @@ describe("a state that already holds the same person twice", () => {
   });
 });
 
+describe("a registry made by the old card reader", () => {
+  const description = [
+    "### Queen of Elves Rhea Faeth", "Full name: Queen of Elves Rhea Faeth", "Occupation: Queen", "",
+    "### Maid and Familiar of Rhea Ember Feath", "Full name: Maid and Familiar of Rhea Ember Feath", "",
+    "### Royal Knight Isabella Falafel", "Full name: Royal Knight Isabella Falafel",
+  ].join("\r\n");
+  const ent = (id: string, name: string, src: string, extra: Record<string, unknown> = {}) => ({ id, kind: "person", name, aliases: [], src, ...extra });
+
+  it("loses the card title, joins the souls to the sections, and re-points the Dashboard names", () => {
+    card("queen", "Summoned to the Queen", { description });
+    chat("c1", story("Summoned to the Queen", "queen"), { characterId: "queen" });
+    const mock = mockHost();
+    run(mock, "c1", { present: ["Rhea Faeth"], chars: { "Rhea Faeth": { mood: "calm" } } });
+    // what the old reader left: the title as a person, the first section, and a second entity per soul
+    fs.writeFileSync(
+      path.join(root, "registry/c1.json"),
+      JSON.stringify({
+        v: 1,
+        chatId: "c1",
+        from: null,
+        next: { p: 6, t: 1, l: 1 },
+        entities: [
+          ent("p1", "Summoned to the Queen", "card", { card: "queen" }),
+          ent("p2", "Queen of Elves Rhea Faeth", "card", { card: "queen" }),
+          ent("p3", "Rhea Faeth", "soul"),
+          ent("p4", "Ember", "soul"),
+          ent("p5", "Isabella Falafel", "soul"),
+        ],
+        apart: [],
+        suggest: [],
+      }),
+    );
+    const st = readState("c1");
+    st.personIds = { "Rhea Faeth": "p3", "Summoned to the Queen": "p1", Ember: "p4", Gone: "p9" };
+    writeState("c1", st);
+    chat("c1", more("Summoned to the Queen", "queen"), { characterId: "queen" });
+    run(mock, "c1", { present: ["Ember"] });
+
+    const reg = readRegistry("c1");
+    const live = reg.entities.filter((e: any) => !e.merged && e.id !== "user");
+    // the title stays: the Dashboard still shows it, so something refers to it
+    expect(live.map((e: any) => e.name)).toEqual(["Summoned to the Queen", "Queen of Elves Rhea Faeth", "Maid and Familiar of Rhea Ember Feath", "Royal Knight Isabella Falafel"]);
+    const byName = (n: string) => reg.entities.find((e: any) => e.name === n);
+    expect(byName("Rhea Faeth").merged).toBe("p2");
+    expect(byName("Ember").merged).toBe(byName("Maid and Familiar of Rhea Ember Feath").id);
+    expect(byName("Isabella Falafel").merged).toBe(byName("Royal Knight Isabella Falafel").id);
+    const ids = readState("c1").personIds;
+    expect(ids["Rhea Faeth"]).toBe("p2");
+    expect(ids.Ember).toBe(byName("Maid and Familiar of Rhea Ember Feath").id);
+    expect(ids["Summoned to the Queen"]).toBe("p1");
+    expect(ids.Gone).toBeUndefined();
+  });
+
+  it("drops the title when the Dashboard never used it", () => {
+    card("queen", "Summoned to the Queen", { description });
+    chat("c1", story("Summoned to the Queen", "queen"), { characterId: "queen" });
+    const mock = mockHost();
+    run(mock, "c1", { present: ["Ember"] });
+    fs.writeFileSync(
+      path.join(root, "registry/c1.json"),
+      JSON.stringify({ v: 1, chatId: "c1", from: null, next: { p: 3, t: 1, l: 1 }, entities: [ent("p1", "Summoned to the Queen", "card", { card: "queen" }), ent("p2", "Queen of Elves Rhea Faeth", "card", { card: "queen" })], apart: [], suggest: [] }),
+    );
+    const st = readState("c1");
+    st.personIds = {};
+    writeState("c1", st);
+    chat("c1", more("Summoned to the Queen", "queen"), { characterId: "queen" });
+    run(mock, "c1", { present: ["Rhea Faeth"] });
+    const names = readRegistry("c1").entities.filter((e: any) => !e.merged && e.id !== "user").map((e: any) => e.name);
+    expect(names).toEqual(["Queen of Elves Rhea Faeth", "Maid and Familiar of Rhea Ember Feath", "Royal Knight Isabella Falafel"]);
+  });
+});
+
 describe("a chat that continues another", () => {
   it("keeps the same person ids, and the same names", () => {
     card("aria", "Aria");
@@ -378,5 +450,17 @@ describe("a chat that continues another", () => {
     expect(second.entities.filter((e: any) => e.name === "Mark")).toHaveLength(1);
     expect(readState("c2").personIds).toEqual(readState("c1").personIds);
     expect(Object.keys(lastSnap("c2").chars).sort()).toEqual(["Aria", "Mark"]);
+  });
+});
+
+describe("the name a section person is shown with (#240)", () => {
+  it("a heading with a role in front shows the name at its end, whichever spelling the sensor writes", () => {
+    const crlf = String.fromCharCode(13, 10);
+    card("queen", "Summoned to the Queen", { description: ["### Queen of Elves Rhea Faeth", "A queen.", "", "### Royal Knight Isabella Falafel", "A knight."].join(crlf) });
+    chat("c1", story("Summoned to the Queen", "queen"), { characterId: "queen" });
+    const mock = mockHost();
+    run(mock, "c1", { present: ["Queen of Elves Rhea Faeth", "Isabella"], chars: { "Queen of Elves Rhea Faeth": { mood: "cold" } } });
+    expect(Object.keys(lastSnap("c1").chars).sort()).toEqual(["Isabella Falafel", "Rhea Faeth"]);
+    expect(lastSnap("c1").chars["Rhea Faeth"].mood).toBe("cold");
   });
 });

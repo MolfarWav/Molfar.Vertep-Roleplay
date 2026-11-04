@@ -25,13 +25,16 @@ const REG_STOP = new Set([
   "greeting", "plot", "story", "rules", "rule", "instructions", "instruction", "characters", "character", "overview",
   "info", "information", "details", "summary", "goals", "goal", "secrets", "hobbies", "family", "occupation", "age",
   "gender", "body", "voice", "kinks", "quirks", "habits", "fears", "motivation", "role", "roles", "profile", "bio",
-  "biography", "introduction", "intro", "mannerisms", "speaking", "special", "other", "additional", "important", "ooc",
+  "biography", "guidelines", "guideline", "characterization", "characterisation", "introduction", "intro", "mannerisms", "speaking", "special", "other", "additional", "important", "ooc",
   "system", "narrator", "tags", "genre", "tone", "style", "format", "stats", "stat", "inventory", "location", "locations",
   "\u043b\u0438\u0447\u043d\u043e\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u043e\u0441\u0442\u044c", "\u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440", "\u043f\u0440\u0435\u0434\u044b\u0441\u0442\u043e\u0440\u0438\u044f", "\u0438\u0441\u0442\u043e\u0440\u0438\u044f", "\u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439", "\u0441\u0446\u0435\u043d\u0430\u0440\u0456\u0439", "\u043d\u0430\u0432\u044b\u043a\u0438", "\u043d\u0430\u0432\u0438\u0447\u043a\u0438",
   "\u0441\u043f\u043e\u0441\u043e\u0431\u043d\u043e\u0441\u0442\u0438", "\u0437\u0434\u0456\u0431\u043d\u043e\u0441\u0442\u0456", "\u043e\u0442\u043d\u043e\u0448\u0435\u043d\u0438\u044f", "\u0432\u0456\u0434\u043d\u043e\u0441\u0438\u043d\u0438", "\u043c\u0438\u0440", "\u0441\u0432\u0456\u0442", "\u0437\u0430\u043c\u0435\u0442\u043a\u0438", "\u043d\u043e\u0442\u0430\u0442\u043a\u0438", "\u043f\u0440\u0430\u0432\u0438\u043b\u0430", "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0438",
   "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0456", "\u043f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435", "\u043f\u0440\u0438\u043c\u0456\u0442\u043a\u0430", "\u0438\u043d\u0442\u0435\u0440\u0435\u0441\u044b", "\u0456\u043d\u0442\u0435\u0440\u0435\u0441\u0438", "\u043f\u0440\u0438\u0432\u044b\u0447\u043a\u0438", "\u0437\u0432\u0438\u0447\u043a\u0438", "\u043e\u0441\u043e\u0431\u0438\u0441\u0442\u0456\u0441\u0442\u044c", "\u043f\u0435\u0440\u0435\u0434\u0456\u0441\u0442\u043e\u0440\u0456\u044f",
   "\u043e\u043f\u0438\u0441", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u0438\u0439", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0439", "\u0431\u0438\u043e\u0433\u0440\u0430\u0444\u0438\u044f", "\u0431\u0456\u043e\u0433\u0440\u0430\u0444\u0456\u044f", "\u0441\u044e\u0436\u0435\u0442", "\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a", "\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447",
 ]);
+
+/** Words that make a long heading a phrase, not a name (folded). */
+const REG_FUNC = new Set(["he", "she", "her", "his", "hers", "him", "they", "them", "their", "it", "its", "how", "what", "why", "when", "where", "who", "with", "without", "to", "for", "from", "in", "on", "at", "by", "is", "are", "was", "were", "be", "not", "no", "you", "your", "my", "our", "about", "as"]);
 
 /** A card name or heading that is a narrator or a scenario, not a person. */
 const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a|\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447|\u043d\u0430\u0440\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0446\u0456\u044f|\u043d\u0430\u0440\u0430\u0446\u0438\u044f|storyteller|game ?master/iu;
@@ -189,6 +192,17 @@ export function regIsApart(reg, a, b) {
   });
 }
 
+/** True when every word of `small` appears in `big`, in the same order (a word matches by its fold or its translit key). */
+function regInOrder(sk, bk, sw, bw) {
+  let j = 0;
+  for (let i = 0; i < sk.length; i++) {
+    while (j < bk.length && bk[j] !== sk[i] && bw[j] !== sw[i]) j++;
+    if (j >= bk.length) return false;
+    j++;
+  }
+  return true;
+}
+
 function regFind(reg, text, kind, notWith, skip) {
   const raw = String(text == null ? "" : text);
   const f = regFold(raw);
@@ -238,6 +252,20 @@ function regFind(reg, text, kind, notWith, skip) {
     );
     if (r) return r;
   }
+  if (toks.length >= 2) {
+    // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
+    const tk = toks.map(regTranslit);
+    r = done(
+      hit((s) => {
+        const t = regTokens(s);
+        if (t.length < 2) return false;
+        const k = t.map(regTranslit);
+        return regInOrder(tk, k, toks, t) || regInOrder(k, tk, t, toks);
+      }),
+      3.5,
+    );
+    if (r) return r;
+  }
   const sc = regScript(raw);
   r = done(
     hit((s) => {
@@ -255,7 +283,8 @@ function regFind(reg, text, kind, notWith, skip) {
 /**
  * Which entity does this word mean? `{ id, step }`, `{ ambiguous: [ids] }` or null. Steps, first hit wins:
  * 1 exact fold of a name or alias; 2 equal regTranslit key; 3 a single word (titles removed) equal to the first or
- * last word of exactly one entity's name or alias; 4 near (fold keys one letter apart when both are 6+ letters, or
+ * last word of exactly one entity's name or alias; 3.5 (3b) a text of two or more words that all sit, in order, inside
+ * exactly one entity's name or alias, or the reverse (a name of two or more words inside the text); 4 near (fold keys one letter apart when both are 6+ letters, or
  * translit keys one letter apart when the spellings are in different scripts, 3+ letters, same first letter).
  * Merged entities are not candidates but their names point to the target. `notWith` (an id) skips candidates the
  * user marked apart from it. `user` is a candidate like the others: the caller decides what to do with it.
@@ -351,6 +380,40 @@ function regPlausible(n) {
   return !!n && n.length <= 40 && /\p{L}/u.test(n) && regTokens(n).length >= 1 && regTokens(n).length <= 3;
 }
 
+/**
+ * Could this be the name of a section or a `Name:` line: like regPlausible, but a role may come before the name
+ * ("Maid and Familiar of Rhea Ember Feath"), so up to six words; a name of more than three words must be written as a
+ * name (every word but the connectors capitalized or caseless) and contain no section word.
+ */
+function regPlausibleLong(n) {
+  if (!n || n.length > 60 || !/\p{L}/u.test(n)) return false;
+  const t = regTokens(n);
+  if (t.length < 1 || t.length > 6) return false;
+  if (t.length <= 3) return true;
+  // a longer heading must read as a name: no pronoun, question or preposition (a sentence in title case is not one)
+  if (t.some((w) => REG_FUNC.has(w))) return false;
+  for (const w of regTidy(n).split(" ")) {
+    const f = regFold(w);
+    if (!f || REG_TITLES.has(f)) continue;
+    if (REG_STOP.has(f)) return false;
+    if (!/^\p{Lu}/u.test(w) && w.toLowerCase() !== w.toUpperCase()) return false;
+  }
+  return true;
+}
+
+/** The name a heading with a role in front ends with: the last two words when both are capitalized (or caseless) and not titles, else the last word. Null for under three words or when it is the whole name. */
+function regTrailName(name) {
+  const w = regTidy(name).split(" ").filter(Boolean);
+  if (w.length < 3) return null;
+  const cased = (x) => /\p{L}/u.test(x) && (/^\p{Lu}/u.test(x) || x.toLowerCase() === x.toUpperCase());
+  const ok = (x) => cased(x) && !REG_TITLES.has(regFold(x));
+  const last = w[w.length - 1];
+  if (!ok(last)) return null;
+  const prev = w[w.length - 2];
+  const out = ok(prev) ? prev + " " + last : last;
+  return regFold(out) === regFold(name) ? null : out;
+}
+
 function regCardPersonName(raw) {
   const n = regTidy(raw);
   if (!n || REG_NARR.test(n)) return null;
@@ -364,8 +427,8 @@ function regHeadingName(raw) {
   if (!n || REG_NARR.test(n)) return null;
   const head = regHead(n);
   const words = regFold(head).split(" ");
-  if (!regPlausible(head)) return null;
-  if (REG_STOP.has(regFold(head)) || (words.length <= 3 && REG_STOP.has(words[0]))) return null;
+  if (!regPlausibleLong(head)) return null;
+  if (REG_STOP.has(regFold(head)) || (words.length <= 3 && (REG_STOP.has(words[0]) || REG_STOP.has(words[words.length - 1])))) return null;
   return head;
 }
 
@@ -452,7 +515,8 @@ export function regCardNames(card) {
   };
   let cp = null;
   if (cardIsPerson) cp = put(cardName, []);
-  for (const s of heads) put(s.declared || s.head, [...(s.declared && s.declared !== s.head ? [s.head] : []), ...s.aliases]);
+  const sectionPersons = [];
+  for (const s of heads) sectionPersons.push(put(s.declared || s.head, [...(s.declared && s.declared !== s.head ? [s.head] : []), ...s.aliases]));
   const s0 = secs[0];
   const target = cp || out[0] || null;
   if (target) {
@@ -468,6 +532,11 @@ export function regCardNames(card) {
   } else if (s0.declared) {
     put(s0.declared, s0.aliases);
   }
+  // a role before the name ("Queen of Elves Rhea Faeth"): the name alone is another spelling of the section's person
+  for (const p of sectionPersons) {
+    const t = regTrailName(p.name);
+    if (t) regPushAlias(p, t);
+  }
   return { persons: out, cardIsPerson };
 }
 
@@ -477,17 +546,76 @@ function regSeedOne(reg, p, src, cardId) {
   const first = regFind(reg, p.name, "person", null, null);
   if (first && first.id === "user" && src === "card") return null;
   const r = regFind(reg, p.name, "person", null, ["user"]);
+  // a soul that fits two people is not a third one
+  if (r && r.ambiguous && src !== "card") return null;
   let e = null;
   if (r && r.id) {
     e = regGet(reg, r.id);
-    regAlias(reg, e.id, p.name, src);
-    if (cardId && src === "card" && !e.card) e.card = String(cardId);
+    if (src === "card" && e.id !== "user" && e.src !== "card" && regFold(e.name) !== regFold(p.name)) {
+      // a soul or story entity that is a shorter spelling of this card person: the card person is the entity, the other joins it
+      const made = regAdd(reg, { kind: "person", name: p.name, src, card: cardId });
+      if (made) regMerge(reg, e.id, made.id);
+      e = made || e;
+    } else {
+      regAlias(reg, e.id, p.name, src);
+      if (cardId && src === "card" && !e.card) e.card = String(cardId);
+    }
   } else {
     e = regAdd(reg, { kind: "person", name: p.name, src, card: src === "card" ? cardId : undefined });
   }
   if (!e) return null;
   for (const a of p.aliases || []) regAlias(reg, e.id, a, src);
   return e;
+}
+
+/**
+ * Merge a soul, group or story entity into the card person it now resolves to (an old registry made before the card
+ * reader learned to read role-prefixed headings has both). Only a clear match counts (steps 1 to 3b, one candidate, not
+ * apart; a story entity is not merged on step 3, a single shared word). Returns the number of merges.
+ */
+export function regReconcile(reg) {
+  let n = 0;
+  for (const e of reg.entities.slice()) {
+    if (e.merged || e.id === "user" || e.kind !== "person" || !["soul", "seen", "group"].includes(e.src)) continue;
+    const skip = reg.entities.filter((x) => x.kind !== "person" || x.merged || x.src !== "card").map((x) => x.id);
+    const r = regFind(reg, e.name, "person", e.id, skip);
+    // a single word that is the first or last word of a name (step 3) is a guess a story entity leaves to the user (a suggestion)
+    if (r && r.id && r.step <= 3.5 && !(e.src === "seen" && r.step === 3) && regMerge(reg, e.id, r.id)) n++;
+  }
+  return n;
+}
+
+/**
+ * Drop the card entities the cards no longer produce (an old registry holds a card title as a person) when nothing
+ * refers to them: not merged, nothing merged into them, not in `keepIds` (the ids the caller still uses). Does nothing
+ * without cards. Returns the number dropped. `cards` as in regSeed.
+ */
+export function regPrune(reg, cards, keepIds) {
+  const list = Array.isArray(cards) ? cards.filter((c) => c && typeof c === "object") : [];
+  if (!list.length) return 0;
+  const made = new Set();
+  const ids = new Set();
+  for (const item of list) {
+    const wrapped = item.card && typeof item.card === "object";
+    if (item.id != null && wrapped) ids.add(String(item.id));
+    for (const p of regCardNames(wrapped ? item.card : item).persons) {
+      made.add(regFold(p.name));
+      for (const a of p.aliases) made.add(regFold(a));
+    }
+  }
+  const keep = new Set(Array.isArray(keepIds) ? keepIds : keepIds ? [...keepIds] : []);
+  const target = new Set(reg.entities.filter((e) => e.merged).map((e) => e.merged));
+  const drop = new Set();
+  for (const e of reg.entities) {
+    if (e.src !== "card" || e.merged || e.id === "user" || e.kind !== "person" || keep.has(e.id) || target.has(e.id)) continue;
+    if (e.card && ids.size && !ids.has(e.card)) continue;
+    if (!made.has(regFold(e.name))) drop.add(e.id);
+  }
+  if (!drop.size) return 0;
+  reg.entities = reg.entities.filter((e) => !drop.has(e.id));
+  reg.apart = (reg.apart || []).filter((q) => !drop.has(q[0]) && !drop.has(q[1]));
+  reg.suggest = (reg.suggest || []).filter((q) => !drop.has(q.a) && !drop.has(q.b));
+  return drop.size;
 }
 
 /**
@@ -504,6 +632,7 @@ export function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
     const id = item.id;
     for (const p of regCardNames(card).persons) regSeedOne(reg, p, "card", id);
   }
+  regReconcile(reg);
   const names = souls && typeof souls === "object" ? Object.keys(souls) : [];
   for (const name of names) {
     const s = souls[name];

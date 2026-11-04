@@ -50,6 +50,7 @@ One function, `resolveName(registry, text, kind)`, kept as one block of code tha
 1. an alias or name exactly (case-insensitive, spaces and punctuation folded);
 2. the same after transliteration (Cyrillic, Ukrainian and Latin letters to one key: Каэде and Kaede, Рея and Rhea);
 3. a single word that is the first or last word of exactly one person's name or alias ("Sina" for "Sina Rose"); titles do not count ("Queen", "Sir", "Lady", "Dr" ...);
+3b. a text of two or more words (titles removed) whose words all sit, in order, inside exactly one person's name or alias ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse, a name of two or more words inside the text;
 4. one letter off for names of 6 letters or more, when exactly one entity is that close;
 5. nothing: the caller decides (a new person, or nothing for a thing that is only mentioned).
 
@@ -60,9 +61,10 @@ Two candidates at the same step is no match (the caller creates the entity and t
 Most imported cards do not state names precisely, so nothing here is required and nothing is trusted alone:
 
 - the card name, and the part before a separator when it reads like a title: "Kyomi - Arranged Marriage" gives "Kyomi", "Vaela — Twilight Bloom" gives "Vaela". A card name that is a title or a narrator ("Campus Sluts", "The Apartment (Portal Six)", "Narrator: Sakura Academy Isekai") does **not** become a person by itself: a person is made only when the story or the sensor uses the name for one;
-- `### Name` sections (a card of several characters gives a person per section);
+- `### Name` sections (a card of several characters gives a person per section; a heading may put a role before the name, "Queen of Elves Rhea Faeth": up to six words if it reads as a name, and the trailing name, the last two capitalized words or the last word, is an alias; a card with two or more such sections is never a person itself);
 - lines like `Name:`, `Full name:`, `Also called:`, `Nickname(s):`, `Aliases:` (and their Ukrainian and Russian forms);
 - a card soul's `aliases`, group members, narrator voices, the persona's name for `user`;
+- an older registry made before the card reader read these headings is repaired on load (`regPrune`, `regReconcile`): a card entity the cards no longer produce goes when nothing refers to it (the Dashboard's `personIds` count), and a soul or story entity that now resolves to a card person is merged into it;
 - the story itself: every name the sensor reports, resolved by the steps above, so the registry grows from use even when the card says nothing.
 
 ## Bridges
@@ -88,6 +90,18 @@ Where: the Person tab of the Dashboard (`src/components/dashboard/dash-tabs.tsx`
 4. Strings in English and Ukrainian (`src/lib/i18n.ts`); guide page `.skills/guide/pages/dashboard.md` updated.
 
 Variants considered: (a) menu in the header plus the callout (chosen: the action sits on the thing it changes, and the suggestion comes to the user); (b) a "Cast" section in Dashboard settings with all characters (one place for everything, but far from where a duplicate is noticed); (c) dragging one portrait onto another (quick with a mouse, invisible and awkward on phones).
+
+## Phase B in detail: things and places
+
+**Things.** One id per thing, wherever it is: on someone, in someone's hands, lying in the scene, or recorded by the World DM.
+- Registry kind `thing`, ids `t1, t2 ...`. The Dashboard's worn and held items (today `i1, i2` per character) and the scene's objects (today plain words) both carry the registry id as their `id`; an old snapshot's items and objects get registered when read.
+- The sensor sees every thing with its id: `Wearing: t3 white top; t4 pleated skirt`, `Holding: t7 axe`, `Objects here: t9 sneakers (at the entrance)`. It reports `see` / `off` for worn and held things as today, and objects as `{ add: [{ text, where }], move: [{ id, where }], remove: [id] }`. Putting a thing down is `off` with `where`: the same id moves to the objects. Picking one up or putting it on is `see` with the object's id: the same id leaves the objects. Handing a thing to someone is `off` on one and `see` with the id on the other. A thing is in one place only: code removes it from wherever it was when it shows up elsewhere, so a thing cannot be held and lying around at once, and nothing is "set down" unless the sensor said where.
+- Words are a fallback only, as now: a report without an id is matched to a listed thing by the registry's resolver within the scene (the character's items, then the objects), and a new thing gets a new id.
+- The World DM's thing records (`n3`) are linked to the registry the same way as its persons (`regIds`), so a sword the World DM recorded and the sword in Kaede's hands are one `t5`; `holder` is a person's display name resolved through the registry (phase A) and, when the thing is linked, the World DM can say who holds it from the Dashboard's items.
+
+**Places.** Registry kind `place`, ids `l1, l2 ...`. The scene place the sensor reports (`clock.place`) is resolved to a place id and kept beside the text (`clock.placeId`); the World DM's place records are linked to the same ids, and "is this the same place" (today `samePlace`, a comparison of words) compares ids first. A spot inside a place ("by the window") stays text in phase B.
+
+**Order and measures.** B1 the Dashboard (ids for items and objects, the sensor protocol for objects, migration), B2 the World DM (thing and place records linked, holder and place by registry, `hereOf` by ids). The replay corpus counts duplicates and phantom objects as now and gets one more check: the same thing keeps one id across hands and the floor (the Kaede sneakers: worn, taken off at the entrance, still `t#` there).
 
 ## Measured, not guessed
 
