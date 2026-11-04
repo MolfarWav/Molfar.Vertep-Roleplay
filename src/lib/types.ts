@@ -346,6 +346,11 @@ export interface PromptSection {
    * "varName==value", "varName!=value". Blank = always render.
    */
   condition?: string | null
+  /** The preset's author says this block must stay as it is ("DO NOT TOUCH") or stay off ("DO NOT ENABLE"):
+   *  never offered as a choice, shown with a lock in the editor. Set by the SillyTavern import. */
+  locked?: boolean
+  /** The author's explanation of the block, shown in the editor. Never sent to the model. */
+  note?: string
 }
 
 export interface SectionGroup {
@@ -412,6 +417,14 @@ export interface PresetChoiceBody {
 export interface PresetCosts {
   total: number
   vars: Record<string, Record<ID, number>>
+}
+
+/** GET /preset-features/:presetId?chatId=: each app feature a preset can ask about as `vertep.<name>` (#237),
+ *  whether it can speak in that chat (`on`) and whether the preset's text mentions it (`used`). */
+export interface PresetFeature {
+  name: 'litopys' | 'memories' | 'castknowledge' | 'hiddenplan' | 'dashboard' | 'fastsensor' | 'world' | 'worldnews' | 'dice' | 'life' | 'databank' | 'authornote'
+  on: boolean
+  used: boolean
 }
 
 /** GET /preset-memory/:characterId: the preset and picks of this character's last chat where they were chosen. */

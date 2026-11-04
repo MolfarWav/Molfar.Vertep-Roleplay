@@ -7,7 +7,7 @@ Roleplay has no single settings page for everything. Settings sit near what they
 - **The main Settings** of Molfar Vertep (the gear of the whole page): models and connections, backups of the whole profile, updates. Choose and test models there; see [[vertep:settings]] and [[vertep:models]]. Starred models there appear as quick switches in a chat.
 - **Roleplay settings**: the button "Roleplay settings" in the Home header (on a phone, in the menu). It is not yet listed inside the main Settings, so look for it in Roleplay itself. It has ten sections: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data and Guide. A search box at the top filters them.
 
-What the sections do, in short: Appearance is language, fonts, chat width and avatars; Chat Behavior has switches such as sending on Enter and confirming deletions; Streaming chooses to show replies as they are written or when finished; Card tasks picks the model used by card helpers ("Structure it", "Fill empty") when a card has none of its own; Import brings in presets, characters, lorebooks, chats and a backup zip; Data exports and restores Roleplay's own data as a zip (the whole profile is saved by the main Settings' Backup); Guide shows or hides the short tours and "What's new".
+What the sections do, in short: Appearance is language, fonts, chat width and avatars; Chat Behavior has switches such as sending on Enter and confirming deletions; Streaming chooses to show replies as they are written or when finished; Card tasks picks the model used by card helpers ("Structure it", "Fill empty") when a card has none of its own; Import brings in presets, characters, lorebooks, chats and a backup zip (a SillyTavern preset arrives with its pick lists as Choices, the author's explanations as notes and its "do not touch" blocks locked; a preset exported from Roleplay comes back with all its Choices); Data exports and restores Roleplay's own data as a zip (the whole profile is saved by the main Settings' Backup); Guide shows or hides the short tours and "What's new".
 
 ## Settings that live elsewhere in Roleplay
 
@@ -15,7 +15,7 @@ What the sections do, in short: Appearance is language, fonts, chat width and av
 - **Litopys**: the gear "Litopys settings" in the Library. See [[litopys]].
 - **World DM**: the World sheet in the chat header and the World section; "World settings" holds the DM model. See [[world-dm]].
 - **Agents**: the Canvas's Agents and "Agent sets" boards and the chat's Agents tab. See [[agents]].
-- **Prompt and sampling**: the **Presets** section (sections you can switch, variables, samplers, and a peek at the final request) and the Canvas's Prompt board for one chat.
+- **Prompt and sampling**: the **Presets** section (sections you can switch, variables, samplers, and a peek at the final request) and the Canvas's Prompt board for one chat. A chat's Preset panel shows, under the preset's name, a "Works with" line: the features of this chat the preset has rules for (Dashboard, Litopys, World DM, dice...), and which of them are off in this chat.
 - **A card's own**: its editor tabs, including colors, regex and advanced options. See [[characters]].
 - **Lorebooks**: each book has its own rules (scan depth, size cap, Global switch). See [[memory]].
 - **The Inbox** has per-kind switches for what counts as waiting on you.

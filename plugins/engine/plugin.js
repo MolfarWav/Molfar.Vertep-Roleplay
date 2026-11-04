@@ -313,6 +313,8 @@ function presetVarOf(pv, name) {
 function macroLookup(mc) {
   return (name) => {
     const ln = String(name).toLowerCase();
+    const fv = featureVar(mc.features, name);
+    if (fv) return fv;
     if (ln === "user") return { value: mc.userName || "User", picks: null };
     if (ln === "char") return { value: mc.charName || "", picks: null };
     const pv = presetVarOf(mc.presetVars, name);
@@ -487,14 +489,98 @@ export function expandIfBlocks(text, lookup) {
   return out;
 }
 
+// ---------- feature flags (#237) ----------
+/** The app features a preset can ask about, as `vertep.<name>` in {{#if}}, a section's condition or {{vertep.<name>}}. */
+export const FEATURE_NAMES = ["litopys", "memories", "castknowledge", "hiddenplan", "dashboard", "fastsensor", "world", "worldnews", "dice", "life", "databank", "authornote"];
+const FEATURE_PREFIX = /^vertep\.([a-z]+)$/i;
+
+/** A `vertep.<name>` macro name read from the flags: {value: "true"|"false"}, or null for any other name. A preset or chat
+ *  variable can never stand in for one: the lookups ask this first. */
+function featureVar(features, name) {
+  const m = FEATURE_PREFIX.exec(String(name).trim());
+  if (!m) return null;
+  const k = m[1].toLowerCase();
+  if (!FEATURE_NAMES.includes(k)) return null;
+  return { value: features && features[k] === true ? "true" : "false", picks: null };
+}
+
+/**
+ * Which app features can add their notes to this chat's next reply, by name. Computed once per assembly from
+ * the same files and switches the plugins' llmRequest hooks read (the hooks run after the preset is expanded,
+ * so they cannot say it themselves). test/rp-chat-features.test.ts runs each hook beside this on the same chats:
+ * a change to a hook's rules that is not made here fails there. A flag is a hint: true means the feature may
+ * speak, not that it will (no facts, no roll this turn).
+ */
+export function chatFeatures(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const id = String(m.id || "");
+  const off = m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off.map(String) : [];
+  const isOff = (k) => off.includes(k);
+  const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : {});
+  const read = (rel) => { try { return obj(readJsonFile(fsx, rel)); } catch { return {}; } };
+  // Litopys (plugins/litopys llmRequest): its switch, then config enabled + insert; recollections and "who knows
+  // what" ride the chat's record, so they follow the Litopys switch too
+  const lit = read("litopys/config.json");
+  const litopys = !isOff("plugin:litopys") && lit.enabled !== false && lit.insert !== false;
+  const memories = litopys && lit.recollections !== false && !isOff("plugin:recollections");
+  const castknowledge = litopys && lit.castKnowledge !== false;
+  const hiddenplan = castknowledge && lit.hiddenPlan === true;
+  // Dashboard (plugins/relations llmRequest): its switch, then injection.enabled; fast mode asks for <vertep_state>
+  const dash = read("dashboard/config.json");
+  const dashOn = !isOff("plugin:relations");
+  const dashboard = dashOn && obj(dash.injection).enabled !== false;
+  const fastsensor = dashOn && dash.mode === "fast";
+  // World DM (plugins/world llmRequest): a state file for this chat and its switch; events and dice need the
+  // insert switch and a level above the chronicler; dice: the chat's own mode, else its profile's; life: dice on
+  // and a share above 0
+  const ws = /^[\w-]{1,200}$/.test(id) ? read("world/state/" + id + ".json") : {};
+  const st = obj(ws.settings);
+  const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
+  const level = LEVELS.includes(st.level) ? st.level : "off";
+  const world = Object.keys(ws).length > 0 && !isOff("plugin:world");
+  const worldnews = world && st.insert !== false && level !== "off" && level !== "chronicler";
+  let dice = false;
+  let life = false;
+  if (worldnews) {
+    const ownId = typeof st.profile === "string" && /^p-[a-z0-9-]{1,40}$/.test(st.profile) ? st.profile : "";
+    const own = ownId ? read("world/profiles/" + ownId + ".json") : {};
+    const prof = ownId && own.base === level ? own : read("world/profiles/" + level + ".json");
+    const opt = obj(prof.options);
+    const MODES = ["off", "flavour", "strict"];
+    const mode = MODES.includes(st.dice) && st.dice ? st.dice : MODES.includes(opt.dice) ? opt.dice : "off";
+    dice = mode !== "off";
+    const lifeOwn = st.diceLife !== "" && st.diceLife !== null && st.diceLife !== undefined && Number.isFinite(Number(st.diceLife)) && Number(st.diceLife) >= 0 ? Number(st.diceLife) : -1;
+    const lifeShare = lifeOwn >= 0 ? lifeOwn : Number.isFinite(Number(opt.diceLife)) && Number(opt.diceLife) >= 0 ? Number(opt.diceLife) : 0;
+    life = dice && lifeShare > 0;
+  }
+  // engine-side: the Data bank and the author's note follow the chat's prompt board
+  const authornote = !isOff("authorNote") && !!(m.authorNoteObject ? String(obj(m.authorNoteObject).text || "").trim() : String(m.authorNote || "").trim());
+  return { litopys, memories, castknowledge, hiddenplan, dashboard, fastsensor, world, worldnews, dice, life, databank: !isOff("databank"), authornote };
+}
+
+/** Which `vertep.<name>` flags a preset's text or conditions mention (sections, library, utility prompts). */
+export function presetFeatureNames(preset) {
+  const texts = [];
+  const add = (x) => { if (typeof x === "string" && x) texts.push(x); };
+  for (const p of (preset && Array.isArray(preset.prompts) ? preset.prompts : [])) add(p && p.content);
+  const studio = preset && preset.studio && typeof preset.studio === "object" ? preset.studio : {};
+  for (const s of [...(Array.isArray(studio.sections) ? studio.sections : []), ...(Array.isArray(studio.library) ? studio.library : [])]) {
+    if (s) { add(s.content); add(s.condition); }
+  }
+  const up = (studio.utilityPrompts && typeof studio.utilityPrompts === "object" ? studio.utilityPrompts : preset && preset.utilityPrompts) || {};
+  for (const v of Object.values(up)) add(v);
+  const all = texts.join("\n");
+  return FEATURE_NAMES.filter((n) => new RegExp("\\bvertep\\." + n + "\\b", "i").test(all));
+}
+
 /** A section's `condition` on a variable: "name" (on), "!name" (off), "name==value", "name!=value".
  *  Preset variables come first (a choice matches by value or label), then chat variables;
  *  anything unparseable passes. */
-export function sectionCondPasses(cond, presetVars, chatVars) {
+export function sectionCondPasses(cond, presetVars, chatVars, features) {
   const c = String(cond || "").trim().replace(/\s*([=!])=\s*/g, "$1=");
   if (!c) return true;
   const norm = (s) => String(s ?? "").trim().toLowerCase();
-  const read = (n) => presetVarOf(presetVars, n) || { value: String((chatVars || {})[n] ?? ""), picks: null };
+  const read = (n) => featureVar(features, n) || presetVarOf(presetVars, n) || { value: String((chatVars || {})[n] ?? ""), picks: null };
   const is = (n, want) => {
     const v = read(n);
     const w = norm(want);
@@ -521,7 +607,7 @@ export function sectionCondPasses(cond, presetVars, chatVars) {
  *   summary — the running chat summary
  *   words — summarize-prompt budget ({{words}}/{{limit}})
  */
-function expandMacros(text, mc) {
+export function expandMacros(text, mc) {
   let out = String(text);
   // every macro starts with "{{": without one there is nothing to do (dozens of passes saved per message)
   if (out.indexOf("{{") < 0) return out;
@@ -535,6 +621,8 @@ function expandMacros(text, mc) {
   // {{#if}} blocks first, on the raw values; then preset variables: {{var:name}}, {{var::name}}
   // and the bare {{name}} of a declared one (their values may hold macros, expanded below)
   out = expandIfBlocks(out, macroLookup(mc));
+  // the feature flags read as "true"/"false" anywhere a variable can be read
+  if (mc.features) out = out.replace(/\{\{(?:var::?|getvar::)?(vertep\.[a-z]+)\}\}/gi, (all, n) => { const f = featureVar(mc.features, n); return f ? f.value : all; });
   if (mc.presetVars) {
     out = out.replace(/\{\{var::?([\w.-]+)\}\}/gi, (_, n) => { const v = presetVarOf(mc.presetVars, n); return v ? v.value : ""; });
     out = out.replace(/\{\{([\w.-]+)\}\}/g, (all, n) => {
@@ -545,7 +633,8 @@ function expandMacros(text, mc) {
   }
   // chat-local variables — setvar/addvar/incvar/decvar mutate mc.vars, getvar reads
   out = out.replace(/\{\{setvar::([^:]+)::([\s\S]*?)\}\}/gi, (_, n, v) => {
-    if (mc.vars) mc.vars[n.trim()] = v;
+    // a vertep.* name is the app's flag, never a chat variable (#237)
+    if (mc.vars && !/^vertep\./i.test(n.trim())) mc.vars[n.trim()] = v;
     return "";
   });
   out = out.replace(/\{\{addvar::([^:]+)::([\s\S]*?)\}\}/gi, (_, n, v) => {
@@ -3001,6 +3090,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
 
   // the chat's picks for this preset's variables ({{name}}, {{#if}}, section conditions)
   const presetVars = resolvePresetVars(preset, meta);
+  // what the app's features can add to this reply, for vertep.* in the preset (#237)
+  const features = chatFeatures(fsx, meta);
   const mc = transcriptMacros(msgs, {
     userName,
     charName,
@@ -3013,6 +3104,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     },
     vars: meta.chatVars || (meta.chatVars = {}),
     presetVars,
+    features,
   });
 
   // marker → text (pre-macro). `main` carries no engine default — the preset's
@@ -3118,7 +3210,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   );
   // a condition gates its section on a variable (preset choices first, then chat variables):
   // "var" (set + non-empty), "var==value", "var!=value" — anything unparseable is always on
-  const condPasses = (cond) => sectionCondPasses(cond, presetVars, meta.chatVars);
+  const condPasses = (cond) => sectionCondPasses(cond, presetVars, meta.chatVars, features);
   // wrap format per group: xml tags or a markdown heading; "none" groups
   // still merge consecutive members into one block
   const groupWrap = (g) => {
@@ -3667,6 +3759,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     board.push({ key: "plugin:world", label: "World DM events", kind: "plugin", state: isOff("plugin:world") ? "off" : "on" });
   }
   src.board = board;
+  // the feature flags (#237): each one, whether it is on here and whether the preset's text asks for it
+  {
+    const used = presetFeatureNames(preset);
+    src.features = FEATURE_NAMES.map((name) => ({ name, on: features[name] === true, used: used.includes(name) }));
+  }
 
   const pp = preset && preset.studio && preset.studio.promptPostProcessing;
   if (pp && pp.enabled === true && pp.mode && pp.mode !== "none") {
@@ -3777,6 +3874,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     messages,
     presetParams,
     sources: src,
+    // a utility prompt (Write for me, the continue nudge) expanded like the preset's sections: the chat's picks,
+    // the variables the sections set, the feature flags (#237); never written back to the chat's variables
+    expandUtility: (t) => expandMacros(String(t || ""), { ...mc, vars: { ...(mc.vars || {}) } }),
     ...(assistantPrefill ? { assistantPrefill } : {}),
     ...(preset && typeof preset.reasoning === "string" && preset.reasoning !== "off" ? { reasoning: preset.reasoning } : {}),
     ...(preset && preset.reasoningTags && preset.reasoningTags.open && preset.reasoningTags.close ? { reasoningTags: preset.reasoningTags } : {}),
@@ -4710,6 +4810,16 @@ export function handleRoute(req, host) {
       writeJson("preset-defaults.json", next);
       return ok(next);
     }
+  }
+  // the app features a preset asks about (#237): { features: [{ name, on, used }] } for the chat in ?chatId
+  if (head === "preset-features" && id && req.method === "GET") {
+    const preset = readJson("presets/" + id + ".json", null);
+    if (!preset) return err(404, "preset not found");
+    const chatId = req.query && typeof req.query.chatId === "string" && /^[\w-]{1,200}$/.test(req.query.chatId) ? req.query.chatId : "";
+    const meta = chatId ? readJson("chats/" + chatId + ".meta.json", null) : null;
+    const on = chatFeatures(fsx, meta || {});
+    const used = presetFeatureNames(preset);
+    return ok({ features: FEATURE_NAMES.map((name) => ({ name, on: on[name] === true, used: used.includes(name) })) });
   }
   // per-character memory for the new-chat step: { presetId, vars } or nulls
   if (head === "preset-memory" && id && req.method === "GET") {
@@ -6006,9 +6116,9 @@ const toolX = (r) => ({
         // continue nudge: preset utility prompt (blank = plain continue, no
         // nudge appended — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
-        const utilMacros = (t) => String(t)
+        const utilMacros = (t) => a.expandUtility(String(t)
           .replace(/\{\{user\}\}/g, chatUserName(fsx, meta))
-          .replace(/\{\{char\}\}/g, (members[0] && members[0].name) || "");
+          .replace(/\{\{char\}\}/g, (members[0] && members[0].name) || ""));
         const nudge = preset && preset.utilityPrompts ? String(preset.utilityPrompts.continueNudge || "").trim() : "";
         // continuing an existing reply — a prefill turn would land mid-message, drop it
         const contMsgs = a.assistantPrefill ? a.messages.slice(0, -1) : a.messages;
@@ -6134,10 +6244,11 @@ const toolX = (r) => ({
         // impersonation prompt: preset utility prompt, macros expanded
         // (blank = impersonate from history alone — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
+        // the same macros as the preset's sections (#237): a picked narrator, language or POV reaches it too
         const imp = preset && preset.utilityPrompts
-          ? String(preset.utilityPrompts.impersonation || "").trim()
+          ? a.expandUtility(String(preset.utilityPrompts.impersonation || "").trim()
             .replace(/\{\{user\}\}/g, un)
-            .replace(/\{\{char\}\}/g, (members[0] && members[0].name) || "")
+            .replace(/\{\{char\}\}/g, (members[0] && members[0].name) || "")).trim()
           : "";
         // impersonation writes the USER's turn — an assistant prefill turn has
         // no business here, drop it

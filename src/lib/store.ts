@@ -20,7 +20,7 @@ import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
-  PresetChoiceBody, PresetCosts, PresetMemory, GroupConfig, ChatTurns,
+  PresetChoiceBody, PresetCosts, PresetMemory, PresetFeature, GroupConfig, ChatTurns,
 } from './types'
 import {
   seedThemes, defaultSettings, withBuiltinThemes,
@@ -295,6 +295,7 @@ interface AppState {
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
   fetchPresetCosts: (presetId: ID, body?: { chatId?: ID; vars?: Record<string, string | string[] | null>; only?: 'total' }) => Promise<PresetCosts>
   fetchPresetMemory: (characterId: ID) => Promise<PresetMemory>
+  fetchPresetFeatures: (presetId: ID, chatId: ID) => Promise<PresetFeature[]>
   /** the user's own default choices per preset (null until loaded) */
   presetDefaults: Record<ID, Record<string, string | string[]>> | null
   loadPresetDefaults: () => Promise<Record<ID, Record<string, string | string[]>>>
@@ -1775,6 +1776,10 @@ export const useApp = create<AppState>()(
       },
       fetchPresetCosts: (presetId, body) =>
         j<PresetCosts>(`/preset-costs/${encodeURIComponent(presetId)}`, { method: 'POST', body: JSON.stringify(body ?? {}) }),
+      fetchPresetFeatures: async (presetId, chatId) => {
+        try { return (await j<{ features: PresetFeature[] }>(`/preset-features/${encodeURIComponent(presetId)}?chatId=${encodeURIComponent(chatId)}`)).features }
+        catch { return [] }
+      },
       fetchPresetMemory: async (characterId) => {
         try { return await j<PresetMemory>(`/preset-memory/${encodeURIComponent(characterId)}`) }
         catch { return { presetId: null, vars: {} } }
