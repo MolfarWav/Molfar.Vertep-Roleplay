@@ -5280,6 +5280,22 @@ describe("the word scan of the new messages (#236)", () => {
     expect(hits[0]!.who).toBe("Narrator");
   });
 
+  it("a pronoun sentence carries the cast name the paragraph gave just before it; a name in another alphabet is found by resolve", () => {
+    const text = [
+      "Akari didn't wait. She leaned over, her short skirt riding up as she grinned at Denis.",
+      "Nearby, Hana watched. She gripped her book, her chest heaving under her cardigan.",
+      "Юки потянула за синюю ленту в волосах.",
+    ].join("\n\n");
+    const resolve = (w: string) => (w === "Юки" ? "Yuki Tanaka" : null);
+    const hits = P.wordScan([{ role: "char", name: "Narrator", text }], null, P.lexiconOf(null), 8, ["Akari Hayashi", "Hana Kimura", "Denis"], { resolve, user: ["Denis"] }) as { text: string; named: string[]; before?: string }[];
+    const of = (w: string) => hits.find((h) => h.text.includes(w))!;
+    expect(of("short skirt").before).toBe("Akari Hayashi");
+    expect(of("cardigan").before).toBe("Hana Kimura");
+    // the paragraph starts over: Akari is not carried into Hana's paragraph, and the user's name is no owner
+    expect(of("cardigan").named).toEqual([]);
+    expect(of("ленту").named).toEqual(["Yuki Tanaka"]);
+  });
+
   it("the Previous state says nothing is recorded yet while a character has no outfit, so a worn garment is reported too", () => {
     writeChat("c1", [U("m1", "Hello."), A("m2", "She waits by the door.")]);
     const mock = mockHost([reply({ chars: { Aria: { mood: "calm" } } }), reply({})]);

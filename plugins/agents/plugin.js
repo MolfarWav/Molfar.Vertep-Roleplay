@@ -1662,7 +1662,7 @@ const foldName = (s) => str(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
 /**
  * Every other name of a Dashboard character, from the chat's entity registry (docs/ENTITY-REGISTRY.md): its name, its aliases
  * and those of the entries merged into it, each mapped to the Dashboard's own key (state.personIds). An agent then finds
- * "Rhea" or "Эмбер" as the Dashboard's "Rhea Faeth" or "Ember". Empty without a registry.
+ * "Rhea" or Ember in Cyrillic as the Dashboard's "Rhea Faeth" or "Ember". Empty without a registry.
  */
 function dashNames(reg, state) {
   const out = new Map();

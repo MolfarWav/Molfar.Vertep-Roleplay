@@ -24,6 +24,18 @@ const people = (...names: string[]) => {
   return reg;
 };
 
+describe("names across alphabets", () => {
+  it("х is h (Hana, Хана; Mikhail, Михаил), and an exact word wins over one letter off (Юки is Yuki, not Yumi)", () => {
+    expect(R.regTranslit("Хана")).toBe(R.regTranslit("Hana"));
+    expect(R.regTranslit("Михаил")).toBe(R.regTranslit("Mikhail"));
+    const reg = people("Yuki Tanaka", "Yumi Takahashi", "Alice Yamada");
+    expect(R.resolveName(reg, "Юки", "person")).toEqual({ id: "p1", step: 3 });
+    expect(R.resolveName(reg, "Юми", "person")).toEqual({ id: "p2", step: 3 });
+    // one letter off still finds a name when nothing matches exactly
+    expect(R.resolveName(reg, "Алиса", "person")).toEqual({ id: "p3", step: 3 });
+  });
+});
+
 describe("regFold and regTokens", () => {
   it("folds case, accents, punctuation and spaces", () => {
     expect(R.regFold("  Kaede-Fuji!  ")).toBe("kaede fuji");

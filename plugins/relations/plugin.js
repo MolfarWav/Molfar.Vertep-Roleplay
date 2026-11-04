@@ -868,7 +868,7 @@ const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\
 const REG_CYR = {
   "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0491": "g", "\u0434": "d", "\u0435": "e", "\u0451": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "i",
   "\u0456": "i", "\u0457": "i", "\u044b": "i", "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o", "\u043f": "p", "\u0440": "r", "\u0441": "s", "\u0442": "t",
-  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "kh", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
+  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "h", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
   "\u044e": "iu", "\u044f": "ia", "\u0454": "ie",
 };
 
@@ -894,6 +894,7 @@ function regTranslit(s) {
   let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
   t = t
     .replace(/ch/g, "k")
+    .replace(/kh/g, "h")
     .replace(/ph/g, "f")
     .replace(/ck/g, "k")
     .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1")
@@ -986,6 +987,9 @@ function regUser(reg, name) {
 function regAlias(reg, id, text, src) {
   const e = regGet(reg, id);
   if (!e) return false;
+  // a place takes only a name of the same place: not its house or its street, not two rooms at once (another alphabet cannot be judged by words)
+  const from = src || "seen";
+  if (e.kind === "place" && (from === "seen" || from === "world") && regScript(String(text)) === regScript(e.name) && !regPlaceSame(text, e.name)) return false;
   const before = e.aliases.length;
   regAliasList(e, [text], src || "seen");
   return e.aliases.length > before;
@@ -1044,25 +1048,40 @@ function regPlaceParts(s) {
 /** Every word of `small` inside `big`, in order (by fold or translit key). */
 const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
 
+/** Two levels of place texts hold one another (every word of one inside the other, in order). */
+const regLevelFits = (x, y) => regWithin(x, y) || regWithin(y, x);
+
 /**
- * Could two place texts be one place? Their innermost levels must hold one another ("forest clearing" and "forest clearing
- * under the moon", "hidden chamber" and "dungeon, hidden chamber"), and when both name an outer level those must hold one
- * another too. "Denis's house, hallway" and "Denis's house, kitchen" are two places; so are "Denis's house" and "Denis's
- * street, in front of his house" (the inner levels differ), and a text that names two places is never one of them.
+ * Could two place texts be one place? Texts name levels in either order ("Denis's house, kitchen", "Class 3-B, Sakura
+ * Academy"), so the order is not trusted. With as many levels each, every level pairs with the one in the same or the
+ * mirrored position: "Denis's house, hallway" and "Denis's house, kitchen" are two places. With fewer levels on one side,
+ * each of its levels holds a different level of the other: "hidden chamber" is "Underground dungeon, hidden chamber", and so
+ * is "Underground dungeon", since words cannot tell the room from the house; that is good enough to tell whether the scene
+ * moved, never enough to learn a name (regPlaceSame). A text that names two places is never one of them.
  */
 function regPlaceFits(a, b) {
   const x = regPlaceSegs(a);
   const y = regPlaceSegs(b);
   if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
-  const xi = x[x.length - 1];
-  const yi = y[y.length - 1];
-  if (!regWithin(xi, yi) && !regWithin(yi, xi)) return false;
-  if (x.length > 1 && y.length > 1) {
-    const xo = x.slice(0, -1).flat();
-    const yo = y.slice(0, -1).flat();
-    if (!regWithin(xo, yo) && !regWithin(yo, xo)) return false;
-  }
-  return true;
+  if (x.length === y.length) return regPlaceSame(a, b);
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  const used = new Set();
+  return short.every((lv) => {
+    const i = long.findIndex((l, k) => !used.has(k) && regLevelFits(lv, l));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
+/** One place for sure: as many levels each, every one paired in the same or the mirrored order. Only this teaches a place a name. */
+function regPlaceSame(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || x.length !== y.length || regJoined(a) || regJoined(b)) return false;
+  const same = x.every((lv, i) => regLevelFits(lv, y[i]));
+  const mirrored = x.every((lv, i) => regLevelFits(lv, y[y.length - 1 - i]));
+  return same || mirrored;
 }
 
 /** True when the user said these two are different people (ids are followed through merges). */
@@ -1122,17 +1141,21 @@ function regFind(reg, text, kind, notWith, skip) {
   if (toks.length === 1) {
     const w = toks[0];
     const wk = regTranslit(w);
+    const ends = (s) => {
+      const t = regTokens(s);
+      return t.length ? [t[0], t[t.length - 1]] : [];
+    };
+    // the same word, or the same in another alphabet (Yuki written in Cyrillic is Yuki)
+    r = done(hit((s) => ends(s).some((x) => x === w || regTranslit(x) === wk)), 3);
+    if (r) return r;
+    // one letter off in another alphabet (Alisa and Alice), only when no name matches exactly: Yuki in Cyrillic is not Yumi
     r = done(
-      hit((s) => {
-        const t = regTokens(s);
-        if (!t.length) return false;
-        // the same word, or the same in another alphabet (one letter off, as Alisa and Alice)
-        return [t[0], t[t.length - 1]].some((x) => {
-          if (x === w || regTranslit(x) === wk) return true;
+      hit((s) =>
+        ends(s).some((x) => {
           const xk = regTranslit(x);
           return regScript(x) !== regScript(w) && regLen(xk) >= 4 && regLen(wk) >= 4 && xk[0] === wk[0] && regWithin1(xk, wk);
-        });
-      }),
+        }),
+      ),
       3,
     );
     if (r) return r;
@@ -1186,7 +1209,7 @@ function resolveName(reg, text, kind = "person", notWith) {
 function regLearn(reg, id, text) {
   if (!regTokens(text).length) return false;
   const e = regGet(reg, id);
-  if (e && e.kind === "place" && (regJoined(text) || !regPlaceFits(text, e.name))) return false;
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceSame(text, e.name))) return false;
   return regAlias(reg, id, text, "seen");
 }
 
@@ -1568,7 +1591,7 @@ function regValidate(raw, chatId, from) {
     regAliasList(out, e.aliases, "seen");
     // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
     // one in another alphabet cannot be judged by words and stays
-    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceFits(a.text, name));
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceSame(a.text, name));
     if (typeof e.card === "string" && e.card) out.card = e.card;
     if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
     ids.add(e.id);
@@ -3698,29 +3721,55 @@ function matcherOf(words) {
   };
 }
 
-/** The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact: [{ who, text, kinds }]. */
-export function wordScan(msgs, view, lexicon, max = 12, names = []) {
+/**
+ * The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact:
+ * [{ who, text, kinds, named, before }]. named: the cast names the sentence holds. before: for a sentence with no cast name
+ * but the user's (a pronoun: "She leaned over, her short skirt riding up"), the last cast name the same paragraph gave before
+ * it, the character the pronoun most likely means; a hint, the sensor reads the text. resolve(word) is an optional lookup of
+ * a capitalised word that is no spelling in names (a name in another alphabet, Yuki in Cyrillic for "Yuki Tanaka"): a name or null.
+ */
+export function wordScan(msgs, view, lexicon, max = 12, names = [], opts = {}) {
   if (!lexicon) return [];
   const match = {};
   for (const k of Object.keys(lexicon)) match[k] = matcherOf(lexicon[k]);
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const userNames = new Set(arr(opts.user).map((n) => str(n).toLowerCase()).filter(Boolean));
+  const namesIn = (s) => {
+    const low = s.toLowerCase();
+    const words = low.match(/[\p{L}\p{M}]+/gu) || [];
+    const hit = names.filter((n) => nameTokens(n).some((t) => words.some((w) => w === t || (t.length >= 5 && w.startsWith(t.slice(0, -1))))));
+    if (resolve) {
+      for (const w of s.match(/\p{Lu}[\p{L}\p{M}]{2,}/gu) || []) {
+        const n = resolve(w);
+        if (n && !hit.includes(n)) hit.push(n);
+      }
+    }
+    return hit;
+  };
   const found = [];
   const seen = new Set();
   for (const m of msgs) {
     const who = m.role === "user" ? "user" : str(m.name) || m.role || "narrator";
     const text = String(view ? view(String(m.text), m.role) : m.text);
-    for (const seg of text.match(SCAN_SEGMENT) || []) {
-      const s = seg.replace(/[*_]+/g, "").trim();
-      if (s.length < 8) continue;
-      const low = s.toLowerCase();
-      const kinds = Object.keys(match).filter((k) => match[k](low));
-      // a dressing word alone ("put", "dropped") is too common: it counts only next to clothing; clothing or contact count alone
-      const real = kinds.filter((k) => k !== "dress" || kinds.includes("wear"));
-      if (!real.length || seen.has(low)) continue;
-      seen.add(low);
-      // code cannot tell whose garment it is (a pronoun, a neighbour, a narrator's aside): it only reports which cast names the sentence holds
-      const words = low.match(/[\p{L}\p{M}]+/gu) || [];
-      const named = names.filter((n) => nameTokens(n).some((t) => words.some((w) => w === t || (t.length >= 5 && w.startsWith(t.slice(0, -1))))));
-      found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real, named });
+    for (const para of text.split(/\n\s*\n|\n(?=\s*[*_"\u201c\u2014-])/)) {
+      // the last cast name (not the user's) this paragraph gave so far
+      let last = "";
+      for (const seg of para.match(SCAN_SEGMENT) || []) {
+        const s = seg.replace(/[*_]+/g, "").trim();
+        if (s.length < 3) continue;
+        const named = namesIn(s);
+        const cast = named.filter((n) => !userNames.has(n.toLowerCase()));
+        const before = last;
+        if (cast.length) last = cast[cast.length - 1];
+        if (s.length < 8) continue;
+        const low = s.toLowerCase();
+        const kinds = Object.keys(match).filter((k) => match[k](low));
+        // a dressing word alone ("put", "dropped") is too common: it counts only next to clothing; clothing or contact count alone
+        const real = kinds.filter((k) => k !== "dress" || kinds.includes("wear"));
+        if (!real.length || seen.has(low)) continue;
+        seen.add(low);
+        found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real, named, ...(!cast.length && before ? { before } : {}) });
+      }
     }
   }
   // clothing with an action first, then clothing, then the rest; the order of the text inside each group
@@ -3731,7 +3780,16 @@ export function wordScan(msgs, view, lexicon, max = 12, names = []) {
 /** The "Word scan" block of the sensor input, or "" when nothing was found. */
 function wordScanHits(ctx) {
   const names = unique([ctx.userName, ...arr(ctx.characters), ...Object.keys(isObj(ctx.souls) ? ctx.souls : {}), ...cardAttires(ctx.fsx, ctx.meta).map((x) => x.name), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
-  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 12, names);
+  // a capitalised word the cast names do not spell (a name in another alphabet, a short form) is looked up in the registry
+  const reg = ctx.reg || (ctx.state ? ensureRegistry(ctx) : null);
+  const resolve = reg
+    ? (w) => {
+        const r = resolveName(reg, w, "person");
+        const e = r && r.id && r.step <= 3 ? regGet(reg, r.id) : null;
+        return e && e.id !== "user" ? personName(ctx, e.name) : null;
+      }
+    : null;
+  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 12, names, { resolve, user: [ctx.userName, ...userAll(ctx)] });
 }
 
 function wordScanText(hits) {
@@ -3739,7 +3797,7 @@ function wordScanText(hits) {
   return [
     "Word scan",
     "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears it; skip the rest. Give the exact garment (colour, fabric, cut) as written. A garment already in Wearing described in a new state (torn, wet, dirty, burnt) is the same item as before, not a new one. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
-    ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it: read the context") + "]"),
+    ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it") + (h.before ? "; the paragraph named " + h.before + " just before it" : h.named.length ? "" : ": read the context") + "]"),
   ].join("\n");
 }
 

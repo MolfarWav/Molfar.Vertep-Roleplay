@@ -148,7 +148,7 @@ const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\
 const REG_CYR = {
   "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0491": "g", "\u0434": "d", "\u0435": "e", "\u0451": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "i",
   "\u0456": "i", "\u0457": "i", "\u044b": "i", "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o", "\u043f": "p", "\u0440": "r", "\u0441": "s", "\u0442": "t",
-  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "kh", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
+  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "h", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
   "\u044e": "iu", "\u044f": "ia", "\u0454": "ie",
 };
 
@@ -174,6 +174,7 @@ function regTranslit(s) {
   let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
   t = t
     .replace(/ch/g, "k")
+    .replace(/kh/g, "h")
     .replace(/ph/g, "f")
     .replace(/ck/g, "k")
     .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1")
@@ -266,6 +267,9 @@ function regUser(reg, name) {
 function regAlias(reg, id, text, src) {
   const e = regGet(reg, id);
   if (!e) return false;
+  // a place takes only a name of the same place: not its house or its street, not two rooms at once (another alphabet cannot be judged by words)
+  const from = src || "seen";
+  if (e.kind === "place" && (from === "seen" || from === "world") && regScript(String(text)) === regScript(e.name) && !regPlaceSame(text, e.name)) return false;
   const before = e.aliases.length;
   regAliasList(e, [text], src || "seen");
   return e.aliases.length > before;
@@ -324,25 +328,40 @@ function regPlaceParts(s) {
 /** Every word of `small` inside `big`, in order (by fold or translit key). */
 const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
 
+/** Two levels of place texts hold one another (every word of one inside the other, in order). */
+const regLevelFits = (x, y) => regWithin(x, y) || regWithin(y, x);
+
 /**
- * Could two place texts be one place? Their innermost levels must hold one another ("forest clearing" and "forest clearing
- * under the moon", "hidden chamber" and "dungeon, hidden chamber"), and when both name an outer level those must hold one
- * another too. "Denis's house, hallway" and "Denis's house, kitchen" are two places; so are "Denis's house" and "Denis's
- * street, in front of his house" (the inner levels differ), and a text that names two places is never one of them.
+ * Could two place texts be one place? Texts name levels in either order ("Denis's house, kitchen", "Class 3-B, Sakura
+ * Academy"), so the order is not trusted. With as many levels each, every level pairs with the one in the same or the
+ * mirrored position: "Denis's house, hallway" and "Denis's house, kitchen" are two places. With fewer levels on one side,
+ * each of its levels holds a different level of the other: "hidden chamber" is "Underground dungeon, hidden chamber", and so
+ * is "Underground dungeon", since words cannot tell the room from the house; that is good enough to tell whether the scene
+ * moved, never enough to learn a name (regPlaceSame). A text that names two places is never one of them.
  */
 function regPlaceFits(a, b) {
   const x = regPlaceSegs(a);
   const y = regPlaceSegs(b);
   if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
-  const xi = x[x.length - 1];
-  const yi = y[y.length - 1];
-  if (!regWithin(xi, yi) && !regWithin(yi, xi)) return false;
-  if (x.length > 1 && y.length > 1) {
-    const xo = x.slice(0, -1).flat();
-    const yo = y.slice(0, -1).flat();
-    if (!regWithin(xo, yo) && !regWithin(yo, xo)) return false;
-  }
-  return true;
+  if (x.length === y.length) return regPlaceSame(a, b);
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  const used = new Set();
+  return short.every((lv) => {
+    const i = long.findIndex((l, k) => !used.has(k) && regLevelFits(lv, l));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
+/** One place for sure: as many levels each, every one paired in the same or the mirrored order. Only this teaches a place a name. */
+function regPlaceSame(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || x.length !== y.length || regJoined(a) || regJoined(b)) return false;
+  const same = x.every((lv, i) => regLevelFits(lv, y[i]));
+  const mirrored = x.every((lv, i) => regLevelFits(lv, y[y.length - 1 - i]));
+  return same || mirrored;
 }
 
 /** True when the user said these two are different people (ids are followed through merges). */
@@ -402,17 +421,21 @@ function regFind(reg, text, kind, notWith, skip) {
   if (toks.length === 1) {
     const w = toks[0];
     const wk = regTranslit(w);
+    const ends = (s) => {
+      const t = regTokens(s);
+      return t.length ? [t[0], t[t.length - 1]] : [];
+    };
+    // the same word, or the same in another alphabet (Yuki written in Cyrillic is Yuki)
+    r = done(hit((s) => ends(s).some((x) => x === w || regTranslit(x) === wk)), 3);
+    if (r) return r;
+    // one letter off in another alphabet (Alisa and Alice), only when no name matches exactly: Yuki in Cyrillic is not Yumi
     r = done(
-      hit((s) => {
-        const t = regTokens(s);
-        if (!t.length) return false;
-        // the same word, or the same in another alphabet (one letter off, as Alisa and Alice)
-        return [t[0], t[t.length - 1]].some((x) => {
-          if (x === w || regTranslit(x) === wk) return true;
+      hit((s) =>
+        ends(s).some((x) => {
           const xk = regTranslit(x);
           return regScript(x) !== regScript(w) && regLen(xk) >= 4 && regLen(wk) >= 4 && xk[0] === wk[0] && regWithin1(xk, wk);
-        });
-      }),
+        }),
+      ),
       3,
     );
     if (r) return r;
@@ -466,7 +489,7 @@ function resolveName(reg, text, kind = "person", notWith) {
 function regLearn(reg, id, text) {
   if (!regTokens(text).length) return false;
   const e = regGet(reg, id);
-  if (e && e.kind === "place" && (regJoined(text) || !regPlaceFits(text, e.name))) return false;
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceSame(text, e.name))) return false;
   return regAlias(reg, id, text, "seen");
 }
 
@@ -848,7 +871,7 @@ function regValidate(raw, chatId, from) {
     regAliasList(out, e.aliases, "seen");
     // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
     // one in another alphabet cannot be judged by words and stays
-    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceFits(a.text, name));
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceSame(a.text, name));
     if (typeof e.card === "string" && e.card) out.card = e.card;
     if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
     ids.add(e.id);
