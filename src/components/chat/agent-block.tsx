@@ -19,7 +19,8 @@ export function writeLine(w: unknown): string {
   const field = String(w.field ?? '')
   const item = (x: unknown) => (isObj(x) ? Object.values(x).map(fmtValue).join(' · ') : fmtValue(x))
   switch (w.op) {
-    case 'dash.set': case 'own.set': return `${field} = ${fmtValue(w.value)}`
+    case 'dash.set': return `${field}${typeof w.of === 'string' && w.of.trim() ? ` (${w.of.trim()})` : ''} = ${fmtValue(w.value)}`
+    case 'own.set': return `${field} = ${fmtValue(w.value)}`
     case 'own.add': { const by = Number(w.by); return `${field} ${by >= 0 ? '+' : '−'}${fmtValue(Math.abs(by))}` }
     case 'list.add': return `${field} + ${item(w.item)}`
     case 'list.update': return `${field} ~ ${item(w.item)}`

@@ -15,8 +15,7 @@ const graphOf = (f: Json): Graph => ({ nodes: f.nodes, edges: f.edges });
 
 describe("a new card", () => {
   it("every card the checker knows has a default and a place in the list", () => {
-    // write.state writes a Dashboard field, which the runner does not do yet: the editor does not offer it
-    for (const type of Object.keys(AGENT_CARDS).filter((t) => t !== "write.state")) expect(CARD_ORDER as readonly string[]).toContain(type);
+    for (const type of Object.keys(AGENT_CARDS)) expect(CARD_ORDER as readonly string[]).toContain(type);
     for (const type of CARD_ORDER) expect(AGENT_CARDS[type]).toBeDefined();
     expect(defaultParams("agent.output")).toEqual({ kind: "note" });
   });
@@ -26,6 +25,31 @@ describe("a new card", () => {
     expect(nextNodeId(g, "model.ask")).toBe("ask2");
     expect(nextNodeId(g, "logic.if")).toBe("if");
     expect(newCard(g, "model.ask", { x: 10.6, y: 20 })).toMatchObject({ id: "ask2", type: "model.ask", x: 11, y: 20, title: "Ask the model" });
+  });
+});
+
+describe("the Write to Dashboard card (#132)", () => {
+  const withWrite = (params: Json) => {
+    const f = blankAgent("test-agent", "T");
+    const card = { ...newCard(graphOf(f), "write.state", { x: 250, y: 60 }), params };
+    return fileOf("T", f.agent as Json, { nodes: [...f.nodes, card], edges: f.edges });
+  };
+
+  it("starts as a text field with ports and a permission", () => {
+    expect(defaultParams("write.state")).toEqual({ field: "mood", as: "text" });
+    const f = withWrite(defaultParams("write.state"));
+    const card = f.nodes.find((n) => n.type === "write.state")!;
+    expect(portsOf(card).ins.map((p) => p.id).sort()).toEqual(["value", "when"]);
+    expect(check(f).needs).toContain("write:state.mood");
+  });
+
+  it("the checker keeps its word on the card's field, type, character and limits", () => {
+    const codes = (params: Json) => check(withWrite(params)).errors.map((e) => e.code).filter((c) => c.startsWith("E_DASH"));
+    expect(codes({ field: "trust", as: "number", of: "Anna", clamp: { min: 0, maxStep: 5 } })).toEqual([]);
+    expect(codes({ field: "present", as: "text" })).toEqual(["E_DASH_FIELD"]);
+    expect(codes({ field: "trust", as: "text" })).toEqual(["E_DASH_TYPE"]);
+    expect(codes({ field: "weather", as: "text", of: "Anna" })).toEqual(["E_DASH_OF"]);
+    expect(codes({ field: "mood", as: "text", clamp: { max: 1 } })).toEqual(["E_DASH_CLAMP"]);
   });
 });
 

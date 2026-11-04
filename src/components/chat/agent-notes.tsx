@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Robot } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
-import { nameOf, useAgentsLive, type AgentRun } from '@/lib/agents'
+import { nameOf, undoDashChange, useAgentsLive, type AgentRun, type DashChange } from '@/lib/agents'
 import { ChoiceChips } from './agent-panels'
 import type { Message } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,35 @@ import { cn } from '@/lib/utils'
 const NOTE_PLACES = new Set<string | undefined>([undefined, 'note', 'feed'])
 /** A short note opens by itself; a long one shows its first line. */
 const OPEN_BELOW = 240
+
+const clipTo = (v: string | number | null, empty: string): string => {
+  if (v === null) return empty
+  const s = String(v)
+  return s.length > 60 ? s.slice(0, 59) + '…' : s
+}
+
+/** What agents changed on the Dashboard in one run: each change with the value it replaced; Undo only on the newest reply, where the Dashboard has not moved on. */
+function DashChanges({ chatId, changes, canUndo }: { chatId: string; changes: DashChange[]; canUndo: boolean }) {
+  const t = useT()
+  return (
+    <ul className="mt-0.5 flex flex-col gap-0.5 pl-3" data-testid="agent-dash-changes">
+      {changes.map((c) => {
+        const vars = { field: c.field, before: clipTo(c.before, t('ag.dash.empty')), after: clipTo(c.after, t('ag.dash.empty')), who: c.who ?? '' }
+        const line = c.who ? t('ag.dash.lineOf', vars) : t('ag.dash.line', vars)
+        return (
+          <li key={c.id} className="flex flex-wrap items-center gap-x-2 text-caption">
+            <span className={cn('min-w-0 break-words tabular-nums', c.undone && 'text-muted-foreground line-through')}>{line}</span>
+            {c.undone ? <span className="text-muted-foreground">{t('ag.dash.undone')}</span>
+              : canUndo && (
+                <button type="button" aria-label={t('ag.dash.undoLabel', { line })} onClick={() => void undoDashChange(chatId, c.id)}
+                  className="min-h-8 rounded px-1.5 font-medium text-primary underline-offset-2 hover:underline max-md:min-h-10">{t('ag.dash.undo')}</button>
+              )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 /**
  * What the chat's agents left for one reply: their notes as cards that fold, and one muted line that says who ran
@@ -67,6 +96,7 @@ export function AgentNotes({ chatId, message, last }: { chatId: string; message:
                   ? t('ag.failed', { why: r.reason ?? '?' })
                   : t('ag.log.ok', { ms: r.ms, calls: r.calls ?? 0, changes: r.writes?.length ?? 0 })}
                 {refused > 0 ? ` · ${t('ag.log.refused', { n: refused })}` : ''}
+                {r.status === 'ok' && (r.dash?.length ?? 0) > 0 && <DashChanges chatId={chatId} changes={r.dash!} canUndo={!!last} />}
                 {last && r.status === 'ok' && (r.outputs ?? []).filter((o) => o.kind === 'choices' && o.show === 'log' && o.choices?.length).map((o, k) => (
                   <div key={k} className="mt-1"><ChoiceChips chatId={chatId} set={{ agent: r.agent, choices: o.choices! }} /></div>
                 ))}

@@ -163,12 +163,25 @@ describe("install and permissions", () => {
     expect(later.added.length).toBeGreaterThan(0);
   });
 
-  it("an agent that writes Dashboard fields installs, may read them, but cannot be granted the write or run", () => {
-    const r = j("/agents/install", "PUT", { file: copy(mood), grant: true });
-    expect(r.unsupported).toEqual(["write:state.mood"]);
-    expect(r.missing).toEqual(["write:state.mood"]);
-    expect(r.granted).toContain("read:state.mood");
-    expect(j("/agents/list").agents[0].blocker).toMatch(/cannot give yet/);
+  it("an agent that writes Dashboard fields is asked for the write per field and can be granted it (#132)", () => {
+    const r = j("/agents/install", "PUT", { file: copy(mood) });
+    expect(r.unsupported).toEqual([]);
+    expect(r.needs).toEqual(expect.arrayContaining(["read:state.mood", "write:state.mood"]));
+    expect(r.missing).toEqual(r.needs);
+    // one switch grants one field: the other stays off, and the agent waits for it
+    j("/agents/grant", "POST", { id: "mood-tracker", tokens: r.needs.filter((t: string) => t !== "write:state.mood") });
+    expect(j("/agents/list").agents[0].blocker).toMatch(/Waiting for permission/);
+    j("/agents/grant", "POST", { id: "mood-tracker", tokens: true });
+    expect(j("/agents/list").agents[0]).toMatchObject({ runnable: true, missing: [] });
+  });
+
+  it("a file that writes `present`, which agents may only read, is refused by the checker", () => {
+    const f = copy(mood);
+    f.nodes.find((n: Json) => n.id === "save").params.field = "present";
+    delete f.agent.derived;
+    const res = call("PUT", "/agents/install", { file: f });
+    expect(res.status).toBe(400);
+    expect(res.json?.errors.map((e: Json) => e.code)).toContain("E_DASH_FIELD");
   });
 
   it("remove deletes the file and the permissions", () => {
@@ -805,5 +818,147 @@ describe("Dashboard fields for agents", () => {
     j("/agents/install", "PUT", { file, grant: true });
     useAgent("dash-reader");
     runChat("c1", {}, () => { throw new Error("the model must not be asked"); });
+  });
+});
+
+// ---------- agents change Dashboard fields (#132, write) ----------
+
+const ledgerOf = (chatId = "c1") => disk("dashboard/agent/" + chatId + ".json");
+const snapOf = (key = "m2#0", chatId = "c1") => disk("dashboard/state/" + chatId + ".json").snapshots[key];
+const dashSet = (writes: Json[], msgs = msgsOf(), agent = "mood-tracker") => (plugin as any).applyDashWrites(host().fs, "c1", { chatId: "c1", msgs }, agent, writes) as { applied: Json[]; refused: Json[] };
+
+describe("agents change Dashboard fields", () => {
+  const setup = () => { makeChat("c1", CHAT); writeDash("c1", { snapshots: SNAPS }); };
+
+  it("a run of the mood agent changes the mood of the character who spoke, and the run says what it replaced", () => {
+    setup();
+    j("/agents/install", "PUT", { file: copy(mood), grant: true });
+    useAgent("mood-tracker");
+    const r = runChat("c1", {}, () => ({ text: '{"mood":"tense"}' }));
+    expect(r.ran[0]).toMatchObject({ agent: "mood-tracker", status: "ok" });
+    const aria = snapOf().chars.Aria;
+    expect(aria.mood).toBe("tense");
+    expect(aria.fresh).toContain("mood");
+    // other characters, other snapshots and the sensor's other numbers are left alone
+    expect(snapOf().chars.Maren.mood).toBe("calm");
+    expect(snapOf("m0#0").chars.Aria.mood).toBe("tired");
+    expect(aria.stats).toEqual({ trust: 20, comfort: 15 });
+    const run = j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs.at(-1);
+    expect(run.dash).toEqual([{ id: "d1", field: "mood", who: "Aria", before: "wary", after: "tense", key: "m2#0" }]);
+    expect(ledgerOf().entries[0]).toMatchObject({ id: "d1", agent: "mood-tracker", key: "m2#0", field: "mood", who: "Aria", before: "wary", after: "tense" });
+  });
+
+  it("a number goes to the stat, clamped to -100..100, by the card's clamp and by its maxStep; text is cut", () => {
+    setup();
+    const r = dashSet([
+      { op: "dash.set", field: "trust", of: "Maren", value: 250 },
+      { op: "dash.set", field: "comfort", of: "Maren", value: -5, clamp: { min: 0 } },
+      { op: "dash.set", field: "trust", value: 90, clamp: { maxStep: 5 } },
+      { op: "dash.set", field: "goal", of: "Maren", value: "x".repeat(900) },
+      { op: "dash.set", field: "weather", value: "fog" },
+    ]);
+    expect(r.refused).toEqual([]);
+    const c = snapOf().chars;
+    expect(c.Maren.stats).toEqual({ trust: 100, comfort: 0 });
+    expect(c.Aria.stats.trust).toBe(25);
+    expect(c.Maren.goal.length).toBe(300);
+    expect(snapOf().clock.weather).toBe("fog");
+  });
+
+  it("refuses what it cannot place, and says why", () => {
+    setup();
+    const why = (w: Json, msgs?: any) => dashSet([w], msgs).refused.map((x) => x.why);
+    expect(why({ op: "dash.set", field: "present", value: "Aria" })).toEqual(["agents cannot change this Dashboard field"]);
+    expect(why({ op: "dash.set", field: "mood", of: "Nobody", value: "calm" })).toEqual(['no character "Nobody" on the Dashboard']);
+    expect(why({ op: "dash.set", field: "trust", of: "Aria", value: Number.NaN })).toEqual(["not a number"]);
+    expect(why({ op: "dash.set", field: "mood", of: "Aria", value: "  " })).toEqual(["nothing to write"]);
+    writeDash("c1", { snapshots: SNAPS, removed: ["maren"] });
+    expect(why({ op: "dash.set", field: "mood", of: "Maren", value: "calm" })).toEqual(['no character "Maren" on the Dashboard']);
+    // nothing was written for any of these
+    expect(exists("dashboard/agent/c1.json")).toBe(false);
+  });
+
+  it("a chat the Dashboard has not read yet is not written to; a carried state is not written to either", () => {
+    makeChat("c1", CHAT);
+    expect(dashSet([{ op: "dash.set", field: "weather", value: "fog" }]).refused[0].why).toMatch(/has not read this chat yet/);
+    writeDash("c1", { snapshots: {}, inherited: { from: "old", snap: SNAPS["m2#0"] } });
+    expect(dashSet([{ op: "dash.set", field: "weather", value: "fog" }]).refused[0].why).toMatch(/has not read this chat yet/);
+    expect(exists("dashboard/agent/c1.json")).toBe(false);
+  });
+
+  it("a branch writes to the snapshot of its own line", () => {
+    setup();
+    // the last reply is on another swipe: the snapshot before it stands
+    dashSet([{ op: "dash.set", field: "weather", value: "fog" }], msgsOf({ 2: 1 }));
+    expect(snapOf("m0#0").clock.weather).toBe("fog");
+    expect(snapOf().clock.weather).toBe("rain");
+  });
+
+  it("doing the same write again replaces the entry and keeps what was there first", () => {
+    setup();
+    dashSet([{ op: "dash.set", field: "trust", of: "Maren", value: 70 }]);
+    dashSet([{ op: "dash.set", field: "trust", of: "Maren", value: 80 }]);
+    expect(ledgerOf().entries).toHaveLength(1);
+    expect(ledgerOf().entries[0]).toMatchObject({ before: 60, after: 80 });
+  });
+
+  it("Undo puts the old value back; a second Undo, a changed field and a moved-on story are refused", () => {
+    setup();
+    dashSet([{ op: "dash.set", field: "mood", of: "Maren", value: "furious" }, { op: "dash.set", field: "trust", of: "Maren", value: 10 }]);
+    const [mood1, trust1] = ledgerOf().entries;
+    expect(j("/agents/dash-undo", "POST", { chatId: "c1", id: mood1.id })).toMatchObject({ ok: true, restored: "calm" });
+    expect(snapOf().chars.Maren.mood).toBe("calm");
+    expect(call("POST", "/agents/dash-undo", { chatId: "c1", id: mood1.id }).status).toBe(409);
+    // the field was changed after the agent: left as it is
+    const st = disk("dashboard/state/c1.json");
+    st.snapshots["m2#0"].chars.Maren.stats.trust = 33;
+    writeDash("c1", st);
+    const changed = call("POST", "/agents/dash-undo", { chatId: "c1", id: trust1.id });
+    expect(changed.status).toBe(409);
+    expect(changed.json?.error).toMatch(/changed since/);
+    // a newer snapshot has been built on the changed one
+    st.snapshots["m2#0"].chars.Maren.stats.trust = 10;
+    st.snapshots["m3#0"] = st.snapshots["m2#0"];
+    writeDash("c1", st);
+    setMessages("c1", [...CHAT, ["user", "Go on."]]);
+    expect(call("POST", "/agents/dash-undo", { chatId: "c1", id: trust1.id }).status).toBe(409);
+    expect(call("POST", "/agents/dash-undo", { chatId: "c1", id: "nope" }).status).toBe(404);
+  });
+
+  it("Undo of a number that had none gives 0, of a text that was empty gives it back empty", () => {
+    setup();
+    dashSet([{ op: "dash.set", field: "goal", of: "Aria", value: "find the key" }, { op: "dash.set", field: "attraction", of: "Aria", value: 15 }]);
+    for (const e of ledgerOf().entries) j("/agents/dash-undo", "POST", { chatId: "c1", id: e.id });
+    expect(snapOf().chars.Aria.goal).toBe("");
+    expect(snapOf().chars.Aria.stats.attraction).toBe(0);
+  });
+
+  it("the checker holds a write card to the same rules as a read: type, `of` on a scene field, a clamp on text", () => {
+    const codes = (params: Json) => {
+      const f = copy(mood);
+      f.nodes.find((n: Json) => n.id === "save").params = { as: "text", ...params };
+      delete f.agent.derived;
+      return ((compileAgent(f) as any).report.errors as Json[]).map((e) => e.code).filter((c) => c.startsWith("E_DASH"));
+    };
+    expect(codes({ field: "mood" })).toEqual([]);
+    expect(codes({ field: "mood", of: "Aria" })).toEqual([]);
+    expect(codes({ field: "threads" })).toEqual(["E_DASH_FIELD"]);
+    expect(codes({ field: "trust" })).toEqual(["E_DASH_TYPE"]);
+    expect(codes({ field: "place", of: "Aria" })).toEqual(["E_DASH_OF"]);
+    expect(codes({ field: "mood", clamp: { max: 3 } })).toEqual(["E_DASH_CLAMP"]);
+    expect(codes({ field: "trust", as: "number", clamp: { min: 5, max: 1 } })).toEqual(["E_DASH_CLAMP"]);
+    expect(codes({ field: "trust", as: "number", of: "Aria", clamp: { min: -50, max: 50, maxStep: 5 } })).toEqual([]);
+  });
+
+  it("the write card names the character: only that one changes", () => {
+    setup();
+    const f = copy(mood);
+    f.nodes.find((n: Json) => n.id === "save").params = { field: "mood", as: "text", of: " Maren " };
+    delete f.agent.derived;
+    j("/agents/install", "PUT", { file: f, grant: true });
+    useAgent("mood-tracker");
+    runChat("c1", {}, () => ({ text: '{"mood":"sad"}' }));
+    expect(snapOf().chars.Maren.mood).toBe("sad");
+    expect(snapOf().chars.Aria.mood).toBe("wary");
   });
 });

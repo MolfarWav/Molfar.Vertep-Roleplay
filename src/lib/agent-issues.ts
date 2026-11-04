@@ -6,7 +6,7 @@ import type { MsgKey, Vars } from './i18n'
 
 /** Every code that has a text here. A test keeps this equal to the codes the checker can emit. */
 export const ISSUE_CODES = [
-  'E_BIND', 'E_BUDGET', 'E_CALLS_MISMATCH', 'E_CYCLE', 'E_DASH_FIELD', 'E_DASH_OF', 'E_DASH_TYPE', 'E_DUP_NODE',
+  'E_BIND', 'E_BUDGET', 'E_CALLS_MISMATCH', 'E_CYCLE', 'E_DASH_CLAMP', 'E_DASH_FIELD', 'E_DASH_OF', 'E_DASH_TYPE', 'E_DUP_NODE',
   'E_EDGE_DIRECTION', 'E_EDGE_NODE', 'E_EDGE_PORT', 'E_ENVELOPE', 'E_FORMAT_VERSION', 'E_HASH', 'E_ID', 'E_IF_EMPTY',
   'E_IF_OP', 'E_IF_OPERAND', 'E_INPUT_COUNT', 'E_JSON', 'E_NEEDS_MISMATCH', 'E_OUTPUT_COUNT', 'E_PANEL',
   'E_PARALLEL_INSERT', 'E_PARAM', 'E_PORT_ID', 'E_REGEX', 'E_REGEX_RISK', 'E_ROLE', 'E_ROUNDS', 'E_SHOW_NOT_ALLOWED',
