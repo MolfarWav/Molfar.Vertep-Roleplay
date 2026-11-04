@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fix (Molfar.Vertep#241): a chat no longer jumps to its oldest message while you read further up. After a reply, the Dashboard, Litopys, the World DM and the agents write their files, and the app re-reads the chat each time; a read that landed while the chat's file was being written came back empty, the message list emptied for a moment and the page was left at the top (or, with Auto-scroll on, thrown to the bottom). An empty read no longer replaces the messages on screen, and any background refresh of the open chat keeps the message you are reading where it is.
+
 ## 4.87.0 (2026-11-03)
 
 - Ten more Help articles, in English and Ukrainian (#148): starting a new chat, the Chats page (search, sort, filter, select), Manage chat files (export, checkpoint, import), What this chat carries, the "+" menu by the message box, Sprites, Backup and restore, the Appearance and Chat Behavior switches, Arcs in the Library, and Customizing the Home page. Every claim has a source line that the validator checks (79 articles now).
