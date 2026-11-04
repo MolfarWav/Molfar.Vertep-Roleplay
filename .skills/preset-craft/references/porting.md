@@ -5,6 +5,13 @@ file goes through the import on the Presets page (or a backup zip): the shape is
 the same, so tell the user to import it first and then improve it here. Port by hand only when the
 user pastes sections as text or wants the ideas of a preset merged into one they already use.
 
+What the import already does (DATA-FORMATS.md, "Export and import"): `[PICK n: TAG]` tags, ↑/↓ pairs
+and "pick one" header groups become Choices with the author's comments as hints; `{{setvar}}` modules
+stay sections unless one is on and nothing switches it; "DO NOT TOUCH" blocks arrive `locked`; prose
+comments become section `note`s and a README prompt the description. Its import report lists each of
+these. With the default picks the imported preset sends what the file sends, so check the report
+before "fixing" anything by hand. A preset exported from this app re-imports with all its Choices.
+
 ## What carries over as it is
 - Section text (`prompts[].content`), roles, markers, and `injection_position` / `injection_depth`
   (SillyTavern writes `injection_position: 1` for in-chat; here it is `"absolute"`).

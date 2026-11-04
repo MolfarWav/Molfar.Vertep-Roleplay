@@ -1418,6 +1418,8 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
         forbidOverrides: bagSection?.forbidOverrides ?? false,
         groupId: bagSection?.groupId ?? null,
         condition: bagSection?.condition ?? null,
+        ...(bagSection?.locked ? { locked: true } : {}),
+        ...(typeof bagSection?.note === 'string' && bagSection.note ? { note: bagSection.note } : {}),
       }
     })
   })()

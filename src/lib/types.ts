@@ -346,6 +346,11 @@ export interface PromptSection {
    * "varName==value", "varName!=value". Blank = always render.
    */
   condition?: string | null
+  /** The preset's author says this block must stay as it is ("DO NOT TOUCH") or stay off ("DO NOT ENABLE"):
+   *  never offered as a choice, shown with a lock in the editor. Set by the SillyTavern import. */
+  locked?: boolean
+  /** The author's explanation of the block, shown in the editor. Never sent to the model. */
+  note?: string
 }
 
 export interface SectionGroup {

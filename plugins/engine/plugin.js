@@ -521,7 +521,7 @@ export function sectionCondPasses(cond, presetVars, chatVars) {
  *   summary — the running chat summary
  *   words — summarize-prompt budget ({{words}}/{{limit}})
  */
-function expandMacros(text, mc) {
+export function expandMacros(text, mc) {
   let out = String(text);
   // every macro starts with "{{": without one there is nothing to do (dozens of passes saved per message)
   if (out.indexOf("{{") < 0) return out;
