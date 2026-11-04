@@ -147,5 +147,6 @@ export function describeWrite(w: DryWrite & Json): string {
   if (w.op === 'list.add') return `${w.field} + ${brief(w.item)}`
   if (w.op === 'list.update') return `${w.field} ~ ${brief(w.id)}`
   if (w.op === 'list.remove') return `${w.field} − ${brief(w.id)}`
-  return `${w.field} = ${brief(w.value)}`
+  const of = w.op === 'dash.set' && typeof w.of === 'string' && w.of.trim() ? ` (${w.of.trim()})` : ''
+  return `${w.field}${of} = ${brief(w.value)}`
 }

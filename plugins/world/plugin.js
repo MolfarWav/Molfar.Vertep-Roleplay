@@ -103,8 +103,8 @@ export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, sta
 export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500, imageModel: "", autoBackground: false };
 
 // what a run reads and writes, kept small for small context windows
-const NEW_TEXT_MAX = 8000;
-const MSG_MAX = 2500;
+const NEW_TEXT_MAX = 12000;
+const MSG_MAX = 6000;
 // below this share per message a run reads fewer messages (catch-up) instead of cutting each one thinner
 const MSG_MIN = 400;
 const LINE_EXTRA = 40;
@@ -137,6 +137,838 @@ const CLOCK_SIZES = [4, 6, 8];
 const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v) => (typeof v === "string" ? v.trim() : "");
 const arr = (v) => (Array.isArray(v) ? v : []);
+// ==== BEGIN GENERATED: src/lib/entity-registry.js (bun scripts/sync-registry.ts) ====
+/**
+ * Entity registry: one id per person (later thing and place) in a chat. Design: docs/ENTITY-REGISTRY.md.
+ *
+ * Plain JavaScript with no imports and no dependencies, because plugins load one file each and cannot import
+ * from src/. `bun scripts/sync-registry.ts` copies this file (with `export ` removed) into plugins/relations,
+ * plugins/world and plugins/litopys; a test fails when a copy differs. Edit only this file, then run the script.
+ *
+ * Everything takes and returns plain objects. Nothing here runs at load time except constant definitions.
+ * Names that plugins might already use are prefixed `reg`; `resolveName` is the one exception.
+ */
+
+/** Title and honorific words (folded) that never count as a word of a name. */
+const REG_TITLES = new Set([
+  "queen", "king", "sir", "lady", "lord", "dr", "mr", "mrs", "ms", "miss", "prince", "princess", "captain", "master",
+  "mistress", "professor", "sensei", "san", "kun", "chan", "sama", "the", "of", "and",
+  "\u043a\u043e\u0440\u043e\u043b\u0435\u0432\u0430", "\u043a\u043e\u0440\u043e\u043b\u044c", "\u0441\u044d\u0440", "\u043b\u0435\u0434\u0438", "\u0433\u043e\u0441\u043f\u043e\u0436\u0430", "\u0433\u043e\u0441\u043f\u043e\u0434\u0438\u043d", "\u043f\u0440\u0438\u043d\u0446", "\u043f\u0440\u0438\u043d\u0446\u0435\u0441\u0441\u0430", "\u043f\u0430\u043d", "\u043f\u0430\u043d\u0456", "\u043f\u0430\u043d\u0438",
+  "\u043a\u0430\u043f\u0438\u0442\u0430\u043d", "\u043a\u0430\u043f\u0456\u0442\u0430\u043d", "\u043f\u0440\u043e\u0444\u0435\u0441\u0441\u043e\u0440", "\u043f\u0440\u043e\u0444\u0435\u0441\u043e\u0440", "\u043c\u0438\u0441\u0441", "\u043c\u0456\u0441",
+]);
+
+/** Headings of a card description that are sections of text, not names of people (folded first words). */
+const REG_STOP = new Set([
+  "personality", "appearance", "background", "backstory", "description", "scenario", "history", "abilities", "ability",
+  "skills", "skill", "relationships", "relationship", "setting", "world", "notes", "note", "traits", "trait", "likes",
+  "dislikes", "physical", "clothing", "outfit", "behavior", "behaviour", "speech", "example", "examples", "dialogue",
+  "greeting", "plot", "story", "rules", "rule", "instructions", "instruction", "characters", "character", "overview",
+  "info", "information", "details", "summary", "goals", "goal", "secrets", "hobbies", "family", "occupation", "age",
+  "gender", "body", "voice", "kinks", "quirks", "habits", "fears", "motivation", "role", "roles", "profile", "bio",
+  "biography", "guidelines", "guideline", "characterization", "characterisation", "introduction", "intro", "mannerisms", "speaking", "special", "other", "additional", "important", "ooc",
+  "system", "narrator", "tags", "genre", "tone", "style", "format", "stats", "stat", "inventory", "location", "locations",
+  "\u043b\u0438\u0447\u043d\u043e\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u043e\u0441\u0442\u044c", "\u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440", "\u043f\u0440\u0435\u0434\u044b\u0441\u0442\u043e\u0440\u0438\u044f", "\u0438\u0441\u0442\u043e\u0440\u0438\u044f", "\u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439", "\u0441\u0446\u0435\u043d\u0430\u0440\u0456\u0439", "\u043d\u0430\u0432\u044b\u043a\u0438", "\u043d\u0430\u0432\u0438\u0447\u043a\u0438",
+  "\u0441\u043f\u043e\u0441\u043e\u0431\u043d\u043e\u0441\u0442\u0438", "\u0437\u0434\u0456\u0431\u043d\u043e\u0441\u0442\u0456", "\u043e\u0442\u043d\u043e\u0448\u0435\u043d\u0438\u044f", "\u0432\u0456\u0434\u043d\u043e\u0441\u0438\u043d\u0438", "\u043c\u0438\u0440", "\u0441\u0432\u0456\u0442", "\u0437\u0430\u043c\u0435\u0442\u043a\u0438", "\u043d\u043e\u0442\u0430\u0442\u043a\u0438", "\u043f\u0440\u0430\u0432\u0438\u043b\u0430", "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0438",
+  "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0456", "\u043f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435", "\u043f\u0440\u0438\u043c\u0456\u0442\u043a\u0430", "\u0438\u043d\u0442\u0435\u0440\u0435\u0441\u044b", "\u0456\u043d\u0442\u0435\u0440\u0435\u0441\u0438", "\u043f\u0440\u0438\u0432\u044b\u0447\u043a\u0438", "\u0437\u0432\u0438\u0447\u043a\u0438", "\u043e\u0441\u043e\u0431\u0438\u0441\u0442\u0456\u0441\u0442\u044c", "\u043f\u0435\u0440\u0435\u0434\u0456\u0441\u0442\u043e\u0440\u0456\u044f",
+  "\u043e\u043f\u0438\u0441", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u0438\u0439", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0439", "\u0431\u0438\u043e\u0433\u0440\u0430\u0444\u0438\u044f", "\u0431\u0456\u043e\u0433\u0440\u0430\u0444\u0456\u044f", "\u0441\u044e\u0436\u0435\u0442", "\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a", "\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447",
+]);
+
+/** Words that make a long heading a phrase, not a name (folded). */
+const REG_FUNC = new Set(["he", "she", "her", "his", "hers", "him", "they", "them", "their", "it", "its", "how", "what", "why", "when", "where", "who", "with", "without", "to", "for", "from", "in", "on", "at", "by", "is", "are", "was", "were", "be", "not", "no", "you", "your", "my", "our", "about", "as"]);
+
+/** A card name or heading that is a narrator or a scenario, not a person. */
+const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a|\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447|\u043d\u0430\u0440\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0446\u0456\u044f|\u043d\u0430\u0440\u0430\u0446\u0438\u044f|storyteller|game ?master/iu;
+
+/** Cyrillic (Russian and Ukrainian) to Latin, applied to folded text, so no \u0439 or \u0451 or \u0457. */
+const REG_CYR = {
+  "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0491": "g", "\u0434": "d", "\u0435": "e", "\u0451": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "i",
+  "\u0456": "i", "\u0457": "i", "\u044b": "i", "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o", "\u043f": "p", "\u0440": "r", "\u0441": "s", "\u0442": "t",
+  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "h", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
+  "\u044e": "iu", "\u044f": "ia", "\u0454": "ie",
+};
+
+/** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
+function regFold(s) {
+  return String(s == null ? "" : s)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
+    .trim();
+}
+
+/**
+ * A key for comparing a name across Cyrillic and Latin spelling. Fold, Cyrillic to Latin, then one phonetic key:
+ * ch->k, ph->f, ck->k, h after a consonant dropped (Rhea, Sh, Zh), c before e/i/y -> s else k, q->k, x->ks, y/j->i,
+ * z->s, w->v, an i between a vowel and a vowel dropped (Reia = Rea), doubled letters collapsed.
+ * Equal keys (Cyrillic and Latin spellings): Kaede, Isabella, Ember, Rhea, Geralt, Yor, Bayonetta, Denis, Sina, Mei,
+ * Saki. One letter apart: Alisa and Alice (alisa/alise, the a/e ending). Alice/Alex and Mark/Mary have different keys;
+ * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
+ */
+function regTranslit(s) {
+  let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
+  t = t
+    .replace(/ch/g, "k")
+    .replace(/kh/g, "h")
+    .replace(/ph/g, "f")
+    .replace(/ck/g, "k")
+    .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1")
+    .replace(/c(?=[eiy])/g, "s")
+    .replace(/[cq]/g, "k")
+    .replace(/x/g, "ks")
+    .replace(/[yj]/g, "i")
+    .replace(/z/g, "s")
+    .replace(/w/g, "v")
+    .replace(/([a-z0-9])\1+/g, "$1")
+    .replace(/([aeou])i(?=[aeiou])/g, "$1")
+    .replace(/([a-z0-9])\1+/g, "$1");
+  return t.trim();
+}
+
+/** The folded words of a name without titles. */
+function regTokens(name) {
+  return regFold(name).split(" ").filter((w) => w && !REG_TITLES.has(w));
+}
+
+/** An empty registry. */
+function regNew(chatId, from) {
+  return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+}
+
+/** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
+function regGet(reg, id) {
+  const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
+  const find = (x) => ents.find((e) => e && e.id === x) || null;
+  let cur = find(id);
+  for (let i = 0; cur && cur.merged; i++) {
+    if (i > ents.length) return null;
+    cur = find(cur.merged);
+  }
+  return cur;
+}
+
+const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+const regKindLetter = { person: "p", thing: "o", place: "l" };
+
+function regAliasList(entity, list, src) {
+  for (const a of Array.isArray(list) ? list : []) {
+    const t0 = a && typeof a === "object" ? a.text : a;
+    if (typeof t0 !== "string") continue;
+    const text = regOneLine(t0).slice(0, 80);
+    const f = regFold(text);
+    if (!f || f === regFold(entity.name) || entity.aliases.some((x) => regFold(x.text) === f)) continue;
+    const s = a && typeof a === "object" && typeof a.src === "string" && a.src ? a.src : src;
+    entity.aliases.push({ text, src: s });
+  }
+}
+
+/** A new entity with the next id (p1, o1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
+  const nm = regOneLine(name).slice(0, 80);
+  if (!regFold(nm)) return null;
+  const k = regKindLetter[kind] ? kind : "person";
+  const letter = regKindLetter[k];
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, o: 1, l: 1 };
+  let n = Number(reg.next[letter]) || 1;
+  while (reg.entities.some((e) => e.id === letter + n)) n++;
+  reg.next[letter] = n + 1;
+  const e = { id: letter + n, kind: k, name: nm, aliases: [], src: src || "seen" };
+  if (card) e.card = String(card);
+  regAliasList(e, aliases, e.src);
+  reg.entities.push(e);
+  return e;
+}
+
+/** Make or update the entity `user` (the persona). Old names stay as aliases. */
+function regUser(reg, name) {
+  const nm = regOneLine(name).slice(0, 80);
+  let e = reg.entities.find((x) => x.id === "user");
+  if (!regFold(nm)) return e || null;
+  if (!e) {
+    e = { id: "user", kind: "person", name: nm, aliases: [], src: "persona" };
+    reg.entities.push(e);
+    return e;
+  }
+  if (regFold(e.name) !== regFold(nm)) {
+    const old = e.name;
+    e.name = nm;
+    e.aliases = e.aliases.filter((a) => regFold(a.text) !== regFold(nm));
+    regAliasList(e, [old], "persona");
+  }
+  return e;
+}
+
+/** Add an alias (deduped by fold; empty and the entity's own name are ignored). On a merged id it goes to the target. True when added. */
+function regAlias(reg, id, text, src) {
+  const e = regGet(reg, id);
+  if (!e) return false;
+  // a place takes only a name of the same place: not its house or its street, not two rooms at once (another alphabet cannot be judged by words)
+  const from = src || "seen";
+  if (e.kind === "place" && (from === "seen" || from === "world") && regScript(String(text)) === regScript(e.name) && !regPlaceSame(text, e.name)) return false;
+  const before = e.aliases.length;
+  regAliasList(e, [text], src || "seen");
+  return e.aliases.length > before;
+}
+
+function regWithin1(a, b) {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1);
+  return la > lb ? a.slice(i + 1) === b.slice(i) : b.slice(i + 1) === a.slice(i);
+}
+
+const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
+const regLen = (s) => s.replace(/ /g, "").length;
+
+/** Words (folded) that join two names into one text: "hallway and kitchen" names two places, not one. */
+const REG_JOIN = new Set(["and", "und", "et", "y", "e", "och", "og", "en", "oraz", "\u0438", "\u0456", "\u0439", "\u0442\u0430"]);
+
+/** A place text as its levels, outer first: "Denis's house, kitchen" is [[denis, s, house], [kitchen]] (folded words, titles out). */
+function regPlaceSegs(s) {
+  return String(s == null ? "" : s)
+    .split(/[,;:()]|\s[\u2014\u2013-]\s/)
+    .map(regTokens)
+    .filter((t) => t.length);
+}
+
+/** True when the innermost level of a place text names two places ("hallway and kitchen", "kitchen / hall"). */
+function regJoined(s) {
+  const parts = String(s == null ? "" : s).split(/[,;:()]|\s[\u2014\u2013-]\s/).filter((x) => regFold(x));
+  const last = parts.length ? regFold(parts[parts.length - 1]).split(" ") : [];
+  return last.some((w) => REG_JOIN.has(w)) || /[&/+]/.test(String(s == null ? "" : s));
+}
+
+/**
+ * The places a text that names two of them means, each with the outer levels: "Denis's house, hallway and kitchen" is
+ * ["Denis's house, hallway", "Denis's house, kitchen"]. A text that names one place is itself.
+ */
+function regPlaceParts(s) {
+  const text = regOneLine(s);
+  if (!regJoined(text)) return text ? [text] : [];
+  const levels = text.split(/[,;:()]|\s[\u2014\u2013-]\s/).map((x) => x.trim()).filter((x) => regFold(x));
+  if (!levels.length) return [];
+  const outer = levels.slice(0, -1).join(", ");
+  const join = new RegExp("\\s*[&/+]\\s*|\\s+(?:" + [...REG_JOIN].join("|") + ")\\s+", "iu");
+  return levels[levels.length - 1]
+    .split(join)
+    .map((x) => x.trim())
+    .filter((x) => regFold(x))
+    .map((x) => (outer ? outer + ", " + x : x));
+}
+
+/** Every word of `small` inside `big`, in order (by fold or translit key). */
+const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
+
+/** Two levels of place texts hold one another (every word of one inside the other, in order). */
+const regLevelFits = (x, y) => regWithin(x, y) || regWithin(y, x);
+
+/**
+ * Could two place texts be one place? Texts name levels in either order ("Denis's house, kitchen", "Class 3-B, Sakura
+ * Academy"), so the order is not trusted. With as many levels each, every level pairs with the one in the same or the
+ * mirrored position: "Denis's house, hallway" and "Denis's house, kitchen" are two places. With fewer levels on one side,
+ * each of its levels holds a different level of the other: "hidden chamber" is "Underground dungeon, hidden chamber", and so
+ * is "Underground dungeon", since words cannot tell the room from the house; that is good enough to tell whether the scene
+ * moved, never enough to learn a name (regPlaceSame). A text that names two places is never one of them.
+ */
+function regPlaceFits(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
+  if (x.length === y.length) return regPlaceSame(a, b);
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  const used = new Set();
+  return short.every((lv) => {
+    const i = long.findIndex((l, k) => !used.has(k) && regLevelFits(lv, l));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
+/** One place for sure: as many levels each, every one paired in the same or the mirrored order. Only this teaches a place a name. */
+function regPlaceSame(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || x.length !== y.length || regJoined(a) || regJoined(b)) return false;
+  const same = x.every((lv, i) => regLevelFits(lv, y[i]));
+  const mirrored = x.every((lv, i) => regLevelFits(lv, y[y.length - 1 - i]));
+  return same || mirrored;
+}
+
+/** True when the user said these two are different people (ids are followed through merges). */
+function regIsApart(reg, a, b) {
+  const ga = regGet(reg, a);
+  const gb = regGet(reg, b);
+  if (!ga || !gb) return false;
+  return (reg.apart || []).some((p) => {
+    const x = regGet(reg, p[0]);
+    const y = regGet(reg, p[1]);
+    return !!x && !!y && ((x.id === ga.id && y.id === gb.id) || (x.id === gb.id && y.id === ga.id));
+  });
+}
+
+/** True when every word of `small` appears in `big`, in the same order (a word matches by its fold or its translit key). */
+function regInOrder(sk, bk, sw, bw) {
+  let j = 0;
+  for (let i = 0; i < sk.length; i++) {
+    while (j < bk.length && bk[j] !== sk[i] && bw[j] !== sw[i]) j++;
+    if (j >= bk.length) return false;
+    j++;
+  }
+  return true;
+}
+
+function regFind(reg, text, kind, notWith, skip) {
+  const raw = String(text == null ? "" : text);
+  const f = regFold(raw);
+  if (!f) return null;
+  const want = kind || "person";
+  const cands = [];
+  const seen = new Map();
+  for (const e of reg && Array.isArray(reg.entities) ? reg.entities : []) {
+    const o = regGet(reg, e.id);
+    if (!o || o.kind !== want) continue;
+    if (skip && skip.indexOf(o.id) >= 0) continue;
+    if (notWith && regIsApart(reg, o.id, notWith)) continue;
+    let c = seen.get(o.id);
+    if (!c) {
+      c = { id: o.id, strs: [] };
+      seen.set(o.id, c);
+      cands.push(c);
+    }
+    c.strs.push(e.name);
+    for (const a of e.aliases || []) c.strs.push(a.text);
+  }
+  const hit = (pred) => cands.filter((c) => c.strs.some(pred)).map((c) => c.id);
+  const done = (ids, step) => (ids.length === 1 ? { id: ids[0], step } : ids.length > 1 ? { ambiguous: ids } : null);
+  let r = done(hit((s) => regFold(s) === f), 1);
+  if (r) return r;
+  const key = regTranslit(raw);
+  if (key) {
+    r = done(hit((s) => regTranslit(s) === key), 2);
+    if (r) return r;
+  }
+  const toks = regTokens(raw);
+  if (toks.length === 1) {
+    const w = toks[0];
+    const wk = regTranslit(w);
+    const ends = (s) => {
+      const t = regTokens(s);
+      return t.length ? [t[0], t[t.length - 1]] : [];
+    };
+    // the same word, or the same in another alphabet (Yuki written in Cyrillic is Yuki)
+    r = done(hit((s) => ends(s).some((x) => x === w || regTranslit(x) === wk)), 3);
+    if (r) return r;
+    // one letter off in another alphabet (Alisa and Alice), only when no name matches exactly: Yuki in Cyrillic is not Yumi
+    r = done(
+      hit((s) =>
+        ends(s).some((x) => {
+          const xk = regTranslit(x);
+          return regScript(x) !== regScript(w) && regLen(xk) >= 4 && regLen(wk) >= 4 && xk[0] === wk[0] && regWithin1(xk, wk);
+        }),
+      ),
+      3,
+    );
+    if (r) return r;
+  }
+  if (toks.length >= 2 && want === "place") {
+    // a place: the same innermost level (and outer level, when both have one); a part or a whole of it is another place
+    r = done(hit((s) => regPlaceFits(raw, s)), 3.5);
+    if (r) return r;
+  } else if (toks.length >= 2) {
+    // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
+    const tk = toks.map(regTranslit);
+    r = done(
+      hit((s) => {
+        const t = regTokens(s);
+        if (t.length < 2) return false;
+        const k = t.map(regTranslit);
+        return regInOrder(tk, k, toks, t) || regInOrder(k, tk, t, toks);
+      }),
+      3.5,
+    );
+    if (r) return r;
+  }
+  const sc = regScript(raw);
+  r = done(
+    hit((s) => {
+      const fs = regFold(s);
+      if (regLen(fs) >= 6 && regLen(f) >= 6 && regWithin1(fs, f)) return true;
+      if (regScript(s) === sc) return false;
+      const ks = regTranslit(s);
+      return regLen(ks) >= 3 && regLen(key) >= 3 && ks[0] === key[0] && regWithin1(ks, key);
+    }),
+    4,
+  );
+  return r;
+}
+
+/**
+ * Which entity does this word mean? `{ id, step }`, `{ ambiguous: [ids] }` or null. Steps, first hit wins:
+ * 1 exact fold of a name or alias; 2 equal regTranslit key; 3 a single word (titles removed) equal to the first or
+ * last word of exactly one entity's name or alias; 3.5 (3b) a text of two or more words that all sit, in order, inside
+ * exactly one entity's name or alias, or the reverse (a name of two or more words inside the text); 4 near (fold keys one letter apart when both are 6+ letters, or
+ * translit keys one letter apart when the spellings are in different scripts, 3+ letters, same first letter).
+ * Merged entities are not candidates but their names point to the target. `notWith` (an id) skips candidates the
+ * user marked apart from it. `user` is a candidate like the others: the caller decides what to do with it.
+ */
+function resolveName(reg, text, kind = "person", notWith) {
+  return regFind(reg, text, kind, notWith, null);
+}
+
+/** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
+function regLearn(reg, id, text) {
+  if (!regTokens(text).length) return false;
+  const e = regGet(reg, id);
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceSame(text, e.name))) return false;
+  return regAlias(reg, id, text, "seen");
+}
+
+const regPairHas = (p, a, b) => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a);
+
+/** Merge `fromId` into `intoId`. False (nothing changed) for `user` as the source, the same entity, an apart pair, or a missing id. */
+function regMerge(reg, fromId, intoId) {
+  const from = reg.entities.find((e) => e.id === fromId);
+  const into = regGet(reg, intoId);
+  if (!from || !into || from.merged || from.id === "user" || from.id === into.id) return false;
+  if (from.kind !== into.kind || regIsApart(reg, from.id, into.id)) return false;
+  from.merged = into.id;
+  regAliasList(into, [from.name], "merged");
+  regAliasList(into, from.aliases, "merged");
+  const redirect = (x) => (x === from.id ? into.id : x);
+  const apart = [];
+  for (const p of reg.apart || []) {
+    const a = redirect(p[0]);
+    const b = redirect(p[1]);
+    if (a !== b && !apart.some((q) => regPairHas(q, a, b))) apart.push([a, b]);
+  }
+  reg.apart = apart;
+  const suggest = [];
+  for (const s of reg.suggest || []) {
+    const a = redirect(s.a);
+    const b = redirect(s.b);
+    if (a !== b && !suggest.some((q) => regPairHas([q.a, q.b], a, b))) suggest.push({ ...s, a, b });
+  }
+  reg.suggest = suggest;
+  return true;
+}
+
+/** Record that two entities are different people (unordered, once); drops the suggestion for the pair. False when an id is missing or equal. */
+function regApart(reg, a, b) {
+  const x = regGet(reg, a);
+  const y = regGet(reg, b);
+  if (!x || !y || x.id === y.id) return false;
+  if (!(reg.apart || []).some((p) => regPairHas(p, x.id, y.id))) {
+    if (!Array.isArray(reg.apart)) reg.apart = [];
+    reg.apart.push(x.id < y.id ? [x.id, y.id] : [y.id, x.id]);
+  }
+  reg.suggest = (reg.suggest || []).filter((s) => !regPairHas([s.a, s.b], x.id, y.id));
+  return true;
+}
+
+/** Suggest that two entities may be one. Not when they are apart, already suggested, equal, or one is merged. True when added. */
+function regSuggest(reg, a, b, why) {
+  const x = reg.entities.find((e) => e.id === a);
+  const y = reg.entities.find((e) => e.id === b);
+  if (!x || !y || x.merged || y.merged || x.id === y.id) return false;
+  if (regIsApart(reg, x.id, y.id)) return false;
+  if (!Array.isArray(reg.suggest)) reg.suggest = [];
+  if (reg.suggest.some((s) => regPairHas([s.a, s.b], x.id, y.id))) return false;
+  reg.suggest.push({ a: x.id, b: y.id, why: regOneLine(why).slice(0, 80) });
+  return true;
+}
+
+// ---------- names out of a character card ----------
+
+const REG_NAME_LINE = /^(?:name|full name|\u0438\u043c\u044f|\u043f\u043e\u043b\u043d\u043e\u0435 \u0438\u043c\u044f|\u0456\u043c['’ʼ]\u044f|\u043f\u043e\u0432\u043d\u0435 \u0456\u043c['’ʼ]\u044f)\s*[:：]\s*(.+)$/iu;
+const REG_ALIAS_LINE =
+  /^(?:also called|also known as|aka|a\.k\.a\.?|nicknames?|aliases|alias|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0435|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0430|\u043f\u0441\u0435\u0432\u0434\u043e\u043d\u0438\u043c|\u0442\u0430\u043a\u0436\u0435\s+\p{L}+\s+\u043a\u0430\u043a|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u043e|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u0430|\u0442\u0430\u043a\u043e\u0436\s+\p{L}+\s+\u044f\u043a)\s*[:：]\s*(.+)$/iu;
+
+/** Placeholders and markup out of a card text. */
+function regTidy(s) {
+  return String(s == null ? "" : s)
+    .replace(/\{\{[^}]*\}\}|<\/?(?:char|user|bot)>/gi, " ")
+    .replace(/[*`~#]+/g, "")
+    .replace(/(^|\s)_+|_+(?=\s|$)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The part of a card name before a separator ( - , — , – , | , ": " , "(" ), or the whole name. */
+function regHead(n) {
+  const m = n.match(/^(.+?)(?:\s+[-–—|]\s+|:\s+|\s*[(（[])/u);
+  return m && m[1].trim() ? m[1].trim() : n;
+}
+
+/** Could this be a person's name: letters, at most three words that are not titles, short. */
+function regPlausible(n) {
+  return !!n && n.length <= 40 && /\p{L}/u.test(n) && regTokens(n).length >= 1 && regTokens(n).length <= 3;
+}
+
+/**
+ * Could this be the name of a section or a `Name:` line: like regPlausible, but a role may come before the name
+ * ("Maid and Familiar of Rhea Ember Feath"), so up to six words; a name of more than three words must be written as a
+ * name (every word but the connectors capitalized or caseless) and contain no section word.
+ */
+function regPlausibleLong(n) {
+  if (!n || n.length > 60 || !/\p{L}/u.test(n)) return false;
+  const t = regTokens(n);
+  if (t.length < 1 || t.length > 6) return false;
+  if (t.length <= 3) return true;
+  // a longer heading must read as a name: no pronoun, question or preposition (a sentence in title case is not one)
+  if (t.some((w) => REG_FUNC.has(w))) return false;
+  for (const w of regTidy(n).split(" ")) {
+    const f = regFold(w);
+    if (!f || REG_TITLES.has(f)) continue;
+    if (REG_STOP.has(f)) return false;
+    if (!/^\p{Lu}/u.test(w) && w.toLowerCase() !== w.toUpperCase()) return false;
+  }
+  return true;
+}
+
+/** The name a heading with a role in front ends with: the last two words when both are capitalized (or caseless) and not titles, else the last word. Null for under three words or when it is the whole name. */
+function regTrailName(name) {
+  const w = regTidy(name).split(" ").filter(Boolean);
+  if (w.length < 3) return null;
+  const cased = (x) => /\p{L}/u.test(x) && (/^\p{Lu}/u.test(x) || x.toLowerCase() === x.toUpperCase());
+  const ok = (x) => cased(x) && !REG_TITLES.has(regFold(x));
+  const last = w[w.length - 1];
+  if (!ok(last)) return null;
+  const prev = w[w.length - 2];
+  const out = ok(prev) ? prev + " " + last : last;
+  return regFold(out) === regFold(name) ? null : out;
+}
+
+function regCardPersonName(raw) {
+  const n = regTidy(raw);
+  if (!n || REG_NARR.test(n)) return null;
+  if (/^(?:the|a|an)\s/i.test(n) && /[(（]/.test(n)) return null;
+  const head = regHead(n);
+  return regPlausible(head) ? head : null;
+}
+
+function regHeadingName(raw) {
+  const n = regTidy(raw).replace(/:+$/, "").trim();
+  if (!n || REG_NARR.test(n)) return null;
+  const head = regHead(n);
+  const words = regFold(head).split(" ");
+  if (!regPlausibleLong(head)) return null;
+  if (REG_STOP.has(regFold(head)) || (words.length <= 3 && (REG_STOP.has(words[0]) || REG_STOP.has(words[words.length - 1])))) return null;
+  return head;
+}
+
+function regLineName(v) {
+  const n = regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/[,;，；]/)[0].replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+  return regPlausible(n) ? n : null;
+}
+
+function regSplitAliases(v) {
+  const out = [];
+  for (let a of regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/\s*[,;，；]\s*|\s+(?:or|\u0438\u043b\u0438|\u0430\u0431\u043e)\s+/iu)) {
+    a = a.replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+    if (a && a.length <= 40 && /\p{L}/u.test(a) && a.split(" ").length <= 5 && !REG_NARR.test(a)) out.push(a);
+  }
+  return out;
+}
+
+const regSame = (a, b) => {
+  if (regFold(a) === regFold(b)) return true;
+  const x = regTokens(a);
+  const y = regTokens(b);
+  if (!x.length || !y.length) return false;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  return s.every((w) => l.indexOf(w) >= 0);
+};
+
+function regPushAlias(p, a) {
+  const f = regFold(a);
+  if (f && f !== regFold(p.name) && !p.aliases.some((x) => regFold(x) === f)) p.aliases.push(a);
+}
+
+/**
+ * The people a character card names, for messy imported cards (nothing is required): the card name (or the part
+ * before a separator), `### Name` / `## Name` sections, and lines like `Name:`, `Aliases:`, `Nickname:` (English,
+ * Russian, Ukrainian). A card name that is a narrator, a scenario or a long title is not a person; two or more
+ * name sections also make the card name not a person. Returns `{ persons: [{ name, aliases: [] }], cardIsPerson }`.
+ */
+function regCardNames(card) {
+  const d = card && typeof card === "object" ? (card.data && typeof card.data === "object" ? card.data : card) : {};
+  const cardName = regCardPersonName(d.name != null ? d.name : card && card.name);
+  const desc = String(d.description != null ? d.description : card && card.description ? card.description : "");
+  const secs = [{ head: null, declared: null, aliases: [] }];
+  let cur = secs[0];
+  for (const line of desc.split(/\r?\n/)) {
+    const h = line.match(/^\s{0,3}#{2,3}\s+(.+?)\s*#*\s*$/);
+    if (h) {
+      const nm = regHeadingName(h[1]);
+      if (nm) {
+        cur = secs.find((s) => s.head && regFold(s.head) === regFold(nm)) || { head: nm, declared: null, aliases: [] };
+        if (secs.indexOf(cur) < 0) secs.push(cur);
+      }
+      continue;
+    }
+    const cl = line.replace(/^[\s>*\-+•·]+/u, "").replace(/[*_`]+/g, "").trim();
+    let m = cl.match(REG_NAME_LINE);
+    if (m) {
+      const v = regLineName(m[1]);
+      if (v) {
+        if (!cur.declared) cur.declared = v;
+        else cur.aliases.push(v);
+      }
+      continue;
+    }
+    m = cl.match(REG_ALIAS_LINE);
+    if (m) for (const a of regSplitAliases(m[1])) cur.aliases.push(a);
+  }
+  const heads = secs.slice(1);
+  const cardIsPerson = !!cardName && heads.length < 2;
+  const out = [];
+  const put = (nm, al) => {
+    let p = out.find((q) => regSame(q.name, nm));
+    if (p) {
+      if (regTokens(nm).length > regTokens(p.name).length) {
+        const old = p.name;
+        p.name = nm;
+        regPushAlias(p, old);
+      } else regPushAlias(p, nm);
+    } else {
+      p = { name: nm, aliases: [] };
+      out.push(p);
+    }
+    for (const a of al) regPushAlias(p, a);
+    return p;
+  };
+  let cp = null;
+  if (cardIsPerson) cp = put(cardName, []);
+  const sectionPersons = [];
+  for (const s of heads) sectionPersons.push(put(s.declared || s.head, [...(s.declared && s.declared !== s.head ? [s.head] : []), ...s.aliases]));
+  const s0 = secs[0];
+  const target = cp || out[0] || null;
+  if (target) {
+    if (s0.declared) {
+      if (regSame(target.name, s0.declared)) put(s0.declared, []);
+      else if (cp) {
+        const old = target.name;
+        target.name = s0.declared;
+        regPushAlias(target, old);
+      } else regPushAlias(target, s0.declared);
+    }
+    for (const a of s0.aliases) regPushAlias(target, a);
+  } else if (s0.declared) {
+    put(s0.declared, s0.aliases);
+  }
+  // a role before the name ("Queen of Elves Rhea Faeth"): the name alone is another spelling of the section's person
+  for (const p of sectionPersons) {
+    const t = regTrailName(p.name);
+    if (t) regPushAlias(p, t);
+  }
+  return { persons: out, cardIsPerson };
+}
+
+// ---------- seeding ----------
+
+function regSeedOne(reg, p, src, cardId) {
+  const first = regFind(reg, p.name, "person", null, null);
+  if (first && first.id === "user" && src === "card") return null;
+  const r = regFind(reg, p.name, "person", null, ["user"]);
+  // a soul that fits two people is not a third one
+  if (r && r.ambiguous && src !== "card") return null;
+  let e = null;
+  if (r && r.id) {
+    e = regGet(reg, r.id);
+    if (src === "card" && e.id !== "user" && e.src !== "card" && regFold(e.name) !== regFold(p.name)) {
+      // a soul or story entity that is a shorter spelling of this card person: the card person is the entity, the other joins it
+      const made = regAdd(reg, { kind: "person", name: p.name, src, card: cardId });
+      if (made) regMerge(reg, e.id, made.id);
+      e = made || e;
+    } else {
+      regAlias(reg, e.id, p.name, src);
+      if (cardId && src === "card" && !e.card) e.card = String(cardId);
+    }
+  } else {
+    e = regAdd(reg, { kind: "person", name: p.name, src, card: src === "card" ? cardId : undefined });
+  }
+  if (!e) return null;
+  for (const a of p.aliases || []) regAlias(reg, e.id, a, src);
+  return e;
+}
+
+/**
+ * Merge a soul, group or story entity into the card person it now resolves to (an old registry made before the card
+ * reader learned to read role-prefixed headings has both). Only a clear match counts (steps 1 to 3b, one candidate, not
+ * apart; a story entity is not merged on step 3, a single shared word). Returns the number of merges.
+ */
+function regReconcile(reg) {
+  let n = 0;
+  for (const e of reg.entities.slice()) {
+    if (e.merged || e.id === "user" || e.kind !== "person" || !["soul", "seen", "group"].includes(e.src)) continue;
+    const skip = reg.entities.filter((x) => x.kind !== "person" || x.merged || x.src !== "card").map((x) => x.id);
+    const r = regFind(reg, e.name, "person", e.id, skip);
+    // a single word that is the first or last word of a name (step 3) is a guess a story entity leaves to the user (a suggestion)
+    if (r && r.id && r.step <= 3.5 && !(e.src === "seen" && r.step === 3) && regMerge(reg, e.id, r.id)) n++;
+  }
+  return n;
+}
+
+/**
+ * Drop the card entities the cards no longer produce (an old registry holds a card title as a person) when nothing
+ * refers to them: not merged, nothing merged into them, not in `keepIds` (the ids the caller still uses). Does nothing
+ * without cards. Returns the number dropped. `cards` as in regSeed.
+ */
+function regPrune(reg, cards, keepIds) {
+  const list = Array.isArray(cards) ? cards.filter((c) => c && typeof c === "object") : [];
+  if (!list.length) return 0;
+  const made = new Set();
+  const ids = new Set();
+  for (const item of list) {
+    const wrapped = item.card && typeof item.card === "object";
+    if (item.id != null && wrapped) ids.add(String(item.id));
+    for (const p of regCardNames(wrapped ? item.card : item).persons) {
+      made.add(regFold(p.name));
+      for (const a of p.aliases) made.add(regFold(a));
+    }
+  }
+  const keep = new Set(Array.isArray(keepIds) ? keepIds : keepIds ? [...keepIds] : []);
+  const target = new Set(reg.entities.filter((e) => e.merged).map((e) => e.merged));
+  const drop = new Set();
+  for (const e of reg.entities) {
+    if (e.src !== "card" || e.merged || e.id === "user" || e.kind !== "person" || keep.has(e.id) || target.has(e.id)) continue;
+    if (e.card && ids.size && !ids.has(e.card)) continue;
+    if (!made.has(regFold(e.name))) drop.add(e.id);
+  }
+  if (!drop.size) return 0;
+  reg.entities = reg.entities.filter((e) => !drop.has(e.id));
+  reg.apart = (reg.apart || []).filter((q) => !drop.has(q[0]) && !drop.has(q[1]));
+  reg.suggest = (reg.suggest || []).filter((q) => !drop.has(q.a) && !drop.has(q.b));
+  return drop.size;
+}
+
+/**
+ * Make sure the people the chat starts with exist: the persona as `user`, every person of each card (`cards` are
+ * card objects or { id, card }), and the card souls (`souls`: { [name]: { aliases? } }). Resolves first, so doing it
+ * twice changes nothing. Returns the registry.
+ */
+function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
+  if (personaName) regUser(reg, personaName);
+  for (const item of Array.isArray(cards) ? cards : []) {
+    if (!item || typeof item !== "object") continue;
+    const wrapped = item.card && typeof item.card === "object";
+    const card = wrapped ? item.card : item;
+    const id = item.id;
+    for (const p of regCardNames(card).persons) regSeedOne(reg, p, "card", id);
+  }
+  regReconcile(reg);
+  const names = souls && typeof souls === "object" ? Object.keys(souls) : [];
+  for (const name of names) {
+    const s = souls[name];
+    regSeedOne(reg, { name, aliases: s && Array.isArray(s.aliases) ? s.aliases.filter((x) => typeof x === "string") : [] }, "soul");
+  }
+  return reg;
+}
+
+// ---------- files ----------
+
+/** Where a chat's registry lives under the app's data folder. */
+const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
+
+const REG_ID = /^(?:user|[pol]\d+)$/;
+
+/** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
+function regValidate(raw, chatId, from) {
+  const reg = regNew(chatId, from);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
+  const ids = new Set();
+  const kinds = { person: 1, thing: 1, place: 1 };
+  // an older registry numbered things t1, t2 ...; they are o1, o2 ... now (threads kept t#)
+  const oldThing = new Map();
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (e && typeof e === "object" && e.kind === "thing" && typeof e.id === "string" && /^t\d+$/.test(e.id)) oldThing.set(e.id, "o" + e.id.slice(1));
+  }
+  const upId = (x) => (oldThing.has(x) ? oldThing.get(x) : x);
+  if (oldThing.size) {
+    raw = {
+      ...raw,
+      entities: raw.entities.map((e) => (e && typeof e === "object" && (oldThing.has(e.id) || oldThing.has(e.merged)) ? { ...e, id: upId(e.id), ...(e.merged ? { merged: upId(e.merged) } : {}) } : e)),
+      apart: Array.isArray(raw.apart) ? raw.apart.map((p) => (Array.isArray(p) ? p.map(upId) : p)) : raw.apart,
+      suggest: Array.isArray(raw.suggest) ? raw.suggest.map((q) => (q && typeof q === "object" ? { ...q, a: upId(q.a), b: upId(q.b) } : q)) : raw.suggest,
+    };
+  }
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
+    const name = regOneLine(e.name).slice(0, 80);
+    if (!regFold(name) || !kinds[e.kind]) continue;
+    if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
+    const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
+    regAliasList(out, e.aliases, "seen");
+    // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
+    // one in another alphabet cannot be judged by words and stays
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceSame(a.text, name));
+    if (typeof e.card === "string" && e.card) out.card = e.card;
+    if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
+    ids.add(e.id);
+    reg.entities.push(out);
+  }
+  for (const e of reg.entities) {
+    if (e.merged && (!ids.has(e.merged) || e.merged === e.id || e.id === "user")) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.merged && !regGet(reg, e.id)) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.id === "user") continue;
+    const n = Number(e.id.slice(1));
+    const k = e.id[0];
+    if (n >= reg.next[k]) reg.next[k] = n + 1;
+  }
+  for (const k of ["p", "o", "l"]) {
+    const stored = raw.next && Number(k === "o" && raw.next.o == null ? raw.next.t : raw.next[k]);
+    if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
+  }
+  for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
+    if (Array.isArray(p) && p.length === 2 && p[0] !== p[1] && ids.has(p[0]) && ids.has(p[1]) && !reg.apart.some((q) => regPairHas(q, p[0], p[1]))) {
+      reg.apart.push([p[0], p[1]]);
+    }
+  }
+  for (const s of Array.isArray(raw.suggest) ? raw.suggest : []) {
+    if (s && typeof s === "object" && s.a !== s.b && ids.has(s.a) && ids.has(s.b) && !reg.suggest.some((q) => regPairHas([q.a, q.b], s.a, s.b))) {
+      reg.suggest.push({ a: s.a, b: s.b, why: regOneLine(s.why).slice(0, 80) });
+    }
+  }
+  return reg;
+}
+
+/**
+ * The chat's registry: its own file; else a copy of the registry of chat `from` (a chat that continues another);
+ * else an empty one. A malformed file gives an empty registry. `fsx` has read(rel) (throws when missing).
+ */
+function regLoad(fsx, chatId, from) {
+  const readJson = (rel) => {
+    try {
+      return { ok: true, value: JSON.parse(fsx.read(rel)) };
+    } catch (e) {
+      return { ok: false, missing: !(e instanceof SyntaxError) };
+    }
+  };
+  const own = readJson(regPath(chatId));
+  if (own.ok) return regValidate(own.value, chatId, from || (own.value && own.value.from) || null);
+  if (!own.missing) return regNew(chatId, from);
+  if (from) {
+    const base = readJson(regPath(from));
+    if (base.ok) return regValidate(base.value, chatId, from);
+  }
+  return regNew(chatId, from);
+}
+
+/** Write the registry to its file. */
+function regSave(fsx, reg) {
+  fsx.write(regPath(reg.chatId), JSON.stringify(reg));
+  return reg;
+}
+// ==== END GENERATED: entity-registry ====
 const cut = (s, n) => (s.length > n ? s.slice(0, n) : s);
 /** A text shown to the player, shortened at a word with an ellipsis instead of mid-word. */
 const shorten = (s, n) => {
@@ -382,11 +1214,23 @@ export function normalizeState(raw, chatId) {
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
+  // the entity registry's person for each NPC record: { "n3": "p7" } (the registry file is data/registry/<chatId>.json)
+  if (isObj(s.regIds)) {
+    const ids = {};
+    // a person links to p#, a thing to t#, a place to l#
+    for (const [rid, pid] of Object.entries(s.regIds)) {
+      const rec = entities.find((e) => e.id === rid);
+      if (typeof pid === "string" && rec && REG_LINK_LETTER[rec.kind] && pid.startsWith(REG_LINK_LETTER[rec.kind]) && /^[pol]\d{1,6}$/.test(pid)) ids[rid] = pid;
+    }
+    if (Object.keys(ids).length) out.regIds = ids;
+  }
   // what the last run changed: record ids and characters whose carry moved, for the Dashboard's counters
   if (isObj(s.lastChange)) out.lastChange = { at: Number.isFinite(s.lastChange.at) ? s.lastChange.at : 0, ids: arr(s.lastChange.ids).map(str).filter(Boolean).slice(0, CHANGED_MAX), carry: arr(s.lastChange.carry).map(str).filter(Boolean).slice(0, CARRY_WHO_MAX) };
   // the message the last full run (fronts, events) read up to, and the place the last run saw
   if (typeof s.levelKey === "string" && s.levelKey) out.levelKey = s.levelKey;
   if (typeof s.lastPlace === "string" && s.lastPlace) out.lastPlace = cut(s.lastPlace, NAME_MAX * 2);
+  // the registry id of that place, when the Dashboard gave one (the move check compares ids first)
+  if (typeof s.lastPlaceId === "string" && /^l\d{1,6}$/.test(s.lastPlaceId)) out.lastPlaceId = s.lastPlaceId;
   if (arr(s.sweepAsked).length) out.sweepAsked = arr(s.sweepAsked).map(str).filter(Boolean).slice(-SWEEP_ASKED_MAX);
   if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
@@ -517,7 +1361,10 @@ export function behindOf(unread) {
  * key, stagnant } (stagnant = turns since the place, the cast or the scene last changed), or
  * null when the Dashboard has no snapshot for this chat.
  */
-const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
+const THING_ID = /^o\d{1,6}$/;
+const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ ...(THING_ID.test(str(o.id)) ? { id: str(o.id) } : {}), item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
+/** A character's worn and held things as the Dashboard registered them: [{ id: "t#", kind: "wear" | "hold", text }]. Entries without an id are dropped (the words stay in outfit / holding). */
+const sceneItems = (list) => arr(list).filter((x) => isObj(x) && THING_ID.test(str(x.id))).slice(0, 24).map((x) => ({ id: str(x.id), kind: x.kind === "hold" ? "hold" : "wear", text: cut(str(x.text), ITEM_MAX) }));
 
 export function sceneOf(fsx, chatId, msgs) {
   const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
@@ -541,13 +1388,19 @@ export function sceneOf(fsx, chatId, msgs) {
     stagnant,
     // where the sensor puts the scene now (free text), and who is in it
     place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
+    // the registry id of that place, when the sensor's place was resolved (clock.placeId)
+    ...(isObj(last.clock) && /^l\d{1,6}$/.test(str(last.clock.placeId)) ? { placeId: str(last.clock.placeId) } : {}),
     present: arr(last.present).map(str).filter(Boolean).slice(0, 12),
     // every place the sensor named along the line (newest first), the things lying around now and the ones left in the place the story just left (#185)
     places: placesAlong(snaps, line),
     objects: layoutThings(isObj(last.layout) ? last.layout.objects : []),
     left: isObj(last.layout) && isObj(last.layout.left) ? { place: cut(str(last.layout.left.place), NAME_MAX * 2), objects: layoutThings(last.layout.left.objects) } : null,
     // the sensor's own lines per character (free text), for the outfit when the sensor keeps it
-    chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding))).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200) }])),
+    chars: Object.fromEntries(Object.entries(isObj(last.chars) ? last.chars : {}).filter(([, c]) => isObj(c) && (str(c.outfit) || str(c.holding) || sceneItems(c.items).length)).slice(0, 12).map(([n, c]) => [cut(n, NAME_MAX), { outfit: cut(str(c.outfit), 300), holding: cut(str(c.holding), 200), ...(sceneItems(c.items).length ? { items: sceneItems(c.items) } : {}) }])),
+    // objects of the places the scene left, kept by place id (layout.byPlace, when the Dashboard writes it)
+    ...(isObj(last.layout) && isObj(last.layout.byPlace) && Object.keys(last.layout.byPlace).length
+      ? { byPlace: Object.fromEntries(Object.entries(last.layout.byPlace).filter(([k]) => /^l\d{1,6}$/.test(k)).slice(0, 12).map(([k, v]) => [k, layoutThings(v)])) }
+      : {}),
   };
 }
 
@@ -591,18 +1444,24 @@ export function sweepCandidates(state, scene) {
   const out = { places: [], things: [] };
   if (!scene) return out;
   const asked = arr(state.sweepAsked);
+  const linked = new Set(Object.values(isObj(state.regIds) ? state.regIds : {}));
   const seen = (kind, name) => state.entities.some((e) => e.kind === kind && namesOf(e).some((n) => covered(n, name))) || asked.some((k) => covered(k, name));
   for (const name of arr(scene.places)) {
     if (out.places.length >= SWEEP_PLACES) break;
     if (!seen("place", name) && !out.places.some((o) => looseSame(o, name))) out.places.push(name);
   }
+  // the scene's own place has the tracker's id: the DM's record of it carries that id (ref) whatever language it is named in
+  const here = scene.placeId ? out.places.find((n) => looseSame(n, str(scene.place))) : "";
+  if (here) out.placeIds = { [here]: scene.placeId };
   const lying = [
-    ...arr(scene.objects).map((o) => ({ name: o.item, where: o.where, place: scene.place })),
-    ...arr(scene.left && scene.left.objects).map((o) => ({ name: o.item, where: o.where, place: scene.left.place })),
+    ...arr(scene.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.place })),
+    ...arr(scene.left && scene.left.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.left.place })),
   ];
   for (const t of lying) {
     if (out.things.length >= SWEEP_THINGS) break;
-    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ name: t.name, where: str(t.where), place: str(t.place) });
+    // a thing the World already linked by its registry id is on record, whatever it is called now
+    if (t.id && linked.has(t.id)) continue;
+    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ ...(t.id ? { id: str(t.id) } : {}), name: t.name, where: str(t.where), place: str(t.place) });
   }
   return out;
 }
@@ -617,11 +1476,44 @@ function markSwept(state, c) {
   const names = [...c.places, ...c.things.map((t) => t.name)].map((n) => cut(n, NAME_MAX * 2));
   state.sweepAsked = [...arr(state.sweepAsked), ...names.filter((n) => !arr(state.sweepAsked).some((k) => covered(k, n)))].slice(-SWEEP_ASKED_MAX);
 }
+const TRACKED_MAX = 10;
+/**
+ * The things the scene tracker keeps in the scene now (lying, or held by someone) that no active record is linked to,
+ * with their ids. The DM ties a record of its own to one of them with an update's ref, so a thing it named in the story's
+ * language and the tracker named in its own words become one. Things the sweep offers are left to the sweep.
+ */
+export function trackedThings(state, scene, rc, sweep) {
+  if (!scene || !rc) return [];
+  const linked = new Set(
+    Object.entries(isObj(state.regIds) ? state.regIds : {})
+      .filter(([k]) => state.entities.some((e) => e.id === k && e.status === "active"))
+      .map(([, v]) => regCanonId(rc.reg, v)),
+  );
+  const swept = new Set(arr(sweep && sweep.things).map((t) => str(t.id)).filter(Boolean));
+  const out = [];
+  const put = (id, text, where) => {
+    const cid = regCanonId(rc.reg, id);
+    if (!THING_ID.test(cid) || linked.has(cid) || swept.has(id) || out.some((o) => o.id === cid)) return;
+    out.push({ id: cid, text: cut(str(text), NAME_MAX), where: cut(str(where), NAME_MAX) });
+  };
+  // the scene's own place, when no place record is linked to it yet
+  const pid = scene.placeId ? regCanonId(rc.reg, scene.placeId) : "";
+  if (/^l\d{1,6}$/.test(pid) && !linked.has(pid) && str(scene.place)) out.push({ id: pid, text: cut(str(scene.place), NAME_MAX), where: "the scene's place now" });
+  for (const o of arr(scene.objects)) if (o.id) put(o.id, o.item, o.where);
+  for (const [who, c] of Object.entries(isObj(scene.chars) ? scene.chars : {})) for (const i of arr(c.items)) if (i.kind === "hold") put(i.id, i.text, who + " holds it");
+  return out.slice(0, TRACKED_MAX);
+}
+/** The block of a DM run that lists the tracker's unlinked things and place. */
+function trackedInput(list) {
+  return "Things and the place the scene tracker keeps, by its id\n" + list.map((t) => t.id + " " + t.text + (t.where ? " (" + t.where + ")" : "")).join("; ") + ".\nWhen one of your records is one of these, whatever language it is named in, send an update of that record with its ref.";
+}
+
 /** The block of a DM run that lists what the sweep found. */
 function sweepInput(c) {
   const rows = [];
-  if (c.places.length) rows.push("Places: " + c.places.join("; ") + ".");
-  if (c.things.length) rows.push("Things: " + c.things.map((t) => t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
+  const ids = isObj(c.placeIds) ? c.placeIds : {};
+  if (c.places.length) rows.push("Places: " + c.places.map((n) => (ids[n] ? ids[n] + " " : "") + n).join("; ") + ".");
+  if (c.things.length) rows.push("Things: " + c.things.map((t) => (t.id ? t.id + " " : "") + t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
   return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it) and each thing that matters or lies somewhere it can be found again. Leave out what is only passing. Name them as the story does.";
 }
 
@@ -641,7 +1533,7 @@ export function dueReason(state, msgs, scene) {
   if (state.settings.onTransition && scene && scene.direction === "transition" && state.transitionKey !== scene.key) return "transition";
   // the story left a place: write the scene it was. Two new replies at least, so a place the sensor words
   // differently from one reply to the next does not run the DM every time
-  if (state.settings.onPlace && scene && placeKey(scene.place) && state.lastPlace && placeKey(scene.place) !== state.lastPlace && repliesSince(msgs, state.lastKey) >= 2) return "place";
+  if (state.settings.onPlace && scene && placeKey(scene.place) && state.lastPlace && placeMoved(state, scene) && repliesSince(msgs, state.lastKey) >= 2) return "place";
   const due = dueParts(state, msgs);
   if (due.full === 0) return "every";
   if (due.records === 0) return "records";
@@ -697,6 +1589,225 @@ function userNameOf(fsx, meta) {
   return "";
 }
 
+// ---------- the entity registry (#240): a person keeps one name across the World DM, Litopys and the Dashboard ----------
+// Persons whose own source is not the story: the DM never records them as NPCs.
+const REG_OWN_SRC = ["persona", "card", "soul", "group"];
+
+function cardObjects(fsx, meta) {
+  const out = [];
+  for (const id of memberIds(fsx, meta)) {
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    if (isObj(card)) out.push({ id, card });
+  }
+  return out;
+}
+
+/**
+ * The chat's registry context: the registry (loaded, seeded with the chat's cards and the persona, saved when seeding
+ * added something: regSeed is idempotent) and the Dashboard's display names for people (read only). `dirty` = the
+ * registry changed since; save it with regFlush.
+ */
+export function openRegistry(fsx, chatId, meta) {
+  let reg;
+  try {
+    reg = regLoad(fsx, chatId);
+    const before = JSON.stringify(reg);
+    regSeed(reg, { cards: cardObjects(fsx, meta), personaName: userNameOf(fsx, meta) });
+    if (JSON.stringify(reg) !== before) regSave(fsx, reg);
+  } catch {
+    reg = regNew(chatId);
+  }
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  return { reg, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null, dirty: false };
+}
+
+/** The chat's registry for reading only (nothing is seeded or saved), or null. */
+function regView(fsx, chatId) {
+  try {
+    return regLoad(fsx, chatId);
+  } catch {
+    return null;
+  }
+}
+
+/** Save the registry when this run changed it. Call it right after the change, with a registry opened right before it. */
+export function regFlush(fsx, rc) {
+  if (!rc || !rc.dirty) return;
+  rc.dirty = false;
+  try {
+    regSave(fsx, rc.reg);
+  } catch {}
+}
+
+/** The registry person a word means (a learned spelling is kept as an alias), or null. */
+function regPersonOf(rc, text) {
+  const s = str(text);
+  if (!rc || !s) return null;
+  const r = resolveName(rc.reg, s, "person");
+  if (!r || !r.id) return null;
+  const e = regGet(rc.reg, r.id);
+  if (e && r.step > 1 && e.id !== "user" && regLearn(rc.reg, e.id, s)) rc.dirty = true;
+  return e;
+}
+
+/** How the Dashboard and the rest of the app name this person: `user` for the user's character, else the Dashboard's display name for the id, else the registry name. */
+function regDisplay(rc, e) {
+  if (e.id === "user") return "user";
+  if (rc.ids) {
+    for (const [k, v] of Object.entries(rc.ids)) {
+      if (typeof v === "string" && typeof k === "string") {
+        const t = regGet(rc.reg, v);
+        if (t && t.id === e.id && !/^(?:user|[pol]\d+)$/.test(k)) return k;
+      }
+      if (typeof v === "string" && regGet(rc.reg, k) && regGet(rc.reg, k).id === e.id && /^(?:user|[pol]\d+)$/.test(k)) return v;
+    }
+  }
+  return e.name;
+}
+
+/** A name written by the DM, as the app names that person; unknown names stay as written. */
+function regCanon(rc, text) {
+  const s = str(text);
+  if (!rc || !s) return s;
+  const e = regPersonOf(rc, s);
+  return e ? regDisplay(rc, e) : s;
+}
+
+/** The NPC record of the person this word means (by the registry), or null. */
+function npcRecordOf(state, rc, text) {
+  const e = regPersonOf(rc, text);
+  if (!e || !isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => {
+    const t = regGet(rc.reg, state.regIds[k]);
+    return !!t && t.id === e.id;
+  });
+  return rid ? state.entities.find((x) => x.id === rid) || null : null;
+}
+
+/** The registry id letter of each record kind that is linked: a person p#, a thing o#, a place l# (state.regIds). */
+const REG_LINK_LETTER = { person: "p", thing: "o", place: "l" };
+
+/** The registry id after merges (the Dashboard may hold an id that was merged into another); the same text when the registry does not know it. */
+const regCanonId = (reg, id) => {
+  const e = reg && str(id) ? regGet(reg, str(id)) : null;
+  return e ? e.id : str(id);
+};
+
+/** The registry thing or place (kind) a word means, or null; a learned spelling is kept as an alias. */
+function regKindOf(rc, text, kind) {
+  const w = str(text);
+  if (!rc || !w) return null;
+  const r = resolveName(rc.reg, w, kind);
+  if (!r || !r.id) return null;
+  const e = regGet(rc.reg, r.id);
+  if (!e || e.kind !== kind) return null;
+  if (r.step > 1 && regLearn(rc.reg, e.id, w)) rc.dirty = true;
+  return e;
+}
+
+/** The record of this kind linked to the registry entity a word means (any spelling of it), or null. */
+function recordOfKind(state, rc, text, kind) {
+  const e = regKindOf(rc, text, kind);
+  if (!e || !isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => regCanonId(rc.reg, state.regIds[k]) === e.id && state.entities.some((x) => x.id === k && x.kind === kind && x.status === "active"));
+  return rid ? state.entities.find((x) => x.id === rid) : null;
+}
+
+/** A tracker id the DM wrote (ref): o# for a thing, l# for a place. */
+const REF_ID = /^[ol]\d{1,6}$/;
+
+/** The registry entity a DM's ref means: the right letter for the kind, known to the registry, of that kind; else null. */
+function refEntity(rc, ref, kind) {
+  const r = str(ref);
+  if (!rc || !REF_ID.test(r) || r[0] !== REG_LINK_LETTER[kind]) return null;
+  const e = regGet(rc.reg, r);
+  return e && e.kind === kind ? e : null;
+}
+
+/** The active record of this kind already linked to that registry entity, or null. */
+function recordOfRef(state, rc, e, kind) {
+  if (!isObj(state.regIds)) return null;
+  const rid = Object.keys(state.regIds).find((k) => regCanonId(rc.reg, state.regIds[k]) === e.id && state.entities.some((x) => x.id === k && x.kind === kind && x.status === "active"));
+  return rid ? state.entities.find((x) => x.id === rid) : null;
+}
+
+/**
+ * Link a record to the tracker's entity the DM named by ref. The record's name (the story's language) becomes an alias of
+ * it. A record the World had linked to an entity of its own (a copy made before the ids were shown) has that copy merged
+ * into the tracker's, so the two stay one. A record linked to another tracker entity is left alone: the DM may be wrong.
+ */
+function linkToRef(state, rc, rec, e) {
+  const now = isObj(state.regIds) ? state.regIds[rec.id] : "";
+  const cur = now ? regGet(rc.reg, now) : null;
+  if (cur && cur.id === e.id) return;
+  if (cur && cur.src !== "world") return;
+  if (recordOfRef(state, rc, e, rec.kind)) return;
+  if (cur && regMerge(rc.reg, cur.id, e.id)) rc.dirty = true;
+  (state.regIds ||= {})[rec.id] = e.id;
+  for (const n of namesOf(rec)) if (regAlias(rc.reg, e.id, n, "world")) rc.dirty = true;
+}
+
+/**
+ * Link a thing or place record to the registry (state.regIds): the registry entity its name means (the Dashboard may have
+ * registered it already), else a new one made by the World. Already linked, retired and other kinds are left alone.
+ */
+function linkRecord(state, rc, rec) {
+  if (!rc || !rec || (rec.kind !== "thing" && rec.kind !== "place") || rec.status !== "active") return;
+  const now = isObj(state.regIds) ? state.regIds[rec.id] : "";
+  if (now && regGet(rc.reg, now)) return;
+  let e = null;
+  for (const n of namesOf(rec)) {
+    e = regKindOf(rc, n, rec.kind);
+    if (e) break;
+  }
+  if (e) {
+    if (regAlias(rc.reg, e.id, rec.name, "world")) rc.dirty = true;
+  } else {
+    e = regAdd(rc.reg, { kind: rec.kind, name: rec.name, src: "world", aliases: rec.aliases });
+    if (e) rc.dirty = true;
+  }
+  if (e) (state.regIds ||= {})[rec.id] = e.id;
+}
+
+/** The parent place or the place a record names (inside / place), written as the linked place record's name; the text when no record answers to it. */
+function canonPlaceName(state, rc, text, self) {
+  const w = str(text);
+  if (!rc || !w) return w;
+  const p = recordOfKind(state, rc, w, "place");
+  return p && (!self || p.id !== self.id) ? p.name : w;
+}
+
+/** After a report: every thing and place record is linked, and an inside / place that names a recorded place uses that record's name. */
+function settleLinks(state, rc) {
+  if (!rc) return;
+  for (const e of state.entities) linkRecord(state, rc, e);
+  for (const e of state.entities) {
+    if (e.status !== "active") continue;
+    if (e.kind === "place" && e.inside) e.inside = cut(canonPlaceName(state, rc, e.inside, e), NAME_MAX);
+    else if (e.kind === "thing" && e.place) e.place = cut(canonPlaceName(state, rc, e.place), NAME_MAX);
+  }
+}
+
+/** The cast line of a DM run: the cards' people with the other names they answer to. */
+export function castOf(rc, cards) {
+  if (!rc) return cards;
+  const out = [];
+  const seen = new Set();
+  const put = (e, fallback) => {
+    if (e && seen.has(e.id)) return;
+    if (e) seen.add(e.id);
+    const name = e ? e.name : fallback;
+    const also = e ? e.aliases.map((a) => a.text).slice(0, 6) : [];
+    out.push(name + (also.length ? " (also " + also.join(", ") + ")" : ""));
+  };
+  for (const c of cards) {
+    const e = regPersonOf(rc, c);
+    put(e && e.id !== "user" ? e : null, c);
+  }
+  for (const e of rc.reg.entities) if (!e.merged && e.kind === "person" && ["card", "soul", "group"].includes(e.src)) put(e, e.name);
+  return out;
+}
+
 // ---------- the DM call ----------
 const CHRONICLER_RULES = [
   "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups, things and facts that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
@@ -722,8 +1833,9 @@ const SPACE_RULES = [
 // the reply's shape: locked, parseReply and applyReport depend on it
 const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"..."}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"..."}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
+  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
   "size, inside, holder and place are only for places and things; leave out what does not apply.",
+  "ref: the scene tracker's id of that thing (o3) or place (l2), when the input shows one before its name; the same thing or place keeps that id however you name it. Leave it out otherwise, never make one up.",
 ];
 const CARRY_JSON = '"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],';
 const CARRY_SHAPE = '"carry":[...],';
@@ -947,7 +2059,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, carry, sweep }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -960,9 +2072,10 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "The user's character (do not record): " + (userName || "the user") + ".",
     "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
-    ...(str(place) ? ["Where the scene is now (from the scene tracker): " + str(place) + "."] : []),
-    ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w, c)).join("\n") : ": nothing recorded yet.")]),
+    ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
+    ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
+    ...(arr(tracked).length ? [trackedInput(tracked)] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
@@ -1156,10 +2269,25 @@ const pastMaxOf = (settings) => clamp(Math.round((settings ? settings.textMax : 
  * recorded; a name already on record becomes an update; retired records stay retired.
  * Returns how many records changed.
  */
-export function applyReport(state, out, { cards, userName, now, touched }) {
+export function applyReport(state, out, { cards, userName, now, touched, rc }) {
   const at = now || Date.now();
   const skip = [...cards, ...(userName ? [userName] : [])];
   const isSkipped = (name) => skip.some((n) => sameName(n, name));
+  // with the registry (rc): a person it knows from a card, a soul or the persona is never an NPC, whatever the spelling;
+  // an NPC person is one record whatever the spelling; a holder is written as the app names that person
+  const isOwn = (name) => {
+    const e = rc ? regPersonOf(rc, name) : null;
+    return !!e && (e.id === "user" || REG_OWN_SRC.includes(e.src));
+  };
+  const canonSpace = (raw, self) => {
+    if (!rc) return raw;
+    const out = { ...raw };
+    if (str(raw.holder)) out.holder = cut(regCanon(rc, str(raw.holder)), NAME_MAX);
+    // a parent place or a place written in another spelling is the record the registry says it is
+    if (str(raw.inside)) out.inside = cut(canonPlaceName(state, rc, raw.inside, self), NAME_MAX);
+    if (str(raw.place)) out.place = cut(canonPlaceName(state, rc, raw.place), NAME_MAX);
+    return out;
+  };
   let changes = 0;
   // a draft (a world built without a chat) has no settings of its own: the defaults
   const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
@@ -1170,32 +2298,52 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
     if (!room() || !isObj(raw)) continue;
     const name = cut(str(raw.name), NAME_MAX);
     if (!name || isSkipped(name)) continue;
+    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
+    if (kind === "person" && isOwn(name)) continue;
     const text = cut(str(raw.text), textMax);
-    const known = findEntity(state.entities, { name });
+    const ref = kind === "thing" || kind === "place" ? refEntity(rc, raw.ref, kind) : null;
+    let known = ref ? recordOfRef(state, rc, ref, kind) : null;
+    if (!known) known = findEntity(state.entities, { name });
+    if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
+    if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
+    if (known && ref && known.status === "active") linkToRef(state, rc, known, ref);
     if (known) {
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
-      known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases)], known.name);
-      applySpace(known, raw);
+      known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases), ...(sameName(known.name, name) ? [] : [name])], known.name);
+      applySpace(known, canonSpace(raw, known));
       known.at = at;
       if (touched) touched.add(known.id);
       changes++;
       continue;
     }
     if (!text || state.entities.length >= ENTITIES_MAX) continue;
-    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
-    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...raw, background: undefined }) };
+    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(raw.aliases, name), text, status: "active", uid: 0, at, ...spaceFields(kind, { ...canonSpace(raw), background: undefined }) };
     state.entities.push(fresh);
+    if (ref) linkToRef(state, rc, fresh, ref);
+    if (kind === "thing" || kind === "place") linkRecord(state, rc, fresh);
+    if (kind === "person" && rc) {
+      // the NPC joins the registry (or the person the story already made there), and the record keeps its id
+      const seen = regPersonOf(rc, name);
+      const pe = seen || regAdd(rc.reg, { kind: "person", name, src: "world" });
+      if (pe) {
+        if (seen) regAlias(rc.reg, pe.id, name, "world");
+        else rc.dirty = true;
+        (state.regIds ||= {})[fresh.id] = pe.id;
+      }
+    }
     if (touched) touched.add(fresh.id);
     changes++;
   }
   for (const raw of arr(out.update)) {
     if (!room() || !isObj(raw)) continue;
-    const e = findEntity(state.entities, raw);
+    const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) || recordOfKind(state, rc, str(raw.name), "thing") || recordOfKind(state, rc, str(raw.name), "place") : null);
     if (!e || e.status === "past") continue;
+    const ref = e.kind === "thing" || e.kind === "place" ? refEntity(rc, raw.ref, e.kind) : null;
+    if (ref) linkToRef(state, rc, e, ref);
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
-    const moved = applySpace(e, { ...raw, background: undefined });
+    const moved = applySpace(e, { ...canonSpace(raw, e), background: undefined });
     if ((!text || text === e.text) && aliases.length === e.aliases.length && !moved) continue;
     if (text) e.text = text;
     e.aliases = aliases;
@@ -1203,6 +2351,8 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
     if (touched) touched.add(e.id);
     changes++;
   }
+  // the records the Dashboard or an older run left unlinked join the registry now; a parent named before it was recorded is settled
+  settleLinks(state, rc);
   for (const raw of arr(out.retire)) {
     if (!room() || !isObj(raw)) continue;
     const e = findEntity(state.entities, raw);
@@ -1221,14 +2371,19 @@ export function applyReport(state, out, { cards, userName, now, touched }) {
  * (others are records). A list that is sent replaces the old one; one that is left out stays. Returns the
  * names whose carry changed.
  */
-export function applyCarry(state, list, { cards, userName, now }) {
+export function applyCarry(state, list, { cards, userName, now, rc }) {
   const known = [...cards, ...(userName ? [userName] : [])];
   const changed = [];
   for (const raw of arr(list)) {
     if (!isObj(raw) || changed.length >= 6) continue;
-    const who = known.find((n) => sameName(n, str(raw.who)));
+    let who = known.find((n) => sameName(n, str(raw.who)));
+    // with the registry: any spelling of the user's character or of a card character, kept under the name the app uses
+    const legacy = who;
+    const e = rc ? regPersonOf(rc, str(raw.who)) : null;
+    if (e && (e.id === "user" || REG_OWN_SRC.includes(e.src))) who = regDisplay(rc, e);
     if (!who) continue;
-    const old = state.carry[who] || { wearing: [], carried: [], nearby: [], at: 0 };
+    const old = state.carry[who] || (legacy && state.carry[legacy]) || { wearing: [], carried: [], nearby: [], at: 0 };
+    if (legacy && legacy !== who && state.carry[legacy]) delete state.carry[legacy];
     const next = {
       wearing: raw.wearing !== undefined ? cleanItems(raw.wearing, WEARING_MAX) : old.wearing,
       carried: raw.carried !== undefined ? cleanCarried(raw.carried) : old.carried,
@@ -1326,11 +2481,36 @@ const OPS_WITH_EVENT = ["send", "next", "swipe"];
 const samePlace = (a, b) => !!placeKey(a) && placeKey(a) === placeKey(b);
 const refersTo = (rec, name) => !!rec && namesOf(rec).some((n) => samePlace(n, name));
 
+/**
+ * The story moved to another place since the last run: by registry ids when the scene and the last run both have one,
+ * else by the words (case, punctuation and spaces do not count). False when the scene has no place.
+ */
+export function placeMoved(state, scene) {
+  if (!scene || !placeKey(scene.place)) return false;
+  if (scene.placeId && state.lastPlaceId) return scene.placeId !== state.lastPlaceId;
+  return state.lastPlace !== placeKey(scene.place);
+}
+
+/**
+ * The active place record of the scene: the one linked to the scene's place id (clock.placeId), else the one the words
+ * point at (findPlace), skipping records that are linked to another place. reg = the chat's registry (merged ids), if loaded.
+ */
+export function placeRecordOf(state, scene, reg) {
+  if (!scene) return null;
+  const links = isObj(state.regIds) ? state.regIds : {};
+  const sid = scene.placeId ? regCanonId(reg, scene.placeId) : "";
+  if (sid) {
+    const linked = state.entities.filter((e) => e.kind === "place" && e.status === "active" && links[e.id] && regCanonId(reg, links[e.id]) === sid);
+    if (linked.length) return linked.find((e) => e.size === "spot") || linked[0];
+  }
+  return findPlace(state.entities, scene.place, sid ? (e) => !links[e.id] || regCanonId(reg, links[e.id]) === sid : undefined);
+}
+
 /** The active place record the sensor's free-text place points at: a name or alias, else the longest name (4+ letters) inside the text. */
-export function findPlace(entities, text) {
+export function findPlace(entities, text, accept) {
   const k = placeKey(text);
   if (!k) return null;
-  const places = entities.filter((e) => e.kind === "place" && e.status === "active");
+  const places = entities.filter((e) => e.kind === "place" && e.status === "active" && (!accept || accept(e)));
   const exact = places.find((e) => namesOf(e).some((n) => placeKey(n) === k));
   if (exact) return exact;
   // several names inside the text ("the apartment, the living room"): the more specific one, a spot, else the longest name
@@ -1356,9 +2536,12 @@ export function splitItems(text) {
 export function sensorCarry(scene) {
   const out = {};
   for (const [who, c] of Object.entries(scene && isObj(scene.chars) ? scene.chars : {})) {
-    const wearing = splitItems(c.outfit);
-    const hands = cut(str(c.holding), ITEM_MAX * 2);
-    if (wearing.length || hands) out[who] = { wearing, carried: [], nearby: [], hands, at: 0 };
+    // the sensor's lines first; a registered item list stands in for a line that is missing
+    const items = arr(c.items);
+    const wearing = str(c.outfit) ? splitItems(c.outfit) : cleanItems(items.filter((x) => x.kind === "wear").map((x) => x.text), WEARING_MAX);
+    const hands = str(c.holding) ? cut(str(c.holding), ITEM_MAX * 2) : cut(items.filter((x) => x.kind === "hold").map((x) => x.text).join(", "), ITEM_MAX * 2);
+    const ids = items.map((x) => x.id).filter(Boolean);
+    if (wearing.length || hands || ids.length) out[who] = { wearing, carried: [], nearby: [], hands, ...(ids.length ? { ids } : {}), at: 0 };
   }
   return out;
 }
@@ -1367,27 +2550,62 @@ export function sensorCarry(scene) {
  * What is here: the record of the scene's place and its parent, the things placed here (in the place, its
  * parent or one of its spots), the things held by people in the scene, the things asleep elsewhere, and what
  * the people in the scene wear and carry. extra = names always counted in (the user's character).
+ * reg = the chat's registry (optional): records and the Dashboard's places and things are matched by registry id first,
+ * by words when an id is missing on either side. `link` maps a thing record to its registry id.
  */
-export function hereOf(state, scene, extra) {
+export function hereOf(state, scene, extra, reg) {
   const entities = state.entities;
-  const place = scene && scene.place ? findPlace(entities, scene.place) : null;
-  const parent = place && place.inside ? entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, place.inside)) || null : null;
+  const links = isObj(state.regIds) ? state.regIds : {};
+  const canon = (id) => regCanonId(reg, id);
+  const linkOf = (e) => (links[e.id] ? canon(links[e.id]) : "");
+  const places = entities.filter((e) => e.kind === "place" && e.status === "active");
+  const place = scene ? placeRecordOf(state, scene, reg) : null;
+  // the active place record a name means: by the registry when it knows the name and a record is linked to it, else by the words
+  const placeNamed = (name) => {
+    const r = reg && str(name) ? resolveName(reg, name, "place") : null;
+    const id = r && r.id ? canon(r.id) : "";
+    const byId = id ? places.find((e) => linkOf(e) === id) : null;
+    return byId || places.find((e) => refersTo(e, name)) || null;
+  };
+  const parent = place && place.inside ? placeNamed(place.inside) : null;
   const related = new Set();
   if (place) {
     related.add(place.id);
     if (parent) related.add(parent.id);
-    for (const e of entities) if (e.kind === "place" && e.status === "active" && e.inside && refersTo(place, e.inside)) related.add(e.id);
+    for (const e of places) if (e.inside && placeNamed(e.inside) === place) related.add(e.id);
   }
-  const placeOf = (t) => (t.place ? entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, t.place)) || null : null);
+  const placeOf = (t) => (t.place ? placeNamed(t.place) : null);
+  // `user` (the registry's name for the user's character) is the first name of extra
+  const asName = (n) => (n === "user" && str(arr(extra)[0]) ? str(arr(extra)[0]) : n);
   const present = [...(scene ? arr(scene.present) : []), ...arr(extra)].filter((n, i, a) => a.findIndex((m) => samePlace(m, n)) === i);
   const inScene = (name) => !scene || !present.length || present.some((n) => samePlace(n, name));
+  // where the Dashboard has each registered thing: in someone's items, or among the objects lying here
+  const dash = new Map();
+  for (const [who, c] of Object.entries(scene && isObj(scene.chars) ? scene.chars : {})) for (const it of arr(c.items)) if (it.id) dash.set(canon(it.id), { holder: asName(who) });
+  for (const o of arr(scene && scene.objects)) if (o.id && !dash.has(canon(o.id))) dash.set(canon(o.id), { here: true });
+  // objects kept by place id for this scene's place (layout.byPlace) lie here as well
+  if (scene && scene.placeId && isObj(scene.byPlace)) for (const k of Object.keys(scene.byPlace)) if (canon(k) === canon(scene.placeId)) for (const o of arr(scene.byPlace[k])) if (o.id && !dash.has(canon(o.id))) dash.set(canon(o.id), { here: true });
   const things = [];
   const held = {};
   const asleep = [];
+  const link = {};
+  const shown = new Set();
   for (const t of entities) {
     if (t.kind !== "thing" || t.status !== "active") continue;
-    if (t.holder) {
-      if (inScene(t.holder)) (held[t.holder] ||= []).push(t);
+    const id = linkOf(t);
+    // one registry thing is one entry, even when two records were made of it
+    if (id && shown.has(id)) continue;
+    if (id) shown.add(id);
+    if (id) link[t.id] = id;
+    const at = id ? dash.get(id) : null;
+    if (at && at.holder) {
+      // the Dashboard says who has it, whether or not the DM recorded a holder
+      if (inScene(at.holder)) (held[at.holder] ||= []).push(t);
+      else asleep.push(t);
+    } else if (at && at.here) {
+      things.push(t);
+    } else if (t.holder) {
+      if (inScene(asName(t.holder))) (held[asName(t.holder)] ||= []).push(t);
       else asleep.push(t);
     } else if (t.place) {
       const p = placeOf(t);
@@ -1397,9 +2615,9 @@ export function hereOf(state, scene, extra) {
   }
   const carry = {};
   const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
-  for (const [who, c] of Object.entries(source)) if (inScene(who)) carry[who] = c;
-  const spots = place ? entities.filter((e) => e.kind === "place" && e.status === "active" && e.size === "spot" && e.inside && refersTo(place, e.inside)) : [];
-  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
+  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c.ids ? { ...c, ids: c.ids.map(canon) } : c;
+  const spots = place ? places.filter((e) => e.size === "spot" && e.inside && placeNamed(e.inside) === place) : [];
+  return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, link, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
 
 const firstSentence = (s) => {
@@ -1422,7 +2640,7 @@ export function hereInsert(h) {
     const bits = [];
     if (c && c.wearing.length) bits.push("wears " + c.wearing.slice(0, 8).join(", "));
     if (c && c.hands) bits.push("holds " + c.hands);
-    const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+    const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).filter((t) => !(c && c.ids && h.link && h.link[t.id] && c.ids.includes(h.link[t.id]))).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
     if (has.length) bits.push("has " + has.slice(0, 8).join(", "));
     if (c && c.nearby.length) bits.push("near them " + c.nearby.slice(0, 4).join(", "));
     if (bits.length) out.push(name + " " + bits.join("; ") + ".");
@@ -1666,7 +2884,7 @@ export function llmRequest(ctx, host) {
     if (dir === "explicit") return null;
     const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
     const parts = [];
-    const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : []));
+    const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : [], regView(fsx, chatId)));
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
     const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
@@ -2995,7 +4213,7 @@ function hereRoute(req, host) {
   const { state, existed } = loadState(host.fs, chatId);
   const on = existed ? state.settings.level !== "off" : autoOn(host.fs, chat.meta);
   const userName = userNameOf(host.fs, chat.meta);
-  const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : []);
+  const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : [], regView(host.fs, chatId));
   const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) });
   const heldRows = Object.entries(h.held).flatMap(([who, list]) => list.map((t) => ({ ...rec(t), who })));
   return ok({
@@ -3150,6 +4368,9 @@ function updateRoute(req, host) {
   const r = host.llm.results[key];
   const cards = cardNames(fsx, chat.meta);
   const userName = userNameOf(fsx, chat.meta);
+  const runReg = openRegistry(fsx, chatId, chat.meta);
+  const cast = castOf(runReg, cards);
+  const tracked = trackedThings(state, scene, runReg, sweep);
   const play = playModel(fsx, cfg, chat.meta);
   // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
   const take = takeUnread(unread);
@@ -3161,7 +4382,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
@@ -3205,8 +4426,11 @@ function updateRoute(req, host) {
   const out = parseReply(r.text);
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
   const touched = new Set();
-  const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now() }) : [];
-  const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched }) + carried.length;
+  // the registry is read right before it may change, and saved right after
+  const rc = openRegistry(fsx, chatId, chat.meta);
+  const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
+  const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
+  regFlush(fsx, rc);
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
   let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
@@ -3218,11 +4442,13 @@ function updateRoute(req, host) {
   if (!recordsOnly) state.levelKey = state.lastKey;
   if (scene && placeKey(scene.place)) {
     // a new visit: the story came to a place it was not in at the last run
-    if (state.lastPlace !== placeKey(scene.place)) {
-      const here = findPlace(state.entities, scene.place);
+    if (placeMoved(state, scene)) {
+      const here = placeRecordOf(state, scene, rc.reg);
       if (here) here.visits = (here.visits || 0) + 1;
     }
     state.lastPlace = placeKey(scene.place);
+    if (scene.placeId) state.lastPlaceId = scene.placeId;
+    else delete state.lastPlaceId;
   }
   state.lastRunAt = Date.now();
   if (str(r.model)) state.lastModel = str(r.model);

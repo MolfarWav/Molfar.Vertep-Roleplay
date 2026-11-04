@@ -10,7 +10,7 @@ import type { WorldHere } from '@/lib/world'
 /** The Dashboard tab that holds a change. */
 export type ChangeTab = 'person' | 'here' | 'quests'
 
-export type ChangeKind = 'mood' | 'carry' | 'fell' | 'rose' | 'place' | 'things' | 'quest' | 'proposal'
+export type ChangeKind = 'mood' | 'carry' | 'fell' | 'rose' | 'place' | 'things' | 'quest' | 'proposal' | 'duplicate'
 
 export interface DashChange {
   kind: ChangeKind
@@ -86,6 +86,10 @@ export function sinceChanges(view: DashView, here: WorldHere | null, focus: stri
     const c = view.chars[name]
     if (!c || c.compact) continue
     out.push(...personChanges(name, c, here).filter((x) => x.kind === 'fell'))
+  }
+  // two characters that may be one person: a chip that opens the first of them on the Person tab
+  for (const s of view.suggest ?? []) {
+    if (view.chars[s.a] && view.chars[s.b] && s.a !== s.b) out.push({ kind: 'duplicate', tab: 'person', who: s.a, negative: false, n: 1, to: s.b })
   }
   out.push(...sceneChanges(view, here))
   return out

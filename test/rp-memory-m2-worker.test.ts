@@ -266,7 +266,7 @@ describe("worker through tick", () => {
     expect(m.requests[0].req.model).toBe("x/y");
   });
 
-  it("cuts each message text to 1500 chars", () => {
+  it("reads a message whole when the scene fits the budget, and cuts a very long one in the middle (#236)", () => {
     const msgs = story(70);
     msgs[0].text = "x".repeat(2000);
     writeChat("c1", msgs, { updatedAt: Date.now() });
@@ -274,8 +274,17 @@ describe("worker through tick", () => {
     tick(m, [chapterReply("T", "X")]);
     const content = m.requests[0].req.messages[0].content;
     const lineForMsg = content.split("\n").find((l: string) => l.startsWith("[You]"));
-    expect(lineForMsg).toContain("x".repeat(1500));
-    expect(lineForMsg).not.toContain("x".repeat(1501));
+    expect(lineForMsg).toContain("x".repeat(2000));
+
+    const long = story(70);
+    long[0].text = "a".repeat(10000) + "MIDDLE" + "b".repeat(10000);
+    writeChat("c2", long, { updatedAt: Date.now() });
+    const m2 = mockHost();
+    tick(m2, [chapterReply("T", "X")]);
+    const line2 = m2.requests[0].req.messages[0].content.split("\n").find((l: string) => l.startsWith("[You]"));
+    expect(line2).toContain(" … ");
+    expect(line2).not.toContain("MIDDLE");
+    expect(line2!.length).toBeLessThan(12100);
   });
 
   it("does not call again when no other closed scene exists", () => {

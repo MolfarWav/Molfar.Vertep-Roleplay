@@ -325,11 +325,12 @@ describe("the sensor prompt and output shape for the journal", () => {
     expect(P.JOURNAL_PEOPLE_RULE).toContain(P.JOURNAL_LANGUAGE);
 
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const v16 = past.at(-1)!;
+    const v16 = past.at(-4)!;
     expect(v16).not.toContain(P.JOURNAL_THOUGHT_RULE);
     expect(v16).not.toContain(P.JOURNAL_PEOPLE_RULE);
     expect(v16).not.toBe(text);
-    expect(v16).toBe(text.split("\n").filter((l) => l !== P.JOURNAL_THOUGHT_RULE && l !== P.JOURNAL_PEOPLE_RULE).join("\n"));
+    // the seventeenth default is the sixteenth with the journal rules (and the older outfit rules)
+    expect(v16).toBe(past.at(-3)!.split("\n").filter((l) => l !== P.JOURNAL_THOUGHT_RULE && l !== P.JOURNAL_PEOPLE_RULE).join("\n"));
     // the split into blocks still gives the default back
     expect(P.promptOf("sensor", {})).toBe(text);
 

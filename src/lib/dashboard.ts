@@ -154,6 +154,9 @@ export interface DashChar {
   journal?: JournalLine[]
 }
 
+/** Two Dashboard characters that may be one person; `why` is the registry's reason. */
+export interface DashSuggest { a: string; b: string; why: string }
+
 export interface DashView {
   key: string
   turn: number
@@ -198,6 +201,8 @@ export interface DashView {
   calendar?: { source: 'text' | 'today' | 'user'; off: boolean } | null
   /** the journal's settings; absent on an older engine (see journalOf) */
   journal?: JournalSettings
+  /** pairs of characters that may be one person (display names), and why; absent on an older plugin */
+  suggest?: DashSuggest[]
 }
 
 /** "Mon, 26 Oct 2026" in the app's language; the date is a calendar date, so no time zone moves it. */
@@ -395,4 +400,18 @@ export async function armNudge(chatId: string, threadId: string | null, twist = 
 export async function clearNudge(chatId: string): Promise<null> {
   await j<{ ok?: boolean }>(`/dashboard/nudge?chatId=${encodeURIComponent(chatId)}`, { method: 'DELETE' })
   return null
+}
+
+/** The two ops that join or separate characters (POST /dashboard/notes). */
+export type MergeOp = { op: 'merge-character'; from: string; into: string } | { op: 'apart-characters'; a: string; b: string }
+
+/** The other side of every suggested pair that has `name` in it, the first suggestion first; pairs naming someone who is gone are skipped. */
+export function suggestionsFor(view: DashView | null, name: string): { other: string; why: string }[] {
+  if (!view?.suggest) return []
+  const out: { other: string; why: string }[] = []
+  for (const s of view.suggest) {
+    const other = s.a === name ? s.b : s.b === name ? s.a : ''
+    if (other && other !== name && view.chars[other]) out.push({ other, why: s.why })
+  }
+  return out
 }

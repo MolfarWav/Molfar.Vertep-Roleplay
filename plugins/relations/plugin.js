@@ -25,7 +25,8 @@
  *  GET  /dashboard/config                  effective config + events
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
- *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject)
+ *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject),
+ *                                          remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/other-seen {id?}      forget one event id the sensor invented that nobody could place, or all (GET /dashboard/config lists them as otherSeen)
  *  DELETE /dashboard/events                back to the default vocabulary
@@ -606,8 +607,19 @@ const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given 
 // What the sensor does with clothes, hands and places (#185). It reports changes only; code keeps the lists, so the sensor
 // never rewrites a garment it was not asked about (a colour drifted, "pink soft knit cardigan" became "a cardigan").
 const OUTFIT_RULE =
+  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), and the things lying in the scene (Objects here), every one with an id (o3, o4 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"o3\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. The text names the item as it is, in a few words (colour, fabric, cut, a lasting state such as torn or burnt), never what it touches, where it drags or what the character does in it: \"torn white silk gown\", not \"white silk gown dragging in wet grass gathering leaves\". A thing the character picks up from Objects here, or is handed by another character, is given by its id too. For one that is not listed anywhere, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"o3\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost. Give where only when the text says where it lies: the thing then lies there under the same id. Without where the item just leaves the character. Handing a thing to someone is off on the giver and see with its id on the receiver. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
+const OUTFIT_RULE_18 =
+  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), every item with an id (i1, i2 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"i1\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. For one that is not listed, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"i1\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost, with where it lies when the text says. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
+const OUTFIT_RULE_17 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding). Report only changes, each as { \"add\": [...], \"remove\": [...] }. add: a garment or thing the new messages first describe, or a character puts on or picks up. remove: one the text says is taken off, put down, dropped or lost; name it as the Previous state does. Give an added item once, with all its details (colour, fabric, cut) as the text states them. Never add what is already listed, never shorten it, never change a colour on a guess. When the text shows no change, leave the key out.";
 const LAYOUT_RULE =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"...\" } ], \"remove\": [\"o9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. An object is a thing a hand can pick up or move: never what a character wears or holds, never a living creature, and never a liquid, a stain, smoke, light, a sound or a spell. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
+// before an object was defined as a thing a hand can move (a puddle, a stain and a cocoon of mist were listed as objects)
+const LAYOUT_RULE_19 =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"...\" } ], \"remove\": [\"o9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
+const LAYOUT_RULE_18 =
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; code puts it among the objects. A thing picked up leaves objects by itself. A body or a fallen thing is an object too.";
+const LAYOUT_RULE_17 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
 
 // The character journal (Dashboard, docs/JOURNAL-HANDOFF.md): what a character thinks now, and how it sees the people it knows.
@@ -700,10 +712,16 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
+const SENSOR_PROMPT_19 = DEFAULT_PROMPTS.sensor.replace(LAYOUT_RULE, LAYOUT_RULE_19);
+// The eighteenth sensor prompt (before things got registry ids that follow them between hands and the floor: i1 per character, objects as words).
+const SENSOR_PROMPT_18 = SENSOR_PROMPT_19.replace(OUTFIT_RULE, OUTFIT_RULE_18).replace(LAYOUT_RULE_19, LAYOUT_RULE_18);
 // The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
-const SENSOR_PROMPT_16 = DEFAULT_PROMPTS.sensor.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
+// The seventeenth sensor prompt (before outfit and holding became a ledger of items with ids, #236).
+const SENSOR_PROMPT_17 = SENSOR_PROMPT_18.replace(OUTFIT_RULE_18, OUTFIT_RULE_17).replace(LAYOUT_RULE_18, LAYOUT_RULE_17);
+const SENSOR_PROMPT_16 = SENSOR_PROMPT_17.replace(JOURNAL_THOUGHT_RULE + "\n", "").replace(JOURNAL_PEOPLE_RULE + "\n", "");
 // The fifteenth sensor prompt (before the outfit and layout rules: clothes were rewritten from whatever the new text mentioned, #185).
-const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE + "\n" + LAYOUT_RULE + "\n", "");
+const SENSOR_PROMPT_15 = SENSOR_PROMPT_16.replace(OUTFIT_RULE_17 + "\n" + LAYOUT_RULE_17 + "\n", "");
 // The fourteenth sensor prompt (before threads became quests with kinds and steps, #117).
 const SENSOR_PROMPT_14 = SENSOR_PROMPT_15.replace(QUEST_RULES.join("\n"), THREADS_RULE_14);
 // The thirteenth sensor prompt (before the `said` rule named what is not said and asked for a strength, #98).
@@ -765,7 +783,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -777,8 +795,8 @@ export const OUTPUT_SHAPE = [
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"holding\": { \"add\": [\"item\"], \"remove\": [\"item\"] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
-  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"o1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"o2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"id\": \"o4\" }, { \"text\": \"item\" } ], \"off\": [ { \"id\": \"o3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
+  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"text\": \"text\", \"where\": \"text\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"text\" } ], \"remove\": [\"o9\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
@@ -804,6 +822,838 @@ const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const arr = (v) => (Array.isArray(v) ? v : []);
 const str = (v) => (typeof v === "string" ? v.trim() : "");
+// ==== BEGIN GENERATED: src/lib/entity-registry.js (bun scripts/sync-registry.ts) ====
+/**
+ * Entity registry: one id per person (later thing and place) in a chat. Design: docs/ENTITY-REGISTRY.md.
+ *
+ * Plain JavaScript with no imports and no dependencies, because plugins load one file each and cannot import
+ * from src/. `bun scripts/sync-registry.ts` copies this file (with `export ` removed) into plugins/relations,
+ * plugins/world and plugins/litopys; a test fails when a copy differs. Edit only this file, then run the script.
+ *
+ * Everything takes and returns plain objects. Nothing here runs at load time except constant definitions.
+ * Names that plugins might already use are prefixed `reg`; `resolveName` is the one exception.
+ */
+
+/** Title and honorific words (folded) that never count as a word of a name. */
+const REG_TITLES = new Set([
+  "queen", "king", "sir", "lady", "lord", "dr", "mr", "mrs", "ms", "miss", "prince", "princess", "captain", "master",
+  "mistress", "professor", "sensei", "san", "kun", "chan", "sama", "the", "of", "and",
+  "\u043a\u043e\u0440\u043e\u043b\u0435\u0432\u0430", "\u043a\u043e\u0440\u043e\u043b\u044c", "\u0441\u044d\u0440", "\u043b\u0435\u0434\u0438", "\u0433\u043e\u0441\u043f\u043e\u0436\u0430", "\u0433\u043e\u0441\u043f\u043e\u0434\u0438\u043d", "\u043f\u0440\u0438\u043d\u0446", "\u043f\u0440\u0438\u043d\u0446\u0435\u0441\u0441\u0430", "\u043f\u0430\u043d", "\u043f\u0430\u043d\u0456", "\u043f\u0430\u043d\u0438",
+  "\u043a\u0430\u043f\u0438\u0442\u0430\u043d", "\u043a\u0430\u043f\u0456\u0442\u0430\u043d", "\u043f\u0440\u043e\u0444\u0435\u0441\u0441\u043e\u0440", "\u043f\u0440\u043e\u0444\u0435\u0441\u043e\u0440", "\u043c\u0438\u0441\u0441", "\u043c\u0456\u0441",
+]);
+
+/** Headings of a card description that are sections of text, not names of people (folded first words). */
+const REG_STOP = new Set([
+  "personality", "appearance", "background", "backstory", "description", "scenario", "history", "abilities", "ability",
+  "skills", "skill", "relationships", "relationship", "setting", "world", "notes", "note", "traits", "trait", "likes",
+  "dislikes", "physical", "clothing", "outfit", "behavior", "behaviour", "speech", "example", "examples", "dialogue",
+  "greeting", "plot", "story", "rules", "rule", "instructions", "instruction", "characters", "character", "overview",
+  "info", "information", "details", "summary", "goals", "goal", "secrets", "hobbies", "family", "occupation", "age",
+  "gender", "body", "voice", "kinks", "quirks", "habits", "fears", "motivation", "role", "roles", "profile", "bio",
+  "biography", "guidelines", "guideline", "characterization", "characterisation", "introduction", "intro", "mannerisms", "speaking", "special", "other", "additional", "important", "ooc",
+  "system", "narrator", "tags", "genre", "tone", "style", "format", "stats", "stat", "inventory", "location", "locations",
+  "\u043b\u0438\u0447\u043d\u043e\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u043e\u0441\u0442\u044c", "\u0445\u0430\u0440\u0430\u043a\u0442\u0435\u0440", "\u043f\u0440\u0435\u0434\u044b\u0441\u0442\u043e\u0440\u0438\u044f", "\u0438\u0441\u0442\u043e\u0440\u0438\u044f", "\u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0439", "\u0441\u0446\u0435\u043d\u0430\u0440\u0456\u0439", "\u043d\u0430\u0432\u044b\u043a\u0438", "\u043d\u0430\u0432\u0438\u0447\u043a\u0438",
+  "\u0441\u043f\u043e\u0441\u043e\u0431\u043d\u043e\u0441\u0442\u0438", "\u0437\u0434\u0456\u0431\u043d\u043e\u0441\u0442\u0456", "\u043e\u0442\u043d\u043e\u0448\u0435\u043d\u0438\u044f", "\u0432\u0456\u0434\u043d\u043e\u0441\u0438\u043d\u0438", "\u043c\u0438\u0440", "\u0441\u0432\u0456\u0442", "\u0437\u0430\u043c\u0435\u0442\u043a\u0438", "\u043d\u043e\u0442\u0430\u0442\u043a\u0438", "\u043f\u0440\u0430\u0432\u0438\u043b\u0430", "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0438",
+  "\u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0456", "\u043f\u0440\u0438\u043c\u0435\u0447\u0430\u043d\u0438\u0435", "\u043f\u0440\u0438\u043c\u0456\u0442\u043a\u0430", "\u0438\u043d\u0442\u0435\u0440\u0435\u0441\u044b", "\u0456\u043d\u0442\u0435\u0440\u0435\u0441\u0438", "\u043f\u0440\u0438\u0432\u044b\u0447\u043a\u0438", "\u0437\u0432\u0438\u0447\u043a\u0438", "\u043e\u0441\u043e\u0431\u0438\u0441\u0442\u0456\u0441\u0442\u044c", "\u043f\u0435\u0440\u0435\u0434\u0456\u0441\u0442\u043e\u0440\u0456\u044f",
+  "\u043e\u043f\u0438\u0441", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0441\u0442\u044c", "\u0432\u043d\u0435\u0448\u043d\u0438\u0439", "\u0437\u043e\u0432\u043d\u0456\u0448\u043d\u0456\u0439", "\u0431\u0438\u043e\u0433\u0440\u0430\u0444\u0438\u044f", "\u0431\u0456\u043e\u0433\u0440\u0430\u0444\u0456\u044f", "\u0441\u044e\u0436\u0435\u0442", "\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a", "\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447",
+]);
+
+/** Words that make a long heading a phrase, not a name (folded). */
+const REG_FUNC = new Set(["he", "she", "her", "his", "hers", "him", "they", "them", "their", "it", "its", "how", "what", "why", "when", "where", "who", "with", "without", "to", "for", "from", "in", "on", "at", "by", "is", "are", "was", "were", "be", "not", "no", "you", "your", "my", "our", "about", "as"]);
+
+/** A card name or heading that is a narrator or a scenario, not a person. */
+const REG_NARR = /narrat|\u0440\u0430\u0441\u0441\u043a\u0430\u0437\u0447\u0438\u043a|\u043e\u043f\u043e\u0432\u0456\u0434\u0430\u0447|\u043d\u0430\u0440\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0442\u043e\u0440|\u043d\u0430\u0440\u0430\u0446\u0456\u044f|\u043d\u0430\u0440\u0430\u0446\u0438\u044f|storyteller|game ?master/iu;
+
+/** Cyrillic (Russian and Ukrainian) to Latin, applied to folded text, so no \u0439 or \u0451 or \u0457. */
+const REG_CYR = {
+  "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0491": "g", "\u0434": "d", "\u0435": "e", "\u0451": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "i",
+  "\u0456": "i", "\u0457": "i", "\u044b": "i", "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o", "\u043f": "p", "\u0440": "r", "\u0441": "s", "\u0442": "t",
+  "\u0443": "u", "\u045e": "u", "\u0444": "f", "\u0445": "h", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh", "\u0449": "shch", "\u044a": "", "\u044c": "", "\u044d": "e",
+  "\u044e": "iu", "\u044f": "ia", "\u0454": "ie",
+};
+
+/** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
+function regFold(s) {
+  return String(s == null ? "" : s)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
+    .trim();
+}
+
+/**
+ * A key for comparing a name across Cyrillic and Latin spelling. Fold, Cyrillic to Latin, then one phonetic key:
+ * ch->k, ph->f, ck->k, h after a consonant dropped (Rhea, Sh, Zh), c before e/i/y -> s else k, q->k, x->ks, y/j->i,
+ * z->s, w->v, an i between a vowel and a vowel dropped (Reia = Rea), doubled letters collapsed.
+ * Equal keys (Cyrillic and Latin spellings): Kaede, Isabella, Ember, Rhea, Geralt, Yor, Bayonetta, Denis, Sina, Mei,
+ * Saki. One letter apart: Alisa and Alice (alisa/alise, the a/e ending). Alice/Alex and Mark/Mary have different keys;
+ * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
+ */
+function regTranslit(s) {
+  let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
+  t = t
+    .replace(/ch/g, "k")
+    .replace(/kh/g, "h")
+    .replace(/ph/g, "f")
+    .replace(/ck/g, "k")
+    .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1")
+    .replace(/c(?=[eiy])/g, "s")
+    .replace(/[cq]/g, "k")
+    .replace(/x/g, "ks")
+    .replace(/[yj]/g, "i")
+    .replace(/z/g, "s")
+    .replace(/w/g, "v")
+    .replace(/([a-z0-9])\1+/g, "$1")
+    .replace(/([aeou])i(?=[aeiou])/g, "$1")
+    .replace(/([a-z0-9])\1+/g, "$1");
+  return t.trim();
+}
+
+/** The folded words of a name without titles. */
+function regTokens(name) {
+  return regFold(name).split(" ").filter((w) => w && !REG_TITLES.has(w));
+}
+
+/** An empty registry. */
+function regNew(chatId, from) {
+  return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+}
+
+/** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
+function regGet(reg, id) {
+  const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
+  const find = (x) => ents.find((e) => e && e.id === x) || null;
+  let cur = find(id);
+  for (let i = 0; cur && cur.merged; i++) {
+    if (i > ents.length) return null;
+    cur = find(cur.merged);
+  }
+  return cur;
+}
+
+const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+const regKindLetter = { person: "p", thing: "o", place: "l" };
+
+function regAliasList(entity, list, src) {
+  for (const a of Array.isArray(list) ? list : []) {
+    const t0 = a && typeof a === "object" ? a.text : a;
+    if (typeof t0 !== "string") continue;
+    const text = regOneLine(t0).slice(0, 80);
+    const f = regFold(text);
+    if (!f || f === regFold(entity.name) || entity.aliases.some((x) => regFold(x.text) === f)) continue;
+    const s = a && typeof a === "object" && typeof a.src === "string" && a.src ? a.src : src;
+    entity.aliases.push({ text, src: s });
+  }
+}
+
+/** A new entity with the next id (p1, o1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
+  const nm = regOneLine(name).slice(0, 80);
+  if (!regFold(nm)) return null;
+  const k = regKindLetter[kind] ? kind : "person";
+  const letter = regKindLetter[k];
+  if (!reg.next || typeof reg.next !== "object") reg.next = { p: 1, o: 1, l: 1 };
+  let n = Number(reg.next[letter]) || 1;
+  while (reg.entities.some((e) => e.id === letter + n)) n++;
+  reg.next[letter] = n + 1;
+  const e = { id: letter + n, kind: k, name: nm, aliases: [], src: src || "seen" };
+  if (card) e.card = String(card);
+  regAliasList(e, aliases, e.src);
+  reg.entities.push(e);
+  return e;
+}
+
+/** Make or update the entity `user` (the persona). Old names stay as aliases. */
+function regUser(reg, name) {
+  const nm = regOneLine(name).slice(0, 80);
+  let e = reg.entities.find((x) => x.id === "user");
+  if (!regFold(nm)) return e || null;
+  if (!e) {
+    e = { id: "user", kind: "person", name: nm, aliases: [], src: "persona" };
+    reg.entities.push(e);
+    return e;
+  }
+  if (regFold(e.name) !== regFold(nm)) {
+    const old = e.name;
+    e.name = nm;
+    e.aliases = e.aliases.filter((a) => regFold(a.text) !== regFold(nm));
+    regAliasList(e, [old], "persona");
+  }
+  return e;
+}
+
+/** Add an alias (deduped by fold; empty and the entity's own name are ignored). On a merged id it goes to the target. True when added. */
+function regAlias(reg, id, text, src) {
+  const e = regGet(reg, id);
+  if (!e) return false;
+  // a place takes only a name of the same place: not its house or its street, not two rooms at once (another alphabet cannot be judged by words)
+  const from = src || "seen";
+  if (e.kind === "place" && (from === "seen" || from === "world") && regScript(String(text)) === regScript(e.name) && !regPlaceSame(text, e.name)) return false;
+  const before = e.aliases.length;
+  regAliasList(e, [text], src || "seen");
+  return e.aliases.length > before;
+}
+
+function regWithin1(a, b) {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) return a.slice(i + 1) === b.slice(i + 1);
+  return la > lb ? a.slice(i + 1) === b.slice(i) : b.slice(i + 1) === a.slice(i);
+}
+
+const regScript = (s) => (/[\u0400-\u04ff]/.test(s) ? "cyr" : "lat");
+const regLen = (s) => s.replace(/ /g, "").length;
+
+/** Words (folded) that join two names into one text: "hallway and kitchen" names two places, not one. */
+const REG_JOIN = new Set(["and", "und", "et", "y", "e", "och", "og", "en", "oraz", "\u0438", "\u0456", "\u0439", "\u0442\u0430"]);
+
+/** A place text as its levels, outer first: "Denis's house, kitchen" is [[denis, s, house], [kitchen]] (folded words, titles out). */
+function regPlaceSegs(s) {
+  return String(s == null ? "" : s)
+    .split(/[,;:()]|\s[\u2014\u2013-]\s/)
+    .map(regTokens)
+    .filter((t) => t.length);
+}
+
+/** True when the innermost level of a place text names two places ("hallway and kitchen", "kitchen / hall"). */
+function regJoined(s) {
+  const parts = String(s == null ? "" : s).split(/[,;:()]|\s[\u2014\u2013-]\s/).filter((x) => regFold(x));
+  const last = parts.length ? regFold(parts[parts.length - 1]).split(" ") : [];
+  return last.some((w) => REG_JOIN.has(w)) || /[&/+]/.test(String(s == null ? "" : s));
+}
+
+/**
+ * The places a text that names two of them means, each with the outer levels: "Denis's house, hallway and kitchen" is
+ * ["Denis's house, hallway", "Denis's house, kitchen"]. A text that names one place is itself.
+ */
+function regPlaceParts(s) {
+  const text = regOneLine(s);
+  if (!regJoined(text)) return text ? [text] : [];
+  const levels = text.split(/[,;:()]|\s[\u2014\u2013-]\s/).map((x) => x.trim()).filter((x) => regFold(x));
+  if (!levels.length) return [];
+  const outer = levels.slice(0, -1).join(", ");
+  const join = new RegExp("\\s*[&/+]\\s*|\\s+(?:" + [...REG_JOIN].join("|") + ")\\s+", "iu");
+  return levels[levels.length - 1]
+    .split(join)
+    .map((x) => x.trim())
+    .filter((x) => regFold(x))
+    .map((x) => (outer ? outer + ", " + x : x));
+}
+
+/** Every word of `small` inside `big`, in order (by fold or translit key). */
+const regWithin = (small, big) => regInOrder(small.map(regTranslit), big.map(regTranslit), small, big);
+
+/** Two levels of place texts hold one another (every word of one inside the other, in order). */
+const regLevelFits = (x, y) => regWithin(x, y) || regWithin(y, x);
+
+/**
+ * Could two place texts be one place? Texts name levels in either order ("Denis's house, kitchen", "Class 3-B, Sakura
+ * Academy"), so the order is not trusted. With as many levels each, every level pairs with the one in the same or the
+ * mirrored position: "Denis's house, hallway" and "Denis's house, kitchen" are two places. With fewer levels on one side,
+ * each of its levels holds a different level of the other: "hidden chamber" is "Underground dungeon, hidden chamber", and so
+ * is "Underground dungeon", since words cannot tell the room from the house; that is good enough to tell whether the scene
+ * moved, never enough to learn a name (regPlaceSame). A text that names two places is never one of them.
+ */
+function regPlaceFits(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || !y.length || regJoined(a) || regJoined(b)) return false;
+  if (x.length === y.length) return regPlaceSame(a, b);
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  const used = new Set();
+  return short.every((lv) => {
+    const i = long.findIndex((l, k) => !used.has(k) && regLevelFits(lv, l));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
+/** One place for sure: as many levels each, every one paired in the same or the mirrored order. Only this teaches a place a name. */
+function regPlaceSame(a, b) {
+  const x = regPlaceSegs(a);
+  const y = regPlaceSegs(b);
+  if (!x.length || x.length !== y.length || regJoined(a) || regJoined(b)) return false;
+  const same = x.every((lv, i) => regLevelFits(lv, y[i]));
+  const mirrored = x.every((lv, i) => regLevelFits(lv, y[y.length - 1 - i]));
+  return same || mirrored;
+}
+
+/** True when the user said these two are different people (ids are followed through merges). */
+function regIsApart(reg, a, b) {
+  const ga = regGet(reg, a);
+  const gb = regGet(reg, b);
+  if (!ga || !gb) return false;
+  return (reg.apart || []).some((p) => {
+    const x = regGet(reg, p[0]);
+    const y = regGet(reg, p[1]);
+    return !!x && !!y && ((x.id === ga.id && y.id === gb.id) || (x.id === gb.id && y.id === ga.id));
+  });
+}
+
+/** True when every word of `small` appears in `big`, in the same order (a word matches by its fold or its translit key). */
+function regInOrder(sk, bk, sw, bw) {
+  let j = 0;
+  for (let i = 0; i < sk.length; i++) {
+    while (j < bk.length && bk[j] !== sk[i] && bw[j] !== sw[i]) j++;
+    if (j >= bk.length) return false;
+    j++;
+  }
+  return true;
+}
+
+function regFind(reg, text, kind, notWith, skip) {
+  const raw = String(text == null ? "" : text);
+  const f = regFold(raw);
+  if (!f) return null;
+  const want = kind || "person";
+  const cands = [];
+  const seen = new Map();
+  for (const e of reg && Array.isArray(reg.entities) ? reg.entities : []) {
+    const o = regGet(reg, e.id);
+    if (!o || o.kind !== want) continue;
+    if (skip && skip.indexOf(o.id) >= 0) continue;
+    if (notWith && regIsApart(reg, o.id, notWith)) continue;
+    let c = seen.get(o.id);
+    if (!c) {
+      c = { id: o.id, strs: [] };
+      seen.set(o.id, c);
+      cands.push(c);
+    }
+    c.strs.push(e.name);
+    for (const a of e.aliases || []) c.strs.push(a.text);
+  }
+  const hit = (pred) => cands.filter((c) => c.strs.some(pred)).map((c) => c.id);
+  const done = (ids, step) => (ids.length === 1 ? { id: ids[0], step } : ids.length > 1 ? { ambiguous: ids } : null);
+  let r = done(hit((s) => regFold(s) === f), 1);
+  if (r) return r;
+  const key = regTranslit(raw);
+  if (key) {
+    r = done(hit((s) => regTranslit(s) === key), 2);
+    if (r) return r;
+  }
+  const toks = regTokens(raw);
+  if (toks.length === 1) {
+    const w = toks[0];
+    const wk = regTranslit(w);
+    const ends = (s) => {
+      const t = regTokens(s);
+      return t.length ? [t[0], t[t.length - 1]] : [];
+    };
+    // the same word, or the same in another alphabet (Yuki written in Cyrillic is Yuki)
+    r = done(hit((s) => ends(s).some((x) => x === w || regTranslit(x) === wk)), 3);
+    if (r) return r;
+    // one letter off in another alphabet (Alisa and Alice), only when no name matches exactly: Yuki in Cyrillic is not Yumi
+    r = done(
+      hit((s) =>
+        ends(s).some((x) => {
+          const xk = regTranslit(x);
+          return regScript(x) !== regScript(w) && regLen(xk) >= 4 && regLen(wk) >= 4 && xk[0] === wk[0] && regWithin1(xk, wk);
+        }),
+      ),
+      3,
+    );
+    if (r) return r;
+  }
+  if (toks.length >= 2 && want === "place") {
+    // a place: the same innermost level (and outer level, when both have one); a part or a whole of it is another place
+    r = done(hit((s) => regPlaceFits(raw, s)), 3.5);
+    if (r) return r;
+  } else if (toks.length >= 2) {
+    // several words: all inside one candidate's name or alias in order ("Rhea Faeth" in "Queen of Elves Rhea Faeth"), or the reverse
+    const tk = toks.map(regTranslit);
+    r = done(
+      hit((s) => {
+        const t = regTokens(s);
+        if (t.length < 2) return false;
+        const k = t.map(regTranslit);
+        return regInOrder(tk, k, toks, t) || regInOrder(k, tk, t, toks);
+      }),
+      3.5,
+    );
+    if (r) return r;
+  }
+  const sc = regScript(raw);
+  r = done(
+    hit((s) => {
+      const fs = regFold(s);
+      if (regLen(fs) >= 6 && regLen(f) >= 6 && regWithin1(fs, f)) return true;
+      if (regScript(s) === sc) return false;
+      const ks = regTranslit(s);
+      return regLen(ks) >= 3 && regLen(key) >= 3 && ks[0] === key[0] && regWithin1(ks, key);
+    }),
+    4,
+  );
+  return r;
+}
+
+/**
+ * Which entity does this word mean? `{ id, step }`, `{ ambiguous: [ids] }` or null. Steps, first hit wins:
+ * 1 exact fold of a name or alias; 2 equal regTranslit key; 3 a single word (titles removed) equal to the first or
+ * last word of exactly one entity's name or alias; 3.5 (3b) a text of two or more words that all sit, in order, inside
+ * exactly one entity's name or alias, or the reverse (a name of two or more words inside the text); 4 near (fold keys one letter apart when both are 6+ letters, or
+ * translit keys one letter apart when the spellings are in different scripts, 3+ letters, same first letter).
+ * Merged entities are not candidates but their names point to the target. `notWith` (an id) skips candidates the
+ * user marked apart from it. `user` is a candidate like the others: the caller decides what to do with it.
+ */
+function resolveName(reg, text, kind = "person", notWith) {
+  return regFind(reg, text, kind, notWith, null);
+}
+
+/** Remember a story spelling found by steps 2-4 as an alias (src `seen`), so the next lookup is exact. True when added. */
+function regLearn(reg, id, text) {
+  if (!regTokens(text).length) return false;
+  const e = regGet(reg, id);
+  if (e && e.kind === "place" && (regJoined(text) || !regPlaceSame(text, e.name))) return false;
+  return regAlias(reg, id, text, "seen");
+}
+
+const regPairHas = (p, a, b) => (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a);
+
+/** Merge `fromId` into `intoId`. False (nothing changed) for `user` as the source, the same entity, an apart pair, or a missing id. */
+function regMerge(reg, fromId, intoId) {
+  const from = reg.entities.find((e) => e.id === fromId);
+  const into = regGet(reg, intoId);
+  if (!from || !into || from.merged || from.id === "user" || from.id === into.id) return false;
+  if (from.kind !== into.kind || regIsApart(reg, from.id, into.id)) return false;
+  from.merged = into.id;
+  regAliasList(into, [from.name], "merged");
+  regAliasList(into, from.aliases, "merged");
+  const redirect = (x) => (x === from.id ? into.id : x);
+  const apart = [];
+  for (const p of reg.apart || []) {
+    const a = redirect(p[0]);
+    const b = redirect(p[1]);
+    if (a !== b && !apart.some((q) => regPairHas(q, a, b))) apart.push([a, b]);
+  }
+  reg.apart = apart;
+  const suggest = [];
+  for (const s of reg.suggest || []) {
+    const a = redirect(s.a);
+    const b = redirect(s.b);
+    if (a !== b && !suggest.some((q) => regPairHas([q.a, q.b], a, b))) suggest.push({ ...s, a, b });
+  }
+  reg.suggest = suggest;
+  return true;
+}
+
+/** Record that two entities are different people (unordered, once); drops the suggestion for the pair. False when an id is missing or equal. */
+function regApart(reg, a, b) {
+  const x = regGet(reg, a);
+  const y = regGet(reg, b);
+  if (!x || !y || x.id === y.id) return false;
+  if (!(reg.apart || []).some((p) => regPairHas(p, x.id, y.id))) {
+    if (!Array.isArray(reg.apart)) reg.apart = [];
+    reg.apart.push(x.id < y.id ? [x.id, y.id] : [y.id, x.id]);
+  }
+  reg.suggest = (reg.suggest || []).filter((s) => !regPairHas([s.a, s.b], x.id, y.id));
+  return true;
+}
+
+/** Suggest that two entities may be one. Not when they are apart, already suggested, equal, or one is merged. True when added. */
+function regSuggest(reg, a, b, why) {
+  const x = reg.entities.find((e) => e.id === a);
+  const y = reg.entities.find((e) => e.id === b);
+  if (!x || !y || x.merged || y.merged || x.id === y.id) return false;
+  if (regIsApart(reg, x.id, y.id)) return false;
+  if (!Array.isArray(reg.suggest)) reg.suggest = [];
+  if (reg.suggest.some((s) => regPairHas([s.a, s.b], x.id, y.id))) return false;
+  reg.suggest.push({ a: x.id, b: y.id, why: regOneLine(why).slice(0, 80) });
+  return true;
+}
+
+// ---------- names out of a character card ----------
+
+const REG_NAME_LINE = /^(?:name|full name|\u0438\u043c\u044f|\u043f\u043e\u043b\u043d\u043e\u0435 \u0438\u043c\u044f|\u0456\u043c['’ʼ]\u044f|\u043f\u043e\u0432\u043d\u0435 \u0456\u043c['’ʼ]\u044f)\s*[:：]\s*(.+)$/iu;
+const REG_ALIAS_LINE =
+  /^(?:also called|also known as|aka|a\.k\.a\.?|nicknames?|aliases|alias|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0435|\u043f\u0440\u043e\u0437\u0432\u0438\u0449\u0430|\u043f\u0441\u0435\u0432\u0434\u043e\u043d\u0438\u043c|\u0442\u0430\u043a\u0436\u0435\s+\p{L}+\s+\u043a\u0430\u043a|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u043e|\u043f\u0440\u0456\u0437\u0432\u0438\u0441\u044c\u043a\u0430|\u0442\u0430\u043a\u043e\u0436\s+\p{L}+\s+\u044f\u043a)\s*[:：]\s*(.+)$/iu;
+
+/** Placeholders and markup out of a card text. */
+function regTidy(s) {
+  return String(s == null ? "" : s)
+    .replace(/\{\{[^}]*\}\}|<\/?(?:char|user|bot)>/gi, " ")
+    .replace(/[*`~#]+/g, "")
+    .replace(/(^|\s)_+|_+(?=\s|$)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The part of a card name before a separator ( - , — , – , | , ": " , "(" ), or the whole name. */
+function regHead(n) {
+  const m = n.match(/^(.+?)(?:\s+[-–—|]\s+|:\s+|\s*[(（[])/u);
+  return m && m[1].trim() ? m[1].trim() : n;
+}
+
+/** Could this be a person's name: letters, at most three words that are not titles, short. */
+function regPlausible(n) {
+  return !!n && n.length <= 40 && /\p{L}/u.test(n) && regTokens(n).length >= 1 && regTokens(n).length <= 3;
+}
+
+/**
+ * Could this be the name of a section or a `Name:` line: like regPlausible, but a role may come before the name
+ * ("Maid and Familiar of Rhea Ember Feath"), so up to six words; a name of more than three words must be written as a
+ * name (every word but the connectors capitalized or caseless) and contain no section word.
+ */
+function regPlausibleLong(n) {
+  if (!n || n.length > 60 || !/\p{L}/u.test(n)) return false;
+  const t = regTokens(n);
+  if (t.length < 1 || t.length > 6) return false;
+  if (t.length <= 3) return true;
+  // a longer heading must read as a name: no pronoun, question or preposition (a sentence in title case is not one)
+  if (t.some((w) => REG_FUNC.has(w))) return false;
+  for (const w of regTidy(n).split(" ")) {
+    const f = regFold(w);
+    if (!f || REG_TITLES.has(f)) continue;
+    if (REG_STOP.has(f)) return false;
+    if (!/^\p{Lu}/u.test(w) && w.toLowerCase() !== w.toUpperCase()) return false;
+  }
+  return true;
+}
+
+/** The name a heading with a role in front ends with: the last two words when both are capitalized (or caseless) and not titles, else the last word. Null for under three words or when it is the whole name. */
+function regTrailName(name) {
+  const w = regTidy(name).split(" ").filter(Boolean);
+  if (w.length < 3) return null;
+  const cased = (x) => /\p{L}/u.test(x) && (/^\p{Lu}/u.test(x) || x.toLowerCase() === x.toUpperCase());
+  const ok = (x) => cased(x) && !REG_TITLES.has(regFold(x));
+  const last = w[w.length - 1];
+  if (!ok(last)) return null;
+  const prev = w[w.length - 2];
+  const out = ok(prev) ? prev + " " + last : last;
+  return regFold(out) === regFold(name) ? null : out;
+}
+
+function regCardPersonName(raw) {
+  const n = regTidy(raw);
+  if (!n || REG_NARR.test(n)) return null;
+  if (/^(?:the|a|an)\s/i.test(n) && /[(（]/.test(n)) return null;
+  const head = regHead(n);
+  return regPlausible(head) ? head : null;
+}
+
+function regHeadingName(raw) {
+  const n = regTidy(raw).replace(/:+$/, "").trim();
+  if (!n || REG_NARR.test(n)) return null;
+  const head = regHead(n);
+  const words = regFold(head).split(" ");
+  if (!regPlausibleLong(head)) return null;
+  if (REG_STOP.has(regFold(head)) || (words.length <= 3 && (REG_STOP.has(words[0]) || REG_STOP.has(words[words.length - 1])))) return null;
+  return head;
+}
+
+function regLineName(v) {
+  const n = regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/[,;，；]/)[0].replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+  return regPlausible(n) ? n : null;
+}
+
+function regSplitAliases(v) {
+  const out = [];
+  for (let a of regTidy(v).replace(/\([^)]*\)|（[^）]*）/gu, " ").split(/\s*[,;，；]\s*|\s+(?:or|\u0438\u043b\u0438|\u0430\u0431\u043e)\s+/iu)) {
+    a = a.replace(/^["'“”«»]+|["'“”«»]+$/g, "").replace(/\s+/g, " ").trim();
+    if (a && a.length <= 40 && /\p{L}/u.test(a) && a.split(" ").length <= 5 && !REG_NARR.test(a)) out.push(a);
+  }
+  return out;
+}
+
+const regSame = (a, b) => {
+  if (regFold(a) === regFold(b)) return true;
+  const x = regTokens(a);
+  const y = regTokens(b);
+  if (!x.length || !y.length) return false;
+  const [s, l] = x.length <= y.length ? [x, y] : [y, x];
+  return s.every((w) => l.indexOf(w) >= 0);
+};
+
+function regPushAlias(p, a) {
+  const f = regFold(a);
+  if (f && f !== regFold(p.name) && !p.aliases.some((x) => regFold(x) === f)) p.aliases.push(a);
+}
+
+/**
+ * The people a character card names, for messy imported cards (nothing is required): the card name (or the part
+ * before a separator), `### Name` / `## Name` sections, and lines like `Name:`, `Aliases:`, `Nickname:` (English,
+ * Russian, Ukrainian). A card name that is a narrator, a scenario or a long title is not a person; two or more
+ * name sections also make the card name not a person. Returns `{ persons: [{ name, aliases: [] }], cardIsPerson }`.
+ */
+function regCardNames(card) {
+  const d = card && typeof card === "object" ? (card.data && typeof card.data === "object" ? card.data : card) : {};
+  const cardName = regCardPersonName(d.name != null ? d.name : card && card.name);
+  const desc = String(d.description != null ? d.description : card && card.description ? card.description : "");
+  const secs = [{ head: null, declared: null, aliases: [] }];
+  let cur = secs[0];
+  for (const line of desc.split(/\r?\n/)) {
+    const h = line.match(/^\s{0,3}#{2,3}\s+(.+?)\s*#*\s*$/);
+    if (h) {
+      const nm = regHeadingName(h[1]);
+      if (nm) {
+        cur = secs.find((s) => s.head && regFold(s.head) === regFold(nm)) || { head: nm, declared: null, aliases: [] };
+        if (secs.indexOf(cur) < 0) secs.push(cur);
+      }
+      continue;
+    }
+    const cl = line.replace(/^[\s>*\-+•·]+/u, "").replace(/[*_`]+/g, "").trim();
+    let m = cl.match(REG_NAME_LINE);
+    if (m) {
+      const v = regLineName(m[1]);
+      if (v) {
+        if (!cur.declared) cur.declared = v;
+        else cur.aliases.push(v);
+      }
+      continue;
+    }
+    m = cl.match(REG_ALIAS_LINE);
+    if (m) for (const a of regSplitAliases(m[1])) cur.aliases.push(a);
+  }
+  const heads = secs.slice(1);
+  const cardIsPerson = !!cardName && heads.length < 2;
+  const out = [];
+  const put = (nm, al) => {
+    let p = out.find((q) => regSame(q.name, nm));
+    if (p) {
+      if (regTokens(nm).length > regTokens(p.name).length) {
+        const old = p.name;
+        p.name = nm;
+        regPushAlias(p, old);
+      } else regPushAlias(p, nm);
+    } else {
+      p = { name: nm, aliases: [] };
+      out.push(p);
+    }
+    for (const a of al) regPushAlias(p, a);
+    return p;
+  };
+  let cp = null;
+  if (cardIsPerson) cp = put(cardName, []);
+  const sectionPersons = [];
+  for (const s of heads) sectionPersons.push(put(s.declared || s.head, [...(s.declared && s.declared !== s.head ? [s.head] : []), ...s.aliases]));
+  const s0 = secs[0];
+  const target = cp || out[0] || null;
+  if (target) {
+    if (s0.declared) {
+      if (regSame(target.name, s0.declared)) put(s0.declared, []);
+      else if (cp) {
+        const old = target.name;
+        target.name = s0.declared;
+        regPushAlias(target, old);
+      } else regPushAlias(target, s0.declared);
+    }
+    for (const a of s0.aliases) regPushAlias(target, a);
+  } else if (s0.declared) {
+    put(s0.declared, s0.aliases);
+  }
+  // a role before the name ("Queen of Elves Rhea Faeth"): the name alone is another spelling of the section's person
+  for (const p of sectionPersons) {
+    const t = regTrailName(p.name);
+    if (t) regPushAlias(p, t);
+  }
+  return { persons: out, cardIsPerson };
+}
+
+// ---------- seeding ----------
+
+function regSeedOne(reg, p, src, cardId) {
+  const first = regFind(reg, p.name, "person", null, null);
+  if (first && first.id === "user" && src === "card") return null;
+  const r = regFind(reg, p.name, "person", null, ["user"]);
+  // a soul that fits two people is not a third one
+  if (r && r.ambiguous && src !== "card") return null;
+  let e = null;
+  if (r && r.id) {
+    e = regGet(reg, r.id);
+    if (src === "card" && e.id !== "user" && e.src !== "card" && regFold(e.name) !== regFold(p.name)) {
+      // a soul or story entity that is a shorter spelling of this card person: the card person is the entity, the other joins it
+      const made = regAdd(reg, { kind: "person", name: p.name, src, card: cardId });
+      if (made) regMerge(reg, e.id, made.id);
+      e = made || e;
+    } else {
+      regAlias(reg, e.id, p.name, src);
+      if (cardId && src === "card" && !e.card) e.card = String(cardId);
+    }
+  } else {
+    e = regAdd(reg, { kind: "person", name: p.name, src, card: src === "card" ? cardId : undefined });
+  }
+  if (!e) return null;
+  for (const a of p.aliases || []) regAlias(reg, e.id, a, src);
+  return e;
+}
+
+/**
+ * Merge a soul, group or story entity into the card person it now resolves to (an old registry made before the card
+ * reader learned to read role-prefixed headings has both). Only a clear match counts (steps 1 to 3b, one candidate, not
+ * apart; a story entity is not merged on step 3, a single shared word). Returns the number of merges.
+ */
+function regReconcile(reg) {
+  let n = 0;
+  for (const e of reg.entities.slice()) {
+    if (e.merged || e.id === "user" || e.kind !== "person" || !["soul", "seen", "group"].includes(e.src)) continue;
+    const skip = reg.entities.filter((x) => x.kind !== "person" || x.merged || x.src !== "card").map((x) => x.id);
+    const r = regFind(reg, e.name, "person", e.id, skip);
+    // a single word that is the first or last word of a name (step 3) is a guess a story entity leaves to the user (a suggestion)
+    if (r && r.id && r.step <= 3.5 && !(e.src === "seen" && r.step === 3) && regMerge(reg, e.id, r.id)) n++;
+  }
+  return n;
+}
+
+/**
+ * Drop the card entities the cards no longer produce (an old registry holds a card title as a person) when nothing
+ * refers to them: not merged, nothing merged into them, not in `keepIds` (the ids the caller still uses). Does nothing
+ * without cards. Returns the number dropped. `cards` as in regSeed.
+ */
+function regPrune(reg, cards, keepIds) {
+  const list = Array.isArray(cards) ? cards.filter((c) => c && typeof c === "object") : [];
+  if (!list.length) return 0;
+  const made = new Set();
+  const ids = new Set();
+  for (const item of list) {
+    const wrapped = item.card && typeof item.card === "object";
+    if (item.id != null && wrapped) ids.add(String(item.id));
+    for (const p of regCardNames(wrapped ? item.card : item).persons) {
+      made.add(regFold(p.name));
+      for (const a of p.aliases) made.add(regFold(a));
+    }
+  }
+  const keep = new Set(Array.isArray(keepIds) ? keepIds : keepIds ? [...keepIds] : []);
+  const target = new Set(reg.entities.filter((e) => e.merged).map((e) => e.merged));
+  const drop = new Set();
+  for (const e of reg.entities) {
+    if (e.src !== "card" || e.merged || e.id === "user" || e.kind !== "person" || keep.has(e.id) || target.has(e.id)) continue;
+    if (e.card && ids.size && !ids.has(e.card)) continue;
+    if (!made.has(regFold(e.name))) drop.add(e.id);
+  }
+  if (!drop.size) return 0;
+  reg.entities = reg.entities.filter((e) => !drop.has(e.id));
+  reg.apart = (reg.apart || []).filter((q) => !drop.has(q[0]) && !drop.has(q[1]));
+  reg.suggest = (reg.suggest || []).filter((q) => !drop.has(q.a) && !drop.has(q.b));
+  return drop.size;
+}
+
+/**
+ * Make sure the people the chat starts with exist: the persona as `user`, every person of each card (`cards` are
+ * card objects or { id, card }), and the card souls (`souls`: { [name]: { aliases? } }). Resolves first, so doing it
+ * twice changes nothing. Returns the registry.
+ */
+function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
+  if (personaName) regUser(reg, personaName);
+  for (const item of Array.isArray(cards) ? cards : []) {
+    if (!item || typeof item !== "object") continue;
+    const wrapped = item.card && typeof item.card === "object";
+    const card = wrapped ? item.card : item;
+    const id = item.id;
+    for (const p of regCardNames(card).persons) regSeedOne(reg, p, "card", id);
+  }
+  regReconcile(reg);
+  const names = souls && typeof souls === "object" ? Object.keys(souls) : [];
+  for (const name of names) {
+    const s = souls[name];
+    regSeedOne(reg, { name, aliases: s && Array.isArray(s.aliases) ? s.aliases.filter((x) => typeof x === "string") : [] }, "soul");
+  }
+  return reg;
+}
+
+// ---------- files ----------
+
+/** Where a chat's registry lives under the app's data folder. */
+const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
+
+const REG_ID = /^(?:user|[pol]\d+)$/;
+
+/** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
+function regValidate(raw, chatId, from) {
+  const reg = regNew(chatId, from);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
+  const ids = new Set();
+  const kinds = { person: 1, thing: 1, place: 1 };
+  // an older registry numbered things t1, t2 ...; they are o1, o2 ... now (threads kept t#)
+  const oldThing = new Map();
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (e && typeof e === "object" && e.kind === "thing" && typeof e.id === "string" && /^t\d+$/.test(e.id)) oldThing.set(e.id, "o" + e.id.slice(1));
+  }
+  const upId = (x) => (oldThing.has(x) ? oldThing.get(x) : x);
+  if (oldThing.size) {
+    raw = {
+      ...raw,
+      entities: raw.entities.map((e) => (e && typeof e === "object" && (oldThing.has(e.id) || oldThing.has(e.merged)) ? { ...e, id: upId(e.id), ...(e.merged ? { merged: upId(e.merged) } : {}) } : e)),
+      apart: Array.isArray(raw.apart) ? raw.apart.map((p) => (Array.isArray(p) ? p.map(upId) : p)) : raw.apart,
+      suggest: Array.isArray(raw.suggest) ? raw.suggest.map((q) => (q && typeof q === "object" ? { ...q, a: upId(q.a), b: upId(q.b) } : q)) : raw.suggest,
+    };
+  }
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
+    const name = regOneLine(e.name).slice(0, 80);
+    if (!regFold(name) || !kinds[e.kind]) continue;
+    if (e.id !== "user" && regKindLetter[e.kind] !== e.id[0]) continue;
+    const out = { id: e.id, kind: e.kind, name, aliases: [], src: typeof e.src === "string" && e.src ? e.src : "seen" };
+    regAliasList(out, e.aliases, "seen");
+    // a place alias learned by the looser rule of an older version (two rooms, or a room and its house) is dropped;
+    // one in another alphabet cannot be judged by words and stays
+    if (out.kind === "place") out.aliases = out.aliases.filter((a) => (a.src !== "seen" && a.src !== "world") || regScript(a.text) !== regScript(name) || regPlaceSame(a.text, name));
+    if (typeof e.card === "string" && e.card) out.card = e.card;
+    if (typeof e.merged === "string" && e.merged) out.merged = e.merged;
+    ids.add(e.id);
+    reg.entities.push(out);
+  }
+  for (const e of reg.entities) {
+    if (e.merged && (!ids.has(e.merged) || e.merged === e.id || e.id === "user")) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.merged && !regGet(reg, e.id)) delete e.merged;
+  }
+  for (const e of reg.entities) {
+    if (e.id === "user") continue;
+    const n = Number(e.id.slice(1));
+    const k = e.id[0];
+    if (n >= reg.next[k]) reg.next[k] = n + 1;
+  }
+  for (const k of ["p", "o", "l"]) {
+    const stored = raw.next && Number(k === "o" && raw.next.o == null ? raw.next.t : raw.next[k]);
+    if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
+  }
+  for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
+    if (Array.isArray(p) && p.length === 2 && p[0] !== p[1] && ids.has(p[0]) && ids.has(p[1]) && !reg.apart.some((q) => regPairHas(q, p[0], p[1]))) {
+      reg.apart.push([p[0], p[1]]);
+    }
+  }
+  for (const s of Array.isArray(raw.suggest) ? raw.suggest : []) {
+    if (s && typeof s === "object" && s.a !== s.b && ids.has(s.a) && ids.has(s.b) && !reg.suggest.some((q) => regPairHas([q.a, q.b], s.a, s.b))) {
+      reg.suggest.push({ a: s.a, b: s.b, why: regOneLine(s.why).slice(0, 80) });
+    }
+  }
+  return reg;
+}
+
+/**
+ * The chat's registry: its own file; else a copy of the registry of chat `from` (a chat that continues another);
+ * else an empty one. A malformed file gives an empty registry. `fsx` has read(rel) (throws when missing).
+ */
+function regLoad(fsx, chatId, from) {
+  const readJson = (rel) => {
+    try {
+      return { ok: true, value: JSON.parse(fsx.read(rel)) };
+    } catch (e) {
+      return { ok: false, missing: !(e instanceof SyntaxError) };
+    }
+  };
+  const own = readJson(regPath(chatId));
+  if (own.ok) return regValidate(own.value, chatId, from || (own.value && own.value.from) || null);
+  if (!own.missing) return regNew(chatId, from);
+  if (from) {
+    const base = readJson(regPath(from));
+    if (base.ok) return regValidate(base.value, chatId, from);
+  }
+  return regNew(chatId, from);
+}
+
+/** Write the registry to its file. */
+function regSave(fsx, reg) {
+  fsx.write(regPath(reg.chatId), JSON.stringify(reg));
+  return reg;
+}
+// ==== END GENERATED: entity-registry ====
 const num = (v) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 const unique = (list) => list.filter((x, i) => list.indexOf(x) === i);
 /** The array at bag[key], created in place when missing. */
@@ -870,6 +1720,7 @@ const userEventRows = (fsx) => {
   return isObj(raw) ? arr(raw.events) : [];
 };
 const loadVocab = (fsx) => buildVocab(userEventRows(fsx));
+const LEXICON_FILE = "dashboard/lexicon.json";
 
 // ---------- ids the sensor made up (#86): a close match counts as the known event ----------
 // "jealousy" is jealous_scene, "check_on_her" is checked_on_her. Words of the id are compared by stem; a match needs at
@@ -1241,13 +2092,6 @@ function cleanNames(raw) {
   return out;
 }
 
-/** `names` plus every soul key no listed name already stands for (an alias is not listed twice). */
-function withSoulNames(souls, names) {
-  const list = unique(names);
-  for (const key of Object.keys(souls)) if (!list.some((n) => soulOf(souls, n) === souls[key])) list.push(key);
-  return list;
-}
-
 /** name -> the key of the saved soul that name stands for (spelling, alias, lorebook key, near-miss), or undefined. */
 function savedKeyResolver(fsx, cardId, own) {
   const lookup = withLorebookAliases(fsx, own, [cardId], []);
@@ -1516,16 +2360,18 @@ function chatCharacters(fsx, meta) {
   const names = [];
   const souls = {};
   const cards = [];
+  const members = [];
   for (const id of memberIds(fsx, meta)) {
     const card = readCard(fsx, id);
     if (!isObj(card) || !card.name) continue;
     cards.push(id);
+    members.push({ id, card });
     names.push(String(card.name));
     for (const [n, soul] of Object.entries(cardSoulsOf(card))) if (!souls[n]) souls[n] = soul;
   }
   // a proposal the user has not settled yet plays as a provisional soul, behind the souls the cards hold
   for (const id of cards) addProvisional(souls, readDraft(fsx, id));
-  return { names: unique(names), souls: withLorebookAliases(fsx, souls, cards, arr(meta.lorebookIds)) };
+  return { names: unique(names), souls: withLorebookAliases(fsx, souls, cards, arr(meta.lorebookIds)), members };
 }
 
 // what the user is called when the chat and the persona give no name
@@ -1561,6 +2407,8 @@ function emptyState(chatId) {
     history: {},
     said: {},
     journal: {},
+    personIds: {},
+    notPersons: [],
     counters: { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 },
     proposals: [],
     removed: [],
@@ -1570,15 +2418,36 @@ function emptyState(chatId) {
 }
 
 /** Unknown top-level keys ride along untouched. */
+/** Things were numbered t1, t2 ... before they became o1, o2 ... (threads keep t#): rename them in a loaded state, in place. */
+function thingIdsUp(st) {
+  const up = (x) => (isObj(x) && typeof x.id === "string" && /^t\d+$/.test(x.id) ? { ...x, id: "o" + x.id.slice(1) } : x);
+  const list = (l) => (Array.isArray(l) ? l.map(up) : l);
+  const snap = (s) => {
+    if (!isObj(s)) return;
+    for (const c of Object.values(isObj(s.chars) ? s.chars : {})) if (isObj(c) && Array.isArray(c.items)) c.items = list(c.items);
+    const lay = s.layout;
+    if (!isObj(lay)) return;
+    lay.objects = list(lay.objects);
+    if (isObj(lay.left)) lay.left.objects = list(lay.left.objects);
+    if (isObj(lay.byPlace)) for (const k of Object.keys(lay.byPlace)) lay.byPlace[k] = list(lay.byPlace[k]);
+  };
+  for (const s of Object.values(isObj(st.snapshots) ? st.snapshots : {})) snap(s);
+  if (isObj(st.inherited)) snap(st.inherited.snap);
+  if (isObj(st.thingIds)) for (const [k, v] of Object.entries(st.thingIds)) if (typeof v === "string" && /^t\d+$/.test(v)) st.thingIds[k] = "o" + v.slice(1);
+}
+
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
   for (const k of ["snapshots", "places", "notebook", "names", "history", "said", "journal"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
+  thingIdsUp(st);
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
   if (!isObj(st.keptOut)) st.keptOut = null;
   if (!Array.isArray(st.proposals)) st.proposals = [];
+  if (!isObj(st.personIds)) st.personIds = {};
+  st.notPersons = arr(st.notPersons).filter((n) => typeof n === "string" && n);
   st.removed = arr(st.removed).filter((n) => typeof n === "string" && n);
   return st;
 }
@@ -1587,6 +2456,53 @@ function normalizeState(raw, chatId) {
 function loadState(fsx, chatId) {
   const raw = readJson(fsx, STATE_DIR + chatId + ".json", null);
   return { state: normalizeState(raw, chatId), existed: raw !== null };
+}
+
+/** The registry file, when the run changed it or the chat has none yet (it starts as a copy of the earlier chat's). */
+function saveRegistry(fsx, ctx) {
+  if (!ctx.reg) return;
+  let has = true;
+  try {
+    fsx.read(regPath(ctx.chatId));
+  } catch {
+    has = false;
+  }
+  if (!has || JSON.stringify(ctx.reg) !== ctx.regBefore) regSave(fsx, ctx.reg);
+}
+
+// ---------- changes agents made (the Agents plugin, #132) ----------
+// An agent's `write.state` card changes a Dashboard value in the snapshot of the message it ran on and records the change in
+// `dashboard/agent/<chatId>.json`: `entries: [{ id, key, field, who?, before, after, undone? }]`. A snapshot made anew (the message
+// was read again, or this file was saved from an older read) loses the change, so it is put back here, from that ledger.
+const AGENT_STATS = new Set(DISPOSITION);
+const AGENT_CHAR_TEXT = new Set(["mood", "condition", "outfit", "holding", "goal"]);
+const AGENT_SCENE_TEXT = new Set(["place", "weather"]);
+
+function reapplyAgentWrites(fsx, state, chatId) {
+  const f = readJson(fsx, "dashboard/agent/" + chatId + ".json", null);
+  if (!isObj(f) || !Array.isArray(f.entries)) return;
+  for (const e of f.entries) {
+    if (!isObj(e) || e.undone || typeof e.field !== "string" || !isObj(state.snapshots[e.key])) continue;
+    const snap = state.snapshots[e.key];
+    if (AGENT_SCENE_TEXT.has(e.field)) {
+      if (typeof e.after !== "string") continue;
+      if (!isObj(snap.clock)) snap.clock = {};
+      snap.clock[e.field] = e.after;
+      if (e.field === "place" && isObj(state.places) && isObj(state.places[e.key])) state.places[e.key].place = e.after;
+      continue;
+    }
+    const c = isObj(snap.chars) && typeof e.who === "string" ? snap.chars[e.who] : null;
+    if (!isObj(c)) continue;
+    if (AGENT_STATS.has(e.field)) {
+      if (!Number.isFinite(e.after)) continue;
+      if (!isObj(c.stats)) c.stats = {};
+      c.stats[e.field] = e.after;
+    } else if (AGENT_CHAR_TEXT.has(e.field) && typeof e.after === "string") {
+      c[e.field] = e.after;
+      c.fresh = [...new Set([...arr(c.fresh), e.field])];
+      if (e.field === "outfit") c.outfitSet = true;
+    }
+  }
 }
 
 function saveState(fsx, ctx) {
@@ -1682,6 +2598,8 @@ function buildInherit(fsx, chatId) {
     journal,
     counters: end.state.counters,
     calendar: isObj(end.state.calendar) ? end.state.calendar : null,
+    personIds: isObj(end.state.personIds) ? end.state.personIds : {},
+    notPersons: arr(end.state.notPersons),
   };
 }
 
@@ -1691,6 +2609,9 @@ function applyInherit(state, seed) {
     state[bag] = isObj(state[bag]) ? state[bag] : {};
     for (const [name, list] of Object.entries(seed[bag] || {})) state[bag][name] = [...list, ...arr(state[bag][name]).filter((x) => x.src !== INHERIT_KEY)];
   }
+  // the same people keep the same ids (the registry of the earlier chat is the start of this one's)
+  state.personIds = { ...(isObj(seed.personIds) ? seed.personIds : {}), ...(isObj(state.personIds) ? state.personIds : {}) };
+  state.notPersons = unique([...arr(seed.notPersons), ...arr(state.notPersons)]);
   // the date of day 1 goes on from the earlier chat, unless the chat has a calendar of its own
   if (isObj(seed.calendar) && !(isObj(state.calendar) && state.calendar.inherited !== true)) state.calendar = { ...seed.calendar, inherited: true };
   // carried ids stay valid (the sensor retires a note by its id): the counters go on from the higher
@@ -2554,14 +3475,19 @@ function previousStateText(ctx) {
     const fresh = DISPOSITION.every((s) => !c.stats[s]);
     let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ")) + ".";
     if (c.mood) line += " Mood: " + c.mood + ".";
-    if (c.holding) line += " Holding: " + c.holding + ".";
-    if (c.outfit) line += " Wearing: " + c.outfit + ".";
+    // what the character holds and wears, each item with its id: the sensor refers to the ids (#236)
+    const its = itemsOf(c);
+    const listing = (kind) => its.filter((x) => x.kind === kind).map((x) => x.id + " " + x.text).join("; ");
+    if (listing("hold")) line += " Holding: " + listing("hold") + ".";
+    if (listing("wear")) line += " Wearing: " + listing("wear") + ".";
+    // nothing recorded yet: say how to report it, or the sensor skips a garment that is merely worn
+    else if (!c.outfitSet) line += " Wearing: nothing recorded yet, so report in outfit any garment the new messages show on " + name + ", not only a change.";
     if (c.at) line += " At: " + c.at + ".";
     lines.push(line);
   }
   if (isObj(B.layout)) {
     if (B.layout.userAt) lines.push(ctx.userName + ": " + B.layout.userAt + ".");
-    if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map(objectText).join("; ") + ".");
+    if (arr(B.layout.objects).length) lines.push("Objects here: " + B.layout.objects.map((o) => (o.id ? o.id + " " : "") + objectText(o)).join("; ") + ".");
   }
   if (journalOnOf(ctx.cfg)) lines.push(...journalPreviousLines(ctx, B));
   const open = arr(ctx.threads).filter((t) => t.status === "open");
@@ -2646,14 +3572,298 @@ export function storyView(fsx, meta) {
 
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
-/** The "New messages" lines, and whether the 8000-character cut dropped earlier ones. */
-function newMessagesBody(msgs) {
-  const body = msgs.map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || m.role || "narrator") + "] " + cutMiddle(String(m.text).trim(), 1500)).join("\n");
-  return { body, trimmed: body.length > 8000 };
+// The sensor reads the new messages whole when they fit (#236): the old 1500-character cut per message threw away
+// 70-80 percent of a long reply, and with it the clothes, the kiss, the move that the middle held. The block has one
+// budget; a short message takes what it needs and the long ones share the rest (a "water level"), never below the floor.
+const SENSOR_TEXT_MAX = 12000;
+const SENSOR_MSG_FLOOR = 1500;
+
+/** The longest a message may be so that the messages together fit the budget: short ones keep all, long ones share what is left. */
+export function fairCap(lens, budget, floor) {
+  const sorted = [...lens].sort((a, b) => a - b);
+  let left = budget;
+  for (let i = 0; i < sorted.length; i++) {
+    const share = left / (sorted.length - i);
+    if (sorted[i] <= share) left -= sorted[i];
+    else return Math.max(floor, Math.floor(share));
+  }
+  return Infinity;
 }
 
-function newMessagesText(msgs) {
-  return "New messages\n" + newMessagesBody(msgs).body.slice(-8000);
+/** The "New messages" lines (a reply without the blocks a preset hides, when `view` is given), and whether the budget dropped earlier ones. */
+function newMessagesBody(msgs, view) {
+  const items = msgs.map((m) => ({ who: m.role === "user" ? "user" : str(m.name) || m.role || "narrator", text: String(view ? view(String(m.text), m.role) : m.text).trim() }));
+  const cap = fairCap(items.map((i) => i.text.length), SENSOR_TEXT_MAX, SENSOR_MSG_FLOOR);
+  const body = items.map((i) => "[" + i.who + "] " + cutMiddle(i.text, cap)).join("\n");
+  return { body, trimmed: body.length > SENSOR_TEXT_MAX };
+}
+
+function newMessagesText(msgs, view) {
+  return "New messages\n" + newMessagesBody(msgs, view).body.slice(-SENSOR_TEXT_MAX);
+}
+
+// ---------- word scan of the new messages (#236) ----------
+// The sensor model skips what it is not pointed at: a skirt named in passing in the middle of a long reply never reached
+// the Dashboard. Code reads the whole reply first, finds the sentences that look like clothing, a dressing action or
+// physical contact, and hands them to the sensor as hints ("check this one"). A hint is never a fact: the model decides
+// and writes the exact value. The word lists are plain data in any language; a language with no words simply gets no hints.
+// Entry forms: "skirt" = a stem (any word that starts with it and has up to 4 more letters, for endings); "top!" = that
+// word alone (or with s/es), for short words; an entry with a space or a hyphen is a phrase; a CJK entry matches anywhere.
+// A user's data/dashboard/lexicon.json adds words ({ "wear": [...], "touch": [...] }) or switches the scan off ({ "off": true }).
+// lexicon:start (words of many languages: data, the one place the plugin source may hold other scripts)
+export const DEFAULT_LEXICON = {
+  wear: [
+    // en
+    "dress", "skirt", "shirt", "blouse", "jacket", "coat!", "sweater", "jumper!", "hoodie", "cardigan", "jeans!", "pants!", "trousers", "shorts!", "stocking", "tights!", "socks!", "sock!", "sneaker", "trainer", "shoe", "boot!", "boots!", "heels!", "sandal", "slipper", "bra!", "panties!", "underwear", "lingerie", "bikini", "swimsuit", "uniform", "kimono", "robe!", "towel!", "pajama", "nightgown", "scarf!", "scarves", "hat!", "glove", "belt!", "necklace", "bracelet", "earring", "ribbon", "hairpin", "hair clip", "barrette", "choker", "collar!", "glasses!", "apron", "leggings", "hair tie", "bandana", "cloak", 
+    "gown", "tunic", "corset", "bodice", "cape!", "vest!", "veil", "shawl", "mantle", "blazer", "suit!", "tie!", "nightie", "negligee", "chemise",
+    "мантия", "мантию", "туник", "корсет", "вуаль", "накидк", "капюшон", "жилет", "пиджак", "костюм", "пеньюар", "сорочк",
+    "мантія", "мантію", "туніка", "тунік", "накидк", "каптур", "жилет", "піджак", "костюм", "пеньюар",
+    // armour, crowns, undress (a character in armour or bare feet is dressed or undressed too)
+    "armor", "armour", "breastplate", "gauntlet", "helmet", "shield!", "greave", "chainmail", "circlet", "crown!", "tiara", "barefoot", "bare feet", "naked", "nude",
+    "доспех", "броня", "брони!", "латы", "латах", "шлем", "кольчуг", "корон", "диадем", "босиком", "босые", "босых", "голая", "голой", "обнажённ", "обнаженн",
+    "обладунк", "броню", "шолом", "діадем", "босоніж", "босі", "гола", "голою", "оголен",
+    "rüstung", "helm!", "armure", "casque", "armadura", "casco", "armatura", "zbroj", "pancerz", "hełm",
+    // uk
+    "топа", "топі", "топу", "топом", "подол", "чепч", "сукн", "спідниц", "блуз", "сорочк", "футболк", "топ!", "куртк", "пальт", "светр", "кофт", "худі", "джинс", "штани", "штанів", "шорт", "панчох", "колгот", "шкарпет", "кросівк", "кеди", "взутт", "черевик", "чобіт", "туфл", "босонік", "тапк", "бюстгальтер", "ліфчик", "труси", "трусик", "білизн", "купальник", "халат", "рушник", "піжам", "шарф", "шапк", "капелюх", "рукавичк", "ремін", "пояс!", "пояса", "поясі", "поясом", "намист", "браслет", "сережк", "стрічк", "заколк", "резинк", "чокер", "окуляр", "перстен", "каблучк", "годинник", "фартух", "легінс", "плащ", 
+    // ru
+    "топа", "топе", "топу", "топом", "топы", "топов", "топик", "подол", "чепч", "платье", "платья", "платьиц", "юбк", "блуз", "рубашк", "футболк", "куртк", "пальто", "свитер", "кофт", "худи", "джинс", "штаны", "брюк", "шорт", "чулок", "чулк", "колготк", "носк", "кроссовк", "кед", "обув", "ботинк", "сапог", "туфл", "босонож", "тапочк", "лифчик", "бюстгальтер", "трусик", "трусы", "белье", "бельё", "купальник", "халат", "полотенц", "пижам", "шарф", "шапк", "шляп", "перчатк", "ремень", "ремня", "пояс!", "пояса", "поясе", "поясу", "поясом", "ожерель", "браслет", "серьг", "лент", "заколк", "резинк", "чокер", "очки", "очков", "кольц", "фартук", "лосин", "плащ", "бретел",
+    // de
+    "kleid", "röck", "bluse", "hemd", "jacke", "mantel", "pullover", "strumpf", "strümpf", "socke", "schuh", "stiefel", "sandale", "unterwäsche", "schlüpfer", "badeanzug", "schal!", "mütze", "handschuh", "gürtel", "halskette", "armband", "ohrring", "haarspange", "brille",
+    // fr
+    "robe!", "jupe", "chemise", "veste", "manteau", "chaussette", "chaussure", "botte", "culotte", "soutien-gorge", "sous-vêtement", "maillot", "écharpe", "bonnet", "gant!", "ceinture", "collier", "bracelet", "boucle d'oreille", "barrette", "lunettes",
+    // es
+    "vestido", "falda", "camisa", "blusa", "camiseta", "chaqueta", "abrigo", "suéter", "calcetín", "calcetin", "zapato", "zapatilla", "bota!", "sandalia", "braga", "sujetador", "ropa interior", "bañador", "bufanda", "gorro", "guante", "cinturón", "collar!", "pulsera", "pendiente", "gafas",
+    // pt
+    "saia!", "jaqueta", "casaco", "meia!", "meias!", "sapato", "tênis", "tenis!", "sandália", "calcinha", "sutiã", "roupa íntima", "biquíni", "cachecol", "chapéu", "luva", "cinto", "pulseira", "brinco", "óculos", "calça",
+    // it
+    "vestito", "camicia", "maglietta", "giacca", "cappotto", "maglione", "calza", "scarpa", "stivale", "sandalo", "mutandine", "reggiseno", "biancheria", "costume da bagno", "sciarpa", "cappello", "guanto", "cintura", "collana", "braccialetto", "orecchino", "occhiali",
+    // pl
+    "sukienk", "spódnic", "bluzk", "koszul", "kurtk", "płaszcz", "sweter", "skarpet", "rajstop", "pończoch", "trampk", "buty", "butów", "butem", "butach", "sandał", "majtki", "stanik", "bielizn", "kostium", "szalik", "czapk", "rękawiczk", "pasek", "naszyjnik", "bransolet", "kolczyk", "spinka", "okulary",
+    // nl
+    "jurk", "rok!", "overhemd", "jas!", "trui", "sok!", "sokken", "schoen", "laars", "laarzen", "slipje", "beha!", "ondergoed", "badpak", "sjaal", "muts", "handschoen", "riem!", "ketting", "oorbel", "bril!",
+    // tr
+    "elbise", "etek", "gömlek", "bluz", "tişört", "ceket", "mont!", "kazak", "çorap", "ayakkab", "bot!", "terlik", "külot", "sütyen", "iç çamaşır", "mayo!", "atkı", "şapka", "eldiven", "kemer", "kolye", "bilezik", "küpe", "gözlük", "toka!",
+    // zh, ja, ko (no spaces between words: matched anywhere)
+    "裙", "衬衫", "襯衫", "外套", "毛衣", "裤", "褲", "袜", "襪", "鞋", "内衣", "內衣", "泳衣", "围巾", "帽子", "手套", "腰带", "项链", "手镯", "耳环", "发夹", "眼镜",
+    "スカート", "シャツ", "ブラウス", "ワンピース", "ジャケット", "セーター", "靴下", "ストッキング", "靴", "下着", "水着", "スカーフ", "手袋", "ベルト", "ネックレス", "ブレスレット", "イヤリング", "ヘアピン", "眼鏡", "リボン",
+    "치마", "스커트", "셔츠", "블라우스", "원피스", "재킷", "스웨터", "양말", "스타킹", "신발", "운동화", "속옷", "수영복", "목도리", "모자", "장갑", "벨트", "목걸이", "팔찌", "귀걸이", "머리핀", "안경", "리본",
+  ],
+  dress: [
+    // putting on, taking off, handing over, picking up, dropping (counted only next to a clothing word)
+    "put on", "puts on", "putting on", "took off", "takes off", "taking off", "slipped", "pulled off", "pulls off", "undress", "unbutton", "unzip", "unlace", "untie", "strip", "removed", "dropped", "handed", "picked up",
+    "надел", "одел", "одевает", "сняла", "снял", "снимает", "раздел", "расстегн", "застегн", "расшнуров", "завяз", "развяз", "стянул", "скинул", "подобрал", "подняла",
+    "наділ", "одяг", "зняла", "зняв", "знімає", "роздяг", "розстебн", "застебн", "розшнур", "розв'яз", "скинув", "скинула", "підібрав", "підняла",
+    "anzieh", "auszieh", "ausgezogen", "enlev", "déshabill", "quit", "tirou", "desabotoou", "vestiu", "indoss", "tolse", "spogli", "zdjęła", "zdjął", "włożyła", "włożył", "rozebra", "giydi", "çıkardı", "脱", "穿", "を脱", "を着", "입었", "벗었",
+  ],
+  carry: [
+    // things a character holds or carries (a bag, a phone, an umbrella, a weapon); they matter for "holding"
+    "purse", "handbag", "bag!", "bags!", "backpack", "satchel", "phone", "smartphone", "umbrella", "wallet", "keys!", "knife", "sword", "dagger", "pistol", "gun!", "bouquet", "suitcase", "plate", "plates", "tray", "pan!", "pot!", "bottle", "bowl", "book!", "books!",
+    "сумк", "сумоч", "рюкзак", "телефон", "смартфон", "зонт", "кошел", "ключи!", "ключей", "нож!", "ножа", "ножом", "меч!", "мечем", "пистолет", "букет", "чемодан", "кастрюл", "тарелк", "чашк", "кружк", "бутылк", "книг", "поднос", "сковород", "миск",
+    "парасол", "гаманець", "гаманц", "ключі!", "ключів", "ніж!", "ножа", "ножем", "меча", "пістолет", "валіз", "каструл", "тарілк", "кухл", "пляшк", "книжк", "піднос", "сковорід",
+    "handtasche", "rucksack", "handy", "regenschirm", "geldbörse", "schlüssel", "messer", "schwert",
+    "sac à main", "sac!", "portable!", "parapluie", "portefeuille", "clés", "couteau", "épée",
+    "bolso", "mochila", "móvil", "paraguas", "cartera", "llaves", "cuchillo", "espada",
+    "bolsa!", "celular", "guarda-chuva", "carteira", "chaves", "faca", "espada",
+    "borsa!", "zaino", "cellulare", "ombrello", "portafoglio", "chiavi", "coltello", "spada",
+    "torebk", "plecak", "parasol", "portfel", "klucz", "nóż", "miecz",
+    // weapons, vessels and small things of fantasy and everyday scenes
+    "vial", "flask", "potion", "axe!", "axes!", "spear", "staff!", "wand!", "hammer", "lantern", "torch", "scroll!", "goblet", "cup!", "mug!", "candle", "coin!", "coins!", "rope!",
+    "флакон", "фиал", "пузыр", "склянк", "зелье", "зелья", "топор", "секир", "копьё", "копье", "копья", "посох", "жезл", "молот", "фонар", "факел", "свиток", "свитк", "кубок", "бокал", "стакан", "свеч", "монет", "верёвк", "веревк", "кинжал",
+    "пляшечк", "зілля", "сокир", "спис!", "списа", "палиц", "ліхтар", "смолоскип", "сувій", "сувою", "келих", "свічк", "мотуз", "кинджал",
+    "fiole", "potion", "hache", "dague", "fläschchen", "trank", "axt!", "dolch", "frasco", "poción", "poção", "hacha", "machado", "daga", "fiala", "pozione", "ascia", "pugnale", "fiolk", "eliksir", "topór", "sztylet",
+  ],
+  touch: [
+    "kiss", "hug!", "hugg", "embrac", "caress", "cuddle", "nuzzle", "lick", "grope",
+    "поцел", "обнял", "обним", "прижал", "ласк", "облиз",
+    "поцілув", "поцілун", "обійм", "пригорн", "пестив", "облиз",
+    "küss", "umarm", "streichel", "embras", "caresse", "beso", "besó", "abraz", "acarici", "beijo", "beijou", "abraço", "bacio", "baci", "abbracci", "accarezz", "pocałun", "pocałow", "przytul", "pieścił", "zoen", "knuffel", "öp", "kucak", "okşa", "キス", "抱き", "吻", "抱", "키스", "안았", "껴안",
+  ],
+};
+// lexicon:end
+
+const NAME_STOP = new Set(["the", "and", "von", "van", "der", "den", "des", "del", "las", "los", "les", "une", "you", "user"]);
+const nameTokens = (n) => (String(n).toLowerCase().match(/[\p{L}\p{M}]{3,}/gu) || []).filter((t) => !NAME_STOP.has(t));
+const CJK = /[぀-ヿ㐀-鿿가-힯]/;
+const SCAN_SEGMENT = /[^.!?…\n]+[.!?…]*/g;
+
+/** The lexicon the scan uses: the built-in words plus the user's file; null when the user switched the scan off. */
+export function lexiconOf(fsx) {
+  const user = fsx ? readJson(fsx, LEXICON_FILE, null) : null;
+  if (isObj(user) && user.off === true) return null;
+  const out = {};
+  for (const k of Object.keys(DEFAULT_LEXICON)) out[k] = [...DEFAULT_LEXICON[k], ...(isObj(user) ? arr(user[k]).map(str).filter(Boolean) : [])];
+  return out;
+}
+
+/** A matcher for one category: (lowercased sentence) -> the word of it that matched, or null. */
+function matcherOf(words) {
+  const stems = [];
+  const exact = new Set();
+  const phrases = [];
+  const anywhere = [];
+  for (const raw of words) {
+    const w = String(raw).toLowerCase();
+    if (!w) continue;
+    if (CJK.test(w)) anywhere.push(w);
+    else if (w.endsWith("!")) exact.add(w.slice(0, -1));
+    else if (/[\s-]/.test(w)) phrases.push(w);
+    else stems.push(w);
+  }
+  return (sentence) => {
+    for (const a of anywhere) if (sentence.includes(a)) return a;
+    for (const p of phrases) if (sentence.includes(p)) return p;
+    for (const tok of sentence.match(/[\p{L}\p{M}'’]+/gu) || []) {
+      if (exact.has(tok) || exact.has(tok.replace(/(es|s)$/, ""))) return tok;
+      if (tok.length < 3) continue;
+      for (const s of stems) if (tok.length - s.length <= 4 && tok.startsWith(s)) return tok;
+    }
+    return null;
+  };
+}
+
+/**
+ * The sentences of the new messages (whole, uncut) that look like clothing, a dressing action or contact:
+ * [{ who, text, kinds, named, before }]. named: the cast names the sentence holds. before: for a sentence with no cast name
+ * but the user's (a pronoun: "She leaned over, her short skirt riding up"), the last cast name the same paragraph gave before
+ * it, the character the pronoun most likely means; a hint, the sensor reads the text. resolve(word) is an optional lookup of
+ * a capitalised word that is no spelling in names (a name in another alphabet, Yuki in Cyrillic for "Yuki Tanaka"): a name or null.
+ */
+export function wordScan(msgs, view, lexicon, max = 12, names = [], opts = {}) {
+  if (!lexicon) return [];
+  const match = {};
+  for (const k of Object.keys(lexicon)) match[k] = matcherOf(lexicon[k]);
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const userNames = new Set(arr(opts.user).map((n) => str(n).toLowerCase()).filter(Boolean));
+  const namesIn = (s) => {
+    const low = s.toLowerCase();
+    const words = low.match(/[\p{L}\p{M}]+/gu) || [];
+    const hit = names.filter((n) => nameTokens(n).some((t) => words.some((w) => w === t || (t.length >= 5 && w.startsWith(t.slice(0, -1))))));
+    if (resolve) {
+      for (const w of s.match(/\p{Lu}[\p{L}\p{M}]{2,}/gu) || []) {
+        const n = resolve(w);
+        if (n && !hit.includes(n)) hit.push(n);
+      }
+    }
+    return hit;
+  };
+  const found = [];
+  const seen = new Set();
+  for (const m of msgs) {
+    const who = m.role === "user" ? "user" : str(m.name) || m.role || "narrator";
+    const text = String(view ? view(String(m.text), m.role) : m.text);
+    for (const para of text.split(/\n\s*\n|\n(?=\s*[*_"\u201c\u2014-])/)) {
+      // the last cast name (not the user's) this paragraph gave so far
+      let last = "";
+      for (const seg of para.match(SCAN_SEGMENT) || []) {
+        const s = seg.replace(/[*_]+/g, "").trim();
+        if (s.length < 3) continue;
+        const named = namesIn(s);
+        const cast = named.filter((n) => !userNames.has(n.toLowerCase()));
+        const before = last;
+        if (cast.length) last = cast[cast.length - 1];
+        if (s.length < 8) continue;
+        const low = s.toLowerCase();
+        const kinds = Object.keys(match).filter((k) => match[k](low));
+        // a dressing word alone ("put", "dropped") is too common: it counts only next to clothing; clothing or contact count alone
+        const real = kinds.filter((k) => k !== "dress" || kinds.includes("wear"));
+        if (!real.length || seen.has(low)) continue;
+        seen.add(low);
+        found.push({ who, text: s.length > 260 ? cutMiddle(s, 260) : s, kinds: real, named, ...(!cast.length && before ? { before } : {}) });
+      }
+    }
+  }
+  // clothing with an action first, then clothing, then the rest; the order of the text inside each group
+  const rank = (f) => (f.kinds.includes("wear") && f.kinds.includes("dress") ? 0 : f.kinds.includes("wear") ? 1 : f.kinds.includes("touch") ? 2 : 3);
+  return found.map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || (b.f.named.length > 0) - (a.f.named.length > 0) || a.i - b.i).slice(0, max).map((x) => x.f);
+}
+
+/** The "Word scan" block of the sensor input, or "" when nothing was found. */
+function wordScanHits(ctx) {
+  const names = unique([ctx.userName, ...arr(ctx.characters), ...Object.keys(isObj(ctx.souls) ? ctx.souls : {}), ...cardAttires(ctx.fsx, ctx.meta).map((x) => x.name), ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])].map(str).filter(Boolean));
+  // a capitalised word the cast names do not spell (a name in another alphabet, a short form) is looked up in the registry
+  const reg = ctx.reg || (ctx.state ? ensureRegistry(ctx) : null);
+  const resolve = reg
+    ? (w) => {
+        const r = resolveName(reg, w, "person");
+        const e = r && r.id && r.step <= 3 ? regGet(reg, r.id) : null;
+        return e && e.id !== "user" ? personName(ctx, e.name) : null;
+      }
+    : null;
+  return wordScan(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta), lexiconOf(ctx.fsx), 12, names, { resolve, user: [ctx.userName, ...userAll(ctx)] });
+}
+
+function wordScanText(hits) {
+  if (!hits.length) return "";
+  return [
+    "Word scan",
+    "Code read the new messages whole and found these sentences. They are hints, not facts, and code does not know whose clothes they are: the sentence can be about the user's character, a character from Characters, or someone who is not in the scene (a neighbour, a passer-by, a side remark). Find the sentence in its place in the New messages and report a garment, shoes or an accessory in outfit only for the character the text says wears it; skip the rest. Give the exact garment (colour, fabric, cut) as written. A garment already in Wearing described in a new state (torn, wet, dirty, burnt) is the same item as before, not a new one. Things a character holds or carries (a bag, a phone, a weapon) go to holding. For contact (a kiss, an embrace, a touch), name the event if the text shows it.",
+    ...hits.map((h) => "- (in " + h.who + "'s message) " + h.text + "  [" + h.kinds.join(", ") + "; " + (h.named.length ? "names in it: " + h.named.join(", ") : "no cast name in it") + (h.before ? "; the paragraph named " + h.before + " just before it" : h.named.length ? "" : ": read the context") + "]"),
+  ].join("\n");
+}
+
+// ---------- the card's Attire for the sensor (#236) ----------
+// A card often says what a character usually wears ("Attire: Daily: a white top with teal trim, a short pleated skirt ...").
+// The sensor sees only the new messages, where a skirt is named in passing, so its wording stays thin ("a skirt") or the garment
+// is skipped. Code finds the Attire line of each present character in the card (a card of many characters has a heading
+// per character) and puts it next to the hints, as a reference for wording. It is never proof: the sensor adds only what the text shows.
+// lexicon:start (labels in many languages)
+const ATTIRE_LABEL = /^[ \t>*_-]*(?:attire|outfit|clothing|clothes|wardrobe|dress code|одяг|вбрання|одежда|наряд|гардероб|kleidung|tenue|vêtements|vestimenta|ropa|roupa|abbigliamento|ubiór|ubranie|kleding|kıyafet|服装|衣装|복장)[ \t*_]*:[ \t*_]*(.+)$/gim;
+// lexicon:end
+const ATTIRE_MAX = 400;
+const ATTIRE_CHARS_MAX = 4;
+
+const sameName = (a, b) => {
+  const x = nameTokens(a);
+  const y = nameTokens(b);
+  return x.length > 0 && y.length > 0 && x.some((t) => y.includes(t));
+};
+
+/** The Attire lines of the chat's cards: [{ name, text }]; a "### Name" heading in the description starts a section of its own. */
+export function cardAttires(fsx, meta) {
+  const out = [];
+  for (const id of memberIds(fsx, meta)) {
+    const card = readCard(fsx, id);
+    if (!isObj(card) || !str(card.name)) continue;
+    const desc = str(isObj(card.data) ? card.data.description : card.description);
+    const parts = desc.split(/^(?=#{1,4}[ \t]+\S)/m);
+    for (const part of parts) {
+      const head = /^#{1,4}[ \t]+(.+)$/m.exec(part.startsWith("#") ? part : "");
+      const who = head ? head[1].trim() : str(card.name);
+      ATTIRE_LABEL.lastIndex = 0;
+      const m = ATTIRE_LABEL.exec(part);
+      if (m && str(m[1])) out.push({ name: who, text: cut(str(m[1]).replace(/[*_]+/g, ""), ATTIRE_MAX) });
+    }
+  }
+  return out;
+}
+
+/** The "Card attire" block: for each present character with an Attire line, while their outfit is not recorded or the new text mentions clothes. */
+function cardAttireText(ctx, hits) {
+  const B = ctx.base && ctx.base.snap;
+  const present = B ? arr(B.present) : arr(ctx.characters);
+  const clothesInText = arr(hits).some((h) => h.kinds.includes("wear"));
+  const attires = cardAttires(ctx.fsx, ctx.meta);
+  if (!attires.length) return "";
+  const lines = [];
+  for (const name of present) {
+    if (lines.length >= ATTIRE_CHARS_MAX) break;
+    const c = B && B.chars && B.chars[name];
+    if (c && c.outfitSet && !clothesInText) continue;
+    const a = attires.find((x) => sameName(x.name, name));
+    if (a) lines.push("- " + name + ": " + a.text);
+  }
+  if (!lines.length) return "";
+  return [
+    "Card attire",
+    "What the cards say these characters usually wear. It is only a reference for wording: use it to give the exact garment (colour, fabric, cut) when the new messages show or clearly imply that garment on the character (a skirt tugged at, a top named in passing). Never add a garment the new messages do not show, and where the card lists several outfits (daily, work, sleep) take the one the scene fits.",
+    ...lines,
+  ].join("\n");
+}
+
+/** The scan's blocks of the sensor input: the hints, and the card's Attire for the characters they may concern. */
+function scanBlocks(ctx) {
+  const hits = wordScanHits(ctx);
+  return [wordScanText(hits), cardAttireText(ctx, hits)].filter(Boolean);
 }
 
 /** Every N turns (only then): ask about open threads that have been open that long. */
@@ -2680,18 +3890,18 @@ function threadCheckText(ctx) {
 
 /** The "Characters" block: the user, and every character with what the card says they are. */
 function castText(ctx) {
-  const listed = withSoulNames(ctx.souls, [...ctx.characters, ...(ctx.base ? Object.keys(ctx.base.snap.chars || {}) : [])]);
-  // a card without a soul may be a narrator card; the sensor decides from the text
-  const label = (n) => {
-    const soul = soulOf(ctx.souls, n);
-    return soul ? classOf(soul) : ctx.characters.includes(n) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
-  };
-  // pronouns when the soul has them, so notes and moods use the right gender
-  const pronounWord = (n) => {
-    const soul = soulOf(ctx.souls, n);
-    return soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
-  };
-  const classes = listed.map((n) => n + " (" + label(n) + pronounWord(n) + ")").join(", ");
+  // one line per person: the class, the pronouns, and the other spellings the sensor can meet (never the user's)
+  const classes = castEntries(ctx)
+    .map(({ name, e }) => {
+      const soul = soulFor(ctx, name);
+      // a card without a soul may be a narrator card; the sensor decides from the text
+      const label = soul ? classOf(soul) : ctx.characters.includes(name) ? "the card: a character, or a narrator who is no person in the scene" : "neutral";
+      // pronouns when the soul has them, so notes and moods use the right gender
+      const pronouns = soul && PRONOUN_KEYS.includes(soul.pronouns) ? ", " + soul.pronouns : "";
+      const also = aliasesShown(e, name);
+      return name + " (" + label + pronouns + (also.length ? "; also: " + also.join(", ") : "") + ")";
+    })
+    .join(", ");
   return "Characters\nuser: " + ctx.userName + ". " + classes + ".";
 }
 
@@ -2854,7 +4064,7 @@ function askLeakCheck(host, ctx) {
   host.llm.request("leak", {
     ...(model ? { model } : {}),
     systemPrompt: "You check a roleplay for one kind of mistake: a character acting on a secret they do not know. Answer with JSON only.",
-    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\nNew messages\n" + arr(ctx.newMsgs).map((m) => "[" + (m.role === "user" ? "user" : str(m.name) || "narrator") + "] " + cut(str(m.text), 1500)).join("\n") }],
+    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\n" + newMessagesText(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta)) }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0),
   });
 }
@@ -2867,6 +4077,7 @@ function sensorUser(ctx) {
     ...[threadCheckText(ctx)].filter(Boolean),
     ...[backdropText(ctx)].filter(Boolean),
     ...[leakCheckText(ctx)].filter(Boolean),
+    ...scanBlocks(ctx),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
@@ -3126,38 +4337,339 @@ export function calendarView(state) {
 /** A clock with its date, for views and prompts. */
 export const clockWithDate = (clock, cal) => (isObj(clock) ? { ...clock, date: dateOf(cal, clock.day) } : clock);
 
+// ---------- one person, one name: the entity registry (docs/ENTITY-REGISTRY.md) ----------
+// Every name the sensor writes goes through personName(): "user", the Dashboard name of a person the chat already has, a new
+// person, or null when the name is no person (a card title, a narrator). The registry file keeps the ids, state.personIds the
+// Dashboard names ({ [name]: entity id }, the first name of a person stays the one the Dashboard shows) and state.notPersons
+// the labels that are no people (folded). A guess is never merged silently: the pair goes to the registry's suggestions.
+const NOT_PERSONS_MAX = 100;
+const ALIASES_SHOWN = 4;
+const ALIAS_WORDS_MAX = 3;
+
+/** True for a name that was found to be a label (a card title, a narrator), not a person. */
+const isNotPerson = (state, name) => {
+  const f = regFold(name);
+  return !!f && arr(state.notPersons).includes(f);
+};
+
+/** The id of the entity a Dashboard name stands for (state.personIds, merges followed), or null. */
+function shownId(reg, state, name) {
+  const low = String(name).toLowerCase();
+  for (const [k, id] of Object.entries(isObj(state.personIds) ? state.personIds : {})) {
+    if (k.toLowerCase() !== low) continue;
+    const e = regGet(reg, id);
+    if (e) return e.id;
+  }
+  return null;
+}
+
+/** A Dashboard name whose id was merged away points at the merge target; one whose id is gone is looked up by its name again, else dropped. */
+function repointShown(reg, state) {
+  for (const [k, id] of Object.entries(state.personIds)) {
+    const e = regGet(reg, id);
+    if (e) {
+      if (e.id !== id) state.personIds[k] = e.id;
+      continue;
+    }
+    const r = resolveName(reg, k, "person");
+    const hit = r && r.id ? regGet(reg, r.id) : null;
+    if (hit) state.personIds[k] = hit.id;
+    else delete state.personIds[k];
+  }
+}
+
+/** The first Dashboard name of an entity, or null when it has none yet. */
+function shownName(reg, state, id) {
+  let via = null;
+  for (const [k, v] of Object.entries(isObj(state.personIds) ? state.personIds : {})) {
+    const e = regGet(reg, v);
+    if (!e || e.id !== id) continue;
+    if (v === id) return k;
+    via = via || k;
+  }
+  return via;
+}
+
+const setShown = (state, name, id) => {
+  if (!isObj(state.personIds)) state.personIds = {};
+  if (safeKey(name)) state.personIds[name] = id;
+};
+
+/** Why two entities may be one person ("same first name" ...), or null when nothing says so. Compares every spelling of both. */
+function whyAlike(a, b) {
+  const sa = [a.name, ...a.aliases.map((x) => x.text)];
+  const sb = [b.name, ...b.aliases.map((x) => x.text)];
+  let why = null;
+  for (const x of sa) {
+    for (const y of sb) {
+      const kx = regTranslit(x);
+      if (kx && regScript(x) !== regScript(y) && kx === regTranslit(y)) return "same name in another alphabet";
+      const tx = regTokens(x);
+      const ty = regTokens(y);
+      // a single word that is a word of the other name; two full names that share a word (Alice Yamada, Alice Cooper) are two people
+      if (!why && tx.length && ty.length && Math.min(tx.length, ty.length) === 1 && tx.some((w) => ty.includes(w))) why = tx[0] === ty[0] ? "same first name" : "shares a word of the name";
+      const fx = regFold(x);
+      const fy = regFold(y);
+      if (!why && fx !== fy && regLen(fx) >= 4 && regLen(fy) >= 4 && regWithin1(fx, fy)) why = "one letter apart";
+    }
+  }
+  return why;
+}
+
+/** Suggest the people a new entity looks like (at most three). */
+function suggestLikeness(reg, made) {
+  let n = 0;
+  for (const e of reg.entities) {
+    if (n >= 3) break;
+    if (e.kind !== "person" || e.merged || e.id === "user" || e.id === made.id) continue;
+    const why = whyAlike(made, e);
+    if (why && regSuggest(reg, made.id, e.id, why)) n++;
+  }
+}
+
+const isUserName = (ctx, s) => isUser(s) || userAll(ctx).some((n) => String(n).toLowerCase() === String(s).toLowerCase());
+
 /**
- * The story name a sensor spelling stands for (case-insensitive), else the name of the same soul the story already
- * uses (a card name or a name in the last snapshot: "Sina Rose" for "Sina"), else as given. A soul key nobody used
- * is not a story name: the story's own spelling of an alias stays (a soul key Medli, a story that writes it in Cyrillic).
+ * The people the Dashboard already shows (the last snapshot) get their ids: a name that is already mapped stays; a name
+ * that resolves to a person another shown name stands for becomes a person of its own with a suggestion, never a silent merge.
  */
-function canonName(name, known, ctx) {
-  const s = str(name);
-  if (!s || known.includes(s)) return s;
-  const same = known.find((k) => k.toLowerCase() === s.toLowerCase());
-  if (same) return same;
-  const soul = ctx && ctx.souls ? soulOf(ctx.souls, s) : undefined;
-  return (soul && known.find((k) => arr(ctx.used).includes(k) && soulOf(ctx.souls, k) === soul)) || s;
+function registerShown(ctx, names) {
+  const { reg, state } = ctx;
+  const taken = new Map();
+  const open = [];
+  for (const n of names) {
+    if (isUserName(ctx, n) || isNotPerson(state, n)) continue;
+    const id = shownId(reg, state, n);
+    if (id && id !== "user") {
+      if (!taken.has(id)) taken.set(id, n);
+      setShown(state, n, id);
+    } else open.push(n);
+  }
+  for (const n of open) {
+    const r = resolveName(reg, n, "person");
+    const e = r && r.id ? regGet(reg, r.id) : null;
+    if (e && e.id === "user") continue;
+    let id;
+    if (e && !taken.has(e.id)) {
+      if (r.step > 1) regLearn(reg, e.id, n);
+      id = e.id;
+    } else {
+      const made = regAdd(reg, { name: n, src: "seen" });
+      if (!made) continue;
+      id = made.id;
+      if (e) regSuggest(reg, made.id, e.id, whyAlike(made, e) || "same name");
+      else if (r && r.ambiguous) for (const c of r.ambiguous) regSuggest(reg, made.id, c, "two people fit");
+      else suggestLikeness(reg, made);
+    }
+    taken.set(id, n);
+    setShown(state, n, id);
+  }
+}
+
+/** The chat this one continues, for the registry: the carried state's, else the Litopys link. */
+const regFromOf = (fsx, chatId, state) => (isObj(state.inherited) && CHAT_ID.test(str(state.inherited.from)) ? str(state.inherited.from) : "") || linkedFrom(fsx, chatId) || null;
+
+/**
+ * The chat's registry in ctx.reg, seeded every time (it is idempotent): the persona and every name the user had as `user`;
+ * the people of the member cards; the soul keys; the card names and the speaker names of its messages (aliases of the card's
+ * person, or, for a card that is no person, entries of state.notPersons). Saved by commitUpdate with the state.
+ */
+function ensureRegistry(ctx) {
+  if (ctx.reg) return ctx.reg;
+  const { fsx, chatId, state } = ctx;
+  // no data folder (the size estimate of fast mode): an empty registry in memory
+  const chat = fsx ? readChat(fsx, chatId) : null;
+  const reg = fsx ? regLoad(fsx, chatId, regFromOf(fsx, chatId, state)) : regNew(chatId || "sample", null);
+  ctx.reg = reg;
+  ctx.regBefore = JSON.stringify(reg);
+  ctx.nameCache = new Map();
+  ctx.disp = new Map();
+  ctx.idOf = new Map();
+  ctx.cardDisplay = new Map();
+  if (!isObj(state.personIds)) state.personIds = {};
+  if (!Array.isArray(state.notPersons)) state.notPersons = [];
+  const users = userAll(ctx).filter((n) => n && n !== NO_USER_NAME);
+  const members = chat ? chatCharacters(fsx, chat.meta).members : [];
+  // a registry made by an older card reader: card entities the cards no longer produce go (unless the Dashboard uses them), and the
+  // soul or story entities that now resolve to a card person are merged into it by regSeed
+  regPrune(reg, members, Object.values(state.personIds));
+  regSeed(reg, { cards: members, personaName: ctx.userName !== NO_USER_NAME ? ctx.userName : users[0] || "", souls: isObj(ctx.souls) ? ctx.souls : {} });
+  repointShown(reg, state);
+  for (const n of users) regAlias(reg, "user", n, "persona");
+  const notPerson = (label) => {
+    const f = regFold(label);
+    if (!f || state.notPersons.includes(f)) return;
+    const r = resolveName(reg, label, "person");
+    // a label that means a person (or maybe one of several) is a name, not a title
+    if (r && (r.id || r.ambiguous)) return;
+    state.notPersons = [...state.notPersons, f].slice(-NOT_PERSONS_MAX);
+  };
+  const cardPerson = new Map();
+  for (const { id, card } of members) {
+    const named = regCardNames(card);
+    const cardName = str(card.name);
+    const r = named.cardIsPerson && named.persons[0] ? resolveName(reg, named.persons[0].name, "person") : null;
+    const e = r && r.id ? regGet(reg, r.id) : null;
+    if (e && e.id !== "user") {
+      regAlias(reg, e.id, cardName, "card");
+      if (!ctx.cardDisplay.has(e.id)) ctx.cardDisplay.set(e.id, cardName);
+      cardPerson.set(id, e.id);
+    } else notPerson(cardName);
+  }
+  // the name on a message belongs to the card that spoke it: an alias of its person, or a label that is no person
+  const spokenBy = (m) =>
+    members.find((x) => x.id === m.characterId) || members.find((x) => regFold(x.card.name) === regFold(m.name)) || (!m.characterId && ctx.meta ? members.find((x) => x.id === ctx.meta.characterId) : null) || null;
+  const labels = new Set();
+  for (const m of chat ? chat.msgs : []) {
+    if (!isObj(m) || m.role !== "char" || !str(m.name) || labels.has(str(m.name))) continue;
+    labels.add(str(m.name));
+    const label = str(m.name);
+    const card = spokenBy(m);
+    if (!card || isUserName(ctx, label)) continue;
+    const eid = cardPerson.get(card.id);
+    if (eid) {
+      const r = resolveName(reg, label, "person");
+      const other = r && r.id ? regGet(reg, r.id) : null;
+      // a label that already means someone else is that person's name
+      if ((r && r.ambiguous) || (other && other.id !== eid)) continue;
+      regAlias(reg, eid, label, "card");
+    } else notPerson(label);
+  }
+  // a card that is no person is no character of the chat; the persons of a person card are the cast it starts with
+  ctx.characters = unique(members.filter((x) => cardPerson.has(x.id)).map((x) => personName(ctx, str(x.card.name))).filter((n) => n && n !== "user"));
+  registerShown(ctx, Object.keys((ctx.base && ctx.base.snap && ctx.base.snap.chars) || {}));
+  // an update gives the things and places of an older state their registry ids (the state is written back with them)
+  if (ctx.migrateThings === true && isObj(state.snapshots)) migrateThings(ctx);
+  return reg;
+}
+
+/** The Dashboard name of an entity: the one the Dashboard shows already, else the card's, else the story's spelling. */
+function displayFor(ctx, e, raw) {
+  const { reg, state } = ctx;
+  const mine = shownName(reg, state, e.id);
+  let name = mine || ctx.disp.get(e.id);
+  if (!name) {
+    name = ctx.cardDisplay.get(e.id) || (e.card || regFold(raw) === regFold(e.name) ? plainName(e) : raw);
+    ctx.disp.set(e.id, name);
+  }
+  ctx.idOf.set(name, e.id);
+  return name;
+}
+
+function resolvePerson(ctx, s) {
+  const { reg, state } = ctx;
+  if (isUserName(ctx, s)) return "user";
+  // a name the Dashboard already shows is that person, whatever the registry would say
+  const owned = shownId(reg, state, s);
+  if (owned) {
+    const e = regGet(reg, owned);
+    return e.id === "user" ? "user" : displayFor(ctx, e, s);
+  }
+  const r = resolveName(reg, s, "person");
+  if (r && r.id) {
+    const e = regGet(reg, r.id);
+    if (e.id === "user") return "user";
+    // the story's own spelling is kept as an alias, so the next lookup is exact
+    if (r.step > 1) regLearn(reg, e.id, s);
+    return displayFor(ctx, e, s);
+  }
+  if (isNotPerson(state, s)) return null;
+  const made = regAdd(reg, { name: s, src: "seen" });
+  if (!made) return null;
+  if (r && r.ambiguous) for (const c of r.ambiguous) regSuggest(reg, made.id, c, "two people fit");
+  else suggestLikeness(reg, made);
+  return displayFor(ctx, made, s);
+}
+
+/** The Dashboard name for a name of the sensor: "user", the name of a person (new ones included), or null when it is no person. */
+function personName(ctx, raw) {
+  const s = str(raw);
+  if (!s) return null;
+  ensureRegistry(ctx);
+  if (ctx.nameCache.has(s)) return ctx.nameCache.get(s);
+  const out = resolvePerson(ctx, s);
+  ctx.nameCache.set(s, out);
+  return out;
+}
+
+/** The entity a Dashboard name stands for, or null. */
+function entityOf(ctx, name) {
+  if (!ctx.reg || !name || name === "user") return null;
+  const id = ctx.idOf.get(name) || shownId(ctx.reg, ctx.state, name);
+  return id ? regGet(ctx.reg, id) : null;
+}
+
+/** A soul by the name, or by any other spelling the registry knows for the same person. */
+function soulWith(souls, reg, name) {
+  const direct = soulOf(souls, name);
+  if (direct || !reg || !isObj(souls)) return direct;
+  const r = resolveName(reg, name, "person");
+  const e = r && r.id ? regGet(reg, r.id) : null;
+  if (!e) return undefined;
+  for (const x of [e.name, ...e.aliases.map((a) => a.text)]) {
+    const s = soulOf(souls, x);
+    if (s) return s;
+  }
+  return undefined;
+}
+const soulFor = (ctx, name) => soulWith(ctx.souls, ctx.reg, name);
+
+/** The people of the cast, one line each: the cards' persons, the last snapshot's, then the rest the registry has from cards and souls. */
+function castEntries(ctx) {
+  ensureRegistry(ctx);
+  const { reg, state } = ctx;
+  const out = [];
+  const seen = new Set();
+  const add = (e, name) => {
+    if (!e || e.id === "user" || e.merged || seen.has(e.id) || !name || isNotPerson(state, name)) return;
+    seen.add(e.id);
+    out.push({ name, e });
+  };
+  for (const n of [...ctx.characters, ...Object.keys((ctx.base && ctx.base.snap && ctx.base.snap.chars) || {})]) {
+    const d = personName(ctx, n);
+    add(entityOf(ctx, d), d);
+  }
+  for (const e of reg.entities) {
+    if (e.kind !== "person" || e.merged || (!e.card && e.src !== "soul")) continue;
+    // the name this person has on the Dashboard once it joins: the one already shown, the card's, or the registry's own
+    add(e, shownName(reg, state, e.id) || ctx.cardDisplay.get(e.id) || plainName(e));
+  }
+  return out;
+}
+
+/** The name to show for a person: a section heading with a role in front ("Queen of Elves Rhea Faeth") shows the name at
+ *  its end that the card also gives as an alias ("Rhea Faeth"); anything else as the registry has it. */
+function plainName(e) {
+  const words = regFold(e.name).split(" ");
+  if (words.length < 3) return e.name;
+  const tail = e.aliases
+    .map((a) => a.text)
+    .filter((t) => {
+      const w = regFold(t).split(" ");
+      return w.length >= 1 && w.length < words.length && words.slice(-w.length).join(" ") === w.join(" ");
+    })
+    .sort((x, y) => y.length - x.length)[0];
+  return tail || e.name;
+}
+
+/** Up to four other spellings of a person for the sensor (short ones; the user's are never listed). */
+function aliasesShown(e, name) {
+  const f = regFold(name);
+  const out = [];
+  for (const x of [e.name, ...e.aliases.map((a) => a.text)]) {
+    const k = regFold(x);
+    if (!k || k === f || out.some((o) => regFold(o) === k) || k.split(" ").length > ALIAS_WORDS_MAX) continue;
+    out.push(x);
+  }
+  return out.slice(0, ALIASES_SHOWN);
 }
 
 /** The names the user removed from this chat's cast: the sensor does not bring them back. */
 const removedOf = (state) => arr(state.removed).filter((n) => typeof n === "string");
 const isRemoved = (state, n) => removedOf(state).some((r) => r.toLowerCase() === String(n).toLowerCase());
 
-/** Names that stand for the same soul as an earlier name in the list, a card's own name first: one character, so the later ones go. */
-function twinNames(souls, cards, names) {
-  if (!isObj(souls)) return [];
-  const ordered = [...names.filter((n) => cards.includes(n)), ...names.filter((n) => !cards.includes(n))];
-  const seen = new Set();
-  const twins = [];
-  for (const n of ordered) {
-    const soul = soulOf(souls, n);
-    if (!soul) continue;
-    if (seen.has(soul)) twins.push(n);
-    else seen.add(soul);
-  }
-  return twins;
-}
+/** The names in the list that are labels, not people (card titles, narrators): out of every view. */
+const notPersonsIn = (state, names) => names.filter((n) => isNotPerson(state, n));
 
 /** The snapshot without the named characters (chars and present). */
 function withoutNames(snap, drop) {
@@ -3167,15 +4679,16 @@ function withoutNames(snap, drop) {
   return { ...snap, chars, present: arr(snap.present).filter((n) => !drop.includes(n)) };
 }
 
-/** "user" for any of the user's names (one, or every one the chat had), else the character's known name. */
+/** The user's names: every one the chat had (or the one it has). */
 const userAll = (ctx) => (arr(ctx.userNames).length ? ctx.userNames : [ctx.userName]);
 
+/** "user" for any of the user's names, else the Dashboard name of the person (or null). Without a ctx: only the "is this the user?" check. */
 function sideOf(v, userName, known, ctx) {
   const s = str(v);
   if (!s) return null;
   const mine = (Array.isArray(userName) ? userName : [userName]).map((n) => String(n).toLowerCase());
   if (isUser(s) || mine.includes(s.toLowerCase())) return "user";
-  return canonName(s, known, ctx);
+  return ctx ? personName(ctx, s) : s;
 }
 
 function readEvents(list, ctx, known, unknownIds) {
@@ -3251,7 +4764,7 @@ const NAMED_TO_JOIN = 2;
 
 /** Is the name (or an alias of its soul, in any script) in the text, allowing for endings? */
 function mentionsName(ctx, text, name) {
-  const soul = soulOf(ctx.souls, name);
+  const soul = soulFor(ctx, name);
   const names = nameForms(name, soul);
   const words = String(text).toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean).map(nameKey);
   return names.some((n) => {
@@ -3281,14 +4794,15 @@ function scenePresent(ctx, out, known) {
   if (Array.isArray(out.present) && isObj(ctx.souls)) {
     const text = ctx.newMsgs.filter((m) => m.role !== "user").map((m) => String(m.text)).join("\n");
     for (const [key, soul] of Object.entries(ctx.souls)) {
-      if (!isObj(soul) || list.includes(key) || struck.includes(key) || sideOf(key, userAll(ctx), []) !== key) continue;
-      // a soul keyed by the first name is the card's character already in the scene under its full name
-      if (list.some((n) => soulOf(ctx.souls, n) === soul)) continue;
-      if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(key);
+      if (!isObj(soul)) continue;
+      // a soul keyed by the first name is the card's character already in the scene under its full name: the same person
+      const nm = personName(ctx, key);
+      if (!nm || nm === "user" || list.includes(nm) || struck.includes(nm)) continue;
+      if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(nm);
     }
   }
-  // only characters this turn knows (a twin spelling or a removed name is not in `known`)
-  return unique(list).filter((n) => known.includes(n));
+  // only characters this turn knows (a removed name or a label is not)
+  return unique(list).filter((n) => ctx.isKnown(n));
 }
 
 /** Present characters first named in this turn's events, then the old order. */
@@ -3301,6 +4815,14 @@ function orderPresent(present, events, B) {
 
 const OUTFIT_FILLER = new Set(["a", "an", "the", "some", "her", "his", "their", "my", "your", "its", "of", "in", "on"]);
 const outfitWords = (s) => wordTokens(s).filter((w) => !OUTFIT_FILLER.has(w));
+// words that do not name a garment: colours and states, so "black boots" out and "black dress" in are two things, "gown" torn and "gown" dirty one
+const GARMENT_SKIP = new Set(["black", "white", "gold", "golden", "silver", "grey", "gray", "brown", "dark", "light", "pink", "blue", "green", "long", "short", "thin", "thick", "tight", "loose", "small", "large", "torn", "dirty", "wet", "burnt", "singed", "bloody", "stained", "ragged", "with", "from", "that"]);
+/** Is `b` the same garment as `a` in another state (torn, dirty): they share a word that names it. */
+export function sameGarment(a, b) {
+  const x = outfitWords(a).filter((w) => w.length >= 4 && !GARMENT_SKIP.has(w));
+  const y = new Set(outfitWords(b));
+  return x.some((w) => y.has(w));
+}
 const OUTFIT_SPLIT = /\s*(?:[,;]|\band\b|\bwith\b|\bover\b|\bunder\b|\bplus\b)\s*/i;
 /**
  * The outfit to keep (#185). A report that names a garment with fewer words than before ("a cardigan"
@@ -3334,6 +4856,7 @@ export function keepOutfit(old, next) {
 // ("she dropped five kilos") changes nothing.
 const STACK_MAX = 14;
 const OBJECTS_MAX = 12;
+const BY_PLACE_MAX = 8;
 const stackItems = (v) => str(v).split(/\s*[,;]\s*/).map((x) => x.trim()).filter(Boolean);
 const listOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []);
 const itemText = (v) => cut(str(isObj(v) ? v.item : v).replace(/[,;]+/g, " ").replace(/\s+/g, " ").trim(), 120);
@@ -3377,39 +4900,495 @@ export function applyStackDelta(old, delta) {
   return { text: items.join(", "), removed, added, changed: removed.length > 0 || added.length > 0 };
 }
 
-/** The scene's objects after this turn: [{ item, where }]. down = worn/held things just put down, up = just picked up or put on. */
-export function applyObjects(prev, out, down, up, placeMoved) {
-  const list = placeMoved ? [] : arr(prev).filter((o) => isObj(o) && str(o.item)).map((o) => ({ item: str(o.item), where: str(o.where) }));
+// ---------- the ledger of what a character wears and holds (#236) ----------
+// Each item has an id, a kind (wear, hold) and its text. Since the entity registry (docs/ENTITY-REGISTRY.md, phase B1) the id
+// is the thing's registry id (o1, o2 ...), the same wherever the thing is: worn, held or lying in the scene. The sensor sees the
+// ids in the Previous state and refers to them: `see` names what the new messages show (an id for a listed item, or for a thing
+// lying around or carried by another character, which then moves to this one; none for a new one; a new text on an id is the same
+// item in a new state), `off` names ids taken off or put down (with `where` the thing lies there under the same id). Code never
+// has to match words to find out which item a report means, so a torn gown stays one gown and nothing is "put down" by accident.
+// Words are used only as a safety net, when the sensor forgot the id of a thing that is listed (never twice) and for the older
+// formats (a plain text, { add, remove }). A snapshot from before the ledger gets its items from the outfit and holding texts,
+// and one from before the registry ids (i1, i2 per character) is migrated by ensureRegistry (migrateThings).
+const ITEMS_MAX = 14;
+const THING_ID = /^o\d+$/;
+const LEGACY_ID = /^i\d+$/;
+const idNum = (id) => Number(String(id).replace(/^\D+/, "")) || 0;
+const idOfEntry = (e) => (isObj(e) ? str(e.id) : "");
+
+/** The items of a character entry: [{ id, kind, text }]. */
+export function itemsOf(c) {
+  if (!isObj(c)) return [];
+  if (Array.isArray(c.items)) return c.items.filter((i) => isObj(i) && str(i.id) && str(i.text) && (i.kind === "wear" || i.kind === "hold")).map((i) => ({ id: str(i.id), kind: i.kind, text: str(i.text) }));
+  let n = 0;
+  const make = (kind, text) => stackItems(text).map((t) => ({ id: "i" + ++n, kind, text: t }));
+  return [...make("wear", c.outfit), ...make("hold", c.holding)];
+}
+
+/** The text of one kind of a character's items, as the older fields kept it. */
+export const itemsText = (items, kind) => items.filter((i) => i.kind === kind).map((i) => i.text).join(", ");
+
+/** The outfit and holding texts of an entry, made from its items. */
+function setItemTexts(entry) {
+  entry.outfit = itemsText(entry.items, "wear") ? cut(itemsText(entry.items, "wear"), 600) : null;
+  entry.holding = itemsText(entry.items, "hold") ? cut(itemsText(entry.items, "hold"), 600) : null;
+}
+
+/**
+ * Apply the sensor's report for one field ("outfit" = wear, "holding" = hold) to the items.
+ * lying = the scene's objects ([{ id, item }]) a picked-up thing may come from. opts (all optional, so the function stays pure):
+ * newId(text) gives the id of a new thing (default: i1, i2 ... from seq), known = Map id -> text of the things other characters
+ * carry (a `see` with such an id takes the thing over), resolve(text, pool) finds a thing among { id, text } by the registry's
+ * resolver, limbo = [{ id, item }] things that left a character this turn without a place (handed over by words).
+ * Returns { items, seq, changed, off: [{ id, item, where }], added: [text], picked: [{ id, text }], seen: [id] }.
+ */
+export function applyLedger(items0, seq0, kind, report, lying = [], opts = {}) {
+  let items = items0.map((i) => ({ ...i }));
+  let seq = Math.max(seq0 || 0, ...items.map((i) => idNum(i.id)));
+  const mint = typeof opts.newId === "function" ? opts.newId : () => "i" + ++seq;
+  const known = opts.known instanceof Map ? opts.known : new Map();
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const limbo = arr(opts.limbo);
+  const off = [];
+  const added = [];
+  const picked = [];
+  const seen = [];
+  let changed = false;
+  const of = (id) => items.find((i) => i.id === id && i.kind === kind);
+  const pool = lying.filter((o) => isObj(o) && str(o.id) && str(o.item)).map((o) => ({ id: str(o.id), text: str(o.item) }));
+  const put = (id, text) => {
+    items.push({ id, kind, text });
+    added.push(text);
+    picked.push({ id, text });
+    seen.push(id);
+    changed = true;
+  };
+  const newItem = (text) => {
+    // a thing lying around, or one just handed over: the same thing, in the wording it had
+    const lay = lying.find((o) => isObj(o) && covers(o.item, text));
+    const gone = limbo.find((l) => l.id && (covers(l.item, text) || covers(text, l.item)));
+    const found = lay ? { id: str(lay.id), text: str(lay.item) } : gone ? { id: gone.id, text: gone.item } : resolve ? resolve(text, pool) : null;
+    const id = found && found.id && !items.some((i) => i.id === found.id) ? found.id : mint(text);
+    if (id) put(id, found ? found.text : text);
+  };
+  const see = (entry) => {
+    const id = idOfEntry(entry);
+    const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
+    const mine = id ? of(id) : null;
+    if (mine) {
+      // a new state of the same item (torn, wet); a report that says less than the list does changes nothing (#185)
+      if (text && outfitWords(text).length && !covers(mine.text, text) && text !== mine.text) {
+        mine.text = text;
+        changed = true;
+      }
+      seen.push(id);
+      return;
+    }
+    // the id of a thing lying in the scene or carried by someone else: this character has it now
+    if (id && !items.some((i) => i.id === id)) {
+      const lay = lying.find((o) => isObj(o) && str(o.id) === id);
+      const there = lay ? str(lay.item) : known.get(id);
+      if (there) {
+        put(id, text && outfitWords(text).length && !covers(there, text) ? text : there);
+        return;
+      }
+    }
+    if (!text || !outfitWords(text).length) return;
+    // the sensor forgot the id of a listed item: the words find it, once
+    const same = items.find((i) => i.kind === kind && covers(i.text, text));
+    if (same) {
+      seen.push(same.id);
+      return;
+    }
+    const poorer = items.find((i) => i.kind === kind && covers(text, i.text));
+    if (poorer) {
+      poorer.text = text;
+      seen.push(poorer.id);
+      changed = true;
+      return;
+    }
+    newItem(text);
+  };
+  const takeOff = (entry) => {
+    const id = idOfEntry(entry);
+    const where = isObj(entry) ? cut(str(entry.where).replace(/\s+/g, " "), 100) : "";
+    let at = id ? items.findIndex((i) => i.id === id && i.kind === kind) : -1;
+    // no such id: the words of an older report find it
+    if (at < 0) {
+      const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
+      if (text && !id) at = items.findIndex((i) => i.kind === kind && covers(i.text, text));
+    }
+    if (at < 0) return;
+    const [gone] = items.splice(at, 1);
+    off.push({ id: gone.id, item: gone.text, where });
+    changed = true;
+  };
+  if (isObj(report) && (report.see !== undefined || report.off !== undefined)) {
+    for (const e of listOf(report.see)) see(e);
+    for (const e of listOf(report.off)) takeOff(e);
+  } else if (isObj(report) && (report.add !== undefined || report.remove !== undefined)) {
+    // the older change list: a removed garment that comes back in a new state (torn) is the same item, not put down
+    for (const e of listOf(report.remove)) takeOff(e);
+    for (const e of listOf(report.add)) {
+      const text = itemText(isObj(e) ? (e.text ?? e.item ?? "") : e);
+      const swap = off.findIndex((o) => sameGarment(o.item, text));
+      if (swap >= 0) off.splice(swap, 1);
+      // an old-format report cannot name the item it changes: the same garment in a new state replaces its entry
+      const state = text && !items.some((i) => i.kind === kind && covers(i.text, text)) ? items.find((i) => i.kind === kind && sameGarment(i.text, text)) : null;
+      if (state) {
+        state.text = text;
+        changed = true;
+      } else see(e);
+    }
+  }
+  // too many: the oldest of this kind go first
+  const mine = items.filter((i) => i.kind === kind);
+  if (mine.length > ITEMS_MAX) {
+    const drop = new Set(mine.slice(0, mine.length - ITEMS_MAX).map((i) => i.id));
+    items = items.filter((i) => !drop.has(i.id));
+  }
+  return { items, seq, changed, off, added, picked, seen };
+}
+
+/**
+ * One place for every thing: a thing is on one character (worn or held), or among the objects, never in two places.
+ * claims = Map id -> { name, kind } of the things a character reported in `see` this turn: they win over where the thing was.
+ * Changes the entries of `chars` in place (their items and the texts made from them) and returns the names that lost a thing.
+ */
+export function settleThings(chars, claims) {
+  const changed = [];
+  for (const [name, c] of Object.entries(isObj(chars) ? chars : {})) {
+    if (!isObj(c) || !Array.isArray(c.items)) continue;
+    const have = new Set();
+    const items = c.items.filter((i) => {
+      const claim = claims.get(i.id);
+      if (claim && (claim.name !== name || claim.kind !== i.kind)) return false;
+      if (have.has(i.id)) return false;
+      have.add(i.id);
+      return true;
+    });
+    if (items.length === c.items.length) continue;
+    c.items = items;
+    setItemTexts(c);
+    changed.push(name);
+  }
+  return changed;
+}
+
+const objectOf = (id, item, where) => (id ? { id, item, where } : { item, where });
+
+/**
+ * The scene's objects after this turn: [{ id, item, where }].
+ * The sensor's `objects` is { add: [{ text, where, id? }], move: [{ id, where }], remove: [id] }; the older { add: [{ item, where }],
+ * remove: [item] } (words) works too. down = worn/held things just taken off ({ id, item, where }): with a `where` the same id
+ * lies there, without it the thing only left the character. up = things just picked up or put on ({ id, text }).
+ * opts: newId(text), resolve(text, pool) (as in applyLedger), carried = [{ id, text }] what characters wear or hold now (a thing
+ * held is not lying around: an object that is one of them is dropped).
+ */
+export function applyObjects(prev, out, down, up, placeMoved, opts = {}) {
+  const mint = typeof opts.newId === "function" ? opts.newId : null;
+  const resolve = typeof opts.resolve === "function" ? opts.resolve : null;
+  const carried = arr(opts.carried);
+  const list = placeMoved ? [] : arr(prev).filter((o) => isObj(o) && str(o.item)).map((o) => objectOf(str(o.id) || (mint ? mint(str(o.item)) || "" : ""), str(o.item), str(o.where)));
+  const lost = arr(down).filter((d) => isObj(d) && !str(d.where));
   const o = isObj(out && out.objects) ? out.objects : {};
+  const at = (id) => (id ? list.findIndex((x) => x.id === id) : -1);
+  const whereOf = (v) => cut(str(isObj(v) ? v.where : "").replace(/\s+/g, " "), 100);
   for (const r of listOf(o.remove)) {
-    const at = list.findIndex((x) => covers(x.item, itemText(r)));
-    if (at >= 0) list.splice(at, 1);
+    const rid = isObj(r) ? str(r.id) : THING_ID.test(str(r)) ? str(r) : "";
+    const k = rid ? at(rid) : list.findIndex((x) => covers(x.item, itemText(r)));
+    if (k >= 0) list.splice(k, 1);
+  }
+  for (const m of listOf(o.move)) {
+    const k = isObj(m) ? at(str(m.id)) : -1;
+    if (k >= 0 && whereOf(m)) list[k] = { ...list[k], where: whereOf(m) };
   }
   for (const a of listOf(o.add)) {
-    const item = itemText(a);
-    if (!item || !outfitWords(item).length) continue;
-    const where = cut(str(isObj(a) ? a.where : "").replace(/\s+/g, " "), 100);
-    const at = list.findIndex((x) => covers(x.item, item) || covers(item, x.item));
-    if (at >= 0) list[at] = { item: outfitWords(item).length > outfitWords(list[at].item).length ? item : list[at].item, where: where || list[at].where };
-    else list.push({ item, where });
+    const text = itemText(isObj(a) ? (a.text ?? a.item ?? "") : a);
+    const aid = isObj(a) ? str(a.id) : "";
+    const where = whereOf(a);
+    if (aid) {
+      // an object that names a thing by its id: that thing lies here now
+      if (carried.some((c) => c.id === aid)) continue;
+      const k = at(aid);
+      const gone = lost.find((d) => d.id === aid);
+      if (k >= 0) list[k] = objectOf(aid, list[k].item, where || list[k].where);
+      else if (text || gone) list.push(objectOf(aid, gone ? gone.item : text, where));
+      continue;
+    }
+    if (!text || !outfitWords(text).length) continue;
+    // the thing the character just took off, said in other words: the same thing, in the wording it had
+    const dropped = lost.find((d) => d.id && (covers(d.item, text) || covers(text, d.item)));
+    if (dropped) {
+      const k = at(dropped.id);
+      const entry = objectOf(dropped.id, dropped.item, where || (k >= 0 ? list[k].where : ""));
+      if (k >= 0) list[k] = entry;
+      else list.push(entry);
+      continue;
+    }
+    const k = list.findIndex((x) => covers(x.item, text) || covers(text, x.item));
+    if (k >= 0) {
+      list[k] = objectOf(list[k].id, outfitWords(text).length > outfitWords(list[k].item).length ? text : list[k].item, where || list[k].where);
+      continue;
+    }
+    // held by a character: not lying around
+    if (carried.some((c) => covers(c.text, text) || covers(text, c.text))) continue;
+    const pool = [...list.map((x) => ({ id: x.id, text: x.item })), ...lost.map((d) => ({ id: d.id, text: d.item }))].filter((p) => p.id);
+    const hit = resolve ? resolve(text, pool) : null;
+    if (hit) {
+      const j = at(hit.id);
+      if (j >= 0) list[j] = objectOf(hit.id, list[j].item, where || list[j].where);
+      else list.push(objectOf(hit.id, hit.text, where));
+      continue;
+    }
+    list.push(objectOf(mint ? mint(text) || "" : "", text, where));
   }
   // a worn or held thing put down keeps the wording it had on the character and lies where the sensor said
-  for (const d of down) {
-    const at = list.findIndex((x) => covers(d.item, x.item) || covers(x.item, d.item));
-    if (at >= 0) list[at] = { item: d.item, where: list[at].where || "set down by " + d.who };
-    else list.push({ item: d.item, where: "set down by " + d.who });
+  for (const d of arr(down)) {
+    if (!isObj(d) || !str(d.where)) continue;
+    const k = d.id ? at(d.id) : list.findIndex((x) => covers(d.item, x.item) || covers(x.item, d.item));
+    if (k >= 0) list[k] = objectOf(d.id || list[k].id, d.item, d.where);
+    else list.push(objectOf(str(d.id), d.item, d.where));
   }
-  for (const u of up) {
-    const at = list.findIndex((x) => covers(u, x.item) || covers(x.item, u));
-    if (at >= 0) list.splice(at, 1);
+  for (const u of arr(up)) {
+    const uid = isObj(u) ? str(u.id) : "";
+    const text = isObj(u) ? str(u.text) : str(u);
+    let k = at(uid);
+    if (k < 0 && text) k = list.findIndex((x) => covers(text, x.item) || covers(x.item, text));
+    if (k >= 0) list.splice(k, 1);
   }
   while (list.length > OBJECTS_MAX) list.shift();
   return list;
 }
 
+// ---------- things and places in the registry (entity registry phase B1) ----------
+/** A thing among { id, text } for a wording, by the registry's resolver (exact, transliteration, first/last word, words inside; never the fuzzy step). */
+function resolveThing(reg, text, pool) {
+  const t = itemText(text);
+  if (!t || !arr(pool).length) return null;
+  const ents = [];
+  for (const p of pool) {
+    const e = reg ? regGet(reg, p.id) : null;
+    if (e && e.kind === "thing") ents.push({ id: e.id, kind: "thing", name: e.name, aliases: [...e.aliases, { text: p.text, src: "seen" }] });
+  }
+  if (!ents.length) return null;
+  const r = resolveName({ entities: ents, apart: [] }, t, "thing");
+  return r && r.id && r.step <= 3.5 ? pool.find((p) => p.id === r.id) || null : null;
+}
+
+/**
+ * The registry id of a place text (a spelling the registry knows, else a new place), "" for no text. A text that names two
+ * places ("the hallway and the kitchen") means the one the scene is in (here), else the first; it is never learned as a name.
+ */
+function placeIdFor(ctx, text, here) {
+  let t = cut(str(text).replace(/\s+/g, " "), 200);
+  if (!t) return "";
+  ensureRegistry(ctx);
+  const parts = regPlaceParts(t);
+  if (parts.length > 1) {
+    const at = here ? regGet(ctx.reg, here) : null;
+    const names = at ? [at.name, ...at.aliases.map((a) => a.text)] : [];
+    const mine = parts.find((pt) => names.some((n) => regPlaceFits(pt, n)));
+    if (mine && at) return at.id;
+    t = parts[0];
+  }
+  if (!ctx.placeCache) ctx.placeCache = new Map();
+  if (ctx.placeCache.has(t)) return ctx.placeCache.get(t);
+  let id = "";
+  const r = resolveName(ctx.reg, t, "place");
+  if (r && r.id) {
+    id = r.id;
+    if (r.step > 1) regLearn(ctx.reg, id, t);
+  } else {
+    const made = regAdd(ctx.reg, { kind: "place", name: t, src: "seen" });
+    id = made ? made.id : "";
+  }
+  ctx.placeCache.set(t, id);
+  return id;
+}
+
+/** What one turn needs to keep things in one place: ids, the scene's objects, who held what, who claims what. */
+function thingsContext(ctx, B) {
+  const reg = ctx.reg;
+  const mint = (text) => {
+    const e = regAdd(reg, { kind: "thing", name: text, src: "seen" });
+    return e ? e.id : null;
+  };
+  const holders = new Map();
+  for (const [n, c] of Object.entries((B && B.chars) || {})) for (const i of itemsOf(c)) holders.set(i.id, { name: n, text: i.text });
+  const claims = new Map();
+  return {
+    mint,
+    holders,
+    claims,
+    lying: arr(B && B.layout && B.layout.objects).filter((o) => isObj(o) && str(o.item)),
+    knownFor: (name) => new Map([...holders].filter(([, h]) => h.name !== name).map(([id, h]) => [id, h.text])),
+    resolve: (text, pool) => resolveThing(reg, text, pool),
+    // a thing a character reports in `see` is theirs now; the one who held it before keeps it only against a later claimant
+    claim: (id, name, kind) => {
+      const cur = claims.get(id);
+      if (cur && cur.name !== name && holders.has(id) && holders.get(id).name === name) return;
+      claims.set(id, { name, kind });
+    },
+    // a new wording of a thing is a spelling of it
+    learn: (items) => {
+      for (const i of items) {
+        const e = THING_ID.test(i.id) ? regGet(reg, i.id) : null;
+        if (e && regFold(e.name) !== regFold(i.text)) regAlias(reg, e.id, i.text, "seen");
+      }
+    },
+  };
+}
+
+/** The ids of an older report (i1 per character) read as the registry ids they became in migrateThings. */
+function legacyIds(ctx, name, report) {
+  const ids = ctx.state && ctx.state.thingIds;
+  if (!isObj(ids) || !isObj(report)) return report;
+  const fix = (list) => (Array.isArray(list) ? list.map((e) => (isObj(e) && LEGACY_ID.test(str(e.id)) && ids[name + "|" + str(e.id)] ? { ...e, id: ids[name + "|" + str(e.id)] } : e)) : list);
+  const out = { ...report };
+  for (const k of ["see", "off", "remove"]) if (k in out) out[k] = fix(out[k]);
+  return out;
+}
+
+/**
+ * A repair for states the first id version migrated: one character's thing that got two ids (once by its words, once by
+ * its item id) is one again. Twins are the same character's things whose registry names fold the same; the later id is
+ * merged into the earlier and every snapshot uses the earlier.
+ */
+function joinTwinThings(ctx, snaps) {
+  const { state, reg } = ctx;
+  const ids = isObj(state.thingIds) ? state.thingIds : {};
+  const first = new Map();
+  const to = new Map();
+  const order = (id) => Number(String(id).slice(1)) || 0;
+  const keys = Object.keys(ids).sort((a, b) => order(ids[a]) - order(ids[b]));
+  for (const k of keys) {
+    const owner = k.split("|")[0];
+    if (!owner || owner === "o") continue;
+    const e = regGet(reg, ids[k]);
+    if (!e || e.kind !== "thing") continue;
+    const key = owner + "|" + regFold(e.name);
+    const was = first.get(key);
+    if (!was) first.set(key, e.id);
+    else if (was !== e.id && regMerge(reg, e.id, was)) to.set(e.id, was);
+  }
+  if (!to.size) return;
+  for (const k of keys) if (to.has(ids[k])) ids[k] = to.get(ids[k]);
+  const fix = (x) => (isObj(x) && to.has(str(x.id)) ? { ...x, id: to.get(str(x.id)) } : x);
+  for (const snap of snaps) {
+    for (const c of Object.values(isObj(snap.chars) ? snap.chars : {})) if (isObj(c) && Array.isArray(c.items)) c.items = c.items.map(fix);
+    const lay = isObj(snap.layout) ? snap.layout : null;
+    if (!lay) continue;
+    if (Array.isArray(lay.objects)) lay.objects = lay.objects.map(fix);
+    if (isObj(lay.left) && Array.isArray(lay.left.objects)) lay.left.objects = lay.left.objects.map(fix);
+    if (isObj(lay.byPlace)) for (const pk of Object.keys(lay.byPlace)) lay.byPlace[pk] = arr(lay.byPlace[pk]).map(fix);
+  }
+}
+
+/**
+ * A repair for snapshots made before places kept their things by id: what lay in the place the story left (layout.left)
+ * is kept under that place's id (layout.byPlace), so the things are there again when the story comes back.
+ */
+function leftToByPlace(ctx, snaps) {
+  for (const snap of snaps) {
+    const lay = isObj(snap.layout) ? snap.layout : null;
+    if (!lay || !isObj(lay.left) || !str(lay.left.place) || !arr(lay.left.objects).length) continue;
+    const pid = placeIdFor(ctx, lay.left.place);
+    const here = isObj(snap.clock) ? str(snap.clock.placeId) : "";
+    if (!pid || pid === here || (isObj(lay.byPlace) && lay.byPlace[pid])) continue;
+    const taken = new Set([...arr(lay.objects), ...Object.values(isObj(snap.chars) ? snap.chars : {}).flatMap((c) => itemsOf(c))].map((o) => str(o && o.id)).filter(Boolean));
+    const list = lay.left.objects.filter((o) => isObj(o) && !taken.has(str(o.id)));
+    if (list.length) lay.byPlace = { ...(isObj(lay.byPlace) ? lay.byPlace : {}), [pid]: list.slice(-OBJECTS_MAX) };
+  }
+}
+
+/**
+ * A state from before the registry ids: the worn and held items (i1, i2 per character) and the scene's objects (words) get
+ * registry thing ids, and each clock gets the place id of its place. The same character + i# gives the same t# in every snapshot,
+ * so a thing keeps its id along the chat (state.thingIds keeps the keys). Run once by ensureRegistry for an update; the state is
+ * written back with the ids.
+ */
+function migrateThings(ctx) {
+  const { state, reg } = ctx;
+  const snaps = Object.values(isObj(state.snapshots) ? state.snapshots : {}).filter(isObj).sort((a, b) => (a.turn || 0) - (b.turn || 0) || (a.at || 0) - (b.at || 0));
+  if (isObj(state.inherited) && isObj(state.inherited.snap)) snaps.unshift(state.inherited.snap);
+  if (state.thingsFixed !== 1) {
+    joinTwinThings(ctx, snaps);
+    leftToByPlace(ctx, snaps);
+    state.thingsFixed = 1;
+  }
+  const legacy = (c) => isObj(c) && (Array.isArray(c.items) ? c.items.some((i) => isObj(i) && LEGACY_ID.test(str(i.id))) : !!(str(c.outfit) || str(c.holding)));
+  const needs = (s) =>
+    Object.values(isObj(s.chars) ? s.chars : {}).some(legacy) ||
+    arr(s.layout && s.layout.objects).some((o) => isObj(o) && str(o.item) && !str(o.id)) ||
+    arr(s.layout && s.layout.left && s.layout.left.objects).some((o) => isObj(o) && str(o.item) && !str(o.id)) ||
+    (isObj(s.clock) && str(s.clock.place) && !str(s.clock.placeId));
+  if (!snaps.some(needs)) return;
+  if (!isObj(state.thingIds)) state.thingIds = {};
+  const ids = state.thingIds;
+  const mint = (text) => {
+    const e = regAdd(reg, { kind: "thing", name: text, src: "seen" });
+    return e ? e.id : null;
+  };
+  // one thing, two keys: an older version keyed a character's thing by its words (name|kind|words), a newer one by its
+  // item id (name|i1); the same character's same words, or the thing it had the turn before under close words, is one id
+  const idFor = (key, text, alt, near) => {
+    let id = ids[key];
+    if (!id || !regGet(reg, id)) {
+      id = (alt && ids[alt] && regGet(reg, ids[alt]) ? ids[alt] : "") || near || mint(text);
+      if (id) ids[key] = id;
+    }
+    if (id && alt && !ids[alt]) ids[alt] = id;
+    return id;
+  };
+  let prevItems = [];
+  let prevObjects = [];
+  let prevBy = {};
+  for (const snap of snaps) {
+    const here = [];
+    const by = {};
+    for (const [name, c] of Object.entries(isObj(snap.chars) ? snap.chars : {})) {
+      if (!legacy(c)) {
+        here.push(...itemsOf(c));
+        by[name] = itemsOf(c);
+        continue;
+      }
+      const positional = !Array.isArray(c.items);
+      c.items = itemsOf(c).map((i) => {
+        if (!LEGACY_ID.test(i.id)) return i;
+        const words = name + "|" + i.kind + "|" + regFold(i.text);
+        const before = arr(prevBy[name]).find((x) => x.kind === i.kind && THING_ID.test(str(x.id)) && (covers(x.text, i.text) || covers(i.text, x.text)));
+        const id = idFor(positional ? words : name + "|" + i.id, i.text, words, before ? before.id : "");
+        return id ? { ...i, id } : i;
+      });
+      here.push(...c.items);
+      by[name] = c.items;
+    }
+    const objectIds = (list) =>
+      arr(list).map((o) => {
+        if (!isObj(o) || !str(o.item) || str(o.id)) return o;
+        // a thing the character put down is the item they had in the turn before; else a thing of its own, keyed by its words
+        const hit = [...here, ...prevItems].map((i) => ({ id: i.id, text: i.text })).concat(prevObjects).find((x) => THING_ID.test(x.id) && (covers(x.text, str(o.item)) || covers(str(o.item), x.text)));
+        const id = hit ? hit.id : idFor("o|" + regFold(o.item), str(o.item));
+        return id ? { ...o, id } : o;
+      });
+    if (isObj(snap.layout)) {
+      if (Array.isArray(snap.layout.objects)) snap.layout.objects = objectIds(snap.layout.objects);
+      if (isObj(snap.layout.left) && Array.isArray(snap.layout.left.objects)) snap.layout.left.objects = objectIds(snap.layout.left.objects);
+    }
+    if (isObj(snap.clock) && str(snap.clock.place) && !str(snap.clock.placeId)) {
+      const pid = placeIdFor(ctx, snap.clock.place);
+      if (pid) snap.clock.placeId = pid;
+    }
+    prevItems = here;
+    prevBy = by;
+    prevObjects = arr(snap.layout && snap.layout.objects).filter((o) => isObj(o) && str(o.id)).map((o) => ({ id: str(o.id), text: str(o.item) }));
+  }
+}
+
 /** Numbers and text of one character for this turn. */
 function charEntry(ctx, name, events, sensorChar, blind, B) {
-  const soul = soulOf(ctx.souls, name);
+  const soul = soulFor(ctx, name);
   const cls = classOf(soul);
   const old0 = B && B.chars ? B.chars[name] : null;
   // start values saved after the character entered shift the stats by the difference
@@ -3419,30 +5398,57 @@ function charEntry(ctx, name, events, sensorChar, blind, B) {
   const turn = applyTurn({ name, prev, soul, cls, events, vocab: ctx.vocab });
   const entry = { cls, stats: turn.stats, pulse: turn.pulse, hostility: turn.hostility, seed: old ? old.seed : startChar(soul, cls).stats };
   for (const f of TEXT_FIELDS) entry[f] = (isObj(sensorChar) && str(sensorChar[f]) ? cut(str(sensorChar[f]), 300) : old ? old[f] : null) ?? null;
-  if (isObj(sensorChar) && str(sensorChar.outfit) && old && old.outfit) entry.outfit = cut(keepOutfit(old.outfit, sensorChar.outfit), 300);
   // what the sensor saw THIS turn; carried values are stale for the prompt insert
-  entry.fresh = TEXT_FIELDS.filter((f) => isObj(sensorChar) && str(sensorChar[f]));
-  // outfit and holding as change lists (#185): code keeps the list; what was put down or picked up goes on to the scene's objects
+  entry.fresh = TEXT_FIELDS.filter((f) => f !== "outfit" && f !== "holding" && isObj(sensorChar) && str(sensorChar[f]));
+  // outfit and holding are a ledger of items with ids (#236); the texts the rest of the app reads are made from it
   const moves = ctx.layoutMoves || { down: [], up: [] };
+  let items = itemsOf(old);
+  let seq = old && Number.isFinite(old.itemSeq) ? old.itemSeq : 0;
+  const T = ctx.things || null;
+  const lying = T ? T.lying : arr(B && B.layout && B.layout.objects);
   let outfitListed = false;
-  for (const f of ["outfit", "holding"]) {
-    const d = isObj(sensorChar) ? stackDelta(sensorChar[f]) : null;
-    if (!d) continue;
-    // a thing picked up from the scene's objects keeps the wording it lay there with
-    const lying = arr(B && B.layout && B.layout.objects);
-    const picked = listOf(d.add).map((a) => {
-      const hit = lying.find((o) => isObj(o) && covers(o.item, itemText(a)));
-      return hit ? hit.item : a;
-    });
-    const res = applyStackDelta(old ? old[f] : null, { ...d, add: picked });
-    entry[f] = res.text || null;
+  for (const [f, kind] of [["outfit", "wear"], ["holding", "hold"]]) {
+    const report = isObj(sensorChar) ? sensorChar[f] : undefined;
+    if (report === undefined || report === null) continue;
     if (f === "outfit") outfitListed = true;
+    if (typeof report === "string") {
+      // the oldest format, a full text: it replaces the kind's items, keeping the ids of those that stay
+      const text = str(report);
+      const keep = f === "outfit" && old && old.outfit ? keepOutfit(old.outfit, text) : text;
+      const texts = stackItems(keep);
+      const same = items.filter((i) => i.kind === kind && texts.includes(i.text));
+      const fresh = texts.filter((t) => !same.some((i) => i.text === t)).map((t) => ({ id: (T && T.mint(t)) || "i" + ++seq, kind, text: t }));
+      if (same.length !== items.filter((i) => i.kind === kind).length || fresh.length) entry.fresh.push(f);
+      items = [...items.filter((i) => i.kind !== kind), ...same, ...fresh];
+      continue;
+    }
+    const opts = T ? { newId: T.mint, known: T.knownFor(name), resolve: T.resolve, limbo: moves.down.filter((d) => !d.where && d.who !== name) } : {};
+    const res = applyLedger(items, seq, kind, legacyIds(ctx, name, report), lying, opts);
+    items = res.items;
+    seq = res.seq;
     if (res.changed) entry.fresh.push(f);
-    for (const item of res.removed) moves.down.push({ item, who: name });
-    moves.up.push(...res.added);
+    if (T) {
+      for (const id of res.seen) T.claim(id, name, kind);
+      T.learn(res.items);
+    }
+    for (const o of res.off) moves.down.push({ id: o.id, item: o.item, who: name, where: o.where });
+    moves.up.push(...res.picked);
   }
+  entry.items = items;
+  entry.itemSeq = seq;
+  // the turn the story last showed this character's clothes: the sensor named a garment or thing of theirs, or a clothes sentence names them.
+  // The writer is asked to show them again when this is old (layoutBlock); it does not depend on the sensor prompt or the preset
+  const thisTurn = (B ? B.turn || 0 : 0) + 1;
+  const reported = ["outfit", "holding"].some((f) => {
+    const r = isObj(sensorChar) ? sensorChar[f] : null;
+    return typeof r === "string" ? !!str(r) : isObj(r) && (listOf(r.see).length > 0 || listOf(r.add).length > 0);
+  });
+  const hits = ctx.wearHits || (ctx.wearHits = wordScanHits(ctx).filter((h) => h.kinds.includes("wear")));
+  const namedInHits = hits.some((h) => h.named.some((n) => sameName(n, name)));
+  entry.shownTurn = reported || namedInHits ? thisTurn : old && Number.isFinite(old.shownTurn) ? old.shownTurn : thisTurn;
+  setItemTexts(entry);
   // an outfit the sensor has reported once (even an empty one after undressing) is known: the reply prompt asks for a description only while it is not
-  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit;
+  entry.outfitSet = !!(old && old.outfitSet) || outfitListed || !!entry.outfit || items.some((i) => i.kind === "wear");
   // where the character is in the place: carried until the sensor moves them or the place changes
   entry.at = isObj(sensorChar) && str(sensorChar.at) ? cut(str(sensorChar.at), 120) : ctx.placeMoved ? null : (old && old.at) ?? null;
   // how they reach the user's character from elsewhere (#16); carried like the place, but only
@@ -3572,7 +5578,7 @@ function applyNotebook(ctx, out, present, turn, K) {
   const holders = {};
   for (const l of arr(out.learned)) {
     if (!isObj(l) || sideOf(l.who, userAll(ctx), present, ctx) === "user") continue;
-    const who = canonName(l.who, present, ctx);
+    const who = personName(ctx, l.who);
     if (present.includes(who)) listIn(holders, sameText(l.text)).push(who);
   }
   const generic = Object.keys(holders).filter((t) => unique(holders[t]).length >= 3);
@@ -3588,7 +5594,7 @@ function applyNotebook(ctx, out, present, turn, K) {
       if (str(l.text)) keptOut.user++;
       continue;
     }
-    const who = canonName(l.who, present, ctx);
+    const who = personName(ctx, l.who);
     const text = cut(str(l.text), 300);
     if (!text) continue;
     if (!present.includes(who)) {
@@ -3608,8 +5614,8 @@ function applyNotebook(ctx, out, present, turn, K) {
   }
   for (const t of arr(out.told)) {
     if (!isObj(t)) continue;
-    const from = canonName(t.from, present, ctx);
-    const to = canonName(t.to, present, ctx);
+    const from = personName(ctx, t.from);
+    const to = personName(ctx, t.to);
     const note = arr(live[from]).find((n) => n.id === str(t.note));
     if (note && present.includes(to) && to !== from && !says(to, note.text)) add(to, { text: note.text, how: "heard", from, believes: true, weight: weightOf(note.weight) });
   }
@@ -3643,7 +5649,7 @@ function applySaid(ctx, out, present, turn, K) {
       kept.user++;
       continue;
     }
-    const who = canonName(s.who, present, ctx);
+    const who = personName(ctx, s.who);
     if (!present.includes(who)) {
       kept.absent++;
       continue;
@@ -3685,7 +5691,7 @@ function applyJournal(ctx, out, present, turn, K) {
       kept.user++;
       continue;
     }
-    const who = canonName(p.who, present, ctx);
+    const who = personName(ctx, p.who);
     if (!present.includes(who)) {
       kept.absent++;
       continue;
@@ -3693,8 +5699,8 @@ function applyJournal(ctx, out, present, turn, K) {
     let about;
     if (sideOf(p.about, userAll(ctx), present, ctx) === "user") about = ctx.userName;
     else {
-      about = canonName(p.about, known, ctx);
-      if (!known.includes(about)) continue;
+      about = personName(ctx, p.about);
+      if (!about || !known.includes(about)) continue;
     }
     if (about.toLowerCase() === who.toLowerCase()) continue;
     const text = cut(str(p.text), 200);
@@ -3711,7 +5717,7 @@ function applyNames(ctx, out, present, turn, K) {
   for (const n of arr(out.names)) {
     if (!isObj(n)) continue;
     if (sideOf(n.who, userAll(ctx), present, ctx) === "user") continue;
-    const who = canonName(n.who, present, ctx);
+    const who = personName(ctx, n.who);
     if (!present.includes(who)) continue;
     const before = arr(live[who]).slice(-1)[0];
     const knows = n.heardUserName === true || !!(before && before.knowsUserName);
@@ -3803,12 +5809,12 @@ function applyThreads(ctx, out, turn) {
 }
 const RESOLVED_THREADS_KEPT = 20;
 
-function applyEdges(B, out, known) {
+function applyEdges(ctx, B, out) {
   const edges = arr(B && B.edges).map((e) => ({ ...e }));
   for (const e of arr(out.edges)) {
     if (!isObj(e)) continue;
-    const from = canonName(e.from, known);
-    const to = canonName(e.to, known);
+    const from = personName(ctx, e.from);
+    const to = personName(ctx, e.to);
     if (!from || !to || from === to || isUser(from) || isUser(to)) continue;
     const edge = { from, to, role: cut(str(e.role), 40), warmth: cut(str(e.warmth), 40) };
     const at = edges.findIndex((x) => x.from === from && x.to === to);
@@ -3825,32 +5831,41 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const B = ctx.base && ctx.base.snap;
   // things put down or picked up this turn (charEntry fills it), and whether the story moved to another place: positions and objects start over
   ctx.layoutMoves = { down: [], up: [] };
-  ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && !samePlace(B.clock.place, out.place));
   const turn = (B ? B.turn || 0 : 0) + 1;
-  // a name the user had earlier in the chat may sit in an older snapshot: not a character
-  // the names the story already uses: the card's own and those the last snapshot kept
-  ctx.used = unique([...ctx.characters, ...Object.keys((B && B.chars) || {})]);
-  const withTwins = withSoulNames(ctx.souls, [...ctx.characters, ...Object.keys((B && B.chars) || {})]).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n));
-  // one soul under two names (an old state kept "Sina" beside the card's "Sina Rose"): the second goes
-  const twins = twinNames(ctx.souls, ctx.characters, withTwins);
-  const known0 = withTwins.filter((n) => !twins.includes(n));
-  const known = unique([...known0, ...arr(out.present).map((n) => canonName(n, known0, ctx)).filter((n) => n && sideOf(n, userAll(ctx), []) !== "user" && !isRemoved(state, n))]);
+  // every name below goes through the registry: one person is one Dashboard character, whatever the sensor calls them.
+  // A name the user had earlier in the chat is the user; a label (a card title, a narrator) is no character.
+  ensureRegistry(ctx);
+  // the scene's place is a registry place: "did the story move" compares ids, and the words only when an id is missing
+  const prevPlaceId = B && B.clock && str(B.clock.place) ? str(B.clock.placeId) || placeIdFor(ctx, B.clock.place) : "";
+  const newPlaceId = str(out.place) ? placeIdFor(ctx, out.place, prevPlaceId) : "";
+  ctx.placeMoved = !!(B && B.clock && str(B.clock.place) && str(out.place) && (prevPlaceId && newPlaceId ? prevPlaceId !== newPlaceId : !samePlace(B.clock.place, out.place)));
+  ctx.things = thingsContext(ctx, B);
+  // the people this turn knows: the cast of the cards and souls, the last snapshot's, and those the sensor puts in the scene
+  const knownIds = new Set(castEntries(ctx).map((c) => c.e.id));
+  const dashboardNames = (names) => names.map((n) => entityOf(ctx, personName(ctx, n))).filter(Boolean);
+  for (const e of dashboardNames(Object.keys((B && B.chars) || {}))) knownIds.add(e.id);
+  for (const e of dashboardNames(arr(out.present).map(str))) knownIds.add(e.id);
+  ctx.isKnown = (n) => {
+    const e = n && n !== "user" && !isRemoved(state, n) ? entityOf(ctx, n) : null;
+    return !!e && knownIds.has(e.id);
+  };
+  const known = [...ctx.idOf.keys()].filter((n) => ctx.isKnown(n));
   const present = scenePresent(ctx, out, known);
   // charEntry writes a thought only for a character present this turn
   ctx.presentNow = present;
   const events = readEvents(out.events, ctx, known, unknownIds);
 
   const sensorChars = {};
-  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[canonName(n, known, ctx)] = v;
+  if (isObj(out.chars)) for (const [n, v] of Object.entries(out.chars)) sensorChars[personName(ctx, n)] = v;
   const blind = {};
-  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known, ctx) !== "user") blind[canonName(n, known, ctx)] = v;
+  if (isObj(out.blindSpot)) for (const [n, v] of Object.entries(out.blindSpot)) if (sideOf(n, userAll(ctx), known, ctx) !== "user") blind[personName(ctx, n)] = v;
 
-  const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && known.includes(n));
-  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && known.includes(n)), ...present, ...targets]);
+  const targets = events.map((e) => e.to).filter((n) => n && n !== "user" && ctx.isKnown(n));
+  const names = unique([...Object.keys((B && B.chars) || {}).filter((n) => sideOf(n, userAll(ctx), []) !== "user" && ctx.isKnown(n)), ...present, ...targets]);
   const chars = {};
   for (const name of names) {
     if (!present.includes(name) && !targets.includes(name) && B && B.chars[name]) {
-      const re = reseed(ctx, name, B.chars[name], soulOf(ctx.souls, name));
+      const re = reseed(ctx, name, B.chars[name], soulFor(ctx, name));
       chars[name] = { ...re.entry, compact: true };
       if (re.line) state.history[name] = [...arr(state.history[name]), re.line];
       continue;
@@ -3872,13 +5887,36 @@ function applySensor(ctx, out, op, model, unknownIds) {
   const clock = advanceClock(B && B.clock, out, op);
   noteCalendar(state, clock.day, out.date, ctx.today);
   const prevLayout = isObj(B && B.layout) ? B.layout : {};
+  // one place for every thing: what a character reports in `see` this turn leaves where it was
+  settleThings(chars, ctx.things.claims);
+  const carried = Object.values(chars).flatMap((c) => itemsOf(c));
+  // the objects of a place the story left stay under its id, and come back with the story (layout.byPlace)
+  const byPlace = {};
+  for (const [pid, list] of Object.entries(isObj(prevLayout.byPlace) ? prevLayout.byPlace : {})) if (/^l\d+$/.test(pid) && arr(list).length) byPlace[pid] = arr(list);
+  if (ctx.placeMoved && prevPlaceId && arr(prevLayout.objects).length) byPlace[prevPlaceId] = prevLayout.objects.slice(-OBJECTS_MAX);
+  const start = ctx.placeMoved ? (newPlaceId && byPlace[newPlaceId]) || [] : prevLayout.objects;
+  if (ctx.placeMoved && newPlaceId) delete byPlace[newPlaceId];
+  const made = applyObjects(start, out, ctx.layoutMoves.down, ctx.layoutMoves.up, false, {
+    newId: ctx.things.mint,
+    resolve: ctx.things.resolve,
+    carried: carried.map((i) => ({ id: i.id, text: i.text })),
+  });
+  const held = new Set(carried.map((i) => i.id));
   const layout = {
-    objects: applyObjects(prevLayout.objects, out, ctx.layoutMoves.down, ctx.layoutMoves.up, ctx.placeMoved),
+    objects: made.filter((o) => !held.has(o.id)),
     userAt: str(out.userAt) ? cut(str(out.userAt), 120) : ctx.placeMoved ? null : prevLayout.userAt ?? null,
   };
   // what lay in the place the story just left: the World DM's sweep offers it for the book, so the place keeps it (kept until the next move)
+  // a thing is in one place only: not held, not lying here, then not lying in a place left behind
+  const here = new Set([...held, ...layout.objects.map((o) => o.id)]);
+  const kept = Object.entries(byPlace).map(([pid, list]) => [pid, list.filter((o) => isObj(o) && !here.has(str(o.id)))]).filter(([, list]) => list.length);
+  if (kept.length) layout.byPlace = Object.fromEntries(kept.slice(-BY_PLACE_MAX));
   if (ctx.placeMoved && arr(prevLayout.objects).length) layout.left = { place: cut(str(B.clock.place), 120), objects: prevLayout.objects.slice(-OBJECTS_MAX) };
   else if (isObj(prevLayout.left)) layout.left = prevLayout.left;
+  if (str(clock.place)) {
+    const pid = str(out.place) ? newPlaceId : prevPlaceId || placeIdFor(ctx, clock.place);
+    if (pid) clock.placeId = pid;
+  } else delete clock.placeId;
   const snapshot = {
     turn,
     at: Math.max(Date.now(), 1 + Math.max(0, ...Object.values(state.snapshots).map((x) => x.at || 0))),
@@ -3894,7 +5932,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
     events,
     chars,
     layout,
-    edges: applyEdges(B, out, known),
+    edges: applyEdges(ctx, B, out),
     threads: applyThreads(ctx, out, turn),
     extra: {},
   };
@@ -3902,6 +5940,10 @@ function applySensor(ctx, out, op, model, unknownIds) {
     // the pick holds until the sensor names another image of the folder
     const picked = readBackdrop(out.background, ctx.backdrops) || (B && readBackdrop(B.background, ctx.backdrops));
     if (picked) snapshot.background = picked;
+  }
+  for (const name of Object.keys(chars)) {
+    const e = entityOf(ctx, name);
+    if (e && !shownId(ctx.reg, state, name)) setShown(state, name, e.id);
   }
   state.snapshots[K] = snapshot;
   const order = Object.keys(state.snapshots).sort((a, b) => (state.snapshots[b].at || 0) - (state.snapshots[a].at || 0));
@@ -4224,7 +6266,7 @@ function planUpdate(fsx, chatId, op) {
   const from = bi + 2 + line.slice(bi + 1).findIndex((l) => str(l.msg.text));
   const earlier = cut && (at !== keys.length - 1 || !existing || !("base" in existing) || existing.base !== (base ? base.key : null));
   const reread = earlier ? { from, ...(newMessagesBody(newMsgs, storyView(fsx, chat.meta)).trimmed ? { trimmed: true } : {}) } : null;
-  return {
+  const ctx = {
     fsx,
     chatId,
     overlay,
@@ -4246,11 +6288,14 @@ function planUpdate(fsx, chatId, op) {
     userNames: userNamesOf(fsx, chat),
     state,
     before,
+    migrateThings: true,
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
     leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
   };
+  ensureRegistry(ctx);
+  return ctx;
 }
 
 function askSensor(host, ctx, key) {
@@ -4278,6 +6323,7 @@ function writeDebug(fsx, ctx, info) {
 /** Record a failed update: only lastError changes. */
 function failUpdate(fsx, ctx, message, debug) {
   ctx.state.lastError = { at: Date.now(), message };
+  saveRegistry(fsx, ctx);
   saveState(fsx, ctx);
   writeDebug(fsx, ctx, { error: message, ...debug });
   return ok({ ok: false, error: message, state: ctx.state });
@@ -4315,6 +6361,8 @@ function commitUpdate(fsx, ctx, r) {
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
     ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}) } : null;
+    saveRegistry(fsx, ctx);
+    reapplyAgentWrites(fsx, ctx.state, ctx.chatId);
     saveState(fsx, ctx);
     noteUnknownEvents(fsx, unknownIds, ctx.unknownQuotes);
     writeDebug(fsx, ctx, { raw: String(r.text), parsed: out, unknownEvents: unknownIds, keptOut: kept });
@@ -4322,6 +6370,8 @@ function commitUpdate(fsx, ctx, r) {
   } catch (e) {
     // a half-applied report must not leave notes or history behind
     ctx.state = JSON.parse(ctx.before);
+    // the registry goes back with it: the ids a half-applied report minted are not kept
+    if (ctx.regBefore) ctx.reg = JSON.parse(ctx.regBefore);
     return failUpdate(fsx, ctx, "could not apply the sensor reply: " + (e && e.message ? e.message : String(e)), { raw: String(r.text), parsed: out });
   }
 }
@@ -4330,6 +6380,7 @@ function commitUpdate(fsx, ctx, r) {
 function dropStale(fsx, ctx) {
   for (const key of ctx.drop) dropSnapshot(ctx.state, key);
   ctx.state.lastError = null;
+  saveRegistry(fsx, ctx);
   saveState(fsx, ctx);
   return ok({ ok: true, state: ctx.state, dropped: ctx.drop.length });
 }
@@ -4688,6 +6739,8 @@ function characterBlock(ctx, name, withNotes, limit) {
  * Where everyone stands, what lies around, the clothes of those who have no full block, and a request to describe
  * the clothing of a focus character the Dashboard has none for (#185). "" when there is nothing to say.
  */
+// turns without the story showing a character's clothes before the writer is asked to (#236); layout.clothesEvery in the config changes it, 0 turns it off
+const CLOTHES_EVERY = 6;
 export function layoutBlock(ctx, present, focus) {
   const { snap, user } = ctx;
   const lay = isObj(snap.layout) ? snap.layout : {};
@@ -4704,7 +6757,19 @@ export function layoutBlock(ctx, present, focus) {
   const objects = arr(lay.objects).filter((o) => isObj(o) && str(o.item));
   if (objects.length) rows.push("Objects: " + objects.map(objectText).join("; ") + ".");
   const bare = focus.filter((n) => snap.chars[n] && !CONTACT_WORDS[snap.chars[n].contact] && !snap.chars[n].outfit && !snap.chars[n].outfitSet).slice(0, 3);
-  const askText = bare.length === 1 ? bare[0] + "'s clothing is not described yet: describe it briefly and naturally in this reply." : bare.length ? "The clothing of " + bare.slice(0, -1).join(", ") + " and " + bare[bare.length - 1] + " is not described yet: describe it briefly and naturally in this reply." : "";
+  // clothes the story has not shown for a while (#236): one or two characters, gently, once the Dashboard knows what they wear
+  const every = isObj(ctx.layoutCfg) && Number.isFinite(ctx.layoutCfg.clothesEvery) ? ctx.layoutCfg.clothesEvery : CLOTHES_EVERY;
+  const stale = every > 0
+    ? present
+        .filter((n) => {
+          const c = snap.chars[n];
+          return c && !CONTACT_WORDS[c.contact] && !bare.includes(n) && itemsOf(c).some((i) => i.kind === "wear") && Number.isFinite(c.shownTurn) && (snap.turn || 0) - c.shownTurn >= every;
+        })
+        .sort((a, b) => snap.chars[a].shownTurn - snap.chars[b].shownTurn)
+        .slice(0, 2)
+    : [];
+  const staleText = stale.length ? (stale.length === 1 ? stale[0] + "'s clothing" : stale[0] + "'s and " + stale[1] + "'s clothing") + " has not come up in the story for a while: mention " + (stale.length === 1 ? "it" : "it for one of them") + " briefly and naturally in this reply, only where it fits." : "";
+  const askText = staleText && !(bare.length) ? staleText : bare.length === 1 ? bare[0] + "'s clothing is not described yet: describe it briefly and naturally in this reply." : bare.length ? "The clothing of " + bare.slice(0, -1).join(", ") + " and " + bare[bare.length - 1] + " is not described yet: describe it briefly and naturally in this reply." : "";
   if (!rows.length && !askText) return "";
   const head = rows.length ? "[Where things stand. This is background: keep to it unless the story moves things, and do not retell it." : "[";
   return head + (rows.length ? "\n" + rows.join("\n") : "") + (askText ? "\n" + askText : "") + "]";
@@ -4821,7 +6886,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   if (!at || !isObj(at.snap.chars)) return null;
   const { names: cards, souls } = chatCharacters(fsx, chat.meta);
   // what the user removed and a second name of one soul never reach the prompt
-  const snap = withoutNames(at.snap, [...removedOf(state), ...twinNames(souls, cards, Object.keys(at.snap.chars))]);
+  const snap = withoutNames(at.snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(at.snap.chars))]);
   const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
@@ -4840,6 +6905,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const notesFor = speaker ? [speaker] : group ? (narratorGroup ? focus : []) : focus;
   const ctx = {
     snap,
+    layoutCfg: cfg.layout,
     souls,
     user: userNameOf(fsx, chat.meta),
     notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),
@@ -5137,7 +7203,10 @@ function fastContext(fsx, chatId, turn, cfg) {
   const at = snapshotFor(state, activeLine(chat.msgs), turn);
   const overlay = loadOverlay(fsx, chatId);
   const { names, souls } = chatCharacters(fsx, chat.meta);
-  return {
+  const ctx = {
+    fsx,
+    chatId,
+    meta: chat.meta,
     cfg,
     vocab: loadVocab(fsx),
     state,
@@ -5153,6 +7222,9 @@ function fastContext(fsx, chatId, turn, cfg) {
     userName: userNameOf(fsx, chat.meta),
     userNames: userNamesOf(fsx, chat),
   };
+  // read only: the registry is saved by an update, not by a look at the story
+  ensureRegistry(ctx);
+  return ctx;
 }
 
 /** About how many tokens fast mode adds to one reply: three characters in the scene, two open threads, the user's own event list. */
@@ -5510,8 +7582,9 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const chat = readChat(fsx, chatId);
   const cast = chat ? chatCharacters(fsx, chat.meta) : { names: [], souls: {} };
   const souls = cast.souls;
-  // the user's removals and a second name of one soul stay off the Dashboard, whatever an older snapshot kept
-  const shown = withoutNames(snap, [...removedOf(state), ...twinNames(souls, cast.names, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
+  // the user's removals and the labels that are no people (a card title) stay off the Dashboard, whatever an older snapshot kept
+  const shown = withoutNames(snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(isObj(snap.chars) ? snap.chars : {}))]);
+  const reg = regLoad(fsx, chatId, regFromOf(fsx, chatId, state));
   const recent = at.slice(-SERIES_TURNS).map((i) => state.snapshots[keys[i]]);
   // the journal as it counts: each character's people lines (the player's and the others', present or not)
   const journalLive = effectiveJournal(state, keys);
@@ -5519,7 +7592,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   for (const [name, c] of Object.entries(isObj(shown.chars) ? shown.chars : {})) {
     if (!isObj(c)) continue;
     const p = prevSnap && isObj(prevSnap.chars) ? prevSnap.chars[name] : null;
-    const soul = soulOf(souls, name);
+    const soul = soulWith(souls, reg, name);
     chars[name] = {
       ...c,
       pronouns: soul && soul.pronouns ? soul.pronouns : null,
@@ -5538,6 +7611,13 @@ export function stateView(fsx, chatId, state, keys, cfg) {
       thoughtFresh: thoughtFreshOf(snap, c, cfg),
       journal: arr(journalLive[name]).map(({ id, about, text, by, turn }) => ({ id, about, text, by, turn })),
     };
+  }
+  // pairs that may be one person, by the names the Dashboard shows them under (both must be on it)
+  const suggest = [];
+  for (const s of arr(reg.suggest)) {
+    const a = shownName(reg, state, s.a);
+    const b = shownName(reg, state, s.b);
+    if (a && b && a !== b && chars[a] && chars[b]) suggest.push({ a, b, why: s.why });
   }
   const present = arr(shown.present).filter((n) => chars[n]);
   const order = [...present.filter((n) => !chars[n].compact), ...present.filter((n) => chars[n].compact), ...Object.keys(chars).filter((n) => !present.includes(n))];
@@ -5569,6 +7649,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     proposalsDropped: Number(state.proposalsDropped) || 0,
     edges: arr(snap.edges),
     chars,
+    suggest,
     usage: state.usage,
     lastError: state.lastError,
     keptOut: isObj(state.keptOut) ? state.keptOut : null,
@@ -5813,6 +7894,140 @@ function viewOf(fsx, chatId) {
   return existed ? stateView(fsx, chatId, state, keys, loadConfig(fsx)) : null;
 }
 
+/** Another character's items join this one's, with new ids from its own counter (the sensor refers to items by id). */
+function moveItems(target, source) {
+  const have = itemsOf(target);
+  let seq = Math.max(Number(target.itemSeq) || 0, ...have.map((i) => idNum(i.id)));
+  const more = [];
+  // a thing keeps its registry id; only a legacy id (i1) is renumbered, since it was per character
+  for (const it of itemsOf(source)) if (!have.some((x) => x.id === it.id || (x.kind === it.kind && sameText(x.text) === sameText(it.text)))) more.push(LEGACY_ID.test(it.id) ? { ...it, id: "i" + ++seq } : { ...it });
+  if (!more.length) return;
+  const items = [...have, ...more].slice(0, ITEMS_MAX);
+  target.items = items;
+  target.itemSeq = seq;
+  target.outfit = itemsText(items, "wear") ? cut(itemsText(items, "wear"), 600) : null;
+  target.holding = itemsText(items, "hold") ? cut(itemsText(items, "hold"), 600) : null;
+}
+
+/** One snapshot with the Dashboard character `from` folded into `into`: their numbers stay `into`'s, `from` is renamed when `into` is not there. */
+function foldSnapshot(sn, from, into) {
+  if (!isObj(sn)) return;
+  const rename = (v) => (v === from ? into : v);
+  if (isObj(sn.chars) && ownKey(sn.chars, from)) {
+    const both = ownKey(sn.chars, into) && isObj(sn.chars[into]);
+    if (both && isObj(sn.chars[from])) moveItems(sn.chars[into], sn.chars[from]);
+    const chars = {};
+    for (const [k, v] of Object.entries(sn.chars)) {
+      if (k !== from) chars[k] = v;
+      else if (!both) chars[into] = v;
+    }
+    sn.chars = chars;
+  }
+  if (Array.isArray(sn.present)) sn.present = unique(sn.present.map(rename));
+  for (const e of arr(sn.events)) {
+    if (!isObj(e)) continue;
+    if (e.from === from) e.from = into;
+    if (e.to === from) e.to = into;
+  }
+  if (Array.isArray(sn.edges)) {
+    const edges = [];
+    for (const e of sn.edges) {
+      if (!isObj(e)) continue;
+      const x = { ...e, from: rename(e.from), to: rename(e.to) };
+      if (x.from !== x.to && !edges.some((y) => y.from === x.from && y.to === x.to)) edges.push(x);
+    }
+    sn.edges = edges;
+  }
+}
+
+/** Everything the chat keeps under the name `from` goes to `into`: snapshots, the notebook, history, what was said, the journal, the user's own notes. */
+function foldCharacter(state, ov, from, into) {
+  for (const sn of Object.values(state.snapshots)) foldSnapshot(sn, from, into);
+  if (isObj(state.inherited) && isObj(state.inherited.snap)) foldSnapshot(state.inherited.snap, from, into);
+  for (const bag of ["notebook", "said"]) {
+    const b = state[bag];
+    if (!isObj(b)) continue;
+    if (ownKey(b, from)) {
+      const keep = arr(b[into]).slice();
+      for (const n of arr(b[from])) if (!(isObj(n) && str(n.text) && duplicateNote(n.text, keep))) keep.push(n);
+      b[into] = keep;
+      delete b[from];
+    }
+    // a note remembers who told it
+    for (const list of Object.values(b)) for (const n of arr(list)) if (isObj(n) && n.from === from) n.from = into;
+  }
+  for (const bag of ["names", "history", "journal"]) {
+    const b = state[bag];
+    if (!isObj(b) || !ownKey(b, from)) continue;
+    b[into] = [...arr(b[into]), ...arr(b[from])].map((x, i) => ({ x, i })).sort((a, c) => (Number(a.x && a.x.turn) || 0) - (Number(c.x && c.x.turn) || 0) || a.i - c.i).map((y) => y.x);
+    delete b[from];
+  }
+  // the journal also names who a line is about
+  if (isObj(state.journal)) {
+    for (const [who, list] of Object.entries(state.journal)) {
+      for (const j of arr(list)) if (isObj(j) && j.about === from) j.about = into;
+      state.journal[who] = arr(list).filter((j) => !(isObj(j) && j.about === who));
+    }
+  }
+  for (const rec of Object.values(isObj(state.leaks) ? state.leaks : {})) for (const it of arr(isObj(rec) ? rec.items : [])) if (isObj(it) && it.who === from) it.who = into;
+  if (isObj(ov.added) && ownKey(ov.added, from)) {
+    const keep = arr(ov.added[into]).slice();
+    for (const n of arr(ov.added[from])) if (!(isObj(n) && str(n.text) && keep.some((k) => isObj(k) && sameText(k.text) === sameText(n.text)))) keep.push(n);
+    ov.added[into] = keep;
+    delete ov.added[from];
+  }
+}
+
+/**
+ * merge-character { from, into } and apart-characters { a, b } of POST /dashboard/notes: two Dashboard names, one person or two.
+ * The registry decides who is who (and is saved); a merge then folds the Dashboard's own state. Returns an error reply, or null when done.
+ */
+function peopleOp(fsx, chatId, state, ov, op, b) {
+  const bad = (msg, status) => ok({ error: msg }, status || 400);
+  const chat = readChat(fsx, chatId);
+  const keys = chat ? activeLine(chat.msgs).map((l) => l.key) : [];
+  const last = keys.slice().reverse().find((k) => state.snapshots[k]);
+  const snap = last ? state.snapshots[last] : activeInherit(state) ? state.inherited.snap : null;
+  const ctx = {
+    fsx,
+    chatId,
+    meta: chat ? chat.meta : {},
+    state,
+    souls: chat ? chatCharacters(fsx, chat.meta).souls : {},
+    userName: chat ? userNameOf(fsx, chat.meta) : NO_USER_NAME,
+    userNames: chat ? userNamesOf(fsx, chat) : [],
+    characters: [],
+    base: snap ? { key: last || null, snap } : null,
+  };
+  ensureRegistry(ctx);
+  const { reg } = ctx;
+  const merging = op === "merge-character";
+  const first = str(merging ? b.from : b.a);
+  const second = str(merging ? b.into : b.b);
+  if (!first || !second) return bad("two names required");
+  if (isUserName(ctx, first) || isUserName(ctx, second)) return bad("the user's character is not one of the characters to join");
+  if (first.toLowerCase() === second.toLowerCase()) return bad("pick two different characters");
+  const x = regGet(reg, shownId(reg, state, first));
+  const y = regGet(reg, shownId(reg, state, second));
+  if (!x || !y || x.id === "user" || y.id === "user") return bad("no such character", 404);
+  if (!merging) {
+    if (!regApart(reg, x.id, y.id)) return bad("those are the same person already");
+    regSave(fsx, reg);
+    return null;
+  }
+  if (x.id !== y.id) {
+    if (regIsApart(reg, x.id, y.id)) return bad("you marked these as different people", 409);
+    if (!regMerge(reg, x.id, y.id)) return bad("these cannot be joined");
+  }
+  // the name stays a spelling of the person, so the sensor writing it again finds them
+  regAlias(reg, y.id, first, "merged");
+  foldCharacter(state, ov, first, second);
+  for (const k of Object.keys(state.personIds)) if (k.toLowerCase() === first.toLowerCase()) delete state.personIds[k];
+  regSave(fsx, reg);
+  fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  return null;
+}
+
 /** POST /dashboard/notes { chatId, op, ... }: edits go to the overlay file, never to the state. */
 function notesRoute(req, fsx) {
   const b = isObj(req.body) ? req.body : {};
@@ -5895,6 +8110,10 @@ function notesRoute(req, fsx) {
       sn.present = arr(sn.present).filter((n) => n !== name);
     }
     fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  } else if (op === "merge-character" || op === "apart-characters") {
+    if (!existed) return bad("no Dashboard state yet", 404);
+    const refused = peopleOp(fsx, chatId, state, ov, op, b);
+    if (refused) return refused;
   } else if (op === "thread-add") {
     const text = cut(str(b.text), 300);
     if (!text) return bad("text required");

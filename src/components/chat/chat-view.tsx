@@ -355,9 +355,27 @@ export function ChatView() {
     // setting governs following a stream, not holding your position.
     if (pinnedRef.current) { el.scrollTop = el.scrollHeight; return }
     const row = document.getElementById(`msg-${anchor.id}`)
-    if (!row) return
+    if (!row) {
+      // the log is empty for a moment (a transcript read mid-write): the place waits for the
+      // commit that brings the messages back, or the reader lands on the oldest message
+      if (!el.querySelector('[id^="msg-"]')) anchorRef.current = anchor
+      return
+    }
     el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - anchor.offset
   })
+  // A background refresh (look_changed after a sidecar wrote its files, a reply landing for
+  // the agents, Litopys or the Dashboard) replaces the open chat's messages. A reader away
+  // from the bottom keeps the message they are reading where it is: taken here, in the store
+  // update, the last look at the layout before React re-renders the rows.
+  useEffect(() => useApp.subscribe((s, prev) => {
+    if (s.chats === prev.chats || pinnedRef.current || anchorRef.current || !s.activeChatId) return
+    if (s.activeChatId !== prev.activeChatId) return
+    const now = s.chats.find((c) => c.id === s.activeChatId)
+    const was = prev.chats.find((c) => c.id === s.activeChatId)
+    if (now && was && now !== was && now.messages !== was.messages) keepPlace()
+  }), [])
+  // a place held for one chat means nothing in the next
+  useEffect(() => { anchorRef.current = null }, [activeChatId])
   // Selection mode rebuilds every row (checkbox column) and swaps the composer
   // for the bulk bar. The store update lands before React re-renders, so this
   // is the last look at the layout the reader is actually looking at.
@@ -402,6 +420,9 @@ export function ChatView() {
   const onScroll = () => {
     const el = scrollRef.current
     if (!el) return
+    // an empty log (messages gone for a moment) is "at the bottom" by arithmetic only: the
+    // reader did not move, so the pin stays as it was
+    if (!el.querySelector('[id^="msg-"]')) return
     const atBottom = Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) < 5
     if (atBottom !== pinnedRef.current) setPinned(atBottom)
   }

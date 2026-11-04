@@ -189,6 +189,8 @@ and listed together as `recollections { scenes, who, tokens, text }` in `GET /li
 
 **Who witnessed a scene (#184).** A chapter may carry `cast`: `["<name as the scene spells it>", ...]`, at most 12, the named characters of the scene besides the player (the same list the recollections use, kept even when there are fewer than two). The chapter worker writes it; a chapter without it (older, hand-made, or a scene with nobody named) is visible to every reply. A reply spoken by one character leaves out a chapter whose cast does not include that character (and an arc that holds such a chapter; its witnessed chapters ride alone), in the story insert and in the backstory of a continued chat. A reply that voices several characters (a narrator, a group in narrator mode) gets every chapter. Facts have their own `knownBy`: a fact whose `knownBy` is missing or unusable is written with the scene's cast instead of `"all"`. `GET /litopys/chat?chatId=` lists `cast` on each chapter.
 
+**Names go through the entity registry.** When a chapter is written, a fact's `subject`, its `knownBy` names, the chapter's `cast` and the `views` names are resolved through the chat's registry (`registry/<chatId>.json`, read; seeded from the chat's cards and persona if it is missing): the user's names become the user's name as the chat knows it (`meta.userName`), a person becomes the Dashboard's display name for it (`personIds`), else the registry name; `world`, `all` and a name nobody answers to stay as written. Litopys never adds a person to the registry. When a reply is built, `knownBy`, `subject` and the present names are compared the same way, so `Seraphina` in `knownBy` counts for `Queen Seraphina`.
+
 **Recall scoring (#99).** Which facts and chapters go into the Litopys insert when they do not all fit is ranked by the words of
 the last messages (`rankFacts`, `rankChapters`). Besides a rare word counting by how few facts have it, a name found in the text
 (a capitalised word that does not open a sentence, a fact's `subject` or who knows it) weighs 1.6 times more, two content words in a
@@ -422,6 +424,10 @@ player switches it on for that chat. It writes:
   onTransition, onPlace, insert, textMax, changesMax }, lastKey, levelKey?, lastPlace?, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
   fronts: [{ id, name, goal, clock, size, status, at? }], event, direction?, transitionKey?, log: [{ at, key,
   reason, changes, fronts, summary }], lastRunAt?, lastModel?, lastError? }`.
+  - `regIds` (optional): `{ "n3": "p7" }`, the entity registry person (`registry/<chatId>.json`) of each NPC `person` record. A card
+    character or the user (registry source `persona`, `card`, `soul`, `group`) is never recorded as an NPC, whatever the spelling; an NPC
+    spelled two ways is one record (the second spelling joins its aliases). A thing's `holder` and the keys of `carry` are written
+    as the person's name in the Dashboard (its `personIds`), else the registry name; the user's character is the key/holder `user`.
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
     `antagonist`, `chaos` (a hard event for the next reply).
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
@@ -486,6 +492,8 @@ player switches it on for that chat. It writes:
   and mood; new images are stored as WebP in the engine's asset store (`url` = `/v1/assets/<id>`), never as data
   URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
   image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
+
+  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `o#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. The DM's input shows the scene tracker's ids (the scene's place `l#`, the swept things `o#`), and an `add` or `update` may carry `"ref": "o31"` (or `l2`): the record is linked to that registry entity whatever language it is named in, its name becomes an alias there, and an update's ref folds a registry copy the World had made itself (`src: "world"`) into it. A ref of the wrong kind or unknown to the registry is ignored. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
 
 - Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
   (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only
@@ -624,6 +632,8 @@ character saw, heard or guessed), `names` and `history`:
 
 - `calendar` (#113): `{ start: "YYYY-MM-DD", src: "text" | "today" | "user", off?: true, inherited?: true }`, the date of story day 1. A snapshot keeps only the day number (`clock.day`); the date of a day is `start` plus `day - 1`, worked out when read, so moving the calendar moves every day at once. `src: "text"` = the sensor read a whole date in the text (its `date` key, `YYYY-MM-DD`, or null); `today` = counted from the clock of the machine; `user` = set by the user and never moved by the text; `off` hides the date; `inherited` = carried from the earlier chat of a continued one (dropped with the rest of the inherited state). `clock.time` may be a time guessed from the part of the day, then `clock.approx: true`. `POST /dashboard/calendar { chatId, date?, off? }` (`date` null = automatic again); `GET /dashboard/state` has `calendar` (where it stands) and `clock.date`.
 - `removed`: `["<character>"]`, names the user took off the Dashboard (`POST /dashboard/notes` `{ op: "remove-character", name }`): the name is gone from every snapshot's `chars` and `present` and the sensor's next reading does not bring it back. Notes, history and what the character said stay under the name.
+- `personIds` (#240): `{ "<Dashboard name>": "<registry id>" }`, which person of the chat's entity registry (below) each character name of the Dashboard stands for. The first name a person has on the Dashboard stays its name, so snapshots and the UI keep their keys; a name written later by the sensor is looked up in the registry and shown under that first name. Two names that older versions kept for one person get an id each (and a suggestion), never one id: the user decides. A continued chat copies it from the earlier chat.
+- `notPersons` (#240): `["campus sluts"]`, labels that are no people (a card title or a narrator, folded: lower case, punctuation as a space), up to 100. The Dashboard never makes a character from one of these names, and an older snapshot that kept one hides it. A card that is not a person (a narrator, several `### Name` sections, a long title) contributes its name and the speaker names of its messages; a card that is a person contributes them as spellings of that person instead.
 - `said`: `{ "<character>": [ { id: "s1", text, kind, hidden?, turn, src, source: "chat" } ] }`, what the character said
   and is held to (#98). `kind` is `vow`, `promise`, `threat`, `confession`, `secret`, `order`, `refusal`, `lie` or
   `other`; a `lie` is stored `hidden: true` (the user sees it only after revealing). `src` is the message key that wrote
@@ -643,6 +653,37 @@ character saw, heard or guessed), `names` and `history`:
   present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
   and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
   for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
+  **Worn and held things (#236, ids from the entity registry).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]`; `id` is the thing's registry id (`o1`, `o2` ... in `registry/<chatId>.json`), the same wherever the thing is (`itemSeq` is a leftover of the old per-character `i1` ids);
+  `outfit` and `holding` are those items' texts joined with commas, so every reader of the old fields works as before. A snapshot from before
+  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: o3 white top; o4 skirt`, `Holding: o7 axe`, `Objects here: o9 sneakers (at the entrance)`),
+  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "o3" }, { "id": "o4", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "o5", "where": "on the sofa" } ] }`:
+  `see` names what the new messages show (an id for a listed item, with a `text` only for more detail or a new state, which is the same item;
+  an id of an object lying in the scene or of a thing another character carries picks it up or takes it over; no id for a new thing), `off` names ids taken
+  off or put down: with `where` the same id lies there among the scene objects, without `where` the thing only leaves the character (no place is invented).
+  Handing a thing over is `off` on one and `see` with the id on the other. Words find a thing only when the sensor gave no id: first the character's own items,
+  then the objects (and a thing just taken off), by the Dashboard's word match and then the registry's `resolveName` (never its one-letter-off step); else it is new.
+  **One place only:** after a turn a thing id is on one character (worn or held), or among the objects, never both; a thing a character reports in `see` this turn wins over where it was.
+  The scene's `layout.objects` are `[{ id, item, where }]`; the sensor reports them as `objects: { add: [ { "text", "where" } ], move: [ { "id", "where" } ], "remove": [ id ] }`
+  (the older `{ add: [ { item, where } ], remove: [ item ] }` in words still works). `layout.byPlace` is `{ "<place id>": [ objects ] }`: what lay in a place the story left, kept
+  under its id (at most 8 places); when the scene comes back to that place id its objects return, and a thing taken along is not also left there.
+  `clock.placeId` is the registry place id (`l1` ...) of `clock.place`; "did the scene move" compares place ids first (a respelling the registry resolves to the same place is not a move)
+  and the words only when an id is missing. **Migration:** a state from before these ids (items `i1` per character, objects without ids, clocks without `placeId`) is migrated on the next
+  update, once: the same `character + i#` gives the same `o#` in every snapshot (`thingIds` in the state file keeps the keys; a snapshot from before the ledger keys by the item's words),
+  an object without an id takes the id of the item a character had in the turn before when its words match, else gets its own, and the state is written back with the ids and the registry with the things and places.
+  Once per state (`thingsFixed: 1`): one character's thing that the first migration gave two ids (by its words and by its item id) is joined, the later id merged into the earlier in the registry and in every snapshot, and what a snapshot kept only in `layout.left` is put under its place id in `layout.byPlace`.
+  A sensor reply that still uses an `i1` id is read through `thingIds`. The older formats still work for a sensor prompt a user saved
+  before: a plain text (the full list) and `{ add, remove }`. A held or worn item is never also kept among the scene `objects`. Each character
+  also keeps `shownTurn`, the turn the story last showed their clothes; when it is `layout.clothesEvery` turns old (default 6, `0` switches it off, in
+  `data/dashboard/config.json`) the prompt insert asks the writer to mention one or two characters' clothing again, briefly. This does not depend on the preset or the sensor prompt.
+  `scripts/sensor-replay.ts` replays a saved chat through the sensor and scores the result against hand-written labels.
+  `data/dashboard/lexicon.json` (optional, #236): words for the sensor's word scan, `{ wear: [...], dress: [...], touch: [...], carry: [...], off?: true }`.
+  Code scans the whole new messages (before any cut) and hands the sentences that hold one of these words to the sensor as hints
+  ("Word scan" block). Built-in lists cover clothing, dressing verbs and contact in many languages; this file adds to them. An entry
+  is a stem (matches a word that starts with it, up to 4 more letters), `word!` (that word alone, or with s/es), a phrase (has a
+  space or hyphen) or, for CJK text, a string matched anywhere. `off: true` turns the scan off.
+  The sensor input also gets a "Card attire" block: the `Attire:` (or Outfit, Clothing, Wardrobe, and their translations) line of each present
+  character from the card description, while the character has no recorded outfit or the new text names clothes. A `### Name` heading starts a
+  section of its own, so a card of several characters gives each their line. It is a reference for wording only.
   `data/dashboard/config.json`: `journal: { on: true, inject: true, thoughtTurns: 3 (1-10), maxTokens: 120 (40-400, per character) }`.
   The entries part of the journal is Litopys `views` (above), unchanged in storage.
 - `leaks` (#184 P3): `{ "<messageId>#<swipe>": { at, items: [ { who, factId, text, quote, status: "open" | "found" | "ignored", answeredAt? } ] } }`, replies that let a character act on a secret it does not know (a restricted Litopys fact, `knownBy` a list without that name). Code finds the candidates (the new messages share content words with the fact), the sensor's call confirms (key `leaks` in its reply, `[{ id: "L1", quote }]` naming the lines it was shown) or, in fast mode, a small call made only when there were candidates. Config `leakCheck` (default true) turns it off. An open item holds back what the character would learn from that reply: its notebook notes are not written, and the Litopys chapter worker does not make it a knower of a fact that says the same (and is told the reply is not canon). `POST /dashboard/leak { chatId, key, who, factId, op: "found" | "ignore" }` closes an item (the app first calls `POST /litopys/facts { op: "know", id, who }` for "found out", which adds the name to the fact's `knownBy`); `GET /dashboard/state?view=1` lists the open ones as `leaks`. A re-read of the reply, an edit or a swipe replaces its item.
@@ -676,6 +717,28 @@ character saw, heard or guessed), `names` and `history`:
   scene, open threads) that the first sensor run reads on from; or `{ off: true, from, title }` after "Start clean".
   Carried notebook, names, `journal` and `said` entries have `src: "inherit"` and `fromChat`. Start clean also turns the Litopys
   backstory of that chat off.
+- Joining two characters (#240). `POST /dashboard/notes { chatId, op: "merge-character", from, into }` (Dashboard names): `from` is the same person as `into`. In the registry `from` is merged into `into` (its names become spellings of `into`); in this file every snapshot (and `inherited.snap`) drops `from` where `into` is there (`into`'s numbers stay; `from`'s items join `into`'s, each keeping its registry id) and renames it where `into` is not; `present`, `events` (from, to), `edges`, `notebook` (also the `from` of a note), `said`, `names`, `history`, `journal` (also `about`), `leaks` and the user's own notes in the overlay move to `into` (a near copy of a note is not added twice); `personIds[from]` is removed. Refused with an `error`: the user's character (400), an empty or the same name (400), a name the Dashboard does not show (404), a pair marked different (409). `{ op: "apart-characters", a, b }` records the pair as different people in the registry and drops its suggestion; later reports never join them. Both answer `{ ok: true, view }`.
+
+### The entity registry: `data/registry/<chatId>.json` (#240)
+
+One file per chat, written by the Dashboard plugin (World DM and Litopys read it). One id per person, so one person is never two Dashboard characters. Design: `docs/ENTITY-REGISTRY.md`.
+
+```json
+{ "v": 1, "chatId": "c2", "from": "c1", "next": { "p": 6, "t": 1, "l": 1 },
+  "entities": [
+    { "id": "user", "kind": "person", "name": "Denis", "aliases": [{ "text": "Dan", "src": "persona" }], "src": "persona" },
+    { "id": "p1", "kind": "person", "name": "Kaede Fuji", "aliases": [{ "text": "Kae", "src": "card" }, { "text": "Каэде", "src": "seen" }], "src": "card", "card": "kaede" },
+    { "id": "p4", "kind": "person", "name": "Seraphina", "aliases": [], "src": "seen", "merged": "p2" } ],
+  "apart": [["p2", "p5"]],
+  "suggest": [{ "a": "p5", "b": "p2", "why": "same first name" }] }
+```
+
+- `kind` is `person` (`thing` and `place` come later); ids are `p1`, `o1`, `l1`, and `user` for the user's character (the persona's name; every earlier name of the user is an alias).
+- `src`: `persona`, `card` (also `card` = the card id on the entity), `soul`, `group`, `seen` (the sensor wrote the name), `user`. An alias has its own `src` (`card`, `soul`, `seen`, `merged`, `persona`).
+- `merged`: the entity was joined into another; every lookup of it returns the target. `apart`: pairs the user said are different people. `suggest`: pairs that may be one person, with a short `why` (`same first name`, `same name in another alphabet`, `one letter apart`, `two people fit`, `shares a word of the name`, `same name`).
+- A name is found in this order: an exact name or alias, the same after transliteration, a single word that is the first or last word of exactly one person's name (titles do not count), a name one letter off. Two candidates at one step is no match: a new person and a suggestion. A spelling found by the last three steps is saved as an alias.
+- Filled on every sensor run (idempotent): the persona and the user's names, the people of each member card (the card name, `### Name` sections, `Name:` / `Aliases:` lines), the card souls, the card name and the speaker names of the card's messages (aliases of the card's person). A chat that continues another starts as a copy of that chat's file (`from`), so ids stay the same.
+- `GET /dashboard/state?view=1` has `suggest: [{ a, b, why }]`, the Dashboard names of two characters that may be one person (both are on the Dashboard); empty when there is none. The sensor's "Characters" block lists each person once with up to four other spellings (`Kaede Fuji (ally, she; also: Kae, Каэде)`), never the user's.
 
 ## Letters from cards: `data/letters/` (the Letters plugin; leave it to the Letters dialog)
 
@@ -722,7 +785,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
   `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
-  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `when` signal),
+  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),
   `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
 - Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
   operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
@@ -730,13 +793,34 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `present` (the names in the scene, joined with ", "), `place`, `weather`. Character fields: text `mood`, `condition`,
   `outfit`, `holding`, `goal`, and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (the Dashboard's
   disposition numbers). `as` is `number` for the numbers and `text` for the rest (`E_DASH_TYPE`). `of` names a character
-  (case does not matter; `E_DASH_OF` on a scene field or an empty name); without it a character field is about whoever
+  (case does not matter, and any other name of that person in the chat's entity registry finds it too: "Rhea" for "Rhea Faeth";
+  `E_DASH_OF` on a scene field or an empty name); without it a character field is about whoever
   wrote the last reply in the chat, else the first character in the scene. The permission is the field alone
   (`read:state.comfort`), whichever character it is read for. The host reads `dashboard/state/<chatId>.json` and takes
   the newest snapshot among the chat's own messages (a swiped-away branch is not seen; a chat that continues another
   stands on the state it carried until it has its own), leaving out characters the user removed from the Dashboard.
   A value the Dashboard does not have is missing: a card that needs it is skipped, an If says Unknown. The executor gets
   the values in `ctx.dash` under `dashKey`: `field`, or `field@name` with `of`.
+- Dashboard fields an agent may change (#132, write): a `write.state` card `{ field, as, of?, clamp? }` with the permission
+  `write:state.<field>`, one per field. The list is `DASH_WRITE_FIELDS` of the checker: the readable ones except `present`
+  (it decides who is on the Dashboard at all), 12 fields. `as` and `of` follow the same rules as reading (`E_DASH_TYPE`,
+  `E_DASH_OF`); `clamp: { min?, max?, maxStep? }` belongs to number fields (`E_DASH_CLAMP`). The staged write is
+  `{ op: "dash.set", field, of?, value, clamp? }`. After a successful run the host applies it to the newest snapshot
+  among the chat's own messages (the one the agent read; a swiped-away branch is not touched), for the character named in
+  `of`, else whoever wrote the last reply. A chat the Dashboard has not read yet, a character that is not on the
+  Dashboard (or was removed), an empty text and a value that is not a number are refused, and the run lists them under
+  `refused`. A number is cut to a whole number in -100..100, then by `clamp.min`/`max`, then to `maxStep` from the
+  current value; text is cut to 300 characters (200 for `place` and `weather`). A text field is marked fresh, so the
+  next reply's Dashboard note carries it. Nothing is locked: the later writer wins. An agent runs after the sensor of the
+  same reply, so its value stands for that turn; after that a text field changes only when the sensor reports a change,
+  and a number carries on from the written value with the sensor's events added. Every applied write is kept in
+  `dashboard/agent/<chatId>.json`, `{ v: 1, counter, entries: [{ id, agent, key, field, who?, before, after, at, undone? }] }`
+  (`key` = the snapshot, `before` = the value replaced, exactly as it was stored), one entry for an agent, field, character and snapshot
+  (a run done again replaces it and keeps the first `before`). The run record gets `dash: [{ id, field, who?, before, after, key }]`
+  and `GET /agents/runs` marks the undone ones. `POST /agents/dash-undo { chatId, id }` puts `before` back, only while that
+  snapshot is still the newest on the line and the field still holds what the agent wrote (else 409 with the reason).
+  The Dashboard plugin (`relations`) applies the ledger again to a snapshot it makes anew (a message read again), so an
+  earlier edit of the chat does not lose the change; an undone entry, or one whose message is off the line, is ignored.
 - Code cards, no model and no permission, 0 model calls: `random.dice` (`count` 1 to 20, default 1; `sides` 2 to 1000,
   default 20; optional `bonus` -1000 to 1000; optional `when` signal; outputs `total` (number) and `rolls` (text,
   "4, 17")), `random.pick` (`items`: 2 to 40 `{ text, weight? }`, a weight 1 to 100 or 1 when absent; optional `when`; outputs
@@ -927,7 +1011,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
 - **Hint for the next reply.** An Output `prompt-insert` is kept in `inserts/<chatId>.json` and added to the end of the last user
   message of the next reply request (`position` is not used yet), with the agent's label, for as long as the agent is on in
   the chat; the agent's next run replaces it.
-- **Not yet.** Writing Dashboard fields (`write:state.*`), the sources `preGenInjections` and `parallelResults`, the triggers
+- **Not yet.** The sources `preGenInjections` and `parallelResults`, the triggers
   `before` and `parallel`, the source `summary`. An agent that needs them installs but does not run, and says so.
 - The plugin carries a generated copy of `agent-check.js` and `agent-run.js` between two marker lines; after editing either,
   run `bun scripts/sync-agents-plugin.ts` (a test fails when the copy is old).

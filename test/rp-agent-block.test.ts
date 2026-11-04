@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { writeLine } from '../src/components/chat/agent-block'
+// agent-block pulls in the engine client (agents.ts, dash-live.ts), which reads location at load: stub it first
+(globalThis as unknown as { location: unknown }).location ??= { pathname: '/app/u/roleplay/', origin: 'http://x', hash: '', search: '' }
+const { writeLine } = await import('../src/components/chat/agent-block')
 
 describe('writeLine', () => {
   test('puts a staged write on one short line', () => {

@@ -4,18 +4,17 @@
 
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Compass, Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, UserMinus, type Icon } from '@phosphor-icons/react'
+import { Compass, Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, type Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Constellation } from './constellation'
 import { HostilityBar, PulseBar, SignedBar } from './dash-bars'
 import { AvatarImg, Box, ChangeBadge, CLASS_MARK, GOLD_TEXT, MARK, useTx } from './dash-common'
-import { useDashMaybe } from './dash-context'
-import { useConfirm } from '@/components/ui/confirm'
+import { ManagePerson } from './dash-merge'
 import { cn } from '@/lib/utils'
 import { withKeys } from '@/lib/unique-keys'
 import { useT } from '@/hooks/use-t'
-import { canEditNotes, DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
+import { DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
 import { outfitEmpty, outfitOf, sensorDifference, thingCount } from '@/lib/dash-outfit'
 import { personChanges, tally, type ChangeCount } from '@/lib/dash-changes'
 import { saveWorldSettings, type WorldHere } from '@/lib/world'
@@ -57,18 +56,9 @@ const sameWord = (a: string | null | undefined, b: string | null | undefined) =>
 // ---------- Attitude ----------
 
 /** The name and class in the bar; the radar on the left, the five stats on the right, the constellation's name and line under them. */
-export function AttitudeCard({ name, char, narrow, count }: { name: string; char: DashChar; narrow?: boolean; count?: ChangeCount | null }) {
+export function AttitudeCard({ name, char, narrow, count, avatars }: { name: string; char: DashChar; narrow?: boolean; count?: ChangeCount | null; avatars?: Record<string, string | undefined> }) {
   const t = useT()
   const tx = useTx()
-  const dash = useDashMaybe()
-  const [confirm, confirmDialog] = useConfirm()
-  // the sensor can list one person twice or invent a name: the user takes the extra one off. Never the last one.
-  const removable = !!dash && canEditNotes(dash.view) && Object.keys(dash.view?.chars ?? {}).length > 1
-  const remove = async () => {
-    if (!dash) return
-    if (!(await confirm({ title: t('dash.remove.title', { name }), description: t('dash.remove.body'), actionLabel: t('dash.remove.do') }))) return
-    await dash.act({ op: 'remove-character', name })
-  }
   return (
     <Box
       title={<span className="font-heading text-[14px] tracking-normal normal-case">{name}</span>}
@@ -78,15 +68,11 @@ export function AttitudeCard({ name, char, narrow, count }: { name: string; char
       right={
         <span className="flex items-center gap-1">
           <Badge variant="outline" className={cn('rounded-none text-caption', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>
-          {removable && (
-            <Button variant="ghost" size="icon-xs" onClick={remove} aria-label={t('dash.remove.title', { name })} title={t('dash.remove.title', { name })} className="rounded-none">
-              <UserMinus aria-hidden="true" />
-            </Button>
-          )}
+          {/* the sensor can list one person twice or invent a name: the user joins the two or takes the extra one off */}
+          <ManagePerson name={name} avatars={avatars} />
         </span>
       }
     >
-      {confirmDialog}
       <div className="flex min-w-0 flex-col gap-2">
         <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5">
           <div className="overflow-hidden">
@@ -250,7 +236,7 @@ const CLASS_BORDER: Record<string, string> = { ally: 'border-emerald-500/50', ho
 /** Two-column tiles for the other characters present: avatar, name, constellation in gold, counter; a click focuses them. */
 export function OthersGrid({ view, here, focus, onFocus, avatars }: { view: DashView; here: WorldHere | null; focus: string; onFocus: (name: string) => void; avatars: Record<string, string | undefined> }) {
   const tx = useTx()
-  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
+  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n])
   if (others.length === 0) return null
   return (
     <div className="grid grid-cols-2 gap-1.5" data-testid="dash-others">
@@ -339,7 +325,7 @@ export function ThingsCard({ view, here, focus, onFocus }: { view: DashView; her
   const t = useT()
   const char = view.chars[focus]
   const mine = outfitOf(focus, char, here)
-  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n] && !view.chars[n].compact)
+  const others = view.order.filter((n) => n !== focus && view.present.includes(n) && view.chars[n])
   const placeName = here?.place?.name ?? ''
   const lying = here?.things ?? []
   const asleep = here?.asleep ?? []

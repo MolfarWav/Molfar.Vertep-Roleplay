@@ -52,6 +52,7 @@ import { uniquePresetName, type ImportReport } from './preset-report'
 import { migrateLook } from './migrate-look'
 import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
 import { rowDismissKey, type InboxRow } from './attention-core'
+import { keepShownTranscript } from './chat-snapshot'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'groups' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
@@ -886,9 +887,17 @@ export const useApp = create<AppState>()(
           // the commit's own refreshChat reconcile when the run lands.
           const liveChatId = get().streaming?.chatId ?? null
           const liveLocal = liveChatId ? get().chats.find((c) => c.id === liveChatId) ?? null : null
-          const chatsOut = liveLocal
-            ? withBranches.map((c) => (c.id === liveChatId ? liveLocal : c))
-            : withBranches
+          // The chat on screen keeps its loaded transcript when this snapshot has none for it:
+          // either the transcript was read mid-write by a sidecar (it parses as empty), or the
+          // user opened another chat while the snapshot was in flight (only the chat active at
+          // the start rode along). Emptying it threw the reader to the top of the log.
+          const shownId = get().view === 'chat' ? get().activeChatId : null
+          const shownLocal = shownId && shownId !== liveChatId ? get().chats.find((c) => c.id === shownId) ?? null : null
+          const chatsOut = withBranches.map((c) => {
+            if (liveLocal && c.id === liveChatId) return liveLocal
+            if (shownLocal && c.id === shownId && keepShownTranscript(shownLocal, c.messages.length)) return { ...shownLocal, branches: c.branches }
+            return c
+          })
           // lastChatAt for character cards
           const byId = new Map(characters.map((c) => [c.id, c]))
           for (const c of withBranches) {
@@ -2646,7 +2655,8 @@ async function refreshChat(set: SetFn, get: GetFn, chatId: ID) {
   try {
     const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
     if (mutateSeq !== seqAtStart) return // an optimistic mutation is ahead of this snapshot
-    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
+    // a transcript read mid-write parses as empty: keep what is loaded (chat-snapshot.ts)
+    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId && !keepShownTranscript(c, (r.messages ?? []).length) ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
   } catch { /* chat may be gone */ }
   void refreshLists(set, get)
 }
