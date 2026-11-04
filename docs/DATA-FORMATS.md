@@ -540,7 +540,7 @@ something risky, copy the preset to a new id first.
 | `openai_max_tokens` | Reply length limit, in tokens. When the model's max output is known (0.9.2+), that is used instead. |
 | `openai_max_context` | Not used (since 4.72.0). A preset carries no context window: the window is the model's (the catalog, the provider's model list, or the override in Settings, Models). A file or an import that still has the field is read and ignored; an unknown window is budgeted as 32768 tokens, and the chat says so. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
-| `utilityPrompts` | Prompts of app features (summary, impersonate, empty send, polish…), lifted from `studio` for the engine. `polish` (#15) is the instruction for Polish in the composer: the chat's model corrects and enriches the player's draft. Blank or missing = the built-in prompt (`plugins/polish/plugin.js`). |
+| `utilityPrompts` | Prompts of app features (summary, impersonate, empty send, polish…), lifted from `studio` for the engine. `polish` (#15) is the instruction for Polish in the composer: the chat's model corrects and enriches the player's draft. Blank or missing = the built-in prompt (`plugins/polish/plugin.js`). `impersonation`, `continueNudge` and `polish` expand the preset's macros like its sections (#237): the chat's picks, `{{#if}}`, the variables the sections set, `vertep.*` (Polish runs in its own plugin and reads picks and chat variables, not the flags). |
 | `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`, `locked`, `note`), `groups`, `variables` (see Variables), `description`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
 | other numbers (`top_a`, `typical_p`, `dry_*`, `xtc_*`, `dynatemp_*`, `mirostat_*` …) | Extra samplers from imported presets; sent when set. |
 
@@ -623,6 +623,17 @@ builds the prompt. Names are case-insensitive.
   `!`, parentheses, `name == "a" || "b"`; a bare name is true when set and not false/0/no/off. Names
   read `{{user}}`, `{{char}}`, preset variables, then chat variables; comparisons ignore case and a
   choice matches by its value or its label.
+- `vertep.<name>` (#237): whether an app feature can add its notes to this reply, `true` or `false`,
+  in `{{#if vertep.dice}}…{{/if}}`, in a section's `condition` (`vertep.dice`, `!vertep.world`) or as
+  `{{vertep.dice}}`. Names: `litopys`, `memories` (per-character recollections), `castknowledge` (who
+  knows what), `hiddenplan`, `dashboard`, `fastsensor` (the reply must end with `<vertep_state>`),
+  `world`, `worldnews` (World DM events), `dice` (FATE), `life` (LIFE), `databank`, `authornote`.
+  They are computed once per reply by `chatFeatures` (engine plugin) from the same switches and files
+  the plugins' hooks read (`meta.promptBoard.off`, `litopys/config.json`, `dashboard/config.json`,
+  `world/state/<chatId>.json`, `world/profiles/`); `test/rp-chat-features.test.ts` checks them against
+  the hooks. A flag is a hint: `true` means the feature may speak, not that it will this turn. A preset
+  or chat variable cannot stand in for one, and `{{setvar}}` on a `vertep.` name is ignored. Use a flag
+  to drop a rule where its feature cannot speak; keep "when this note is present" wording in the rule.
 
 Regex scripts are `data/regex/<id>.json`, one script per file (copy `data/regex/_example.json`; a file whose
 name starts with `_` is a template the app list skips). Fields, as the engine reads them:
