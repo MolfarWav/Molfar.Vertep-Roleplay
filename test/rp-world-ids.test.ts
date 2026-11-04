@@ -254,3 +254,22 @@ describe("the DM names the tracker's id (ref)", () => {
     expect(W.CHRONICLER_SYSTEM).toContain('"ref":"o3"');
   });
 });
+
+describe("the tracker's unlinked things and place reach the DM", () => {
+  it("lists held and lying things and the scene's place that no record is linked to, and an add by a known name with a ref links that record", () => {
+    const fsx = setup();
+    const rc = W.openRegistry(fsx, "c1", meta);
+    const st = W.emptyState("c1");
+    // the World recorded the sword in its own words before it saw the id: a registry copy of its own
+    W.applyReport(st, { add: [{ kind: "thing", name: "клинок", text: "Старый клинок." }] }, ctxOf(rc));
+    const scene = { place: "Hall of Mirrors", placeId: "l3", objects: [], chars: { "Kaede Fuji": { items: [{ id: "o5", kind: "hold", text: "silver sword" }, { id: "o5", kind: "wear", text: "x" }] } } };
+    const tracked = W.trackedThings(st, scene, rc, { things: [] });
+    expect(tracked.map((t: any) => t.id)).toEqual(["l3", "o5"]);
+    const text = W.dmInput({ cards: [], userName: "Taras", entities: st.entities, msgs: [{ role: "assistant", name: "N", text: "x" }], tracked });
+    expect(text).toContain("o5 silver sword (Kaede Fuji holds it)");
+    // the DM answers with an add under the name it already has, and the ref
+    W.applyReport(st, { add: [{ kind: "thing", name: "клинок", text: "Старый клинок в руке Каэдэ.", ref: "o5" }] }, ctxOf(rc));
+    expect(rc.reg.entities.find((e: any) => e.id === st.regIds.n1).merged ?? st.regIds.n1).toBe("o5");
+    expect(W.trackedThings(st, scene, rc, { things: [] }).map((t: any) => t.id)).toEqual(["l3"]);
+  });
+});

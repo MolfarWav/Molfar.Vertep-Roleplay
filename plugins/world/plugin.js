@@ -1453,6 +1453,38 @@ function markSwept(state, c) {
   const names = [...c.places, ...c.things.map((t) => t.name)].map((n) => cut(n, NAME_MAX * 2));
   state.sweepAsked = [...arr(state.sweepAsked), ...names.filter((n) => !arr(state.sweepAsked).some((k) => covered(k, n)))].slice(-SWEEP_ASKED_MAX);
 }
+const TRACKED_MAX = 10;
+/**
+ * The things the scene tracker keeps in the scene now (lying, or held by someone) that no active record is linked to,
+ * with their ids. The DM ties a record of its own to one of them with an update's ref, so a thing it named in the story's
+ * language and the tracker named in its own words become one. Things the sweep offers are left to the sweep.
+ */
+export function trackedThings(state, scene, rc, sweep) {
+  if (!scene || !rc) return [];
+  const linked = new Set(
+    Object.entries(isObj(state.regIds) ? state.regIds : {})
+      .filter(([k]) => state.entities.some((e) => e.id === k && e.status === "active"))
+      .map(([, v]) => regCanonId(rc.reg, v)),
+  );
+  const swept = new Set(arr(sweep && sweep.things).map((t) => str(t.id)).filter(Boolean));
+  const out = [];
+  const put = (id, text, where) => {
+    const cid = regCanonId(rc.reg, id);
+    if (!THING_ID.test(cid) || linked.has(cid) || swept.has(id) || out.some((o) => o.id === cid)) return;
+    out.push({ id: cid, text: cut(str(text), NAME_MAX), where: cut(str(where), NAME_MAX) });
+  };
+  // the scene's own place, when no place record is linked to it yet
+  const pid = scene.placeId ? regCanonId(rc.reg, scene.placeId) : "";
+  if (/^l\d{1,6}$/.test(pid) && !linked.has(pid) && str(scene.place)) out.push({ id: pid, text: cut(str(scene.place), NAME_MAX), where: "the scene's place now" });
+  for (const o of arr(scene.objects)) if (o.id) put(o.id, o.item, o.where);
+  for (const [who, c] of Object.entries(isObj(scene.chars) ? scene.chars : {})) for (const i of arr(c.items)) if (i.kind === "hold") put(i.id, i.text, who + " holds it");
+  return out.slice(0, TRACKED_MAX);
+}
+/** The block of a DM run that lists the tracker's unlinked things and place. */
+function trackedInput(list) {
+  return "Things and the place the scene tracker keeps, by its id\n" + list.map((t) => t.id + " " + t.text + (t.where ? " (" + t.where + ")" : "")).join("; ") + ".\nWhen one of your records is one of these, whatever language it is named in, send an update of that record with its ref.";
+}
+
 /** The block of a DM run that lists what the sweep found. */
 function sweepInput(c) {
   const rows = [];
@@ -2004,7 +2036,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2020,6 +2052,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
+    ...(arr(tracked).length ? [trackedInput(tracked)] : []),
     ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     "New part of the story\n" + story,
@@ -2250,6 +2283,7 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!known) known = findEntity(state.entities, { name });
     if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
     if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
+    if (known && ref && known.status === "active") linkToRef(state, rc, known, ref);
     if (known) {
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
@@ -4311,7 +4345,9 @@ function updateRoute(req, host) {
   const r = host.llm.results[key];
   const cards = cardNames(fsx, chat.meta);
   const userName = userNameOf(fsx, chat.meta);
-  const cast = castOf(openRegistry(fsx, chatId, chat.meta), cards);
+  const runReg = openRegistry(fsx, chatId, chat.meta);
+  const cast = castOf(runReg, cards);
+  const tracked = trackedThings(state, scene, runReg, sweep);
   const play = playModel(fsx, cfg, chat.meta);
   // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
   const take = takeUnread(unread);
@@ -4323,7 +4359,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
