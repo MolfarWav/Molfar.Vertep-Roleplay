@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RichText } from '@/components/rich-blocks'
 import { DialogueVoices, Markdown, VoiceLeadOnly } from '@/components/markdown'
+import { peopleVoices, useChatVoices } from '@/lib/chat-voices'
 import { cardQuoteColor, cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
 import { pickSprite } from '@/lib/sprite-pick'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
@@ -490,7 +491,7 @@ export const MessageRow = memo(function MessageRow({
   // the group's own (narrator) messages colour each quote by who says it
   const groupChar = character.isGroup && character.group ? character : null
   const speakingMember = groupChar && !isUser && speaker && 'isGroup' in speaker && !speaker.isGroup && groupChar.group!.memberIds.includes(speaker.id) ? speaker : null
-  const memberQuoteColor = groupChar && speakingMember && groupChar.group!.colorDialogue !== false ? memberColor(groupChar, speakingMember) : undefined
+  const memberQuoteColor = groupChar && speakingMember && groupChar.group!.colorDialogue !== false ? memberColor(groupChar, speakingMember, characters) : undefined
   // a single card's own replies take the card's "Dialogue highlight" as the base colour of its quotes; a voice that is
   // named on a line paints that line over it (see voiceQuotes), and a group member's colour is memberQuoteColor above
   const cardQuote = cardQuoteColor(character, { isUser, inGroup: !!groupChar })
@@ -500,16 +501,20 @@ export const MessageRow = memo(function MessageRow({
   const soloVoices = !groupChar && !isUser ? character?.voices : undefined
   // the player's own message can carry other characters' lines ("Keiko: ..."): those take their colours, by
   // the label only (see VoiceLeadOnly); the rest stays in the persona's colour
+  // the chat's own people (the Dashboard's registry), when the chat paints them and the card lists no voices of its own
+  const chatVoicesOf = useChatVoices((s) => s.byChat[chat.id])
+  const chatVoices = useMemo(() => (groupChar || character?.voices?.length ? NO_VOICES : peopleVoices(chatVoicesOf)), [groupChar, character, chatVoicesOf])
   const userVoices = useMemo<DialogueVoice[]>(() => {
     if (!isUser) return NO_VOICES
     if (groupChar) return groupVoices(groupChar, characters)
     if (character?.voices?.length) return cardVoices({ voices: character.voices })
+    if (chatVoices.length) return chatVoices
     const match = character?.colors?.dialogue ? voiceMatcher(character.name) : null
     return match && character?.colors?.dialogue ? [{ name: character.name, color: character.colors.dialogue, match }] : NO_VOICES
-  }, [isUser, groupChar, characters, character])
+  }, [isUser, groupChar, characters, character, chatVoices])
   const voices = useMemo(
-    () => (isUser ? userVoices : groupChar && !speakingMember ? groupVoices(groupChar, characters) : soloVoices?.length ? cardVoices({ voices: soloVoices }) : NO_VOICES),
-    [groupChar, isUser, userVoices, speakingMember, characters, soloVoices],
+    () => (isUser ? userVoices : groupChar && !speakingMember ? groupVoices(groupChar, characters) : soloVoices?.length ? cardVoices({ voices: soloVoices }) : chatVoices),
+    [groupChar, isUser, userVoices, speakingMember, characters, soloVoices, chatVoices],
   )
   // expression sprites: the reply's own words pick the sprite (keyword
   // classifier + synonym resolution against the card's sprite set). Memoized:

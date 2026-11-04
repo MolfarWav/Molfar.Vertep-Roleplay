@@ -15,7 +15,7 @@ The editor has six tabs:
 - **Lorebook**: books linked to this card.
 - **More**: colors and voices, sprites, gallery, regex, advanced settings.
 
-A card may play several characters at once (a narrator or game master). Under Colors, "Voices" gives each speaker its own color.
+A card may play several characters at once (a narrator or game master). Under Colors, "Voices" gives each speaker its own color. If you list no voices, the chat does it for you: a card that holds several characters (sections named after each) colors every character's lines by itself, each with a different color, kept with the chat. In any other chat, open the chat menu, "Voice colors", and turn the switch on; "Spread colors" gives everyone you have not picked a different color. This needs the Relationship dashboard, which supplies the list of characters.
 
 ## Personas
 
@@ -23,7 +23,7 @@ A persona is you: name, pronouns, description, avatar. The model sees it whereve
 
 ## Groups
 
-A group puts several characters into one chat. "New group" lets you pick members. The editor has Overview, Members, Scene, Turns, Lore and Chats. The Turns tab decides who answers: Narrator (one reply voices everyone) or Each in turn. A new group starts as Narrator. A group is not a card: deleting a group deletes its chats, never its members.
+A group puts several characters into one chat. "New group" lets you pick members. The editor has Overview, Members, Scene, Turns, Lore and Chats. The Turns tab decides who answers: Narrator (one reply voices everyone) or Each in turn. A new group starts as Narrator. A group is not a card: deleting a group deletes its chats, never its members. Members without a color of their own get different colors automatically.
 
 ## Getting cards
 

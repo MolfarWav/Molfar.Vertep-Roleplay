@@ -27,6 +27,8 @@
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
  *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject),
  *                                          remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
+ *  GET  /dashboard/voices?chatId=          the chat's voice colours: {mode, active, people: [{id, name, aliases, color, hand}]}
+ *  POST /dashboard/voices {chatId, op, id?, color?, all?}  op: on | off | auto | set | unset | spread (colours for everyone not picked by hand)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/other-seen {id?}      forget one event id the sensor invented that nobody could place, or all (GET /dashboard/config lists them as otherSeen)
  *  DELETE /dashboard/events                back to the default vocabulary
@@ -8264,6 +8266,134 @@ function armNudge(req, fsx) {
   return ok({ ok: true, nudge });
 }
 
+// ---------- voice colours: one colour per person of the chat's registry ----------
+// A reply that voices several characters (a card with several persons, or any chat the user turns it on for) paints each
+// person's lines in their own colour. The people are the registry's (docs/ENTITY-REGISTRY.md: id, name, aliases), so a
+// colour follows the person across spellings and a merge. The colours are kept per chat in dashboard/voices/<chatId>.json:
+// { v: 1, mode: "auto" | "on" | "off", colors: { p1: "#rrggbb" }, hand: ["p2"] }. `hand` = picked by the user, never moved by a spread.
+const VOICE_DIR = "dashboard/voices/";
+// the first eight are the app's palette (src/lib/dialogue-voices.ts), so a group and a chat look alike
+const VOICE_BASE = ["#e06c75", "#e5c07b", "#98c379", "#56b6c2", "#61afef", "#c678dd", "#d19a66", "#abb2bf"];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** The k-th colour: the palette first, then hues spread by the golden angle (never the same twice). */
+function voiceColorAt(k) {
+  if (k < VOICE_BASE.length) return VOICE_BASE[k];
+  const h = ((k - VOICE_BASE.length) * 137.508 + 20) % 360;
+  const s = 0.55, l = 0.66;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => {
+    const m = (n + h / 30) % 12;
+    const c = l - a * Math.max(-1, Math.min(m - 3, 9 - m, 1));
+    return Math.round(255 * c).toString(16).padStart(2, "0");
+  };
+  return "#" + f(0) + f(8) + f(4);
+}
+
+/** Colours for `ids` that have none in `kept`: each takes the first colour nobody holds. Returns a new { id: colour }. */
+function pickVoiceColors(ids, kept) {
+  const out = { ...kept };
+  const used = new Set(Object.values(out).map((c) => String(c).toLowerCase()));
+  for (const id of ids) {
+    if (out[id]) continue;
+    let k = 0;
+    while (used.has(voiceColorAt(k).toLowerCase())) k++;
+    out[id] = voiceColorAt(k);
+    used.add(out[id].toLowerCase());
+  }
+  return out;
+}
+
+/** The people who get a voice: the registry's persons that are not merged away, the user's own character excluded. */
+function voicePeople(reg) {
+  return arr(reg && reg.entities).filter((e) => e && e.kind === "person" && e.id !== "user" && !e.merged);
+}
+
+/** A card of several characters: two or more persons made from the same card. */
+function isMultiCard(people) {
+  const per = {};
+  for (const e of people) if (e.src === "card" && e.card) per[e.card] = (per[e.card] || 0) + 1;
+  return Object.values(per).some((n) => n >= 2);
+}
+
+/** Make the stored colours sound: only people who exist, only hex, none shared where a free colour is left. */
+function voiceSettle(file, people, mode) {
+  const ids = people.map((e) => e.id);
+  const hand = arr(file.hand).filter((id) => ids.includes(id) && HEX.test(String(file.colors[id] || "")));
+  const kept = {};
+  for (const id of ids) if (HEX.test(String((file.colors || {})[id] || ""))) kept[id] = String(file.colors[id]).toLowerCase();
+  // two people on one colour: the later one (not picked by hand) gets a free colour
+  const seen = new Set(hand.map((id) => kept[id]));
+  for (const id of ids) {
+    const c = kept[id];
+    if (!c || hand.includes(id)) continue;
+    if (seen.has(c)) delete kept[id];
+    else seen.add(c);
+  }
+  return { v: 1, mode, colors: pickVoiceColors(ids, kept), hand };
+}
+
+function voiceReply(chatId, file, people, active) {
+  return {
+    chatId,
+    mode: file.mode,
+    active,
+    people: people.map((e) => ({
+      id: e.id,
+      name: e.name,
+      aliases: arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter(Boolean),
+      color: active ? file.colors[e.id] || "" : "",
+      hand: file.hand.includes(e.id),
+    })),
+  };
+}
+
+/** GET /dashboard/voices?chatId= and POST {chatId, op: "on" | "off" | "auto" | "set" | "unset" | "spread", id?, color?, all?}. */
+function voicesRoute(req, fsx) {
+  const post = req.method === "POST";
+  const src = post ? (isObj(req.body) ? req.body : {}) : req.query || {};
+  const chatId = String(src.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const stored = readJson(fsx, VOICE_DIR + chatId + ".json", null);
+  const base = isObj(stored) ? stored : {};
+  let mode = ["auto", "on", "off"].includes(base.mode) ? base.mode : "auto";
+  let file = { v: 1, mode, colors: isObj(base.colors) ? base.colors : {}, hand: arr(base.hand) };
+  const reg = regLoad(fsx, chatId, null);
+  const people = voicePeople(reg);
+  let changed = false;
+  if (post) {
+    const op = str(src.op);
+    const id = str(src.id);
+    if (op === "on" || op === "off" || op === "auto") { mode = op; changed = true; }
+    else if (op === "set") {
+      if (!people.some((e) => e.id === id) || !HEX.test(String(src.color || ""))) return ok({ error: "id and a #rrggbb colour required" }, 400);
+      file.colors[id] = String(src.color).toLowerCase();
+      file.hand = [...file.hand.filter((x) => x !== id), id];
+      changed = true;
+    } else if (op === "unset") {
+      delete file.colors[id];
+      file.hand = file.hand.filter((x) => x !== id);
+      changed = true;
+    } else if (op === "spread") {
+      // every person not picked by hand (or everyone, with all) takes the colours again, in the order they came
+      const all = parseBool(src.all) === true;
+      if (all) file.hand = [];
+      for (const e of people) if (!file.hand.includes(e.id)) delete file.colors[e.id];
+      if (mode === "off") mode = "on";
+      changed = true;
+    } else return ok({ error: "unknown op" }, 400);
+  }
+  const active = mode === "on" || (mode === "auto" && isMultiCard(people));
+  file = voiceSettle(file, people, mode);
+  // colours are written only for a chat that uses them, and only when something changed
+  if ((active || changed) && (changed || JSON.stringify(file) !== JSON.stringify(stored))) {
+    try {
+      fsx.write(VOICE_DIR + chatId + ".json", JSON.stringify(file));
+    } catch {}
+  }
+  return ok(voiceReply(chatId, file, people, active));
+}
+
 export function handleRoute(req, host) {
   const path = String((req && req.path) || "").split("?")[0];
   if (!path.startsWith("/dashboard/")) return null;
@@ -8331,5 +8461,6 @@ export function handleRoute(req, host) {
     return ok(configBody(fsx));
   }
   if (path === "/dashboard/notes" && method === "POST") return notesRoute(req, fsx);
+  if (path === "/dashboard/voices" && (method === "GET" || method === "POST")) return voicesRoute(req, fsx);
   return null;
 }
