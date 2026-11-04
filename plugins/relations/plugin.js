@@ -922,14 +922,28 @@ function regNew(chatId, from) {
   return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
+const regIdIndexes = new WeakMap();
+/** The entity with this id from an index of the list (id to position), kept per list and rebuilt when the list grows or shrinks,
+ *  or when the position it names no longer holds that id. A miss is looked for in the list itself, so the answer is always the list's. */
+function regById(ents, id) {
+  let ix = regIdIndexes.get(ents);
+  if (!ix || ix.n !== ents.length) {
+    ix = { n: ents.length, at: new Map() };
+    for (let i = ents.length - 1; i >= 0; i--) if (ents[i] && ents[i].id !== undefined) ix.at.set(ents[i].id, i);
+    regIdIndexes.set(ents, ix);
+  }
+  const i = ix.at.get(id);
+  if (i !== undefined && ents[i] && ents[i].id === id) return ents[i];
+  return ents.find((e) => e && e.id === id) || null;
+}
+
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
 function regGet(reg, id) {
   const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
-  const find = (x) => ents.find((e) => e && e.id === x) || null;
-  let cur = find(id);
+  let cur = regById(ents, id);
   for (let i = 0; cur && cur.merged; i++) {
     if (i > ents.length) return null;
-    cur = find(cur.merged);
+    cur = regById(ents, cur.merged);
   }
   return cur;
 }
@@ -2833,10 +2847,17 @@ export function wordTokens(s) {
     .filter((t) => t && !WORD_STOP.has(t));
 }
 const WORD_SUFFIX = /(\u0430\u043C\u0438|\u044F\u043C\u0438|\u043E\u0432\u0456|\u0435\u0432\u0456|\u043E\u0433\u043E|\u043E\u043C\u0443|\u0438\u043C\u0438|\u0435\u043C\u0443|\u0456\u0439|\u043E\u0457|\u043E\u044E|\u0435\u044E|\u044F\u0445|\u0430\u0445|\u0456\u0432|\u044F\u043C|\u0430\u043C|\u043E\u043C|\u0435\u043C|\u0438\u043C|\u0438\u0445|\u0438\u0439|\u044B\u0439|\u0430\u044F|\u044F\u044F|\u043E\u0435|\u0435\u0435|\u0443\u044E|\u044E\u044E|\u043E\u0432|\u0435\u0432|\u0435\u0439|\u044B|\u0438|\u0456|\u0430|\u044F|\u0443|\u044E|\u043E|\u0435|\u044C|\u0439)$/;
+const WORD_STEMS = new Map();
 function wordStem(t) {
   if (t.length <= 3) return t;
-  const r = t.replace(WORD_SUFFIX, "");
-  return r.length >= 3 ? r : t;
+  let r = WORD_STEMS.get(t);
+  if (r === undefined) {
+    r = t.replace(WORD_SUFFIX, "");
+    if (r.length < 3) r = t;
+    if (WORD_STEMS.size > 8000) WORD_STEMS.clear();
+    WORD_STEMS.set(t, r);
+  }
+  return r;
 }
 /** Two words are the same: short ones exactly, longer ones by stem. */
 export function sameWord(a, b) {
@@ -3865,6 +3886,8 @@ function cardAttireText(ctx, hits) {
 /** The scan's blocks of the sensor input: the hints, and the card's Attire for the characters they may concern. */
 function scanBlocks(ctx) {
   const hits = wordScanHits(ctx);
+  // the second pass needs only who the clothing sentences name; it comes with the stash instead of a second scan of the replies
+  ctx.scanWear = hits.filter((h) => h.kinds.includes("wear")).map((h) => arr(h.named).slice(0, 6));
   return [wordScanText(hits), cardAttireText(ctx, hits)].filter(Boolean);
 }
 
@@ -4816,7 +4839,19 @@ function orderPresent(present, events, B) {
 }
 
 const OUTFIT_FILLER = new Set(["a", "an", "the", "some", "her", "his", "their", "my", "your", "its", "of", "in", "on"]);
-const outfitWords = (s) => wordTokens(s).filter((w) => !OUTFIT_FILLER.has(w));
+// the same few hundred wordings are compared again and again (covers, a migration walks every snapshot): split each once.
+// The arrays are shared, so a caller must not change one.
+const OUTFIT_WORDS = new Map();
+const outfitWords = (s) => {
+  const key = typeof s === "string" ? s : "";
+  let w = OUTFIT_WORDS.get(key);
+  if (!w) {
+    w = wordTokens(s).filter((x) => !OUTFIT_FILLER.has(x));
+    if (OUTFIT_WORDS.size > 4000) OUTFIT_WORDS.clear();
+    OUTFIT_WORDS.set(key, w);
+  }
+  return w;
+};
 // words that do not name a garment: colours and states, so "black boots" out and "black dress" in are two things, "gown" torn and "gown" dirty one
 const GARMENT_SKIP = new Set(["black", "white", "gold", "golden", "silver", "grey", "gray", "brown", "dark", "light", "pink", "blue", "green", "long", "short", "thin", "thick", "tight", "loose", "small", "large", "torn", "dirty", "wet", "burnt", "singed", "bloody", "stained", "ragged", "with", "from", "that"]);
 /** Is `b` the same garment as `a` in another state (torn, dirty): they share a word that names it. */
@@ -6398,10 +6433,12 @@ function runUpdate(host, input) {
   if (input.leakCheck) return { done: finishLeakCheck(host, input) };
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
+  // the first pass already scanned the replies: its list of who the clothing sentences name is not made again (see scanBlocks)
+  if (Array.isArray(input.wear)) ctx.wearHits = input.wear.map((named) => ({ kinds: ["wear"], named: arr(named) }));
   // nothing new to read, only stale snapshots: drop them, no call
   if (!ctx.newMsgs.length) return { done: dropStale(fsx, ctx) };
   const rated = !!input.rated;
-  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...extra });
+  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...(ctx.scanWear ? { wear: ctx.scanWear } : {}), ...extra });
   // Cards with no soul are rated first, so the sensor starts from their souls. The
   // passes are: ask the rating, write it and ask the sensor, commit. Nothing is
   // written before the answers are in.
@@ -7337,7 +7374,7 @@ function readUpdate(req, host) {
   if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
   if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
-  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(Array.isArray(stash.wear) ? { wear: stash.wear } : {}), ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
 }
 

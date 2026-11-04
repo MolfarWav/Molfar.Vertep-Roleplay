@@ -95,14 +95,28 @@ export function regNew(chatId, from) {
   return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
+const regIdIndexes = new WeakMap();
+/** The entity with this id from an index of the list (id to position), kept per list and rebuilt when the list grows or shrinks,
+ *  or when the position it names no longer holds that id. A miss is looked for in the list itself, so the answer is always the list's. */
+function regById(ents, id) {
+  let ix = regIdIndexes.get(ents);
+  if (!ix || ix.n !== ents.length) {
+    ix = { n: ents.length, at: new Map() };
+    for (let i = ents.length - 1; i >= 0; i--) if (ents[i] && ents[i].id !== undefined) ix.at.set(ents[i].id, i);
+    regIdIndexes.set(ents, ix);
+  }
+  const i = ix.at.get(id);
+  if (i !== undefined && ents[i] && ents[i].id === id) return ents[i];
+  return ents.find((e) => e && e.id === id) || null;
+}
+
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
 export function regGet(reg, id) {
   const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
-  const find = (x) => ents.find((e) => e && e.id === x) || null;
-  let cur = find(id);
+  let cur = regById(ents, id);
   for (let i = 0; cur && cur.merged; i++) {
     if (i > ents.length) return null;
-    cur = find(cur.merged);
+    cur = regById(ents, cur.merged);
   }
   return cur;
 }

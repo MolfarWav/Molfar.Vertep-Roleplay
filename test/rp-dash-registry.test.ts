@@ -463,3 +463,23 @@ describe("the name a section person is shown with (#240)", () => {
     expect(lastSnap("c1").chars["Rhea Faeth"].mood).toBe("cold");
   });
 });
+
+describe("the second pass of an update does not scan the replies again (#245)", () => {
+  it("the first pass hands who the clothing sentences name to the second in the stash", () => {
+    card("queen", "Queen Seraphina");
+    chat("c1", [U("m1", "Hello."), C("m2", "Queen Seraphina", "Seraphina pulled on her white dress and smiled.", "queen"), U("m3", "Why?")], { characterId: "queen" });
+    const mock = mockHost();
+    const call: any = { method: "POST", path: "/dashboard/update", query: {}, body: { chatId: "c1", op: "send" } };
+    const first = P.handleRoute(call, mock.host) as any;
+    expect(first.__llmPending).toBe(true);
+    expect(Array.isArray(first.stash.wear)).toBe(true);
+    expect(first.stash.wear.length).toBeGreaterThan(0);
+    // the pass after the answer finishes, and the written state knows the clothes were shown this turn
+    mock.push(reply({ minutes: 5, present: ["Seraphina"], chars: { Seraphina: { outfit: { add: ["white dress"] } } } }));
+    call.stash = first.stash;
+    mock.answer();
+    const out = P.handleRoute(call, mock.host) as any;
+    expect(out.json.ok).toBe(true);
+    expect(lastSnap("c1").chars["Queen Seraphina"].shownTurn).toBeGreaterThan(0);
+  });
+});
