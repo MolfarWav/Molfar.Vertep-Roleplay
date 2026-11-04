@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Change (Molfar.Vertep#237): Vertep Lite now tells the model that Vertep is the roleplay app the story runs in, not a place, person, power or thing inside the story, so a model no longer brings "Vertep" into the fiction. The built-in copy takes the new text on update; an editable copy keeps yours. Molfar and FRANKENX name Vertep only in their notes for the player, which are never sent, so they need no change.
+
 ## 4.88.0 (2026-11-04)
 
 - Agents can change Dashboard fields (#132, write). A "Write to Dashboard" card (`write:state.<field>`, one permission per field) now runs: 12 fields (the 13 readable ones except `present`), for the character named in `of` or whoever spoke last, with optional limits for numbers. It lands after a successful run on the newest Dashboard snapshot of the chat's own line; the later writer wins, and the sensor goes on from the written value. The agent log under the reply lists each change (`trust: 42 → 55`) with an Undo while the Dashboard has not moved on. A message read again keeps the change (ledger `dashboard/agent/<chatId>.json`). The Forge has the card in its palette (group Dashboard) with a field picker, a character box and number limits, and the Input card has a block for the Dashboard fields it reads (part of #196). The `agent-craft` skill and `docs/DATA-FORMATS.md` describe it.

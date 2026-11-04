@@ -469,6 +469,12 @@ describe("built-in Vertep Lite", () => {
     expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-lite.json"), "utf8"))).toEqual(mine);
   });
 
+  it("says Vertep is the app, not something in the story (#237)", () => {
+    const core = read().prompts.find((x: { content?: string }) => (x.content ?? "").includes("## Notes from Vertep"));
+    expect(core.content).toContain("Vertep is the roleplay app this story runs in, not a place, person, power or thing inside the story; never bring it into the story.");
+    expect(core.content).not.toContain("The app adds notes");
+  });
+
   it("stays light: under 3k tokens with the heaviest picks", () => {
     const p = read();
     const costs = eng.presetCosts(p, {}, false) as { total: number; vars: Record<string, Record<string, number>> };
