@@ -876,7 +876,20 @@ const REG_CYR = {
 
 /** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
 function regFold(s) {
-  return String(s == null ? "" : s)
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regFoldRaw(text);
+  let r = regFoldMemo.get(text);
+  if (r === undefined) {
+    r = regFoldRaw(text);
+    if (regFoldMemo.size > 6000) regFoldMemo.clear();
+    regFoldMemo.set(text, r);
+  }
+  return r;
+}
+// the same names and words are folded again and again (a lookup compares a word with every name of the registry): once each
+const regFoldMemo = new Map();
+function regFoldRaw(text) {
+  return text
     .toLowerCase()
     .normalize("NFKD")
     .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
@@ -893,6 +906,18 @@ function regFold(s) {
  * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
  */
 function regTranslit(s) {
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regTranslitRaw(text);
+  let r = regTranslitMemo.get(text);
+  if (r === undefined) {
+    r = regTranslitRaw(text);
+    if (regTranslitMemo.size > 6000) regTranslitMemo.clear();
+    regTranslitMemo.set(text, r);
+  }
+  return r;
+}
+const regTranslitMemo = new Map();
+function regTranslitRaw(s) {
   let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
   t = t
     .replace(/ch/g, "k")
@@ -6337,10 +6362,12 @@ function planUpdate(fsx, chatId, op) {
 
 function askSensor(host, ctx, key) {
   const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
+  // what the model is given, kept for the debug record of the second pass (building it again costs the whole scan of the replies)
+  ctx.sensorText = sensorUser(ctx);
   host.llm.request(key, {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
-    messages: [{ role: "user", content: sensorUser(ctx) }],
+    messages: [{ role: "user", content: ctx.sensorText }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0.2),
   });
 }
@@ -6348,7 +6375,7 @@ function askSensor(host, ctx, key) {
 function writeDebug(fsx, ctx, info) {
   if (!ctx.cfg.debug) return;
   try {
-    const entry = { at: new Date().toISOString(), chatId: ctx.chatId, input: sensorUser(ctx), ...info };
+    const entry = { at: new Date().toISOString(), chatId: ctx.chatId, input: ctx.sensorText || sensorUser(ctx), ...info };
     fsx.write(DEBUG_FILE, JSON.stringify(entry, null, 2));
     // the latest run overwrites the file above, so a reply that went wrong was gone by the next turn:
     // the last runs are kept in a second file, newest last (#97)
@@ -6434,11 +6461,12 @@ function runUpdate(host, input) {
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
   // the first pass already scanned the replies: its list of who the clothing sentences name is not made again (see scanBlocks)
+  if (typeof input.sensorInput === "string") ctx.sensorText = input.sensorInput;
   if (Array.isArray(input.wear)) ctx.wearHits = input.wear.map((named) => ({ kinds: ["wear"], named: arr(named) }));
   // nothing new to read, only stale snapshots: drop them, no call
   if (!ctx.newMsgs.length) return { done: dropStale(fsx, ctx) };
   const rated = !!input.rated;
-  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...(ctx.scanWear ? { wear: ctx.scanWear } : {}), ...extra });
+  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...(ctx.scanWear ? { wear: ctx.scanWear } : {}), ...(ctx.cfg.debug && ctx.sensorText ? { sensorInput: ctx.sensorText } : {}), ...extra });
   // Cards with no soul are rated first, so the sensor starts from their souls. The
   // passes are: ask the rating, write it and ask the sensor, commit. Nothing is
   // written before the answers are in.
@@ -7374,7 +7402,7 @@ function readUpdate(req, host) {
   if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
   if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
-  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(Array.isArray(stash.wear) ? { wear: stash.wear } : {}), ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(Array.isArray(stash.wear) ? { wear: stash.wear } : {}), ...(typeof stash.sensorInput === "string" ? { sensorInput: stash.sensorInput } : {}), ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
 }
 

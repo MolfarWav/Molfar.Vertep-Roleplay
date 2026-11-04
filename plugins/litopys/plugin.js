@@ -154,7 +154,20 @@ const REG_CYR = {
 
 /** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
 function regFold(s) {
-  return String(s == null ? "" : s)
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regFoldRaw(text);
+  let r = regFoldMemo.get(text);
+  if (r === undefined) {
+    r = regFoldRaw(text);
+    if (regFoldMemo.size > 6000) regFoldMemo.clear();
+    regFoldMemo.set(text, r);
+  }
+  return r;
+}
+// the same names and words are folded again and again (a lookup compares a word with every name of the registry): once each
+const regFoldMemo = new Map();
+function regFoldRaw(text) {
+  return text
     .toLowerCase()
     .normalize("NFKD")
     .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
@@ -171,6 +184,18 @@ function regFold(s) {
  * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
  */
 function regTranslit(s) {
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regTranslitRaw(text);
+  let r = regTranslitMemo.get(text);
+  if (r === undefined) {
+    r = regTranslitRaw(text);
+    if (regTranslitMemo.size > 6000) regTranslitMemo.clear();
+    regTranslitMemo.set(text, r);
+  }
+  return r;
+}
+const regTranslitMemo = new Map();
+function regTranslitRaw(s) {
   let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
   t = t
     .replace(/ch/g, "k")
