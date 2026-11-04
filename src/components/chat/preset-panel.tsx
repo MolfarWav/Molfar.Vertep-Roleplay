@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowCounterClockwise, BookmarkSimple, Star } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -7,8 +7,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
 import { useApp } from '@/lib/store'
 import { useT } from '@/hooks/use-t'
+import type { MsgKey } from '@/lib/i18n'
 import { formatTokens } from '@/lib/tokens'
-import type { ID } from '@/lib/types'
+import type { ID, PresetFeature } from '@/lib/types'
 
 /**
  * The chat's Preset panel: which preset THIS chat runs and what it picked in it. Every change is saved
@@ -27,6 +28,15 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
   useEffect(() => { if (open) void loadPresetDefaults() }, [open, loadPresetDefaults])
   const preset = presets.find((p) => p.id === chat?.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0]
   const stored: PresetValues = useMemo(() => (preset ? chat?.presetVars?.[preset.id] ?? {} : {}), [chat?.presetVars, preset])
+  const fetchPresetFeatures = useApp((s) => s.fetchPresetFeatures)
+  const [features, setFeatures] = useState<PresetFeature[]>([])
+  const presetId = preset?.id ?? ''
+  useEffect(() => {
+    if (!open || !presetId) return
+    let live = true
+    void fetchPresetFeatures(presetId, chatId).then((f) => { if (live) setFeatures(f) })
+    return () => { live = false }
+  }, [open, presetId, chatId, fetchPresetFeatures])
   const costs = usePresetCosts(`${preset?.id ?? ''}|${JSON.stringify(preset?.variables ?? [])}`, preset?.id, { chatId }, JSON.stringify(stored), open)
 
   if (!chat || !preset) return null
@@ -66,6 +76,7 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
             <p className="text-[11px] text-muted-foreground" data-testid="preset-total">
               {costs ? t('pc.total', { n: formatTokens(costs.total) }) : t('pc.totalCounting')}
             </p>
+            <WorksWith features={features} />
           </div>
 
           {preset.description?.trim() && (
@@ -130,4 +141,22 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
 function sameValues(a: PresetValues, b: PresetValues): boolean {
   const norm = (v: PresetValues) => JSON.stringify(Object.keys(v).sort().map((k) => [k, v[k]]))
   return norm(a) === norm(b)
+}
+
+/** One line under the preset's name (#237): the chat's features the preset has rules for, then the ones it has
+ *  rules for that are off here. Nothing when the preset asks about no feature. */
+function WorksWith({ features }: { features: PresetFeature[] }) {
+  const t = useT()
+  const used = features.filter((f) => f.used)
+  if (!used.length) return null
+  const name = (f: PresetFeature) => t(`feat.${f.name}` as MsgKey)
+  const on = used.filter((f) => f.on).map(name)
+  const off = used.filter((f) => !f.on).map(name)
+  return (
+    <p className="text-xs" data-testid="preset-works-with" title={t('pc.worksWithTip')}>
+      {on.length > 0 && <span>{t('pc.worksWith', { list: on.join(' · ') })}</span>}
+      {on.length > 0 && off.length > 0 && <span className="text-muted-foreground"> · </span>}
+      {off.length > 0 && <span className="text-muted-foreground">{t('pc.offHere', { list: off.join(' · ') })}</span>}
+    </p>
+  )
 }

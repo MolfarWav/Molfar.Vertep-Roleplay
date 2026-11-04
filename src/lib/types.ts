@@ -419,6 +419,14 @@ export interface PresetCosts {
   vars: Record<string, Record<ID, number>>
 }
 
+/** GET /preset-features/:presetId?chatId=: each app feature a preset can ask about as `vertep.<name>` (#237),
+ *  whether it can speak in that chat (`on`) and whether the preset's text mentions it (`used`). */
+export interface PresetFeature {
+  name: 'litopys' | 'memories' | 'castknowledge' | 'hiddenplan' | 'dashboard' | 'fastsensor' | 'world' | 'worldnews' | 'dice' | 'life' | 'databank' | 'authornote'
+  on: boolean
+  used: boolean
+}
+
 /** GET /preset-memory/:characterId: the preset and picks of this character's last chat where they were chosen. */
 export interface PresetMemory {
   presetId: ID | null

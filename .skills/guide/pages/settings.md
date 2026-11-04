@@ -15,7 +15,7 @@ What the sections do, in short: Appearance is language, fonts, chat width and av
 - **Litopys**: the gear "Litopys settings" in the Library. See [[litopys]].
 - **World DM**: the World sheet in the chat header and the World section; "World settings" holds the DM model. See [[world-dm]].
 - **Agents**: the Canvas's Agents and "Agent sets" boards and the chat's Agents tab. See [[agents]].
-- **Prompt and sampling**: the **Presets** section (sections you can switch, variables, samplers, and a peek at the final request) and the Canvas's Prompt board for one chat.
+- **Prompt and sampling**: the **Presets** section (sections you can switch, variables, samplers, and a peek at the final request) and the Canvas's Prompt board for one chat. A chat's Preset panel shows, under the preset's name, a "Works with" line: the features of this chat the preset has rules for (Dashboard, Litopys, World DM, dice...), and which of them are off in this chat.
 - **A card's own**: its editor tabs, including colors, regex and advanced options. See [[characters]].
 - **Lorebooks**: each book has its own rules (scan depth, size cap, Global switch). See [[memory]].
 - **The Inbox** has per-kind switches for what counts as waiting on you.
