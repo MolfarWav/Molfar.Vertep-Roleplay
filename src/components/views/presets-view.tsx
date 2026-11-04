@@ -528,6 +528,11 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
               <Switch checked={s.enabled} disabled={ro} onCheckedChange={(v) => upSection(s.id, { enabled: v })} aria-label={`Enable ${s.name}`} />
               <span className="flex min-w-0 flex-1 items-center gap-2" aria-expanded={expanded}>
                 <span className="truncate text-sm font-medium">{s.name}</span>
+                {s.locked && (
+                  <span className="shrink-0 text-muted-foreground" role="img" aria-label="Locked by the preset's author" title="The preset's author says to leave this block as it is">
+                    <Lock className="size-3.5" aria-hidden="true" />
+                  </span>
+                )}
                 {s.marker && <Badge variant="outline" className="shrink-0 text-[10px]">{s.marker}</Badge>}
                 {s.content && <Badge variant="secondary" className="shrink-0 text-[10px]">{formatTokens(estimateTokens(s.content))} tok</Badge>}
               </span>
@@ -658,6 +663,18 @@ function SectionEditor({ preset, onSelect }: { preset: Preset; onSelect?: (id: s
                     <ArrowsOut aria-hidden="true" />
                   </Button>
                 </div>
+
+                {(s.locked || s.note) && (
+                  <div className="flex flex-col gap-1 rounded-md bg-muted/50 px-2.5 py-2 text-caption text-muted-foreground">
+                    {s.locked && (
+                      <span className="flex items-center gap-1.5 font-medium text-foreground">
+                        <Lock className="size-3.5 shrink-0" aria-hidden="true" />
+                        {s.enabled ? 'The author says to leave this block on and as it is: the preset depends on it.' : 'The author says to keep this block off.'}
+                      </span>
+                    )}
+                    {s.note && <p className="whitespace-pre-line"><span className="font-medium text-foreground">Author's note: </span>{s.note}</p>}
+                  </div>
+                )}
 
                 <Textarea
                   value={s.content}

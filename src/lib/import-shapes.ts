@@ -152,7 +152,65 @@ export function presetExport(preset: Preset, scripts: RegexScript[] = []): WireP
       ? { reasoning_effort: REASONING_EFFORT[preset.samplers.reasoning.effort] }
       : {}),
     ...preset.extendedSamplers,
+    // our own editor preset rides along (the same bag presetToEngine writes to disk), so Export -> Import keeps
+    // the Choices, section conditions, groups, triggers and notes; SillyTavern ignores the key. The copy is the
+    // importer's own: never a stock, never the default, no folder of this install
+    studio: ownBag(preset),
   }
+}
+
+function ownBag(preset: Preset): Record<string, unknown> {
+  const { readOnly: _r, isDefault: _d, folderId: _f, ...rest } = preset
+  return rest as unknown as Record<string, unknown>
+}
+
+/** A file written by this app (Export, or a preset file from data/presets/): it carries the editor bag. */
+function ownBagOf(json: unknown): Partial<Preset> | null {
+  const bag = (json as { studio?: unknown } | null)?.studio
+  if (!bag || typeof bag !== 'object' || Array.isArray(bag)) return null
+  const b = bag as Partial<Preset>
+  const okSections = Array.isArray(b.sections) && b.sections.length > 0
+    && b.sections.every((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string')
+  return okSections ? b : null
+}
+
+/** Our own format: the bag is the whole editor preset. A new id, never read-only, the base fills what an older
+ *  bag lacks. */
+function ownImport(json: unknown, bag: Partial<Preset>, name: string, base: Preset): PresetImport {
+  const report = newReport('vertep')
+  const sections = (bag.sections ?? []).map((s, i) => ({
+    ...s,
+    order: i,
+    content: typeof s.content === 'string' ? s.content : '',
+    injectionTriggers: Array.isArray(s.injectionTriggers) && s.injectionTriggers.length ? s.injectionTriggers : [...TRIGGERS],
+    groupId: s.groupId ?? null,
+  }))
+  const variables = Array.isArray(bag.variables) ? bag.variables : []
+  const groups = Array.isArray(bag.groups) ? bag.groups : []
+  const preset: Preset = {
+    ...base,
+    ...bag,
+    id: uid('preset'),
+    name: typeof bag.name === 'string' && bag.name.trim() ? bag.name.trim() : name,
+    readOnly: false,
+    isDefault: false,
+    folderId: null,
+    picture: typeof bag.picture === 'string' ? bag.picture : null,
+    description: typeof bag.description === 'string' ? bag.description : '',
+    sections,
+    library: Array.isArray(bag.library) ? bag.library : [],
+    groups,
+    variables,
+    utilityPrompts: { ...base.utilityPrompts, ...(bag.utilityPrompts ?? {}) },
+    samplers: { ...base.samplers, ...(bag.samplers ?? {}) },
+    createdAt: Date.now(),
+  }
+  note(report, 'came', 'sections', sections.length)
+  note(report, 'came', 'groups', groups.length)
+  note(report, 'came', 'ownVars', variables.length, variables.map((v) => v.label || v.name))
+  note(report, 'came', 'ownConditions', sections.filter((s) => s.condition?.trim()).length)
+  const regex = importPresetRegex((json as WirePresetJson).extensions?.regex_scripts, report)
+  return { preset, regex, report }
 }
 
 /** effort levels → the three the format carries; the finer studio levels
@@ -335,6 +393,8 @@ const ST_EXTENSION_MARKERS: Record<string, string> = {
 }
 
 export function presetImportFull(json: unknown, name: string, base: Preset): PresetImport | null {
+  const bag = ownBagOf(json)
+  if (bag) return ownImport(json, bag, name, base)
   if (isMarinaraPreset(json)) {
     const preset = marinaraImport(json, name, base)
     if (!preset) return null
@@ -438,7 +498,7 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     library: macros.library,
     groups,
     variables,
-    description: sourceNote(d, name),
+    description: structured.description ? `${structured.description}\n\n${sourceNote(d, name)}` : sourceNote(d, name),
     utilityPrompts: {
       impersonation: d.impersonation_prompt ?? base.utilityPrompts.impersonation,
       continueNudge: d.continue_nudge_prompt ?? base.utilityPrompts.continueNudge,
