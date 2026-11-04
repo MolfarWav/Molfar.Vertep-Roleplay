@@ -196,7 +196,7 @@ function regTokens(name) {
 
 /** An empty registry. */
 function regNew(chatId, from) {
-  return { v: 1, chatId, from: from || null, next: { p: 1, t: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+  return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
@@ -212,7 +212,7 @@ function regGet(reg, id) {
 }
 
 const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
-const regKindLetter = { person: "p", thing: "t", place: "l" };
+const regKindLetter = { person: "p", thing: "o", place: "l" };
 
 function regAliasList(entity, list, src) {
   for (const a of Array.isArray(list) ? list : []) {
@@ -226,7 +226,7 @@ function regAliasList(entity, list, src) {
   }
 }
 
-/** A new entity with the next id (p1, t1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+/** A new entity with the next id (p1, o1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
 function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
   const nm = regOneLine(name).slice(0, 80);
   if (!regFold(nm)) return null;
@@ -751,7 +751,7 @@ function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
 /** Where a chat's registry lives under the app's data folder. */
 const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
 
-const REG_ID = /^(?:user|[ptl]\d+)$/;
+const REG_ID = /^(?:user|[pol]\d+)$/;
 
 /** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
 function regValidate(raw, chatId, from) {
@@ -759,6 +759,20 @@ function regValidate(raw, chatId, from) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
   const ids = new Set();
   const kinds = { person: 1, thing: 1, place: 1 };
+  // an older registry numbered things t1, t2 ...; they are o1, o2 ... now (threads kept t#)
+  const oldThing = new Map();
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (e && typeof e === "object" && e.kind === "thing" && typeof e.id === "string" && /^t\d+$/.test(e.id)) oldThing.set(e.id, "o" + e.id.slice(1));
+  }
+  const upId = (x) => (oldThing.has(x) ? oldThing.get(x) : x);
+  if (oldThing.size) {
+    raw = {
+      ...raw,
+      entities: raw.entities.map((e) => (e && typeof e === "object" && (oldThing.has(e.id) || oldThing.has(e.merged)) ? { ...e, id: upId(e.id), ...(e.merged ? { merged: upId(e.merged) } : {}) } : e)),
+      apart: Array.isArray(raw.apart) ? raw.apart.map((p) => (Array.isArray(p) ? p.map(upId) : p)) : raw.apart,
+      suggest: Array.isArray(raw.suggest) ? raw.suggest.map((q) => (q && typeof q === "object" ? { ...q, a: upId(q.a), b: upId(q.b) } : q)) : raw.suggest,
+    };
+  }
   for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
     if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
     const name = regOneLine(e.name).slice(0, 80);
@@ -783,8 +797,8 @@ function regValidate(raw, chatId, from) {
     const k = e.id[0];
     if (n >= reg.next[k]) reg.next[k] = n + 1;
   }
-  for (const k of ["p", "t", "l"]) {
-    const stored = raw.next && Number(raw.next[k]);
+  for (const k of ["p", "o", "l"]) {
+    const stored = raw.next && Number(k === "o" && raw.next.o == null ? raw.next.t : raw.next[k]);
     if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
   }
   for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
@@ -1711,7 +1725,7 @@ function dedupeNames(list) {
 export function makeCanon(reg, { userName, ids } = {}) {
   if (!isObj(reg) || !Array.isArray(reg.entities)) return (n) => str(n);
   const memo = new Map();
-  const idLike = /^(?:user|[ptl]\d+)$/;
+  const idLike = /^(?:user|[pol]\d+)$/;
   const display = (e) => {
     if (e.id === "user") return str(userName) || e.name;
     if (isObj(ids)) {

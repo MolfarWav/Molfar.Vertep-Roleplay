@@ -299,10 +299,10 @@ describe("a state that already holds the same person twice", () => {
     expect(after.snapshots["m1#0"].edges).toEqual([]);
     const merged = after.snapshots[key].chars["Queen Seraphina"];
     expect(merged.stats.trust).not.toBe(11);
-    // things of the short name join the target's, each keeping its registry id (the update gave them t1, t2)
+    // things of the short name join the target's, each keeping its registry id (the update gave them o1, o2)
     expect(merged.items).toEqual([
-      { id: "t1", kind: "wear", text: "a red gown" },
-      { id: "t2", kind: "hold", text: "a silver key" },
+      { id: "o1", kind: "wear", text: "a red gown" },
+      { id: "o2", kind: "hold", text: "a silver key" },
     ]);
     expect(merged.holding).toBe("a silver key");
     // notes without a duplicate, and a note told by the target stays its own
@@ -378,7 +378,7 @@ describe("a registry made by the old card reader", () => {
         v: 1,
         chatId: "c1",
         from: null,
-        next: { p: 6, t: 1, l: 1 },
+        next: { p: 6, o: 1, l: 1 },
         entities: [
           ent("p1", "Summoned to the Queen", "card", { card: "queen" }),
           ent("p2", "Queen of Elves Rhea Faeth", "card", { card: "queen" }),
@@ -418,7 +418,7 @@ describe("a registry made by the old card reader", () => {
     run(mock, "c1", { present: ["Ember"] });
     fs.writeFileSync(
       path.join(root, "registry/c1.json"),
-      JSON.stringify({ v: 1, chatId: "c1", from: null, next: { p: 3, t: 1, l: 1 }, entities: [ent("p1", "Summoned to the Queen", "card", { card: "queen" }), ent("p2", "Queen of Elves Rhea Faeth", "card", { card: "queen" })], apart: [], suggest: [] }),
+      JSON.stringify({ v: 1, chatId: "c1", from: null, next: { p: 3, o: 1, l: 1 }, entities: [ent("p1", "Summoned to the Queen", "card", { card: "queen" }), ent("p2", "Queen of Elves Rhea Faeth", "card", { card: "queen" })], apart: [], suggest: [] }),
     );
     const st = readState("c1");
     st.personIds = {};

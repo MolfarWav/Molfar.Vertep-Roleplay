@@ -65,7 +65,7 @@ describe("regTranslit", () => {
 
 describe("regNew, regAdd, regUser, regAlias, regGet", () => {
   it("makes an empty registry", () => {
-    expect(R.regNew("c1", "c0")).toEqual({ v: 1, chatId: "c1", from: "c0", next: { p: 1, t: 1, l: 1 }, entities: [], apart: [], suggest: [] });
+    expect(R.regNew("c1", "c0")).toEqual({ v: 1, chatId: "c1", from: "c0", next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] });
     expect(R.regNew("c1").from).toBeNull();
   });
   it("adds entities with the next id by kind and dedupes aliases", () => {
@@ -74,10 +74,10 @@ describe("regNew, regAdd, regUser, regAlias, regGet", () => {
     expect(a).toMatchObject({ id: "p1", kind: "person", name: "Kaede Fuji", src: "card", card: "kaede" });
     expect(a.aliases).toEqual([{ text: "Kaede", src: "card" }, { text: "Каэде", src: "seen" }]);
     expect(R.regAdd(reg, { name: "Sina" })!.id).toBe("p2");
-    expect(R.regAdd(reg, { kind: "thing", name: "Silver sword" })!.id).toBe("t1");
+    expect(R.regAdd(reg, { kind: "thing", name: "Silver sword" })!.id).toBe("o1");
     expect(R.regAdd(reg, { kind: "place", name: "Tavern" })!.id).toBe("l1");
     expect(R.regAdd(reg, { name: "  " })).toBeNull();
-    expect(reg.next).toEqual({ p: 3, t: 2, l: 2 });
+    expect(reg.next).toEqual({ p: 3, o: 2, l: 2 });
   });
   it("makes the user and keeps old names as aliases", () => {
     const reg = R.regNew("c1");
@@ -521,7 +521,7 @@ describe("regLoad and regSave", () => {
         { id: "p12", kind: "person", name: "Cycle B", merged: "p11" },
         { id: "p13", kind: "person", name: "Dangling", merged: "p99" },
         { id: "user", kind: "person", name: "Denis", merged: "p3" },
-        { id: "t2", kind: "thing", name: "Sword" },
+        { id: "o2", kind: "thing", name: "Sword" },
         "junk", null,
       ],
       apart: [["p3", "p7"], ["p3", "p3"], ["p3", "zz"], "x", ["p3", "p7"]],
@@ -529,13 +529,13 @@ describe("regLoad and regSave", () => {
     });
     const reg = R.regLoad(memFs({ "registry/c1.json": text }), "c1", "c0");
     expect(reg.chatId).toBe("c1");
-    expect(reg.entities.map((e: Json) => e.id)).toEqual(["p3", "p7", "p11", "p12", "p13", "user", "t2"]);
+    expect(reg.entities.map((e: Json) => e.id)).toEqual(["p3", "p7", "p11", "p12", "p13", "user", "o2"]);
     expect(reg.entities[0].aliases).toEqual([{ text: "Kae", src: "card" }]);
     expect(reg.entities.find((e: Json) => e.id === "p7").merged).toBe("p3");
     expect(reg.entities.find((e: Json) => e.id === "p13").merged).toBeUndefined();
     expect(reg.entities.find((e: Json) => e.id === "user").merged).toBeUndefined();
     expect(R.regGet(reg, "p11")).not.toBeNull();
-    expect(reg.next).toEqual({ p: 14, t: 3, l: 1 });
+    expect(reg.next).toEqual({ p: 14, o: 3, l: 1 });
     expect(reg.apart).toEqual([["p3", "p7"]]);
     expect(reg.suggest).toEqual([{ a: "p3", b: "p13", why: "x" }]);
     expect(R.regAdd(reg, { name: "New" })!.id).toBe("p14");

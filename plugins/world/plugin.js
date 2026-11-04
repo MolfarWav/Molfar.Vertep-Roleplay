@@ -231,7 +231,7 @@ function regTokens(name) {
 
 /** An empty registry. */
 function regNew(chatId, from) {
-  return { v: 1, chatId, from: from || null, next: { p: 1, t: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+  return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
@@ -247,7 +247,7 @@ function regGet(reg, id) {
 }
 
 const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
-const regKindLetter = { person: "p", thing: "t", place: "l" };
+const regKindLetter = { person: "p", thing: "o", place: "l" };
 
 function regAliasList(entity, list, src) {
   for (const a of Array.isArray(list) ? list : []) {
@@ -261,7 +261,7 @@ function regAliasList(entity, list, src) {
   }
 }
 
-/** A new entity with the next id (p1, t1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+/** A new entity with the next id (p1, o1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
 function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
   const nm = regOneLine(name).slice(0, 80);
   if (!regFold(nm)) return null;
@@ -786,7 +786,7 @@ function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
 /** Where a chat's registry lives under the app's data folder. */
 const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
 
-const REG_ID = /^(?:user|[ptl]\d+)$/;
+const REG_ID = /^(?:user|[pol]\d+)$/;
 
 /** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
 function regValidate(raw, chatId, from) {
@@ -794,6 +794,20 @@ function regValidate(raw, chatId, from) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
   const ids = new Set();
   const kinds = { person: 1, thing: 1, place: 1 };
+  // an older registry numbered things t1, t2 ...; they are o1, o2 ... now (threads kept t#)
+  const oldThing = new Map();
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (e && typeof e === "object" && e.kind === "thing" && typeof e.id === "string" && /^t\d+$/.test(e.id)) oldThing.set(e.id, "o" + e.id.slice(1));
+  }
+  const upId = (x) => (oldThing.has(x) ? oldThing.get(x) : x);
+  if (oldThing.size) {
+    raw = {
+      ...raw,
+      entities: raw.entities.map((e) => (e && typeof e === "object" && (oldThing.has(e.id) || oldThing.has(e.merged)) ? { ...e, id: upId(e.id), ...(e.merged ? { merged: upId(e.merged) } : {}) } : e)),
+      apart: Array.isArray(raw.apart) ? raw.apart.map((p) => (Array.isArray(p) ? p.map(upId) : p)) : raw.apart,
+      suggest: Array.isArray(raw.suggest) ? raw.suggest.map((q) => (q && typeof q === "object" ? { ...q, a: upId(q.a), b: upId(q.b) } : q)) : raw.suggest,
+    };
+  }
   for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
     if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
     const name = regOneLine(e.name).slice(0, 80);
@@ -818,8 +832,8 @@ function regValidate(raw, chatId, from) {
     const k = e.id[0];
     if (n >= reg.next[k]) reg.next[k] = n + 1;
   }
-  for (const k of ["p", "t", "l"]) {
-    const stored = raw.next && Number(raw.next[k]);
+  for (const k of ["p", "o", "l"]) {
+    const stored = raw.next && Number(k === "o" && raw.next.o == null ? raw.next.t : raw.next[k]);
     if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
   }
   for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
@@ -1114,7 +1128,7 @@ export function normalizeState(raw, chatId) {
     // a person links to p#, a thing to t#, a place to l#
     for (const [rid, pid] of Object.entries(s.regIds)) {
       const rec = entities.find((e) => e.id === rid);
-      if (typeof pid === "string" && rec && REG_LINK_LETTER[rec.kind] && pid.startsWith(REG_LINK_LETTER[rec.kind]) && /^[ptl]\d{1,6}$/.test(pid)) ids[rid] = pid;
+      if (typeof pid === "string" && rec && REG_LINK_LETTER[rec.kind] && pid.startsWith(REG_LINK_LETTER[rec.kind]) && /^[pol]\d{1,6}$/.test(pid)) ids[rid] = pid;
     }
     if (Object.keys(ids).length) out.regIds = ids;
   }
@@ -1255,7 +1269,7 @@ export function behindOf(unread) {
  * key, stagnant } (stagnant = turns since the place, the cast or the scene last changed), or
  * null when the Dashboard has no snapshot for this chat.
  */
-const THING_ID = /^t\d{1,6}$/;
+const THING_ID = /^o\d{1,6}$/;
 const layoutThings = (list) => arr(list).filter((o) => isObj(o) && str(o.item)).slice(-12).map((o) => ({ ...(THING_ID.test(str(o.id)) ? { id: str(o.id) } : {}), item: cut(str(o.item), NAME_MAX), where: cut(str(o.where), NAME_MAX) }));
 /** A character's worn and held things as the Dashboard registered them: [{ id: "t#", kind: "wear" | "hold", text }]. Entries without an id are dropped (the words stay in outfit / holding). */
 const sceneItems = (list) => arr(list).filter((x) => isObj(x) && THING_ID.test(str(x.id))).slice(0, 24).map((x) => ({ id: str(x.id), kind: x.kind === "hold" ? "hold" : "wear", text: cut(str(x.text), ITEM_MAX) }));
@@ -1515,9 +1529,9 @@ function regDisplay(rc, e) {
     for (const [k, v] of Object.entries(rc.ids)) {
       if (typeof v === "string" && typeof k === "string") {
         const t = regGet(rc.reg, v);
-        if (t && t.id === e.id && !/^(?:user|[ptl]\d+)$/.test(k)) return k;
+        if (t && t.id === e.id && !/^(?:user|[pol]\d+)$/.test(k)) return k;
       }
-      if (typeof v === "string" && regGet(rc.reg, k) && regGet(rc.reg, k).id === e.id && /^(?:user|[ptl]\d+)$/.test(k)) return v;
+      if (typeof v === "string" && regGet(rc.reg, k) && regGet(rc.reg, k).id === e.id && /^(?:user|[pol]\d+)$/.test(k)) return v;
     }
   }
   return e.name;
@@ -1542,8 +1556,8 @@ function npcRecordOf(state, rc, text) {
   return rid ? state.entities.find((x) => x.id === rid) || null : null;
 }
 
-/** The registry id letter of each record kind that is linked: a person p#, a thing t#, a place l# (state.regIds). */
-const REG_LINK_LETTER = { person: "p", thing: "t", place: "l" };
+/** The registry id letter of each record kind that is linked: a person p#, a thing o#, a place l# (state.regIds). */
+const REG_LINK_LETTER = { person: "p", thing: "o", place: "l" };
 
 /** The registry id after merges (the Dashboard may hold an id that was merged into another); the same text when the registry does not know it. */
 const regCanonId = (reg, id) => {

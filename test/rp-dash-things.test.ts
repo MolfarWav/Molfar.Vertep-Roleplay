@@ -1,5 +1,5 @@
 /**
- * Entity registry phase B1: every thing of the Dashboard (worn, held, lying in the scene) has one registry id (t1, t2 ...)
+ * Entity registry phase B1: every thing of the Dashboard (worn, held, lying in the scene) has one registry id (o1, o2 ...)
  * that follows it, and the scene's place has a place id (l1 ...). A thing is in one place only; the objects of a place the
  * story left wait under its id; a state from before the ids is migrated once.
  */
@@ -108,60 +108,70 @@ const itemsOf = (snap: any, who: string) => (snap.chars[who]?.items ?? []).map((
 const objectsOf = (snap: any) => (snap.layout.objects ?? []).map((o: any) => o.id + " " + o.item + (o.where ? " (" + o.where + ")" : ""));
 
 describe("a thing keeps one registry id", () => {
+  it("the sensor input tells a thread (t1) from a thing (o1)", () => {
+    const { play, lastPrompt } = story();
+    play({ chars: { Bram: { holding: { see: [{ text: "axe" }] } } }, threads: { open: [{ id: null, text: "Who has the key?" }] } });
+    play({ chars: { Aria: { mood: "calm" } } });
+    const text = lastPrompt();
+    expect(text).toContain("Holding: o1 axe");
+    expect(text).toContain('Open threads: t1 [side] "Who has the key?"');
+    expect(text).not.toMatch(/\bt[0-9]+ axe/);
+    expect(text).not.toMatch(/\bo[0-9]+ \[/);
+  });
   it("taken off with a place and picked up again: the same id, in the registry and in the Previous state", () => {
     const { play, lastPrompt } = story();
     let snap = play({ chars: { Aria: { outfit: { see: [{ text: "white sneakers" }, { text: "grey skirt" }] } } } });
-    expect(itemsOf(snap, "Aria")).toEqual(["t1 white sneakers", "t2 grey skirt"]);
-    snap = play({ chars: { Aria: { outfit: { off: [{ id: "t1", where: "at the entrance" }] } } } });
-    expect(itemsOf(snap, "Aria")).toEqual(["t2 grey skirt"]);
-    expect(objectsOf(snap)).toEqual(["t1 white sneakers (at the entrance)"]);
+    expect(itemsOf(snap, "Aria")).toEqual(["o1 white sneakers", "o2 grey skirt"]);
+    snap = play({ chars: { Aria: { outfit: { off: [{ id: "o1", where: "at the entrance" }] } } } });
+    expect(itemsOf(snap, "Aria")).toEqual(["o2 grey skirt"]);
+    expect(objectsOf(snap)).toEqual(["o1 white sneakers (at the entrance)"]);
     snap = play({ chars: { Aria: { mood: "calm" } } });
-    expect(lastPrompt()).toContain("Wearing: t2 grey skirt");
-    expect(lastPrompt()).toContain("Objects here: t1 white sneakers (at the entrance).");
+    expect(lastPrompt()).toContain("Wearing: o2 grey skirt");
+    expect(lastPrompt()).toContain("Objects here: o1 white sneakers (at the entrance).");
     // she puts them on again by their id
-    snap = play({ chars: { Aria: { outfit: { see: [{ id: "t1" }] } } } });
-    expect(itemsOf(snap, "Aria")).toEqual(["t2 grey skirt", "t1 white sneakers"]);
+    snap = play({ chars: { Aria: { outfit: { see: [{ id: "o1" }] } } } });
+    expect(itemsOf(snap, "Aria")).toEqual(["o2 grey skirt", "o1 white sneakers"]);
     expect(objectsOf(snap)).toEqual([]);
     const reg = readRegistry("c1");
-    expect(reg.entities.filter((e: any) => e.kind === "thing").map((e: any) => e.id)).toEqual(["t1", "t2"]);
+    expect(reg.entities.filter((e: any) => e.kind === "thing").map((e: any) => e.id)).toEqual(["o1", "o2"]);
   });
 
   it("an axe handed from one character to another moves its id", () => {
     const { play } = story();
     play({ chars: { Aria: { holding: { see: [{ text: "an axe" }] } } } });
-    const snap = play({ chars: { Aria: { holding: { off: [{ id: "t1" }] } }, Bram: { holding: { see: [{ id: "t1" }] } } } });
+    const snap = play({ chars: { Aria: { holding: { off: [{ id: "o1" }] } }, Bram: { holding: { see: [{ id: "o1" }] } } } });
     expect(itemsOf(snap, "Aria")).toEqual([]);
-    expect(itemsOf(snap, "Bram")).toEqual(["t1 an axe"]);
+    expect(itemsOf(snap, "Bram")).toEqual(["o1 an axe"]);
     expect(objectsOf(snap)).toEqual([]);
   });
 
   it("a see on the receiver alone is enough: the thing leaves the giver, and is never held twice", () => {
     const { play } = story();
     play({ chars: { Aria: { holding: { see: [{ text: "an axe" }] } } } });
-    const snap = play({ chars: { Bram: { holding: { see: [{ id: "t1" }] } } } });
+    const snap = play({ chars: { Bram: { holding: { see: [{ id: "o1" }] } } } });
     expect(itemsOf(snap, "Aria")).toEqual([]);
-    expect(itemsOf(snap, "Bram")).toEqual(["t1 an axe"]);
+    expect(itemsOf(snap, "Bram")).toEqual(["o1 an axe"]);
     expect(snap.chars.Aria.holding).toBeNull();
   });
 
   it("a thing is never both held and lying around: picked up from the floor by id, or reported lying while held", () => {
     const { play } = story();
     play({ chars: { Aria: { holding: { see: [{ text: "an axe" }] } } } });
-    let snap = play({ chars: { Aria: { holding: { off: [{ id: "t1", where: "on the floor" }] } } } });
-    expect(objectsOf(snap)).toEqual(["t1 an axe (on the floor)"]);
-    snap = play({ chars: { Bram: { holding: { see: [{ id: "t1" }] } } } });
+    let snap = play({ chars: { Aria: { holding: { off: [{ id: "o1", where: "on the floor" }] } } } });
+    expect(objectsOf(snap)).toEqual(["o1 an axe (on the floor)"]);
+    snap = play({ chars: { Bram: { holding: { see: [{ id: "o1" }] } } } });
     expect(objectsOf(snap)).toEqual([]);
-    expect(itemsOf(snap, "Bram")).toEqual(["t1 an axe"]);
+    expect(itemsOf(snap, "Bram")).toEqual(["o1 an axe"]);
     // the sensor lists it among the objects again by mistake: the holder wins
-    snap = play({ objects: { add: [{ id: "t1", where: "on the table" }, { text: "axe", where: "on the table" }] } });
+    snap = play({ objects: { add: [{ id: "o1", where: "on the table" }, { text: "axe", where: "on the table" }] } });
     expect(objectsOf(snap)).toEqual([]);
-    expect(itemsOf(snap, "Bram")).toEqual(["t1 an axe"]);
+    expect(itemsOf(snap, "Bram")).toEqual(["o1 an axe"]);
   });
 
   it("off without where takes the thing off her and invents no place", () => {
     const { play } = story();
     play({ chars: { Aria: { outfit: { see: [{ text: "red scarf" }] } } } });
-    const snap = play({ chars: { Aria: { outfit: { off: [{ id: "t1" }] } } } });
+    const snap = play({ chars: { Aria: { outfit: { off: [{ id: "o1" }] } } } });
     expect(itemsOf(snap, "Aria")).toEqual([]);
     expect(objectsOf(snap)).toEqual([]);
     expect(snap.chars.Aria.outfit).toBeNull();
@@ -170,18 +180,18 @@ describe("a thing keeps one registry id", () => {
   it("words without an id find the lying thing; an object add by words after an off without where is the same thing", () => {
     const { play } = story();
     play({ chars: { Aria: { outfit: { see: [{ text: "white sneakers" }] } } } });
-    let snap = play({ chars: { Aria: { outfit: { off: [{ id: "t1" }] } } }, objects: { add: [{ text: "sneakers", where: "by the door" }] } });
-    expect(objectsOf(snap)).toEqual(["t1 white sneakers (by the door)"]);
+    let snap = play({ chars: { Aria: { outfit: { off: [{ id: "o1" }] } } }, objects: { add: [{ text: "sneakers", where: "by the door" }] } });
+    expect(objectsOf(snap)).toEqual(["o1 white sneakers (by the door)"]);
     // she picks them up again, said in words only
     snap = play({ chars: { Aria: { holding: { see: [{ text: "sneakers" }] } } } });
-    expect(itemsOf(snap, "Aria")).toEqual(["t1 white sneakers"]);
+    expect(itemsOf(snap, "Aria")).toEqual(["o1 white sneakers"]);
     expect(objectsOf(snap)).toEqual([]);
     // a new object is new; move and remove work by id
     snap = play({ objects: { add: [{ text: "oil lamp", where: "on the shelf" }] } });
-    expect(objectsOf(snap)).toEqual(["t2 oil lamp (on the shelf)"]);
-    snap = play({ objects: { move: [{ id: "t2", where: "on the table" }] } });
-    expect(objectsOf(snap)).toEqual(["t2 oil lamp (on the table)"]);
-    snap = play({ objects: { remove: ["t2"] } });
+    expect(objectsOf(snap)).toEqual(["o2 oil lamp (on the shelf)"]);
+    snap = play({ objects: { move: [{ id: "o2", where: "on the table" }] } });
+    expect(objectsOf(snap)).toEqual(["o2 oil lamp (on the table)"]);
+    snap = play({ objects: { remove: ["o2"] } });
     expect(objectsOf(snap)).toEqual([]);
   });
 
@@ -189,8 +199,8 @@ describe("a thing keeps one registry id", () => {
     const { play } = story();
     play({ chars: { Aria: { outfit: { add: ["pink cardigan", "grey jeans"] } } }, objects: { add: [{ item: "armchair", where: "by the window" }] } });
     const snap = play({ chars: { Aria: { outfit: { remove: ["cardigan"] } } }, objects: { add: [{ item: "cardigan", where: "on the sofa" }], remove: ["armchair"] } });
-    expect(itemsOf(snap, "Aria")).toEqual(["t2 grey jeans"]);
-    expect(objectsOf(snap)).toEqual(["t1 pink cardigan (on the sofa)"]);
+    expect(itemsOf(snap, "Aria")).toEqual(["o2 grey jeans"]);
+    expect(objectsOf(snap)).toEqual(["o1 pink cardigan (on the sofa)"]);
   });
 });
 
@@ -201,7 +211,7 @@ describe("places", () => {
     expect(snap.clock.placeId).toBe("l1");
     snap = play({ place: "hall" });
     expect(snap.clock.placeId).toBe("l1");
-    expect(objectsOf(snap)).toEqual(["t1 oil lamp (on the shelf)"]);
+    expect(objectsOf(snap)).toEqual(["o1 oil lamp (on the shelf)"]);
     snap = play({ place: "the garden" });
     expect(snap.clock.placeId).toBe("l2");
     expect(objectsOf(snap)).toEqual([]);
@@ -212,19 +222,19 @@ describe("places", () => {
     const { play } = story();
     play({ place: "the hall", objects: { add: [{ text: "oil lamp", where: "on the shelf" }, { text: "brass key", where: "on the floor" }] } });
     let snap = play({ place: "the garden", objects: { add: [{ text: "watering can", where: "by the gate" }] } });
-    expect(objectsOf(snap)).toEqual(["t3 watering can (by the gate)"]);
-    expect(snap.layout.byPlace.l1.map((o: any) => o.id)).toEqual(["t1", "t2"]);
+    expect(objectsOf(snap)).toEqual(["o3 watering can (by the gate)"]);
+    expect(snap.layout.byPlace.l1.map((o: any) => o.id)).toEqual(["o1", "o2"]);
     // back in the hall: its objects are there again, the garden's wait
     snap = play({ place: "the hall" });
-    expect(objectsOf(snap)).toEqual(["t1 oil lamp (on the shelf)", "t2 brass key (on the floor)"]);
-    expect(snap.layout.byPlace.l2.map((o: any) => o.id)).toEqual(["t3"]);
+    expect(objectsOf(snap)).toEqual(["o1 oil lamp (on the shelf)", "o2 brass key (on the floor)"]);
+    expect(snap.layout.byPlace.l2.map((o: any) => o.id)).toEqual(["o3"]);
     expect(snap.layout.byPlace.l1).toBeUndefined();
     // she takes the key and walks out: it is hers, not left in the hall
-    snap = play({ chars: { Aria: { holding: { see: [{ id: "t2" }] } } } });
+    snap = play({ chars: { Aria: { holding: { see: [{ id: "o2" }] } } } });
     snap = play({ place: "the garden" });
-    expect(itemsOf(snap, "Aria")).toEqual(["t2 brass key"]);
-    expect(objectsOf(snap)).toEqual(["t3 watering can (by the gate)"]);
-    expect(snap.layout.byPlace.l1.map((o: any) => o.id)).toEqual(["t1"]);
+    expect(itemsOf(snap, "Aria")).toEqual(["o2 brass key"]);
+    expect(objectsOf(snap)).toEqual(["o3 watering can (by the gate)"]);
+    expect(snap.layout.byPlace.l1.map((o: any) => o.id)).toEqual(["o1"]);
   });
 
   it("without place ids the words decide, as before", () => {
@@ -236,7 +246,7 @@ describe("a state from before the registry ids", () => {
   it("gets stable ids across snapshots, and is written back with them", () => {
     const { play } = story();
     play({ place: "the hall", chars: { Aria: { outfit: { see: [{ text: "white sneakers" }, { text: "grey skirt" }] } } } });
-    play({ chars: { Aria: { outfit: { off: [{ id: "t1", where: "at the entrance" }] } } } });
+    play({ chars: { Aria: { outfit: { off: [{ id: "o1", where: "at the entrance" }] } } } });
     play({ chars: { Aria: { mood: "calm" } } });
     // make the file look like an older one: i1, i2 per character, objects without ids, no place ids, no registry
     const st = readState("c1");
@@ -262,10 +272,10 @@ describe("a state from before the registry ids", () => {
     // the skirt is the same thing in every snapshot (the migrated three and the new one)
     const skirt = all.map((sn) => idsOf(sn, "skirt")[0]);
     expect(new Set(skirt).size).toBe(1);
-    expect(skirt[0]).toMatch(/^t\d+$/);
+    expect(skirt[0]).toMatch(/^o\d+$/);
     // the sneakers: worn in the first snapshot, lying in the second and third, and the sensor's old id i1 puts them on again in the fourth
     const sneakers = all.map((sn) => idsOf(sn, "sneakers")[0]);
-    expect(sneakers[0]).toMatch(/^t\d+$/);
+    expect(sneakers[0]).toMatch(/^o\d+$/);
     expect(new Set(sneakers).size).toBe(1);
     expect(all.at(-1).chars.Aria.items.map((i: any) => i.text)).toContain("white sneakers");
     expect(all.at(-1).layout.objects).toEqual([]);

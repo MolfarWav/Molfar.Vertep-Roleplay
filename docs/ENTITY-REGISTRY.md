@@ -36,7 +36,7 @@ One file per chat: `data/registry/<chatId>.json`.
 }
 ```
 
-- `kind`: `person` now (phase A); `thing` and `place` in phase B. Ids: `p1`, `t1`, `l1`; the user's character is always `user`.
+- `kind`: `person` now (phase A); `thing` and `place` in phase B. Ids: `p1`, `o1`, `l1`; the user's character is always `user`.
 - `src`: where the entity came from: `persona`, `card`, `soul`, `group`, `seen` (the story), `world` (a World DM record, phase B), `user` (made by hand).
 - `merged`: an entity merged into another; every lookup of it returns the target, so old references keep working.
 - `apart`: pairs the user said are different people; never matched to each other again.
@@ -94,10 +94,11 @@ Variants considered: (a) menu in the header plus the callout (chosen: the action
 ## Phase B in detail: things and places
 
 **Things.** One id per thing, wherever it is: on someone, in someone's hands, lying in the scene, or recorded by the World DM.
-- Registry kind `thing`, ids `t1, t2 ...`. The Dashboard's worn and held items (today `i1, i2` per character) and the scene's objects (today plain words) both carry the registry id as their `id`; an old snapshot's items and objects get registered when read.
-- The sensor sees every thing with its id: `Wearing: t3 white top; t4 pleated skirt`, `Holding: t7 axe`, `Objects here: t9 sneakers (at the entrance)`. It reports `see` / `off` for worn and held things as today, and objects as `{ add: [{ text, where }], move: [{ id, where }], remove: [id] }`. Putting a thing down is `off` with `where`: the same id moves to the objects. Picking one up or putting it on is `see` with the object's id: the same id leaves the objects. Handing a thing to someone is `off` on one and `see` with the id on the other. A thing is in one place only: code removes it from wherever it was when it shows up elsewhere, so a thing cannot be held and lying around at once, and nothing is "set down" unless the sensor said where.
+- Registry kind `thing`, ids `o1, o2 ...`. The Dashboard's worn and held items (today `i1, i2` per character) and the scene's objects (today plain words) both carry the registry id as their `id`; an old snapshot's items and objects get registered when read.
+- Why `o`, not `t`: the Dashboard sensor also lists open threads with ids `t1, t2 ...`, and a model answering with ids could mix a thread up with a thing. Things are `o#` (object), persons `p#` and `user`, places `l#`, threads `t#`. An older registry or Dashboard state with `t#` things is renamed to `o#` when it is read.
+- The sensor sees every thing with its id: `Wearing: o3 white top; o4 pleated skirt`, `Holding: o7 axe`, `Objects here: o9 sneakers (at the entrance)`. It reports `see` / `off` for worn and held things as today, and objects as `{ add: [{ text, where }], move: [{ id, where }], remove: [id] }`. Putting a thing down is `off` with `where`: the same id moves to the objects. Picking one up or putting it on is `see` with the object's id: the same id leaves the objects. Handing a thing to someone is `off` on one and `see` with the id on the other. A thing is in one place only: code removes it from wherever it was when it shows up elsewhere, so a thing cannot be held and lying around at once, and nothing is "set down" unless the sensor said where.
 - Words are a fallback only, as now: a report without an id is matched to a listed thing by the registry's resolver within the scene (the character's items, then the objects), and a new thing gets a new id.
-- The World DM's thing records (`n3`) are linked to the registry the same way as its persons (`regIds`), so a sword the World DM recorded and the sword in Kaede's hands are one `t5`; `holder` is a person's display name resolved through the registry (phase A) and, when the thing is linked, the World DM can say who holds it from the Dashboard's items.
+- The World DM's thing records (`n3`) are linked to the registry the same way as its persons (`regIds`), so a sword the World DM recorded and the sword in Kaede's hands are one `o5`; `holder` is a person's display name resolved through the registry (phase A) and, when the thing is linked, the World DM can say who holds it from the Dashboard's items.
 
 **Places.** Registry kind `place`, ids `l1, l2 ...`. The scene place the sensor reports (`clock.place`) is resolved to a place id and kept beside the text (`clock.placeId`); the World DM's place records are linked to the same ids, and "is this the same place" (today `samePlace`, a comparison of words) compares ids first. A spot inside a place ("by the window") stays text in phase B.
 

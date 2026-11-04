@@ -1690,9 +1690,9 @@ describe("prompt insert", () => {
     // the next sensor call is shown the lists, and told to report changes only
     text = step(mock, 1, { present: ["Aria"], chars: { Aria: { outfit: { add: ["cardigan", "a leather belt"] } } } });
     const req = mock.requests[mock.requests.length - 1]!.req;
-    expect(req.messages[0].content).toContain("Wearing: t1 pink soft knit cardigan; t2 white tee; t3 grey jeans.");
+    expect(req.messages[0].content).toContain("Wearing: o1 pink soft knit cardigan; o2 white tee; o3 grey jeans.");
     expect(req.messages[0].content).toContain("At: by the fireplace.");
-    expect(req.messages[0].content).toContain("Objects here: t4 leather armchair (by the window).");
+    expect(req.messages[0].content).toContain("Objects here: o4 leather armchair (by the window).");
     expect(req.messages[0].content).toContain("You: at the table.");
     expect(req.systemPrompt).toContain("every one with an id");
     // "cardigan" says less than what is listed: the listed wording stands, the belt is new
@@ -1723,7 +1723,7 @@ describe("prompt insert", () => {
     expect(text).toContain("Still wearing: white tee, grey jeans, a leather belt.");
     // what lay in the place left behind stays on the snapshot for the World DM's sweep
     const newest = Object.values(readStateFile("c1").snapshots as Record<string, any>).sort((a, b) => b.at - a.at)[0];
-    expect(newest.layout.left).toEqual({ place: "the study", objects: [{ id: "t4", item: "leather armchair", where: "by the window" }] });
+    expect(newest.layout.left).toEqual({ place: "the study", objects: [{ id: "o4", item: "leather armchair", where: "by the window" }] });
   });
 
   it("11d. a character with no clothes on record is asked to be described once; it stops when clothes are known or the switch is off", () => {
@@ -1755,9 +1755,9 @@ describe("prompt insert", () => {
     // the older words format; a thing taken off with no place is not invented one ("set down by Aria" is gone)
     const objs = P.applyObjects([{ item: "oak desk", where: "by the window" }], { objects: { add: [{ item: "a candle", where: "on the desk" }], remove: ["desk"] } }, [{ item: "grey cloak", who: "Aria", where: "" }], [], false);
     expect(objs).toEqual([{ item: "a candle", where: "on the desk" }]);
-    const put = P.applyObjects(objs, {}, [{ id: "t5", item: "grey cloak", who: "Aria", where: "on the chair" }], [], false);
-    expect(put).toEqual([{ item: "a candle", where: "on the desk" }, { id: "t5", item: "grey cloak", where: "on the chair" }]);
-    expect(P.applyObjects(put, {}, [], [{ id: "t5", text: "grey cloak" }], false).map((o: any) => o.item)).toEqual(["a candle"]);
+    const put = P.applyObjects(objs, {}, [{ id: "o5", item: "grey cloak", who: "Aria", where: "on the chair" }], [], false);
+    expect(put).toEqual([{ item: "a candle", where: "on the desk" }, { id: "o5", item: "grey cloak", where: "on the chair" }]);
+    expect(P.applyObjects(put, {}, [], [{ id: "o5", text: "grey cloak" }], false).map((o: any) => o.item)).toEqual(["a candle"]);
     expect(P.applyObjects(objs, {}, [], [], true)).toEqual([]);
   });
 
@@ -5419,17 +5419,17 @@ describe("the ledger of worn and held items (#236)", () => {
   });
 
   it("a thing she holds is not a lying object, by words or by id", () => {
-    const carried = [{ id: "t1", text: "sharp mirror shard of a broken shield" }];
-    const prev = [{ id: "t2", item: "stone head", where: "on the floor" }];
-    const out = { objects: { add: [{ text: "mirror shard", where: "in her hand" }, { id: "t1", where: "on the floor" }] } };
+    const carried = [{ id: "o1", text: "sharp mirror shard of a broken shield" }];
+    const prev = [{ id: "o2", item: "stone head", where: "on the floor" }];
+    const out = { objects: { add: [{ text: "mirror shard", where: "in her hand" }, { id: "o1", where: "on the floor" }] } };
     expect(P.applyObjects(prev, out, [], [], false, { carried })).toEqual(prev);
   });
 
   it("settleThings: what a character reports in see leaves where it was", () => {
-    const chars: any = { Aria: { items: [item("t1", "hold", "an axe"), item("t2", "wear", "boots")] }, Bram: { items: [item("t3", "hold", "a rope")] } };
-    const lost = P.settleThings(chars, new Map([["t1", { name: "Bram", kind: "hold" }]]));
+    const chars: any = { Aria: { items: [item("o1", "hold", "an axe"), item("o2", "wear", "boots")] }, Bram: { items: [item("o3", "hold", "a rope")] } };
+    const lost = P.settleThings(chars, new Map([["o1", { name: "Bram", kind: "hold" }]]));
     expect(lost).toEqual(["Aria"]);
-    expect(chars.Aria.items.map((i: any) => i.id)).toEqual(["t2"]);
+    expect(chars.Aria.items.map((i: any) => i.id)).toEqual(["o2"]);
     expect(chars.Aria.holding).toBeNull();
     expect(chars.Aria.outfit).toBe("boots");
     expect(chars.Bram.items.length).toBe(1);
@@ -5439,19 +5439,19 @@ describe("the ledger of worn and held items (#236)", () => {
     writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots and holds an axe.")]);
     const mock = mockHost([
       reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ text: "white and gold gown" }, { text: "black boots" }] }, holding: { see: [{ text: "an axe" }] } } } }),
-      reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ id: "t1", text: "white and gold gown, torn" }], off: [{ id: "t2", where: "by the door" }] } } } }),
+      reply({ present: ["Aria"], chars: { Aria: { outfit: { see: [{ id: "o1", text: "white and gold gown, torn" }], off: [{ id: "o2", where: "by the door" }] } } } }),
     ]);
     update(mock, "c1");
     writeChat("c1", [U("m1", "Hello."), A("m2", "She wears a gown and boots and holds an axe."), U("m3", "Go on."), A("m4", "The gown tears; she kicks off her boots.")]);
     update(mock, "c1");
     const second = String(mock.requests[1]!.req.messages[0].content);
-    expect(second).toContain("Wearing: t1 white and gold gown; t2 black boots.");
-    expect(second).toContain("Holding: t3 an axe.");
+    expect(second).toContain("Wearing: o1 white and gold gown; o2 black boots.");
+    expect(second).toContain("Holding: o3 an axe.");
     const st = readStateFile("c1");
     const snap = st.snapshots[Object.keys(st.snapshots).pop()!];
     expect(snap.chars.Aria.outfit).toBe("white and gold gown torn");
     expect(snap.chars.Aria.holding).toBe("an axe");
-    expect(snap.layout.objects).toEqual([{ id: "t2", item: "black boots", where: "by the door" }]);
+    expect(snap.layout.objects).toEqual([{ id: "o2", item: "black boots", where: "by the door" }]);
   });
 });
 

@@ -607,13 +607,13 @@ const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given 
 // What the sensor does with clothes, hands and places (#185). It reports changes only; code keeps the lists, so the sensor
 // never rewrites a garment it was not asked about (a colour drifted, "pink soft knit cardigan" became "a cardigan").
 const OUTFIT_RULE =
-  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), and the things lying in the scene (Objects here), every one with an id (t3, t4 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"t3\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. A thing the character picks up from Objects here, or is handed by another character, is given by its id too. For one that is not listed anywhere, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"t3\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost. Give where only when the text says where it lies: the thing then lies there under the same id. Without where the item just leaves the character. Handing a thing to someone is off on the giver and see with its id on the receiver. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
+  "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), and the things lying in the scene (Objects here), every one with an id (o3, o4 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"o3\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. A thing the character picks up from Objects here, or is handed by another character, is given by its id too. For one that is not listed anywhere, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"o3\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost. Give where only when the text says where it lies: the thing then lies there under the same id. Without where the item just leaves the character. Handing a thing to someone is off on the giver and see with its id on the receiver. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
 const OUTFIT_RULE_18 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding), every item with an id (i1, i2 ...). Per character report { \"see\": [...], \"off\": [...] } under outfit (clothes, shoes, accessories) and under holding (things in the hands or carried). see: each garment or thing the new messages show this character wearing or holding now. For one that is listed, give its id as { \"id\": \"i1\" }, and add \"text\" only when the messages give more detail or a new state of it (torn, wet, dirty): that is the same item, not a new one. For one that is not listed, give { \"text\": \"...\" } with no id, the exact wording of the text (colour, fabric, cut). Leave out what the messages do not mention. off: { \"id\": \"i1\", \"where\": \"...\" } for an item the text says was taken off, put down, dropped or lost, with where it lies when the text says. When the Previous state says nothing is recorded yet, report everything the messages show on the character under see. When the messages show nothing, leave the key out.";
 const OUTFIT_RULE_17 =
   "- outfit and holding: the Previous state lists what each character wears (Wearing) and holds (Holding). Report only changes, each as { \"add\": [...], \"remove\": [...] }. add: a garment or thing the new messages first describe, or a character puts on or picks up. remove: one the text says is taken off, put down, dropped or lost; name it as the Previous state does. Give an added item once, with all its details (colour, fabric, cut) as the text states them. Never add what is already listed, never shorten it, never change a colour on a guess. When the text shows no change, leave the key out.";
 const LAYOUT_RULE =
-  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"t9\", \"where\": \"...\" } ], \"remove\": [\"t9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
+  "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"text\": \"...\", \"where\": \"...\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"...\" } ], \"remove\": [\"o9\"] }. add: a thing the text first shows lying in the scene. move: a listed object (Objects here) that now lies elsewhere. remove: the id of an object that is destroyed or gone from the scene. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; a thing picked up is see with its id there; code moves it between the character and the objects. A body or a fallen thing is an object too.";
 const LAYOUT_RULE_18 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things lying in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. Never list in objects what a character wears or holds, and never a living creature. A worn or held thing that is put down goes to off in outfit or holding, with where it lies; code puts it among the objects. A thing picked up leaves objects by itself. A body or a fallen thing is an object too.";
 const LAYOUT_RULE_17 =
@@ -790,8 +790,8 @@ export const OUTPUT_SHAPE = [
   "  \"place\": \"text\", \"weather\": \"text\",",
   "  \"scene\": { \"new\": false, \"label\": \"2-5 words\", \"direction\": \"domestic|social|intrigue|investigation|travel|combat|explicit|transition\" },",
   "  \"events\": [ { \"id\": \"event id\", \"weight\": \"routine|significant|pivotal\", \"from\": \"name or user\", \"to\": \"name or user\", \"quote\": \"text\" } ],",
-  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"t1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"t2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"id\": \"t4\" }, { \"text\": \"item\" } ], \"off\": [ { \"id\": \"t3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
-  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"text\": \"text\", \"where\": \"text\" } ], \"move\": [ { \"id\": \"t9\", \"where\": \"text\" } ], \"remove\": [\"t9\"] },",
+  "  \"chars\": { \"name\": { \"mood\": \"text\", \"condition\": \"text\", \"outfit\": { \"see\": [ { \"id\": \"o1\" }, { \"text\": \"new item\" } ], \"off\": [ { \"id\": \"o2\", \"where\": \"text\" } ] }, \"holding\": { \"see\": [ { \"id\": \"o4\" }, { \"text\": \"item\" } ], \"off\": [ { \"id\": \"o3\" } ] }, \"at\": \"text\", \"goal\": \"text\", \"leads\": \"name or user\", \"contact\": \"in person|text|call|video|letter\"" + SHAPE_THOUGHT + " } },",
+  "  \"userAt\": \"text\", \"objects\": { \"add\": [ { \"text\": \"text\", \"where\": \"text\" } ], \"move\": [ { \"id\": \"o9\", \"where\": \"text\" } ], \"remove\": [\"o9\"] },",
   "  \"learned\": [ { \"who\": \"name\", \"text\": \"text\", \"how\": \"saw|heard|guess\", \"from\": \"name or null\", \"weight\": \"everyday|important|key\" } ],",
   "  \"said\": [ { \"who\": \"name\", \"text\": \"quote\", \"kind\": \"vow|promise|threat|confession|secret|order|refusal|lie\", \"strength\": 2, \"lie\": false } ],",
   "  \"told\": [ { \"from\": \"name\", \"to\": \"name\", \"note\": \"entry id\" } ],",
@@ -911,7 +911,7 @@ function regTokens(name) {
 
 /** An empty registry. */
 function regNew(chatId, from) {
-  return { v: 1, chatId, from: from || null, next: { p: 1, t: 1, l: 1 }, entities: [], apart: [], suggest: [] };
+  return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
@@ -927,7 +927,7 @@ function regGet(reg, id) {
 }
 
 const regOneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
-const regKindLetter = { person: "p", thing: "t", place: "l" };
+const regKindLetter = { person: "p", thing: "o", place: "l" };
 
 function regAliasList(entity, list, src) {
   for (const a of Array.isArray(list) ? list : []) {
@@ -941,7 +941,7 @@ function regAliasList(entity, list, src) {
   }
 }
 
-/** A new entity with the next id (p1, t1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
+/** A new entity with the next id (p1, o1, l1). `aliases` are strings or { text, src }. Null when there is no name. */
 function regAdd(reg, { kind = "person", name, src, card, aliases } = {}) {
   const nm = regOneLine(name).slice(0, 80);
   if (!regFold(nm)) return null;
@@ -1466,7 +1466,7 @@ function regSeed(reg, { cards = [], personaName, souls = {} } = {}) {
 /** Where a chat's registry lives under the app's data folder. */
 const regPath = (chatId) => "registry/" + String(chatId == null ? "" : chatId).replace(/[^\w-]/g, "_") + ".json";
 
-const REG_ID = /^(?:user|[ptl]\d+)$/;
+const REG_ID = /^(?:user|[pol]\d+)$/;
 
 /** A registry read from disk, made sound: malformed entities dropped, unique ids, `next` above every id, merges without cycles. */
 function regValidate(raw, chatId, from) {
@@ -1474,6 +1474,20 @@ function regValidate(raw, chatId, from) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return reg;
   const ids = new Set();
   const kinds = { person: 1, thing: 1, place: 1 };
+  // an older registry numbered things t1, t2 ...; they are o1, o2 ... now (threads kept t#)
+  const oldThing = new Map();
+  for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
+    if (e && typeof e === "object" && e.kind === "thing" && typeof e.id === "string" && /^t\d+$/.test(e.id)) oldThing.set(e.id, "o" + e.id.slice(1));
+  }
+  const upId = (x) => (oldThing.has(x) ? oldThing.get(x) : x);
+  if (oldThing.size) {
+    raw = {
+      ...raw,
+      entities: raw.entities.map((e) => (e && typeof e === "object" && (oldThing.has(e.id) || oldThing.has(e.merged)) ? { ...e, id: upId(e.id), ...(e.merged ? { merged: upId(e.merged) } : {}) } : e)),
+      apart: Array.isArray(raw.apart) ? raw.apart.map((p) => (Array.isArray(p) ? p.map(upId) : p)) : raw.apart,
+      suggest: Array.isArray(raw.suggest) ? raw.suggest.map((q) => (q && typeof q === "object" ? { ...q, a: upId(q.a), b: upId(q.b) } : q)) : raw.suggest,
+    };
+  }
   for (const e of Array.isArray(raw.entities) ? raw.entities : []) {
     if (!e || typeof e !== "object" || typeof e.id !== "string" || !REG_ID.test(e.id) || ids.has(e.id)) continue;
     const name = regOneLine(e.name).slice(0, 80);
@@ -1498,8 +1512,8 @@ function regValidate(raw, chatId, from) {
     const k = e.id[0];
     if (n >= reg.next[k]) reg.next[k] = n + 1;
   }
-  for (const k of ["p", "t", "l"]) {
-    const stored = raw.next && Number(raw.next[k]);
+  for (const k of ["p", "o", "l"]) {
+    const stored = raw.next && Number(k === "o" && raw.next.o == null ? raw.next.t : raw.next[k]);
     if (stored > reg.next[k] && stored < 1e9) reg.next[k] = Math.floor(stored);
   }
   for (const p of Array.isArray(raw.apart) ? raw.apart : []) {
@@ -2307,11 +2321,30 @@ function emptyState(chatId) {
 }
 
 /** Unknown top-level keys ride along untouched. */
+/** Things were numbered t1, t2 ... before they became o1, o2 ... (threads keep t#): rename them in a loaded state, in place. */
+function thingIdsUp(st) {
+  const up = (x) => (isObj(x) && typeof x.id === "string" && /^t\d+$/.test(x.id) ? { ...x, id: "o" + x.id.slice(1) } : x);
+  const list = (l) => (Array.isArray(l) ? l.map(up) : l);
+  const snap = (s) => {
+    if (!isObj(s)) return;
+    for (const c of Object.values(isObj(s.chars) ? s.chars : {})) if (isObj(c) && Array.isArray(c.items)) c.items = list(c.items);
+    const lay = s.layout;
+    if (!isObj(lay)) return;
+    lay.objects = list(lay.objects);
+    if (isObj(lay.left)) lay.left.objects = list(lay.left.objects);
+    if (isObj(lay.byPlace)) for (const k of Object.keys(lay.byPlace)) lay.byPlace[k] = list(lay.byPlace[k]);
+  };
+  for (const s of Object.values(isObj(st.snapshots) ? st.snapshots : {})) snap(s);
+  if (isObj(st.inherited)) snap(st.inherited.snap);
+  if (isObj(st.thingIds)) for (const [k, v] of Object.entries(st.thingIds)) if (typeof v === "string" && /^t\d+$/.test(v)) st.thingIds[k] = "o" + v.slice(1);
+}
+
 function normalizeState(raw, chatId) {
   const base = emptyState(chatId);
   const st = { ...base, ...(isObj(raw) ? raw : {}), v: 2, chatId };
   for (const k of ["snapshots", "places", "notebook", "names", "history", "said", "journal"]) if (!isObj(st[k])) st[k] = {};
   st.counters = { ...base.counters, ...(isObj(st.counters) ? st.counters : {}) };
+  thingIdsUp(st);
   st.usage = { ...base.usage, ...(isObj(st.usage) ? st.usage : {}) };
   if (!isObj(st.lastError)) st.lastError = null;
   if (!isObj(st.keptOut)) st.keptOut = null;
@@ -4697,7 +4730,7 @@ export function applyStackDelta(old, delta) {
 
 // ---------- the ledger of what a character wears and holds (#236) ----------
 // Each item has an id, a kind (wear, hold) and its text. Since the entity registry (docs/ENTITY-REGISTRY.md, phase B1) the id
-// is the thing's registry id (t1, t2 ...), the same wherever the thing is: worn, held or lying in the scene. The sensor sees the
+// is the thing's registry id (o1, o2 ...), the same wherever the thing is: worn, held or lying in the scene. The sensor sees the
 // ids in the Previous state and refers to them: `see` names what the new messages show (an id for a listed item, or for a thing
 // lying around or carried by another character, which then moves to this one; none for a new one; a new text on an id is the same
 // item in a new state), `off` names ids taken off or put down (with `where` the thing lies there under the same id). Code never
@@ -4706,7 +4739,7 @@ export function applyStackDelta(old, delta) {
 // formats (a plain text, { add, remove }). A snapshot from before the ledger gets its items from the outfit and holding texts,
 // and one from before the registry ids (i1, i2 per character) is migrated by ensureRegistry (migrateThings).
 const ITEMS_MAX = 14;
-const THING_ID = /^t\d+$/;
+const THING_ID = /^o\d+$/;
 const LEGACY_ID = /^i\d+$/;
 const idNum = (id) => Number(String(id).replace(/^\D+/, "")) || 0;
 const idOfEntry = (e) => (isObj(e) ? str(e.id) : "");

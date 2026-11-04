@@ -493,7 +493,7 @@ player switches it on for that chat. It writes:
   URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
   image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
 
-  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `t#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
+  Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `o#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
 
 - Start (building a world before play): `state.draft` holds a Start in progress or waiting for the player
   (`{ recipe, cardIds, answers, lang, steps, done, entities, fronts, deck, at, error? }`); it reaches the world only
@@ -653,10 +653,10 @@ character saw, heard or guessed), `names` and `history`:
   present character, never from the player; a line kept out is counted in `keptOut`). Carried like `said` (`src: "inherit"`)
   and dropped by Start clean. Reply prompt: its own part `Dashboard · journal` (after the Dashboard block, before `said`),
   for the characters whose notebook shows; mute per chat with the prompt board key `plugin:journal`. Config in
-  **Worn and held things (#236, ids from the entity registry).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]`; `id` is the thing's registry id (`t1`, `t2` ... in `registry/<chatId>.json`), the same wherever the thing is (`itemSeq` is a leftover of the old per-character `i1` ids);
+  **Worn and held things (#236, ids from the entity registry).** Each character of a snapshot keeps `items: [{ id, kind: "wear" | "hold", text }]`; `id` is the thing's registry id (`o1`, `o2` ... in `registry/<chatId>.json`), the same wherever the thing is (`itemSeq` is a leftover of the old per-character `i1` ids);
   `outfit` and `holding` are those items' texts joined with commas, so every reader of the old fields works as before. A snapshot from before
-  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: t3 white top; t4 skirt`, `Holding: t7 axe`, `Objects here: t9 sneakers (at the entrance)`),
-  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "t3" }, { "id": "t4", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "t5", "where": "on the sofa" } ] }`:
+  the ledger gets its items from the two texts when it is read. The sensor's Previous state lists the items with their ids (`Wearing: o3 white top; o4 skirt`, `Holding: o7 axe`, `Objects here: o9 sneakers (at the entrance)`),
+  and the sensor reports `outfit` and `holding` as `{ "see": [ { "id": "o3" }, { "id": "o4", "text": "skirt, torn" }, { "text": "new thing" } ], "off": [ { "id": "o5", "where": "on the sofa" } ] }`:
   `see` names what the new messages show (an id for a listed item, with a `text` only for more detail or a new state, which is the same item;
   an id of an object lying in the scene or of a thing another character carries picks it up or takes it over; no id for a new thing), `off` names ids taken
   off or put down: with `where` the same id lies there among the scene objects, without `where` the thing only leaves the character (no place is invented).
@@ -668,7 +668,7 @@ character saw, heard or guessed), `names` and `history`:
   under its id (at most 8 places); when the scene comes back to that place id its objects return, and a thing taken along is not also left there.
   `clock.placeId` is the registry place id (`l1` ...) of `clock.place`; "did the scene move" compares place ids first (a respelling the registry resolves to the same place is not a move)
   and the words only when an id is missing. **Migration:** a state from before these ids (items `i1` per character, objects without ids, clocks without `placeId`) is migrated on the next
-  update, once: the same `character + i#` gives the same `t#` in every snapshot (`thingIds` in the state file keeps the keys; a snapshot from before the ledger keys by the item's words),
+  update, once: the same `character + i#` gives the same `o#` in every snapshot (`thingIds` in the state file keeps the keys; a snapshot from before the ledger keys by the item's words),
   an object without an id takes the id of the item a character had in the turn before when its words match, else gets its own, and the state is written back with the ids and the registry with the things and places.
   A sensor reply that still uses an `i1` id is read through `thingIds`. The older formats still work for a sensor prompt a user saved
   before: a plain text (the full list) and `{ add, remove }`. A held or worn item is never also kept among the scene `objects`. Each character
@@ -732,7 +732,7 @@ One file per chat, written by the Dashboard plugin (World DM and Litopys read it
   "suggest": [{ "a": "p5", "b": "p2", "why": "same first name" }] }
 ```
 
-- `kind` is `person` (`thing` and `place` come later); ids are `p1`, `t1`, `l1`, and `user` for the user's character (the persona's name; every earlier name of the user is an alias).
+- `kind` is `person` (`thing` and `place` come later); ids are `p1`, `o1`, `l1`, and `user` for the user's character (the persona's name; every earlier name of the user is an alias).
 - `src`: `persona`, `card` (also `card` = the card id on the entity), `soul`, `group`, `seen` (the sensor wrote the name), `user`. An alias has its own `src` (`card`, `soul`, `seen`, `merged`, `persona`).
 - `merged`: the entity was joined into another; every lookup of it returns the target. `apart`: pairs the user said are different people. `suggest`: pairs that may be one person, with a short `why` (`same first name`, `same name in another alphabet`, `one letter apart`, `two people fit`, `shares a word of the name`, `same name`).
 - A name is found in this order: an exact name or alias, the same after transliteration, a single word that is the first or last word of exactly one person's name (titles do not count), a name one letter off. Two candidates at one step is no match: a new person and a suggestion. A spelling found by the last three steps is saved as an alias.

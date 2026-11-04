@@ -27,7 +27,7 @@ const ent = (id: string, kind: string, name: string) => ({ id, kind, name, alias
 
 /** A chat whose registry already holds what the Dashboard registered, and a Dashboard snapshot. */
 function setup(snapshot: Record<string, unknown> = {}) {
-  const reg = { v: 1, chatId: "c1", from: null, next: { p: 3, t: 6, l: 4 }, entities: [ent("t5", "thing", "silver sword"), ent("l3", "place", "Hall of Mirrors")], apart: [], suggest: [] };
+  const reg = { v: 1, chatId: "c1", from: null, next: { p: 3, o: 6, l: 4 }, entities: [ent("o5", "thing", "silver sword"), ent("l3", "place", "Hall of Mirrors")], apart: [], suggest: [] };
   return memFs({
     "characters/kaede/card.json": JSON.stringify(kaede),
     "registry/c1.json": JSON.stringify(reg),
@@ -43,12 +43,12 @@ describe("World thing records and the registry", () => {
     const rc = W.openRegistry(fsx, "c1", meta);
     const st = W.emptyState("c1");
     W.applyReport(st, { add: [{ kind: "thing", name: "the silver sword", text: "A blade with a worn grip.", holder: "Kaede" }] }, ctxOf(rc));
-    expect(st.regIds).toEqual({ n1: "t5" });
+    expect(st.regIds).toEqual({ n1: "o5" });
     // the spelling is kept as an alias; no second registry thing
     W.regFlush(fsx, rc);
     const file = JSON.parse(fsx.files["registry/c1.json"]!);
     expect(file.entities.filter((e: any) => e.kind === "thing").length).toBe(1);
-    expect(file.entities.find((e: any) => e.id === "t5").aliases.map((a: any) => a.text)).toContain("the silver sword");
+    expect(file.entities.find((e: any) => e.id === "o5").aliases.map((a: any) => a.text)).toContain("the silver sword");
   });
 
   it("a new thing joins the registry as src world", () => {
@@ -56,9 +56,9 @@ describe("World thing records and the registry", () => {
     const rc = W.openRegistry(fsx, "c1", meta);
     const st = W.emptyState("c1");
     W.applyReport(st, { add: [{ kind: "thing", name: "Brass lantern", text: "Dented." }] }, ctxOf(rc));
-    expect(st.regIds).toEqual({ n1: "t6" });
+    expect(st.regIds).toEqual({ n1: "o6" });
     W.regFlush(fsx, rc);
-    expect(JSON.parse(fsx.files["registry/c1.json"]!).entities.find((e: any) => e.id === "t6")).toMatchObject({ name: "Brass lantern", src: "world" });
+    expect(JSON.parse(fsx.files["registry/c1.json"]!).entities.find((e: any) => e.id === "o6")).toMatchObject({ name: "Brass lantern", src: "world" });
   });
 
   it("one record when the DM writes Silver Sword under two spellings", () => {
@@ -78,10 +78,10 @@ describe("World thing records and the registry", () => {
     const old = W.normalizeState({ entities: [{ id: "n1", kind: "thing", name: "Silver sword", text: "A blade.", status: "active" }, { id: "n2", kind: "place", name: "The Hall", aliases: ["Hall of Mirrors"], text: "Mirrors.", status: "active" }] }, "c1");
     expect(old.regIds).toBeUndefined();
     W.applyReport(old, {}, ctxOf(rc));
-    expect(old.regIds).toEqual({ n1: "t5", n2: "l3" });
-    expect(W.normalizeState(JSON.parse(JSON.stringify(old)), "c1").regIds).toEqual({ n1: "t5", n2: "l3" });
+    expect(old.regIds).toEqual({ n1: "o5", n2: "l3" });
+    expect(W.normalizeState(JSON.parse(JSON.stringify(old)), "c1").regIds).toEqual({ n1: "o5", n2: "l3" });
     // a place cannot hold a t# and a person record cannot hold a l#
-    const bad = W.normalizeState({ entities: [{ id: "n1", kind: "place", name: "Hall", text: "x", status: "active" }, { id: "n2", kind: "person", name: "Ren", text: "x", status: "active" }], regIds: { n1: "t5", n2: "l3" } }, "c1");
+    const bad = W.normalizeState({ entities: [{ id: "n1", kind: "place", name: "Hall", text: "x", status: "active" }, { id: "n2", kind: "person", name: "Ren", text: "x", status: "active" }], regIds: { n1: "o5", n2: "l3" } }, "c1");
     expect(bad.regIds).toBeUndefined();
   });
 });
@@ -157,7 +157,7 @@ describe("the same place by id", () => {
 
 describe("things here by id", () => {
   it("shows a linked thing once: the Dashboard holder wins and fills in a missing holder", () => {
-    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, chars: { "Kaede Fuji": { items: [{ id: "t5", kind: "hold", text: "silver sword" }] } } });
+    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, chars: { "Kaede Fuji": { items: [{ id: "o5", kind: "hold", text: "silver sword" }] } } });
     const rc = W.openRegistry(fsx, "c1", meta);
     const st = W.emptyState("c1");
     W.applyReport(st, { add: [{ kind: "thing", name: "the silver sword", text: "A blade.", place: "Cellar" }] }, ctxOf(rc));
@@ -172,7 +172,7 @@ describe("things here by id", () => {
   });
 
   it("a record lying in the DM's cellar is here when the Dashboard has it among the objects", () => {
-    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, layout: { objects: [{ id: "t5", item: "silver sword", where: "on the table" }] } });
+    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, layout: { objects: [{ id: "o5", item: "silver sword", where: "on the table" }] } });
     const rc = W.openRegistry(fsx, "c1", meta);
     const st = W.emptyState("c1");
     W.applyReport(st, { add: [{ kind: "thing", name: "silver sword", text: "A blade.", place: "Cellar" }] }, ctxOf(rc));
@@ -184,7 +184,7 @@ describe("things here by id", () => {
 
   it("two records of one registry thing are listed once; without a Dashboard id the records work as before", () => {
     const rc = W.openRegistry(setup(), "c1", meta);
-    const st = W.normalizeState({ entities: [{ id: "n1", kind: "thing", name: "Silver sword", text: "A.", status: "active", holder: "Kaede Fuji" }, { id: "n2", kind: "thing", name: "Old blade", text: "B.", status: "active", holder: "Kaede Fuji" }], regIds: { n1: "t5", n2: "t5" } }, "c1");
+    const st = W.normalizeState({ entities: [{ id: "n1", kind: "thing", name: "Silver sword", text: "A.", status: "active", holder: "Kaede Fuji" }, { id: "n2", kind: "thing", name: "Old blade", text: "B.", status: "active", holder: "Kaede Fuji" }], regIds: { n1: "o5", n2: "o5" } }, "c1");
     const h = W.hereOf(st, { place: "", present: ["Kaede Fuji"], chars: {}, objects: [] }, [], rc.reg);
     expect(h.held["Kaede Fuji"].map((t: any) => t.id)).toEqual(["n1"]);
     const plain = W.normalizeState({ entities: [{ id: "n1", kind: "thing", name: "Coin", text: "A.", status: "active", holder: "Kaede Fuji" }] }, "c1");
@@ -194,12 +194,12 @@ describe("things here by id", () => {
 
 describe("objects kept by place id", () => {
   it("layout.byPlace of the scene's place id lists a linked record as lying here", () => {
-    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, layout: { objects: [], byPlace: { l3: [{ id: "t5", item: "silver sword", where: "by the door" }] } } });
+    const fsx = setup({ clock: { place: "Hall of Mirrors", placeId: "l3" }, layout: { objects: [], byPlace: { l3: [{ id: "o5", item: "silver sword", where: "by the door" }] } } });
     const rc = W.openRegistry(fsx, "c1", meta);
     const st = W.emptyState("c1");
     W.applyReport(st, { add: [{ kind: "thing", name: "silver sword", text: "A blade.", place: "Cellar" }] }, ctxOf(rc));
     const scene = W.sceneOf(fsx, "c1", msgs);
-    expect(scene.byPlace.l3[0].id).toBe("t5");
+    expect(scene.byPlace.l3[0].id).toBe("o5");
     expect(W.hereOf(st, scene, [], rc.reg).things.map((t: any) => t.name)).toEqual(["silver sword"]);
   });
 });
