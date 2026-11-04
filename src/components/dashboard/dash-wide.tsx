@@ -19,6 +19,7 @@ import { personChanges, sceneChanges, tally } from '@/lib/dash-changes'
 import type { WorldHere } from '@/lib/world'
 import { withKeys } from '@/lib/unique-keys'
 import { ThreadList } from './dash-threads'
+import { ManagePerson, SuggestCallout } from './dash-merge'
 import { useGuidePlace } from '@/components/guide/place'
 
 export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, onRefresh, onReload, refreshing, onSettings, onClose, onWorld, fullscreen, onFullscreen, now, avatars, onPortrait, userName }: {
@@ -146,6 +147,8 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
           </Box>
         )}
 
+        <SuggestCallout focus={focus} />
+
         <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
           <Box data-guide="dash.constellation" title={t('dash.tab.constellation')} tone="people" icon={Star} count={statCount}>
             <div className="flex flex-col items-center gap-1 px-10 pt-2">
@@ -159,7 +162,7 @@ export function DashWide({ chatId, notebookSignal, view, here, focus, onFocus, o
             </div>
           </Box>
 
-          <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart} count={statCount}>
+          <Box data-guide="dash.attitude" title={t('dash.attitude')} tone="people" icon={Heart} count={statCount} right={<ManagePerson name={focus} avatars={avatars} />}>
             <div className="flex flex-col gap-2.5">
               <div>
                 <Badge variant="outline" className={cn('rounded-none text-caption', MARK[CLASS_MARK[char.cls] ?? 'neutral'])}>{t(`soul.class.${char.cls}`)}</Badge>

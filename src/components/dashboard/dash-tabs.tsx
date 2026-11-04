@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AvatarButton, Box, ChangeBadge, NameChip, SceneBlock, TONE_TAB, type Tone } from './dash-common'
 import { AttitudeCard, HereCard, MoodCard, OthersGrid, OutfitCard, ThingsCard } from './dash-cards'
 import { ThreadList } from './dash-threads'
+import { SuggestCallout } from './dash-merge'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
@@ -75,6 +76,7 @@ const SINCE_TONE: Record<ChangeKind, string> = {
   things: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   quest: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300',
   proposal: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300',
+  duplicate: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
 }
 
 function useChangeText() {
@@ -89,6 +91,7 @@ function useChangeText() {
       case 'rose': return t('dash.since.rose', { name: who, stats })
       case 'place': return c.place ? t('dash.since.place', { place: c.place }) : t('dash.since.placeNone')
       case 'things': return t('dash.since.things')
+      case 'duplicate': return t('dash.since.duplicate', { name: who })
       case 'quest': return t('dash.since.quest', { n: c.n })
       default: return t('dash.since.proposal', { n: c.n })
     }
@@ -213,7 +216,8 @@ export function PersonPanel({ view, here, chatId, onReload, focus, onFocus, avat
   if (!char) return null
   return (
     <div className="flex min-w-0 flex-col gap-2 p-2">
-      <AttitudeCard name={focus} char={char} narrow={narrow} />
+      <SuggestCallout focus={focus} />
+      <AttitudeCard name={focus} char={char} narrow={narrow} avatars={avatars} />
       <MoodCard char={char} />
       <OutfitCard name={focus} char={char} here={here} chatId={chatId} onReload={onReload} />
       <OthersGrid view={view} here={here} focus={focus} onFocus={onFocus} avatars={avatars} />
