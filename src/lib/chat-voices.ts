@@ -9,7 +9,7 @@ import { j } from './engine'
 import { useDashLive } from './dash-live'
 import type { ChatVoices, VoiceOp } from './chat-voices-core'
 
-export { peopleVoices } from './chat-voices-core'
+export { leavesVoicesAlone, peopleVoices } from './chat-voices-core'
 export type { ChatVoices, VoicePerson, VoiceOp } from './chat-voices-core'
 
 interface Store {

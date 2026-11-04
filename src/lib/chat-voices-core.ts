@@ -39,9 +39,16 @@ function anyOf(names: string[]): VoiceMatcher | null {
   return { exec, test: (text) => exec(text) !== null }
 }
 
-/** The voices a chat paints its messages by: its people, each with the colour kept for them; empty when the chat uses none. */
-export function peopleVoices(v: ChatVoices | null | undefined): DialogueVoice[] {
-  if (!v?.active) return []
+/** Does the chat leave the voices alone? In the automatic mode a card whose author or owner chose a dialogue colour keeps it:
+ *  the colours are handed out only where nobody chose. The switch turned on by hand ('on') always paints. */
+export function leavesVoicesAlone(v: ChatVoices | null | undefined, cardColor: boolean): boolean {
+  return !!v && v.mode === 'auto' && cardColor
+}
+
+/** The voices a chat paints its messages by: its people, each with the colour kept for them; empty when the chat uses none
+ *  (or the card has its own dialogue colour and the mode is automatic, see leavesVoicesAlone). */
+export function peopleVoices(v: ChatVoices | null | undefined, opts: { cardColor?: boolean } = {}): DialogueVoice[] {
+  if (!v?.active || leavesVoicesAlone(v, !!opts.cardColor)) return []
   const out: DialogueVoice[] = []
   for (const p of v.people) {
     if (!p.color) continue

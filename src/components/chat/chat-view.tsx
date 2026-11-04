@@ -1372,7 +1372,7 @@ export function ChatView() {
         </DialogContent>
       </Dialog>
 
-      <VoiceColorsDialog chatId={chat.id} open={voicesOpen} onOpenChange={setVoicesOpen} />
+      <VoiceColorsDialog chatId={chat.id} cardColor={!!character.colors?.dialogue} open={voicesOpen} onOpenChange={setVoicesOpen} />
 
       {/* Display settings */}
       <Sheet open={displayOpen} onOpenChange={setDisplayOpen}>

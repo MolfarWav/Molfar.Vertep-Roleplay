@@ -503,7 +503,7 @@ export const MessageRow = memo(function MessageRow({
   // the label only (see VoiceLeadOnly); the rest stays in the persona's colour
   // the chat's own people (the Dashboard's registry), when the chat paints them and the card lists no voices of its own
   const chatVoicesOf = useChatVoices((s) => s.byChat[chat.id])
-  const chatVoices = useMemo(() => (groupChar || character?.voices?.length ? NO_VOICES : peopleVoices(chatVoicesOf)), [groupChar, character, chatVoicesOf])
+  const chatVoices = useMemo(() => (groupChar || character?.voices?.length ? NO_VOICES : peopleVoices(chatVoicesOf, { cardColor: !!character?.colors?.dialogue })), [groupChar, character, chatVoicesOf])
   const userVoices = useMemo<DialogueVoice[]>(() => {
     if (!isUser) return NO_VOICES
     if (groupChar) return groupVoices(groupChar, characters)

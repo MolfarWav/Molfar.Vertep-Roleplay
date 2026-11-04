@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
-import { changeChatVoices, useChatVoices, type VoiceOp } from '@/lib/chat-voices'
+import { changeChatVoices, leavesVoicesAlone, useChatVoices, type VoiceOp } from '@/lib/chat-voices'
 import { voiceInk } from '@/lib/dialogue-voices'
 
 /** A colour input that tells the server once the picking has paused: a picker fires on every step of a drag. */
@@ -35,10 +35,13 @@ function Swatch({ color, disabled, label, onPick }: { color: string; disabled: b
   )
 }
 
-export function VoiceColorsDialog({ chatId, open, onOpenChange }: { chatId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function VoiceColorsDialog({ chatId, cardColor, open, onOpenChange }: { chatId: string; /** the card has a dialogue colour of its own */ cardColor: boolean; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useT()
   const v = useChatVoices((s) => s.byChat[chatId])
   const [busy, setBusy] = useState(false)
+  // an automatic chat whose card has its own colour is left alone until the switch is turned on by hand
+  const alone = leavesVoicesAlone(v, cardColor)
+  const on = !!v?.active && !alone
   const run = async (op: VoiceOp) => {
     setBusy(true)
     try {
@@ -63,9 +66,9 @@ export function VoiceColorsDialog({ chatId, open, onOpenChange }: { chatId: stri
             <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm max-md:min-h-12">
               <span className="min-w-0">
                 {t('voices.chat.switch')}
-                <span className="block text-xs text-muted-foreground">{v.active && v.mode === 'auto' ? t('voices.chat.autoOn') : v.active ? t('voices.chat.on') : t('voices.chat.off')}</span>
+                <span className="block text-xs text-muted-foreground">{alone && v.active ? t('voices.chat.ownColor') : v.active && v.mode === 'auto' ? t('voices.chat.autoOn') : v.active ? t('voices.chat.on') : t('voices.chat.off')}</span>
               </span>
-              <Switch checked={v.active} disabled={busy} onCheckedChange={(on) => void run({ op: on ? 'on' : 'off' })} aria-label={t('voices.chat.switch')} />
+              <Switch checked={on} disabled={busy} onCheckedChange={(next) => void run({ op: next ? 'on' : 'off' })} aria-label={t('voices.chat.switch')} />
             </label>
             {v.people.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t('voices.chat.empty')}</p>
@@ -76,13 +79,13 @@ export function VoiceColorsDialog({ chatId, open, onOpenChange }: { chatId: stri
                     <li key={p.id} className="flex min-h-11 items-center gap-2 rounded-md px-1 max-md:min-h-12">
                       <Swatch
                         color={p.color || '#888888'}
-                        disabled={!v.active || busy}
+                        disabled={!on || busy}
                         label={t('voices.color', { name: p.name })}
                         onPick={(color) => void run({ op: 'set', id: p.id, color })}
                       />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium" style={p.color && v.active ? { color: voiceInk(p.color) } : undefined}>{p.name}</span>
-                      {v.active && <span className="shrink-0 text-xs text-muted-foreground">{p.hand ? t('voices.chat.mine') : t('voices.chat.auto')}</span>}
-                      {v.active && p.hand && (
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium" style={p.color && on ? { color: voiceInk(p.color) } : undefined}>{p.name}</span>
+                      {on && <span className="shrink-0 text-xs text-muted-foreground">{p.hand ? t('voices.chat.mine') : t('voices.chat.auto')}</span>}
+                      {on && p.hand && (
                         <Button variant="ghost" size="icon" className="size-10 shrink-0 md:size-8" disabled={busy} aria-label={t('voices.chat.backAuto', { name: p.name })} title={t('voices.chat.backAuto', { name: p.name })} onClick={() => void run({ op: 'unset', id: p.id })}>
                           <ArrowCounterClockwise className="size-4" aria-hidden="true" />
                         </Button>
@@ -91,7 +94,7 @@ export function VoiceColorsDialog({ chatId, open, onOpenChange }: { chatId: stri
                   ))}
                 </ul>
                 <div className="flex flex-col gap-1">
-                  <Button variant="outline" className="w-fit max-md:min-h-10" disabled={!v.active || busy} onClick={() => void run({ op: 'spread' })} data-testid="voice-spread">
+                  <Button variant="outline" className="w-fit max-md:min-h-10" disabled={!on || busy} onClick={() => void run({ op: 'spread' })} data-testid="voice-spread">
                     <Shuffle className="size-4" aria-hidden="true" />{t('voices.chat.spread')}
                   </Button>
                   <p className="text-xs text-muted-foreground">{t('voices.chat.spreadHint')}</p>

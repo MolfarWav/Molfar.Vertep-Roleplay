@@ -65,4 +65,17 @@ describe("distinct voice colours", () => {
     expect(peopleVoices({ mode: "off", active: false, people: [{ id: "p1", name: "Kaede", aliases: [], color: "#111111", hand: false }] })).toEqual([]);
     expect(peopleVoices(null)).toEqual([]);
   });
+
+  it("a card with a dialogue colour of its own keeps it in the automatic mode; the switch turned on by hand paints anyway", async () => {
+    const { peopleVoices, leavesVoicesAlone } = await import("../src/lib/chat-voices-core");
+    const people = [{ id: "p1", name: "Kaede", aliases: [], color: "#111111", hand: false }];
+    const auto = { mode: "auto" as const, active: true, people };
+    const on = { mode: "on" as const, active: true, people };
+    expect(leavesVoicesAlone(auto, true)).toBe(true);
+    expect(peopleVoices(auto, { cardColor: true })).toEqual([]);
+    expect(peopleVoices(auto, { cardColor: false }).length).toBe(1);
+    expect(peopleVoices(auto).length).toBe(1);
+    expect(peopleVoices(on, { cardColor: true }).length).toBe(1);
+    expect(leavesVoicesAlone(null, true)).toBe(false);
+  });
 });
