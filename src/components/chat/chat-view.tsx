@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -66,6 +66,7 @@ import { useLoadChatVoices } from '@/lib/chat-voices'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
 import { OpeningHint } from '@/components/chat/opening-hint'
+import { BigPromptStrip } from '@/components/chat/big-prompt-strip'
 import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -700,6 +701,7 @@ export function ChatView() {
   // the chat as a whole (were in the composer's plus menu)
   const chatManage: ChatAction[] = [
     { key: 'new', icon: ChatCenteredText, label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming },
+    { key: 'continue', icon: LinkSimple, label: t('chat.continueNew'), onSelect: () => void startChatAndOpen(chat.characterId, 0, { continues: chat.id }), disabled: isStreaming },
     { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
     { key: 'files', icon: FolderOpen, label: 'Manage chat files', onSelect: () => setManageOpen(true) },
   ]
@@ -1149,6 +1151,7 @@ export function ChatView() {
           </div>
         ) : (
           <>
+            <BigPromptStrip chat={chat} />
             {character.isGroup && <GroupPicker chat={chat} group={character} />}
             <Composer chatId={chat.id} />
           </>

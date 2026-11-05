@@ -283,13 +283,14 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] } }) => Promise<ID>
-  startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; personaId?: ID | null; model?: string }) => Promise<ID>
+  /** `continues`: the chat this one picks up (#262); the step always opens, preselected on it */
+  startChatAndOpen: (charId: ID, greetingIndex?: number, opts?: { continues?: ID }) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
-  newChatStep: { charId: ID; greetingIndex?: number } | null
+  newChatStep: { charId: ID; greetingIndex?: number; continues?: ID } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; world?: { worldId: string } | { fromChatId: ID } }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; world?: { worldId: string } | { fromChatId: ID }; personaId?: ID | null; model?: string; continues?: ID }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
@@ -1811,13 +1812,14 @@ export const useApp = create<AppState>()(
         // auto-locked persona wins even when another persona is also bound
         const bound = personas.filter((p) => p.binding === 'character' && p.boundCharacterIds.includes(charId))
         const persona = bound.find((p) => p.autoLock) ?? bound[0] ?? personas.find((p) => p.isDefault)
-        const personaId = persona?.id ?? null
+        const personaId = opts && 'personaId' in opts ? opts.personaId ?? null : persona?.id ?? null
+        const chatModel = opts?.model ?? model
         const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>('/chats', {
           method: 'POST',
           body: JSON.stringify({
             ...(char?.isGroup ? { groupId: charId } : { characterId: charId }),
             ...(personaId ? { personaId } : {}),
-            ...(model ? { model } : {}),
+            ...(chatModel ? { model: chatModel } : {}),
             ...(opts?.presetId ? { presetId: opts.presetId, presetVars: opts.presetVars ?? {} } : {}),
             ...(char?.isGroup && opts?.turns ? { turns: opts.turns } : {}),
             // the agent set picked on the New chat screen; none picked = the chat follows the default set
@@ -1842,7 +1844,12 @@ export const useApp = create<AppState>()(
         set((s) => ({ chats: attachBranches([chat, ...s.chats]) }))
         return chat.id
       },
-      startChatAndOpen: async (charId, greetingIndex) => {
+      startChatAndOpen: async (charId, greetingIndex, opts) => {
+        // continuing a chat always shows the step: it is where the person sees and can change what carries over
+        if (opts?.continues) {
+          set({ newChatStep: { charId, greetingIndex, continues: opts.continues } })
+          return
+        }
         // a short step with the preset and its choices, unless the user turned it off or there is
         // nothing to choose (one preset without variables, and no agent set to pick)
         const { settings, presets } = get()
@@ -1860,6 +1867,13 @@ export const useApp = create<AppState>()(
         try {
           const id = await get().newChat(charId, greetingIndex, opts)
           sessionNewChats.add(id)
+          if (opts?.continues) {
+            // the same link the Canvas draws: the earlier chat's story rides along as backstory
+            try {
+              const { setLitLink } = await import('@/components/library/litopys-api')
+              await setLitLink(id, opts.continues)
+            } catch (e) { toast.error(String((e as Error).message ?? e)) }
+          }
           if (opts?.world) {
             // a chat in a world: the world goes in first, then the player writes the start (the chat opens after that)
             try {
