@@ -32,7 +32,7 @@ Date: 2026-11-05.
 
 ### Hook insert reserve (history budget)
 - **Touches:** every sibling plugin that adds text after assembly: `plugins/relations` (Dashboard block, "said" block, journal), `plugins/litopys` (story insert, backstory, card, persona and world memory, habits, recollections, who-knows-what, hidden plan), `plugins/world` (here note, event, dice), `plugins/agents` (inserts file). The history budget in the engine's reply path.
-- **Must stay true:** each block a sibling can add has one row in `hookInsertBreakdown` with the most it can take in this chat. A block the chat has switched off, or the chat cannot have, counts 0. The history budget takes away the sum (`hookInsertReserve`).
+- **Must stay true:** each block a sibling can add has one row in `hookInsertBreakdown` with the most it can take in this chat. A block the chat has switched off, or the chat cannot have, counts 0. The history budget takes away the sum (`hookInsertReserve`). The Litopys row follows the memory size mode: `auto` is the default, so the row is 15% of the window (800 to 16000) plus 100, and a saved `budget` with no `budgetMode` stays fixed; this rule is written twice (Litopys `budgetModeOf`, engine `hookInsertBreakdown`), change both.
 - **Enforced in:** `plugins/engine/plugin.js` `hookInsertBreakdown` `hookInsertReserve`.
 - **Fails in:** `test/rp-hook-reserve.test.ts`. It checks the numbers of the rows it knows. No test compares a real insert with its row, so a new sibling block with no row passes.
 - **Why / history:** #184 (the breakdown comment cites MEMORY-INJECTION 13.1).

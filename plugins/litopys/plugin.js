@@ -1058,7 +1058,9 @@ export const DEFAULT_CONFIG = {
   pinLimit: 5,
   insert: true,
   budget: 800,
-  budgetMode: "fixed",
+  // "auto": a share of the model's window (AUTO_SHARE, 800 to BUDGET_MAX). A config that has a `budget` of its own and no mode
+  // keeps "fixed" (see budgetModeOf); the engine's hook reserve reads the same rule, so change both
+  budgetMode: "auto",
   // 0.9.2: the most the backstory of a linked earlier chat may take (0 = none)
   linkBudget: 800,
   // M4d arcs: older chapters merged into one summary when they outgrow the budget. A new install merges by itself
@@ -1350,6 +1352,16 @@ function storedConfig(fsx) {
   return cfg;
 }
 
+/**
+ * The memory size mode of a stored config: what it says, else "fixed" when the user saved a size of their own (before the default
+ * became auto, a number in the file was the only way to choose one), else "auto". plugins/engine `hookInsertBreakdown` repeats this rule.
+ */
+export function budgetModeOf(stored) {
+  const s = isObj(stored) ? stored : {};
+  if (s.budgetMode === "auto" || s.budgetMode === "fixed") return s.budgetMode;
+  return "budget" in s ? "fixed" : "auto";
+}
+
 /** The config in effect: defaults, then what the user chose. */
 export function loadConfig(fsx) {
   const stored = storedConfig(fsx);
@@ -1366,7 +1378,7 @@ export function loadConfig(fsx) {
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
-  cfg.budgetMode = cfg.budgetMode === "auto" ? "auto" : "fixed";
+  cfg.budgetMode = budgetModeOf(stored);
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
   cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
@@ -1421,7 +1433,7 @@ export function patchConfig(fsx, body) {
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);
-  if (b.budgetMode !== undefined) next.budgetMode = b.budgetMode === "auto" ? "auto" : "fixed";
+  if (b.budgetMode !== undefined) next.budgetMode = b.budgetMode === "fixed" ? "fixed" : "auto";
   if (b.linkBudget !== undefined) next.linkBudget = clamp(intOf(b.linkBudget, 800), 0, 3000);
   if (b.arcMode !== undefined) {
     next.arcMode = ARC_MODES.includes(str(b.arcMode)) ? str(b.arcMode) : DEFAULT_CONFIG.arcMode;

@@ -235,14 +235,26 @@ describe("Auto memory size", () => {
     expect(L.autoBudget("x")).toBeNull();
   });
 
-  it("is saved as a mode, and anything else means a fixed size", () => {
+  it("is saved as a mode; auto is the default and anything unknown means auto", () => {
     const m = mockHost();
-    expect(L.loadConfig(m.host.fs).budgetMode).toBe("fixed");
-    L.patchConfig(m.host.fs, { budgetMode: "auto" });
     expect(L.loadConfig(m.host.fs).budgetMode).toBe("auto");
+    L.patchConfig(m.host.fs, { budgetMode: "fixed" });
+    expect(L.loadConfig(m.host.fs).budgetMode).toBe("fixed");
     expect(L.loadConfig(m.host.fs).budget).toBe(800);
     L.patchConfig(m.host.fs, { budgetMode: "huge" });
+    expect(L.loadConfig(m.host.fs).budgetMode).toBe("auto");
+  });
+
+  it("a size saved without a mode stays a fixed size (the choice made before auto was the default)", () => {
+    expect(L.budgetModeOf({})).toBe("auto");
+    expect(L.budgetModeOf({ budget: 2000 })).toBe("fixed");
+    expect(L.budgetModeOf({ budget: 2000, budgetMode: "auto" })).toBe("auto");
+    expect(L.budgetModeOf({ budgetMode: "fixed" })).toBe("fixed");
+    expect(L.budgetModeOf(null)).toBe("auto");
+    const m = mockHost();
+    m.host.fs.write("litopys/config.json", JSON.stringify({ budget: 1500, arcNotice: "done", arcMode: "auto" }));
     expect(L.loadConfig(m.host.fs).budgetMode).toBe("fixed");
+    expect(L.loadConfig(m.host.fs).budget).toBe(1500);
   });
 
   it("llmRequest sizes the insert by the context window in Auto, and by the saved number otherwise", () => {
@@ -260,9 +272,11 @@ describe("Auto memory size", () => {
       L.llmRequest({ key: "reply", request: { messages: [{ role: "system", content: "S" }, { role: "user", content: "Hello." }] }, turn: { op: "send", chatId, speakerName: "Aria", ...turn } }, m.host);
       return readJson(`litopys/insert/${chatId}.json`).tokens as number;
     };
-    const fixed = insertTokens({ budget: 800 }, { contextTokens: 32768 });
+    const fixed = insertTokens({ budget: 800, budgetMode: "fixed" }, { contextTokens: 32768 });
     const auto = insertTokens({ budget: 800, budgetMode: "auto" }, { contextTokens: 32768 });
     const autoNoCtx = insertTokens({ budget: 800, budgetMode: "auto" }, {});
+    // no mode and no size of its own: auto is the default
+    expect(insertTokens({}, { contextTokens: 32768 })).toBe(auto);
     expect(fixed).toBeLessThanOrEqual(800);
     expect(auto).toBeGreaterThan(fixed);
     expect(auto).toBeLessThanOrEqual(L.autoBudget(32768));

@@ -41,6 +41,16 @@ describe("hook reserve: the blocks that were counted before", () => {
     expect(byId(rows({}, "c1", 32000)).litopys).toBe(4800 + 100);
     expect(byId(rows({}, "c1", 2000)).litopys).toBe(800 + 100);
   });
+  it("auto is the default, and a saved size without a mode stays fixed (the same rule as the Litopys plugin)", () => {
+    writeJson("litopys/config.json", {});
+    expect(byId(rows({}, "c1", 32000)).litopys).toBe(4800 + 100);
+    writeJson("litopys/config.json", { budget: 2000 });
+    expect(byId(rows({}, "c1", 32000)).litopys).toBe(2000 + 100);
+    writeJson("litopys/config.json", { budget: 2000, budgetMode: "auto" });
+    expect(byId(rows({}, "c1", 32000)).litopys).toBe(4800 + 100);
+    writeJson("litopys/config.json", { budgetMode: "fixed" });
+    expect(byId(rows({}, "c1", 32000)).litopys).toBe(800 + 100);
+  });
   it("the backstory link of a continued chat", () => {
     writeJson("litopys/links.json", { links: { c1: { from: "c0" } } });
     expect(byId(rows())["litopys backstory"]).toBe(900);

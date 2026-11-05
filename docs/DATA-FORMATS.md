@@ -252,9 +252,11 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
   `full: true`, and the Prompt board part says "full record"). When it does not fit, chapters and arcs are held at
   least 40% of what is left after the pinned facts, the facts of those present and the chapter just before the cut,
   and what one kind leaves unused goes to the other; at most 60 ranked chapters. An item goes in whole or not at all.
-- `budgetMode` (`fixed`, default, or `auto`): in `auto` the memory size is 15% of the model's context window (at least
+- `budgetMode` (`auto`, default, or `fixed`): in `auto` the memory size is 15% of the model's context window (at least
   800, at most 16000) when the engine says the window in the turn labels (`turn.contextTokens`); without that label, or
-  in `fixed`, `budget` is used. 15% is a first guess, not tuned on real chats.
+  in `fixed`, `budget` is used. A config that has a `budget` and no `budgetMode` counts as `fixed` (a size the user chose
+  before auto became the default); `budgetModeOf` in the Litopys plugin and `hookInsertBreakdown` in the engine plugin
+  apply the same rule. 15% is a first guess, not tuned on real chats.
 - `cutMode` (`fit`, default, or `scenes`) and `sceneKeep` (`litopys/config.json`): which of the messages a chapter
   holds leave the prompt. `fit`: the cut is a ceiling (what chapters cover, outside the last `recentMessages`, default
   100) and only as many leave as the model's window has no room for; a chat that fits is sent in full. `scenes`: a
