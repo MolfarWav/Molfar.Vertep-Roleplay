@@ -163,12 +163,12 @@ function StepDialog({ charId, greetingIndex, continues }: { charId: ID; greeting
             <Select value={contPick} onValueChange={(v) => v && setContPick(v)}>
               <SelectTrigger className="h-8 w-full text-xs" aria-labelledby="new-chat-continues" data-testid="new-chat-continues">
                 <SelectValue>
-                  {(v: string) => (v === 'none' ? t('canvas.continuesNone') : earlier.find((c) => c.id === v)?.title || storeChats.find((c) => c.id === v)?.title || v)}
+                  {(v: string) => (v === 'none' ? t('canvas.continuesNone') : (() => { const c = storeChats.find((x) => x.id === v); return c ? `${c.title || t('mem.untitled')} · ${new Date(c.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : v })())}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">{t('canvas.continuesNone')}</SelectItem>
-                {earlier.map((c) => <SelectItem key={c.id} value={c.id}>{c.title || t('mem.untitled')}</SelectItem>)}
+                {earlier.map((c) => <SelectItem key={c.id} value={c.id}>{(c.title || t('mem.untitled')) + ' · ' + new Date(c.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</SelectItem>)}
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">{from ? t('pc.step.continuesHint') : t('pc.step.continuesOff')}</p>

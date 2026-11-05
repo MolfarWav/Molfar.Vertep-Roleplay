@@ -8,8 +8,10 @@ import { fetchLitConfig, putLitConfig, type LitConfig } from '@/components/libra
 import { useT } from '@/hooks/use-t'
 import { lastPromptTokens, shouldOfferTrim } from '@/lib/long-chat'
 import { chatLimits, useApp } from '@/lib/store'
-import { formatTokens } from '@/lib/tokens'
 import type { Chat } from '@/lib/types'
+
+/** 45000 reads "45k", 45300 "45.3k" */
+const shortTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n))
 
 const key = (chatId: string) => `rp.bigPrompt.${chatId}`
 
@@ -68,9 +70,9 @@ export function BigPromptStrip({ chat }: { chat: Chat }) {
       <div className="flex items-start gap-2">
         <Gauge className="mt-px size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="break-words font-medium">{t('big.title', { n: formatTokens(tokens) })}</span>
-          <span className="text-[11px] text-muted-foreground">
-            {byScenes ? t('big.bodyScenes') : canSwitch ? t('big.bodySwitch') : t('big.body')}
+          <span className="break-words font-medium">{t('big.title', { n: shortTokens(tokens) })}</span>
+          <span className="text-[11px] text-muted-foreground max-sm:hidden">
+            {byScenes ? t('big.bodyScenes') : canSwitch ? t('big.bodySwitch') : cfg && !litopysOn ? t('big.bodyNoLit') : t('big.body')}
           </span>
         </div>
       </div>
