@@ -40,6 +40,7 @@ import {
   type PromptSourceSpan
 } from '@/lib/engine'
 import { requestOrder } from '@/lib/prompt-order'
+import { clearOpenMemory, wantsMemory } from '@/lib/memory-trace-open'
 import { useApp, useChat } from '@/lib/store'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 
@@ -302,7 +303,8 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
   // "Only what is sent", on by default, remembered globally (#43)
   const [sentOnly, setSentOnlyState] = useState<boolean>(() => readLS('promptBoard.sentOnly') !== '0')
   // "Parts" is the board; "Memory" is the trace of the last reply's memory (#184 P6)
-  const [view, setView] = useState<'parts' | 'memory'>('parts')
+  const [view, setView] = useState<'parts' | 'memory'>(() => (wantsMemory() ? 'memory' : 'parts'))
+  useEffect(() => clearOpenMemory(), [])
 
   const requestCounter = useRef(0)
   // Which chat the board on screen belongs to. Every async reply checks it

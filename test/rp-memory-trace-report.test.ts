@@ -4,6 +4,9 @@ import { buildReport, factsOut, personLabel, type MemoryTrace } from "../src/lib
 
 const p = (name: string, id: string) => ({ name, id });
 const trace = (over: Partial<MemoryTrace> = {}): MemoryTrace => ({
+  replies: [],
+  back: 0,
+  worker: null,
   litopys: {
     at: 1_000_000,
     op: "send",
@@ -66,6 +69,18 @@ describe("memory trace report", () => {
     expect(none).toContain("- no reply traced yet");
     expect(none).toContain("- nothing flagged");
     expect(buildReport("", trace({ litopys: null, unavailable: true }))).toContain("Litopys did not answer");
+  });
+
+  it("says which of the remembered replies it is, and lists what the worker left out with the reason", () => {
+    const two = [{ at: 1_000_000, op: "send", speaker: p("Aria", "p1") }, { at: 990_000, op: "next", speaker: null }];
+    const worker = { at: 1, chapter: "c4", got: 3, added: 1, skips: [{ why: "dup", text: "The river thawed.", id: "" }, { why: "gone", text: "Tam left.", id: "f77" }] };
+    const r = buildReport("Tavern", trace({ replies: two, back: 1, worker }), 1_010_000);
+    expect(r).toContain("Reply 2 of 2 remembered (1 = the newest)");
+    expect(r).toContain("The worker left out 2 fact op(s) of its last scene (chapter c4), 1 of 3 were kept:");
+    expect(r).toContain("- [a near copy of a fact it already had] The river thawed.");
+    expect(r).toContain("- f77 [the fact it names is gone or not active] Tam left.");
+    expect(buildReport("", trace())).not.toContain("remembered (1 = the newest)");
+    expect(buildReport("", trace())).not.toContain("The worker left out");
   });
 
   it("a narrator reply says the filter is anyone present; helpers pick rows by reason", () => {

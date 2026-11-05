@@ -19,6 +19,7 @@ import { PromptBoard } from './prompt-board'
 import { AgentForge } from './agent-forge'
 import { AgentSets } from './forge/agent-sets'
 import { useGuidePlace } from '@/components/guide/place'
+import { PROMPT_CHAT_KEY } from '@/lib/memory-trace-open'
 import { BOARD_KEY, useCanvasBoard, writeCanvasBoard, type CanvasBoardKey } from '@/lib/canvas-board'
 
 type ChatInfo = LitChatItem
@@ -48,7 +49,6 @@ const PLACED_KEY = 'rp.canvas.chatLinks.placed'
 const DRAG_TYPE = 'application/x-vertep-chat'
 const SHELF_COLLAPSED_KEY = 'rp.canvas.shelf.collapsed'
 export { BOARD_KEY }
-const PROMPT_CHAT_KEY = 'rp.canvas.prompt.chatId'
 
 /** The Chat links board (which chats sit on it, and where) lives in the app's settings, so it comes
  *  back on every open and follows the user to another device; the browser copy of older versions is

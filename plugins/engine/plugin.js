@@ -3404,7 +3404,12 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (!opts || !opts.dryRun) {
     try {
       if (meta.id && /^[A-Za-z0-9_-]{1,128}$/.test(String(meta.id))) {
-        fsx.write("databank-trace/" + meta.id + ".json", JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6) }));
+        const tfile = "databank-trace/" + meta.id + ".json";
+        // the reply before this one moves into `prev` (the last 4 older replies), so the Memory view can look back
+        let before = null;
+        try { before = JSON.parse(fsx.read(tfile)); } catch { /* none yet */ }
+        const prev = before && typeof before === "object" ? [{ ...before, prev: undefined }, ...(Array.isArray(before.prev) ? before.prev : [])].slice(0, 4) : [];
+        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), prev }));
       }
     } catch { /* read-only: no trace */ }
   }

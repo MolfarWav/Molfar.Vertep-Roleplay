@@ -2946,6 +2946,10 @@ export function llmRequest(ctx, host) {
     let plan = null;
     if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
     if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn) return null;
+    // #184 P6: the trace of the reply before this one moves into a short ring (the newest stays in the insert file)
+    try {
+      if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
+    } catch {}
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -3219,6 +3223,9 @@ export function causeOf(st, op) {
   return arr(st && st.facts).some((f) => isObj(f) && f.id === id) ? id : "";
 }
 
+/** #184 P6: at most this many left-out ops are remembered for the Memory view. */
+const SKIPS_MAX = 12;
+
 /** item 8: mutate st including st.worker; returns the chapter object made. */
 export function applyWorkerResult(st, work, parsed, ctx) {
   const { scene, replaces } = work;
@@ -3228,6 +3235,11 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   const chapterId = replaces || "c" + ++st.counters.chapter;
   const factAdds = [];
   let skipped = 0;
+  // #184 P6: what the worker left out of this scene's fact ops and why, so the Memory view can say so (last run only)
+  const skips = [];
+  const skip = (why, op, id) => {
+    if (skips.length < SKIPS_MAX) skips.push({ why, text: cut(str(op && (op.text || op.reason)), 140), ...(id ? { id } : {}) });
+  };
 
   const newChapter = {
     id: chapterId,
@@ -3262,8 +3274,15 @@ export function applyWorkerResult(st, work, parsed, ctx) {
   st.chapters.sort((a, b) => pos(a) - pos(b));
 
   // Fact ops
-  for (const op of arr(parsed.facts)) {
-    if (!isObj(op) || factAdds.length >= 8) break;
+  const ops = arr(parsed.facts);
+  for (let oi = 0; oi < ops.length; oi++) {
+    const op = ops[oi];
+    if (!isObj(op)) break;
+    if (factAdds.length >= 8) {
+      // room for 8 new or changed facts a scene: the rest are not looked at
+      for (const rest of ops.slice(oi)) if (isObj(rest)) skip("cap", rest, str(rest.id));
+      break;
+    }
     const opName = factOp(op);
     if (opName === "add") {
       const text = cut(op.text, 300);
@@ -3290,10 +3309,14 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const dup = st.facts.some(
         (f) => f.status === "active" && str(f.subject).toLowerCase() === subject.toLowerCase() && diceSimilarity(text, f.text) >= DICE_LIMIT,
       );
-      if (dup) continue;
+      if (dup) {
+        skip("dup", op);
+        continue;
+      }
       // only repeats the card or the lorebook: the model sees those anyway
       if (ctx.sources && repeatsSource(text, ctx.sources)) {
         skipped++;
+        skip("source", op);
         continue;
       }
       if (factAdds.length >= 8) break;
@@ -3325,7 +3348,10 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     } else if (opName === "update") {
       const id = str(op.id);
       const target = st.facts.find((f) => f.id === id && f.status === "active");
-      if (!target) continue;
+      if (!target) {
+        skip("gone", op, id);
+        continue;
+      }
       const text = cut(op.text, 300);
       if (!text) continue;
       // the user's own wording is never replaced by the worker, only proposed (M4a)
@@ -3356,7 +3382,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       } else {
         // a rewrite of an ordinary fact is never silent: a proposal
         const identical = st.proposals.some((p) => p.op === "rewrite" && p.status === "pending" && arr(p.targets).includes(target.id));
-        if (!identical) {
+        if (identical) skip("same", op, target.id);
+        else {
           st.proposals.push({
             id: "p" + ++st.counters.proposal,
             op: "rewrite",
@@ -3372,10 +3399,14 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     } else if (opName === "retire") {
       const id = str(op.id);
       const target = st.facts.find((f) => f.id === id && f.status === "active");
-      if (!target) continue;
+      if (!target) {
+        skip("gone", op, id);
+        continue;
+      }
       const reason = cut(op.reason, 200);
       const identical = st.proposals.some((p) => p.op === "retire" && p.status === "pending" && arr(p.targets).includes(target.id));
-      if (!identical) {
+      if (identical) skip("same", op, target.id);
+      else {
         st.proposals.push({
           id: "p" + ++st.counters.proposal,
           op: "retire",
@@ -3426,6 +3457,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     ms,
     usage,
     facts: { got: arr(parsed.facts).length, added: factAdds.length, ...(skipped ? { skipped } : {}) },
+    ...(skips.length ? { skips, chapter: chapterId } : {}),
   };
   if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
   delete st.worker.error;
@@ -3831,7 +3863,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/"]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -3911,6 +3943,17 @@ export function pickChats(fsx, now) {
 
 // ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
 const INSERT_DIR = "litopys/insert/";
+/** #184 P6: the traces of the replies before the newest one, newest first; one file per chat, at most TRACE_RING_MAX of them. */
+const RING_DIR = "litopys/trace-ring/";
+const TRACE_RING_MAX = 4;
+function pushTraceRing(fsx, chatId, prev) {
+  const old = readJson(fsx, RING_DIR + chatId + ".json", null);
+  const list = isObj(old) && Array.isArray(old.list) ? old.list.filter((e) => isObj(e) && isObj(e.trace)) : [];
+  // the same reply twice (a hook that ran again before a new reply was written) is kept once
+  if (list.some((e) => e.at === prev.at)) return;
+  list.unshift({ at: Number(prev.at) || 0, tokens: Number(prev.tokens) || 0, trace: prev.trace });
+  fsx.write(RING_DIR + chatId + ".json", JSON.stringify({ list: list.slice(0, TRACE_RING_MAX) }));
+}
 /** Where the engine's last prompt started its verbatim history (count of line messages before it);
  *  null when it left no record or the chat has changed since (the id at that place is another). */
 function promptCutOf(fsx, chatId, line) {
@@ -7242,9 +7285,17 @@ function traceRoute(fsx, query) {
   const chatId = str(query.chatId);
   const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
   if (!rc) return { status: 404, json: { error: "no such chat" } };
-  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
-  const tr = isObj(last) && isObj(last.trace) ? last.trace : null;
-  if (!tr) return { status: 200, json: { chatId, trace: null } };
+  const newest = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  const ringFile = readJson(fsx, RING_DIR + chatId + ".json", null);
+  // the replies that left a trace, newest first: the insert file holds the latest, the ring the few before it
+  const entries = [
+    ...(isObj(newest) && isObj(newest.trace) ? [{ at: Number(newest.at) || 0, tokens: Number(newest.tokens) || 0, trace: newest.trace }] : []),
+    ...(isObj(ringFile) && Array.isArray(ringFile.list) ? ringFile.list.filter((e) => isObj(e) && isObj(e.trace)) : []),
+  ].slice(0, TRACE_RING_MAX + 1);
+  const back = Math.max(0, Math.min(entries.length - 1, Math.floor(Number(query.back)) || 0));
+  const last = entries.length ? entries[back] : null;
+  const tr = last ? last.trace : null;
+  if (!tr) return { status: 200, json: { chatId, trace: null, replies: [] } };
   const st = loadChatFile(fsx, chatId);
   let reg = null;
   try {
@@ -7293,10 +7344,16 @@ function traceRoute(fsx, query) {
       outChapters.push({ ...base, arc: r.k === "a", gone: !c, label: c ? str(c.label) : "", text: c ? cut(c.text, 200) : "", cast: c ? arr(c.cast).map(person).filter(Boolean) : [] });
     }
   }
+  // the facts the worker left out of its last scene, with the reason (#184 P6); not tied to one reply
+  const w = st && isObj(st.worker) ? st.worker : null;
+  const skips = w ? arr(w.skips).filter((x) => isObj(x) && str(x.why)).map((x) => ({ why: str(x.why), text: str(x.text), id: str(x.id) })) : [];
   return {
     status: 200,
     json: {
       chatId,
+      back,
+      replies: entries.map((e) => ({ at: e.at, op: str(e.trace.op), speaker: person(e.trace.speaker) })),
+      worker: skips.length ? { at: Number(w.lastRunAt) || 0, chapter: str(w.chapter), got: Number(w.facts && w.facts.got) || 0, added: Number(w.facts && w.facts.added) || 0, skips } : null,
       trace: {
         at: Number(last.at) || 0,
         op: str(tr.op),

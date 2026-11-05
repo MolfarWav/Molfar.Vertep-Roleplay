@@ -63,7 +63,27 @@ export interface DatabankTrace {
   scopedMore: number
 }
 
+/** Why the worker left a fact op out of its last scene: a near copy of a fact, only what the card says, no room (8 a scene), the fact is gone, an identical proposal is already waiting. */
+export type SkipWhy = 'dup' | 'source' | 'cap' | 'gone' | 'same'
+
+export interface WorkerSkips {
+  at: number
+  /** the chapter the run wrote */
+  chapter: string
+  got: number
+  added: number
+  skips: { why: SkipWhy | string; text: string; id: string }[]
+}
+
+/** One traced reply in the short ring: newest first, `at` is the time its prompt was built. */
+export interface TraceReply { at: number; op: string; speaker: TracePerson | null }
+
 export interface MemoryTrace {
+  /** the traced replies Litopys remembers (the last few), newest first; `back` is the one shown (0 = the newest) */
+  replies: TraceReply[]
+  back: number
+  /** the facts the worker left out of its last scene; null when it left none out */
+  worker: WorkerSkips | null
   /** null: no reply has been traced yet, or Litopys did not insert anything for it */
   litopys: LitopysTrace | null
   databank: DatabankTrace | null
@@ -72,6 +92,24 @@ export interface MemoryTrace {
   keptOut: { user: number; absent: number; noQuote?: number } | null
   /** the Litopys route did not answer: an older plugin, or the plugin is off */
   unavailable: boolean
+}
+
+export type BankEntry = Omit<DatabankTrace, 'prev'>
+/** What GET /databank/trace answers: the newest entry, and up to 4 before it in `prev`. */
+export type BankFile = (BankEntry & { prev?: BankEntry[] }) | null
+
+/** The Data Bank's entry for a reply: the engine builds the prompt a moment before Litopys writes its trace, so the
+ *  closest entry at or just before the reply's time (30 s at most). With no Litopys reply, `back` counts entries. */
+export function bankFor(file: BankFile, replyAt: number | null, back: number): DatabankTrace | null {
+  if (!file) return null
+  const all: BankEntry[] = [file, ...(Array.isArray(file.prev) ? file.prev : [])]
+  if (replyAt === null) return (all[back] as DatabankTrace | undefined) ?? null
+  let best: BankEntry | null = null
+  for (const e of all) {
+    const d = replyAt - e.at
+    if (d >= 0 && d <= 30000 && (!best || e.at > best.at)) best = e
+  }
+  return best as DatabankTrace | null
 }
 
 /** The rows of one section, in the order the view shows them: in-prompt facts by their place, the others by rank. */
@@ -108,6 +146,15 @@ const WHY_EN: Record<string, string> = {
   arc: 'an arc',
   unseen: 'the speaker did not witness it',
 }
+
+const SKIP_EN: Record<string, string> = {
+  dup: 'a near copy of a fact it already had',
+  source: 'only repeats the card or the lorebook',
+  cap: 'no room: 8 new facts a scene',
+  gone: 'the fact it names is gone or not active',
+  same: 'the same proposal is already waiting',
+}
+export const skipEn = (why: string) => SKIP_EN[why] ?? why
 export const whyEn = (why: string) => WHY_EN[why] ?? why
 
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
@@ -117,6 +164,7 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
   const out: string[] = []
   out.push(`Memory trace of the last reply${title ? `: ${title}` : ''}`)
   const lit = tr.litopys
+  if (tr.replies.length > 1) out.push(`Reply ${tr.back + 1} of ${tr.replies.length} remembered (1 = the newest)`)
   if (!lit) {
     out.push(tr.unavailable ? 'Litopys did not answer (an older plugin, or it is off).' : 'Litopys inserted nothing for the last reply, or no reply has been traced yet.')
   } else {
@@ -152,6 +200,11 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
     if (!db.off && !db.hits.length) out.push('- no chunk matched')
     for (const s of db.scoped) out.push(`- ${s.file} kept out by its scope (${s.scope}${s.target ? ` ${s.target}` : ''})`)
     if (db.scopedMore) out.push(`- and ${db.scopedMore} more files kept out by scope`)
+  }
+  const wk = tr.worker
+  if (wk) {
+    out.push('', `The worker left out ${wk.skips.length} fact op(s) of its last scene${wk.chapter ? ` (chapter ${wk.chapter})` : ''}, ${wk.added} of ${wk.got} were kept:`)
+    for (const s of wk.skips) out.push(`- ${s.id ? s.id + ' ' : ''}[${skipEn(s.why)}] ${cut(s.text, 120)}`)
   }
   out.push('', 'After the reply:')
   if (tr.keptOut) out.push(`- the sensor kept out ${tr.keptOut.user} fact(s) about the user's character and ${tr.keptOut.absent} about people not in the scene`)
