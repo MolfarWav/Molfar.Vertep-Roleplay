@@ -1074,12 +1074,47 @@ const DB_STOPWORDS = new Set(("the and for are but not you all any can had her w
   "their theirs myself yourself himself herself itself ourselves themselves").split(" "));
 
 /** Is a bank file in this chat's scope? global always; character/chat files
- *  only for their target (a file without a target counts as global). */
+ *  only for their target (a file without a target counts as global). A chat file
+ *  names one chat (`scopeTargetId`) and, for a snapshot book, more (`scopeChatIds`);
+ *  a chat that continues one of them (Canvas links, `scope.chain` = the chats it
+ *  continues, nearest first) reads the file too, as it reads the other chat memory. */
 function databankInScope(file, scope) {
   if (!scope || !file.scopeTargetId || file.scope === "global" || !file.scope) return true;
-  if (file.scope === "chat") return file.scopeTargetId === scope.chatId;
+  if (file.scope === "chat") {
+    const ids = [file.scopeTargetId, ...(Array.isArray(file.scopeChatIds) ? file.scopeChatIds : [])];
+    return ids.some((id) => id === scope.chatId || (scope.chain || []).includes(id));
+  }
   if (file.scope === "character") return (scope.characterIds || []).includes(file.scopeTargetId);
   return true;
+}
+
+/** The chats this one continues through Canvas links, nearest first, at most 3 (the same chain the Litopys backstory reads). */
+function chatChain(fsx, chatId) {
+  const links = (jsonAt(fsx, "litopys/links.json") || {}).links;
+  const out = [];
+  if (!links || typeof links !== "object") return out;
+  const seen = new Set([chatId]);
+  for (let cur = links[chatId] && links[chatId].from; typeof cur === "string" && cur && !seen.has(cur) && out.length < 3; cur = links[cur] && links[cur].from) {
+    seen.add(cur);
+    out.push(cur);
+  }
+  return out;
+}
+
+/** Two spellings of one character's name: equal after norm(), or one is the whole first words of the other ("Aria" and "Aria Blackwood"). */
+function sameName(a, b) {
+  const x = norm(String(a || "")), y = norm(String(b || ""));
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y + " ") || y.startsWith(x + " ");
+}
+
+/** May the one character who speaks read this chunk of a snapshot book (#184 G2)? A fact chunk lists who knew it (`knownBy`),
+ *  a chapter or arc chunk who was there (`cast`); no list, "all", no speaker or a chunk of a plain file: yes. */
+function chunkVisibleTo(chunk, speaker) {
+  if (!speaker || !chunk || typeof chunk.kind !== "string") return true;
+  const list = chunk.kind === "fact" ? chunk.knownBy : chunk.cast;
+  if (!Array.isArray(list) || !list.length) return true;
+  return list.some((n) => sameName(n, speaker));
 }
 
 /** Top chunks by term density against the query — the retrieval half of the
@@ -1102,6 +1137,11 @@ function searchDatabank(fsx, query, limit = 3, scope, info) {
     let upgraded = false;
     for (const c of file.chunks || []) {
       if (!c.terms || typeof c.terms !== "object") { c.terms = dbTerms(String(c.text || "")); upgraded = true; }
+      // a snapshot book's passage the speaker did not witness or was not told stays out (counted for the memory trace)
+      if (scope && scope.speaker && !chunkVisibleTo(c, scope.speaker)) {
+        if (info && typeof info.hidden === "number") info.hidden++;
+        continue;
+      }
       let hits = 0;
       for (const t of terms) hits += Math.min(50, c.terms[t] || 0);
       if (hits > 0) {
@@ -3393,8 +3433,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // a file scoped to a character goes in when that character speaks; the whole roster only when the reply
   // voices all of them (narrator, append) (#184 P1e)
   const dbCharacterIds = isGroup && !rosterMembers.length && speaker && speaker.id ? [speaker.id] : members.map((m) => m.id);
-  const dbInfo = { scoped: [] };
-  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds }, dbInfo);
+  const dbInfo = { scoped: [], hidden: 0 };
+  // one character speaks: a snapshot book hides what that character did not witness; a narrator, a roster turn or a request to
+  // write the user's own line (impersonate) is not filtered
+  const dbSpeaker = !narrating && !rosterMembers.length && charName && !(opts && opts.gen === "impersonate") ? charName : "";
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds, chain: chatChain(fsx, meta.id), speaker: dbSpeaker }, dbInfo);
   const dbTrace = [];
   if (isOff("databank")) {
     omit("databank", "Data bank", "off for this chat", undefined, "databank");
@@ -3431,7 +3474,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         let before = null;
         try { before = JSON.parse(fsx.read(tfile)); } catch { /* none yet */ }
         const prev = before && typeof before === "object" ? [{ ...before, prev: undefined }, ...(Array.isArray(before.prev) ? before.prev : [])].slice(0, 4) : [];
-        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), prev }));
+        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), hidden: dbInfo.hidden, prev }));
         sweepDatabankTraces(fsx);
       }
     } catch { /* read-only: no trace */ }
@@ -5396,6 +5439,8 @@ export function handleRoute(req, host) {
           id: f.id, name: f.name, scope: f.scope || "global", scopeTargetId: f.scopeTargetId || null,
           status: "ready", size: f.size || 0, chunks: (f.chunks || []).length,
           enabled: f.enabled !== false, addedAt: f.addedAt || 0,
+          // a snapshot book (made by the Litopys "Save as a book"): where it came from and who reads it (#184)
+          ...(f.kind === "snapshot" ? { kind: "snapshot", source: f.source || null, scopeChatIds: Array.isArray(f.scopeChatIds) ? f.scopeChatIds : [] } : {}),
         })) });
       }
       if (req.method === "POST" && !id) {
@@ -5428,9 +5473,15 @@ export function handleRoute(req, host) {
         // ?chatId= searches what that chat would see; without it, every file
         const sc = req.query && req.query.chatId ? (() => {
           const ch = loadChat(fsx, String(req.query.chatId));
-          return ch ? { chatId: ch.meta.id, characterIds: chatMembers(fsx, ch.meta).map((m) => m.id) } : null;
+          return ch ? { chatId: ch.meta.id, characterIds: chatMembers(fsx, ch.meta).map((m) => m.id), chain: chatChain(fsx, ch.meta.id) } : null;
         })() : null;
         return ok({ results: searchDatabank(fsx, q, 8, sc) });
+      }
+      // a snapshot book with its passages (without the stored stems), for the Data Bank tab's passage editor (#184)
+      if (req.method === "GET" && id && id !== "search" && id !== "trace") {
+        const f = readJson("databank/" + id + ".json", null);
+        if (!f || f.kind !== "snapshot") return err(404, "no such book");
+        return ok({ file: { id: f.id, name: f.name, kind: "snapshot", source: f.source || null, scopeChatIds: f.scopeChatIds || [], chunks: (f.chunks || []).map((c) => ({ i: c.i, kind: c.kind, ref: c.ref, text: c.text, knownBy: c.knownBy, cast: c.cast })) } });
       }
       if (req.method === "PATCH" && id) {
         const b = body();
@@ -5438,7 +5489,28 @@ export function handleRoute(req, host) {
         if (!f) return err(404, "no such file");
         if (typeof b.enabled === "boolean") f.enabled = b.enabled;
         if (typeof b.name === "string" && b.name.trim()) f.name = b.name.trim().slice(0, 120);
-        if (["global", "character", "chat"].includes(b.scope)) {
+        if (f.kind === "snapshot") {
+          // a snapshot book (#184): read by chats only, never global or per character; after it is saved only the readers,
+          // the text of a passage and the removal of a passage change (nothing is rebuilt from the chat)
+          if (b.scope !== undefined && b.scope !== "chat") return err(400, "a book is read by chats only");
+          if (Array.isArray(b.scopeChatIds)) {
+            const ids = [...new Set(b.scopeChatIds.filter((x) => typeof x === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(x)))].slice(0, 24);
+            if (!ids.length) return err(400, "pick at least one chat that reads the book");
+            f.scopeChatIds = ids;
+            f.scopeTargetId = ids[0];
+            f.scope = "chat";
+          }
+          if (b.chunk && typeof b.chunk === "object") {
+            const at = Array.isArray(f.chunks) ? f.chunks.findIndex((c) => c.i === Number(b.chunk.i)) : -1;
+            if (at < 0) return err(404, "no such passage");
+            if (b.chunk.drop === true) f.chunks.splice(at, 1);
+            else if (typeof b.chunk.text === "string" && b.chunk.text.trim()) {
+              f.chunks[at].text = b.chunk.text.trim().slice(0, 4000);
+              f.chunks[at].terms = dbTerms(f.chunks[at].text);
+            } else return err(400, "text required");
+            f.size = f.chunks.reduce((n, c) => n + String(c.text || "").length, 0);
+          }
+        } else if (["global", "character", "chat"].includes(b.scope)) {
           f.scope = b.scope;
           f.scopeTargetId = b.scope !== "global" && typeof b.scopeTargetId === "string" && b.scopeTargetId ? b.scopeTargetId : null;
         }

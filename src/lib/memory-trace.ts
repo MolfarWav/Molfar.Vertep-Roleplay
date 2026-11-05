@@ -64,6 +64,8 @@ export interface DatabankTrace {
   hits: { file: string; n: number; score: number; state: 'in' | 'room' }[]
   scoped: { file: string; scope: string; target: string }[]
   scopedMore: number
+  /** passages of snapshot books kept out because the speaker was not there or was not told (#184) */
+  hidden?: number
 }
 
 /** Why the worker left a fact op out of its last scene: a near copy of a fact, only what the card says, no room (8 a scene), the fact is gone, an identical proposal is already waiting. */
@@ -218,6 +220,7 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
     if (!db.off && !db.hits.length) out.push('- no chunk matched')
     for (const s of db.scoped) out.push(`- ${s.file} kept out by its scope (${s.scope}${s.target ? ` ${s.target}` : ''})`)
     if (db.scopedMore) out.push(`- and ${db.scopedMore} more files kept out by scope`)
+    if (db.hidden) out.push(`- ${db.hidden} passage(s) of books kept out: the speaker was not there or was not told`)
   }
   const wk = tr.worker
   if (wk) {

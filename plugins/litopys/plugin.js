@@ -6344,6 +6344,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
   if (path === "/litopys/trace" && req.method === "GET") return traceRoute(fsx, req.query || {});
   if (path === "/litopys/vectors" && (req.method === "GET" || req.method === "POST")) return vectorsRoute(req, fsx);
+  if (path === "/litopys/book" && (req.method === "GET" || req.method === "POST")) return bookRoute(req, fsx);
   if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx, "card");
   if (path === "/litopys/memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
   if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview", "card");
@@ -7405,6 +7406,152 @@ function editStoryLine(source, line) {
   return null;
 }
 const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret", "order", "refusal", "lie", "other"]);
+
+// ---------- snapshot books (#184 G1, G2, G4): a story saved on the Data Bank shelf ----------
+/**
+ * A snapshot book is a Data Bank file (`databank/<id>.json`, the shelf the engine plugin searches) made from a chat's
+ * record: a chunk for each chapter, each arc and each active fact, with who knew it (`knownBy`, `cast`), so the engine's
+ * speaker filter keeps a passage from a character who did not witness it. It is a copy: the chat is never read again.
+ * Nothing here is a new kind of memory: the file is the one the Data Bank tab lists, searches and traces.
+ */
+const BOOK_DIR = "databank/";
+const BOOK_CHUNKS_MAX = 800;
+/** The names a chapter was written for: `cast` is kept only when it is short enough to mean something. */
+const nameList = (v) => arr(v).map((x) => str(x)).filter(Boolean).slice(0, 12);
+
+/** The chunks of a chat's record, in story order: arcs and chapters first, then the facts. */
+export function bookChunks(st) {
+  const chunks = [];
+  const castOf = new Map();
+  for (const ch of arr(st.chapters)) {
+    const text = str(ch.text);
+    if (!text) continue;
+    const cast = nameList(ch.cast);
+    castOf.set(ch.id, cast);
+    const label = str(ch.label);
+    chunks.push({ i: 0, text: label ? label + ": " + text : text, kind: "chapter", ref: str(ch.id), ...(cast.length ? { cast } : {}) });
+  }
+  for (const a of arr(st.arcs)) {
+    const text = str(a.text);
+    if (!text) continue;
+    // an arc is visible to whoever was in any of its chapters; when one of them has no cast it is not known who, so no filter
+    const members = arr(a.chapterIds).map((id) => castOf.get(id));
+    const known = members.length > 0 && members.every((c) => Array.isArray(c) && c.length > 0);
+    const cast = known ? [...new Set(members.flat())].slice(0, 24) : [];
+    const label = str(a.label);
+    chunks.push({ i: 0, text: label ? label + ": " + text : text, kind: "arc", ref: str(a.id), ...(cast.length ? { cast } : {}) });
+  }
+  for (const f of arr(st.facts)) {
+    const text = str(f.text);
+    if (f.status !== "active" || !text) continue;
+    const knownBy = f.knownBy === "all" ? "all" : nameList(f.knownBy);
+    chunks.push({ i: 0, text, kind: "fact", ref: str(f.id), knownBy: Array.isArray(knownBy) && !knownBy.length ? "all" : knownBy });
+  }
+  return chunks.slice(0, BOOK_CHUNKS_MAX).map((c, i) => ({ ...c, i }));
+}
+
+/** The books made from one chat, newest version of each family first: [{ id, name, family, version, enabled, takenAt, readers }]. */
+function booksOfChat(fsx, chatId) {
+  const out = [];
+  let names = [];
+  try {
+    names = fsx.list(BOOK_DIR);
+  } catch {}
+  for (const f of names) {
+    if (!f.endsWith(".json") || f.startsWith("_")) continue;
+    const file = readJson(fsx, BOOK_DIR + f, null);
+    if (!isObj(file) || file.kind !== "snapshot" || !isObj(file.source) || str(file.source.chatId) !== chatId) continue;
+    out.push({ id: str(file.id), name: str(file.name), family: str(file.source.family), version: Number(file.source.version) || 1, enabled: file.enabled !== false, takenAt: Number(file.source.takenAt) || 0, readers: arr(file.scopeChatIds).map((x) => str(x)).filter(Boolean) });
+  }
+  return out.sort((a, b) => b.takenAt - a.takenAt);
+}
+
+/** GET /litopys/book?chatId=: what saving this chat as a book would hold, the books already made from it, and who would read a new one by default. */
+export function bookPreview(fsx, chatId) {
+  const st = SAFE_ID.test(chatId) ? loadChatFile(fsx, chatId) : null;
+  const rc = st ? readChat(fsx, chatId) : null;
+  if (!st || !rc) return null;
+  const chunks = bookChunks(st);
+  let chars = 0;
+  for (const c of chunks) chars += c.text.length;
+  const links = loadLinks(fsx);
+  const count = (kind) => chunks.filter((c) => c.kind === kind).length;
+  return {
+    chatId,
+    title: str(rc.meta.title) || chatId,
+    chapters: count("chapter"),
+    arcs: count("arc"),
+    facts: count("fact"),
+    tokens: Math.ceil(chars / 4),
+    capped: arr(st.facts).filter((f) => f.status === "active" && str(f.text)).length + arr(st.chapters).filter((c) => str(c.text)).length + arr(st.arcs).filter((a) => str(a.text)).length > chunks.length,
+    // the chats that continue this one read its story already through the chain; a book is offered to them first
+    readers: Object.keys(links).filter((k) => links[k].from === chatId),
+    books: booksOfChat(fsx, chatId),
+  };
+}
+
+/**
+ * POST /litopys/book { chatId, name?, readers: [chatId], update?: <bookId> }: make a book from the chat as it is now. With `update`
+ * the new book is the next version of that one's family and the old one is switched off (it stays until it is deleted).
+ * A book is read by `readers` (and by chats that continue them), never by everyone: at least one reader is needed.
+ */
+export function bookSave(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const chatId = str(b.chatId);
+  const st = SAFE_ID.test(chatId) ? loadChatFile(fsx, chatId) : null;
+  const rc = st ? readChat(fsx, chatId) : null;
+  if (!st || !rc) return { status: 404, json: { error: "no such chat" } };
+  const readers = [...new Set(arr(b.readers).map((x) => str(x)).filter((x) => SAFE_ID.test(x) && chatExists(fsx, x)))].slice(0, 24);
+  if (!readers.length) return { status: 400, json: { error: "pick at least one chat that reads the book" } };
+  const chunks = bookChunks(st);
+  if (!chunks.length) return { status: 400, json: { error: "this chat has no chapters or facts to save yet" } };
+  let family = "";
+  let version = 1;
+  let old = null;
+  if (b.update !== undefined && b.update !== null && b.update !== "") {
+    const oldId = str(b.update);
+    old = SAFE_ID.test(oldId) ? readJson(fsx, BOOK_DIR + oldId + ".json", null) : null;
+    if (!isObj(old) || old.kind !== "snapshot" || !isObj(old.source) || str(old.source.chatId) !== chatId) return { status: 404, json: { error: "no such book of this chat" } };
+    family = str(old.source.family);
+    // the newest version of the family is the one that is updated
+    const newest = booksOfChat(fsx, chatId).filter((x) => x.family === family).reduce((m, x) => Math.max(m, x.version), 0);
+    version = newest + 1;
+  }
+  const now = Date.now();
+  const id = "bk_" + now.toString(36) + Math.random().toString(36).slice(2, 8);
+  if (!family) family = id;
+  const title = str(rc.meta.title) || chatId;
+  const name = cut(str(b.name) || (old ? str(old.name).replace(/ v\d+$/, "") : title), 100) + (version > 1 ? " v" + version : "");
+  let size = 0;
+  for (const c of chunks) size += c.text.length;
+  const file = {
+    id,
+    name,
+    kind: "snapshot",
+    scope: "chat",
+    scopeTargetId: readers[0],
+    scopeChatIds: readers,
+    enabled: true,
+    addedAt: now,
+    size,
+    source: { chatId, title, takenAt: now, family, version },
+    chunks,
+  };
+  fsx.write(BOOK_DIR + id + ".json", JSON.stringify(file));
+  if (old) {
+    old.enabled = false;
+    fsx.write(BOOK_DIR + str(old.id) + ".json", JSON.stringify(old));
+  }
+  return { status: 200, json: { ok: true, id, name, version, chunks: chunks.length, books: booksOfChat(fsx, chatId) } };
+}
+
+function bookRoute(req, fsx) {
+  if (req.method === "GET") {
+    const p = bookPreview(fsx, str((req.query || {}).chatId));
+    return p ? { status: 200, json: p } : { status: 404, json: { error: "no such chat" } };
+  }
+  return bookSave(fsx, req.body);
+}
 
 // ---------- what a chat carries (the strip under the chat header, #107) ----------
 const OPENING_HINT_MAX = 4;

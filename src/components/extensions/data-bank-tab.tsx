@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import { useApp } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Database, FileText, CircleNotch, Trash, UploadSimple, Globe, User, ChatCircle } from '@phosphor-icons/react'
+import { Database, FileText, CircleNotch, Trash, UploadSimple, Globe, User, ChatCircle, BookOpen } from '@phosphor-icons/react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useT } from '@/hooks/use-t'
@@ -11,6 +11,7 @@ import type { DataBankFile } from '@/lib/types'
 import { useConfirm } from '@/components/ui/confirm'
 import { toast } from 'sonner'
 import { j } from '@/lib/engine'
+import { BookPassages } from '@/components/memory/book-passages'
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -116,6 +117,26 @@ function FileScope({ f }: { f: DataBankFile }) {
   )
 }
 
+/** The line under a snapshot book's name (#184): where it came from, its version, and the button for its readers and passages. */
+function BookLine({ f }: { f: DataBankFile }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const readers = f.scopeChatIds?.length ?? 0
+  return (
+    <>
+      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+        <BookOpen className="size-3 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 break-words">{t('book.fromChat', { title: f.source?.title ?? '', version: f.source?.version ?? 1 })}</span>
+        <span>·</span>
+        <button type="button" className="rounded-full border border-border px-2 py-0.5 hover:bg-accent/50 max-md:min-h-8" onClick={() => setOpen(true)} data-testid="book-open">
+          {t('book.readersCount', { n: readers })} · {t('book.openPassages')}
+        </button>
+      </p>
+      <BookPassages book={f} open={open} onOpenChange={setOpen} />
+    </>
+  )
+}
+
 export function DataBankTab() {
   const dataBank = useApp((s) => s.dataBank)
   const uploadDataBankFile = useApp((s) => s.uploadDataBankFile)
@@ -195,8 +216,8 @@ export function DataBankTab() {
             <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{f.name}</p>
-              <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.chunks} chunk{f.chunks === 1 ? '' : 's'}</p>
-              <FileScope f={f} />
+              <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.chunks} {f.kind === 'snapshot' ? t('book.passageWord', { n: f.chunks }) : `chunk${f.chunks === 1 ? '' : 's'}`}</p>
+              {f.kind === 'snapshot' ? <BookLine f={f} /> : <FileScope f={f} />}
             </div>
             <Switch
               checked={f.enabled}
