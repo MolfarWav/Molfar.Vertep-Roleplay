@@ -1810,7 +1810,9 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   const litOn = lit.enabled !== false && lit.insert !== false;
   if (litOn && !off("plugin:litopys")) {
     // the fixed size, or "auto": 15% of the model's window, at least 800 (litopys autoBudget)
-    const budget = lit.budgetMode === "auto" && Number(windowTokens) > 0 ? clampInt(Number(windowTokens) * 0.15, 800, 16000, 800) : clampInt(lit.budget, 200, 16000, 800);
+    // the mode rule is the Litopys plugin's budgetModeOf: what it says, else fixed when a size of its own is saved, else auto
+    const litAuto = lit.budgetMode === "auto" || (lit.budgetMode !== "fixed" && !("budget" in lit));
+    const budget = litAuto && Number(windowTokens) > 0 ? clampInt(Number(windowTokens) * 0.15, 800, 16000, 800) : clampInt(lit.budget, 200, 16000, 800);
     add("litopys", budget + 100);
     // 0.9.2: a chat that continues an earlier one also gets its backstory block (litopys linkBudget)
     const links = jsonAt(fsx, "litopys/links.json");
