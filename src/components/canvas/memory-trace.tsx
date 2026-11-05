@@ -321,6 +321,7 @@ function DatabankFold({ trace, t }: { trace: MemoryTrace; t: T }) {
           ]}
         </Rows>
       )}
+      {db && !db.off && (db.hidden ?? 0) > 0 && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.dbHidden', { n: db.hidden ?? 0 })}</p>}
       {db && db.scopedMore > 0 && rows > 0 && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: db.scopedMore })}</p>}
     </Fold>
   )

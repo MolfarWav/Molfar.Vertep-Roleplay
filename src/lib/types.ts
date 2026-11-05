@@ -782,6 +782,10 @@ export interface DataBankFile {
   chunks: number
   enabled: boolean
   addedAt?: number
+  /** a story saved as a book (#184): where it came from and which chats read it (the engine lists these on `kind: 'snapshot'` files only) */
+  kind?: 'snapshot'
+  source?: { chatId: ID; title: string; takenAt: number; family: string; version: number } | null
+  scopeChatIds?: ID[]
 }
 
 /** Named (connection, model) pair for one-click switching. Lives in the

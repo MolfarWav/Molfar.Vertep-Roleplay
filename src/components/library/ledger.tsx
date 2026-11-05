@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Scroll } from '@phosphor-icons/react'
+import { BookOpen, Scroll } from '@phosphor-icons/react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { habitCounts } from '@/lib/habit-earned'
 import { distinctName, fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
 import { MeaningCard } from '@/components/memory/meaning-card'
+import { BookDialog } from '@/components/memory/book-dialog'
 import { ArcNotice } from './arcs'
 import { FactsTab } from './ledger-facts'
 import { ChaptersTab } from './ledger-chapters'
@@ -59,6 +60,7 @@ export function LedgerChat({
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<TabId>(readStoredTab)
   const [bump, setBump] = useState(0)
+  const [bookOpen, setBookOpen] = useState(false)
   const seq = useRef(0)
   // the "earned a habit" toast asks for the Habits tab
   const tabRequest = useApp((s) => s.ledgerTabRequest)
@@ -151,14 +153,23 @@ export function LedgerChat({
   return (
     <ScrollArea className="min-h-0 flex-1">
       <div className="flex min-w-0 flex-col gap-3 p-3 md:p-5">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h2 className="min-w-0 break-words font-heading text-lg leading-tight">{chat.title}</h2>
-            {distinctName(chat.title, chat.name) && <span className="text-sm text-muted-foreground">{chat.name}</span>}
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <h2 className="min-w-0 break-words font-heading text-lg leading-tight">{chat.title}</h2>
+              {distinctName(chat.title, chat.name) && <span className="text-sm text-muted-foreground">{chat.name}</span>}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {t('lit.counts', { chapters: chat.chapters.length, facts: activeFacts, proposals: pending })}
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {t('lit.counts', { chapters: chat.chapters.length, facts: activeFacts, proposals: pending })}
-          </div>
+          {!empty && (
+            <Button variant="outline" size="sm" className="min-h-10 shrink-0 sm:min-h-8" onClick={() => setBookOpen(true)} data-testid="book-open-save">
+              <BookOpen className="size-4" aria-hidden="true" />
+              {t('book.saveAs')}
+            </Button>
+          )}
+          <BookDialog chatId={chat.chatId} open={bookOpen} onOpenChange={setBookOpen} />
         </div>
 
         {/* with no record yet, an idle chronicler's "Up to date" would contradict the empty state below */}

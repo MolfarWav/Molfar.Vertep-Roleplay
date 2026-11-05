@@ -369,6 +369,8 @@ interface AppState {
   updateExtension: (id: ID, patch: Partial<Extension>) => void
   uploadDataBankFile: (name: string, content: string, scope?: DataBankFile['scope'], scopeTargetId?: ID | null) => Promise<void>
   updateDataBankFile: (id: ID, patch: Partial<DataBankFile>) => void
+  /** read the shelf again (a book was saved or changed outside the list) */
+  refreshDataBank: () => Promise<void>
   deleteDataBankFile: (id: ID) => void
   addConnectionProfile: (p: Omit<ConnectionProfile, 'id'>) => ID
   updateConnectionProfile: (id: ID, patch: Partial<Omit<ConnectionProfile, 'id'>>) => void
@@ -2482,6 +2484,10 @@ export const useApp = create<AppState>()(
         bumpMutate()
         set((s) => ({ dataBank: s.dataBank.map((f) => (f.id === id ? { ...f, ...patch } : f)) }))
         writeThrough('the data bank entry', j(`/databank/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }))
+      },
+      refreshDataBank: async () => {
+        const r = await j<{ files?: DataBankFile[] }>('/databank')
+        set({ dataBank: r.files ?? [] })
       },
       deleteDataBankFile: (id) => {
         bumpMutate()

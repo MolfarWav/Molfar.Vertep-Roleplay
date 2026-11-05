@@ -1090,6 +1090,61 @@ describe("rp studio engine: data bank retrieval", () => {
     expect((await drive(engineUrl, { method: "GET", path: "/databank/trace" }, m)).status).toBe(400);
   }, 30_000);
 
+  it("a snapshot book (#184): a character does not get a passage it did not witness; scope follows the Canvas links; text and deletion are the only edits", async () => {
+    const m = mockHost();
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    const book = (extra: Record<string, unknown> = {}) => ({
+      id: "bk1", name: "Harbour book", kind: "snapshot", scope: "chat", scopeTargetId: id, scopeChatIds: [id], enabled: true, addedAt: 1, size: 100,
+      source: { chatId: "old", title: "Harbour", takenAt: 1, family: "bk1", version: 1 },
+      chunks: [
+        { i: 0, kind: "fact", ref: "f1", knownBy: ["Bram"], text: "The lantern vault code is thistle, known to Bram only." },
+        { i: 1, kind: "fact", ref: "f2", knownBy: ["Aria", "You"], text: "The lantern vault hides a brass key, known to Aria." },
+        { i: 2, kind: "chapter", ref: "c1", cast: ["Bram"], text: "Bram carried the lantern vault ledger through the harbour." },
+        { i: 3, kind: "fact", ref: "f3", knownBy: "all", text: "The lantern vault stands under the old harbour mill." },
+      ], ...extra,
+    });
+    fs.mkdirSync(path.join(root, "databank"), { recursive: true });
+    fs.writeFileSync(path.join(root, "databank", "bk1.json"), JSON.stringify(book()));
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "tell me about the lantern vault" } }, m);
+    const sent = (m.requests[0]!.req as { messages: { content: string }[] }).messages.map((x) => x.content).join("\n");
+    expect(sent).toContain("brass key");
+    expect(sent).toContain("old harbour mill");
+    expect(sent).not.toContain("thistle");
+    expect(sent).not.toContain("ledger");
+    const trace = ((await drive(engineUrl, { method: "GET", path: `/databank/trace?chatId=${id}` }, m)).json as { trace: { hidden: number } }).trace;
+    expect(trace.hidden).toBe(2);
+    // the list says it is a book and where it came from
+    const list = (await drive(engineUrl, { method: "GET", path: "/databank" }, m)).json.files as { id: string; kind?: string; source?: { title: string }; scopeChatIds?: string[] }[];
+    expect(list.find((f) => f.id === "bk1")).toMatchObject({ kind: "snapshot", source: { title: "Harbour" }, scopeChatIds: [id] });
+    // a chat that continues a reader chat reads the book too; another chat does not
+    fs.writeFileSync(path.join(root, "databank", "bk1.json"), JSON.stringify(book({ scopeTargetId: "readerchat", scopeChatIds: ["readerchat"] })));
+    const search = async () => ((await drive(engineUrl, { method: "GET", path: `/databank/search?q=lantern%20vault&chatId=${id}` }, m)).json as { results: { fileName: string }[] }).results.map((r) => r.fileName);
+    expect(await search()).toEqual([]);
+    fs.mkdirSync(path.join(root, "litopys"), { recursive: true });
+    fs.writeFileSync(path.join(root, "litopys", "links.json"), JSON.stringify({ v: 1, links: { [id]: { from: "readerchat", at: 1 } } }));
+    expect((await search()).length).toBeGreaterThan(0);
+    // edits: the readers, the text of a passage, the removal of a passage; never global
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { scope: "global" } }, m)).status).toBe(400);
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { scopeChatIds: [] } }, m)).status).toBe(400);
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { scopeChatIds: [id, "second"] } }, m)).status).toBe(200);
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { chunk: { i: 3, text: "The lantern vault stands under the new quay." } } }, m)).status).toBe(200);
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { chunk: { i: 0, drop: true } } }, m)).status).toBe(200);
+    expect((await drive(engineUrl, { method: "PATCH", path: "/databank/bk1", body: { chunk: { i: 9, drop: true } } }, m)).status).toBe(404);
+    const after = JSON.parse(fs.readFileSync(path.join(root, "databank", "bk1.json"), "utf8")) as { scopeTargetId: string; scopeChatIds: string[]; chunks: { i: number; text: string; terms?: unknown }[]; size: number };
+    expect(after.scopeChatIds).toEqual([id, "second"]);
+    expect(after.scopeTargetId).toBe(id);
+    expect(after.chunks.map((c) => c.i)).toEqual([1, 2, 3]);
+    expect(after.chunks.find((c) => c.i === 3)!.text).toContain("new quay");
+    expect(after.size).toBe(after.chunks.reduce((n, c) => n + c.text.length, 0));
+    // a plain file keeps its scope rules
+    await drive(engineUrl, { method: "POST", path: "/databank", body: { name: "doc.txt", content: "A plain document." } }, m);
+    const doc = ((await drive(engineUrl, { method: "GET", path: "/databank" }, m)).json.files as { id: string; kind?: string }[]).find((f) => f.id !== "bk1")!;
+    expect(doc.kind).toBeUndefined();
+    expect((await drive(engineUrl, { method: "PATCH", path: `/databank/${doc.id}`, body: { chunk: { i: 0, drop: true } } }, m)).status).toBe(200);
+    expect(JSON.parse(fs.readFileSync(path.join(root, "databank", doc.id + ".json"), "utf8")).chunks).toHaveLength(1);
+  }, 30_000);
+
   it("the memory trace keeps the earlier entries, says 'next' for an 'Answer now' turn and sweeps the traces of chats that are gone", async () => {
     const m = mockHost();
     fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "list", mutedIds: [] }));
