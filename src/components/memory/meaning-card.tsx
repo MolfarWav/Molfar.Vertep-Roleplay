@@ -6,7 +6,7 @@ import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import type { MsgKey } from '@/lib/i18n'
 import { canOpenSettingsTab, openSettingsTab } from '@/lib/shell-bridge'
-import { loadEmbedSetup, loadVectors, startEmbed } from '@/lib/vectors-load'
+import { loadEmbedSetup, loadShelf, loadVectors, startEmbed, startShelf } from '@/lib/vectors-load'
 import { meaningState, retryMinutes, roughTokens, toEmbed, type EmbedSetup, type MeaningState, type VectorsView } from '@/lib/vectors'
 
 const TONE: Record<MeaningState, ToneName> = { off: 'slate', empty: 'slate', all: 'emerald', partial: 'amber', none: 'amber', other: 'amber', failing: 'amber', working: 'sky' }
@@ -17,7 +17,16 @@ const POLL_MS = 3000
  * and a button that says what embedding the rest costs. Nothing is spent without a click.
  * Used in Canvas > Prompt > Memory and in Library > Litopys.
  */
-export function MeaningCard({ chatId, refreshKey, className }: { chatId: string; /** change it to read the numbers again (the Refresh button, a record that grew) */ refreshKey?: string | number; className?: string }) {
+export function MeaningCard({ chatId, shelf, refreshKey, onView, className }: {
+  chatId?: string
+  /** the Data Bank's passages instead of a chat's record (then `chatId` is ignored) */
+  shelf?: boolean
+  /** change it to read the numbers again (the Refresh button, a record that grew) */
+  refreshKey?: string | number
+  /** the view, each time it is read (the Data Bank tab shows a line per file) */
+  onView?: (v: VectorsView) => void
+  className?: string
+}) {
   const t = useT()
   // `t` is a new function on every render: effects read it through a ref
   const tRef = useRef(t)
@@ -25,37 +34,43 @@ export function MeaningCard({ chatId, refreshKey, className }: { chatId: string;
   const [view, setView] = useState<VectorsView | null>(null)
   const [setup, setSetup] = useState<EmbedSetup>('unknown')
   const [busy, setBusy] = useState(false)
-  const live = useRef(chatId)
-  live.current = chatId
+  const id = shelf ? 'shelf' : chatId ?? ''
+  const live = useRef(id)
+  live.current = id
+  const onViewRef = useRef(onView)
+  onViewRef.current = onView
+  const read = (): Promise<VectorsView> => (shelf ? loadShelf() : loadVectors(id))
+  const readRef = useRef(read)
+  readRef.current = read
 
   useEffect(() => {
     let gone = false
     void loadEmbedSetup().then((s) => { if (!gone) setSetup(s) })
-    void loadVectors(chatId).then((v) => { if (!gone && live.current === chatId) setView(v) }).catch(() => undefined)
+    void readRef.current().then((v) => { if (!gone && live.current === id) { setView(v); onViewRef.current?.(v) } }).catch(() => undefined)
     return () => { gone = true }
-  }, [chatId, refreshKey])
+  }, [id, refreshKey])
 
   // a view of the chat shown before this one is not this chat's
-  const state = meaningState(view && view.chatId === chatId ? view : null, setup)
+  const state = meaningState(view && view.chatId === id ? view : null, setup)
   // while the engine embeds, watch the count grow
   useEffect(() => {
     if (state !== 'working') return
     let gone = false
-    const id = setInterval(() => {
-      void loadVectors(chatId).then((v) => { if (!gone && live.current === chatId) setView(v) }).catch(() => undefined)
+    const timer = setInterval(() => {
+      void readRef.current().then((v) => { if (!gone && live.current === id) { setView(v); onViewRef.current?.(v) } }).catch(() => undefined)
     }, POLL_MS)
-    return () => { gone = true; clearInterval(id) }
-  }, [state, chatId])
+    return () => { gone = true; clearInterval(timer) }
+  }, [state, id])
 
-  if (!view || view.chatId !== chatId || !state || state === 'empty') return null
+  if (!view || view.chatId !== id || !state || state === 'empty') return null
 
   const n = toEmbed(view)
   const tokens = roughTokens(view.tokens)
   const run = async () => {
     setBusy(true)
     try {
-      const v = await startEmbed(chatId)
-      if (live.current === chatId) setView(v)
+      const v = shelf ? await startShelf() : await startEmbed(id)
+      if (live.current === id) { setView(v); onViewRef.current?.(v) }
     } catch (e) {
       toast.error(tRef.current('meaning.startFailed', { error: e instanceof Error ? e.message : String(e) }))
     } finally {
@@ -69,16 +84,16 @@ export function MeaningCard({ chatId, refreshKey, className }: { chatId: string;
   const line =
     state === 'off' ? t('meaning.off')
     : state === 'failing' ? t('meaning.failing', { min: retryMinutes(view, Date.now()) })
-    : state === 'none' ? t('meaning.none', { items: view.items })
+    : state === 'none' ? t(shelf ? 'meaning.shelf.none' : 'meaning.none', { items: view.items })
     : state === 'other' ? t('meaning.other', { n: view.other, have: view.have, items: view.items })
-    : state === 'partial' ? t('meaning.partial', { have: view.have, items: view.items })
+    : state === 'partial' ? t(shelf ? 'meaning.shelf.partial' : 'meaning.partial', { have: view.have, items: view.items })
     : state === 'working' ? t('meaning.working', { have: view.have, items: view.items })
-    : t('meaning.all', { items: view.items })
+    : t(shelf ? 'meaning.shelf.all' : 'meaning.all', { items: view.items })
 
   return (
-    <section className={cn('rounded-xl border border-border bg-card p-3', className)} data-testid="meaning-card" data-state={state} aria-label={t('meaning.title')}>
+    <section className={cn('rounded-xl border border-border bg-card p-3', className)} data-testid="meaning-card" data-state={state} aria-label={t(shelf ? 'meaning.shelf.title' : 'meaning.title')}>
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-body font-semibold">{t('meaning.title')}</h3>
+        <h3 className="text-body font-semibold">{t(shelf ? 'meaning.shelf.title' : 'meaning.title')}</h3>
         <span className={cn('inline-flex h-5 items-center rounded-full border px-1.5 text-caption font-medium', TONES[TONE[state]].chip)}>{t(`meaning.state.${state}` as MsgKey)}</span>
         {state === 'all' && view.model && <code className="min-w-0 truncate rounded bg-muted px-1 text-caption text-foreground/70">{view.model}</code>}
       </div>
@@ -100,7 +115,7 @@ export function MeaningCard({ chatId, refreshKey, className }: { chatId: string;
           )}
         </div>
       )}
-      {canEmbed && <p className="mt-2 text-caption text-muted-foreground">{t('meaning.note')}</p>}
+      {canEmbed && <p className="mt-2 text-caption text-muted-foreground">{t(shelf ? 'meaning.shelf.note' : 'meaning.note')}</p>}
     </section>
   )
 }

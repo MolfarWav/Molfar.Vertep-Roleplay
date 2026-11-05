@@ -12,6 +12,8 @@ import { useConfirm } from '@/components/ui/confirm'
 import { toast } from 'sonner'
 import { j } from '@/lib/engine'
 import { BookPassages } from '@/components/memory/book-passages'
+import { MeaningCard } from '@/components/memory/meaning-card'
+import type { VectorsView } from '@/lib/vectors'
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -153,6 +155,9 @@ export function DataBankTab() {
   const [upTarget, setUpTarget] = useState<string | null>(null)
   const [searchChat, setSearchChat] = useState(NO_TARGET)
   const needTarget = upScope !== 'global' && !upTarget
+  // the shelf's vectors (#184 DB-vec): the card reads them, each file's row says how many of its passages are covered
+  const [shelfView, setShelfView] = useState<VectorsView | null>(null)
+  const covered = new Map((shelfView?.files ?? []).map((x) => [x.id, x]))
 
   const upload = async (files: FileList) => {
     for (const f of Array.from(files)) {
@@ -210,6 +215,8 @@ export function DataBankTab() {
         </div>
       </div>
 
+      {dataBank.length > 0 && <MeaningCard shelf refreshKey={dataBank.map((f) => `${f.id}:${f.chunks}`).join(',')} onView={setShelfView} />}
+
       <ul className="flex flex-col gap-2">
         {dataBank.map((f) => (
           <li key={f.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
@@ -217,6 +224,12 @@ export function DataBankTab() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{f.name}</p>
               <p className="text-xs text-muted-foreground">{formatSize(f.size)} · {f.chunks} {f.kind === 'snapshot' ? t('book.passageWord', { n: f.chunks }) : `chunk${f.chunks === 1 ? '' : 's'}`}</p>
+              {(() => {
+                const c = covered.get(f.id)
+                return c && c.have > 0 && c.have < c.items
+                  ? <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="bank-coverage">{t('bank.byMeaning', { have: c.have, items: c.items })}</p>
+                  : null
+              })()}
               {f.kind === 'snapshot' ? <BookLine f={f} /> : <FileScope f={f} />}
             </div>
             <Switch

@@ -66,6 +66,8 @@ export interface DatabankTrace {
   scopedMore: number
   /** passages of snapshot books kept out because the speaker was not there or was not told (#184) */
   hidden?: number
+  /** the passages the words let in were ranked by meaning (#184 DB-vec): how many of them had a usable vector; absent when the reply had no scan vector */
+  sem?: { ranked: boolean; have: number; seen: number }
 }
 
 /** Why the worker left a fact op out of its last scene: a near copy of a fact, only what the card says, no room (8 a scene), the fact is gone, an identical proposal is already waiting. */
@@ -220,6 +222,7 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
     if (!db.off && !db.hits.length) out.push('- no chunk matched')
     for (const s of db.scoped) out.push(`- ${s.file} kept out by its scope (${s.scope}${s.target ? ` ${s.target}` : ''})`)
     if (db.scopedMore) out.push(`- and ${db.scopedMore} more files kept out by scope`)
+    if (db.sem && db.sem.seen > 0) out.push(db.sem.ranked && db.sem.have > 0 ? `- ranked by meaning: ${db.sem.have} of ${db.sem.seen} candidate(s) had a vector` : '- ranked by words only: the candidates had no usable vectors')
     if (db.hidden) out.push(`- ${db.hidden} passage(s) of books kept out: the speaker was not there or was not told`)
   }
   const wk = tr.worker

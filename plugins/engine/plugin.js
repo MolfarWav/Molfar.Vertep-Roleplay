@@ -1123,10 +1123,13 @@ function chunkVisibleTo(chunk, speaker) {
  *  forms in the text. Score is hits per 1000 characters so a long chunk can't
  *  win on size alone; the floor (2.0) keeps glancing hits out. Files written
  *  before stems were stored get them on first use. */
-function searchDatabank(fsx, query, limit = 3, scope, info) {
+export function searchDatabank(fsx, query, limit = 3, scope, info) {
   const terms = Object.keys(dbTerms(String(query || ""))).slice(0, 48);
   if (!terms.length) return [];
   const scored = [];
+  // by meaning (#184 DB-vec): the vectors Litopys keeps per file rank the passages the words already let in; they never let one in
+  const semOn = !!(scope && Array.isArray(scope.scanVec) && scope.scanVec.length);
+  const cos = []; // every visible passage of the shelf with a vector: the spread the z-score is taken against
   for (const file of listDatabank(fsx)) {
     if (file.enabled === false) continue;
     if (!databankInScope(file, scope)) {
@@ -1135,6 +1138,7 @@ function searchDatabank(fsx, query, limit = 3, scope, info) {
       continue;
     }
     let upgraded = false;
+    const fvec = semOn ? shelfVectorsFor(fsx, file.id, scope.scanModel) : null;
     for (const c of file.chunks || []) {
       if (!c.terms || typeof c.terms !== "object") { c.terms = dbTerms(String(c.text || "")); upgraded = true; }
       // a snapshot book's passage the speaker did not witness or was not told stays out (counted for the memory trace)
@@ -1142,16 +1146,68 @@ function searchDatabank(fsx, query, limit = 3, scope, info) {
         if (info && typeof info.hidden === "number") info.hidden++;
         continue;
       }
+      const vec = fvec && fvec.chunks[String(c.i)];
+      const sim = vec ? cosine(vec, scope.scanVec) : null;
+      if (sim !== null) cos.push(sim);
       let hits = 0;
       for (const t of terms) hits += Math.min(50, c.terms[t] || 0);
       if (hits > 0) {
         const score = Math.round((hits * 1000) / Math.max(200, String(c.text || "").length) * 10) / 10;
-        if (score >= 2.0) scored.push({ fileId: file.id, fileName: file.name, chunkIndex: c.i, text: c.text, score });
+        if (score >= 2.0) scored.push({ fileId: file.id, fileName: file.name, chunkIndex: c.i, text: c.text, score, sim });
       }
     }
     if (upgraded && file.id) { try { fsx.write("databank/" + file.id + ".json", JSON.stringify(file)); } catch { /* read-only: next time again */ } }
   }
+  if (semOn) {
+    const seen = scored.length;
+    const have = scored.filter((h) => h.sim !== null).length;
+    let ranked = false;
+    if (cos.length >= DB_SEM_MIN_POOL) {
+      const mean = cos.reduce((t, x) => t + x, 0) / cos.length;
+      const sd = Math.sqrt(cos.reduce((t, x) => t + (x - mean) * (x - mean), 0) / cos.length);
+      if (sd > 1e-6) {
+        ranked = true;
+        for (const h of scored) {
+          const z = h.sim === null ? 0 : (h.sim - mean) / sd;
+          if (z > 0) h.score = Math.round(h.score * (1 + DB_SEM_BOOST * Math.min(DB_SEM_Z_CAP, z) / DB_SEM_Z_CAP) * 10) / 10;
+        }
+      }
+    }
+    if (info) info.sem = { ranked, have, seen };
+  }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+/** The vectors Litopys keeps for one Data Bank file (`databank-vectors/<id>.json`, #184 DB-vec), when they were made by the
+ *  model that embedded the scan window; a file embedded by another model does not compare, so it counts as none. */
+const DB_SEM_MIN_POOL = 4;
+const DB_SEM_Z_CAP = 3;
+/** A passage with the best match by meaning scores up to this much more (x2.5), so it passes ones the words rate a little higher. */
+const DB_SEM_BOOST = 1.5;
+function shelfVectorsFor(fsx, id, model) {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return null;
+  try {
+    const vf = JSON.parse(fsx.read("databank-vectors/" + id + ".json"));
+    if (!vf || typeof vf !== "object" || !vf.chunks || typeof vf.chunks !== "object") return null;
+    if (model && vf.m && vf.m !== model) return null;
+    return vf;
+  } catch { return null; }
+}
+/** Forget the vector of one passage of a file (its text was edited or the passage dropped). */
+function dropShelfVector(fsx, id, chunkNo) {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return;
+  try {
+    const path = "databank-vectors/" + id + ".json";
+    const vf = JSON.parse(fsx.read(path));
+    if (vf && vf.chunks && typeof vf.chunks === "object" && String(chunkNo) in vf.chunks) {
+      delete vf.chunks[String(chunkNo)];
+      fsx.write(path, JSON.stringify(vf));
+    }
+  } catch { /* no vectors for this file */ }
+}
+/** Does the shelf keep any vectors? (then a reply embeds its scan window too, even when no Litopys vectors or vectorized entries exist) */
+function databankHasVectors(fsx) {
+  try { return fsx.list("databank-vectors").some((f) => f.endsWith(".json")); } catch { return false; }
 }
 
 // ---------- translation providers (on the two-phase net bridge) ----------
@@ -1277,7 +1333,7 @@ export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
     });
   }
   // an empty scan window has nothing to compare: embedding "" only fails
-  const wantScan = String(scanText || "").trim() !== "" && (anyVec || litopysHasVectors(fsx, meta));
+  const wantScan = String(scanText || "").trim() !== "" && (anyVec || litopysHasVectors(fsx, meta) || databankHasVectors(fsx));
   if (!needed.length && !wantScan) return null;
   return { needed, wantScan };
 }
@@ -3433,11 +3489,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // a file scoped to a character goes in when that character speaks; the whole roster only when the reply
   // voices all of them (narrator, append) (#184 P1e)
   const dbCharacterIds = isGroup && !rosterMembers.length && speaker && speaker.id ? [speaker.id] : members.map((m) => m.id);
-  const dbInfo = { scoped: [], hidden: 0 };
+  const dbInfo = { scoped: [], hidden: 0, sem: null };
   // one character speaks: a snapshot book hides what that character did not witness; a narrator, a roster turn or a request to
   // write the user's own line (impersonate) is not filtered
   const dbSpeaker = !narrating && !rosterMembers.length && charName && !(opts && opts.gen === "impersonate") ? charName : "";
-  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds, chain: chatChain(fsx, meta.id), speaker: dbSpeaker }, dbInfo);
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds, chain: chatChain(fsx, meta.id), speaker: dbSpeaker, scanVec: opts && Array.isArray(opts.scanVec) ? opts.scanVec : null, scanModel: opts && opts.scanModel ? String(opts.scanModel) : "" }, dbInfo);
   const dbTrace = [];
   if (isOff("databank")) {
     omit("databank", "Data bank", "off for this chat", undefined, "databank");
@@ -3474,7 +3530,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         let before = null;
         try { before = JSON.parse(fsx.read(tfile)); } catch { /* none yet */ }
         const prev = before && typeof before === "object" ? [{ ...before, prev: undefined }, ...(Array.isArray(before.prev) ? before.prev : [])].slice(0, 4) : [];
-        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), hidden: dbInfo.hidden, prev }));
+        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), hidden: dbInfo.hidden, ...(dbInfo.sem ? { sem: dbInfo.sem } : {}), prev }));
         sweepDatabankTraces(fsx);
       }
     } catch { /* read-only: no trace */ }
@@ -4975,7 +5031,9 @@ export function handleRoute(req, host) {
       || (isNarratorGroup(peekGroup) ? peekVoices[peekVoices.length - 1] : null)
       || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null)[0] : null)
       || members[0] || null;
-    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), dryRun: true, scanVec: scanVecPeek, gen: "preview" });
+    const scanInfoPeek = host.llm.embedInfo && host.llm.embedInfo.scan;
+    const scanModelPeek = scanInfoPeek && typeof scanInfoPeek.model === "string" ? scanInfoPeek.model : "";
+    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), dryRun: true, scanVec: scanVecPeek, scanModel: scanModelPeek, gen: "preview" });
     // tool defs ride the peek exactly as a send would (the wantsTools sibling
     // set) when the caller asks for them — host.siblingTools is absent on
     // engine builds without that contract
@@ -5503,11 +5561,14 @@ export function handleRoute(req, host) {
           if (b.chunk && typeof b.chunk === "object") {
             const at = Array.isArray(f.chunks) ? f.chunks.findIndex((c) => c.i === Number(b.chunk.i)) : -1;
             if (at < 0) return err(404, "no such passage");
+            const chunkNo = f.chunks[at].i;
             if (b.chunk.drop === true) f.chunks.splice(at, 1);
             else if (typeof b.chunk.text === "string" && b.chunk.text.trim()) {
               f.chunks[at].text = b.chunk.text.trim().slice(0, 4000);
               f.chunks[at].terms = dbTerms(f.chunks[at].text);
             } else return err(400, "text required");
+            // the vector made from the old text no longer describes the passage: Litopys makes a new one on the next fill (#184 DB-vec)
+            dropShelfVector(fsx, id, chunkNo);
             f.size = f.chunks.reduce((n, c) => n + String(c.text || "").length, 0);
           }
         } else if (["global", "character", "chat"].includes(b.scope)) {
@@ -5519,6 +5580,7 @@ export function handleRoute(req, host) {
       }
       if (req.method === "DELETE" && id) {
         try { fsx.remove("databank/" + id + ".json"); } catch { return err(404, "no such file"); }
+        try { fsx.remove("databank-vectors/" + id + ".json"); } catch { /* none was made */ }
         return ok({ ok: true });
       }
     }
@@ -5953,7 +6015,7 @@ const toolX = (r) => ({
         // embed the scan window (+ uncached entries) first — one extra pass
         const sp = semanticPrep(host, fsx, meta, staged, text, req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, staged, speaker, text, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "send" });
+        const a = assemble(fsx, meta, staged, speaker, text, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "send" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6037,7 +6099,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "next" });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "next" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6118,7 +6180,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "swipe", guidance: body().guidance });
+        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "swipe", guidance: body().guidance });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6235,7 +6297,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "continue" });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "continue" });
         // continue nudge: preset utility prompt (blank = plain continue, no
         // nudge appended — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
@@ -6362,7 +6424,7 @@ const toolX = (r) => ({
         // not marked generating: an impersonation never writes the transcript
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) return sp.pending;
-        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "impersonate" });
+        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "impersonate" });
         const un = chatUserName(fsx, meta);
         // impersonation prompt: preset utility prompt, macros expanded
         // (blank = impersonate from history alone — no hidden default text)
