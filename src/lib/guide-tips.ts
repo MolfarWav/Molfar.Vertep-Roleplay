@@ -536,8 +536,8 @@ const HAND_TIPS: Tip[] = [
     open: { view: 'chat', narrowPanel: 'chat-menu' },
     title: { en: 'The story tools are in the chat header', uk: 'Інструменти історії — у шапці чату' },
     body: {
-      en: 'Note, Lore, Record and World moved out of the three-dots menu into the header, each with its state: a dot when the note has text, how many lorebook entries fired, how many chapters the record has, the World DM’s status. The dashed button shows what the chat carries into the prompt. On a phone they are tiles at the top of the Menu.',
-      uk: '«Нотатка», «Лор», «Запис» і «Світ» вийшли з меню з трьома крапками в шапку, кожна зі своїм станом: крапка, коли в нотатці є текст, скільки записів лорбука спрацювало, скільки розділів у записі, стан майстра світу. Пунктирна кнопка показує, що чат несе в запит. На телефоні це плитки вгорі меню.',
+      en: 'Note, Fired, Record and World moved out of the three-dots menu into the header, each with its state: a dot when the note has text, how many lorebook entries went into the last reply, how many chapters the record has, the World DM’s status. The dashed button shows what the chat carries into the prompt. On a phone they are tiles at the top of the Menu.',
+      uk: '«Нотатка», «Спрацювало», «Запис» і «Світ» вийшли з меню з трьома крапками в шапку, кожна зі своїм станом: крапка, коли в нотатці є текст, скільки записів лорбука увійшло в останню відповідь, скільки розділів у записі, стан майстра світу. Пунктирна кнопка показує, що чат несе в запит. На телефоні це плитки вгорі меню.',
     },
   },
   // ── What's new: the help list itself
@@ -644,8 +644,8 @@ const HAND_TIPS: Tip[] = [
     help: 'chat',
     title: { en: 'The chat menu', uk: 'Меню чату' },
     body: {
-      en: 'The More button at the top of a chat (the Menu button on a phone) holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files. Author’s note, Lore, Record and World sit in the header next to it (on a phone, on top of the menu).',
-      uk: 'Кнопка «Ще» вгорі чату (кнопка Menu на телефоні): Convert to group, Branches, Bookmarks, Display settings, а нижче Start new chat, Delete messages і Manage chat files. «Нотатка», «Лор», «Запис» і «Світ» — у шапці поруч (на телефоні — угорі меню).',
+      en: 'The More button at the top of a chat (the Menu button on a phone) holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files. Author’s note, Fired, Record and World sit in the header next to it (on a phone, on top of the menu).',
+      uk: 'Кнопка «Ще» вгорі чату (кнопка Menu на телефоні): Convert to group, Branches, Bookmarks, Display settings, а нижче Start new chat, Delete messages і Manage chat files. «Нотатка», «Спрацювало», «Запис» і «Світ» — у шапці поруч (на телефоні — угорі меню).',
     },
     keywords: { en: 'author note bookmarks branches background display convert group delete export import chat files', uk: 'нотатка автора закладки гілки фон відображення група видалити експорт імпорт файли чату' },
   },
@@ -947,8 +947,8 @@ const HAND_TIPS: Tip[] = [
     help: 'world',
     title: { en: 'Test triggers', uk: 'Перевірити тригери' },
     body: {
-      en: 'Paste a message to see which entries of a book would fire and why, or what was held back. Lore in the chat header (on a phone: Menu) shows the same for the chat you have open.',
-      uk: 'Вставте повідомлення, щоб побачити, які записи книги спрацюють і чому, а що буде стримано. «Лор» у шапці чату (на телефоні: Меню) показує те саме для відкритого чату.',
+      en: 'Paste a message to see which entries of a book would fire and why, or what was held back. Fired in the chat header (on a phone: Menu) shows what really went into the last reply of the chat you have open, and in how many replies.',
+      uk: 'Вставте повідомлення, щоб побачити, які записи книги спрацюють і чому, а що буде стримано. «Спрацювало» у шапці чату (на телефоні: Меню) показує, що справді потрапило в останню відповідь відкритого чату і в скількох відповідях.',
     },
     keywords: { en: 'keywords not firing debug why activation scan', uk: 'ключові слова не спрацьовує налагодження чому активація' },
   },
@@ -1048,8 +1048,8 @@ const HAND_TIPS: Tip[] = [
     target: 'menu.tools',
     title: { en: 'Tools for this chat', uk: 'Інструменти чату' },
     body: {
-      en: 'Convert to group, Branches, Bookmarks and Display settings for this chat. Note, Lore, Record and World sit in the chat header (on a phone, on top of this menu).',
-      uk: 'Convert to group, Branches, Bookmarks і Display settings для цього чату. «Нотатка», «Лор», «Запис» і «Світ» — у шапці чату (на телефоні — угорі цього меню).',
+      en: 'Convert to group, Branches, Bookmarks and Display settings for this chat. Note, Fired, Record and World sit in the chat header (on a phone, on top of this menu).',
+      uk: 'Convert to group, Branches, Bookmarks і Display settings для цього чату. «Нотатка», «Спрацювало», «Запис» і «Світ» — у шапці чату (на телефоні — угорі цього меню).',
     },
   },
   {

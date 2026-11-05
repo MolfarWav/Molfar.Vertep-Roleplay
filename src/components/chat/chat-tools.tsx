@@ -1,9 +1,9 @@
-// The chat's story tools (#109): Author's note, Lorebook activity, Story record, World DM and what the chat carries,
+// The chat's story tools (#109): Author's note, what fired (#253), Story record, World DM and what the chat carries,
 // as tinted buttons with their live state in the middle of the chat header; the phone shows the same as tiles at the
 // top of the chat menu. The tools open the sheets chat-view owns; this file only draws them.
 
 import { useEffect, useState } from 'react'
-import { BookOpenText, Brain, CaretRight, GlobeHemisphereWest, Note, Stack } from '@phosphor-icons/react'
+import { Brain, CaretRight, GlobeHemisphereWest, Lightning, Note, Stack } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
@@ -22,7 +22,7 @@ const TINT: Record<ToolKey | 'carries', { box: string; icon: string }> = {
   world: { box: 'border-emerald-500/40 bg-emerald-500/10', icon: 'text-emerald-600 dark:text-emerald-300' },
   carries: { box: 'border-dashed border-border bg-muted/40', icon: 'text-muted-foreground' },
 }
-const ICON: Record<ToolKey | 'carries', PhosphorIcon> = { note: Note, lore: BookOpenText, record: Brain, world: GlobeHemisphereWest, carries: Stack }
+const ICON: Record<ToolKey | 'carries', PhosphorIcon> = { note: Note, lore: Lightning, record: Brain, world: GlobeHemisphereWest, carries: Stack }
 
 export interface ToolState {
   noteWritten: boolean
@@ -61,7 +61,7 @@ function useToolItems(state: ToolState, on: ToolHandlers, compact: boolean): Too
     },
     {
       key: 'lore', short: t('tools.lore'), badge: state.loreFired ? String(state.loreFired) : null, dot: null, onSelect: on.lore,
-      aria: state.loreFired ? t('tools.loreFired', { name: t('lore.activity.title'), n: state.loreFired }) : t('lore.activity.title'),
+      aria: state.loreFired ? t('tools.loreFired', { name: t('fired.title'), n: state.loreFired }) : t('fired.title'),
     },
     {
       key: 'record', short: t('tools.record'), badge: state.chapters ? String(state.chapters) : null, dot: null, onSelect: on.record,

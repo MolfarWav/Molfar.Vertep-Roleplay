@@ -1,34 +1,42 @@
-<!-- source: fe19559d281a -->
+<!-- source: e65c6432f795 -->
 # Qué memoria para qué
 
-Roleplay tiene varias cosas que "recuerdan". Difieren en quién las guarda, qué contienen y cuánto duran. Si un personaje olvida algo, esta página te dice a cuál acudir.
+Roleplay tiene varias cosas que "recuerdan". Se diferencian en quién las guarda, qué contienen y cuánto duran. Si un personaje olvida algo, esta página te dice a cuál acudir.
 
 ## Las clases
 
-**Historial del chat.** Los mensajes mismos. El modelo ve tantos recientes como su ventana permite.
+**Historial del chat.** Los mensajes mismos. El modelo ve tantos recientes como permita su ventana.
 
 **Dashboard** ([[dashboard]]). Por chat, el estado *actual* de la escena: quién está presente, sentimientos, atuendos, misiones abiertas, qué sabe cada personaje. Cambia con cada respuesta.
 
-**Litopys** ([[litopys]]). Por chat, el *pasado* de la historia: un capítulo por escena terminada y una lista de hechos. En esto se apoya un chat largo cuando los mensajes viejos salen del prompt.
+**Litopys** ([[litopys]]). Por chat, el *pasado* de la historia: un capítulo por cada escena terminada y una lista de hechos. Es en lo que se apoya un chat largo cuando los mensajes antiguos salen del prompt.
 
-**Memoria de la tarjeta.** Por personaje, entre chats: lo que el personaje recuerda de historias terminadas, sus hechos, notas, líneas dichas y hábitos ganados. Vive en la pestaña "Memory" del editor de tarjetas. Importas un chat terminado, ves qué se conservaría, marcas qué guardar, y un interruptor apaga una historia para los chats nuevos. Tiene su propio tamaño (Compact, 800 tokens por defecto). No forma parte del texto de la tarjeta y nunca aparece en una tarjeta exportada.
+**Memoria de la tarjeta.** Por personaje, entre chats: lo que el personaje recuerda de historias terminadas, sus hechos, notas, frases dichas y hábitos adquiridos. Vive en la pestaña "Memory" del editor de tarjetas. Importas un chat terminado, ves qué se conservaría, marcas qué guardar, y un interruptor desactiva una historia para los chats nuevos. Tiene su propio tamaño (Compact, 800 tokens por defecto). No forma parte del texto de la tarjeta y nunca aparece en una tarjeta exportada.
 
-**Lorebooks.** Entradas de referencia que se unen al prompt cuando aparecen sus palabras clave, o siempre para unas pocas. Guardan las reglas, lugares y personas del mundo. Vincula un libro a una tarjeta o grupo, o márcalo Global para que llegue a todos los chats. Un chat también recibe su propio libro de mundo escrito por el World DM ([[world-dm]]).
+**Lorebooks.** Entradas de referencia que se añaden al prompt cuando aparecen sus palabras clave, o siempre en el caso de unas pocas. Guardan las reglas, los lugares y las personas del mundo. Vincula un libro a una tarjeta o a un grupo, o márcalo como Global para que llegue a todos los chats. Un chat también recibe su propio libro de mundo, escrito por el World DM ([[world-dm]]). Una entrada marcada como **By meaning** se activa cuando su sentido se parece a los mensajes recientes, incluso sin palabra clave. Con un modelo de embeddings local, el motor compara entre sí las entradas de un libro: una entrada se activa cuando destaca sobre las demás para este mensaje, hasta 10 entradas por libro. Un libro con menos de 4 de esas entradas usa una cercanía fija. Una entrada con palabras clave secundarias sigue necesitándolas. Si cambias el modelo de embeddings, las entradas se vuelven a generar solas en una o dos respuestas.
 
-**Data Bank** (Tools). Documentos de texto que subes (solo formatos de texto, hasta 2 MB cada uno). En cada mensaje se añaden los pasajes más relevantes. Úsalo para material de referencia largo, no para la historia misma.
+**Data Bank** (Tools). Documentos de texto que subes (solo formatos de texto, hasta 2 MB cada uno). En cada mensaje se añaden los pasajes más relevantes: se encuentran primero por palabras y, si hay un modelo de embeddings configurado, también se ordenan por significado (la tarjeta **Data Bank by meaning** de la misma pantalla: un clic, o el motor lo hace solo cuando la vectorización funciona). Úsalo para material de referencia largo, no para la historia misma. Un **book** es un archivo del Data Bank creado a partir de una historia: en Library > Litopys, **Save as a book** copia los capítulos, arcos y hechos de un chat a un archivo de biblioteca que otros chats pueden leer. Eliges qué chats pueden leerlo (los chats que continúan este se eligen solos). Es una copia, no un enlace: los cambios posteriores del chat no llegan a ella, y **Save a new version** conserva la anterior. Un personaje solo recibe pasajes que podría conocer: cada hecho conserva su lista de "known by" y cada capítulo su reparto. En la pestaña Data Bank, **passages** te permite corregir o borrar un pasaje y cambiar quién puede leerlo; la vista Memory cuenta los pasajes que quedaron fuera.
 
-**Nota del autor** (encabezado del chat, "Note"). Texto que escribes solo para este chat, colocado a una profundidad y en un papel que eliges. Úsalo para dirigir: una pista de estilo, un empujón de trama.
+**Nota del autor** (encabezado del chat, "Note"). Texto que escribes solo para este chat, colocado a la profundidad y con el rol que elijas. Úsalo para dirigir: una pista de estilo, un empujón de trama.
 
-**Soul** ([[soul]]). No es memoria de eventos sino cómo reacciona un personaje; nunca cambia durante el juego.
+**Soul** ([[soul]]). No es memoria de sucesos sino la forma en que reacciona un personaje; nunca cambia durante el juego.
 
 ## Cuál usar
 
-- "Ella debería recordar la pelea de anoche": el Dashboard lo maneja a corto plazo; Litopys lo guarda a largo plazo. Añade un hecho fijado si no debe perderse nunca.
-- "Ella debería recordar la historia anterior en un chat nuevo": memoria de la tarjeta, o vincula los chats en el Canvas para que el chat anterior traiga su historia como trasfondo.
+- "Ella debería recordar la pelea de anoche": el Dashboard lo lleva a corto plazo; Litopys lo guarda a largo plazo. Añade un hecho fijado si no debe perderse nunca.
+- "Ella debería recordar la historia anterior en un chat nuevo": memoria de la tarjeta, o vincula los chats en el Canvas para que el chat anterior aporte su historia como trasfondo.
 - "El mundo tiene una regla o un lugar": un lorebook.
-- "Quiero que las próximas respuestas vayan en esta dirección": nota del autor, o el botón "Story, move".
+- "Quiero que las próximas respuestas vayan por este camino": nota del autor, o el botón "Story, move".
 - "Tengo un documento largo": Data Bank.
+
+## ¿Por qué lo sabía?
+
+Abre **Canvas > Prompt** ([[canvas]]) y cambia el tablero de **Parts** a **Memory**. Muestra qué puso la memoria en la última respuesta y qué dejó fuera, y por qué: los hechos que entraron (con su rango y quién los sabe), los que se dejaron fuera porque el hablante no los conoce, los que no cupieron en el tamaño de memoria, los capítulos, lo que encontró el Data Bank y cualquier cosa que marcaran las comprobaciones posteriores a la respuesta. Las personas aparecen con su id de la lista de personas del chat, así que "Sina" y "Sina Rose" se distinguen. **Copy report** copia lo mismo al portapapeles como texto plano: pégalo a quien te ayude a depurar la memoria. La fila de botones de arriba recorre las últimas cinco respuestas (los aciertos del Data Bank van con ellas); las comprobaciones posteriores se conservan solo para la más reciente. Un bloque llamado **Worker: left out of the last scene** enumera los hechos que el trabajador de capítulos no guardó y por qué: una copia casi literal de un hecho que ya tenía, solo lo que dice la tarjeta, más de ocho en una escena, un hecho que ya no existe, o la misma propuesta que ya espera. El bloque **Checked after the reply** nombra los hechos que el sensor del Dashboard no pudo conservar (sobre tu propio personaje, sobre alguien que no está en la escena, un suceso importante sin cita), no solo cuántos son. El resumen también dice **Ranked by meaning: yes** con cuántos candidatos tenían vector, o **no** y el motivo (el chat aún no tiene vectores, la última llamada al modelo de embeddings falló, o esta respuesta no se vectorizó). Eso distingue "la respuesta nunca estuvo en la memoria" de "la búsqueda por significado falló". En el chat, el panel "What this chat carries" tiene un botón **Why?** en la fila de Litopys que abre el panel **Fired** en su pestaña Litopys.
+
+## Qué se activó en este chat
+
+El botón **Fired** (rayo) del encabezado del chat abre un único panel para la última respuesta, con pestañas por fuente: **Lorebooks** (azul), **Litopys** (violeta), **Data Bank** (verde azulado) y **Vectors** (verde). El interruptor de arriba elige **Last reply** o **Whole chat**. Para la última respuesta, Lorebooks agrupa las entradas según cómo entraron: por significado (con una barra de cercanía, la más cercana primero), por clave (qué clave coincidió), retenidas de antes (sticky), siempre activas (no se cuentan, entran en cada respuesta), luego **Held back** (un retraso, un enfriamiento, una probabilidad, un grupo, o palabras clave secundarias que fallaron; también una entrada que estaba cerca en significado) y **Over the budget**. Para todo el chat, cada entrada de lorebook, hecho o capítulo de Litopys y pasaje del Data Bank muestra "N of M replies", cómo entró y cuándo entró por última vez. El conteo es aproximado: una entrada que sigue dentro de la ventana de análisis cuenta en cada respuesta que la llevó; un swipe reemplaza la respuesta anterior a él; una vista previa no suma nada; nada se cuenta de antes de la actualización. La pestaña Vectors muestra qué memoria tiene vectores y qué fuente los usó en la última respuesta. **Copy report** entrega lo mismo como texto plano. La página Lorebooks, sección Active, sigue mostrando lo que *se activaría* con el siguiente mensaje, solo por claves.
 
 ## Costos
 
-Todo esto ocupa lugar en el prompt. El tablero Prompt del Canvas muestra cada parte con su conteo de tokens y te deja apagar partes para un chat. En un modelo pequeño, baja "Memory size" de Litopys, mantén la memoria de tarjeta Compact y prefiere pocas entradas cortas de lorebook.
+Todo esto ocupa espacio en el prompt. El tablero Prompt del Canvas muestra cada parte con su conteo de tokens y te deja apagar partes para un chat. En un modelo pequeño, baja el "Memory size" de Litopys, mantén la memoria de tarjeta en Compact y prefiere pocas entradas de lorebook cortas.

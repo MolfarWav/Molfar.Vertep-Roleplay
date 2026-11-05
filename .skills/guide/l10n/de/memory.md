@@ -1,34 +1,42 @@
-<!-- source: fe19559d281a -->
+<!-- source: e65c6432f795 -->
 # Welches Gedächtnis wofür
 
-Roleplay hat mehrere Dinge, die „sich erinnern“. Sie unterscheiden sich darin, wer sie behält, was sie enthalten und wie lange sie halten. Wenn ein Charakter etwas vergisst, sagt dir diese Seite, zu welchem du greifen solltest.
+Roleplay hat mehrere Dinge, die sich „erinnern“. Sie unterscheiden sich darin, wer sie behält, was sie enthalten und wie lange sie halten. Vergisst ein Charakter etwas, sagt dir diese Seite, zu welchem du greifen solltest.
 
 ## Die Arten
 
-**Chatverlauf.** Die Nachrichten selbst. Das Modell sieht so viele der jüngsten, wie sein Fenster erlaubt.
+**Chatverlauf.** Die Nachrichten selbst. Das Modell sieht so viele der letzten, wie sein Fenster erlaubt.
 
-**Dashboard** ([[dashboard]]). Pro Chat der *aktuelle* Zustand der Szene: wer anwesend ist, Gefühle, Kleidung, offene Quests, was jeder Charakter weiß. Es ändert sich mit jeder Antwort.
+**Dashboard** ([[dashboard]]). Pro Chat der *aktuelle* Zustand der Szene: wer anwesend ist, Gefühle, Outfits, offene Quests, was jeder Charakter weiß. Es ändert sich mit jeder Antwort.
 
-**Litopys** ([[litopys]]). Pro Chat die *Vergangenheit* der Geschichte: ein Kapitel pro abgeschlossener Szene und eine Liste von Fakten. Darauf stützt sich ein langer Chat, nachdem ältere Nachrichten den Prompt verlassen haben.
+**Litopys** ([[litopys]]). Pro Chat die *Vergangenheit* der Geschichte: ein Kapitel pro abgeschlossener Szene und eine Liste von Fakten. Darauf stützt sich ein langer Chat, sobald ältere Nachrichten den Prompt verlassen haben.
 
-**Kartengedächtnis.** Pro Charakter, über Chats hinweg: was der Charakter aus abgeschlossenen Geschichten erinnert, seine Fakten, Notizen, gesagten Zeilen und erworbenen Gewohnheiten. Es lebt im „Memory“-Tab des Karteneditors. Du importierst einen abgeschlossenen Chat, siehst, was behalten würde, hakt an, was behalten werden soll, und ein Schalter blendet eine Geschichte für neue Chats aus. Es hat eine eigene Größe (Standard Compact 800 Tokens). Es ist kein Teil des Kartentexts und erscheint nie in einer exportierten Karte.
+**Kartengedächtnis.** Pro Charakter, über Chats hinweg: was der Charakter aus abgeschlossenen Geschichten behält, seine Fakten, Notizen, gesagten Zeilen und erworbenen Gewohnheiten. Es lebt im Tab „Memory“ des Karteneditors. Du importierst einen abgeschlossenen Chat, siehst, was behalten würde, hakst an, was bleiben soll, und ein Schalter schaltet eine Geschichte für neue Chats aus. Es hat eine eigene Größe (standardmäßig Compact mit 800 Tokens). Es ist kein Teil des Kartentexts und erscheint nie in einer exportierten Karte.
 
-**Lorebooks.** Referenzeinträge, die in den Prompt kommen, wenn ihre Schlüsselwörter erscheinen, oder immer für einige. Sie enthalten die Regeln, Orte, Personen der Welt. Verknüpfe ein Buch mit einer Karte oder Gruppe oder markiere es als Global, damit es jeden Chat erreicht. Ein Chat bekommt außerdem sein eigenes Weltbuch, das der World DM schreibt ([[world-dm]]).
+**Lorebooks.** Referenzeinträge, die in den Prompt kommen, wenn ihre Schlüsselwörter auftauchen, oder bei einigen immer. Sie enthalten die Regeln, Orte und Personen der Welt. Verknüpfe ein Buch mit einer Karte oder Gruppe oder markiere es als Global, damit es jeden Chat erreicht. Ein Chat bekommt außerdem ein eigenes Weltbuch, das der World DM schreibt ([[world-dm]]). Ein Eintrag auf **By meaning** greift, wenn sein Sinn nah an den letzten Nachrichten liegt, auch ohne Schlüssel. Mit einem lokalen Embeddings-Modell vergleicht die Engine die Einträge eines Buchs untereinander: ein Eintrag greift, wenn er für diese Nachricht aus dem Rest herausragt, bis zu 10 Einträge pro Buch. Ein Buch mit weniger als 4 solchen Einträgen nutzt eine feste Nähe. Ein Eintrag mit Zweitschlüsseln braucht sie trotzdem. Wechselst du das Embeddings-Modell, werden die Einträge bei der nächsten oder übernächsten Antwort von selbst neu erstellt.
 
-**Data Bank** (Tools). Textdokumente, die du hochlädst (nur Textformate, je bis zu 2 MB). Bei jeder Nachricht werden die relevantesten Passagen hinzugefügt. Nutze sie für langes Referenzmaterial, nicht für die Geschichte selbst.
+**Data Bank** (Tools). Textdokumente, die du hochlädst (nur Textformate, je bis zu 2 MB). Bei jeder Nachricht werden die relevantesten Passagen hinzugefügt: zuerst über Wörter gefunden und, wenn ein Embeddings-Modell eingerichtet ist, zusätzlich nach Bedeutung sortiert (die Karte **Data Bank by meaning** auf demselben Bildschirm: ein Druck, oder die Engine erledigt es selbst, sobald das Einbetten funktioniert). Nutze sie für langes Referenzmaterial, nicht für die Geschichte selbst. Ein **Buch** ist eine Data-Bank-Datei, die aus einer Geschichte entsteht: In Library > Litopys kopiert **Save as a book** die Kapitel, Handlungsbögen und Fakten eines Chats in eine Regal-Datei, die andere Chats lesen können. Wähle die Chats, die sie lesen dürfen (die Chats, die diesen fortsetzen, werden für dich gewählt). Es ist eine Kopie, kein Link: spätere Änderungen am Chat erreichen sie nicht, und **Save a new version** behält die alte. Eine Figur bekommt nur Passagen, die sie wissen könnte: ein Fakt behält seine Liste „known by“, ein Kapitel seine Besetzung. Im Tab Data Bank kannst du mit **passages** eine Passage korrigieren oder löschen und die Leser ändern; die Memory-Ansicht zählt die ausgeschlossenen Passagen.
 
-**Autorennotiz** (Chat-Kopfzeile, „Note“). Text, den du nur für diesen Chat schreibst, platziert auf einer Tiefe und Rolle, die du wählst. Nutze sie zum Steuern: einen Stilhinweis, einen Plot-Anstoß.
+**Autorennotiz** (Chat-Kopfzeile, „Note“). Text, den du nur für diesen Chat schreibst, eingefügt auf einer Tiefe und Rolle, die du wählst. Nutze ihn zum Steuern: einen Stilhinweis, einen Plot-Anstoß.
 
-**Soul** ([[soul]]). Kein Gedächtnis von Ereignissen, sondern wie ein Charakter reagiert; sie verändert sich während des Spiels nie.
+**Soul** ([[soul]]). Kein Gedächtnis von Ereignissen, sondern wie ein Charakter reagiert; sie ändert sich während des Spiels nie.
 
-## Welche wofür
+## Welches wofür
 
-- „Sie sollte sich an den Streit von letzter Nacht erinnern“: Das Dashboard bewältigt es kurzfristig; Litopys behält es langfristig. Füge einen angehefteten Fakt hinzu, wenn es niemals verloren gehen darf.
-- „Sie sollte sich in einem neuen Chat an die vorherige Geschichte erinnern“: Kartengedächtnis, oder verknüpfe die Chats auf dem Canvas, damit der frühere Chat seine Geschichte als Hintergrund mitbringt.
+- „Sie soll sich an den Streit von letzter Nacht erinnern“: Das Dashboard übernimmt das kurzfristig; Litopys behält es langfristig. Füge einen angehefteten Fakt hinzu, wenn er niemals verloren gehen darf.
+- „Sie soll sich in einem neuen Chat an die vorige Geschichte erinnern“: Kartengedächtnis, oder verknüpfe die Chats auf dem Canvas, damit der frühere Chat seine Geschichte als Hintergrund mitbringt.
 - „Die Welt hat eine Regel oder einen Ort“: ein Lorebook.
-- „Ich will, dass die nächsten Antworten in diese Richtung gehen“: Autorennotiz oder der Button „Story, move“.
+- „Ich will, dass die nächsten Antworten so laufen“: Autorennotiz oder der Button „Story, move“.
 - „Ich habe ein langes Dokument“: Data Bank.
+
+## Warum wusste sie das?
+
+Öffne **Canvas > Prompt** ([[canvas]]) und stelle das Brett von **Parts** auf **Memory** um. Es zeigt, was Memory bei der letzten Antwort eingefügt hat, und was es ausgelassen hat und warum: die Fakten, die hineingekommen sind (mit ihrem Rang und wer sie kennt), die, die herausgehalten wurden, weil der Sprecher sie nicht kennt, die, die nicht in die Memory-Größe passten, die Kapitel, was die Data Bank gefunden hat, und alles, was die Prüfungen nach der Antwort markiert haben. Personen erscheinen mit ihrer ID aus der Personenliste des Chats, so werden „Sina“ und „Sina Rose“ unterschieden. **Copy report** legt dasselbe als Klartext in deine Zwischenablage: Füge es ein, wenn du jemandem beim Debuggen des Gedächtnisses helfen lässt. Die Buttonreihe oben geht die letzten fünf Antworten zurück (die Treffer der Data Bank wandern mit ihnen); die Prüfungen nach der Antwort werden nur für die neueste behalten. Ein Aufklapper namens **Worker: left out of the last scene** listet die Fakten, die der Kapitel-Worker nicht behalten hat, und warum: eine fast identische Kopie eines Fakts, den er schon hatte, nur was die Karte sagt, mehr als acht in einer Szene, ein Fakt, der schon vorbei ist, oder derselbe Vorschlag, der bereits wartet. Der Aufklapper **Checked after the reply** nennt die Fakten, die der Dashboard-Sensor nicht behalten konnte (über deinen eigenen Charakter, über jemanden, der nicht in der Szene ist, ein wichtiges Ereignis ohne Zitat), nicht nur deren Anzahl. Die Zusammenfassung sagt außerdem **Ranked by meaning: yes** mit der Anzahl der Kandidaten, die einen Vektor hatten, oder **no** und warum (der Chat hat noch keine Vektoren, der letzte Aufruf des Embeddings-Modells ist fehlgeschlagen oder diese Antwort wurde nicht eingebettet). Das unterscheidet „die Antwort war nie im Gedächtnis“ von „die Suche nach Bedeutung hat danebengelegen“. Im Chat hat das Panel „What this chat carries“ bei der Litopys-Zeile einen Button **Why?**, der das Panel **Fired** auf seinem Litopys-Tab öffnet.
+
+## Was in diesem Chat gegriffen hat
+
+Der Button **Fired** (Blitz) in der Chat-Kopfzeile öffnet ein Panel für die letzte Antwort, mit Tabs nach Quelle: **Lorebooks** (blau), **Litopys** (violett), **Data Bank** (türkis) und **Vectors** (grün). Der Schalter oben wählt **Last reply** oder **Whole chat**. Für die letzte Antwort gruppiert Lorebooks die Einträge nach dem Weg, auf dem sie hineingekommen sind: nach Bedeutung (mit einem Nähebalken, der nächste zuerst), nach Schlüssel (welcher Schlüssel getroffen hat), aus früher übernommen (sticky), immer aktiv (nicht gezählt, sie gehen in jede Antwort), dann **Held back** (eine Verzögerung, eine Abklingzeit, eine Chance, eine Gruppe oder Zweitschlüssel, die nicht gepasst haben, auch bei einem Eintrag, der bedeutungsmäßig nah war) und **Over the budget**. Für den ganzen Chat zeigt jeder Lorebook-Eintrag, Litopys-Fakt oder jedes Kapitel und jede Data-Bank-Passage „N of M replies“, wie er hineingekommen ist und wann er zuletzt hineinging. Die Zählung ist ungefähr: ein Eintrag, der im Scan-Fenster bleibt, zählt in jeder Antwort, die ihn trug; ein Swipe ersetzt die Antwort davor; eine Vorschau zählt nichts; nichts wird von vor dem Update gezählt. Der Tab Vectors zeigt, welches Gedächtnis Vektoren hat und welche Quelle sie bei der letzten Antwort benutzt hat. **Copy report** gibt dasselbe als Klartext. Die Seite Lorebooks, Abschnitt Active, prüft weiterhin, was bei der nächsten Nachricht *greifen würde*, nur nach Schlüsseln.
 
 ## Kosten
 
-All dies nimmt Platz im Prompt ein. Das Prompt-Brett des Canvas zeigt jeden Teil mit seiner Tokenzahl und lässt dich Teile für einen Chat ausschalten. Senke bei einem kleinen Modell Litopys' „Memory size“, halte das Kartengedächtnis Compact und bevorzuge wenige kurze Lorebook-Einträge.
+All diese nehmen Platz im Prompt ein. Das Prompt-Brett des Canvas zeigt jeden Teil mit seiner Tokenzahl und lässt dich Teile für einen Chat ausschalten. Bei einem kleinen Modell senke bei Litopys die „Memory size“, halte das Kartengedächtnis auf Compact und bevorzuge wenige kurze Lorebook-Einträge.

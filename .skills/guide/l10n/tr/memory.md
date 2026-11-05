@@ -1,34 +1,42 @@
-<!-- source: fe19559d281a -->
+<!-- source: e65c6432f795 -->
 # Ne için hangi bellek
 
-Roleplay'de "hatırlayan" birkaç şey vardır. Bunlar, kimin tuttuğuna, ne barındırdığına ve ne kadar sürdüğüne göre farklılık gösterir. Bir karakter bir şeyi unutursa bu sayfa hangisine uzanacağınızı söyler.
+Roleplay'de "hatırlayan" birkaç şey vardır. Bunlar kimin tuttuğu, neyi barındırdığı ve ne kadar sürdüğü bakımından farklılık gösterir. Bir karakter bir şeyi unutursa, bu sayfa hangisine uzanmanız gerektiğini söyler.
 
 ## Türler
 
-**Sohbet geçmişi.** Mesajların kendisi. Model, penceresinin izin verdiği kadar çok yeni mesajı görür.
+**Sohbet geçmişi.** Mesajların kendisi. Model, penceresinin izin verdiği kadar çok sayıda yakın mesajı görür.
 
-**Dashboard** ([[dashboard]]). Sohbet başına, sahnenin *güncel* durumu: kimin orada olduğu, duygular, kıyafetler, açık görevler, her karakterin ne bildiği. Her yanıtla değişir.
+**Dashboard** ([[dashboard]]). Sohbet başına, sahnenin *güncel* durumu: kimin bulunduğu, duygular, kıyafetler, açık görevler, her karakterin neyi bildiği. Her yanıtla değişir.
 
-**Litopys** ([[litopys]]). Sohbet başına, hikâyenin *geçmişi*: biten her sahne için bir bölüm ve bir olgu listesi. Daha eski mesajlar istemden ayrıldıktan sonra uzun bir sohbetin dayandığı şey budur.
+**Litopys** ([[litopys]]). Sohbet başına, hikâyenin *geçmişi*: biten her sahne için bir bölüm ve bir olgu listesi. Daha eski mesajlar istemden çıktıktan sonra uzun bir sohbetin dayandığı şey budur.
 
-**Kart belleği.** Karakter başına, sohbetler arası: karakterin bitmiş hikâyelerden hatırladıkları, olguları, notları, söylediği satırlar ve kazandığı alışkanlıklar. Kart düzenleyicinin "Memory" sekmesinde yaşar. Bitmiş bir sohbeti içe aktarırsınız, neyin saklanacağını görürsünüz, saklanacakları işaretlersiniz ve bir anahtar bir hikâyeyi yeni sohbetler için kapatır. Kendi boyutu vardır (varsayılan Compact 800 token). Kart metninin parçası değildir ve dışa aktarılan bir kartta asla görünmez.
+**Kart belleği.** Karakter başına, sohbetler arası: karakterin bitmiş hikâyelerden hatırladıkları, olguları, notları, söylediği satırlar ve kazandığı alışkanlıklar. Kart düzenleyicinin "Memory" sekmesinde yaşar. Bitmiş bir sohbeti içe aktarır, neyin saklanacağını görür, saklanacakları işaretlersiniz; bir anahtar da yeni sohbetler için bir hikâyeyi kapatır. Kendi boyutu vardır (varsayılan Compact, 800 token). Kart metninin parçası değildir ve dışa aktarılan bir kartta asla görünmez.
 
-**Lorebook'lar.** Anahtar sözcükleri göründüğünde veya birkaçı için her zaman isteme katılan başvuru girdileri. Dünyanın kurallarını, yerleri, insanları tutarlar. Bir kitabı bir karta veya gruba bağlayın ya da her sohbete ulaşması için Global işaretleyin. Bir sohbet ayrıca World DM tarafından yazılan kendi dünya kitabını alır ([[world-dm]]).
+**Lorebook'lar.** Anahtar sözcükleri göründüğünde isteme katılan, bazıları için de her zaman katılan başvuru girdileri. Dünyanın kurallarını, yerlerini, insanlarını tutarlar. Bir kitabı bir karta veya gruba bağlayın ya da her sohbete ulaşması için Global olarak işaretleyin. Bir sohbet ayrıca World DM tarafından yazılan kendi dünya kitabını alır ([[world-dm]]). **By meaning** olarak ayarlanan bir girdi, anlamı son mesajlara yakın olduğunda, anahtar olmadan bile tetiklenir. Yerel bir gömme (embeddings) modeliyle motor, bir kitabın girdilerini birbirleriyle karşılaştırır: bir girdi, bu mesaj için diğerlerinden ayrıştığında tetiklenir; kitap başına en fazla 10 girdi. Bu tür 4'ten az girdisi olan bir kitap sabit bir yakınlık kullanır. İkincil anahtarları olan bir girdi yine de bu anahtarlara ihtiyaç duyar. Gömme modelini değiştirirseniz, girdiler bir ya da iki yanıt içinde kendiliğinden yeniden oluşturulur.
 
-**Data Bank** (Tools). Yüklediğiniz metin belgeleri (yalnızca metin biçimleri, her biri en fazla 2 MB). Her mesajda en ilgili pasajlar eklenir. Uzun başvuru malzemesi için kullanın, hikâyenin kendisi için değil.
+**Data Bank** (Tools). Yüklediğiniz metin belgeleri (yalnızca metin biçimleri, her biri en fazla 2 MB). Her mesajda en ilgili pasajlar eklenir: önce kelimelerle bulunur; bir gömme modeli kuruluysa anlamına göre de sıralanır (aynı ekrandaki **Data Bank by meaning** kartı: bir basış; ya da gömme çalışınca motor bunu kendiliğinden yapar). Uzun başvuru malzemesi için kullanın, hikâyenin kendisi için değil. Bir **book** (kitap), bir hikâyeden yapılmış Data Bank dosyasıdır: Library > Litopys içinde **Save as a book**, bir sohbetin bölümlerini, yaylarını (arcs) ve olgularını, diğer sohbetlerin okuyabileceği bir raf dosyasına kopyalar. Okuyabilecek sohbetleri seçin (bu sohbeti devam ettiren sohbetler sizin için seçilir). Bu bir kopyadır, bağlantı değil: sohbetteki sonraki değişiklikler ona ulaşmaz; **Save a new version** eskisini korur. Bir karakter yalnızca bilebileceği pasajları alır: bir olgu "known by" listesini, bir bölüm ise kadrosunu tutar. Data Bank sekmesinde **passages** ile bir pasajı düzeltip silebilir ve okuyucuları değiştirebilirsiniz; Memory görünümü dışarıda tutulan pasajları sayar.
 
-**Yazarın notu** (sohbet başlığı, "Note"). Yalnızca bu sohbet için yazdığınız, seçtiğiniz bir derinliğe ve role yerleştirilen metin. Yönlendirmek için kullanın: bir üslup ipucu, bir olay örgüsü itişi.
+**Yazarın notu** (sohbet başlığı, "Note"). Yalnızca bu sohbet için yazdığınız, seçtiğiniz bir derinlikte ve rolde yerleşen metin. Yönlendirmek için kullanın: bir üslup ipucu, bir olay örgüsü itişi.
 
-**Soul** ([[soul]]). Olayların belleği değil, bir karakterin nasıl tepki verdiğidir; oyun sırasında asla değişmez.
+**Soul** ([[soul]]). Olayların belleği değil, bir karakterin nasıl tepki verdiği; oyun sırasında asla değişmez.
 
 ## Hangisini kullanmalı
 
-- "Dün geceki kavgayı hatırlamalı": Kısa vadede Dashboard halleder; uzun vadede Litopys tutar. Asla kaybolmaması gerekiyorsa sabitlenmiş bir olgu ekleyin.
+- "Dün geceki kavgayı hatırlamalı": Dashboard bunu kısa vadede halleder; Litopys uzun vadede tutar. Asla kaybolmaması gerekiyorsa sabitlenmiş bir olgu ekleyin.
 - "Yeni bir sohbette önceki hikâyeyi hatırlamalı": kart belleği veya Canvas'ta sohbetleri bağlayın; böylece önceki sohbet hikâyesini arka plan olarak getirir.
-- "Dünyanın bir kuralı veya yeri var": bir lorebook.
-- "Sonraki yanıtların şu yöne gitmesini istiyorum": yazarın notu veya "Story, move" düğmesi.
+- "Dünyanın bir kuralı ya da bir yeri var": bir lorebook.
+- "Sonraki yanıtların bu yöne gitmesini istiyorum": yazarın notu ya da "Story, move" düğmesi.
 - "Uzun bir belgem var": Data Bank.
+
+## Bunu neden biliyordu?
+
+**Canvas > Prompt** ([[canvas]]) bölümünü açın ve panoyu **Parts**'tan **Memory**'ye çevirin. Bellek son yanıta neyi koyduğunu ve neyi neden dışarıda bıraktığını gösterir: giren olguları (sıraları ve kimin bildiğiyle birlikte), konuşanın bilmediği için dışarıda kalanları, bellek boyutuna sığmayanları, bölümleri, Data Bank'in bulduklarını ve yanıttan sonraki kontrollerin işaretlediği her şeyi. İnsanlar, sohbetin kişi listesindeki kimlikleriyle görünür; böylece "Sina" ile "Sina Rose" birbirinden ayrılır. **Copy report**, aynı şeyi düz metin olarak panonuza koyar: belleği ayıklamanıza yardım eden birine yapıştırın. Üstteki düğme sırası son beş yanıtı geri gezer (Data Bank isabetleri de onlarla birlikte gider); yanıttan sonraki kontroller yalnızca en yeni yanıt için tutulur. **Worker: left out of the last scene** adındaki bir katlama, bölüm işçisinin neden tutmadığı olguları listeler: zaten sahip olduğu bir olguya neredeyse kopya olanlar, yalnızca kartın söylediği şeyler, bir sahnede sekizden fazla olanlar, zaten yok olmuş bir olgu veya zaten bekleyen aynı öneri. **Checked after the reply** katlaması, Dashboard sensörünün tutamadığı olguları adlandırır (kendi karakteriniz hakkında, sahnede olmayan biri hakkında, bir alıntısı olmayan önemli bir olay); yalnızca sayılarını değil. Özet ayrıca **Ranked by meaning: yes** diyerek kaç adayın vektörü olduğunu, ya da **no** ve nedenini (sohbetin henüz vektörü yok, gömme modeline son çağrı başarısız oldu veya bu yanıt gömülmedi) söyler. Bu, "cevap hiç bellekte değildi" ile "anlama göre arama kaçtı" arasını ayırt etmenizi sağlar. Sohbette "What this chat carries" paneli, Litopys satırında bir **Why?** düğmesine sahiptir; bu düğme, panelin Litopys sekmesindeki **Fired** panelini açar.
+
+## Bu sohbette neyin tetiklendiği
+
+Sohbet başlığındaki **Fired** düğmesi (şimşek), son yanıt için kaynağa göre sekmeli tek bir panel açar: **Lorebooks** (mavi), **Litopys** (mor), **Data Bank** (turkuaz) ve **Vectors** (yeşil). Üstteki anahtar **Last reply** veya **Whole chat** seçer. Son yanıt için Lorebooks girdileri, içeri giriş biçimlerine göre gruplanır: anlamla (yakınlık çubuğuyla, en yakın önce), anahtarla (hangi anahtar isabet etti), önceden kalan (sticky), her zaman açık (sayılmaz, her yanıta girerler), sonra **Held back** (bir gecikme, bekleme süresi, bir şans, bir grup ya da başarısız olan ikincil anahtarlar; anlamca yakın olan bir girdi için de) ve **Over the budget**. Tüm sohbet için her lorebook girdisi, Litopys olgusu veya bölümü ve Data Bank pasajı "N of M replies" gösterir; nasıl girdiği ve en son ne zaman girdiği de. Sayı yaklaşıktır: tarama penceresinde kalan bir girdi, onu taşıyan her yanıtta sayılır; bir swipe, önceki yanıtın yerini alır; bir önizleme hiçbir şey eklemez; güncellemeden önceki hiçbir şey sayılmaz. Vectors sekmesi, hangi belleğin vektörleri olduğunu ve son yanıtta hangi kaynağın bunları kullandığını gösterir. **Copy report** aynısını düz metin olarak verir. Lorebooks sayfasının Active bölümü ise bir sonraki mesaj için *hangilerinin* tetikleneceğini hâlâ yalnızca anahtarlara göre kontrol eder.
 
 ## Maliyetler
 
-Bunların hepsi istemde yer kaplar. Canvas Prompt panosu her parçayı token sayısıyla gösterir ve tek bir sohbet için parçaları kapatmanızı sağlar. Küçük bir modelde Litopys'in "Memory size"ını düşürün, kart belleğini Compact tutun ve birkaç kısa lorebook girdisini tercih edin.
+Bunların hepsi istemde yer kaplar. Canvas Prompt panosu her parçayı token sayısıyla gösterir ve parçaları tek bir sohbet için kapatmanıza izin verir. Küçük bir modelde Litopys'in "Memory size"ını düşürün, kart belleğini Compact tutun ve birkaç kısa lorebook girdisini tercih edin.

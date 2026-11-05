@@ -8,7 +8,7 @@ The rail on the left (a bar of tabs at the bottom on a phone) groups the section
 
 - **Home** and **Chats**: continue where you stopped, or open any chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: the people. See [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: the story's memory and machinery. See [[memory]], [[litopys]], [[world-dm]] and [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: the story's memory and machinery. See [[memory]], [[litopys]], [[canvas]], [[world-dm]] and [[agents]].
 - **Presets**: how the request to the model is built.
 - **Shortcuts** and **Tools**: quick replies, regex, translation, pictures, voice, the Data Bank and more. See [[settings]].
 - **Inbox** and **Help** at the bottom. The Inbox lists what waits on you: failed background jobs, Library suggestions and proposed souls.
@@ -17,7 +17,7 @@ Roleplay's own settings have no rail item. Open them with the "Roleplay settings
 
 ## Inside a chat
 
-The chat header holds the story tools: **Note** (author's note), **Lore**, **Record** and **World**. The pill next to it opens tabs for Preset, Persona, Model and Agents of this chat. The "More" button on every message opens its actions, and the "+" menu next to the message box holds Polish, Regenerate with a hint, image generation and more.
+The chat header holds the story tools: **Note** (author's note), **Fired** (what went into the prompt, see [[memory]]), **Record** and **World**. The pill next to it opens tabs for Preset, Persona, Model and Agents of this chat. The "More" button on every message opens its actions, and the "+" menu next to the message box holds Polish, Regenerate with a hint, image generation and more.
 
 Three helpers watch the story and cost extra model calls, so it is worth knowing them:
 
@@ -31,6 +31,7 @@ Three helpers watch the story and cost extra model calls, so it is worth knowing
 - [[characters]]: cards, the card editor, personas, groups, import.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: the story machinery.
 - [[memory]]: which kind of memory to use for what.
+- [[canvas]]: chat links, the prompt board and the agent forge.
 - [[settings]]: where each setting lives.
 
 New to Molfar Vertep itself? Start with [[vertep:first-steps]] and the [[vertep:glossary]].
