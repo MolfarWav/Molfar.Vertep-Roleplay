@@ -2301,7 +2301,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           else if (vecScore != null) {
             // a vector lets the entry past its primary keys only: the secondary keys still decide
             const sec = (entry.secondaryKeys || []).length ? matchEntry(item, win, firstPass, true) : null;
-            if (sec && sec.fail) { block(item, "secondary", { key: "", secondary: sec.secondary, detail: entry.selectiveLogic || "AND_ANY" }); continue; }
+            if (sec && sec.fail) { block(item, "secondary", { key: "", secondary: sec.secondary, detail: entry.selectiveLogic || "AND_ANY", via: "vector", score: vecScore }); continue; }
             why = { via: "vector", score: vecScore, ...(sec && sec.secondary.length ? { secondary: sec.secondary } : {}) };
           }
           else {
@@ -2385,7 +2385,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     if (!c) continue;
     const position = WI_POSITIONS[entry.position] ? entry.position : "before_char";
     const rec = {
-      book, uid: entry.uid ?? null,
+      book, bookId: x.bookId, uid: entry.uid ?? null,
       title: wiTitle(entry),
       chars: c.length, constant: isConstantEntry(entry), position,
       ...(sticky ? { sticky: true } : {}),
@@ -2409,7 +2409,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   }
   for (const b of blocked.values()) {
     const { item, ...rest } = b;
-    out.blocked.push({ book: item.book, uid: item.entry.uid ?? null, title: wiTitle(item.entry), ...rest });
+    out.blocked.push({ book: item.book, bookId: item.bookId, uid: item.entry.uid ?? null, title: wiTitle(item.entry), ...rest });
   }
   // enabled entries whose keys did not hit, counted per book (listing each would flood a big book)
   const fired = new Set(activated.map((x) => x.id));
@@ -3221,6 +3221,94 @@ function sweepDatabankTraces(fsx) {
   } catch { /* no directory yet */ }
 }
 
+/**
+ * "What fired" (#253): a small per-chat log of what the lorebooks and the Data Bank put into the prompt, written by `assemble`
+ * for a real reply only (never a preview). `last` holds the rows of the newest reply (what the chat panel shows for "last
+ * reply"); `lore` and `bank` count, per entry or passage, in how many replies it went in (the "whole chat" view). Always-on
+ * entries are not counted (they fire in every reply). A swipe or a "continue" replaces the reply before it instead of adding
+ * one, so a regenerate does not double the count. Deleting messages does not roll the counts back: they are approximate, and the
+ * panel says so. Ids and codes only, about 3 to 15 KB: 300 entries a source at most, the least used and oldest drop first.
+ */
+const FIRED_GENS = new Set(["send", "next", "swipe", "continue"]);
+const FIRED_CAP = 300;
+function recordFired(fsx, chatId, gen, snap) {
+  if (!FIRED_GENS.has(gen) || !chatId || !/^[A-Za-z0-9_-]{1,128}$/.test(String(chatId))) return;
+  const file = "fired-log/" + chatId + ".json";
+  let log = null;
+  try { log = JSON.parse(fsx.read(file)); } catch { /* none yet */ }
+  if (!log || typeof log !== "object" || log.v !== 1 || typeof log.lore !== "object" || typeof log.bank !== "object") {
+    log = { v: 1, since: Date.now(), replies: 0, lore: {}, bank: {}, last: null };
+  }
+  // the reply this one replaces: take its part back first
+  const before = log.last && log.last.keys;
+  if ((gen === "swipe" || gen === "continue") && before) {
+    for (const [k, via] of before.lore || []) {
+      const e = log.lore[k];
+      if (!e) continue;
+      e.n -= 1;
+      if (e.v && e.v[via]) e.v[via] -= 1;
+      if (e.n <= 0) delete log.lore[k];
+    }
+    for (const k of before.bank || []) {
+      const e = log.bank[k];
+      if (!e) continue;
+      e.n -= 1;
+      if (e.n <= 0) delete log.bank[k];
+    }
+    log.replies = Math.max(0, log.replies - 1);
+  }
+  log.replies += 1;
+  const keys = { lore: [], bank: [] };
+  const wi = snap.wi;
+  for (const r of wi.trace) {
+    if (r.via === "constant") continue;
+    const k = String(r.bookId || r.book) + ":" + String(r.uid ?? r.title);
+    const e = log.lore[k] || (log.lore[k] = { n: 0, at: 0, t: "", b: "", v: {} });
+    e.n += 1; e.at = log.replies; e.t = String(r.title || ""); e.b = String(r.book || "");
+    e.v[r.via] = (e.v[r.via] || 0) + 1;
+    if (r.via === "vector" && typeof r.score === "number") e.best = Math.max(e.best || 0, r.score);
+    keys.lore.push([k, r.via]);
+  }
+  for (const h of snap.bank) {
+    if (h.state !== "in") continue;
+    const k = String(h.file) + "#" + String(h.n);
+    const e = log.bank[k] || (log.bank[k] = { n: 0, at: 0, f: String(h.file), p: h.n });
+    e.n += 1; e.at = log.replies;
+    if (typeof h.score === "number") e.best = Math.max(e.best || 0, h.score);
+    keys.bank.push(k);
+  }
+  for (const map of [log.lore, log.bank]) {
+    const ids = Object.keys(map);
+    if (ids.length > FIRED_CAP) {
+      ids.sort((a, b) => (map[a].n - map[b].n) || (map[a].at - map[b].at));
+      for (const id of ids.slice(0, ids.length - FIRED_CAP)) delete map[id];
+    }
+  }
+  log.at = Date.now();
+  log.last = {
+    gen, at: log.at, reply: log.replies, by: String(snap.by || ""),
+    used: wi.used, budget: wi.budgetChars, scanDepth: wi.scanDepth,
+    fired: wi.trace.slice(0, 60), skipped: wi.skipped.slice(0, 20), blocked: wi.blocked.slice(0, 40),
+    keys,
+  };
+  fsx.write(file, JSON.stringify(log));
+  sweepFiredLogs(fsx);
+}
+
+/** The logs of chats that are gone (as `sweepDatabankTraces`): checked after a write, once more than 20 files are there. */
+function sweepFiredLogs(fsx) {
+  try {
+    const files = fsx.list("fired-log").filter((f) => f.endsWith(".json"));
+    if (files.length <= 20) return;
+    const chats = new Set(fsx.list("chats").filter((f) => f.endsWith(".meta.json")).map((f) => f.slice(0, -10)));
+    for (const f of files) {
+      if (!chats.has(f.slice(0, -5))) {
+        try { fsx.remove("fired-log/" + f); } catch { /* left for the next sweep */ }
+      }
+    }
+  } catch { /* no directory yet */ }
+}
+
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
   const isOff = (k) => pbOff.has(k);
@@ -3604,6 +3692,8 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         sweepDatabankTraces(fsx);
       }
     } catch { /* read-only: no trace */ }
+    // what fired, for the chat's "What fired" panel (#253)
+    try { recordFired(fsx, meta.id, String((opts && opts.gen) || "send"), { wi, bank: dbTrace, by: charName }); } catch { /* read-only: no log */ }
   }
 
   // author's note: the object form carries position/depth/role
@@ -5129,6 +5219,17 @@ export function handleRoute(req, host) {
       ...(a.assistantPrefill ? { assistantPrefill: a.assistantPrefill } : {}),
       ...(toolDefs && toolDefs.length ? { tools: toolDefs } : {}),
     });
+  }
+
+  // ---------- what fired (#253): the log `assemble` keeps per chat; null before the first reply after the update ----------
+  // ?brief=1: only the numbers the chat header shows (the entries of the last reply, the replies counted)
+  if (head === "fired-log" && req.method === "GET") {
+    const cid = req.query && typeof req.query.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(req.query.chatId) ? req.query.chatId : "";
+    if (!cid) return err(400, "chatId required");
+    const log = readJson("fired-log/" + cid + ".json", null);
+    if (!log || typeof log !== "object" || log.v !== 1) return ok({ chatId: cid, log: null });
+    if (req.query.brief) return ok({ chatId: cid, brief: { replies: log.replies, since: log.since, loreFired: log.last && Array.isArray(log.last.fired) ? log.last.fired.length : 0 } });
+    return ok({ chatId: cid, log });
   }
 
   // ---------- world info status: what ACTUALLY fires for a chat ----------
