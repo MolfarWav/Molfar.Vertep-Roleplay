@@ -28,6 +28,10 @@ Roleplay has several things that "remember". They differ in who keeps them, what
 - "I want the next replies to go this way": author's note, or the "Story, move" button.
 - "I have a long document": Data Bank.
 
+## Why did she know that?
+
+Open **Canvas > Prompt** and switch the board from **Parts** to **Memory**. It shows what memory put into the last reply, and what it left out and why: the facts that went in (with their rank and who knows them), the ones kept out because the speaker does not know them, the ones that did not fit the memory size, the chapters, what the Data Bank found, and anything the checks after the reply flagged. People appear with their id from the chat's list of people, so "Sina" and "Sina Rose" are told apart. **Copy report** puts the same thing in your clipboard as plain text: paste it to whoever helps you debug the memory. The view reads the last reply only, so open it right after the reply you wonder about.
+
 ## Costs
 
 All of these take room in the prompt. The Canvas Prompt board shows each part with its token count and lets you switch parts off for one chat. On a small model, lower Litopys's "Memory size", keep card memory Compact, and prefer a few short lorebook entries.

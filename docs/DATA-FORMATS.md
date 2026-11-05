@@ -213,6 +213,15 @@ active cause that did not fit; cause and effect both there already) and `causeSt
 chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
 `false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
 
+**Memory trace (#184 P6).** The sidecar `litopys/insert/<chatId>.json` also keeps `trace` for the last reply, ids and codes only (2-4 KB at most, so a reply pays almost nothing):
+`{ v: 1, kn: [<canonical names of whoever the filter let through>], one: <true when one character spoke>, n: { live, hidden, seen, inF, drop, unseen, held }, full, limit, op, speaker, rows: [...] }`.
+A row is `{ k: "f" | "c" | "a", i: <fact, chapter or arc id>, s: "in" | "out", w: <reason>, r?: <rank> }`; reasons for facts are `pin`, `change`, `trait`, `rank`, `cause` (in) and `budget`, `speaker` (out);
+for chapters `bridge`, `arc`, `rank` (in) and `budget`, `unseen` (out, the speaker did not witness it). At most 40 rows for what went in and 15 per kind for what stayed out (the counts in `n` are exact).
+`GET /litopys/trace?chatId=` joins the rest when someone looks: the fact and chapter texts, who knows each fact as `{ name, id }` (the registry id of the person, `""` when the registry does not know them),
+the speaker and the knowers. It only reads; the registry is never seeded or saved there. The Data Bank writes `databank-trace/<chatId>.json` for a real reply (never for a preview):
+`{ at, gen, off, hits: [{ file, n, score, state: "in" | "room" }], scoped: [{ file, scope, target }], scopedMore }`, read by `GET /databank/trace?chatId=`. The Prompt board's Memory view (Canvas > Prompt > Memory) shows both,
+with the Dashboard's open leak hits and its last `keptOut`.
+
 **Search words (#184).** A fact and a chapter in `litopys/chats/<chatId>.json` may carry `also: ["word", ...]`: at most 8 lowercase words of at most 24 characters (one or two words each), written by the chapter worker next to the text, as synonyms of its key nouns, verbs and places and, when the story is not in English, the same words in the story's own language (the record is written in English by default, so a question in another language shares no word with it). The parser drops repeats and any word the text already has (`cleanAlso`). Only the word search reads them (`rankFacts`, `rankChapters`, the same weights as the text); the insert never shows them, vectors are made from the text alone, and a record without them works as before (nothing is required). Old facts and chapters have none until a Rebuild. Config key `searchWords` (`true`, default; the Memory settings switch); `false` stops asking the worker and ignores `also` in its replies, and what was written stays and stays searchable. Bench: `test/rp-recall-mrr-bench.test.ts`.
 
 **Scenes set apart by hand.** `litopys/chats/<chatId>.json`, key `marks`: `[{ "id": "s1", "from": "<message id>", "to": "<message id>", "at": <ms> }]`.
