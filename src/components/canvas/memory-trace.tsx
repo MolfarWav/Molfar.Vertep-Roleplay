@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowClockwise, Copy, Database, Eye, EyeSlash, Heartbeat, Scroll } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Fold } from '@/components/ui/fold'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { useRelativeTime, useT } from '@/hooks/use-t'
-import { cn } from '@/lib/utils'
+import { cn, copyText } from '@/lib/utils'
 import {
   buildReport,
   chaptersIn,
@@ -29,35 +29,33 @@ export function MemoryTraceView({ chatId, title }: { chatId: string; title: stri
   // a late answer for a chat that is no longer on screen must not fill the view of the new one (as the board does, #39)
   const live = useRef(chatId)
   live.current = chatId
+  // `t` is a new function on every render: the loader reads it through a ref so it stays stable (a dependency on it re-ran the effect for ever)
+  const tRef = useRef(t)
+  tRef.current = t
 
-  const load = useCallback(
-    async (id: string) => {
-      setLoading(true)
-      try {
-        const next = await loadMemoryTrace(id)
-        if (live.current === id) setTrace(next)
-      } catch {
-        if (live.current === id) toast.error(t('memtrace.loadFailed'))
-      } finally {
-        if (live.current === id) setLoading(false)
-      }
-    },
-    [t],
-  )
+  const load = useRef(async (id: string) => {
+    setLoading(true)
+    try {
+      const next = await loadMemoryTrace(id)
+      if (live.current === id) setTrace(next)
+    } catch {
+      if (live.current === id) toast.error(tRef.current('memtrace.loadFailed'))
+    } finally {
+      if (live.current === id) setLoading(false)
+    }
+  }).current
 
   useEffect(() => {
     setTrace(null)
     void load(chatId)
   }, [chatId, load])
 
+  // copyText has the fallback for the app's sandboxed frame, where navigator.clipboard is refused
   const copy = async () => {
     if (!trace) return
-    try {
-      await navigator.clipboard.writeText(buildReport(title, trace))
-      toast.success(t('memtrace.copied'))
-    } catch {
-      toast.error(t('memtrace.copyFailed'))
-    }
+    const ok = await copyText(buildReport(title, trace))
+    if (ok) toast.success(t('memtrace.copied'))
+    else toast.error(t('memtrace.copyFailed'))
   }
 
   const lit = trace?.litopys ?? null
@@ -66,7 +64,7 @@ export function MemoryTraceView({ chatId, title }: { chatId: string; title: stri
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="memory-trace">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">{lit ? t('memtrace.when', { when: ago(lit.at) }) : t('memtrace.intro')}</p>
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground max-sm:basis-full">{lit ? t('memtrace.when', { when: ago(lit.at) }) : t('memtrace.intro')}</p>
         <Button variant="outline" size="sm" onClick={() => void load(chatId)} disabled={loading} className="min-h-10 sm:min-h-8">
           <ArrowClockwise className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
           {t('memtrace.refresh')}
@@ -113,7 +111,7 @@ function TraceSkeleton() {
   return (
     <div className="flex flex-col gap-3" aria-hidden="true">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />
+        <div key={i} className="h-16 animate-pulse rounded-xl bg-muted-foreground/15" />
       ))}
     </div>
   )
@@ -197,17 +195,18 @@ function Summary({ lit, t }: { lit: NonNullable<MemoryTrace['litopys']>; t: T })
   return (
     <div className="rounded-xl border border-border bg-card p-3" data-testid="memory-trace-summary">
       <p className="text-body font-semibold">
-        {lit.speaker ? t('memtrace.speaks', { name: lit.speaker.name, op: lit.op || 'send' }) : t('memtrace.several', { op: lit.op || 'send' })}
+        {lit.speaker ? t('memtrace.speaks', { name: lit.speaker.name }) : t('memtrace.several')}
         {lit.speaker?.id && <code className="ml-1.5 rounded bg-muted px-1 text-caption font-normal text-foreground/70">{lit.speaker.id}</code>}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">{lit.one ? t('memtrace.filterOne', { name: lit.speaker?.name ?? '' }) : t('memtrace.filterMany')}</p>
+      <p className="mt-1 text-sm">{t('memtrace.counts', { a: lit.n.inF ?? 0, b: lit.n.hidden ?? 0, c: lit.n.drop ?? 0 })}</p>
       <div className="mt-3">
         <div className="flex items-center justify-between text-caption text-muted-foreground">
           <span>{t('memtrace.budget', { used: lit.tokens, limit: lit.limit })}</span>
           <span>{lit.full ? t('memtrace.allFit') : t('memtrace.ranked')}</span>
         </div>
         <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={t('memtrace.budget', { used: lit.tokens, limit: lit.limit })}>
-          <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+          <div className={cn('h-full rounded-full', TONES.slate.square)} style={{ width: `${pct}%` }} />
         </div>
       </div>
     </div>
@@ -267,7 +266,7 @@ function DatabankFold({ trace, t }: { trace: MemoryTrace; t: T }) {
             ...db.scoped.map((s) => (
               <li key={`s:${s.file}`} className="flex items-start gap-3 px-3 py-2">
                 <p className="min-w-0 flex-1 break-words text-body">{s.file}</p>
-                <Chip tone="amber">{t('memtrace.dbScope', { scope: s.scope })}</Chip>
+                <Chip tone="amber">{t(s.scope === 'character' ? 'memtrace.dbScopeCharacter' : s.scope === 'chat' ? 'memtrace.dbScopeChat' : 'memtrace.dbScopeOther')}</Chip>
               </li>
             )),
           ]}
@@ -281,7 +280,7 @@ function DatabankFold({ trace, t }: { trace: MemoryTrace; t: T }) {
 function AfterFold({ trace, t }: { trace: MemoryTrace; t: T }) {
   const n = trace.leaks.length + (trace.keptOut ? 1 : 0)
   return (
-    <Fold id="memtrace.after" title={t('memtrace.foldAfter')} icon={Heartbeat} tone="sky" summary={n ? t('memtrace.flagged', { n }) : t('memtrace.nothing')} defaultOpen={n > 0}>
+    <Fold id="memtrace.after" title={t('memtrace.foldAfter')} icon={Heartbeat} tone="sky" summary={n ? t('memtrace.flagged', { n }) : t('memtrace.clean')} defaultOpen={n > 0}>
       {n === 0 ? (
         <p className="px-3 py-3 text-sm text-muted-foreground">{t('memtrace.nothing')}</p>
       ) : (

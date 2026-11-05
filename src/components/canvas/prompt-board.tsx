@@ -745,13 +745,14 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
           <ChatPicker chats={chats} value={chatId} onChange={onPickChat} />
         </label>
-        <Tabs value={view} onValueChange={(v) => setView(v === 'memory' ? 'memory' : 'parts')}>
-          <TabsList aria-label={t('canvas.prompt.viewSwitch')} className="h-9 sm:h-8">
+        {/* on a phone the switch takes its own row under the picker, so the picker is not squeezed */}
+        <Tabs value={view} onValueChange={(v) => setView(v === 'memory' ? 'memory' : 'parts')} className="max-md:order-last max-md:basis-full">
+          <TabsList aria-label={t('canvas.prompt.viewSwitch')} className="group-data-horizontal/tabs:h-10 max-md:w-full md:group-data-horizontal/tabs:h-8">
             <TabsTrigger value="parts" className="px-3">{t('canvas.prompt.viewParts')}</TabsTrigger>
-            <TabsTrigger value="memory" className="px-3" data-guide="prompt.memory">{t('canvas.prompt.viewMemory')}</TabsTrigger>
+            <TabsTrigger value="memory" className="px-3">{t('canvas.prompt.viewMemory')}</TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="mx-1 h-5 w-px bg-border max-md:hidden" />
+        <div className={cn('mx-1 h-5 w-px bg-border max-md:hidden', view === 'memory' && 'hidden')} />
         <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} title={t('canvas.undo')} className={cn(view === 'memory' && 'hidden')}>
           <ArrowCounterClockwise className="h-4 w-4" />
         </Button>
