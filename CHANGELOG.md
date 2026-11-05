@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Docs: two new guide pages, **Long chats and token cost** (why a long chat gets costly, what trims it: Memory size, "Older messages leave the prompt" set to "By scenes", the Prompt board's last-N history; how to continue a story in a new chat and save one as a book) and **The Canvas** (the boards, linking chats step by step). The index, memory, first-story and Litopys pages point to them. Translations of the guide are refreshed before the release.
+
 ## 4.91.0 (2026-11-05)
 
 - Change (#255): every embeddings call says what each text is for (`kinds`: a search "query" or a stored "document"), so a model on this computer that expects a prefix for each (EmbeddingGemma 2) gets it. Other models and an older engine ignore it.

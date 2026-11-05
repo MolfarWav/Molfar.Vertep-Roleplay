@@ -23,7 +23,7 @@ Roleplay has several things that "remember". They differ in who keeps them, what
 ## Which to use
 
 - "She should remember last night's fight": Dashboard handles it short-term; Litopys keeps it long-term. Add a pinned fact if it must never be lost.
-- "She should remember the previous story in a new chat": card memory, or link the chats on the Canvas so the earlier chat brings its story as backstory.
+- "She should remember the previous story in a new chat": card memory, or link the chats on the Canvas so the earlier chat brings its story as backstory ([[canvas]], [[long-chats]]).
 - "The world has a rule or a place": a lorebook.
 - "I want the next replies to go this way": author's note, or the "Story, move" button.
 - "I have a long document": Data Bank.
@@ -34,4 +34,4 @@ Open **Canvas > Prompt** and switch the board from **Parts** to **Memory**. It s
 
 ## Costs
 
-All of these take room in the prompt. The Canvas Prompt board shows each part with its token count and lets you switch parts off for one chat. On a small model, lower Litopys's "Memory size", keep card memory Compact, and prefer a few short lorebook entries.
+All of these take room in the prompt. The Canvas Prompt board shows each part with its token count and lets you switch parts off for one chat. On a small model, lower Litopys's "Memory size", keep card memory Compact, and prefer a few short lorebook entries. A chat that has grown long costs more with every reply: [[long-chats]] says what trims it and how to continue the story in a fresh chat. The Canvas page, [[canvas]], explains the boards.

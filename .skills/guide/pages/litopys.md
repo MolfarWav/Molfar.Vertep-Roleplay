@@ -17,7 +17,7 @@ Press **Record** in the chat header (on a phone, in the Menu) for this chat's re
 
 By default the record is inserted automatically. "Memory size" says how many tokens it may take: Auto by default (15% of the model's window, at least 800 and at most 16000), Compact (800 tokens) or Custom from 200 up to 16000. Auto lets a big window carry more of the story; on a small model it stays near 800. A size you saved yourself earlier stays as it was. When everything fits, all of it is sent; otherwise the parts that matter most to the scene. A small model wants a small size. "Chapters and facts" off means no new chapters or facts and nothing added to the prompt.
 
-Older messages can leave the prompt only when the window is full, or scene by scene once a chapter covers them; the setting "Older messages leave the prompt" chooses.
+Older messages can leave the prompt only when the window is full, or scene by scene once a chapter covers them; the setting "Older messages leave the prompt" chooses: "Only when the window is full" (default) or "By scenes". [[long-chats]] says which to pick.
 
 ## Matching by meaning
 
