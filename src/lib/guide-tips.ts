@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.90.0'
+export const APP_VERSION = '4.91.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.memory-meaning',
+    since: '4.91.0',
+    help: 'story',
+    keywords: { en: 'memory vectors embeddings meaning data bank snapshot book lorebook by meaning size auto', uk: 'памʼять вектори вбудовування зміст банк даних книга знімок лорбук за змістом розмір авто' },
+    title: { en: 'Memory you can see, and search by meaning', uk: 'Памʼять, яку видно, і пошук за змістом' },
+    body: {
+      en: 'Canvas → Prompt → Memory shows why the last reply carried what it did. A card says whether matching by meaning works and fills the gaps by itself. The Data Bank can be searched by meaning, a chat can be saved as a book the chats you pick can read, and the memory size is Auto. With the new embeddings model on this computer (engine 1.11.0, Settings → Memory) it costs nothing.',
+      uk: 'Полотно → Промпт → Памʼять показує, чому остання відповідь містила саме це. Картка каже, чи працює пошук за змістом, і сама докладає те, чого бракує. Банк даних шукає за змістом, чат можна зберегти як книгу для вибраних чатів, а розмір памʼяті — Авто. З новою моделлю вбудовувань на вашому комп’ютері (рушій 1.11.0, Налаштування → Памʼять) це безкоштовно.',
+    },
+  },
   {
     id: 'new.voice-colors',
     since: '4.90.0',

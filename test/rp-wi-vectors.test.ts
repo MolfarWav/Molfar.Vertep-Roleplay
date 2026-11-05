@@ -195,6 +195,9 @@ describe("vectorized entries through the engine", () => {
     await preview(m, id, "harbor at night");
     const texts = m.embedRequests.flatMap((r) => r.req.texts);
     expect(texts.some((t) => t.startsWith("Harbor floods\nThe harbor district"))).toBe(true);
+    // what is searched for is a query, what is stored is a document (a model with prefixes needs the difference)
+    const req = m.embedRequests[0]!.req as { texts: string[]; kinds?: string[] };
+    expect(req.kinds).toEqual(["query", "document"]);
   }, 30_000);
 
   it("a vector does not skip the secondary keys", async () => {
