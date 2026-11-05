@@ -1069,6 +1069,26 @@ describe("rp studio engine: data bank retrieval", () => {
     const req2 = m2.requests[0]!.req as { messages: { content: string }[] };
     expect(req2.messages.some((x) => x.content.includes("[Data bank"))).toBe(false);
   }, 30_000);
+
+  it("the memory trace (#184 P6) records the hits of a real reply, the scope that kept a file out, and not a preview", async () => {
+    const m = mockHost();
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    expect(((await drive(engineUrl, { method: "GET", path: `/databank/trace?chatId=${id}` }, m)).json as { trace: unknown }).trace).toBeNull();
+    await drive(engineUrl, { method: "POST", path: "/databank", body: { name: "lore.txt", content: "The kerosene ritual demands three matches and a steady hand." } }, m);
+    await drive(engineUrl, { method: "POST", path: "/databank", body: { name: "secret.txt", scope: "character", scopeTargetId: "bram", content: "The kerosene ritual hides a second, secret verse." } }, m);
+    await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, userText: "kerosene ritual matches" } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/databank/trace?chatId=${id}` }, m)).json as { trace: unknown }).trace).toBeNull();
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "tell me about the kerosene ritual and matches" } }, m);
+    const t = ((await drive(engineUrl, { method: "GET", path: `/databank/trace?chatId=${id}` }, m)).json as { trace: { gen: string; off: boolean; hits: { file: string; n: number; score: number; state: string }[]; scoped: { file: string; scope: string; target: string }[] } }).trace;
+    expect(t.gen).toBe("send");
+    expect(t.off).toBe(false);
+    expect(t.hits).toHaveLength(1);
+    expect(t.hits[0]).toMatchObject({ file: "lore.txt", n: 1, state: "in" });
+    expect(t.hits[0]!.score).toBeGreaterThan(2);
+    expect(t.scoped).toEqual([{ file: "secret.txt", scope: "character", target: "bram" }]);
+    expect((await drive(engineUrl, { method: "GET", path: "/databank/trace" }, m)).status).toBe(400);
+  }, 30_000);
 });
 
 describe("rp studio engine: names behavior + prompt post-processing", () => {

@@ -2561,6 +2561,10 @@ export function hiddenPlanNote() {
 /** The turns a plan can ride on: a new reply, not a Continue. */
 const PLAN_OPS = ["send", "next", "swipe", ""];
 
+/** #184 P6: most rows of the trace kept for what went in, and for each kind of what stayed out. */
+const TRACE_IN = 40;
+const TRACE_OUT = 15;
+
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
@@ -2581,11 +2585,13 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // another one present knows; a reply that voices several (`voices` unset) gets what anyone present knows
   const knowers = voices instanceof Set && voices.size ? voices : here;
   const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(key(k))));
-  const active = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text) && known(f));
+  const live = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text));
+  const active = live.filter(known);
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
   // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
   // chapters then ride by themselves)
-  const allBefore = chaptersBeforeCut(st, line, cut).filter((ch) => witnessed(ch, voices, key));
+  const beforeAll = chaptersBeforeCut(st, line, cut);
+  const allBefore = beforeAll.filter((ch) => witnessed(ch, voices, key));
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
@@ -2639,9 +2645,43 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
   const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
   const arcsOf = (list) => list.filter((x) => arcs.includes(x)).length;
+  // #184 P6: why each fact and chapter is in or out, as ids and codes only (names and texts are joined when it is read)
+  const pulled = new Set();
+  const inA = new Set(a);
+  const inB = new Set(b);
+  const dRank = new Map(d.map((f, i) => [f, i + 1]));
+  const eRank = new Map(e.map((c, i) => [c, i + 1]));
+  const traceOf = (facts, chapters, full) => {
+    const inF = new Set(facts);
+    const inC = new Set(chapters);
+    const rows = [];
+    for (const f of facts.slice(0, TRACE_IN)) {
+      const why = pulled.has(f) ? "cause" : inA.has(f) ? "pin" : inB.has(f) ? str(f.type) : "rank";
+      rows.push({ k: "f", i: f.id, s: "in", w: why, ...(dRank.has(f) ? { r: dRank.get(f) } : {}) });
+    }
+    const addOut = (list, w, rank) => list.slice(0, TRACE_OUT).forEach((x) => rows.push({ k: "f", i: x.id, s: "out", w, ...(rank && rank.has(x) ? { r: rank.get(x) } : {}) }));
+    const dropped = d.filter((f) => !inF.has(f));
+    const hidden = live.filter((f) => !known(f));
+    addOut(dropped, "budget", dRank);
+    addOut(hidden.slice(-TRACE_OUT), "speaker");
+    for (const c of chapters.slice(0, TRACE_IN)) rows.push({ k: arcs.includes(c) ? "a" : "c", i: c.id, s: "in", w: c === bridge ? "bridge" : arcs.includes(c) ? "arc" : "rank", ...(eRank.has(c) ? { r: eRank.get(c) } : {}) });
+    const lost = e.filter((c) => !inC.has(c));
+    for (const c of lost.slice(0, TRACE_OUT)) rows.push({ k: arcs.includes(c) ? "a" : "c", i: c.id, s: "out", w: "budget", r: eRank.get(c) });
+    const unseen = beforeAll.filter((ch) => !allBefore.includes(ch));
+    for (const c of unseen.slice(0, TRACE_OUT)) rows.push({ k: "c", i: c.id, s: "out", w: "unseen" });
+    return {
+      v: 1,
+      kn: [...knowers],
+      one: voices instanceof Set && voices.size > 0,
+      n: { live: live.length, hidden: hidden.length, seen: active.length - a.length - b.length - rest.length, inF: facts.length, drop: dropped.length, unseen: unseen.length, held: held.size },
+      full: !!full,
+      limit: budget,
+      rows,
+    };
+  };
   const result = (facts, chapters, head, tail, full) => {
     const text = [head, tail].filter(Boolean).join("\n\n");
-    return { text, head, tail, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcsOf(chapters), arcs: arcsOf(chapters), cut, full, factIds: facts.map((f) => f.id) };
+    return { text, head, tail, tokens: estimateTokens(text), facts: facts.length, chapters: chapters.length - arcsOf(chapters), arcs: arcsOf(chapters), cut, full, factIds: facts.map((f) => f.id), trace: traceOf(facts, chapters, full) };
   };
 
   // Full record: when everything known fits, none of it is ranked away. The chapters (the fresh arcs in
@@ -2701,8 +2741,10 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
         continue;
       }
       facts.splice(facts.indexOf(effect) + 1, 0, cause);
-      if (estimateTokens(render()) <= budget) causes.pulled++;
-      else {
+      if (estimateTokens(render()) <= budget) {
+        causes.pulled++;
+        pulled.add(cause);
+      } else {
         facts.splice(facts.indexOf(cause), 1);
         causes.missed++;
       }
@@ -2917,6 +2959,7 @@ export function llmRequest(ctx, host) {
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
           ...(insert && insert.full ? { full: true } : {}),
+          ...(insert && insert.trace ? { trace: { ...insert.trace, op: str(ctx.turn.op), speaker: str(speakerName) } } : {}),
           ...causeRecord(prevInsert, insert),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
@@ -6112,6 +6155,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/portraits" && req.method === "GET") return { status: 200, json: loadPortraits(fsx) };
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
+  if (path === "/litopys/trace" && req.method === "GET") return traceRoute(fsx, req.query || {});
   if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx, "card");
   if (path === "/litopys/memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
   if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview", "card");
@@ -7186,6 +7230,89 @@ export function greetingOpening(fsx, chatId, line, titleOf) {
   const first = arr(line)[0];
   if (!link || !str(link.from) || !isObj(first) || first.greeting !== true || first.edited || arr(line).length > OPENING_HINT_MAX) return null;
   return { messageId: str(first.id), title: titleOf(link.from) };
+}
+
+/**
+ * GET /litopys/trace?chatId=: why the last reply's insert carried what it did (#184 P6). The insert file keeps ids and codes
+ * only (a few KB, written with the file the plugin already writes); the texts, the names of who knows a fact and the
+ * registry ids of the people are joined here, when someone looks, so a reply never pays for them. Reading only: the
+ * registry is loaded, never seeded or saved.
+ */
+function traceRoute(fsx, query) {
+  const chatId = str(query.chatId);
+  const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
+  if (!rc) return { status: 404, json: { error: "no such chat" } };
+  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  const tr = isObj(last) && isObj(last.trace) ? last.trace : null;
+  if (!tr) return { status: 200, json: { chatId, trace: null } };
+  const st = loadChatFile(fsx, chatId);
+  let reg = null;
+  try {
+    reg = regLoad(fsx, chatId);
+  } catch {}
+  const dash = readDash(fsx, chatId);
+  const canon = reg ? makeCanon(reg, { userName: rc.meta && rc.meta.userName, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null }) : (n) => str(n);
+  const memo = new Map();
+  /** A name as { name, id }: the person's canonical name and the registry id ("" when the registry does not know them). */
+  const person = (name) => {
+    const s = str(name);
+    if (!s) return null;
+    const low = s.toLowerCase();
+    if (memo.has(low)) return memo.get(low);
+    let id = "";
+    try {
+      const r = reg ? resolveName(reg, s, "person") : null;
+      const e = r && r.id ? regGet(reg, r.id) : null;
+      id = e ? e.id : "";
+    } catch {}
+    const out = { name: str(canon(s)) || s, id };
+    memo.set(low, out);
+    return out;
+  };
+  const cut = (t, n) => (str(t).length > n ? str(t).slice(0, n - 1).trimEnd() + "…" : str(t));
+  const facts = new Map(arr(st && st.facts).filter(isObj).map((f) => [f.id, f]));
+  const chapters = new Map(arr(st && st.chapters).filter(isObj).map((c) => [c.id, c]));
+  const rows = arr(tr.rows).filter((r) => isObj(r) && str(r.i));
+  const outFacts = [];
+  const outChapters = [];
+  for (const r of rows) {
+    const base = { id: str(r.i), state: r.s === "in" ? "in" : "out", why: str(r.w), ...(Number.isFinite(r.r) ? { rank: r.r } : {}) };
+    if (r.k === "f") {
+      const f = facts.get(r.i);
+      outFacts.push({
+        ...base,
+        gone: !f,
+        text: f ? cut(f.text, 200) : "",
+        type: f ? str(f.type) : "",
+        weight: f ? str(f.weight) : "",
+        subject: f && str(f.subject) ? person(f.subject) || { name: str(f.subject), id: "" } : null,
+        by: !f ? [] : f.knownBy === "all" ? "all" : arr(f.knownBy).map(person).filter(Boolean),
+      });
+    } else {
+      const c = chapters.get(r.i);
+      outChapters.push({ ...base, arc: r.k === "a", gone: !c, label: c ? str(c.label) : "", text: c ? cut(c.text, 200) : "", cast: c ? arr(c.cast).map(person).filter(Boolean) : [] });
+    }
+  }
+  return {
+    status: 200,
+    json: {
+      chatId,
+      trace: {
+        at: Number(last.at) || 0,
+        op: str(tr.op),
+        speaker: person(tr.speaker),
+        // true: one character speaks, so only what that character knows (or everyone) went in; false: anyone present
+        one: tr.one === true,
+        knowers: arr(tr.kn).map(person).filter(Boolean),
+        full: tr.full === true,
+        limit: Number(tr.limit) || 0,
+        tokens: Number(last.tokens) || 0,
+        n: isObj(tr.n) ? tr.n : {},
+        facts: outFacts,
+        chapters: outChapters,
+      },
+    },
+  };
 }
 
 /**

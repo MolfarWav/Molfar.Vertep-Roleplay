@@ -1088,12 +1088,17 @@ function databankInScope(file, scope) {
  *  forms in the text. Score is hits per 1000 characters so a long chunk can't
  *  win on size alone; the floor (2.0) keeps glancing hits out. Files written
  *  before stems were stored get them on first use. */
-function searchDatabank(fsx, query, limit = 3, scope) {
+function searchDatabank(fsx, query, limit = 3, scope, info) {
   const terms = Object.keys(dbTerms(String(query || ""))).slice(0, 48);
   if (!terms.length) return [];
   const scored = [];
   for (const file of listDatabank(fsx)) {
-    if (file.enabled === false || !databankInScope(file, scope)) continue;
+    if (file.enabled === false) continue;
+    if (!databankInScope(file, scope)) {
+      // the memory trace (#184 P6): a file kept out by its scope (a character who is not speaking, another chat)
+      if (info && Array.isArray(info.scoped)) info.scoped.push({ file: String(file.name || file.id || ""), scope: String(file.scope || ""), target: String(file.scopeTargetId || "") });
+      continue;
+    }
     let upgraded = false;
     for (const c of file.chunks || []) {
       if (!c.terms || typeof c.terms !== "object") { c.terms = dbTerms(String(c.text || "")); upgraded = true; }
@@ -3366,7 +3371,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // a file scoped to a character goes in when that character speaks; the whole roster only when the reply
   // voices all of them (narrator, append) (#184 P1e)
   const dbCharacterIds = isGroup && !rosterMembers.length && speaker && speaker.id ? [speaker.id] : members.map((m) => m.id);
-  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds });
+  const dbInfo = { scoped: [] };
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds }, dbInfo);
+  const dbTrace = [];
   if (isOff("databank")) {
     omit("databank", "Data bank", "off for this chat", undefined, "databank");
   } else if (dbHits.length) {
@@ -3390,6 +3397,16 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       const h = dbHits[i];
       omit("databank", h.fileName + " #" + (h.chunkIndex + 1), "over the data bank room", undefined, "databank");
     }
+    dbHits.forEach((h, i) => dbTrace.push({ file: h.fileName, n: h.chunkIndex + 1, score: h.score, state: i < chunks.length ? "in" : "room" }));
+  }
+  // the memory trace (#184 P6): what the Data Bank did for this reply, for a real reply only (a preview must not overwrite it);
+  // a few hundred bytes, written once per reply, read by GET /databank/trace
+  if (!opts || !opts.dryRun) {
+    try {
+      if (meta.id && /^[A-Za-z0-9_-]{1,128}$/.test(String(meta.id))) {
+        fsx.write("databank-trace/" + meta.id + ".json", JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6) }));
+      }
+    } catch { /* read-only: no trace */ }
   }
 
   // author's note: the object form carries position/depth/role
@@ -5370,6 +5387,12 @@ export function handleRoute(req, host) {
         };
         writeJson("databank/" + fid + ".json", file);
         return ok({ file: { id: fid, name, scope: file.scope, scopeTargetId: file.scopeTargetId, status: "ready", size: file.size, chunks: chunks.length, enabled: true, addedAt: file.addedAt } });
+      }
+      // #184 P6: what the Data Bank did for this chat's last reply (written by assemble(), null before the first one)
+      if (req.method === "GET" && id === "trace") {
+        const cid = req.query && typeof req.query.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(req.query.chatId) ? req.query.chatId : "";
+        if (!cid) return err(400, "chatId required");
+        return ok({ chatId: cid, trace: readJson("databank-trace/" + cid + ".json", null) });
       }
       if (req.method === "GET" && id === "search") {
         const q = String((req.query && req.query.q) || (body().q) || "");
