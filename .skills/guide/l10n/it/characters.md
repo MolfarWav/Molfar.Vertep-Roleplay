@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Personaggi, Gruppi, Persone e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* hanno i dettagli.
@@ -16,7 +16,7 @@ L'editor ha sei schede:
 - **Lorebook**: i libri collegati a questa scheda.
 - **Altro**: colori e voci, sprite, galleria, regex, impostazioni avanzate.
 
-Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). In Colori, "Voci" dà a ciascun parlante il proprio colore.
+Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). In Colori, "Voci" dà a ciascun parlante il proprio colore. Se non elenchi nessuna voce, la chat lo fa per te: una scheda che contiene più personaggi (sezioni con il nome di ciascuno) colora da sola le battute di ogni personaggio, ognuno con un colore diverso, e il colore resta salvato con la chat. In qualsiasi altra chat, apri il menu della chat, "Colori delle voci", e attiva l'interruttore; "Distribuisci i colori" dà un colore diverso a tutti quelli che non hai scelto. Serve il Dashboard Relationship, che fornisce l'elenco dei personaggi.
 
 ## Persone
 
@@ -24,7 +24,7 @@ Una persona sei tu: nome, pronomi, descrizione, avatar. Il modello la vede ovunq
 
 ## Gruppi
 
-Un gruppo mette più personaggi in una chat. "Nuovo gruppo" ti consente di scegliere i membri. L'editor ha Panoramica, Membri, Scena, Turni, Lore e Chat. La scheda Turni decide chi risponde: Narratore (una risposta dà voce a tutti) o Ciascuno a turno. Un nuovo gruppo inizia come Narratore. Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri.
+Un gruppo mette più personaggi in una chat. "Nuovo gruppo" ti consente di scegliere i membri. L'editor ha Panoramica, Membri, Scena, Turni, Lore e Chat. La scheda Turni decide chi risponde: Narratore (una risposta dà voce a tutti) o Ciascuno a turno. Un nuovo gruppo inizia come Narratore. Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri. I membri senza un colore proprio ricevono automaticamente colori diversi.
 
 ## Ottenere schede
 

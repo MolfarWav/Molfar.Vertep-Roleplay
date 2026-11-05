@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Personagens, personas e grupos
 
 Tudo com que você joga vive em quatro seções: Personagens, Grupos, Personas e Mercado. Esta página diz para que serve cada uma; os artigos de Ajuda *Seus personagens*, *As abas do editor de cartões* e *Grupos de personagens* têm os detalhes.
@@ -16,7 +16,7 @@ O editor tem seis abas:
 - **Lorebook**: livros vinculados a este cartão.
 - **Mais**: cores e vozes, sprites, galeria, regex, configurações avançadas.
 
-Um cartão pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Cores, "Vozes" dá a cada falante sua própria cor.
+Um cartão pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Cores, "Vozes" dá a cada falante sua própria cor. Se você não listar vozes, o chat faz isso por você: um cartão que contém vários personagens (seções com o nome de cada um) colore sozinho as falas de cada personagem, cada um com uma cor diferente, e isso fica salvo com o chat. Em qualquer outro chat, abra o menu do chat, "Cores das vozes", e ligue o interruptor; "Espalhar cores" dá uma cor diferente a todos que você não escolheu. Isso precisa do Dashboard Relationship, que fornece a lista de personagens.
 
 ## Personas
 
@@ -24,7 +24,7 @@ Uma persona é você: nome, pronomes, descrição, avatar. O modelo a vê onde q
 
 ## Grupos
 
-Um grupo coloca vários personagens em um chat. "Novo grupo" permite escolher os membros. O editor tem Visão geral, Membros, Cena, Turnos, Lore e Chats. A aba Turnos decide quem responde: Narrador (uma resposta dá voz a todos) ou Cada um por vez. Um grupo novo começa como Narrador. Um grupo não é um cartão: apagar um grupo apaga seus chats, nunca seus membros.
+Um grupo coloca vários personagens em um chat. "Novo grupo" permite escolher os membros. O editor tem Visão geral, Membros, Cena, Turnos, Lore e Chats. A aba Turnos decide quem responde: Narrador (uma resposta dá voz a todos) ou Cada um por vez. Um grupo novo começa como Narrador. Um grupo não é um cartão: apagar um grupo apaga seus chats, nunca seus membros. Membros sem uma cor própria recebem cores diferentes automaticamente.
 
 ## Obtendo cartões
 

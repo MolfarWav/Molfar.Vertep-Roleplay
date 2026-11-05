@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne işe yaradığını söyler; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makaleleri ayrıntıları içerir.
@@ -16,7 +16,7 @@ Düzenleyicinin altı sekmesi vardır:
 - **Lorebook**: bu karta bağlı kitaplar.
 - **More**: renkler ve sesler, sprite'lar, galeri, regex, gelişmiş ayarlar.
 
-Bir kart aynı anda birkaç karakteri oynayabilir (bir anlatıcı veya oyun yöneticisi). Colors altında, "Voices" her konuşmacıya kendi rengini verir.
+Bir kart aynı anda birkaç karakteri oynayabilir (bir anlatıcı veya oyun yöneticisi). Colors altında, "Voices" her konuşmacıya kendi rengini verir. Hiç ses listelemezseniz sohbet bunu sizin yerinize yapar: birkaç karakter içeren bir kart (her birinin adını taşıyan bölümlerle) her karakterin satırlarını kendiliğinden, her biri farklı bir renkle boyar ve bu renkler sohbetle birlikte saklanır. Başka herhangi bir sohbette sohbet menüsünü açın, "Voice colors", ve anahtarı açın; "Spread colors" seçmediğiniz herkese farklı bir renk verir. Bunun için karakter listesini sağlayan Relationship dashboard'u gerekir.
 
 ## Personalar
 
@@ -24,7 +24,7 @@ Bir persona sizsiniz: ad, zamirler, açıklama, avatar. Model onu, istemin kulla
 
 ## Gruplar
 
-Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üye seçmenizi sağlar. Düzenleyicide Overview, Members, Scene, Turns, Lore ve Chats bulunur. Turns sekmesi kimin yanıtlayacağına karar verir: Narrator (tek yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar. Bir grup bir kart değildir: bir grubu silmek sohbetlerini siler, asla üyelerini silmez.
+Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üye seçmenizi sağlar. Düzenleyicide Overview, Members, Scene, Turns, Lore ve Chats bulunur. Turns sekmesi kimin yanıtlayacağına karar verir: Narrator (tek yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar. Bir grup bir kart değildir: bir grubu silmek sohbetlerini siler, asla üyelerini silmez. Kendi rengi olmayan üyelere otomatik olarak farklı renkler verilir.
 
 ## Kart edinme
 

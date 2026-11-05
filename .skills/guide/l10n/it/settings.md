@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Dove stanno le impostazioni di Roleplay
 
 Roleplay non ha un'unica pagina di impostazioni per tutto. Le impostazioni stanno vicino a ciò che cambiano, e due di esse sono nelle Impostazioni principali di Molfar Vertep. Questa pagina è un indice.
@@ -8,7 +8,7 @@ Roleplay non ha un'unica pagina di impostazioni per tutto. Le impostazioni stann
 - **Le Impostazioni principali** di Molfar Vertep (l'ingranaggio dell'intera pagina): modelli e connessioni, backup dell'intero profilo, aggiornamenti. Scegli e prova i modelli lì; vedi [[vertep:settings]] e [[vertep:models]]. I modelli con stella lì compaiono come cambi rapidi in una chat.
 - **Impostazioni Roleplay**: il pulsante "Impostazioni Roleplay" nell'intestazione della Home (su un telefono, nel menu). Non è ancora elencato dentro le Impostazioni principali, quindi cercalo in Roleplay stesso. Ha dieci sezioni: Aspetto, Comportamento chat, Streaming, Temi, Colori della prosa, CSS personalizzato, Attività sulle schede, Importazione, Dati e Guida. Una casella di ricerca in alto le filtra.
 
-Cosa fanno le sezioni, in breve: Aspetto è lingua, caratteri, larghezza della chat e avatar; Comportamento chat ha interruttori come invio con Invio e conferma delle eliminazioni; Streaming sceglie se mostrare le risposte mentre vengono scritte o a conclusione; Attività sulle schede sceglie il modello usato dagli aiutanti delle schede ("Strutturala", "Riempi i vuoti") quando una scheda non ha un suo modello; Importazione porta dentro preset, personaggi, lorebook, chat e uno zip di backup; Dati esporta e ripristina i dati propri di Roleplay come zip (l'intero profilo viene salvato dal Backup delle Impostazioni principali); Guida mostra o nasconde i brevi tour e le "Novità".
+Cosa fanno le sezioni, in breve: Aspetto è lingua, caratteri, larghezza della chat e avatar; Comportamento chat ha interruttori come invio con Invio e conferma delle eliminazioni; Streaming sceglie se mostrare le risposte mentre vengono scritte o a conclusione; Attività sulle schede sceglie il modello usato dagli aiutanti delle schede ("Strutturala", "Riempi i vuoti") quando una scheda non ha un suo modello; Importazione porta dentro preset, personaggi, lorebook, chat e uno zip di backup (un preset SillyTavern arriva con le sue liste di scelta come Scelte, le spiegazioni dell'autore come note e i suoi blocchi "non toccare" bloccati; un preset esportato da Roleplay torna con tutte le sue Scelte); Dati esporta e ripristina i dati propri di Roleplay come zip (l'intero profilo viene salvato dal Backup delle Impostazioni principali); Guida mostra o nasconde i brevi tour e le "Novità".
 
 ## Impostazioni che vivono altrove in Roleplay
 
@@ -16,7 +16,7 @@ Cosa fanno le sezioni, in breve: Aspetto è lingua, caratteri, larghezza della c
 - **Litopys**: l'ingranaggio "Impostazioni di Litopys" nella Libreria. Vedi [[litopys]].
 - **World DM**: il foglio World nell'intestazione della chat e la sezione World; "Impostazioni world" contiene il modello DM. Vedi [[world-dm]].
 - **Agenti**: le bacheche Agenti e "Insiemi di agenti" del Canvas e la scheda Agenti della chat. Vedi [[agents]].
-- **Prompt e campionamento**: la sezione **Preset** (sezioni che puoi cambiare, variabili, campionatori e un'anteprima della richiesta finale) e la bacheca Prompt del Canvas per una chat.
+- **Prompt e campionamento**: la sezione **Preset** (sezioni che puoi cambiare, variabili, campionatori e un'anteprima della richiesta finale) e la bacheca Prompt del Canvas per una chat. Il pannello Preset di una chat mostra, sotto il nome del preset, una riga "Funziona con": le funzioni di questa chat per cui il preset ha delle regole (Dashboard, Litopys, World DM, dadi...), e quali di esse sono disattivate in questa chat.
 - **Le impostazioni di una scheda**: le schede del suo editor, inclusi colori, regex e opzioni avanzate. Vedi [[characters]].
 - **Lorebook**: ogni libro ha le proprie regole (profondità di scansione, limite di dimensione, interruttore Globale). Vedi [[memory]].
 - **La Posta in arrivo** ha interruttori per tipo su cosa conta come in attesa di te.

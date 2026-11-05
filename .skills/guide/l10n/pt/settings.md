@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Onde estão as configurações do Roleplay
 
 O Roleplay não tem uma única página de configurações para tudo. As configurações ficam perto do que mudam, e duas delas estão nas Configurações principais do Molfar Vertep. Esta página é um localizador.
@@ -8,7 +8,7 @@ O Roleplay não tem uma única página de configurações para tudo. As configur
 - **As Configurações principais** do Molfar Vertep (a engrenagem da página inteira): modelos e conexões, backups de todo o perfil, atualizações. Escolha e teste modelos lá; veja [[vertep:settings]] e [[vertep:models]]. Modelos marcados lá aparecem como trocas rápidas em um chat.
 - **Configurações do Roleplay**: o botão "Configurações do Roleplay" no cabeçalho da Página inicial (no telefone, no menu). Ele ainda não está listado dentro das Configurações principais, então procure-o no próprio Roleplay. Tem dez seções: Aparência, Comportamento do Chat, Transmissão, Temas, Cores de Prosa, CSS Personalizado, Tarefas de Cartão, Importar, Dados e Guia. Uma caixa de busca no topo as filtra.
 
-O que as seções fazem, em resumo: Aparência é idioma, fontes, largura do chat e avatares; Comportamento do Chat tem interruptores como enviar com Enter e confirmar exclusões; Transmissão escolhe mostrar as respostas conforme são escritas ou quando terminadas; Tarefas de Cartão escolhe o modelo usado pelos auxiliares de cartão ("Estruturar", "Preencher vazio") quando um cartão não tem um próprio; Importar traz predefinições, personagens, lorebooks, chats e um zip de backup; Dados exporta e restaura os próprios dados do Roleplay como um zip (o perfil inteiro é salvo pelo Backup das Configurações principais); Guia mostra ou oculta os pequenos tours e "O que há de novo".
+O que as seções fazem, em resumo: Aparência é idioma, fontes, largura do chat e avatares; Comportamento do Chat tem interruptores como enviar com Enter e confirmar exclusões; Transmissão escolhe mostrar as respostas conforme são escritas ou quando terminadas; Tarefas de Cartão escolhe o modelo usado pelos auxiliares de cartão ("Estruturar", "Preencher vazio") quando um cartão não tem um próprio; Importar traz predefinições, personagens, lorebooks, chats e um zip de backup (uma predefinição do SillyTavern chega com suas listas de escolha como Escolhas, as explicações do autor como notas e seus blocos de "não mexer" travados; uma predefinição exportada do Roleplay volta com todas as suas Escolhas); Dados exporta e restaura os próprios dados do Roleplay como um zip (o perfil inteiro é salvo pelo Backup das Configurações principais); Guia mostra ou oculta os pequenos tours e "O que há de novo".
 
 ## Configurações que vivem em outro lugar no Roleplay
 
@@ -16,7 +16,7 @@ O que as seções fazem, em resumo: Aparência é idioma, fontes, largura do cha
 - **Litopys**: a engrenagem "Configurações do Litopys" na Biblioteca. Veja [[litopys]].
 - **Mestre do Mundo**: a folha Mundo no cabeçalho do chat e a seção Mundo; "Configurações do mundo" guarda o modelo de DM. Veja [[world-dm]].
 - **Agentes**: os quadros Agentes e "Conjuntos de agentes" do Canvas e a aba Agentes do chat. Veja [[agents]].
-- **Prompt e amostragem**: a seção **Predefinições** (seções que você pode alternar, variáveis, amostradores e uma espiada na solicitação final) e o quadro Prompt do Canvas para um chat.
+- **Prompt e amostragem**: a seção **Predefinições** (seções que você pode alternar, variáveis, amostradores e uma espiada na solicitação final) e o quadro Prompt do Canvas para um chat. O painel Predefinição de um chat mostra, sob o nome da predefinição, uma linha "Funciona com": os recursos deste chat para os quais a predefinição tem regras (Dashboard, Litopys, Mestre do Mundo, dados...), e quais deles estão desligados neste chat.
 - **O próprio de um cartão**: suas abas do editor, incluindo cores, regex e opções avançadas. Veja [[characters]].
 - **Lorebooks**: cada livro tem suas próprias regras (profundidade de varredura, limite de tamanho, interruptor Global). Veja [[memory]].
 - **A Caixa de entrada** tem interruptores por tipo para o que conta como esperando por você.

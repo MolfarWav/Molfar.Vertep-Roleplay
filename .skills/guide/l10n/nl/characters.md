@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, leeft in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina zegt waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* hebben de details.
@@ -16,7 +16,7 @@ De editor heeft zes tabbladen:
 - **Lorebook**: boeken gekoppeld aan deze kaart.
 - **Meer**: kleuren en stemmen, sprites, galerij, regex, geavanceerde instellingen.
 
-Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Kleuren geeft "Stemmen" elke spreker een eigen kleur.
+Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Kleuren geeft "Stemmen" elke spreker een eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart met meerdere personages (secties genoemd naar elk van hen) kleurt de regels van elk personage zelf, elk in een andere kleur, en dit blijft bij de chat bewaard. Open in elke andere chat het chatmenu, "Stemkleuren", en zet de schakelaar aan; "Kleuren verspreiden" geeft iedereen die je niet hebt gekozen een andere kleur. Dit heeft het Relationship-dashboard nodig, dat de lijst met personages levert.
 
 ## Persona's
 
@@ -24,7 +24,7 @@ Een persona ben jij: naam, voornaamwoorden, beschrijving, avatar. Het model ziet
 
 ## Groepen
 
-Een groep zet meerdere personages in één chat. "Nieuwe groep" laat je leden kiezen. De editor heeft Overzicht, Leden, Scène, Beurten, Lore en Chats. Het tabblad Beurten bepaalt wie antwoordt: Verteller (één antwoord vertolkt iedereen) of Elke op zijn beurt. Een nieuwe groep begint als Verteller. Een groep is geen kaart: een groep verwijderen verwijdert zijn chats, nooit zijn leden.
+Een groep zet meerdere personages in één chat. "Nieuwe groep" laat je leden kiezen. De editor heeft Overzicht, Leden, Scène, Beurten, Lore en Chats. Het tabblad Beurten bepaalt wie antwoordt: Verteller (één antwoord vertolkt iedereen) of Elke op zijn beurt. Een nieuwe groep begint als Verteller. Een groep is geen kaart: een groep verwijderen verwijdert zijn chats, nooit zijn leden. Leden zonder eigen kleur krijgen automatisch verschillende kleuren.
 
 ## Kaarten verkrijgen
 

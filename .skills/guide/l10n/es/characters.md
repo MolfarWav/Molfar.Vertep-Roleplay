@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Personajes, personas y grupos
 
 Todo con lo que juegas vive en cuatro secciones: Characters, Groups, Personas y Marketplace. Esta página dice para qué sirve cada una; los artículos de Help *Your characters*, *The card editor tabs* y *Groups of characters* tienen los detalles.
@@ -16,7 +16,7 @@ El editor tiene seis pestañas:
 - **Lorebook**: libros vinculados a esta tarjeta.
 - **More**: colores y voces, sprites, galería, regex, ajustes avanzados.
 
-Una tarjeta puede interpretar a varios personajes a la vez (un narrador o director de juego). Bajo Colors, "Voices" da a cada hablante su propio color.
+Una tarjeta puede interpretar a varios personajes a la vez (un narrador o director de juego). Bajo Colors, "Voices" da a cada hablante su propio color. Si no listas voces, el chat lo hace por ti: una tarjeta que contiene varios personajes (secciones con el nombre de cada uno) colorea por sí misma las líneas de cada personaje, cada uno con un color distinto, y se guarda con el chat. En cualquier otro chat, abre el menú del chat, "Voice colors", y activa el interruptor; "Spread colors" da un color distinto a todos los que no hayas elegido. Esto necesita el dashboard Relationship, que aporta la lista de personajes.
 
 ## Personas
 
@@ -24,7 +24,7 @@ Una persona eres tú: nombre, pronombres, descripción, avatar. El modelo la ve 
 
 ## Grupos
 
-Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir miembros. El editor tiene Overview, Members, Scene, Turns, Lore y Chats. La pestaña Turns decide quién responde: Narrator (una respuesta da voz a todos) o Each in turn. Un grupo nuevo empieza como Narrator. Un grupo no es una tarjeta: eliminar un grupo elimina sus chats, nunca a sus miembros.
+Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir miembros. El editor tiene Overview, Members, Scene, Turns, Lore y Chats. La pestaña Turns decide quién responde: Narrator (una respuesta da voz a todos) o Each in turn. Un grupo nuevo empieza como Narrator. Un grupo no es una tarjeta: eliminar un grupo elimina sus chats, nunca a sus miembros. Los miembros sin un color propio reciben colores distintos automáticamente.
 
 ## Conseguir tarjetas
 

@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Où sont les réglages de Roleplay
 
 Roleplay n'a pas une seule page de réglages pour tout. Les réglages se trouvent près de ce qu'ils changent, et deux d'entre eux sont dans les Réglages principaux de Molfar Vertep. Cette page est un index.
@@ -8,7 +8,7 @@ Roleplay n'a pas une seule page de réglages pour tout. Les réglages se trouven
 - **Les Réglages principaux** de Molfar Vertep (l'engrenage de toute la page) : modèles et connexions, sauvegardes de tout le profil, mises à jour. Choisissez et testez les modèles là-bas ; voir [[vertep:settings]] et [[vertep:models]]. Les modèles étoilés y apparaissent comme changements rapides dans une discussion.
 - **Réglages de Roleplay** : le bouton « Réglages de Roleplay » dans l'en-tête de l'Accueil (sur un téléphone, dans le menu). Il n'est pas encore listé dans les Réglages principaux, alors cherchez-le dans Roleplay lui-même. Il a dix sections : Apparence, Comportement de discussion, Diffusion, Thèmes, Couleurs de prose, CSS personnalisé, Tâches de carte, Import, Données et Guide. Une zone de recherche en haut les filtre.
 
-Ce que font les sections, en bref : Apparence, c'est la langue, les polices, la largeur de discussion et les avatars ; Comportement de discussion a des interrupteurs comme envoyer avec Entrée et confirmer les suppressions ; Diffusion choisit de montrer les réponses au fur et à mesure ou à la fin ; Tâches de carte choisit le modèle utilisé par les assistants de carte (« Structurer », « Remplir les vides ») quand une carte n'a pas les siens ; Import fait entrer des préréglages, personnages, livres de connaissances, discussions et un zip de sauvegarde ; Données exporte et restaure les données propres de Roleplay en zip (tout le profil est sauvegardé par la Sauvegarde des Réglages principaux) ; Guide montre ou masque les courtes visites et « Quoi de neuf ».
+Ce que font les sections, en bref : Apparence, c'est la langue, les polices, la largeur de discussion et les avatars ; Comportement de discussion a des interrupteurs comme envoyer avec Entrée et confirmer les suppressions ; Diffusion choisit de montrer les réponses au fur et à mesure ou à la fin ; Tâches de carte choisit le modèle utilisé par les assistants de carte (« Structurer », « Remplir les vides ») quand une carte n'a pas les siens ; Import fait entrer des préréglages, personnages, livres de connaissances, discussions et un zip de sauvegarde (un préréglage SillyTavern arrive avec ses listes de choix sous forme de Choix, les explications de l'auteur sous forme de notes et ses blocs « ne pas toucher » verrouillés ; un préréglage exporté depuis Roleplay revient avec tous ses Choix) ; Données exporte et restaure les données propres de Roleplay en zip (tout le profil est sauvegardé par la Sauvegarde des Réglages principaux) ; Guide montre ou masque les courtes visites et « Quoi de neuf ».
 
 ## Réglages qui vivent ailleurs dans Roleplay
 
@@ -16,7 +16,7 @@ Ce que font les sections, en bref : Apparence, c'est la langue, les polices, la 
 - **Litopys** : l'engrenage « Réglages de Litopys » dans la Bibliothèque. Voir [[litopys]].
 - **World DM** : la feuille Monde dans l'en-tête de la discussion et la section Monde ; « Réglages du monde » contient le modèle DM. Voir [[world-dm]].
 - **Agents** : les tableaux Agents et « Ensembles d'agents » du Canevas et l'onglet Agents de la discussion. Voir [[agents]].
-- **Requête et échantillonnage** : la section **Préréglages** (sections que vous pouvez changer, variables, échantillonneurs, et un aperçu de la requête finale) et le tableau Requête du Canevas pour une discussion.
+- **Requête et échantillonnage** : la section **Préréglages** (sections que vous pouvez changer, variables, échantillonneurs, et un aperçu de la requête finale) et le tableau Requête du Canevas pour une discussion. Le panneau Préréglage d'une discussion affiche, sous le nom du préréglage, une ligne « Fonctionne avec » : les fonctions de cette discussion pour lesquelles le préréglage a des règles (Tableau de bord, Litopys, World DM, dés...), et lesquelles sont désactivées dans cette discussion.
 - **Ce qui est propre à une carte** : ses onglets d'éditeur, y compris couleurs, regex et options avancées. Voir [[characters]].
 - **Livres de connaissances** : chaque livre a ses propres règles (profondeur d'analyse, plafond de taille, interrupteur Global). Voir [[memory]].
 - **La Boîte de réception** a des interrupteurs par sorte pour ce qui compte comme en attente de vous.
