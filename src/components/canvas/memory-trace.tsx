@@ -223,15 +223,15 @@ function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys']>; t:
   const drop = lit.n.drop ?? bu.length
   return (
     <>
-      <Fold id="memtrace.in" title={t('memtrace.foldIn')} icon={Eye} tone="emerald" summary={t('memtrace.facts', { n: lit.n.inF ?? inF.length })} defaultOpen>
+      <Fold id="memtrace.in" title={t('memtrace.foldIn')} icon={Eye} tone="emerald" summary={String(lit.n.inF ?? inF.length)} defaultOpen>
         <Rows empty={t('memtrace.none')}>{inF.map((f) => <FactRow key={f.id} f={f} t={t} />)}</Rows>
         {(lit.n.inF ?? 0) > inF.length && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: (lit.n.inF ?? 0) - inF.length })}</p>}
       </Fold>
-      <Fold id="memtrace.speaker" title={t('memtrace.foldSpeaker')} icon={EyeSlash} tone="amber" summary={t('memtrace.facts', { n: hidden })} defaultOpen={hidden > 0}>
+      <Fold id="memtrace.speaker" title={t('memtrace.foldSpeaker')} icon={EyeSlash} tone="amber" summary={String(hidden)} defaultOpen={hidden > 0}>
         <Rows empty={t('memtrace.none')}>{sp.map((f) => <FactRow key={f.id} f={f} t={t} />)}</Rows>
         {hidden > sp.length && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: hidden - sp.length })}</p>}
       </Fold>
-      <Fold id="memtrace.budget" title={t('memtrace.foldBudget')} icon={EyeSlash} tone="slate" summary={t('memtrace.facts', { n: drop })}>
+      <Fold id="memtrace.budget" title={t('memtrace.foldBudget')} icon={EyeSlash} tone="slate" summary={String(drop)}>
         <Rows empty={t('memtrace.none')}>{bu.map((f) => <FactRow key={f.id} f={f} t={t} />)}</Rows>
         {drop > bu.length && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: drop - bu.length })}</p>}
       </Fold>

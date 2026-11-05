@@ -747,9 +747,9 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         </label>
         {/* on a phone the switch takes its own row under the picker, so the picker is not squeezed */}
         <Tabs value={view} onValueChange={(v) => setView(v === 'memory' ? 'memory' : 'parts')} className="max-md:order-last max-md:basis-full">
-          <TabsList aria-label={t('canvas.prompt.viewSwitch')} className="max-md:h-10! max-md:w-full">
-            <TabsTrigger value="parts" className="px-3">{t('canvas.prompt.viewParts')}</TabsTrigger>
-            <TabsTrigger value="memory" className="px-3">{t('canvas.prompt.viewMemory')}</TabsTrigger>
+          <TabsList aria-label={t('canvas.prompt.viewSwitch')} className="max-md:h-auto! max-md:w-full">
+            <TabsTrigger value="parts" className="px-3 max-md:h-10!">{t('canvas.prompt.viewParts')}</TabsTrigger>
+            <TabsTrigger value="memory" className="px-3 max-md:h-10!">{t('canvas.prompt.viewMemory')}</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className={cn('mx-1 h-5 w-px bg-border max-md:hidden', view === 'memory' && 'hidden')} />
