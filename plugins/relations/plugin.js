@@ -1708,6 +1708,11 @@ const signed = (n) => (n > 0 ? "+" : "") + fmt(n);
 const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const isUser = (s) => String(s).trim().toLowerCase() === "user";
 const cut = (s, n) => String(s).slice(0, n);
+/** What the sensor wrote and could not keep, as a row for the Memory view (#184 P6): why, who it was for, the text. At most 8 a report. */
+function noteKept(ctx, why, who, text) {
+  const rows = ctx.keptRows || (ctx.keptRows = []);
+  if (rows.length < 8) rows.push({ why, who: cut(str(who), 60), text: cut(str(text), 140) });
+}
 
 /** Truncate toward zero; a real change never rounds away to nothing. */
 export function roundStep(sum) {
@@ -4764,6 +4769,7 @@ function readEvents(list, ctx, known, unknownIds) {
     if (weight === "significant" && !quote) {
       weight = "routine";
       ctx.noQuote = (ctx.noQuote || 0) + 1;
+      noteKept(ctx, "noQuote", "", use.id);
     }
     events.push({
       id: use.id,
@@ -5653,7 +5659,10 @@ function applyNotebook(ctx, out, present, turn, K) {
     if (used >= 4) break;
     if (!isObj(l)) continue;
     if (sideOf(l.who, userAll(ctx), present, ctx) === "user") {
-      if (str(l.text)) keptOut.user++;
+      if (str(l.text)) {
+        keptOut.user++;
+        noteKept(ctx, "user", l.who, l.text);
+      }
       continue;
     }
     const who = personName(ctx, l.who);
@@ -5661,6 +5670,7 @@ function applyNotebook(ctx, out, present, turn, K) {
     if (!text) continue;
     if (!present.includes(who)) {
       keptOut.absent++;
+      noteKept(ctx, "absent", who, text);
       continue;
     }
     if (generic.includes(sameText(l.text))) continue;
@@ -5709,11 +5719,13 @@ function applySaid(ctx, out, present, turn, K) {
     if (!text) continue;
     if (sideOf(s.who, userAll(ctx), present, ctx) === "user") {
       kept.user++;
+      noteKept(ctx, "user", s.who, text);
       continue;
     }
     const who = personName(ctx, s.who);
     if (!present.includes(who)) {
       kept.absent++;
+      noteKept(ctx, "absent", who, text);
       continue;
     }
     if (duplicateNote(text, live[who]) || duplicateNote(text, fresh[who]) || duplicateNote(text, notes[who])) continue;
@@ -5751,11 +5763,13 @@ function applyJournal(ctx, out, present, turn, K) {
   for (const p of items) {
     if (sideOf(p.who, userAll(ctx), present, ctx) === "user") {
       kept.user++;
+      noteKept(ctx, "user", p.who, p.text);
       continue;
     }
     const who = personName(ctx, p.who);
     if (!present.includes(who)) {
       kept.absent++;
+      noteKept(ctx, "absent", who, p.text);
       continue;
     }
     let about;
@@ -6424,7 +6438,7 @@ function commitUpdate(fsx, ctx, r) {
     // facts the sensor wrote that could not be kept: the dashboard says so until a report keeps all (#97)
     const kept = ctx.keptOut || { user: 0, absent: 0 };
     const lowered = ctx.noQuote || 0;
-    ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}) } : null;
+    ctx.state.keptOut = kept.user || kept.absent || lowered ? { at: Date.now(), turn: snapshot.turn, user: kept.user, absent: kept.absent, ...(lowered ? { noQuote: lowered } : {}), ...(arr(ctx.keptRows).length ? { rows: ctx.keptRows } : {}) } : null;
     saveRegistry(fsx, ctx);
     reapplyAgentWrites(fsx, ctx.state, ctx.chatId);
     saveState(fsx, ctx);

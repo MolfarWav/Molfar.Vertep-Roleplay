@@ -1088,12 +1088,17 @@ function databankInScope(file, scope) {
  *  forms in the text. Score is hits per 1000 characters so a long chunk can't
  *  win on size alone; the floor (2.0) keeps glancing hits out. Files written
  *  before stems were stored get them on first use. */
-function searchDatabank(fsx, query, limit = 3, scope) {
+function searchDatabank(fsx, query, limit = 3, scope, info) {
   const terms = Object.keys(dbTerms(String(query || ""))).slice(0, 48);
   if (!terms.length) return [];
   const scored = [];
   for (const file of listDatabank(fsx)) {
-    if (file.enabled === false || !databankInScope(file, scope)) continue;
+    if (file.enabled === false) continue;
+    if (!databankInScope(file, scope)) {
+      // the memory trace (#184 P6): a file kept out by its scope (a character who is not speaking, another chat)
+      if (info && Array.isArray(info.scoped)) info.scoped.push({ file: String(file.name || file.id || ""), scope: String(file.scope || ""), target: String(file.scopeTargetId || "") });
+      continue;
+    }
     let upgraded = false;
     for (const c of file.chunks || []) {
       if (!c.terms || typeof c.terms !== "object") { c.terms = dbTerms(String(c.text || "")); upgraded = true; }
@@ -1694,7 +1699,7 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   if (inj.enabled !== false && !off("plugin:relations")) {
     add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * 2 + 200);
     // the said block is its own part with its own fixed room (SAID_TOKENS in the dashboard plugin)
-    if (!(dcfg.said && dcfg.said.inject === false)) add("dashboard said", 120);
+    if (!(dcfg.said && dcfg.said.inject === false) && !off("plugin:said")) add("dashboard said", 120);
     // the character journal: one block per focused character, at most journal.maxTokens each (40..400, default 120)
     const jcfg = dcfg.journal && typeof dcfg.journal === "object" ? dcfg.journal : {};
     if (jcfg.on !== false && jcfg.inject !== false && !off("plugin:journal")) add("dashboard journal", clampInt(jcfg.maxTokens, 40, 400, 120) * DASHBOARD_FOCUS);
@@ -3029,6 +3034,24 @@ export function presetCosts(preset, meta, totalOnly) {
   return { total: render(sections, null), vars };
 }
 
+/**
+ * The Data Bank traces of chats that are gone (#184 P6): a deleted chat leaves its `databank-trace/<chatId>.json` behind,
+ * and no delete route of this plugin sees every way a chat can go. Checked after a trace is written, and only once more
+ * than 20 files are there, so a reply pays one directory listing.
+ */
+function sweepDatabankTraces(fsx) {
+  try {
+    const files = fsx.list("databank-trace").filter((f) => f.endsWith(".json"));
+    if (files.length <= 20) return;
+    const chats = new Set(fsx.list("chats").filter((f) => f.endsWith(".meta.json")).map((f) => f.slice(0, -10)));
+    for (const f of files) {
+      if (!chats.has(f.slice(0, -5))) {
+        try { fsx.remove("databank-trace/" + f); } catch { /* left for the next sweep */ }
+      }
+    }
+  } catch { /* no directory yet */ }
+}
+
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
   const isOff = (k) => pbOff.has(k);
@@ -3044,7 +3067,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // trigger list to it (send/swipe/continue/impersonate; a swipe on the last
   // message also satisfies "regenerate")
   const GEN_TYPES = {
-    send: ["normal"], swipe: ["swipe", "regenerate"], continue: ["continue"],
+    send: ["normal"], next: ["normal"], swipe: ["swipe", "regenerate"], continue: ["continue"],
     impersonate: ["impersonate"], preview: ["normal"], summarize: ["quiet"],
   };
   const genTypes = GEN_TYPES[(opts && opts.gen) || "send"] || GEN_TYPES.send;
@@ -3366,7 +3389,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // a file scoped to a character goes in when that character speaks; the whole roster only when the reply
   // voices all of them (narrator, append) (#184 P1e)
   const dbCharacterIds = isGroup && !rosterMembers.length && speaker && speaker.id ? [speaker.id] : members.map((m) => m.id);
-  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds });
+  const dbInfo = { scoped: [] };
+  const dbHits = isOff("databank") ? [] : searchDatabank(fsx, dbScan, 3, { chatId: meta.id, characterIds: dbCharacterIds }, dbInfo);
+  const dbTrace = [];
   if (isOff("databank")) {
     omit("databank", "Data bank", "off for this chat", undefined, "databank");
   } else if (dbHits.length) {
@@ -3390,6 +3415,22 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       const h = dbHits[i];
       omit("databank", h.fileName + " #" + (h.chunkIndex + 1), "over the data bank room", undefined, "databank");
     }
+    dbHits.forEach((h, i) => dbTrace.push({ file: h.fileName, n: h.chunkIndex + 1, score: h.score, state: i < chunks.length ? "in" : "room" }));
+  }
+  // the memory trace (#184 P6): what the Data Bank did for this reply, for a real reply only (a preview must not overwrite it);
+  // a few hundred bytes, written once per reply, read by GET /databank/trace
+  if (!opts || !opts.dryRun) {
+    try {
+      if (meta.id && /^[A-Za-z0-9_-]{1,128}$/.test(String(meta.id))) {
+        const tfile = "databank-trace/" + meta.id + ".json";
+        // the reply before this one moves into `prev` (the last 4 older replies), so the Memory view can look back
+        let before = null;
+        try { before = JSON.parse(fsx.read(tfile)); } catch { /* none yet */ }
+        const prev = before && typeof before === "object" ? [{ ...before, prev: undefined }, ...(Array.isArray(before.prev) ? before.prev : [])].slice(0, 4) : [];
+        fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), prev }));
+        sweepDatabankTraces(fsx);
+      }
+    } catch { /* read-only: no trace */ }
   }
 
   // author's note: the object form carries position/depth/role
@@ -5371,6 +5412,12 @@ export function handleRoute(req, host) {
         writeJson("databank/" + fid + ".json", file);
         return ok({ file: { id: fid, name, scope: file.scope, scopeTargetId: file.scopeTargetId, status: "ready", size: file.size, chunks: chunks.length, enabled: true, addedAt: file.addedAt } });
       }
+      // #184 P6: what the Data Bank did for this chat's last reply (written by assemble(), null before the first one)
+      if (req.method === "GET" && id === "trace") {
+        const cid = req.query && typeof req.query.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(req.query.chatId) ? req.query.chatId : "";
+        if (!cid) return err(400, "chatId required");
+        return ok({ chatId: cid, trace: readJson("databank-trace/" + cid + ".json", null) });
+      }
       if (req.method === "GET" && id === "search") {
         const q = String((req.query && req.query.q) || (body().q) || "");
         if (!q.trim()) return err(400, "q required");
@@ -5914,7 +5961,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "next" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,

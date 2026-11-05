@@ -16,6 +16,7 @@ import { estimateTokens } from '@/lib/tokens'
 import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
 import { fetchCardMemory } from '@/components/character/memory-api'
 import { StoryChoices } from './carries-stories'
+import { openMemoryTrace } from '@/lib/memory-trace-open'
 import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
@@ -295,6 +296,9 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         )}
         {part.kind === 'dashboard' && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openDashboard() }}>{t('carries.dashboard.open')}</Button>
+        )}
+        {part.kind === 'litopys' && (
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); openMemoryTrace(chatId) }}>{t('carries.litopys.why')}</Button>
         )}
       </div>
       {part.kind === 'memory' && !!cm && <StoryChoices chatId={chatId} cardId={cm.cardId} t={t} onChanged={onChanged} />}

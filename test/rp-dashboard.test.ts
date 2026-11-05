@@ -5101,6 +5101,11 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(st.keptOut).toMatchObject({ user: 1, absent: 1, turn: 1 });
     const v = drive(mock, { method: "GET", path: "/dashboard/state", query: { chatId: "c1", view: "1" } }).json as { view: { keptOut: { user: number; absent: number } | null } };
     expect(v.view.keptOut).toMatchObject({ user: 1, absent: 1 });
+    // the Memory view (#184 P6) says which facts, not only how many
+    expect(st.keptOut.rows).toEqual([
+      { why: "user", who: "user", text: "The market is loud" },
+      { why: "absent", who: "Nobody", text: "The user is a stranger" },
+    ]);
   });
 
   it("a report that keeps every fact clears the notice", () => {

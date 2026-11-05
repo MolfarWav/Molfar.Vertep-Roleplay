@@ -21,6 +21,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChatPicker } from '@/components/canvas/chat-picker'
+import { MemoryTraceView } from '@/components/canvas/memory-trace'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
@@ -38,6 +40,7 @@ import {
   type PromptSourceSpan
 } from '@/lib/engine'
 import { requestOrder } from '@/lib/prompt-order'
+import { clearOpenMemory, wantsMemory } from '@/lib/memory-trace-open'
 import { useApp, useChat } from '@/lib/store'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 
@@ -299,6 +302,9 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
   const [expandedPhoneKey, setExpandedPhoneKey] = useState<string | null>(null)
   // "Only what is sent", on by default, remembered globally (#43)
   const [sentOnly, setSentOnlyState] = useState<boolean>(() => readLS('promptBoard.sentOnly') !== '0')
+  // "Parts" is the board; "Memory" is the trace of the last reply's memory (#184 P6)
+  const [view, setView] = useState<'parts' | 'memory'>(() => (wantsMemory() ? 'memory' : 'parts'))
+  useEffect(() => clearOpenMemory(), [])
 
   const requestCounter = useRef(0)
   // Which chat the board on screen belongs to. Every async reply checks it
@@ -741,21 +747,28 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           <span className="text-muted-foreground">{t('canvas.prompt.chat')}</span>
           <ChatPicker chats={chats} value={chatId} onChange={onPickChat} />
         </label>
-        <div className="mx-1 h-5 w-px bg-border max-md:hidden" />
-        <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} title={t('canvas.undo')}>
+        {/* on a phone the switch takes its own row under the picker, so the picker is not squeezed */}
+        <Tabs value={view} onValueChange={(v) => setView(v === 'memory' ? 'memory' : 'parts')} className="max-md:order-last max-md:basis-full">
+          <TabsList aria-label={t('canvas.prompt.viewSwitch')} className="max-md:h-auto! max-md:w-full">
+            <TabsTrigger value="parts" className="px-3 max-md:h-10!">{t('canvas.prompt.viewParts')}</TabsTrigger>
+            <TabsTrigger value="memory" className="px-3 max-md:h-10!">{t('canvas.prompt.viewMemory')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className={cn('mx-1 h-5 w-px bg-border max-md:hidden', view === 'memory' && 'hidden')} />
+        <Button variant="ghost" size="icon" onClick={undo} disabled={past.length === 0} title={t('canvas.undo')} className={cn(view === 'memory' && 'hidden')}>
           <ArrowCounterClockwise className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={redo} disabled={future.length === 0} title={t('canvas.redo')}>
+        <Button variant="ghost" size="icon" onClick={redo} disabled={future.length === 0} title={t('canvas.redo')} className={cn(view === 'memory' && 'hidden')}>
           <ArrowClockwise className="h-4 w-4" />
         </Button>
-        {boardState.off.length > 0 && (
+        {view === 'parts' && boardState.off.length > 0 && (
           <Button variant="outline" size="sm" onClick={turnAllOn} disabled={!editable}>
             {t('canvas.prompt.turnAllOn')}
           </Button>
         )}
         <div className="flex-1" />
         {/* on a phone the list's sticky line carries the total: one total, not two */}
-        {sources && !loadingBoard && !phoneList && (
+        {view === 'parts' && sources && !loadingBoard && !phoneList && (
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold" aria-live="polite">
             {t('canvas.prompt.total')}: {formatTokens(totalTokens)} {t('canvas.prompt.tokens')}
           </span>
@@ -764,7 +777,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           {saveState === 'saving' ? t('canvas.prompt.saving') : saveState === 'saved' ? t('canvas.prompt.saved') : ''}
         </span>
         {previewLoading && <span className="text-xs text-muted-foreground">{t('canvas.prompt.updating')}</span>}
-        {!phoneList && (
+        {view === 'parts' && !phoneList && (
           <Button
             data-guide="prompt.details"
             variant="ghost"
@@ -777,7 +790,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
           </Button>
         )}
       </header>
-      {!unsupported && (
+      {view === 'parts' && !unsupported && (
         <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
           <div className="relative min-w-0 flex-1">
             <MagnifyingGlass className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -806,7 +819,9 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
         </div>
       )}
 
-      {unsupported ? (
+      {view === 'memory' ? (
+        <MemoryTraceView chatId={chatId} title={chat?.title ?? ''} />
+      ) : unsupported ? (
         <div className="flex flex-1 items-center justify-center p-8 text-center">
           <p className="text-sm text-muted-foreground">{t('canvas.prompt.unsupported')}</p>
         </div>

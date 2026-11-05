@@ -1,6 +1,6 @@
 # Entity registry: one id per person, thing and place
 
-Status: design, phase A in work. Issue: MolfarWav/Molfar.Vertep#240 (with #212, #236). Owner's decisions 2026-11-04.
+Status: phases A (persons) and B (things and places) are built and in use; the voice colours (2026-11-05) are a consumer. Issue: MolfarWav/Molfar.Vertep#240 (with #212, #236). Owner's decisions 2026-11-04. Phase C (the Forge and the RPG app reading ids) is still ahead.
 
 ## Why
 
