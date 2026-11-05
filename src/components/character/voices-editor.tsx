@@ -2,7 +2,7 @@ import { Plus, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
-import { VOICE_PALETTE } from '@/lib/dialogue-voices'
+import { paletteColor } from '@/lib/dialogue-voices'
 import type { Character } from '@/lib/types'
 
 type Voice = NonNullable<Character['voices']>[number]
@@ -28,7 +28,7 @@ export function VoicesEditor({ voices, onChange }: { voices: Voice[]; onChange: 
             />
             <input
               type="color"
-              value={v.color || VOICE_PALETTE[i % VOICE_PALETTE.length]}
+              value={v.color || paletteColor(i)}
               onChange={(e) => set(i, { color: e.target.value })}
               aria-label={t('voices.color', { name: shown })}
               className="size-10 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0 md:size-8"

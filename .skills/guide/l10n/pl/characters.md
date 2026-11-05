@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, żyje w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego każda służy; szczegóły są w artykułach Pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -16,7 +16,7 @@ Edytor ma sześć zakładek:
 - **Lorebook**: księgi powiązane z tą kartą.
 - **More**: kolory i głosy, sprite'y, galeria, regex, ustawienia zaawansowane.
 
-Karta może grać kilka postaci naraz (narrator lub mistrz gry). W Colors opcja „Voices” daje każdemu mówcy własny kolor.
+Karta może grać kilka postaci naraz (narrator lub mistrz gry). W Colors opcja „Voices” daje każdemu mówcy własny kolor. Jeśli nie wymienisz żadnych głosów, czat zrobi to za ciebie: karta zawierająca kilka postaci (sekcje nazwane od każdej z nich) sama koloruje kwestie każdej postaci, każdą innym kolorem, a kolory są zapisywane razem z czatem. W każdym innym czacie otwórz menu czatu, „Voice colors”, i włącz przełącznik; „Spread colors” daje każdemu, kogo nie wybrałeś, inny kolor. Wymaga to pulpitu Relationship, który dostarcza listę postaci.
 
 ## Persony
 
@@ -24,7 +24,7 @@ Persona to ty: imię, zaimki, opis, awatar. Model widzi ją tam, gdzie prompt m�
 
 ## Grupy
 
-Grupa umieszcza kilka postaci w jednym czacie. „New group” pozwala wybrać członków. Edytor ma karty Overview, Members, Scene, Turns, Lore i Chats. Karta Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wypowiada wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator. Grupa nie jest kartą: usunięcie grupy usuwa jej czaty, nigdy jej członków.
+Grupa umieszcza kilka postaci w jednym czacie. „New group” pozwala wybrać członków. Edytor ma karty Overview, Members, Scene, Turns, Lore i Chats. Karta Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wypowiada wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator. Grupa nie jest kartą: usunięcie grupy usuwa jej czaty, nigdy jej członków. Członkowie bez własnego koloru dostają automatycznie różne kolory.
 
 ## Zdobywanie kart
 

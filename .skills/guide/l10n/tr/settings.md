@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Roleplay'in ayarları nerede
 
 Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikleri şeyin yanında durur ve ikisi ana Molfar Vertep Settings'tedir. Bu sayfa bir bulucudur.
@@ -8,7 +8,7 @@ Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikle
 - **Ana Settings**, Molfar Vertep'in (tüm sayfanın dişlisi): modeller ve bağlantılar, tüm profilin yedekleri, güncellemeler. Modelleri orada seçin ve test edin; bkz. [[vertep:settings]] ve [[vertep:models]]. Orada yıldızlanan modeller bir sohbette hızlı anahtarlar olarak görünür.
 - **Roleplay settings**: Home başlığındaki "Roleplay settings" düğmesi (telefonda, menüde). Henüz ana Settings içinde listelenmez; bu yüzden onu Roleplay'in kendisinde arayın. On bölümü vardır: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data ve Guide. Üstteki arama kutusu onları filtreler.
 
-Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişliği ve avatarlardır; Chat Behavior, Enter ile gönderme ve silmeleri onaylama gibi anahtarlara sahiptir; Streaming, yanıtların yazıldıkça mı yoksa bitince mi gösterileceğini seçer; Card tasks, bir kartın kendine ait modeli yokken kart yardımcılarının ("Structure it", "Fill empty") kullandığı modeli seçer; Import, preset'leri, karakterleri, lorebook'ları, sohbetleri ve bir yedek zip'i getirir; Data, Roleplay'in kendi verilerini zip olarak dışa aktarır ve geri yükler (tüm profil ana Settings'in Backup'ı ile kaydedilir); Guide, kısa turları ve "What's new"i gösterir veya gizler.
+Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişliği ve avatarlardır; Chat Behavior, Enter ile gönderme ve silmeleri onaylama gibi anahtarlara sahiptir; Streaming, yanıtların yazıldıkça mı yoksa bitince mi gösterileceğini seçer; Card tasks, bir kartın kendine ait modeli yokken kart yardımcılarının ("Structure it", "Fill empty") kullandığı modeli seçer; Import, preset'leri, karakterleri, lorebook'ları, sohbetleri ve bir yedek zip'i getirir (bir SillyTavern preset'i seçim listeleriyle Choices olarak, yazarın açıklamalarıyla not olarak ve "dokunma" blokları kilitli olarak gelir; Roleplay'den dışa aktarılan bir preset tüm Choices'ıyla geri gelir); Data, Roleplay'in kendi verilerini zip olarak dışa aktarır ve geri yükler (tüm profil ana Settings'in Backup'ı ile kaydedilir); Guide, kısa turları ve "What's new"i gösterir veya gizler.
 
 ## Roleplay'de başka yerde yaşayan ayarlar
 
@@ -16,7 +16,7 @@ Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişl
 - **Litopys**: Library'deki "Litopys settings" dişlisi. Bkz. [[litopys]].
 - **World DM**: sohbet başlığındaki World sayfası ve World bölümü; "World settings" DM modelini tutar. Bkz. [[world-dm]].
 - **Agents**: Canvas'ın Agents ve "Agent sets" panoları ve sohbetin Agents sekmesi. Bkz. [[agents]].
-- **Prompt ve sampling**: **Presets** bölümü (değiştirebileceğiniz bölümler, değişkenler, örnekleyiciler ve son isteğin önizlemesi) ve tek bir sohbet için Canvas'ın Prompt panosu.
+- **Prompt ve sampling**: **Presets** bölümü (değiştirebileceğiniz bölümler, değişkenler, örnekleyiciler ve son isteğin önizlemesi) ve tek bir sohbet için Canvas'ın Prompt panosu. Bir sohbetin Preset paneli, preset'in adının altında bir "Works with" satırı gösterir: bu sohbetin preset'in kuralları olduğu özellikleri (Dashboard, Litopys, World DM, zarlar...) ve bunlardan hangilerinin bu sohbette kapalı olduğu.
 - **Bir kartın kendine ait**: düzenleyici sekmeleri; renkler, regex ve gelişmiş seçenekler dahil. Bkz. [[characters]].
 - **Lorebook'lar**: her kitabın kendi kuralları vardır (tarama derinliği, boyut sınırı, Global anahtarı). Bkz. [[memory]].
 - **Inbox**, sizi bekleyen sayılan şeyler için tür başına anahtarlara sahiptir.

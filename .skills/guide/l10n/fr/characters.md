@@ -1,4 +1,4 @@
-<!-- source: 4dda80c59bc5 -->
+<!-- source: a7ae85c19a0b -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez vit dans quatre sections : Personnages, Groupes, Personas et Marché. Cette page dit à quoi sert chacune ; les articles d'aide *Vos personnages*, *Les onglets de l'éditeur de carte* et *Groupes de personnages* donnent les détails.
@@ -16,7 +16,7 @@ L'éditeur a six onglets :
 - **Livre de connaissances** : livres liés à cette carte.
 - **Plus** : couleurs et voix, sprites, galerie, regex, paramètres avancés.
 
-Une carte peut jouer plusieurs personnages à la fois (un narrateur ou maître de jeu). Sous Couleurs, « Voix » donne à chaque locuteur sa propre couleur.
+Une carte peut jouer plusieurs personnages à la fois (un narrateur ou maître de jeu). Sous Couleurs, « Voix » donne à chaque locuteur sa propre couleur. Si vous n'indiquez aucune voix, la discussion le fait pour vous : une carte qui contient plusieurs personnages (des sections nommées d'après chacun) colore d'elle-même les répliques de chaque personnage, chacun d'une couleur différente, conservée avec la discussion. Dans toute autre discussion, ouvrez le menu de la discussion, « Couleurs des voix », et activez l'interrupteur ; « Étaler les couleurs » donne une couleur différente à tous ceux que vous n'avez pas choisis. Cela demande le tableau de bord Relationship, qui fournit la liste des personnages.
 
 ## Personas
 
@@ -24,7 +24,7 @@ Un persona, c'est vous : nom, pronoms, description, avatar. Le modèle le voit p
 
 ## Groupes
 
-Un groupe réunit plusieurs personnages dans une seule discussion. « Nouveau groupe » permet de choisir les membres. L'éditeur a les onglets Vue d'ensemble, Membres, Scène, Tours, Connaissances et Discussions. L'onglet Tours décide qui répond : Narrateur (une seule réponse fait parler tout le monde) ou Chacun à son tour. Un nouveau groupe commence en mode Narrateur. Un groupe n'est pas une carte : supprimer un groupe supprime ses discussions, jamais ses membres.
+Un groupe réunit plusieurs personnages dans une seule discussion. « Nouveau groupe » permet de choisir les membres. L'éditeur a les onglets Vue d'ensemble, Membres, Scène, Tours, Connaissances et Discussions. L'onglet Tours décide qui répond : Narrateur (une seule réponse fait parler tout le monde) ou Chacun à son tour. Un nouveau groupe commence en mode Narrateur. Un groupe n'est pas une carte : supprimer un groupe supprime ses discussions, jamais ses membres. Les membres sans couleur propre reçoivent automatiquement des couleurs différentes.
 
 ## Obtenir des cartes
 

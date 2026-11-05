@@ -572,3 +572,29 @@ describe("the copies in the plugins", () => {
     expect(withBlock("no markers here", block)).toBeNull();
   });
 });
+
+describe("regGet keeps an index of ids and never answers from a stale one", () => {
+  it("finds entities added, removed and swapped after the first lookup", () => {
+    const reg = R.regNew("c1", null);
+    const a = R.regAdd(reg, { name: "Aria", src: "seen" })!;
+    const b = R.regAdd(reg, { name: "Bea", src: "seen" })!;
+    expect(R.regGet(reg, a.id)!.name).toBe("Aria");
+    // added after the index was made
+    const c = R.regAdd(reg, { name: "Cleo", src: "seen" })!;
+    expect(R.regGet(reg, c.id)!.name).toBe("Cleo");
+    // one removed and one added: the list is as long as before, the positions moved
+    reg.entities.splice(reg.entities.findIndex((e: Json) => e.id === a.id), 1);
+    const d = R.regAdd(reg, { name: "Dana", src: "seen" })!;
+    expect(reg.entities.length).toBe(3);
+    expect(R.regGet(reg, a.id)).toBeNull();
+    expect(R.regGet(reg, d.id)!.name).toBe("Dana");
+    expect(R.regGet(reg, b.id)!.name).toBe("Bea");
+    // an entity replaced in place by another with a new id
+    reg.entities[0] = { id: "p9", kind: "person", name: "Eve", aliases: [], src: "seen" };
+    expect(R.regGet(reg, "p9")!.name).toBe("Eve");
+    expect(R.regGet(reg, b.id)).toBeNull();
+    // merges still lead to the target
+    R.regMerge(reg, "p9", d.id);
+    expect(R.regGet(reg, "p9")!.id).toBe(d.id);
+  });
+});

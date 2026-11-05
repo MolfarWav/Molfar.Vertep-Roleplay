@@ -128,6 +128,10 @@ Agents of the Agent forge (#132) find a Dashboard character by any of its regist
 
 `scripts/sensor-replay.ts` with the local corpus gets cases with name variants (Kaede and Каэде, Sina and Sina Rose, a card title as a speaker) and a count of duplicate persons; the two chats with real duplicates are replayed before and after.
 
+## Voice colours (2026-11-05)
+
+A consumer of the persons, not part of the core: `GET/POST /dashboard/voices` (plugins/relations) keeps one colour per person id in `dashboard/voices/<chatId>.json` (`mode` auto/on/off, `colors`, `hand` = picked by the user). The people are the registry's persons that are not merged and not `user`; the client paints a message with a matcher over a person's name and aliases (`src/lib/chat-voices.ts`). `auto` is on when two or more persons come from the same card (a multi-character card). A new person takes the first colour nobody holds (the app palette, then golden-angle hues); a merge frees the colour of the merged id; a spread recolours everyone not picked by hand.
+
 ## Related
 
 #212 (clothes and objects: duplicates, a removal that never lands, a Russian chat), #185 (outfit as changes), #236 (the sensor reads whole replies, the item ledger), #123 (RPG app: action checks and ids), #184 (memory and who knows what).

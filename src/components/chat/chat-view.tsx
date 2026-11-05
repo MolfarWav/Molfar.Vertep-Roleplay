@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -60,6 +60,8 @@ import { AgentBlock } from './agent-block'
 import { WindowUnknownNote } from './window-unknown-note'
 import { ensureAgentRuns } from '@/lib/agents'
 import type { PresetNote } from '@/lib/types'
+import { VoiceColorsDialog } from '@/components/chat/voice-colors-dialog'
+import { useLoadChatVoices } from '@/lib/chat-voices'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
 import { OpeningHint } from '@/components/chat/opening-hint'
@@ -189,6 +191,8 @@ export function ChatView() {
     }
   }, [branchTreeFor, chat?.id])
   const [displayOpen, setDisplayOpen] = useState(false)
+  const [voicesOpen, setVoicesOpen] = useState(false)
+  useLoadChatVoices(chat?.id ?? '')
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [worldOpen, setWorldOpen] = useState(false)
@@ -687,6 +691,7 @@ export function ChatView() {
     ...(!character.isGroup ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
     { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
     { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
+    { key: 'voices', icon: Palette, label: t('voices.chat.menu'), onSelect: () => setVoicesOpen(true) },
     { key: 'display', icon: GearSix, label: 'Display settings', onSelect: () => setDisplayOpen(true) },
   ]
   // the chat as a whole (were in the composer's plus menu)
@@ -1366,6 +1371,8 @@ export function ChatView() {
           )}
         </DialogContent>
       </Dialog>
+
+      <VoiceColorsDialog chatId={chat.id} cardColor={!!character.colors?.dialogue} open={voicesOpen} onOpenChange={setVoicesOpen} />
 
       {/* Display settings */}
       <Sheet open={displayOpen} onOpenChange={setDisplayOpen}>

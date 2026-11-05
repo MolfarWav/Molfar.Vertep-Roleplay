@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Gdzie są ustawienia Roleplay
 
 Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blisko tego, co zmieniają, a dwa z nich są w głównych Ustawieniach Molfar Vertep. Ta strona to wyszukiwarka.
@@ -8,7 +8,7 @@ Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blis
 - **Główne Ustawienia** Molfar Vertep (zębatka całej strony): modele i połączenia, kopie zapasowe całego profilu, aktualizacje. Tam wybieraj i testuj modele; zobacz [[vertep:settings]] i [[vertep:models]]. Oznaczone gwiazdką modele pojawiają się jako szybkie przełączniki w czacie.
 - **Ustawienia Roleplay**: przycisk „Roleplay settings” w nagłówku Home (na telefonie w menu). Nie jest jeszcze wymieniony w głównych Ustawieniach, więc szukaj go w samym Roleplay. Ma dziesięć sekcji: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data i Guide. Pole wyszukiwania na górze je filtruje.
 
-Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu i awatary; Chat Behavior ma przełączniki takie jak wysyłanie Enterem i potwierdzanie usunięć; Streaming wybiera pokazywanie odpowiedzi w trakcie pisania lub po ukończeniu; Card tasks wybiera model używany przez pomocników kart („Structure it”, „Fill empty”), gdy karta nie ma własnego; Import wczytuje presety, postacie, księgi wiedzy, czaty i kopię zapasową zip; Data eksportuje i przywraca własne dane Roleplay jako zip (cały profil zapisuje Kopia zapasowa głównych Ustawień); Guide pokazuje lub ukrywa krótkie wycieczki i „What's new”.
+Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu i awatary; Chat Behavior ma przełączniki takie jak wysyłanie Enterem i potwierdzanie usunięć; Streaming wybiera pokazywanie odpowiedzi w trakcie pisania lub po ukończeniu; Card tasks wybiera model używany przez pomocników kart („Structure it”, „Fill empty”), gdy karta nie ma własnego; Import wczytuje presety, postacie, księgi wiedzy, czaty i kopię zapasową zip (preset z SillyTavern przychodzi ze swoimi listami wyboru jako Choices, wyjaśnieniami autora jako notatkami i blokami „nie dotykać” zablokowanymi; preset wyeksportowany z Roleplay wraca ze wszystkimi swoimi Choices); Data eksportuje i przywraca własne dane Roleplay jako zip (cały profil zapisuje Kopia zapasowa głównych Ustawień); Guide pokazuje lub ukrywa krótkie wycieczki i „What's new”.
 
 ## Ustawienia, które mieszkają gdzie indziej w Roleplay
 
@@ -16,7 +16,7 @@ Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu 
 - **Litopys**: zębatka „Litopys settings” w Library. Zobacz [[litopys]].
 - **World DM**: arkusz World w nagłówku czatu i sekcja World; „World settings” trzyma model DM. Zobacz [[world-dm]].
 - **Agenci**: plansze Agents i „Agent sets” w Canvas oraz karta Agents czatu. Zobacz [[agents]].
-- **Prompt i próbkowanie**: sekcja **Presets** (sekcje, które możesz przełączać, zmienne, samplery i podgląd końcowego zapytania) oraz plansza Prompt w Canvas dla jednego czatu.
+- **Prompt i próbkowanie**: sekcja **Presets** (sekcje, które możesz przełączać, zmienne, samplery i podgląd końcowego zapytania) oraz plansza Prompt w Canvas dla jednego czatu. Panel Preset czatu pokazuje pod nazwą presetu wiersz „Works with”: funkcje tego czatu, dla których preset ma reguły (Dashboard, Litopys, World DM, kości...), oraz które z nich są w tym czacie wyłączone.
 - **Własne karty**: jej karty edytora, w tym kolory, regex i opcje zaawansowane. Zobacz [[characters]].
 - **Księgi wiedzy**: każda księga ma własne reguły (głębokość skanowania, limit rozmiaru, przełącznik Global). Zobacz [[memory]].
 - **Skrzynka odbiorcza** ma przełączniki dla każdego rodzaju tego, co liczy się jako czekające na ciebie.

@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.89.0'
+export const APP_VERSION = '4.90.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.voice-colors',
+    since: '4.90.0',
+    help: 'chat',
+    keywords: { en: 'voice colors colours dialogue characters narrator group speakers', uk: 'кольори голосів діалог персонажі оповідач група мовці' },
+    title: { en: 'Colors for every voice', uk: 'Кольори для кожного голосу' },
+    body: {
+      en: 'In a chat with several characters, each one’s lines get their own color, all different, kept with the chat. A card that holds several characters does it by itself. In any other chat: chat menu → Voice colors → turn it on. You can pick a color for one character or spread the colors again. A card with its own dialogue color is left alone until you turn it on.',
+      uk: 'У чаті з кількома персонажами репліки кожного мають свій колір, усі різні, і він зберігається разом із чатом. Картка з кількома персонажами робить це сама. В іншому чаті: меню чату → «Кольори голосів» → увімкніть. Можна обрати колір для одного персонажа або розподілити кольори знову. Картку з власним кольором діалогу не чіпаємо, доки ви не ввімкнете.',
+    },
+  },
   {
     id: 'new.forge',
     since: '4.70.0',

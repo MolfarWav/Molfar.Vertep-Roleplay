@@ -25,3 +25,57 @@ describe("firstVoiceIn", () => {
     expect(firstVoiceIn("Nobody here.", voices)).toBeNull();
   });
 });
+
+describe("distinct voice colours", () => {
+  const card = (id: string, dialogue = "") => ({ id, name: id, isGroup: false, colors: { name: "", dialogue, bubble: "" } }) as any;
+  const group = (ids: string[], memberSettings: Record<string, { color?: string }> = {}) => ({ id: "g", isGroup: true, group: { memberIds: ids, memberSettings } }) as any;
+
+  it("members without a colour fill the palette around the chosen ones, never twice", async () => {
+    const { memberColor, VOICE_PALETTE } = await import("../src/lib/dialogue-voices");
+    const cards = [card("a"), card("b", VOICE_PALETTE[0]!), card("c"), card("d")];
+    const g = group(["a", "b", "c", "d"]);
+    const got = cards.map((c) => memberColor(g, c, cards));
+    expect(got[1]).toBe(VOICE_PALETTE[0]!);
+    expect(new Set(got).size).toBe(4);
+  });
+
+  it("twelve members all differ", async () => {
+    const { memberColor } = await import("../src/lib/dialogue-voices");
+    const cards = Array.from({ length: 12 }, (_, i) => card("m" + i));
+    const g = group(cards.map((c) => c.id));
+    expect(new Set(cards.map((c) => memberColor(g, c, cards))).size).toBe(12);
+  });
+
+  it("without the cards a member still gets the palette by position", async () => {
+    const { memberColor, VOICE_PALETTE } = await import("../src/lib/dialogue-voices");
+    const g = group(["a", "b"]);
+    expect(memberColor(g, card("b"))).toBe(VOICE_PALETTE[1]!);
+  });
+
+  it("a chat's people are found by any of their names, in either alphabet", async () => {
+    const { peopleVoices, } = await import("../src/lib/chat-voices-core");
+    const v = peopleVoices({ mode: "on", active: true, people: [
+      { id: "p1", name: "Kaede Fuji", aliases: ["Каэде"], color: "#111111", hand: false },
+      { id: "p2", name: "Sina Rose", aliases: [], color: "#222222", hand: false },
+      { id: "p3", name: "Bo", aliases: [], color: "", hand: false },
+    ] });
+    expect(v.map((x) => x.name)).toEqual(["Kaede Fuji", "Sina Rose"]);
+    expect(v[0]!.match.test("Каэде кивнула.")).toBe(true);
+    expect(v[1]!.match.test("Kaede said")).toBe(false);
+    expect(peopleVoices({ mode: "off", active: false, people: [{ id: "p1", name: "Kaede", aliases: [], color: "#111111", hand: false }] })).toEqual([]);
+    expect(peopleVoices(null)).toEqual([]);
+  });
+
+  it("a card with a dialogue colour of its own keeps it in the automatic mode; the switch turned on by hand paints anyway", async () => {
+    const { peopleVoices, leavesVoicesAlone } = await import("../src/lib/chat-voices-core");
+    const people = [{ id: "p1", name: "Kaede", aliases: [], color: "#111111", hand: false }];
+    const auto = { mode: "auto" as const, active: true, people };
+    const on = { mode: "on" as const, active: true, people };
+    expect(leavesVoicesAlone(auto, true)).toBe(true);
+    expect(peopleVoices(auto, { cardColor: true })).toEqual([]);
+    expect(peopleVoices(auto, { cardColor: false }).length).toBe(1);
+    expect(peopleVoices(auto).length).toBe(1);
+    expect(peopleVoices(on, { cardColor: true }).length).toBe(1);
+    expect(leavesVoicesAlone(null, true)).toBe(false);
+  });
+});

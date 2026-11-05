@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Waar de instellingen van Roleplay zijn
 
 Roleplay heeft geen enkele instellingenpagina voor alles. Instellingen staan dicht bij wat ze wijzigen, en twee ervan zitten in de hoofdinstellingen van Molfar Vertep. Deze pagina is een wegwijzer.
@@ -8,7 +8,7 @@ Roleplay heeft geen enkele instellingenpagina voor alles. Instellingen staan dic
 - **De hoofdinstellingen** van Molfar Vertep (het tandwiel van de hele pagina): modellen en verbindingen, back-ups van het hele profiel, updates. Kies en test daar modellen; zie [[vertep:settings]] en [[vertep:models]]. Modellen met een ster verschijnen daar als snelle wissels in een chat.
 - **Roleplay-instellingen**: de knop "Roleplay-instellingen" in de Home-kop (op een telefoon, in het menu). Hij staat nog niet in de hoofdinstellingen, dus zoek hem in Roleplay zelf. Hij heeft tien secties: Uiterlijk, Chatgedrag, Streaming, Thema's, Prozakleuren, Aangepaste CSS, Kaarttaken, Importeren, Data en Gids. Een zoekvak bovenaan filtert ze.
 
-Wat de secties kort doen: Uiterlijk is taal, lettertypen, chatbreedte en avatars; Chatgedrag heeft schakelaars zoals verzenden op Enter en verwijderingen bevestigen; Streaming kiest om antwoorden te tonen terwijl ze worden geschreven of wanneer ze klaar zijn; Kaarttaken kiest het model dat kaarthelpers gebruiken ("Structureer het", "Vul leeg") wanneer een kaart geen eigen heeft; Importeren haalt presets, personages, lorebooks, chats en een back-upzip binnen; Data exporteert en herstelt Roleplay's eigen data als zip (het hele profiel wordt opgeslagen door de Back-up van de hoofdinstellingen); Gids toont of verbergt de korte rondleidingen en "Wat is er nieuw".
+Wat de secties kort doen: Uiterlijk is taal, lettertypen, chatbreedte en avatars; Chatgedrag heeft schakelaars zoals verzenden op Enter en verwijderingen bevestigen; Streaming kiest om antwoorden te tonen terwijl ze worden geschreven of wanneer ze klaar zijn; Kaarttaken kiest het model dat kaarthelpers gebruiken ("Structureer het", "Vul leeg") wanneer een kaart geen eigen heeft; Importeren haalt presets, personages, lorebooks, chats en een back-upzip binnen (een SillyTavern-preset komt binnen met zijn keuzelijsten als Keuzes, de uitleg van de auteur als notities en zijn "niet aanraken"-blokken vergrendeld; een preset die uit Roleplay is geëxporteerd komt terug met al zijn Keuzes); Data exporteert en herstelt Roleplay's eigen data als zip (het hele profiel wordt opgeslagen door de Back-up van de hoofdinstellingen); Gids toont of verbergt de korte rondleidingen en "Wat is er nieuw".
 
 ## Instellingen die elders in Roleplay wonen
 
@@ -16,7 +16,7 @@ Wat de secties kort doen: Uiterlijk is taal, lettertypen, chatbreedte en avatars
 - **Litopys**: het tandwiel "Litopys-instellingen" in de Bibliotheek. Zie [[litopys]].
 - **World DM**: het Wereld-blad in de chatkop en de sectie Wereld; "Wereldinstellingen" bevat het DM-model. Zie [[world-dm]].
 - **Agents**: de Agents- en "Agentsets"-borden van het Canvas en het Agents-tabblad van de chat. Zie [[agents]].
-- **Prompt en sampling**: de sectie **Presets** (secties die je kunt wisselen, variabelen, samplers, en een blik op de uiteindelijke aanvraag) en het Prompt-bord van het Canvas voor één chat.
+- **Prompt en sampling**: de sectie **Presets** (secties die je kunt wisselen, variabelen, samplers, en een blik op de uiteindelijke aanvraag) en het Prompt-bord van het Canvas voor één chat. Het Preset-paneel van een chat toont onder de naam van de preset een regel "Werkt met": de functies van deze chat waarvoor de preset regels heeft (Dashboard, Litopys, World DM, dobbelstenen...), en welke daarvan in deze chat uit staan.
 - **De eigen van een kaart**: zijn editortabbladen, inclusief kleuren, regex en geavanceerde opties. Zie [[characters]].
 - **Lorebooks**: elk boek heeft eigen regels (scandiepte, omvanggrens, Globaalschakelaar). Zie [[memory]].
 - **De Inbox** heeft schakelaars per soort voor wat telt als wachtend op jou.

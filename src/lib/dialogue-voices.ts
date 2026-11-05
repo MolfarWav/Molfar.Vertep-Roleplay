@@ -125,15 +125,45 @@ export function cardQuoteColor(card: Pick<Character, 'colors'> | undefined, opts
   return card?.colors?.dialogue || undefined
 }
 
-/** Each member's dialogue colour in a group: the group's choice, else the card's, else the palette's by position. */
-export function memberColor(group: Character, member: Character): string {
+/** The k-th voice colour: the palette first, then hues spread by the golden angle, so any number of voices are all different.
+ *  The chat voices of the Dashboard plugin (plugins/relations, voiceColorAt) use the same sequence. */
+export function paletteColor(k: number): string {
+  if (k < VOICE_PALETTE.length) return VOICE_PALETTE[k]!
+  const h = ((k - VOICE_PALETTE.length) * 137.508 + 20) % 360
+  const s = 0.55
+  const l = 0.66
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const m = (n + h / 30) % 12
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(m - 3, 9 - m, 1)))).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+/** Each member's dialogue colour in a group: the group's choice, else the card's, else the first palette colour no one
+ *  else holds. A member whose colour is chosen (by the group or the card) keeps it; the others fill the gaps in the order
+ *  of the member list, so two members never share a colour by accident. `all` = the cards (to read the members' own colours);
+ *  without it a member can only fall back to the palette by position. */
+export function memberColor(group: Character, member: Character, all?: Character[]): string {
   const g = group.group
   const ids = g?.memberIds ?? []
-  const set = g?.memberSettings?.[member.id]?.color
-  if (set) return set
-  if (member.colors?.dialogue) return member.colors.dialogue
-  const i = Math.max(0, ids.indexOf(member.id))
-  return VOICE_PALETTE[i % VOICE_PALETTE.length]!
+  const own = (m: Character) => g?.memberSettings?.[m.id]?.color || m.colors?.dialogue || ''
+  if (own(member)) return own(member)
+  const cards = (all ?? []).filter((c) => ids.includes(c.id) && !c.isGroup)
+  if (!cards.some((c) => c.id === member.id)) {
+    const i = Math.max(0, ids.indexOf(member.id))
+    return paletteColor(i)
+  }
+  const used = new Set(cards.map(own).filter(Boolean).map((c) => c.toLowerCase()))
+  let k = 0
+  for (const id of ids) {
+    const c = cards.find((x) => x.id === id)
+    if (!c || own(c)) continue
+    while (used.has(paletteColor(k).toLowerCase())) k++
+    if (c.id === member.id) return paletteColor(k)
+    used.add(paletteColor(k).toLowerCase())
+  }
+  return paletteColor(0)
 }
 
 /** The voices a narrator's message is coloured by; empty when the group turned colours off. */
@@ -144,7 +174,7 @@ export function groupVoices(group: Character, characters: Character[]): Dialogue
   for (const id of g.memberIds) {
     const c = characters.find((x) => x.id === id && !x.isGroup)
     const match = c ? voiceMatcher(c.name) : null
-    if (c && match) out.push({ name: c.name, color: memberColor(group, c), match })
+    if (c && match) out.push({ name: c.name, color: memberColor(group, c, characters), match })
   }
   return out
 }
@@ -155,7 +185,7 @@ export function cardVoices(card: Pick<Character, 'voices'>): DialogueVoice[] {
   const out: DialogueVoice[] = []
   ;(card.voices ?? []).forEach((v, i) => {
     const match = voiceMatcher(v.name)
-    if (match) out.push({ name: v.name, color: v.color || VOICE_PALETTE[i % VOICE_PALETTE.length]!, match })
+    if (match) out.push({ name: v.name, color: v.color || paletteColor(i), match })
   })
   return out
 }

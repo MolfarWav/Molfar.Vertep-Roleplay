@@ -27,6 +27,8 @@
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
  *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject),
  *                                          remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
+ *  GET  /dashboard/voices?chatId=          the chat's voice colours: {mode, active, people: [{id, name, aliases, color, hand}]}
+ *  POST /dashboard/voices {chatId, op, id?, color?, all?}  op: on | off | auto | set | unset | spread (colours for everyone not picked by hand)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
  *  DELETE /dashboard/other-seen {id?}      forget one event id the sensor invented that nobody could place, or all (GET /dashboard/config lists them as otherSeen)
  *  DELETE /dashboard/events                back to the default vocabulary
@@ -874,7 +876,20 @@ const REG_CYR = {
 
 /** Lowercase, accents stripped from Latin and Cyrillic letters, every other mark (letter or digit excepted) a space, spaces collapsed. */
 function regFold(s) {
-  return String(s == null ? "" : s)
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regFoldRaw(text);
+  let r = regFoldMemo.get(text);
+  if (r === undefined) {
+    r = regFoldRaw(text);
+    if (regFoldMemo.size > 6000) regFoldMemo.clear();
+    regFoldMemo.set(text, r);
+  }
+  return r;
+}
+// the same names and words are folded again and again (a lookup compares a word with every name of the registry): once each
+const regFoldMemo = new Map();
+function regFoldRaw(text) {
+  return text
     .toLowerCase()
     .normalize("NFKD")
     .replace(/([\p{Script=Latin}\p{Script=Cyrillic}])\p{M}+/gu, "$1")
@@ -891,6 +906,18 @@ function regFold(s) {
  * Sina/Nina differ by one letter, which is why the near step needs different scripts and the same first letter.
  */
 function regTranslit(s) {
+  const text = String(s == null ? "" : s);
+  if (text.length > 200) return regTranslitRaw(text);
+  let r = regTranslitMemo.get(text);
+  if (r === undefined) {
+    r = regTranslitRaw(text);
+    if (regTranslitMemo.size > 6000) regTranslitMemo.clear();
+    regTranslitMemo.set(text, r);
+  }
+  return r;
+}
+const regTranslitMemo = new Map();
+function regTranslitRaw(s) {
   let t = regFold(s).replace(/[\u0400-\u04ff]/g, (ch) => (ch in REG_CYR ? REG_CYR[ch] : ch));
   t = t
     .replace(/ch/g, "k")
@@ -920,14 +947,28 @@ function regNew(chatId, from) {
   return { v: 1, chatId, from: from || null, next: { p: 1, o: 1, l: 1 }, entities: [], apart: [], suggest: [] };
 }
 
+const regIdIndexes = new WeakMap();
+/** The entity with this id from an index of the list (id to position), kept per list and rebuilt when the list grows or shrinks,
+ *  or when the position it names no longer holds that id. A miss is looked for in the list itself, so the answer is always the list's. */
+function regById(ents, id) {
+  let ix = regIdIndexes.get(ents);
+  if (!ix || ix.n !== ents.length) {
+    ix = { n: ents.length, at: new Map() };
+    for (let i = ents.length - 1; i >= 0; i--) if (ents[i] && ents[i].id !== undefined) ix.at.set(ents[i].id, i);
+    regIdIndexes.set(ents, ix);
+  }
+  const i = ix.at.get(id);
+  if (i !== undefined && ents[i] && ents[i].id === id) return ents[i];
+  return ents.find((e) => e && e.id === id) || null;
+}
+
 /** The entity with this id, following `merged` to the final target; null when missing or in a cycle. */
 function regGet(reg, id) {
   const ents = reg && Array.isArray(reg.entities) ? reg.entities : [];
-  const find = (x) => ents.find((e) => e && e.id === x) || null;
-  let cur = find(id);
+  let cur = regById(ents, id);
   for (let i = 0; cur && cur.merged; i++) {
     if (i > ents.length) return null;
-    cur = find(cur.merged);
+    cur = regById(ents, cur.merged);
   }
   return cur;
 }
@@ -2831,10 +2872,17 @@ export function wordTokens(s) {
     .filter((t) => t && !WORD_STOP.has(t));
 }
 const WORD_SUFFIX = /(\u0430\u043C\u0438|\u044F\u043C\u0438|\u043E\u0432\u0456|\u0435\u0432\u0456|\u043E\u0433\u043E|\u043E\u043C\u0443|\u0438\u043C\u0438|\u0435\u043C\u0443|\u0456\u0439|\u043E\u0457|\u043E\u044E|\u0435\u044E|\u044F\u0445|\u0430\u0445|\u0456\u0432|\u044F\u043C|\u0430\u043C|\u043E\u043C|\u0435\u043C|\u0438\u043C|\u0438\u0445|\u0438\u0439|\u044B\u0439|\u0430\u044F|\u044F\u044F|\u043E\u0435|\u0435\u0435|\u0443\u044E|\u044E\u044E|\u043E\u0432|\u0435\u0432|\u0435\u0439|\u044B|\u0438|\u0456|\u0430|\u044F|\u0443|\u044E|\u043E|\u0435|\u044C|\u0439)$/;
+const WORD_STEMS = new Map();
 function wordStem(t) {
   if (t.length <= 3) return t;
-  const r = t.replace(WORD_SUFFIX, "");
-  return r.length >= 3 ? r : t;
+  let r = WORD_STEMS.get(t);
+  if (r === undefined) {
+    r = t.replace(WORD_SUFFIX, "");
+    if (r.length < 3) r = t;
+    if (WORD_STEMS.size > 8000) WORD_STEMS.clear();
+    WORD_STEMS.set(t, r);
+  }
+  return r;
 }
 /** Two words are the same: short ones exactly, longer ones by stem. */
 export function sameWord(a, b) {
@@ -3863,6 +3911,8 @@ function cardAttireText(ctx, hits) {
 /** The scan's blocks of the sensor input: the hints, and the card's Attire for the characters they may concern. */
 function scanBlocks(ctx) {
   const hits = wordScanHits(ctx);
+  // the second pass needs only who the clothing sentences name; it comes with the stash instead of a second scan of the replies
+  ctx.scanWear = hits.filter((h) => h.kinds.includes("wear")).map((h) => arr(h.named).slice(0, 6));
   return [wordScanText(hits), cardAttireText(ctx, hits)].filter(Boolean);
 }
 
@@ -4814,7 +4864,19 @@ function orderPresent(present, events, B) {
 }
 
 const OUTFIT_FILLER = new Set(["a", "an", "the", "some", "her", "his", "their", "my", "your", "its", "of", "in", "on"]);
-const outfitWords = (s) => wordTokens(s).filter((w) => !OUTFIT_FILLER.has(w));
+// the same few hundred wordings are compared again and again (covers, a migration walks every snapshot): split each once.
+// The arrays are shared, so a caller must not change one.
+const OUTFIT_WORDS = new Map();
+const outfitWords = (s) => {
+  const key = typeof s === "string" ? s : "";
+  let w = OUTFIT_WORDS.get(key);
+  if (!w) {
+    w = wordTokens(s).filter((x) => !OUTFIT_FILLER.has(x));
+    if (OUTFIT_WORDS.size > 4000) OUTFIT_WORDS.clear();
+    OUTFIT_WORDS.set(key, w);
+  }
+  return w;
+};
 // words that do not name a garment: colours and states, so "black boots" out and "black dress" in are two things, "gown" torn and "gown" dirty one
 const GARMENT_SKIP = new Set(["black", "white", "gold", "golden", "silver", "grey", "gray", "brown", "dark", "light", "pink", "blue", "green", "long", "short", "thin", "thick", "tight", "loose", "small", "large", "torn", "dirty", "wet", "burnt", "singed", "bloody", "stained", "ragged", "with", "from", "that"]);
 /** Is `b` the same garment as `a` in another state (torn, dirty): they share a word that names it. */
@@ -6300,10 +6362,12 @@ function planUpdate(fsx, chatId, op) {
 
 function askSensor(host, ctx, key) {
   const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
+  // what the model is given, kept for the debug record of the second pass (building it again costs the whole scan of the replies)
+  ctx.sensorText = sensorUser(ctx);
   host.llm.request(key, {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
-    messages: [{ role: "user", content: sensorUser(ctx) }],
+    messages: [{ role: "user", content: ctx.sensorText }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0.2),
   });
 }
@@ -6311,7 +6375,7 @@ function askSensor(host, ctx, key) {
 function writeDebug(fsx, ctx, info) {
   if (!ctx.cfg.debug) return;
   try {
-    const entry = { at: new Date().toISOString(), chatId: ctx.chatId, input: sensorUser(ctx), ...info };
+    const entry = { at: new Date().toISOString(), chatId: ctx.chatId, input: ctx.sensorText || sensorUser(ctx), ...info };
     fsx.write(DEBUG_FILE, JSON.stringify(entry, null, 2));
     // the latest run overwrites the file above, so a reply that went wrong was gone by the next turn:
     // the last runs are kept in a second file, newest last (#97)
@@ -6396,10 +6460,13 @@ function runUpdate(host, input) {
   if (input.leakCheck) return { done: finishLeakCheck(host, input) };
   let ctx = planUpdate(fsx, input.chatId, input.op);
   if (ctx.final) return { done: ctx.final };
+  // the first pass already scanned the replies: its list of who the clothing sentences name is not made again (see scanBlocks)
+  if (typeof input.sensorInput === "string") ctx.sensorText = input.sensorInput;
+  if (Array.isArray(input.wear)) ctx.wearHits = input.wear.map((named) => ({ kinds: ["wear"], named: arr(named) }));
   // nothing new to read, only stale snapshots: drop them, no call
   if (!ctx.newMsgs.length) return { done: dropStale(fsx, ctx) };
   const rated = !!input.rated;
-  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...extra });
+  const carry = (extra) => ({ chatId: input.chatId, op: input.op, retry: !!input.retry, ...(rated ? { rated: true } : {}), ...(ctx.scanWear ? { wear: ctx.scanWear } : {}), ...(ctx.cfg.debug && ctx.sensorText ? { sensorInput: ctx.sensorText } : {}), ...extra });
   // Cards with no soul are rated first, so the sensor starts from their souls. The
   // passes are: ask the rating, write it and ask the sensor, commit. Nothing is
   // written before the answers are in.
@@ -7335,7 +7402,7 @@ function readUpdate(req, host) {
   if (op === "impersonate") return ok({ ok: true, skipped: "impersonate" });
   if (parseBool(b.auto) === true && loadConfig(host.fs).mode === "manual") return ok({ ok: true, skipped: "manual" });
   const stash = isObj(req.stash) ? req.stash : {};
-  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
+  const step = runUpdate(host, { chatId, op, retry: !!stash.retry, rating: stash.rating, rated: !!stash.rated, ...(Array.isArray(stash.wear) ? { wear: stash.wear } : {}), ...(typeof stash.sensorInput === "string" ? { sensorInput: stash.sensorInput } : {}), ...(isObj(stash.leakCheck) ? { leakCheck: stash.leakCheck } : {}) });
   return step.pending ? { __llmPending: true, stash: step.pending } : step.done;
 }
 
@@ -8264,6 +8331,146 @@ function armNudge(req, fsx) {
   return ok({ ok: true, nudge });
 }
 
+// ---------- voice colours: one colour per person of the chat's registry ----------
+// A reply that voices several characters (a card with several persons, or any chat the user turns it on for) paints each
+// person's lines in their own colour. The people are the registry's (docs/ENTITY-REGISTRY.md: id, name, aliases), so a
+// colour follows the person across spellings and a merge. The colours are kept per chat in dashboard/voices/<chatId>.json:
+// { v: 1, mode: "auto" | "on" | "off", colors: { p1: "#rrggbb" }, hand: ["p2"] }. `hand` = picked by the user, never moved by a spread.
+const VOICE_DIR = "dashboard/voices/";
+// the first eight are the app's palette (src/lib/dialogue-voices.ts), so a group and a chat look alike
+const VOICE_BASE = ["#e06c75", "#e5c07b", "#98c379", "#56b6c2", "#61afef", "#c678dd", "#d19a66", "#abb2bf"];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** The k-th colour: the palette first, then hues spread by the golden angle (never the same twice). */
+function voiceColorAt(k) {
+  if (k < VOICE_BASE.length) return VOICE_BASE[k];
+  const h = ((k - VOICE_BASE.length) * 137.508 + 20) % 360;
+  const s = 0.55, l = 0.66;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => {
+    const m = (n + h / 30) % 12;
+    const c = l - a * Math.max(-1, Math.min(m - 3, 9 - m, 1));
+    return Math.round(255 * c).toString(16).padStart(2, "0");
+  };
+  return "#" + f(0) + f(8) + f(4);
+}
+
+/** Colours for `ids` that have none in `kept`: each takes the first colour nobody holds. Returns a new { id: colour }. */
+function pickVoiceColors(ids, kept) {
+  const out = { ...kept };
+  const used = new Set(Object.values(out).map((c) => String(c).toLowerCase()));
+  for (const id of ids) {
+    if (out[id]) continue;
+    let k = 0;
+    while (used.has(voiceColorAt(k).toLowerCase())) k++;
+    out[id] = voiceColorAt(k);
+    used.add(out[id].toLowerCase());
+  }
+  return out;
+}
+
+/** The people who get a voice: the registry's persons that are not merged away, the user's own character excluded. */
+function voicePeople(reg) {
+  return arr(reg && reg.entities).filter((e) => e && e.kind === "person" && e.id !== "user" && !e.merged);
+}
+
+/** A card of several characters: two or more persons made from the same card. */
+function isMultiCard(people) {
+  const per = {};
+  for (const e of people) if (e.src === "card" && e.card) per[e.card] = (per[e.card] || 0) + 1;
+  return Object.values(per).some((n) => n >= 2);
+}
+
+/** Make the stored colours sound: only people who exist, only hex, none shared where a free colour is left. */
+function voiceSettle(file, people, mode) {
+  const ids = people.map((e) => e.id);
+  const hand = arr(file.hand).filter((id) => ids.includes(id) && HEX.test(String(file.colors[id] || "")));
+  const kept = {};
+  for (const id of ids) if (HEX.test(String((file.colors || {})[id] || ""))) kept[id] = String(file.colors[id]).toLowerCase();
+  // two people on one colour: the later one (not picked by hand) gets a free colour
+  const seen = new Set(hand.map((id) => kept[id]));
+  for (const id of ids) {
+    const c = kept[id];
+    if (!c || hand.includes(id)) continue;
+    if (seen.has(c)) delete kept[id];
+    else seen.add(c);
+  }
+  return { v: 1, mode, colors: pickVoiceColors(ids, kept), hand };
+}
+
+/** The name a person is shown by: the Dashboard's own name for them, else the longest of their names that ends the entity's name
+ *  (a card heading "The Class Representative Yuki Tanaka" is shown as "Yuki Tanaka"), else the entity's name. */
+function voiceName(e, shown) {
+  if (shown) return shown;
+  const own = arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter((a) => typeof a === "string" && a);
+  const tail = own.filter((a) => a !== e.name && String(e.name).toLowerCase().endsWith(" " + a.toLowerCase())).sort((x, y) => y.length - x.length)[0];
+  return tail || e.name;
+}
+
+function voiceReply(chatId, file, people, active, shownBy) {
+  return {
+    chatId,
+    mode: file.mode,
+    active,
+    people: people.map((e) => {
+      const name = voiceName(e, shownBy[e.id]);
+      // the other names a line can say them by; the long heading with a role in front of the name is not one of them (its first word is "The")
+      const others = arr(e.aliases).map((a) => (typeof a === "string" ? a : a && a.text)).filter((a) => typeof a === "string" && a && a !== name && a !== e.name);
+      return { id: e.id, name, aliases: others.filter((a, i) => others.indexOf(a) === i), color: active ? file.colors[e.id] || "" : "", hand: file.hand.includes(e.id) };
+    }),
+  };
+}
+
+/** GET /dashboard/voices?chatId= and POST {chatId, op: "on" | "off" | "auto" | "set" | "unset" | "spread", id?, color?, all?}. */
+function voicesRoute(req, fsx) {
+  const post = req.method === "POST";
+  const src = post ? (isObj(req.body) ? req.body : {}) : req.query || {};
+  const chatId = String(src.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const stored = readJson(fsx, VOICE_DIR + chatId + ".json", null);
+  const base = isObj(stored) ? stored : {};
+  let mode = ["auto", "on", "off"].includes(base.mode) ? base.mode : "auto";
+  let file = { v: 1, mode, colors: isObj(base.colors) ? base.colors : {}, hand: arr(base.hand) };
+  const reg = regLoad(fsx, chatId, null);
+  const people = voicePeople(reg);
+  let changed = false;
+  if (post) {
+    const op = str(src.op);
+    const id = str(src.id);
+    if (op === "on" || op === "off" || op === "auto") { mode = op; changed = true; }
+    else if (op === "set") {
+      if (!people.some((e) => e.id === id) || !HEX.test(String(src.color || ""))) return ok({ error: "id and a #rrggbb colour required" }, 400);
+      file.colors[id] = String(src.color).toLowerCase();
+      file.hand = [...file.hand.filter((x) => x !== id), id];
+      changed = true;
+    } else if (op === "unset") {
+      delete file.colors[id];
+      file.hand = file.hand.filter((x) => x !== id);
+      changed = true;
+    } else if (op === "spread") {
+      // every person not picked by hand (or everyone, with all) takes the colours again, in the order they came
+      const all = parseBool(src.all) === true;
+      if (all) file.hand = [];
+      for (const e of people) if (!file.hand.includes(e.id)) delete file.colors[e.id];
+      if (mode === "off") mode = "on";
+      changed = true;
+    } else return ok({ error: "unknown op" }, 400);
+  }
+  const active = mode === "on" || (mode === "auto" && isMultiCard(people));
+  file = voiceSettle(file, people, mode);
+  // colours are written only for a chat that uses them, and only when something changed
+  if ((active || changed) && (changed || JSON.stringify(file) !== JSON.stringify(stored))) {
+    try {
+      fsx.write(VOICE_DIR + chatId + ".json", JSON.stringify(file));
+    } catch {}
+  }
+  // the names the Dashboard shows (its personIds map a shown name to the registry id)
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const shownBy = {};
+  if (isObj(dash) && isObj(dash.personIds)) for (const [n, id] of Object.entries(dash.personIds)) if (typeof id === "string" && !shownBy[id]) shownBy[id] = n;
+  return ok(voiceReply(chatId, file, people, active, shownBy));
+}
+
 export function handleRoute(req, host) {
   const path = String((req && req.path) || "").split("?")[0];
   if (!path.startsWith("/dashboard/")) return null;
@@ -8331,5 +8538,6 @@ export function handleRoute(req, host) {
     return ok(configBody(fsx));
   }
   if (path === "/dashboard/notes" && method === "POST") return notesRoute(req, fsx);
+  if (path === "/dashboard/voices" && (method === "GET" || method === "POST")) return voicesRoute(req, fsx);
   return null;
 }

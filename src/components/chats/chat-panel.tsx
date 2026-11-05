@@ -137,7 +137,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
   const speaker = (m: Chat['messages'][number]) => {
     if (m.role === 'user') return { name: m.authorName || persona?.name || t('chats.panel.you'), color: undefined }
     const c = characters.find((x) => x.id === m.characterId)
-    if (isGroup && owner && c && !c.isGroup) return { name: c.name, color: memberColor(owner, c) }
+    if (isGroup && owner && c && !c.isGroup) return { name: c.name, color: memberColor(owner, c, characters) }
     return { name: c?.name ?? owner?.name ?? '', color: c?.colors?.dialogue || undefined }
   }
   const story = (chapters ?? []).slice(-3)
@@ -198,7 +198,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
                       >
                         <img src={m.avatar || DEFAULT_AVATAR} alt="" className="size-5 rounded-full object-cover" />
                         {m.name}
-                        {owner && <span className="size-2 rounded-full" style={{ background: memberColor(owner, m) }} aria-hidden="true" />}
+                        {owner && <span className="size-2 rounded-full" style={{ background: memberColor(owner, m, characters) }} aria-hidden="true" />}
                       </button>
                     </li>
                   ))}

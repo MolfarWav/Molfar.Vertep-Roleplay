@@ -1,4 +1,4 @@
-<!-- source: 32c79d2d2c88 -->
+<!-- source: 82c26de2d666 -->
 # Wo Roleplays Einstellungen sind
 
 Roleplay hat keine einzige Einstellungsseite für alles. Einstellungen liegen nahe bei dem, was sie ändern, und zwei davon sind in den Haupt-Einstellungen von Molfar Vertep. Diese Seite ist ein Wegweiser.
@@ -8,7 +8,7 @@ Roleplay hat keine einzige Einstellungsseite für alles. Einstellungen liegen na
 - **Die Haupt-Settings** von Molfar Vertep (das Zahnrad der ganzen Seite): Modelle und Verbindungen, Backups des gesamten Profils, Updates. Wähle und teste Modelle dort; siehe [[vertep:settings]] und [[vertep:models]]. Markierte Modelle erscheinen dort als Schnellwechsel in einem Chat.
 - **Roleplay settings**: der Button „Roleplay settings“ in der Home-Kopfzeile (auf einem Telefon im Menü). Er ist noch nicht in den Haupt-Settings gelistet, also such ihn in Roleplay selbst. Er hat zehn Abschnitte: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data und Guide. Ein Suchfeld oben filtert sie.
 
-Was die Abschnitte kurz tun: Appearance ist Sprache, Schriften, Chatbreite und Avatare; Chat Behavior hat Schalter wie Senden mit Enter und das Bestätigen von Löschungen; Streaming wählt, ob Antworten beim Schreiben oder erst fertig angezeigt werden; Card tasks wählt das Modell, das Kartenhelfer („Structure it“, „Fill empty“) nutzen, wenn eine Karte kein eigenes hat; Import holt Presets, Charaktere, Lorebooks, Chats und ein Backup-ZIP; Data exportiert und stellt Roleplays eigene Daten als ZIP wieder her (das ganze Profil wird durch das Backup der Haupt-Settings gesichert); Guide zeigt oder verbirgt die kurzen Touren und „What's new“.
+Was die Abschnitte kurz tun: Appearance ist Sprache, Schriften, Chatbreite und Avatare; Chat Behavior hat Schalter wie Senden mit Enter und das Bestätigen von Löschungen; Streaming wählt, ob Antworten beim Schreiben oder erst fertig angezeigt werden; Card tasks wählt das Modell, das Kartenhelfer („Structure it“, „Fill empty“) nutzen, wenn eine Karte kein eigenes hat; Import holt Presets, Charaktere, Lorebooks, Chats und ein Backup-ZIP (ein SillyTavern-Preset kommt mit seinen Auswahllisten als Choices an, die Erklärungen des Autors als Notizen und seine „nicht anfassen“-Blöcke gesperrt; ein aus Roleplay exportiertes Preset kommt mit allen seinen Choices zurück); Data exportiert und stellt Roleplays eigene Daten als ZIP wieder her (das ganze Profil wird durch das Backup der Haupt-Settings gesichert); Guide zeigt oder verbirgt die kurzen Touren und „What's new“.
 
 ## Einstellungen, die anderswo in Roleplay liegen
 
@@ -16,7 +16,7 @@ Was die Abschnitte kurz tun: Appearance ist Sprache, Schriften, Chatbreite und A
 - **Litopys**: das Zahnrad „Litopys settings“ in der Library. Siehe [[litopys]].
 - **World DM**: das World-Sheet in der Chat-Kopfzeile und der Bereich World; „World settings“ enthält das DM-Modell. Siehe [[world-dm]].
 - **Agents**: die Bretter Agents und „Agent sets“ des Canvas und der Agents-Tab des Chats. Siehe [[agents]].
-- **Prompt und Sampling**: der Bereich **Presets** (Abschnitte, die du umschalten kannst, Variablen, Sampler und ein Blick auf die endgültige Anfrage) und das Prompt-Brett des Canvas für einen Chat.
+- **Prompt und Sampling**: der Bereich **Presets** (Abschnitte, die du umschalten kannst, Variablen, Sampler und ein Blick auf die endgültige Anfrage) und das Prompt-Brett des Canvas für einen Chat. Das Preset-Panel eines Chats zeigt unter dem Namen des Presets eine Zeile „Works with“: die Funktionen dieses Chats, für die das Preset Regeln hat (Dashboard, Litopys, World DM, Würfel ...), und welche davon in diesem Chat aus sind.
 - **Das Eigene einer Karte**: ihre Editor-Tabs, einschließlich Farben, Regex und erweiterter Optionen. Siehe [[characters]].
 - **Lorebooks**: Jedes Buch hat seine eigenen Regeln (Scan-Tiefe, Größendeckel, Global-Schalter). Siehe [[memory]].
 - **Die Inbox** hat Schalter pro Art, was als auf dich wartend zählt.
