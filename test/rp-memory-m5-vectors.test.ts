@@ -215,8 +215,11 @@ describe("the engine plugin embeds the scan window for Litopys vectors", () => {
       expect(m.embeds[0].key).toBe("scan");
       expect(m.embeds[0].texts).toHaveLength(1);
       m.embedResults.scan = [[0.3, 0.4]];
+      m.host.llm.embedInfo = { scan: { model: "mock-embed", via: "Mock" } };
       const second = E.semanticPrep(m.host, m.host.fs, meta, staged, "Where is the key?", { stash: { wiEmbed: [] } });
       expect(second.scanVec).toEqual([0.3, 0.4]);
+      // the model that made it travels with it (#184), so Litopys compares only vectors of that model
+      expect(second.scanModel).toBe("mock-embed");
       expect(m.embeds).toHaveLength(1);
     });
   });

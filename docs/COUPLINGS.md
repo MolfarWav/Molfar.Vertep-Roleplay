@@ -54,6 +54,14 @@ Date: 2026-11-05.
 - **Why / history:** #184 (the Data Bank trace is "#184 P6" in the code comment).
 - **Trap:** the engine reads this file, in another plugin, for the recollections row of the reserve (`ins.recollections`). Renaming that field in Litopys alone silently drops the row, and no test here fails for it.
 
+### Litopys vectors and the embeddings model (#184)
+- **Touches:** `litopys/vectors/<chatId>.json` (`{ hash, vector, m? }`), `litopys/embed-status.json`, `litopys/embed-want/<chatId>.json`; `vectorGaps` `finishEmbed` `needVectors` `vectorOf` `semOf` `vectorsView` `vectorsRoute` `wantEmbed` `kickEmbedWants` and the embed-result branch of `onTick`; the engine plugin's `semanticPrep` (`scanVec`, `scanModel`) and `turnLabels`; the engine's `sanitizeTurn` (`TURN_KEYS` in `src/plugins/runtime.ts`, other repo); the card `src/components/memory/meaning-card.tsx` with `src/lib/vectors.ts`; `sem` in the insert trace.
+- **Must stay true:** vectors of different models never compare; a vector without `m` counts for any model (old data); an embed pass never starts by itself for an existing chat (only the chapter worker's own new items and the user's click spend tokens); the Litopys plugin and the engine plugin cannot import each other, so the model travels in the turn labels (`scanModel`) and in `embed-status.json`.
+- **Enforced in:** `plugins/litopys/plugin.js` `vectorOf` `vectorGaps` `finishEmbed`; `plugins/engine/plugin.js` `semanticPrep` `turnLabels`; engine `src/plugins/runtime.ts` `TURN_KEYS`.
+- **Fails in:** `test/rp-embeddings-visible.test.ts`; `test/rp-memory-m5-vectors.test.ts` (semanticPrep passes the model); engine `test/plugins.test.ts` (`sanitizeTurn`).
+- **Why / history:** before #184 a chat with a record got no vectors until a scene closed, and a changed model left vectors that compared with nonsense or silently not at all.
+- **Trap:** the engine's label whitelist drops `scanModel` on an engine without it: ranking then compares every vector (as before), and the card cannot tell models apart. The Data Bank's lorebook vector cache (`lorebooks/.vectors.json`) does not record models yet. Do not make an embed pass start by itself on a new connection: that was decided against (the owner decides if it should be automatic).
+
 ### Who knows what (witnesses and Data Bank scope)
 - **Touches:** `witnessed`, `castKnowledgeFor`, `buildInsert`, `buildBackstory`, `soleVoice` (`plugins/litopys`); `carriesRoute` (same plugin, the preview route); `databankInScope` (engine plugin, Data Bank file `scope` and `scopeTargetId`); the card's `characterIds` of the scene.
 - **Must stay true:** a chapter that the speaking character did not witness stays out of that character's reply. The same rule holds in the story insert, in the backstory block and in the carries route, which uses the same `soleVoice` call. A Data Bank file with a character or chat scope is not injected outside that scope.

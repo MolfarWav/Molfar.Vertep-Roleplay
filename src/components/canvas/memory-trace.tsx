@@ -18,6 +18,8 @@ import {
   type TracePerson,
 } from '@/lib/memory-trace'
 import { loadMemoryTrace } from '@/lib/memory-trace-load'
+import { semVerdict } from '@/lib/vectors'
+import { MeaningCard } from '@/components/memory/meaning-card'
 import type { MsgKey } from '@/lib/i18n'
 
 /** The memory trace of a chat's last reply (#184 P6): what went into the prompt from memory, what stayed out and why. */
@@ -28,6 +30,8 @@ export function MemoryTraceView({ chatId, title }: { chatId: string; title: stri
   const [loading, setLoading] = useState(false)
   // 0 = the newest reply; the few before it can be looked at too
   const [back, setBack] = useState(0)
+  // the Refresh button reads the meaning card's numbers again too
+  const [refreshes, setRefreshes] = useState(0)
   // a late answer for a chat that is no longer on screen must not fill the view of the new one (as the board does, #39)
   const live = useRef(chatId)
   live.current = chatId
@@ -72,7 +76,7 @@ export function MemoryTraceView({ chatId, title }: { chatId: string; title: stri
     <div className="flex min-h-0 flex-1 flex-col" data-testid="memory-trace">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
         <p className="min-w-0 flex-1 text-sm text-muted-foreground max-sm:basis-full">{lit ? t(back > 0 ? 'memtrace.whenEarlier' : 'memtrace.when', { when: ago(lit.at) }) : t('memtrace.intro')}</p>
-        <Button variant="outline" size="sm" onClick={() => pick(0)} disabled={loading} className="min-h-10 sm:min-h-8">
+        <Button variant="outline" size="sm" onClick={() => { setRefreshes((n) => n + 1); pick(0) }} disabled={loading} className="min-h-10 sm:min-h-8">
           <ArrowClockwise className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden="true" />
           {t('memtrace.refresh')}
         </Button>
@@ -83,6 +87,7 @@ export function MemoryTraceView({ chatId, title }: { chatId: string; title: stri
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
+          <MeaningCard chatId={chatId} refreshKey={refreshes} />
           {trace === null ? (
             <TraceSkeleton />
           ) : trace.unavailable ? (
@@ -232,6 +237,7 @@ function Summary({ lit, older, t }: { lit: NonNullable<MemoryTrace['litopys']>; 
       </p>
       <p className="mt-1 text-sm text-muted-foreground">{lit.one ? t('memtrace.filterOne', { name: lit.speaker?.name ?? '' }) : t('memtrace.filterMany')}</p>
       <p className="mt-1 text-sm">{t('memtrace.counts', { a: lit.n.inF ?? 0, b: lit.n.hidden ?? 0, c: lit.n.drop ?? 0 })}</p>
+      <SemLine lit={lit} t={t} />
       <div className="mt-3">
         <div className="flex items-center justify-between text-caption text-muted-foreground">
           <span>{t('memtrace.budget', { used: lit.tokens, limit: lit.limit })}</span>
@@ -243,6 +249,17 @@ function Summary({ lit, older, t }: { lit: NonNullable<MemoryTrace['litopys']>; 
       </div>
     </div>
   )
+}
+
+/** Was this reply ranked by meaning, and if not why: tells "the answer was missing" from "meaning search was off". */
+function SemLine({ lit, t }: { lit: NonNullable<MemoryTrace['litopys']>; t: T }) {
+  const v = semVerdict(lit.sem)
+  if (!v) return null
+  const text =
+    v.kind === 'yes' ? t('memtrace.semYes', { have: v.have, seen: v.seen })
+    : v.kind === 'few' ? t('memtrace.semFew', { have: v.have, seen: v.seen })
+    : t(`memtrace.semNo.${v.why}` as MsgKey)
+  return <p className={cn('mt-1 text-sm', v.kind === 'yes' ? 'text-foreground' : 'text-muted-foreground')} data-testid="memory-trace-sem">{text}</p>
 }
 
 function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys']>; t: T }) {
