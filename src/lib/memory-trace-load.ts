@@ -22,7 +22,7 @@ export async function loadMemoryTrace(chatId: string, back = 0): Promise<MemoryT
     databank: bankFor(bankFile, litopys ? litopys.at : null, back),
     // the Dashboard and the leak check only know the newest reply
     leaks: view?.leaks ?? [],
-    keptOut: kept && (kept.user || kept.absent) ? kept : null,
+    keptOut: kept && (kept.user || kept.absent || kept.noQuote) ? kept : null,
     unavailable: lit.status === 'rejected',
   }
 }

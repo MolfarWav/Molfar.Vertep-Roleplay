@@ -83,6 +83,19 @@ describe("memory trace report", () => {
     expect(buildReport("", trace())).not.toContain("The worker left out");
   });
 
+  it("lists the facts the sensor could not keep, one line each with the reason", () => {
+    const rows = [
+      { why: "user", who: "user", text: "The market is loud" },
+      { why: "absent", who: "Nobody", text: "The user is a stranger" },
+      { why: "noQuote", who: "", text: "betrayal" },
+    ];
+    const r = buildReport("", trace({ keptOut: { user: 1, absent: 1, noQuote: 1, rows } }));
+    expect(r).toContain("1 significant event(s) with no quote counted as routine");
+    expect(r).toContain("  - [about the user's character] user: The market is loud");
+    expect(r).toContain("  - [not in the scene] Nobody: The user is a stranger");
+    expect(r).toContain("  - [significant, but no quote: counted as routine] betrayal");
+  });
+
   it("a narrator reply says the filter is anyone present; helpers pick rows by reason", () => {
     const t = trace();
     t.litopys!.one = false;

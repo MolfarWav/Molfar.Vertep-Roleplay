@@ -1089,6 +1089,23 @@ describe("rp studio engine: data bank retrieval", () => {
     expect(t.scoped).toEqual([{ file: "secret.txt", scope: "character", target: "bram" }]);
     expect((await drive(engineUrl, { method: "GET", path: "/databank/trace" }, m)).status).toBe(400);
   }, 30_000);
+
+  it("the memory trace keeps the earlier entries, says 'next' for an 'Answer now' turn and sweeps the traces of chats that are gone", async () => {
+    const m = mockHost();
+    fs.writeFileSync(path.join(root, "groups", "duo.json"), JSON.stringify({ id: "duo", name: "Duo", memberIds: ["aria", "bo"], mode: "list", mutedIds: [] }));
+    fs.mkdirSync(path.join(root, "characters", "bo"), { recursive: true });
+    fs.writeFileSync(path.join(root, "characters", "bo", "card.json"), JSON.stringify({ spec: "chara_card_v2", name: "Bo", description: "chill", first_mes: "" }));
+    const id = ((await drive(engineUrl, { method: "POST", path: "/chats", body: { groupId: "duo" } }, m)).json.meta as { id: string }).id;
+    fs.mkdirSync(path.join(root, "databank-trace"), { recursive: true });
+    for (let i = 0; i < 24; i++) fs.writeFileSync(path.join(root, "databank-trace", `gone${i}.json`), "{}");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "hello both" } }, m);
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/next`, body: { charId: "bo" } }, m);
+    const t = ((await drive(engineUrl, { method: "GET", path: `/databank/trace?chatId=${id}` }, m)).json as { trace: { gen: string; prev: { gen: string }[] } }).trace;
+    expect(t.gen).toBe("next");
+    expect(t.prev.map((x) => x.gen)).toEqual(["send"]);
+    // the stale files went, this chat's own stayed
+    expect(fs.readdirSync(path.join(root, "databank-trace"))).toEqual([`${id}.json`]);
+  }, 30_000);
 });
 
 describe("rp studio engine: names behavior + prompt post-processing", () => {

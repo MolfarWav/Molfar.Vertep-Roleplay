@@ -89,7 +89,7 @@ export interface MemoryTrace {
   databank: DatabankTrace | null
   leaks: LeakHit[]
   /** the sensor's last report: facts it could not keep (for the user's character or for someone not in the scene) */
-  keptOut: { user: number; absent: number; noQuote?: number } | null
+  keptOut: { user: number; absent: number; noQuote?: number; rows?: { why: 'user' | 'absent' | 'noQuote' | string; who: string; text: string }[] } | null
   /** the Litopys route did not answer: an older plugin, or the plugin is off */
   unavailable: boolean
 }
@@ -154,6 +154,11 @@ const SKIP_EN: Record<string, string> = {
   gone: 'the fact it names is gone or not active',
   same: 'the same proposal is already waiting',
 }
+const KEPT_EN: Record<string, string> = {
+  user: "about the user's character",
+  absent: 'not in the scene',
+  noQuote: 'significant, but no quote: counted as routine',
+}
 export const skipEn = (why: string) => SKIP_EN[why] ?? why
 export const whyEn = (why: string) => WHY_EN[why] ?? why
 
@@ -207,7 +212,10 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
     for (const s of wk.skips) out.push(`- ${s.id ? s.id + ' ' : ''}[${skipEn(s.why)}] ${cut(s.text, 120)}`)
   }
   out.push('', 'After the reply:')
-  if (tr.keptOut) out.push(`- the sensor kept out ${tr.keptOut.user} fact(s) about the user's character and ${tr.keptOut.absent} about people not in the scene`)
+  if (tr.keptOut) {
+    out.push(`- the sensor kept out ${tr.keptOut.user} fact(s) about the user's character and ${tr.keptOut.absent} about people not in the scene${tr.keptOut.noQuote ? `; ${tr.keptOut.noQuote} significant event(s) with no quote counted as routine` : ''}`)
+    for (const r of tr.keptOut.rows ?? []) out.push(`  - [${KEPT_EN[r.why] ?? r.why}]${r.who ? ` ${r.who}:` : ''} ${cut(r.text, 120)}`)
+  }
   for (const l of tr.leaks) out.push(`- possible leak: ${l.who} may know "${cut(l.text, 120)}" (fact ${l.factId}), quote "${cut(l.quote, 120)}"`)
   if (!tr.keptOut && !tr.leaks.length) out.push('- nothing flagged')
   return out.join('\n')

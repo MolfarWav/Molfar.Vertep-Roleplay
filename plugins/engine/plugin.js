@@ -3034,6 +3034,24 @@ export function presetCosts(preset, meta, totalOnly) {
   return { total: render(sections, null), vars };
 }
 
+/**
+ * The Data Bank traces of chats that are gone (#184 P6): a deleted chat leaves its `databank-trace/<chatId>.json` behind,
+ * and no delete route of this plugin sees every way a chat can go. Checked after a trace is written, and only once more
+ * than 20 files are there, so a reply pays one directory listing.
+ */
+function sweepDatabankTraces(fsx) {
+  try {
+    const files = fsx.list("databank-trace").filter((f) => f.endsWith(".json"));
+    if (files.length <= 20) return;
+    const chats = new Set(fsx.list("chats").filter((f) => f.endsWith(".meta.json")).map((f) => f.slice(0, -10)));
+    for (const f of files) {
+      if (!chats.has(f.slice(0, -5))) {
+        try { fsx.remove("databank-trace/" + f); } catch { /* left for the next sweep */ }
+      }
+    }
+  } catch { /* no directory yet */ }
+}
+
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
   const isOff = (k) => pbOff.has(k);
@@ -3049,7 +3067,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // trigger list to it (send/swipe/continue/impersonate; a swipe on the last
   // message also satisfies "regenerate")
   const GEN_TYPES = {
-    send: ["normal"], swipe: ["swipe", "regenerate"], continue: ["continue"],
+    send: ["normal"], next: ["normal"], swipe: ["swipe", "regenerate"], continue: ["continue"],
     impersonate: ["impersonate"], preview: ["normal"], summarize: ["quiet"],
   };
   const genTypes = GEN_TYPES[(opts && opts.gen) || "send"] || GEN_TYPES.send;
@@ -3410,6 +3428,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         try { before = JSON.parse(fsx.read(tfile)); } catch { /* none yet */ }
         const prev = before && typeof before === "object" ? [{ ...before, prev: undefined }, ...(Array.isArray(before.prev) ? before.prev : [])].slice(0, 4) : [];
         fsx.write(tfile, JSON.stringify({ at: Date.now(), gen: String((opts && opts.gen) || "send"), off: isOff("databank"), hits: dbTrace.slice(0, 6), scoped: dbInfo.scoped.slice(0, 6), scopedMore: Math.max(0, dbInfo.scoped.length - 6), prev }));
+        sweepDatabankTraces(fsx);
       }
     } catch { /* read-only: no trace */ }
   }
@@ -5942,7 +5961,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, gen: "next" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,

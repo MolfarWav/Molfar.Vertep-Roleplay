@@ -223,9 +223,9 @@ the speaker and the knowers. It only reads; the registry is never seeded or save
 with the Dashboard's open leak hits and its last `keptOut`.
 
 The traces of the replies before the newest one live in a short ring: `litopys/trace-ring/<chatId>.json` is `{ list: [{ at, tokens, trace }] }`, newest first, at most 4 (written by the reply hook from the
-insert file's previous `trace`; removed with the chat by the sweep). The Data Bank keeps the same in its file as `prev: [<earlier entries without prev>]`, 4 at most. `GET /litopys/trace?chatId=&back=N` answers the N-th newest
+insert file's previous `trace`; removed with the chat by the sweep). The Data Bank keeps the same in its file as `prev: [<earlier entries without prev>]`, 4 at most; its `gen` is the kind of turn (`send`, `next` for "Answer now", `swipe`, `continue`, `impersonate`), and once more than 20 trace files exist, the files of chats that are gone are removed after a write. `GET /litopys/trace?chatId=&back=N` answers the N-th newest
 (0 = the newest, past the ring = the oldest kept) and lists them all as `replies: [{ at, op, speaker }]`; the view pairs a reply with the Data Bank entry written at or just before it (30 s at most), because the two plugins
-cannot share an id. The Dashboard's leak hits and `keptOut` only describe the newest reply. The worker records what it left out of its last scene in `worker.skips` of the chat file, `[{ why, text, id? }]`, 12 at most:
+cannot share an id. The Dashboard's leak hits and `keptOut` only describe the newest reply; `keptOut.rows` is `[{ why: "user" | "absent" | "noQuote", who, text }]`, 8 at most, one row for each fact or event the sensor wrote and could not keep. The worker records what it left out of its last scene in `worker.skips` of the chat file, `[{ why, text, id? }]`, 12 at most:
 `dup` (a near copy of an active fact), `source` (only repeats the card or lorebook), `cap` (the ninth and later ops of a scene), `gone` (an update or retire names a fact that is not active), `same` (an identical proposal waits),
 with `worker.chapter` the chapter the run wrote; the route answers it as `worker` (null when nothing was left out). The next run replaces it.
 

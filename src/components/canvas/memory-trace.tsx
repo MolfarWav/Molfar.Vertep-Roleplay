@@ -346,9 +346,18 @@ function AfterFold({ trace, older, t }: { trace: MemoryTrace; older: boolean; t:
         <p className="px-3 py-3 text-sm text-muted-foreground">{t('memtrace.nothing')}</p>
       ) : (
         <ul className="divide-y divide-border">
-          {trace.keptOut && (
+          {trace.keptOut && (trace.keptOut.user > 0 || trace.keptOut.absent > 0) && (
             <li className="px-3 py-2 text-body">{t('memtrace.keptOut', { user: trace.keptOut.user, absent: trace.keptOut.absent })}</li>
           )}
+          {(trace.keptOut?.rows ?? []).map((r, i) => (
+            <li key={`k:${i}:${r.why}`} className="flex flex-col gap-1.5 px-3 py-2 sm:flex-row sm:items-start sm:gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-3 break-words text-body">{r.text || '–'}</p>
+                {r.who && <p className="mt-0.5 break-words text-caption text-muted-foreground">{r.who}</p>}
+              </div>
+              <Chip tone="amber">{t(`memtrace.kept.${r.why}` as MsgKey)}</Chip>
+            </li>
+          ))}
           {trace.leaks.map((l) => (
             <li key={`${l.key}:${l.factId}:${l.who}`} className="px-3 py-2">
               <p className="break-words text-body">{t('memtrace.leak', { who: l.who })}</p>
