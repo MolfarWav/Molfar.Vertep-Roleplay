@@ -16,6 +16,7 @@ Answer from these pages, not from the code. Read the page that fits:
 - `litopys`: chapters, facts, proposals, the Library
 - `canvas`: Canvas boards: chat links, the prompt board (Parts and Memory), agents
 - `memory`: Dashboard, Litopys, card memory, lorebooks, Data Bank, author's note: which does what
+- `long-chats`: a chat that grew long: token cost, what trims it, continuing a story in a new chat
 - `world-dm`: the World DM and world profiles
 - `agents`: agents and the agent forge
 - `settings`: where Roleplay's settings are

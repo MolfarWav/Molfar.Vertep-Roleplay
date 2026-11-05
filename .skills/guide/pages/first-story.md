@@ -32,6 +32,8 @@ The cheapest savings, in order:
 4. In the Dashboard settings, switch "Rate characters automatically" off.
 5. On the Canvas, the Prompt board shows every part of the next request with its tokens, and lets you switch parts off for one chat.
 
+A story that has grown long needs its own measures: see [[long-chats]].
+
 Free models with small context windows do best with a Manual dashboard and a Compact memory.
 
 ## Next
