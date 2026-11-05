@@ -1401,7 +1401,7 @@ export function semanticPrep(host, fsx, meta, staged, text, req) {
     const work = semanticEmbedWork(fsx, meta, personaIds, scanEmbedText);
     const haveScan = host.llm.embedResults && host.llm.embedResults.scan !== undefined;
     if (work && !haveScan) {
-      host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)] });
+      host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)], kinds: ["query", ...work.needed.map(() => "document")] });
       return { pending: pendingOut(meta, { wiEmbed: work.needed }) };
     }
     if (work && haveScan) {
@@ -5080,7 +5080,7 @@ export function handleRoute(req, host) {
       const work = semanticEmbedWork(fsx, chat.meta, personaIdsP, scanEmbedText);
       const haveScan = host.llm.embedResults && host.llm.embedResults.scan !== undefined;
       if (work && !haveScan) {
-        host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)] });
+        host.llm.embed("scan", { texts: [scanEmbedText, ...work.needed.map((e) => e.text)], kinds: ["query", ...work.needed.map(() => "document")] });
         return { __llmPending: true, stash: { wiEmbed: work.needed } };
       }
       if (work && haveScan) {

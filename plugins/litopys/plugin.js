@@ -4040,7 +4040,7 @@ function kickEmbedWant(fsx, host, st, chatId) {
   const gaps = vectorGaps(fsx, st);
   if (!gaps.length) return endEmbedWant(fsx, chatId);
   fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: true, at: Date.now(), batch: gaps.map((g) => ({ id: g.id, hash: g.hash })) }));
-  host.llm.embed("lit_emb_" + chatId, { texts: gaps.map((g) => g.text) });
+  host.llm.embed("lit_emb_" + chatId, { texts: gaps.map((g) => g.text), kinds: gaps.map(() => "document") });
 }
 // ---------- automatic filling (#184): once embedding works, the gaps of every chat and Data Bank file are asked for by the tick ----------
 const AUTO_EMBED_FILE = "litopys/embed-auto.json";
@@ -4706,7 +4706,7 @@ export function onTick(_ctx, host) {
                   const mine = readJson(fsx, EMBED_WANT_DIR + chatId + ".json", null);
                   if (!isObj(mine) || !Array.isArray(mine.batch) || Date.now() - (Number(mine.at) || 0) >= EMBED_FLIGHT_MS) {
                     fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: false, at: Date.now(), batch: needed.map((x) => ({ id: x.id, hash: x.hash })) }));
-                    host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
+                    host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text), kinds: needed.map(() => "document") });
                   }
                 }
               }
@@ -7889,7 +7889,7 @@ function kickShelfWant(fsx, host, id) {
   const gaps = shelfGaps(fsx, file, undefined, 64);
   if (!gaps.length) return endEmbedWant(fsx, SHELF_WANT + id);
   fsx.write(EMBED_WANT_DIR + SHELF_WANT + id + ".json", JSON.stringify({ more: true, at: Date.now(), batch: gaps.map((g) => ({ i: g.i })) }));
-  host.llm.embed(SHELF_KEY + id, { texts: gaps.map((g) => g.text) });
+  host.llm.embed(SHELF_KEY + id, { texts: gaps.map((g) => g.text), kinds: gaps.map(() => "document") });
 }
 
 /** A finished batch for a file: store it and go on with the next, or end the request. */
