@@ -1200,6 +1200,8 @@ async function limitsOfChat(chatId: string): Promise<{ contextWindow?: number; m
  *  real context-scaled budget), so the viewer shows what ACTUALLY fires. */
 export interface WIFiredRow {
   book: string
+  /** the book's id (rows written since #253; absent from older answers) */
+  bookId?: string
   uid: number | null
   title: string
   chars: number
@@ -1225,9 +1227,13 @@ export type WIBlockReason =
   | 'probability' | 'group' | 'character' | 'trigger'
 export interface WIBlockedRow {
   book: string
+  bookId?: string
   uid: number | null
   title: string
   reason: WIBlockReason
+  /** a hit by meaning that the secondary keys held back: how it got that far, and its score (#253) */
+  via?: 'vector'
+  score?: number
   detail?: string | number
   key?: string
   secondary?: string[]

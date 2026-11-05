@@ -5,6 +5,7 @@ import type { MsgKey } from '@/lib/i18n'
 import type { WIBlockedRow, WIFiredRow } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { LoreStatusIcon } from '@/components/lore-status-icon'
+import { TONES, type ToneName } from '@/components/ui/tone'
 import { LOGIC_KEY, POSITION_KEY, canonicalPosition } from '@/components/lore/lore-labels'
 import type { EntryLogic } from '@/lib/types'
 
@@ -12,15 +13,37 @@ type T = (key: MsgKey, vars?: Record<string, string | number>) => string
 
 const quote = (s: string) => `“${s}”`
 
-/** The line that says WHY an entry fired. */
-function whyText(r: WIFiredRow, t: T): string {
-  if (r.via === 'key') {
-    const base = t('lore.why.key', { key: r.key ?? '' })
-    return r.secondary?.length ? `${base} ${t('lore.why.and', { keys: r.secondary.map(quote).join(', ') })}` : base
-  }
-  if (r.via === 'sticky') return t('lore.why.sticky')
-  if (r.via === 'vector') return t('lore.why.vector', { score: r.score ?? 0 })
-  return t('lore.why.constant')
+/** How close a hit by meaning was, 0 to 1, as the panels show it (two decimals). */
+export const scoreText = (score: number | undefined): string => (typeof score === 'number' ? score.toFixed(2) : '–')
+
+const VIA_TONE: Record<WIFiredRow['via'], ToneName> = { key: 'sky', vector: 'violet', sticky: 'pink', constant: 'amber' }
+
+function ViaChip({ tone, children }: { tone: ToneName; children: React.ReactNode }) {
+  return <span className={cn('inline-flex h-5 max-w-full items-center gap-1 rounded-full border px-1.5 text-caption font-medium', TONES[tone].chip)}>{children}</span>
+}
+
+/** How an entry got in, as chips: the key (and the secondary keys that held), the score of a hit by meaning with a small scale, sticky, always on. */
+export function WhyChips({ r }: { r: WIFiredRow }) {
+  const t = useT() as T
+  const tone = VIA_TONE[r.via] ?? 'slate'
+  return (
+    <span className="flex flex-wrap items-center gap-1" data-via={r.via}>
+      <ViaChip tone={tone}>
+        {r.via === 'key' ? t('lore.why.key', { key: r.key ?? '' }) : null}
+        {r.via === 'sticky' ? t('lore.why.sticky') : null}
+        {r.via === 'constant' ? t('lore.why.constant') : null}
+        {r.via === 'vector' ? (
+          <>
+            {t('lore.why.vector', { score: scoreText(r.score) })}
+            <span aria-hidden="true" className="inline-block h-1.5 w-8 overflow-hidden rounded-full bg-violet-500/25">
+              <span className="block h-full bg-violet-500" style={{ width: `${Math.round(Math.max(0, Math.min(1, r.score ?? 0)) * 100)}%` }} />
+            </span>
+          </>
+        ) : null}
+      </ViaChip>
+      {r.secondary?.length ? <span className="text-caption text-muted-foreground">{t('lore.why.and', { keys: r.secondary.map(quote).join(', ') })}</span> : null}
+    </span>
+  )
 }
 
 /** The reason a matching entry was held back, in words. */
@@ -33,7 +56,7 @@ export function blockedText(r: WIBlockedRow, t: T): string {
     case 'non_recursable': return t('lore.block.nonRecursable')
     case 'secondary': {
       const logic = typeof d === 'string' && d in LOGIC_KEY ? t(LOGIC_KEY[d as EntryLogic]) : String(d ?? '')
-      return t('lore.block.secondary', { logic })
+      return r.via === 'vector' ? t('lore.block.secondaryVector', { score: scoreText(r.score), logic }) : t('lore.block.secondary', { logic })
     }
     case 'probability': return t('lore.block.probability', { n: d ?? '' })
     case 'group': return t('lore.block.group', { group: String(d ?? ''), winner: r.winner ?? '' })
@@ -59,7 +82,7 @@ export function baseDepthOf(
 
 function Extra({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <Badge variant="outline" className="h-auto max-w-full whitespace-normal px-1.5 py-0 text-[10px] font-normal text-muted-foreground" title={title}>
+    <Badge variant="outline" className="h-auto max-w-full whitespace-normal px-1.5 py-0 text-caption font-normal text-muted-foreground" title={title}>
       {children}
     </Badge>
   )
@@ -81,13 +104,13 @@ function FiredCard({ r, base, muted }: { r: WIFiredRow; base: number | null; mut
           ? <Scissors className="size-3.5 shrink-0" aria-hidden="true" />
           : <LoreStatusIcon status={r.via === 'constant' ? 'constant' : r.via === 'vector' ? 'vectorized' : 'normal'} />}
         <span className="min-w-0 flex-1 truncate font-medium">{r.title}</span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{tokens}t</span>
+        <span className="shrink-0 text-caption text-muted-foreground">{tokens}t</span>
       </div>
-      <p className="mt-0.5 break-words text-xs">
-        {muted ? <span>{t('lore.why.cut')} · </span> : null}
-        <span className={muted ? '' : 'text-foreground'}>{whyText(r, t)}</span>
-        <span className="text-muted-foreground"> · {r.book}</span>
-      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        {muted ? <span className="text-caption text-muted-foreground">{t('lore.why.cut')}</span> : null}
+        <WhyChips r={r} />
+      </div>
+      <p className="mt-0.5 break-words text-caption text-muted-foreground">{r.book}</p>
       <div className="mt-1 flex flex-wrap gap-1">
         {r.pass > 0 && <Extra>{t('lore.why.pass', { n: r.pass })}</Extra>}
         {base != null && r.depth > base && <Extra>{t('lore.why.deeper', { n: r.depth })}</Extra>}
@@ -106,9 +129,9 @@ function BlockedCard({ r }: { r: WIBlockedRow }) {
       <div className="flex items-center gap-2">
         <Prohibit className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{r.title}</span>
-        <span className="shrink-0 text-[10px]">{r.book}</span>
+        <span className="shrink-0 text-caption">{r.book}</span>
       </div>
-      <p className="mt-0.5 break-words text-xs">
+      <p className="mt-0.5 break-words text-caption">
         {blockedText(r, t)}
         {r.reason === 'secondary' && r.key ? <span> · {t('lore.why.key', { key: r.key })}</span> : null}
       </p>
@@ -159,7 +182,7 @@ export function WhyRows({ fired, skipped, blocked, depthOfBook }: {
 export function BudgetLine({ usedChars, budgetChars, contextTokens }: { usedChars: number; budgetChars: number; contextTokens?: number }) {
   const t = useT() as T
   return (
-    <p className="text-[11px] text-muted-foreground">
+    <p className="text-caption text-muted-foreground">
       {t('lore.why.budget', { used: Math.round(usedChars / 4).toLocaleString(), budget: Math.round(budgetChars / 4).toLocaleString() })}
       {contextTokens != null ? ` · ${t('lore.why.context', { n: contextTokens.toLocaleString() })}` : ''}
     </p>

@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, BookOpenText, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -23,7 +23,8 @@ import { modelLimits, UNKNOWN_WINDOW } from '@/lib/model-params'
 import { storeBackground } from '@/lib/webp'
 import { formatBytes, uniqueName } from '@/lib/world-backgrounds'
 import { AutoBackground } from '@/components/world/world-auto-bg'
-import { WiStatusView } from '@/components/lore/wi-status-view'
+import { FiredPanel } from '@/components/chat/fired-panel'
+import type { FiredTab } from '@/components/chat/fired-tabs'
 import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
 import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
@@ -171,7 +172,9 @@ export function ChatView() {
   const [findQuery, setFindQuery] = useState('')
   const [findIndex, setFindIndex] = useState(0)
   const [notesOpen, setNotesOpen] = useState(false)
+  // "What fired" (#253): open, and the tab asked for by whoever opened it
   const [loreOpen, setLoreOpen] = useState(false)
+  const [firedTab, setFiredTab] = useState<FiredTab | null>(null)
   const [branchesOpen, setBranchesOpen] = useState(false)
   // a proposal for souls may have been written while the chat was closed or idle
   useEffect(() => {
@@ -684,7 +687,7 @@ export function ChatView() {
   // one set of chat tools for the desktop kebab and the phone chat menu
   const chatActions: ChatAction[] = [
     { key: 'note', icon: Note, label: "Author's note", onSelect: () => setNotesOpen(true) },
-    { key: 'lore', icon: BookOpenText, label: t('lore.activity.title'), onSelect: () => setLoreOpen(true) },
+    { key: 'lore', icon: Lightning, label: t('fired.title'), onSelect: () => { setFiredTab(null); setLoreOpen(true) } },
     { key: 'record', icon: Brain, label: t('lit.recordTitle'), onSelect: () => setSummaryOpen(true) },
     { key: 'world', icon: GlobeHemisphereWest, label: t('world.menu'), onSelect: () => setWorldOpen(true) },
     ...(carries.result.visible ? [{ key: 'carries', icon: Stack, label: t('carries.title'), onSelect: () => carries.setOpen(true) }] : []),
@@ -711,7 +714,7 @@ export function ChatView() {
     world: worldDot,
     total: carries.result.visible ? carries.result.total : null,
   }
-  const toolHandlers: ToolHandlers = { note: () => setNotesOpen(true), lore: () => setLoreOpen(true), record: () => setSummaryOpen(true), world: () => setWorldOpen(true), carries: () => carries.setOpen(true) }
+  const toolHandlers: ToolHandlers = { note: () => setNotesOpen(true), lore: () => { setFiredTab(null); setLoreOpen(true) }, record: () => setSummaryOpen(true), world: () => setWorldOpen(true), carries: () => carries.setOpen(true) }
   const menuItem = (a: ChatAction) => (
     <DropdownMenuItem key={a.key} onClick={a.onSelect} disabled={a.disabled}>
       <a.icon className="size-4" aria-hidden="true" /> {a.label}
@@ -871,7 +874,7 @@ export function ChatView() {
       </nav>
 
       {/* what the chat carries into the prompt besides the history (#107): the panel behind the header's "~N tok" button and the phone menu's row */}
-      <CarriesPanel chatId={chat.id} state={carries} onOpenNote={() => setNotesOpen(true)} />
+      <CarriesPanel chatId={chat.id} state={carries} onOpenNote={() => setNotesOpen(true)} onOpenFired={() => { setFiredTab('chron'); setLoreOpen(true) }} />
 
       <Sheet open={menuOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMenuOpen(o) }}>
         <SheetContent data-guide="chat.menu" side="right" className="w-[min(320px,88vw)] gap-0 p-0">
@@ -1300,17 +1303,15 @@ export function ChatView() {
         </SheetContent>
       </Sheet>
 
-      {/* Lore activity sheet: the engine's own scan, with the reason for every row */}
-      <Sheet open={loreOpen} onOpenChange={setLoreOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{t('lore.activity.title')}</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
-            <WiStatusView chatId={chat?.id ?? null} active={loreOpen} />
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      {/* What fired (#253): the last reply's prompt and the whole chat, by source */}
+      <FiredPanel
+        chatId={chat?.id ?? null}
+        title={chat?.title ?? ''}
+        open={loreOpen}
+        onOpenChange={setLoreOpen}
+        wantTab={firedTab}
+        onOpenCarries={() => carries.setOpen(true)}
+      />
 
       {/* Branch tree */}
       <Sheet open={branchesOpen} onOpenChange={setBranchesOpen}>

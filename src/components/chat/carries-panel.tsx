@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import { buildCarries, flipOff, ownStoryChats, type CarriesAnswer, type CarriesResult, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
 import type { MsgKey } from '@/lib/i18n'
-import { fetchWIStatus, getChatPromptBoard, j, setChatMemoryOwner, setChatPromptBoard } from '@/lib/engine'
+import { getChatPromptBoard, j, setChatMemoryOwner, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { habitCounts } from '@/lib/habit-earned'
 import { announceEarned } from '@/lib/habit-earned-toast'
@@ -16,7 +16,7 @@ import { estimateTokens } from '@/lib/tokens'
 import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
 import { fetchCardMemory } from '@/components/character/memory-api'
 import { StoryChoices } from './carries-stories'
-import { openMemoryTrace } from '@/lib/memory-trace-open'
+import { loadFiredBrief } from '@/lib/fired-load'
 import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
@@ -80,8 +80,8 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
       j<DashAnswer>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}&view=1`).catch(() => null),
       // the chat's Litopys record: the habits earned in it (one toast when a new one was earned, and a line in the Habits row)
       fetchLitChat(chatId).catch(() => null),
-      // the same scan a generation runs: how many entries fire now
-      fetchWIStatus(chatId).catch(() => null),
+      // how many lorebook entries went into the last real reply (#253; before this was a dry run of the next one)
+      loadFiredBrief(chatId),
     ])
     if (mine !== seq.current) return
     const carriesOut = carries && !carries.cardMemory ? await withIdleMemory(carries, chatId) : carries
@@ -91,7 +91,7 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
       ? { tokens: Number(view.insert?.tokens) || 0, saidTokens: Number(view.insert?.saidTokens) || 0, inherit: view.inherit ?? dash?.inherit ?? null }
       : null
     if (rec) announceEarned(chatId, rec.habits)
-    setLoaded({ chatId, carries: carriesOut, dash: dashPart, habits: rec?.habits ? habitCounts(rec.habits) : null, loreFired: lore ? lore.fired.length : null, chapters: rec ? rec.chapters.length : null })
+    setLoaded({ chatId, carries: carriesOut, dash: dashPart, habits: rec?.habits ? habitCounts(rec.habits) : null, loreFired: lore ? lore.loreFired : null, chapters: rec ? rec.chapters.length : null })
   }, [chatId])
   useEffect(() => { void refetch() }, [refetch, msgCount, open])
   useEffect(() => { setOpen(false) }, [chatId])
@@ -179,7 +179,7 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
 
 /** The panel "What this chat carries": a switch per part, the exact lines, and shortcuts. Opens from the header's
  *  "~N tok" button (the phone menu's row); the Author's note has its own drawer, linked from here. */
-export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; state: ReturnType<typeof useCarries>; onOpenNote: () => void }) {
+export function CarriesPanel({ chatId, state, onOpenNote, onOpenFired }: { chatId: string; state: ReturnType<typeof useCarries>; onOpenNote: () => void; onOpenFired: () => void }) {
   const t = useT()
   const { result, mine, open, setOpen, refetch, flip, flipShared } = state
   const chipText = (p: CarryPart) => (p.empty ? t('carries.empty') : t('carries.tok', { n: p.tokens }))
@@ -207,6 +207,7 @@ export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; st
               onChanged={() => void refetch()}
               onFlip={() => (p.optIn ? void flipShared(p) : p.switchKey && void flip(p.switchKey))}
               onLeave={() => setOpen(false)}
+              onOpenFired={onOpenFired}
             />
           ))}
           <li className="flex flex-col gap-1.5 p-3" data-testid="carries-row-note">
@@ -224,7 +225,7 @@ export function CarriesPanel({ chatId, state, onOpenNote }: { chatId: string; st
   )
 }
 
-function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; carries: CarriesAnswer | null; chatHabits: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
+function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, onOpenFired, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; onOpenFired: () => void; carries: CarriesAnswer | null; chatHabits: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
   const cm = carries?.cardMemory
@@ -298,7 +299,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openDashboard() }}>{t('carries.dashboard.open')}</Button>
         )}
         {part.kind === 'litopys' && (
-          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); openMemoryTrace(chatId) }}>{t('carries.litopys.why')}</Button>
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); onOpenFired() }}>{t('carries.litopys.why')}</Button>
         )}
       </div>
       {part.kind === 'memory' && !!cm && <StoryChoices chatId={chatId} cardId={cm.cardId} t={t} onChanged={onChanged} />}
