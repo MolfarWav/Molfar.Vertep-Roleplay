@@ -149,14 +149,14 @@ export function LoreLast({ log, t }: { log: FiredLog; t: T }) {
 }
 
 /** One counted thing: its text, "N of M replies" with a small scale, how it got in, and how long ago it last did. */
-function CountRow({ title, sub, n, replies, ago, chips, t }: { title: ReactNode; sub: ReactNode; n: number; replies: number; ago: number; chips?: ReactNode; t: T }) {
+function CountRow({ title, sub, n, replies, ago, chips, tone, t }: { tone: ToneName; title: ReactNode; sub: ReactNode; n: number; replies: number; ago: number; chips?: ReactNode; t: T }) {
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2">
       <p className="line-clamp-3 break-words text-body font-medium">{title}</p>
       <div className="flex items-center gap-2 text-caption text-muted-foreground">
         <span className="shrink-0 tabular-nums">{t('fired.count', { n, total: replies })}</span>
         <span className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-          <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round(share(n, replies) * 100)}%` }} />
+          <span className={cn('block h-full rounded-full', TONES[tone].square)} style={{ width: `${Math.round(share(n, replies) * 100)}%` }} />
         </span>
       </div>
       {chips ? <div className="flex flex-wrap items-center gap-1">{chips}</div> : null}
@@ -185,6 +185,7 @@ export function LoreChat({ log, t, date }: { log: FiredLog; t: T; date: (ts: num
           <Rows>
             {rows.map(({ id, e }) => (
               <CountRow
+                tone="sky"
                 key={id}
                 title={e.t}
                 sub={e.b}
@@ -232,6 +233,7 @@ export function ChronChat({ lit, t, date }: { lit: LitFired; t: T; date: (ts: nu
           <Rows>
             {lit.facts.map((f) => (
               <CountRow
+                tone="emerald"
                 key={f.id}
                 title={f.gone ? <span className="italic text-muted-foreground">{t('memtrace.removed')}</span> : f.text}
                 sub={<>{f.id} · {t('memtrace.known')}: <Who people={f.by} t={t} /></>}
@@ -252,6 +254,7 @@ export function ChronChat({ lit, t, date }: { lit: LitFired; t: T; date: (ts: nu
           <Rows>
             {lit.chapters.map((c) => (
               <CountRow
+                tone="violet"
                 key={c.id}
                 title={c.gone ? <span className="italic text-muted-foreground">{t('memtrace.removed')}</span> : <>{c.label ? <strong className="font-semibold">{c.label}: </strong> : null}{c.text}</>}
                 sub={`${t('memtrace.chapter')} ${c.id}`}
@@ -285,6 +288,7 @@ export function BankChat({ log, t, date }: { log: FiredLog; t: T; date: (ts: num
           <Rows>
             {rows.map(({ id, e }) => (
               <CountRow
+                tone="teal"
                 key={id}
                 title={<>{e.f} <span className="text-caption font-normal text-muted-foreground">#{e.p}</span></>}
                 sub={e.best ? t('fired.bank.best', { n: e.best }) : t('fired.bank.passage')}

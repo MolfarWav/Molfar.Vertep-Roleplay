@@ -2004,7 +2004,7 @@
         "uk": "меню чату ще гілки закладки відображення налаштування конвертувати група видалити керувати файлами нотатка лор запис світ"
       },
       "short": {
-        "en": "The top \"More\" button opens the chat menu: story tools (Author's note, Lore, Record, World), chat settings (Convert to group, Branches, Bookmarks, Display), and management (Start new chat, Delete messages, Manage chat files).",
+        "en": "The top \"More\" button opens the chat menu: story tools (Author's note, Fired, Record, World), chat settings (Convert to group, Branches, Bookmarks, Display), and management (Start new chat, Delete messages, Manage chat files).",
         "uk": "Верхня кнопка «Ще» відкриває меню чату: інструменти історії, налаштування чату й дії. Друге натискання закриває."
       },
       "where": {
@@ -2012,8 +2012,8 @@
         "uk": "Угорі праворуч перегляду чату; на телефоні — кнопка Menu."
       },
       "details": {
-        "en": "The menu splits into two sections. The first holds Convert to group, Branches, Bookmarks, and Display settings, plus Author's note, Lore, Record, and World (on desktop these sit in the header; on a phone they sit above the rest of this menu). The second holds Start new chat, Delete messages, and Manage chat files.\n\nOn desktop, the story tools are also shown as buttons in the header bar when there is enough width; the menu duplicates them for access on narrower screens. Delete messages opens a selection mode rather than removing anything immediately.",
-        "uk": "Меню поділено на дві частини. Перша група: Конвертувати в групу, Гілки, Закладки, Налаштування відображення. Ще тут Нотатка, Лор, Запис і Світ. На десктопі ці кнопки в шапці; на телефоні — над рештою меню. Друга група: Почати новий чат, Видалити повідомлення, Керувати файлами чату.\n\nНа десктопі інструменти історії також показуються в шапці при достатній ширині. Меню дублює їх для вузьких екранів. «Видалити повідомлення» відкриває режим вибору, а не видаляє негайно."
+        "en": "The menu splits into two sections. The first holds Convert to group, Branches, Bookmarks, and Display settings, plus Author's note, Fired, Record, and World (on desktop these sit in the header; on a phone they sit above the rest of this menu). The second holds Start new chat, Delete messages, and Manage chat files.\n\nOn desktop, the story tools are also shown as buttons in the header bar when there is enough width; the menu duplicates them for access on narrower screens. Delete messages opens a selection mode rather than removing anything immediately.",
+        "uk": "Меню поділено на дві частини. Перша група: Конвертувати в групу, Гілки, Закладки, Налаштування відображення. Ще тут Нотатка, Спрацювало, Запис і Світ. На десктопі ці кнопки в шапці; на телефоні — над рештою меню. Друга група: Почати новий чат, Видалити повідомлення, Керувати файлами чату.\n\nНа десктопі інструменти історії також показуються в шапці при достатній ширині. Меню дублює їх для вузьких екранів. «Видалити повідомлення» відкриває режим вибору, а не видаляє негайно."
       },
       "related": [
         "kb.branch",
@@ -2336,12 +2336,12 @@
         "uk": "Вставте повідомлення — і книга покаже свою роботу: які записи спрацюють, які стримано й що з ними сталося. Налаштування сканування книги діють і тут."
       },
       "where": {
-        "en": "Lorebooks → open a book → Test triggers; chat header → Lore.",
-        "uk": "Лорбуки → відкрийте книгу → «Перевірити тригери»; шапка чату → «Лор»."
+        "en": "Lorebooks → open a book → Test triggers; chat header → Fired.",
+        "uk": "Лорбуки → відкрийте книгу → «Перевірити тригери»; шапка чату → «Спрацювало»."
       },
       "details": {
-        "en": "The test panel scans the pasted text the way a reply would: the book's settings decide how it reads — whether case matters, whether keys match whole words, and whether Ukrainian keys match every form of their word. Entries that would fire show up with their keys and position. The rest are held back, and the view says what happened to each. An entry can also miss by chance when its firing percentage is under 100, and timed effects can hold it back. The test reads with a budget line at the top: it shows how many characters the fired entries take out of the book's cap, so an entry can also miss because the budget is full. The preset's sections are left out of the test. Lore in the chat header (on a phone: Menu) shows the same for the chat you have open, and why.",
-        "uk": "Панель перевірки сканує вставлений текст так, як зробила б відповідь. Налаштування книги вирішують, як вона читає: чи має значення регістр, чи ключі збігаються цілими словами. Окремо задається, чи українські збігаються в усіх формах. Записи, що спрацювали б, показуються зі своїми ключами й позицією. Решту стримано, і вікно пояснює, що сталося з кожним. Запис може й не випасти за шансом, коли його відсоток менший за 100, а часові ефекти можуть його стримати. Угорі перевірки йде рядок бюджету. Він показує, скільки знаків зайняли запали записи з ліміту книги. Запис може не потрапити й через повний бюджет. Розділи пресету до перевірки не входять. «Лор» у шапці чату (на телефоні: Меню) показує те саме для відкритого чату — і чому."
+        "en": "The test panel scans the pasted text the way a reply would: the book's settings decide how it reads — whether case matters, whether keys match whole words, and whether Ukrainian keys match every form of their word. Entries that would fire show up with their keys and position. The rest are held back, and the view says what happened to each. An entry can also miss by chance when its firing percentage is under 100, and timed effects can hold it back. The test reads with a budget line at the top: it shows how many characters the fired entries take out of the book's cap, so an entry can also miss because the budget is full. The preset's sections are left out of the test. Fired in the chat header (on a phone: Menu) shows what really went into the last reply of the chat you have open, and why.",
+        "uk": "Панель перевірки сканує вставлений текст так, як зробила б відповідь. Налаштування книги вирішують, як вона читає: чи має значення регістр, чи ключі збігаються цілими словами. Окремо задається, чи українські збігаються в усіх формах. Записи, що спрацювали б, показуються зі своїми ключами й позицією. Решту стримано, і вікно пояснює, що сталося з кожним. Запис може й не випасти за шансом, коли його відсоток менший за 100, а часові ефекти можуть його стримати. Угорі перевірки йде рядок бюджету. Він показує, скільки знаків зайняли запали записи з ліміту книги. Запис може не потрапити й через повний бюджет. Розділи пресету до перевірки не входять. «Спрацювало» у шапці чату (на телефоні: Меню) показує, що справді потрапило в останню відповідь відкритого чату, — і чому."
       },
       "aliases": {
         "en": "lore test trigger scan keyword match fire held back reason case sensitive whole words",

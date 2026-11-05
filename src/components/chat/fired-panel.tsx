@@ -75,6 +75,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
   const [failed, setFailed] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const seq = useRef(0)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     if (!chatId) return
@@ -102,6 +103,10 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
     if (open && wantTab) setTab(wantTab)
   }, [open, wantTab])
 
+  // another tab or scope starts at its top, not where the last one was scrolled to
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [tab, scope])
   const pickTab = (next: FiredTab) => {
     setTab(next)
     writePick(TAB_KEY, next)
@@ -168,7 +173,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
     if (tab === 'chron') {
       if (scope === 'chat') {
         if (all.lit.down) return downNote('lit')
-        return all.lit.data ? <ChronChat lit={all.lit.data} t={t} date={date} /> : fresh
+        return all.lit.data ? <ChronChat lit={all.lit.data} t={t} date={date} /> : <Notice title={t('fired.chron.noneTitle')}>{t('memtrace.noLitopys')}</Notice>
       }
       return <ChronLast all={all} t={t} />
     }
@@ -189,24 +194,23 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
           </SheetTitle>
           <SheetDescription>{t('fired.subtitle')}</SheetDescription>
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            {showScope && (
-              <div role="group" aria-label={t('fired.scope')} className="inline-flex rounded-lg bg-muted p-[3px]" data-testid="fired-scope">
-                {(['last', 'chat'] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={scope === s}
-                    onClick={() => pickScope(s)}
-                    className={cn(
-                      'min-h-10 rounded-md px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 sm:min-h-8',
-                      scope === s ? 'bg-background text-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground',
-                    )}
-                  >
-                    {t(s === 'last' ? 'fired.scope.last' : 'fired.scope.chat')}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* kept (invisible) on the Vectors tab, so the tabs below do not jump */}
+            <div role="group" aria-label={t('fired.scope')} aria-hidden={!showScope} className={cn('inline-flex rounded-lg bg-muted p-[3px]', !showScope && 'invisible')} data-testid="fired-scope">
+              {(['last', 'chat'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={scope === s}
+                  onClick={() => pickScope(s)}
+                  className={cn(
+                    'min-h-10 rounded-md px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 sm:min-h-8',
+                    scope === s ? 'bg-background text-foreground shadow-sm' : 'text-foreground/60 hover:text-foreground',
+                  )}
+                >
+                  {t(s === 'last' ? 'fired.scope.last' : 'fired.scope.chat')}
+                </button>
+              ))}
+            </div>
             <span className="ml-auto flex items-center gap-1.5">
               <Button variant="outline" size="sm" className="min-h-10 sm:min-h-8" onClick={refresh} disabled={loading} aria-label={t('fired.refresh')} title={t('fired.refresh')}>
                 <ArrowClockwise className={cn('size-4', loading && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
@@ -219,7 +223,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
         </SheetHeader>
 
         <ScrollStrip className="border-b border-border px-3 py-2">
-          <div role="tablist" aria-label={t('fired.tabs')} className="flex w-max gap-1.5">
+          <div role="tablist" aria-label={t('fired.tabs')} className="flex w-max gap-1">
             {TABS.map((k) => {
               const Icon = TAB_ICON[k]
               const n = showScope ? tabCount(k, scope, all) : null
@@ -233,12 +237,11 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
                   data-tab={k}
                   onClick={() => pickTab(k)}
                   className={cn(
-                    'inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 sm:min-h-9',
+                    'inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 sm:min-h-9',
                     on ? TONES[TAB_TONE[k]].fill : 'border-transparent text-foreground/70 hover:bg-accent hover:text-foreground',
                   )}
                 >
-                  <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-sm', TONES[TAB_TONE[k]].square)} />
-                  <Icon className={cn('size-4 shrink-0', on && TONES[TAB_TONE[k]].ink)} aria-hidden="true" />
+                  <Icon className={cn('size-4 shrink-0', TONES[TAB_TONE[k]].ink)} aria-hidden="true" />
                   {t(`fired.tab.${k}` as MsgKey)}
                   {n ? <span className="rounded-full bg-background/70 px-1.5 text-caption tabular-nums">{n}</span> : null}
                 </button>
@@ -247,7 +250,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
           </div>
         </ScrollStrip>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3" data-testid="fired-body">
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto p-3" data-testid="fired-body">
           <div className="flex flex-col gap-3 [&>*]:shrink-0">
             {meta ? <p className="px-1 text-caption text-muted-foreground">{meta}</p> : null}
             {body()}
