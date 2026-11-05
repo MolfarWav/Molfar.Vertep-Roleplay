@@ -14,7 +14,7 @@ const POLL_MS = 3000
 
 /**
  * "Matching by meaning" for one chat (#184): the state in one line, how many facts and chapters have a vector,
- * and a button that says what embedding the rest costs. Nothing is spent without a click.
+ * and a button that says what embedding the rest costs. The engine also fills the gaps by itself once embedding works (a limit of 300,000 tokens), the click does it at once.
  * Used in Canvas > Prompt > Memory and in Library > Litopys.
  */
 export function MeaningCard({ chatId, shelf, refreshKey, onView, className }: {
