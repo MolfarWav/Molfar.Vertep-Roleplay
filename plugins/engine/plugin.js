@@ -1251,8 +1251,18 @@ function embedCap(fsx) {
     return true;
   } catch { return true; }
 }
-function setEmbedCap(fsx, ok) {
-  try { fsx.write("embed-status.json", JSON.stringify({ ok: ok === true, checkedAt: Date.now() }, null, 2)); } catch {}
+function setEmbedCap(fsx, ok, model) {
+  try {
+    // the model of the last working call stays (a failed call does not forget it)
+    let prev = "";
+    try { const st = JSON.parse(fsx.read("embed-status.json")); if (st && typeof st.model === "string") prev = st.model; } catch {}
+    const m = typeof model === "string" && model ? model : prev;
+    fsx.write("embed-status.json", JSON.stringify({ ok: ok === true, checkedAt: Date.now(), ...(m ? { model: m } : {}) }, null, 2));
+  } catch {}
+}
+/** The model that made the last working embeddings call ("" when unknown). */
+function embedModelOf(fsx) {
+  try { const st = JSON.parse(fsx.read("embed-status.json")); return st && typeof st.model === "string" ? st.model : ""; } catch { return ""; }
 }
 /** Vectorized world-info entries keep their embeddings in a sidecar cache
  *  keyed book#uid, invalidated by content hash. */
@@ -1266,6 +1276,22 @@ function saveWiVectors(fsx, map) {
   try { fsx.write("lorebooks/.vectors.json", JSON.stringify(map, null, 2)); } catch {}
 }
 function wiVectorKey(book, entry, i) { return (book.id || book.name) + "#" + (entry.uid ?? i); }
+/** What of an entry is embedded: its title, text and keys (the title tells a short entry apart). */
+function wiEntryEmbedText(entry) {
+  const title = String(entry.title || entry.comment || "").trim();
+  return (title ? title + "\n" : "") + String(entry.content || "").trim() + "\n" + (entry.keys || []).join(", ");
+}
+function wiEntryHash(entry) {
+  const title = String(entry.title || entry.comment || "").trim();
+  return strHash(String(entry.content || "") + "|" + String(entry.keys || "") + (title ? "|" + title : ""));
+}
+/** A cached entry vector is usable for a model when it was made by it. Without a known model
+ *  (an engine that does not report one) every vector is usable, as before. A vector from before
+ *  models were recorded counts as made by another model once the current one is known. */
+function wiVectorUsable(rec, model) {
+  if (!rec || !Array.isArray(rec.vector)) return false;
+  return !model || rec.m === model;
+}
 
 /** The chat's own world book (plugins/world): always in that chat's scope, never in another's. */
 function worldBookOf(meta) {
@@ -1315,6 +1341,7 @@ function litopysHasVectors(fsx, meta) {
  *  entries, or Litopys has vectors for this chat). Returns null when neither needs an embedding. */
 export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
   const vecMap = loadWiVectors(fsx);
+  const curModel = embedModelOf(fsx);
   const needed = [];
   let anyVec = false;
   const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
@@ -1326,9 +1353,9 @@ export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
       anyVec = true;
       const key = wiVectorKey(book, entry, i);
       const cached = vecMap[key];
-      const hash = strHash(String(entry.content || "") + "|" + String(entry.keys || ""));
-      if (cached && cached.hash === hash && Array.isArray(cached.vector)) return;
-      const text = String(entry.content || "").trim() + "\n" + (entry.keys || []).join(", ");
+      const hash = wiEntryHash(entry);
+      if (cached && cached.hash === hash && wiVectorUsable(cached, curModel)) return;
+      const text = wiEntryEmbedText(entry);
       if (text.trim()) needed.push({ key, hash, text });
     });
   }
@@ -1338,11 +1365,11 @@ export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
   return { needed, wantScan };
 }
 /** Store freshly embedded entry vectors into the sidecar cache. */
-function cacheWiVectorBatch(fsx, entries, vectors) {
+function cacheWiVectorBatch(fsx, entries, vectors, model) {
   if (!Array.isArray(entries) || !Array.isArray(vectors)) return;
   const map = loadWiVectors(fsx);
   entries.forEach((e, i) => {
-    if (e && vectors[i] && Array.isArray(vectors[i])) map[e.key] = { hash: e.hash, vector: vectors[i] };
+    if (e && vectors[i] && Array.isArray(vectors[i])) map[e.key] = { hash: e.hash, vector: vectors[i], ...(model ? { m: model } : {}) };
   });
   saveWiVectors(fsx, map);
 }
@@ -1380,9 +1407,11 @@ export function semanticPrep(host, fsx, meta, staged, text, req) {
     if (work && haveScan) {
       const res = host.llm.embedResults.scan;
       if (Array.isArray(res)) {
-        setEmbedCap(fsx, true);
+        const nowInfo = host.llm.embedInfo && host.llm.embedInfo.scan;
+        const nowModel = nowInfo && typeof nowInfo.model === "string" ? nowInfo.model : "";
+        setEmbedCap(fsx, true, nowModel);
         if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) {
-          cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1));
+          cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), nowModel);
         }
       } else {
         setEmbedCap(fsx, false);
@@ -1639,13 +1668,14 @@ function isConstantEntry(entry) {
  *  `secondary` = the secondary keys that hit; `fail: "secondary"` when the
  *  primary hit but the selective logic did not hold. Probability is the
  *  caller's (rolled once per activation). */
-function wiEntryMatch(entry, scanText, rawText, countAll) {
+function wiEntryMatch(entry, scanText, rawText, countAll, skipPrimary) {
   const keys = entry.keys || [];
   const secondary = entry.secondaryKeys || [];
   const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
   const caseBlind = !(entry && wiCaseSensitive(entry));
   const raw = caseBlind ? null : rawText;
-  const key = keys.find((k) => keyMatch(scanText, k, entry, raw));
+  // skipPrimary: a vector let the entry in, only the secondary keys are tested
+  const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw));
   if (key == null) return null;
   const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw));
   // group scoring ranks members by how many of their keys hit
@@ -1992,6 +2022,43 @@ function wiBudgetChars(preset) {
   const usable = Math.max(1, ctx - reserve);
   return Math.max(4, Math.round(usable * 0.25) * 4);
 }
+/** Which vectorized entries the scan vector lets in, per book: the entry id to its cosine (two decimals).
+ *  Cosine floors differ a lot between models (unrelated text sits near 0.2 for one and 0.7 for another, #216),
+ *  so a fixed number cannot work for all. With 4 or more vectors in a book an entry must stand out from the
+ *  others: above the book's mean by 2 standard deviations and at least 0.10, never below 0.25. A smaller
+ *  book has nothing to compare with and uses 0.55. `vectorized.thresholdMode: "fixed"` uses
+ *  `vectorized.scoreThreshold` as it is. At most `vectorized.topK` (default 10) entries per book, best first.
+ *  Vectors made by another model than the scan's are left out. */
+export const WI_VEC = { minPool: 4, sigma: 2, gap: 0.1, floor: 0.25, small: 0.55, topK: 10 };
+export function wiVectorHits(items, vecMap, scanVec, scanModel) {
+  const out = new Map();
+  if (!Array.isArray(scanVec) || !scanVec.length || !vecMap) return out;
+  const books = new Map();
+  for (const item of items) {
+    const e = item.entry;
+    if (!(e.vectorized === true || e.status === "vectorized")) continue;
+    const rec = vecMap[item.id];
+    if (!rec || !wiVectorUsable(rec, scanModel)) continue;
+    const c = cosine(rec.vector, scanVec);
+    if (c == null) continue;
+    const k = item.bookId;
+    if (!books.has(k)) books.set(k, { vec: item.vec, list: [] });
+    books.get(k).list.push({ id: item.id, c });
+  }
+  for (const { vec, list } of books.values()) {
+    let threshold;
+    if (vec && vec.thresholdMode === "fixed" && typeof vec.scoreThreshold === "number") threshold = vec.scoreThreshold;
+    else if (list.length >= WI_VEC.minPool) {
+      const mean = list.reduce((a, x) => a + x.c, 0) / list.length;
+      const sd = Math.sqrt(list.reduce((a, x) => a + (x.c - mean) ** 2, 0) / list.length);
+      threshold = Math.max(WI_VEC.floor, mean + Math.max(WI_VEC.sigma * sd, WI_VEC.gap));
+    } else threshold = WI_VEC.small;
+    const topK = vec && Number.isInteger(vec.topK) && vec.topK >= 1 ? vec.topK : WI_VEC.topK;
+    list.filter((x) => x.c >= threshold).sort((a, b) => b.c - a.c).slice(0, topK)
+      .forEach((x) => out.set(x.id, Math.round(x.c * 100) / 100));
+  }
+  return out;
+}
 function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
   const dryRun = options.dryRun === true;
@@ -2093,6 +2160,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     });
   }
   const entryById = new Map(items.map((x) => [x.id, x.entry]));
+  const vecHits = scanVec && wiVecMap ? wiVectorHits(items, wiVecMap, scanVec, typeof options.scanModel === "string" ? options.scanModel : "") : new Map();
 
   // timed effects tick in MESSAGES: sticky keeps a fired entry in for N
   // messages, cooldown locks it out for N after its sticky ends, delay holds
@@ -2156,7 +2224,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   // sensitivity, whole words and word forms, the per-entry scan-depth
   // override (a deeper personal window sees messages the book default misses)
   // and its matchSources
-  const matchEntry = (item, win, firstPass) => {
+  const matchEntry = (item, win, firstPass, viaVector) => {
     const { entry, bookSettings } = item;
     const eff = { ...entry };
     if (bookSettings.caseSensitive === true) eff.caseSensitive = true;
@@ -2177,7 +2245,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       }
       if (parts.length) { text = text + "\n" + parts.join("\n"); raw = raw + "\n" + partsRaw.join("\n"); }
     }
-    return wiEntryMatch(eff, text, raw, item.groupScoring && !!entry.group);
+    return wiEntryMatch(eff, text, raw, item.groupScoring && !!entry.group, viaVector === true);
   };
   const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
 
@@ -2225,18 +2293,17 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
             continue;
           }
           // vectorized entries activate on embedding similarity OR their keys
-          let vecScore = null;
-          if ((entry.vectorized === true || entry.status === "vectorized") && scanVec && wiVecMap) {
-            const rec = wiVecMap[id];
-            const c = rec && Array.isArray(rec.vector) ? cosine(rec.vector, scanVec) : null;
-            const threshold = item.vec && typeof item.vec.scoreThreshold === "number" ? item.vec.scoreThreshold : 0.35;
-            if (c != null && c >= threshold) vecScore = Math.round(c * 100) / 100;
-          }
+          const vecScore = vecHits.has(id) ? vecHits.get(id) : null;
           let why;
           let score = 0;
           if (st) why = { via: "sticky" };
           else if (constant) why = { via: "constant" };
-          else if (vecScore != null) why = { via: "vector", score: vecScore };
+          else if (vecScore != null) {
+            // a vector lets the entry past its primary keys only: the secondary keys still decide
+            const sec = (entry.secondaryKeys || []).length ? matchEntry(item, win, firstPass, true) : null;
+            if (sec && sec.fail) { block(item, "secondary", { key: "", secondary: sec.secondary, detail: entry.selectiveLogic || "AND_ANY" }); continue; }
+            why = { via: "vector", score: vecScore, ...(sec && sec.secondary.length ? { secondary: sec.secondary } : {}) };
+          }
           else {
             const m = matchEntry(item, win, firstPass);
             if (!m) continue;
@@ -3200,6 +3267,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     {
       dryRun: !!(opts && opts.dryRun), config: preset && preset.studio && preset.studio.worldInfo,
       scanVec: opts && opts.scanVec ? opts.scanVec : null,
+      scanModel: opts && opts.scanModel ? String(opts.scanModel) : "",
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
@@ -5018,7 +5086,10 @@ export function handleRoute(req, host) {
       if (work && haveScan) {
         const res = host.llm.embedResults.scan;
         if (Array.isArray(res)) {
-          if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1));
+          const peekInfo = host.llm.embedInfo && host.llm.embedInfo.scan;
+          const peekModel = peekInfo && typeof peekInfo.model === "string" ? peekInfo.model : "";
+          setEmbedCap(fsx, true, peekModel);
+          if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), peekModel);
         }
       }
     }
