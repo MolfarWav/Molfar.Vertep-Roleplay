@@ -18,6 +18,8 @@
  * Three ways of ranking: `words` (what Litopys does without vectors), and two MOCK embedders (`vec good` and `vec weak`):
  * a word vector is a mix of its concept's vector and its own, so a paraphrase is near but not equal, plus per-text noise.
  * They are NOT a real embedding model: they show what a decent and a poor embedder could rescue, not what one does.
+ * A real model is added as one more row (`vec <tag>`) from a vector cache in test/fixtures/recall-vec/<tag>.json (gitignored): make it with
+ * `RECALL_DUMP=/tmp/texts.json bun test test/rp-recall-mrr-bench.test.ts`, then `bun scripts/recall-embed.ts <tag> <model> /tmp/texts.json`.
  *
  * Reported per cell: MRR over the whole ranking (is the answer found at all), and `in prompt` = the share of probes whose
  * answer is in the insert that reaches the model, with the mean 1/position for facts (the insert lists facts in rank order).
@@ -48,6 +50,37 @@ function chatAt(n: number) {
   st.counters.chapter = chaps.length;
   st.counters.fact = facts.length;
   return { msgs, line, st, facts, chaps };
+}
+
+/** One embedder = how a document (a fact, a chapter) and a query (the scan window) are embedded. The mock ones treat both alike. A REAL one is a
+ *  cache of vectors made by `scripts/recall-embed.ts` for the exact texts this bench asks for (see there); a text it has not seen is an error, so a
+ *  change in the world or the probes cannot silently score a stale file. `RECALL_DUMP=<file>` writes the texts to embed instead of scoring them. */
+type Emb = { doc: (t: string) => number[]; query: (t: string) => number[] };
+const dumped = { doc: new Set<string>(), query: new Set<string>() };
+const VEC_DIR = process.env.RECALL_VECTORS_DIR ?? path.join(import.meta.dir, "fixtures", "recall-vec");
+const realEmb: Record<string, Emb> = {};
+if (fs.existsSync(VEC_DIR)) {
+  for (const f of fs.readdirSync(VEC_DIR)) {
+    const m = /^(.+)\.json$/.exec(f);
+    if (!m) continue;
+    const j = JSON.parse(fs.readFileSync(path.join(VEC_DIR, f), "utf8")) as { doc: Record<string, number[]>; query: Record<string, number[]> };
+    const get = (side: "doc" | "query") => (t: string) => {
+      const v = j[side][t];
+      if (!v) throw new Error(`recall vectors "${m[1]}": no ${side} vector for ${JSON.stringify(t.slice(0, 60))}; rerun scripts/recall-embed.ts`);
+      return v;
+    };
+    realEmb["vec " + m[1]] = { doc: get("doc"), query: get("query") };
+  }
+}
+const REAL_VARIANTS = Object.keys(realEmb).sort();
+function embedderOf(mode: string): Emb | null {
+  if (process.env.RECALL_DUMP && mode === "vec dump") {
+    const zero = new Array<number>(8).fill(0.1);
+    return { doc: (t) => (dumped.doc.add(t), zero), query: (t) => (dumped.query.add(t), zero) };
+  }
+  if (realEmb[mode]) return realEmb[mode]!;
+  const f = (EMBEDDERS as Record<string, ((t: string) => number[]) | null>)[mode] ?? null;
+  return f ? { doc: f, query: f } : null;
 }
 
 const cfg = () => ({ ...L.DEFAULT_CONFIG, recentMessages: 100, budget: 800, budgetMode: "fixed" });
@@ -84,15 +117,15 @@ function measure(n: number): Cell[] {
   const cp = shuffled(chapTargets).slice(0, 12);
   const share = L.chatWordShare(line);
   const cells: Cell[] = [];
-  for (const mode of [...MODES, ...ALSO_VARIANTS] as string[]) {
-    const embed = (EMBEDDERS as Record<string, ((t: string) => number[]) | null>)[mode] ?? null;
+  for (const mode of [...MODES, ...ALSO_VARIANTS, ...(process.env.RECALL_DUMP ? ["vec dump"] : []), ...REAL_VARIANTS] as string[]) {
+    const embed = embedderOf(mode);
     const st = ALSO_VARIANTS.includes(mode) ? withAlso(st0, mode, facts, chaps) : st0;
-    const vectors = embed ? Object.fromEntries([...st.facts, ...st.chapters].map((x: any) => [x.id, { hash: L.fnv1a(x.text), vector: embed(x.text) }])) : undefined;
+    const vectors = embed ? Object.fromEntries([...st.facts, ...st.chapters].map((x: any) => [x.id, { hash: L.fnv1a(x.text), vector: embed.doc(x.text) }])) : undefined;
     for (const kind of KINDS) {
       let fMrr = 0, fIn = 0, fPos = 0, cMrr = 0, cIn = 0, tokens = 0, calls = 0, carried = 0, pool = 0;
       const run = (question: string) => {
         const scanText = filler(line) + "\n" + question;
-        const scanVec = embed ? embed(scanText) : undefined;
+        const scanVec = embed ? embed.query(scanText) : undefined;
         const res = L.buildInsert({ st, line, dash: null, meta: { userName: USER }, cfg: cfg(), scanText, speakerName: "", used: {}, scanVec, vectors });
         tokens += res ? res.tokens : 0;
         carried += res ? res.factIds.length : 0;
@@ -180,6 +213,7 @@ describe("recall bench: 500 / 2000 / 5000 messages", () => {
           lines.push(`${String(c.n).padStart(6)} | ${c.mode.padEnd(17)} | ${c.kind.padEnd(7)} | ${c.factMrr.toFixed(2).padStart(8)} | ${pct(c.factInPrompt).padStart(14)} | ${c.factPos.toFixed(2).padStart(8)} | ${c.chapMrr.toFixed(2).padStart(11)} | ${pct(c.chapInPrompt).padStart(17)} | ${String(c.tokens).padStart(10)} | ${c.carried} / ${c.pool}`);
         }
         console.log(lines.join("\n"));
+        if (process.env.RECALL_DUMP) fs.writeFileSync(process.env.RECALL_DUMP, JSON.stringify({ doc: [...dumped.doc], query: [...dumped.query] }));
       }
     }, 300_000);
   }

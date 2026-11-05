@@ -20,6 +20,8 @@ export interface VectorsView {
   model: string
   via: string
   failing: { at: number; retryAt: number } | null
+  /** the Data Bank view only (chatId 'shelf'): one line per file */
+  files?: { id: string; name: string; items: number; have: number; other: number }[]
 }
 
 /** Is an embeddings connection ready in the engine? "unknown" = an older engine that does not say. */

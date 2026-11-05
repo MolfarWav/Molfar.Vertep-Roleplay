@@ -3930,6 +3930,8 @@ export function pruneOrphans(fsx, store, files) {
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
       const id = f.slice(0, -5);
+      // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
+      if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
       if (!live.has(id)) {
         try {
           fsx.remove(dir + f);
@@ -4037,6 +4039,11 @@ function kickEmbedWants(fsx, host) {
     if (!isObj(w) || w.more !== true) continue;
     // a batch is on its way
     if (Array.isArray(w.batch) && Date.now() - (Number(w.at) || 0) < EMBED_FLIGHT_MS) continue;
+    // a Data Bank file's request (#184 DB-vec)
+    if (chatId.startsWith(SHELF_WANT)) {
+      kickShelfWant(fsx, host, chatId.slice(SHELF_WANT.length));
+      return;
+    }
     const st = loadChatFile(fsx, chatId);
     if (!st) {
       endEmbedWant(fsx, chatId);
@@ -4408,6 +4415,10 @@ export function onTick(_ctx, host) {
 
     if (host.llm && host.llm.embedResults) {
       for (const key of Object.keys(host.llm.embedResults)) {
+        if (key.startsWith(SHELF_KEY)) {
+          finishShelfBatch(fsx, host, key.slice(SHELF_KEY.length), host.llm.embedResults[key], host.llm.embedInfo && host.llm.embedInfo[key]);
+          return;
+        }
         if (!key.startsWith("lit_emb_")) continue;
         const vectors = host.llm.embedResults[key];
         const chatId = key.slice(8);
@@ -6345,6 +6356,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/trace" && req.method === "GET") return traceRoute(fsx, req.query || {});
   if (path === "/litopys/vectors" && (req.method === "GET" || req.method === "POST")) return vectorsRoute(req, fsx);
   if (path === "/litopys/book" && (req.method === "GET" || req.method === "POST")) return bookRoute(req, fsx);
+  if (path === "/litopys/shelf" && (req.method === "GET" || req.method === "POST")) return shelfRoute(req, fsx);
   if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx, "card");
   if (path === "/litopys/memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
   if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview", "card");
@@ -7628,6 +7640,183 @@ function vectorsRoute(req, fsx) {
   }
   const view = vectorsView(fsx, chatId);
   return view ? { status: 200, json: view } : { status: 404, json: { error: "no such chat" } };
+}
+
+// ---------- shelf vectors (#184 DB-vec): the passages of the Data Bank files, embedded on the user's click ----------
+const SHELF_VEC_DIR = "databank-vectors/";
+const SHELF_WANT = "db_";
+const SHELF_KEY = "lit_db_";
+
+/** The Data Bank files (`databank/<id>.json`, a `_` file is the example) with the passages that have text. */
+function shelfFiles(fsx) {
+  let names = [];
+  try {
+    names = fsx.list(BOOK_DIR);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const f of names) {
+    if (!f.endsWith(".json") || f.startsWith("_")) continue;
+    const file = readJson(fsx, BOOK_DIR + f, null);
+    if (!isObj(file) || !SAFE_ID.test(str(file.id))) continue;
+    out.push({ id: str(file.id), name: str(file.name), chunks: arr(file.chunks).filter((c) => isObj(c) && str(c.text)) });
+  }
+  return out;
+}
+
+/** `databank-vectors/<id>.json`: { v: 1, m: model, dim, chunks: { "<passage index>": [numbers] } }. One model per file. */
+function loadShelfVectors(fsx, id) {
+  const raw = readJson(fsx, SHELF_VEC_DIR + id + ".json", null);
+  return isObj(raw) && isObj(raw.chunks) ? raw : { v: 1, m: "", dim: 0, chunks: {} };
+}
+
+/** The model of the last good batch: what the shelf's vectors should be of now ("" when unknown). */
+function currentShelfModel(fsx) {
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  return isObj(status) ? str(status.model) : "";
+}
+
+/**
+ * The passages of one file with no usable vector: none yet, or (when the model is known) the file's vectors are of another
+ * model or another length. The engine plugin drops a passage's vector when its text is edited, so a vector that is there is
+ * of the text that is there.
+ */
+export function shelfGaps(fsx, file, model, limit = 64) {
+  const vf = loadShelfVectors(fsx, file.id);
+  const cur = model === undefined ? currentShelfModel(fsx) : model;
+  const dim = model === undefined ? Number((readJson(fsx, EMBED_STATUS_FILE, null) || {}).dim) || 0 : 0;
+  const foreign = (cur && vf.m && vf.m !== cur) || (dim && vf.dim && vf.dim !== dim);
+  const out = [];
+  for (const ch of file.chunks) {
+    const text = str(ch.text);
+    if (!text) continue;
+    const has = Array.isArray(vf.chunks[String(ch.i)]);
+    if (!has) out.push({ i: ch.i, text, why: "none" });
+    else if (foreign) out.push({ i: ch.i, text, why: "other" });
+  }
+  return out.slice(0, limit);
+}
+
+/** Store a batch of vectors for passages of one file. Vectors of another model than the file's replace the file's. Returns how many were stored. */
+export function finishShelf(fsx, file, batch, vectors, model, dim) {
+  if (!batch.length || !Array.isArray(vectors)) return 0;
+  let vf = loadShelfVectors(fsx, file.id);
+  if (model && vf.m && vf.m !== model) vf = { v: 1, m: "", dim: 0, chunks: {} };
+  let stored = 0;
+  for (let k = 0; k < batch.length && k < vectors.length; k++) {
+    const v = vectors[k];
+    if (Array.isArray(v) && v.length && v.every((n) => typeof n === "number" && Number.isFinite(n))) {
+      vf.chunks[String(batch[k].i)] = v.map((n) => Math.round(n * 1e4) / 1e4);
+      stored++;
+    }
+  }
+  if (stored > 0) {
+    vf.m = model || vf.m || "";
+    vf.dim = dim || vf.dim || 0;
+    fsx.write(SHELF_VEC_DIR + file.id + ".json", JSON.stringify(vf));
+  }
+  return stored;
+}
+
+/**
+ * Matching by meaning for the whole shelf (#184 DB-vec): the same view as a chat's, over every Data Bank file, plus a line per file.
+ * Nothing here is spent without a click (POST /litopys/shelf).
+ */
+export function shelfView(fsx) {
+  const files = shelfFiles(fsx);
+  let items = 0;
+  let chars = 0;
+  let otherN = 0;
+  let missingN = 0;
+  const per = [];
+  for (const f of files) {
+    const gaps = shelfGaps(fsx, f, undefined, Infinity);
+    const other = gaps.filter((g) => g.why === "other").length;
+    items += f.chunks.length;
+    otherN += other;
+    missingN += gaps.length - other;
+    for (const g of gaps) chars += g.text.length;
+    per.push({ id: f.id, name: f.name, items: f.chunks.length, have: f.chunks.length - gaps.length, other });
+  }
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  const checkedAt = isObj(status) ? Number(status.checkedAt) || 0 : 0;
+  const failing = isObj(status) && status.ok === false && Date.now() - checkedAt < 3600000;
+  let working = false;
+  try {
+    for (const f of fsx.list(EMBED_WANT_DIR)) {
+      if (!f.startsWith(SHELF_WANT) || !f.endsWith(".json")) continue;
+      const w = readJson(fsx, EMBED_WANT_DIR + f, null);
+      if (isObj(w) && w.more === true) working = true;
+    }
+  } catch {}
+  const gapsN = missingN + otherN;
+  const have = items - gapsN;
+  let state = "all";
+  if (working) state = "working";
+  else if (failing) state = "failing";
+  else if (otherN > 0) state = "other";
+  else if (items > 0 && have === 0) state = "none";
+  else if (gapsN > 0) state = "partial";
+  else if (items === 0) state = "empty";
+  return {
+    chatId: "shelf",
+    state,
+    items,
+    have,
+    missing: missingN,
+    other: otherN,
+    tokens: Math.ceil(chars / 4),
+    model: currentShelfModel(fsx),
+    via: isObj(status) ? str(status.via) : "",
+    failing: failing ? { at: checkedAt, retryAt: checkedAt + 3600000 } : null,
+    files: per,
+  };
+}
+
+/** GET /litopys/shelf: the view. POST { fileId? }: ask for the missing vectors of one file, or of every file with gaps; the tick fills them in batches. */
+function shelfRoute(req, fsx) {
+  if (req.method === "POST") {
+    const only = str((req.body || {}).fileId);
+    if (only && !SAFE_ID.test(only)) return { status: 400, json: { error: "bad file id" } };
+    const before = shelfView(fsx);
+    if (before.state !== "working") {
+      for (const f of shelfFiles(fsx)) {
+        if (only && f.id !== only) continue;
+        if (shelfGaps(fsx, f, undefined, 1).length) fsx.write(EMBED_WANT_DIR + SHELF_WANT + f.id + ".json", JSON.stringify({ more: true, at: 0, batch: null, asked: Date.now() }));
+      }
+    }
+  }
+  return { status: 200, json: shelfView(fsx) };
+}
+
+/** Ask the engine to embed the next batch of a file's gaps and record it; no gaps ends the request. */
+function kickShelfWant(fsx, host, id) {
+  const file = shelfFiles(fsx).find((f) => f.id === id);
+  if (!file || typeof host.llm.embed !== "function") return endEmbedWant(fsx, SHELF_WANT + id);
+  const gaps = shelfGaps(fsx, file, undefined, 64);
+  if (!gaps.length) return endEmbedWant(fsx, SHELF_WANT + id);
+  fsx.write(EMBED_WANT_DIR + SHELF_WANT + id + ".json", JSON.stringify({ more: true, at: Date.now(), batch: gaps.map((g) => ({ i: g.i })) }));
+  host.llm.embed(SHELF_KEY + id, { texts: gaps.map((g) => g.text) });
+}
+
+/** A finished batch for a file: store it and go on with the next, or end the request. */
+function finishShelfBatch(fsx, host, id, vectors, info) {
+  const wantName = SHELF_WANT + id;
+  if (!vectors) {
+    setEmbedStatus(fsx, false);
+    return endEmbedWant(fsx, wantName);
+  }
+  const file = shelfFiles(fsx).find((f) => f.id === id);
+  const want = readJson(fsx, EMBED_WANT_DIR + wantName + ".json", null);
+  if (!file) return endEmbedWant(fsx, wantName);
+  const batch = isObj(want) && Array.isArray(want.batch) ? want.batch.filter((b) => isObj(b) && Number.isInteger(b.i)) : [];
+  const model = isObj(info) ? str(info.model) : "";
+  const first = Array.isArray(vectors) && Array.isArray(vectors[0]) ? vectors[0] : null;
+  const n = finishShelf(fsx, file, batch, vectors, model, first ? first.length : 0);
+  setEmbedStatus(fsx, n > 0, { model, via: isObj(info) ? str(info.via) : "", dim: first ? first.length : 0 });
+  if (isObj(want) && want.more === true && n > 0) kickShelfWant(fsx, host, id);
+  else endEmbedWant(fsx, wantName);
 }
 
 function traceRoute(fsx, query) {
