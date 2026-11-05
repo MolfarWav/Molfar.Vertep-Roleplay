@@ -1,37 +1,38 @@
-<!-- source: de39058c849c -->
+<!-- source: 0ad76afee424 -->
 # Roleplay: visão geral
 
-Roleplay é o aplicativo de histórias do Molfar Vertep: você mantém cartões de personagens, joga chats com eles e deixa o aplicativo acompanhar a cena, lembrar a história e mover o mundo ao seu redor. Esta página é um mapa. A **Ajuda** do próprio aplicativo (na barra lateral) tem um artigo curto para quase toda tela; este guia explica como as partes se encaixam. Modelos e conexões não são configurados aqui, mas nas Configurações principais: veja [[vertep:models]].
+Roleplay é o aplicativo de histórias do Molfar Vertep: você mantém cartões de personagens, joga chats com eles e deixa o aplicativo acompanhar a cena, lembrar a história e rodar o mundo ao seu redor. Esta página é um mapa. A **Help** do próprio aplicativo (na barra lateral) tem um artigo curto para quase toda tela; este guia explica como as partes se encaixam. Modelos e conexões não são configurados aqui, mas nas Configurações principais: veja [[vertep:models]].
 
 ## Onde as coisas estão
 
-A barra lateral à esquerda (uma barra de abas na parte inferior no telefone) agrupa as seções:
+A barra lateral à esquerda (uma barra de abas na parte de baixo no telefone) agrupa as seções:
 
-- **Página inicial** e **Chats**: continue de onde parou, ou abra qualquer chat.
-- **Personagens**, **Grupos**, **Mercado**, **Personas**: as pessoas. Veja [[characters]].
-- **Lorebooks**, **Biblioteca**, **Canvas**, **Mundo**, **Agentes**: a memória e a maquinaria da história. Veja [[memory]], [[litopys]], [[world-dm]] e [[agents]].
-- **Predefinições**: como a solicitação ao modelo é construída.
-- **Atalhos** e **Ferramentas**: respostas rápidas, regex, tradução, imagens, voz, o Banco de Dados e mais. Veja [[settings]].
-- **Caixa de entrada** e **Ajuda** na parte inferior. A Caixa de entrada lista o que espera por você: tarefas em segundo plano com falha, sugestões da Biblioteca e almas propostas.
+- **Home** e **Chats**: continue de onde parou, ou abra qualquer chat.
+- **Characters**, **Groups**, **Marketplace**, **Personas**: as pessoas. Veja [[characters]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: a memória e a maquinaria da história. Veja [[memory]], [[litopys]], [[canvas]], [[world-dm]] e [[agents]].
+- **Presets**: como a solicitação ao modelo é montada.
+- **Shortcuts** e **Tools**: respostas rápidas, regex, tradução, imagens, voz, o Data Bank e mais. Veja [[settings]].
+- **Inbox** e **Help** na parte de baixo. A Inbox lista o que espera por você: tarefas em segundo plano que falharam, sugestões da Library e almas propostas.
 
-As configurações do próprio Roleplay não têm item na barra lateral. Abra-as com o botão "Configurações do Roleplay" no cabeçalho da Página inicial (no telefone, no menu).
+As configurações do próprio Roleplay não têm item na barra lateral. Abra-as com o botão "Roleplay settings" no cabeçalho da Home (no telefone, no menu).
 
 ## Dentro de um chat
 
-O cabeçalho do chat guarda as ferramentas de história: **Nota** (nota do autor), **Lore**, **Registro** e **Mundo**. O selo ao lado abre abas para Predefinição, Persona, Modelo e Agentes deste chat. O botão "Mais" em cada mensagem abre suas ações, e o menu "+" ao lado da caixa de mensagem contém Polir, Regenerar com uma dica, geração de imagens e mais.
+O cabeçalho do chat guarda as ferramentas da história: **Note** (nota do autor), **Fired** (o que entrou no prompt, veja [[memory]]), **Record** e **World**. O botão ao lado abre abas para Preset, Persona, Model e Agents deste chat. O botão "More" em cada mensagem abre suas ações, e o menu "+" ao lado da caixa de mensagem traz Polish, Regenerate with a hint, geração de imagens e mais.
 
-Três auxiliares observam a história e custam chamadas extras de modelo, então vale conhecê-los:
+Três auxiliares acompanham a história e custam chamadas extras ao modelo, então vale conhecê-los:
 
 - O **Dashboard** lê cada cena: [[dashboard]], com uma entrada, a [[soul]] de um personagem.
 - O **Litopys** escreve capítulos e fatos: [[litopys]].
-- O **Mestre do Mundo** mantém um livro de pessoas e lugares: [[world-dm]].
+- O **World DM** mantém um livro de pessoas e lugares: [[world-dm]].
 
 ## Páginas deste guia
 
-- [[first-story]]: do nada à sua primeira resposta, e o que desligar em um modelo pequeno ou lento.
+- [[first-story]]: do zero até a sua primeira resposta, e o que desligar em um modelo pequeno ou lento.
 - [[characters]]: cartões, o editor de cartões, personas, grupos, importação.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: a maquinaria da história.
-- [[memory]]: qual tipo de memória usar para quê.
-- [[settings]]: onde cada configuração vive.
+- [[memory]]: qual memória usar para quê.
+- [[canvas]]: links de chats, o quadro de prompt e a forja de agentes.
+- [[settings]]: onde fica cada configuração.
 
-Novo no próprio Molfar Vertep? Comece com [[vertep:first-steps]] e o [[vertep:glossary]].
+Novo no Molfar Vertep? Comece com [[vertep:first-steps]] e o [[vertep:glossary]].
