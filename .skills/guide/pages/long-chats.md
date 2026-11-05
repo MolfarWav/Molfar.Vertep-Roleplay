@@ -4,7 +4,7 @@ A chat that runs for weeks grows, and every reply sends more of it to the model.
 
 ## What is sent with each reply
 
-The messages grow, and so does the story record that Litopys writes ([[litopys]]). The Canvas Prompt board lists every part of the next request with its token count: see [[canvas]]. The "~N tok" button in the chat header shows what the chat carries besides the history, with a switch per part.
+The messages grow, and so does the story record that Litopys writes ([[litopys]]). The Canvas Prompt board lists every part of the next request with its token count: see [[canvas]].
 
 ## What happens by itself
 
@@ -43,4 +43,4 @@ In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and fac
 
 ## Check what the model got
 
-If a character forgets something, open Canvas > Prompt and switch from "Parts" to "Memory": it shows which facts went in and which were left out, and why.
+If a character forgets something, open Canvas > Prompt and switch from "Parts" to "Memory": it shows which facts went in and which were left out, and why. The **Fired** button in the chat header shows the same for the last reply and counts over the whole chat.

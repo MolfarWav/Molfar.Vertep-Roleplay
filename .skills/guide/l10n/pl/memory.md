@@ -1,34 +1,42 @@
-<!-- source: fe19559d281a -->
+<!-- source: e65c6432f795 -->
 # Która pamięć do czego
 
-Roleplay ma kilka rzeczy, które „pamiętają”. Różnią się tym, kto je trzyma, co zawierają i jak długo trwają. Jeśli postać coś zapomina, ta strona podpowie, po którą sięgnąć.
+Roleplay ma kilka rzeczy, które „pamiętają”. Różnią się tym, kto je trzyma, co zawierają i jak długo trwają. Jeśli postać o czymś zapomina, ta strona podpowie, po którą sięgnąć.
 
 ## Rodzaje
 
 **Historia czatu.** Same wiadomości. Model widzi tyle ostatnich, ile pozwala jego okno.
 
-**Pulpit** ([[dashboard]]). Na czat, *bieżący* stan sceny: kto jest obecny, uczucia, stroje, otwarte zadania, co każda postać wie. Zmienia się z każdą odpowiedzią.
+**Dashboard** ([[dashboard]]). Na czat, *bieżący* stan sceny: kto jest obecny, uczucia, stroje, otwarte zadania, co wie każda postać. Zmienia się z każdą odpowiedzią.
 
-**Litopys** ([[litopys]]). Na czat, *przeszłość* historii: rozdział na każdą zakończoną scenę i lista faktów. To na nim opiera się długi czat, gdy starsze wiadomości opuszczą prompt.
+**Litopys** ([[litopys]]). Na czat, *przeszłość* historii: rozdział za każdą zakończoną scenę i lista faktów. Na tym opiera się długi czat, gdy starsze wiadomości opuszczą prompt.
 
-**Pamięć karty.** Na postać, między czatami: co postać pamięta z zakończonych historii, jej fakty, notatki, wypowiedziane kwestie i zdobyte nawyki. Mieszka na karcie „Memory” edytora kart. Importujesz zakończony czat, widzisz, co zostałoby zachowane, zaznaczasz, co zatrzymać, a przełącznik wyłącza jedną historię dla nowych czatów. Ma własny rozmiar (domyślnie Compact 800 tokenów). Nie jest częścią tekstu karty i nigdy nie pojawia się w wyeksportowanej karcie.
+**Pamięć karty.** Na postać, między czatami: co postać pamięta z zakończonych historii, jej fakty, notatki, wypowiedziane kwestie i zdobyte nawyki. Mieszka w zakładce „Memory” edytora kart. Importujesz zakończony czat, widzisz, co zostałoby zachowane, zaznaczasz, co zatrzymać, a przełącznik wyłącza jedną historię dla nowych czatów. Ma własny rozmiar (domyślnie Compact, 800 tokenów). Nie jest częścią tekstu karty i nigdy nie pojawia się w wyeksportowanej karcie.
 
-**Księgi wiedzy.** Wpisy referencyjne, które dołączają do promptu, gdy pojawią się ich słowa kluczowe, a kilka zawsze. Trzymają zasady świata, miejsca, ludzi. Podepnij księgę do karty lub grupy albo oznacz jako Global, aby docierała do każdego czatu. Czat dostaje też własną księgę świata pisaną przez World DM ([[world-dm]]).
+**Lorebooks.** Wpisy referencyjne, które dołączają do promptu, gdy pojawią się ich słowa kluczowe, a kilka zawsze. Trzymają zasady świata, miejsca, osoby. Podepnij księgę wiedzy do karty lub grupy albo oznacz ją jako Global, by docierała do każdego czatu. Czat dostaje też własną księgę świata pisaną przez World DM ([[world-dm]]).
 
-**Data Bank** (Tools). Dokumenty tekstowe, które przesyłasz (tylko formaty tekstowe, do 2 MB każdy). Przy każdej wiadomości dodawane są najtrafniejsze fragmenty. Używaj do długich materiałów referencyjnych, nie do samej historii.
+**Data Bank** (Tools). Przesyłane dokumenty tekstowe (tylko formaty tekstowe, do 2 MB każdy). Przy każdej wiadomości dodawane są najbardziej trafne fragmenty: najpierw znalezione po słowach, a gdy ustawiony jest model embeddings, także uporządkowane według znaczenia (karta **Data Bank by meaning** na tym samym ekranie: jedno naciśnięcie, albo silnik zrobi to sam, gdy embedding zacznie działać). Używaj go do długich materiałów referencyjnych, nie do samej historii. **Książka** to plik Data Bank zrobiony z historii: w Library > Litopys przycisk **Save as a book** kopiuje rozdziały, łuki i fakty czatu do pliku na półce, który mogą czytać inne czaty. Wybierz czaty, które mogą go czytać (czaty kontynuujące ten są wybierane za ciebie). To kopia, nie link: późniejsze zmiany w czacie do niej nie trafiają, a **Save a new version** zachowuje starą. Postać dostaje tylko fragmenty, które mogłaby znać: fakt zachowuje listę „known by”, a rozdział swoją obsadę. Na karcie Data Bank w sekcji **passages** poprawisz lub usuniesz fragment i zmienisz czytelników; widok Memory liczy fragmenty odłożone na bok.
 
-**Notatka autora** (nagłówek czatu, „Note”). Tekst, który piszesz tylko dla tego czatu, umieszczany na wybranej głębokości i w wybranej roli. Używaj do sterowania: wskazówka stylu, pchnięcie fabuły.
+**Notatka autora** (nagłówek czatu, „Note”). Tekst, który piszesz tylko dla tego czatu, umieszczany na głębokości i w roli, które wybierasz. Używaj jej do sterowania: podpowiedź stylu, pchnięcie fabuły.
 
-**Dusza** ([[soul]]). Nie pamięć zdarzeń, lecz to, jak postać reaguje; nigdy nie zmienia się podczas gry.
+**Dusza** ([[soul]]). Nie pamięć zdarzeń, lecz to, jak postać reaguje; podczas gry nigdy się nie zmienia.
 
 ## Czego użyć
 
-- „Powinna pamiętać wczorajszą kłótnię”: krótkoterminowo zajmuje się tym Pulpit; długoterminowo trzyma to Litopys. Dodaj przypięty fakt, jeśli nigdy nie może zginąć.
-- „Powinna pamiętać poprzednią historię w nowym czacie”: pamięć karty albo połącz czaty w Canvas, aby wcześniejszy czat wnosił swoją historię jako tło.
-- „Świat ma regułę lub miejsce”: księga wiedzy.
-- „Chcę, żeby kolejne odpowiedzi poszły w tę stronę”: notatka autora albo przycisk „Story, move”.
+- „Powinna pamiętać wczorajszą kłótnię”: krótkoterminowo zajmuje się tym Dashboard, długoterminowo trzyma to Litopys. Dodaj przypięty fakt, jeśli nie może się nigdy zgubić.
+- „Powinna pamiętać poprzednią historię w nowym czacie”: pamięć karty albo połącz czaty na Canvas, aby wcześniejszy czat wnosił swoją historię jako tło.
+- „Świat ma regułę albo miejsce”: księga wiedzy.
+- „Chcę, żeby kolejne odpowiedzi szły w tę stronę”: notatka autora albo przycisk „Story, move”.
 - „Mam długi dokument”: Data Bank.
+
+## Skąd ona to wiedziała?
+
+Otwórz **Canvas > Prompt** ([[canvas]]) i przełącz planszę z **Parts** na **Memory**. Pokazuje ona, co pamięć wniosła do ostatniej odpowiedzi, a co pominęła i dlaczego: fakty, które weszły (z ich rangą i tym, kto je zna), te odrzucone, bo mówiący ich nie zna, te, które nie zmieściły się w rozmiarze pamięci, rozdziały, to, co znalazł Data Bank, oraz wszystko, co zaznaczyły kontrole po odpowiedzi. Osoby pojawiają się z id z listy osób czatu, więc „Sina” i „Sina Rose” są rozróżniane. **Copy report** kopiuje to samo do schowka jako zwykły tekst: wklej to komuś, kto pomaga debugować pamięć. Rząd przycisków u góry cofa się przez ostatnie pięć odpowiedzi (trafienia Data Bank idą razem z nimi); kontrole po odpowiedzi są zachowane tylko dla najnowszej. Składana sekcja **Worker: left out of the last scene** wypisuje fakty, których pracownik rozdziałów nie zachował, i dlaczego: prawie kopia faktu, który już miał, tylko to, co jest na karcie, więcej niż osiem w jednej scenie, fakt, który już nie obowiązuje, albo ta sama propozycja, która już czeka. Składana sekcja **Checked after the reply** nazywa fakty, których sensor Dashboardu nie mógł zachować (o twojej postaci, o kimś, kogo nie ma w scenie, ważne wydarzenie bez cytatu), a nie tylko ich liczbę. Podsumowanie mówi też **Ranked by meaning: yes** z liczbą kandydatów, którzy mieli wektor, albo **no** i dlaczego (czat nie ma jeszcze wektorów, ostatnie wywołanie modelu embeddings się nie udało albo ta odpowiedź nie została osadzona). Dzięki temu widać, czy odpowiedzi nigdy nie było w pamięci, czy wyszukiwanie po znaczeniu zawiodło. W czacie panel „What this chat carries” ma przycisk **Why?** przy wierszu Litopys, który otwiera panel **Fired** na jego zakładce Litopys.
+
+## Co zadziałało w tym czacie
+
+Przycisk **Fired** (błyskawica) w nagłówku czatu otwiera jeden panel dla ostatniej odpowiedzi, z zakładkami według źródła: **Lorebooks** (niebieska), **Litopys** (fioletowa), **Data Bank** (morska) i **Vectors** (zielona). Przełącznik u góry wybiera **Last reply** albo **Whole chat**. Dla ostatniej odpowiedzi Lorebooks grupuje wpisy według tego, jak weszły: według znaczenia (z paskiem bliskości, najbliższe najpierw), według klucza (który klucz trafił), przeniesione z wcześniejszych odpowiedzi (sticky), zawsze włączone (nie liczone, idą do każdej odpowiedzi), potem **Held back** (opóźnienie, cooldown, szansa, grupa albo klucze dodatkowe, które nie zadziałały; dotyczy też wpisu, który był blisko pod względem znaczenia) i **Over the budget**. Dla całego czatu każdy wpis księgi, fakt lub rozdział Litopysa i fragment Data Bank pokazuje „N of M replies”, jak wszedł i kiedy ostatnio wszedł. Liczba jest przybliżona: wpis, który zostaje w oknie skanowania, liczy się w każdej odpowiedzi, którą przenosił; swipe zastępuje poprzednią odpowiedź; podgląd nic nie dodaje; nic nie liczy się sprzed aktualizacji. Zakładka Vectors pokazuje, która pamięć ma wektory i które źródło ich użyło w ostatniej odpowiedzi. **Copy report** daje to samo jako zwykły tekst. Sekcja Active na stronie Lorebooks nadal sprawdza, co *by* zadziałało przy następnej wiadomości, ale tylko po kluczach.
 
 ## Koszty
 
-To wszystko zajmuje miejsce w prompcie. Plansza Prompt w Canvas pokazuje każdą część z liczbą tokenów i pozwala wyłączać części dla jednego czatu. Na małym modelu zmniejsz „Memory size” Litopysa, trzymaj pamięć karty w trybie Compact i preferuj kilka krótkich wpisów ksiąg wiedzy.
+Wszystko to zajmuje miejsce w prompcie. Plansza Prompt na Canvas pokazuje każdą część z liczbą tokenów i pozwala wyłączać części dla jednego czatu. Na małym modelu zmniejsz „Memory size” Litopysa, zostaw pamięć karty w trybie Compact i wybieraj kilka krótkich wpisów ksiąg wiedzy.

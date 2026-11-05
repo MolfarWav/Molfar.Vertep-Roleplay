@@ -54,6 +54,14 @@ Date: 2026-11-05.
 - **Why / history:** #184 (the Data Bank trace is "#184 P6" in the code comment).
 - **Trap:** the engine reads this file, in another plugin, for the recollections row of the reserve (`ins.recollections`). Renaming that field in Litopys alone silently drops the row, and no test here fails for it.
 
+### What fired log (#253)
+- **Touches:** `fired-log/<chatId>.json` (writer: engine `assemble` through `recordFired`, after the `databank-trace/` write and behind the same `dryRun` guard; reader: `GET /fired-log`, the chat's "What fired" panel); `litopys/fired/<chatId>.json` (writer: the Litopys reply hook through `recordLitFired`; reader: `GET /litopys/fired`); the lorebook rows now carry `bookId` and a vector hit held back by secondary keys carries `via` and `score`; the shared person lookup `makePerson` in `plugins/litopys/plugin.js` (used by `traceRoute` and `firedRoute`).
+- **Must stay true:** a preview, a status call and the keyword test write neither file. Both logs are written once per real reply (`send`, `next`, `swipe`, `continue`; the Litopys hook also takes `""`), and a swipe or a continue takes the reply before it back out so the count does not double. The two plugins share no ids, so the engine counts lorebook entries and Data Bank passages and Litopys counts its own facts and chapters. Ids and counters only, never entry texts.
+- **Enforced in:** `plugins/engine/plugin.js` `recordFired` `sweepFiredLogs` `FIRED_GENS` `FIRED_CAP`; `plugins/litopys/plugin.js` `recordLitFired` `firedRoute` `FIRED_DIR` (the sweep list that removes the files of chats that are gone).
+- **Fails in:** `test/rp-fired-log.test.ts`, `test/rp-fired-lit.test.ts`.
+- **Why / history:** #253 (one "What fired" view for the last reply and for the whole chat).
+- **Trap:** a new side effect in `assemble` stays behind `dryRun`; a count taken in another place (a new reply kind) must join `FIRED_GENS` or it is never counted. The counts say "went into the prompt in N replies", so an entry that stays in the scan window counts in each reply that carried it.
+
 ### Litopys vectors and the embeddings model (#184)
 - **Touches:** `litopys/vectors/<chatId>.json` (`{ hash, vector, m? }`), `litopys/embed-status.json`, `litopys/embed-want/<chatId>.json`; `vectorGaps` `finishEmbed` `needVectors` `vectorOf` `semOf` `vectorsView` `vectorsRoute` `wantEmbed` `kickEmbedWants` and the embed-result branch of `onTick`; the engine plugin's `semanticPrep` (`scanVec`, `scanModel`) and `turnLabels`; the engine's `sanitizeTurn` (`TURN_KEYS` in `src/plugins/runtime.ts`, other repo); the card `src/components/memory/meaning-card.tsx` with `src/lib/vectors.ts`; `sem` in the insert trace.
 - **Must stay true:** vectors of different models never compare; a vector without `m` counts for any model (old data); no embed pass starts before an embeddings call has worked once (a new connection is primed by one click or one reply), and `autoEmbedScan` never asks for more than 300,000 tokens for one target or in one look (a bigger gap stays a button; the owner chose the limit on 2026-11-05 and that automatic filling is on by default, switch `autoEmbed`); the Litopys plugin and the engine plugin cannot import each other, so the model travels in the turn labels (`scanModel`) and in `embed-status.json`.
@@ -135,7 +143,7 @@ Date: 2026-11-05.
 - **Trap:** a script or an editor that reads and writes a CRLF file as LF turns the diff into a whole-file rewrite. Run `file <path>` before a bulk edit of one of these files.
 
 ### Previews (dryRun) write nothing
-- **Touches:** engine `assemble` (option `dryRun`, `gen: "preview"`); the lorebook scan (`dryRun` option); the preview and status calls in the engine plugin (`dryRun: true`); the files a real reply writes: `databank-trace/`, `litopys/prompt-cut/`, the World-info timed state.
+- **Touches:** engine `assemble` (option `dryRun`, `gen: "preview"`); the lorebook scan (`dryRun` option); the preview and status calls in the engine plugin (`dryRun: true`); the files a real reply writes: `databank-trace/`, `fired-log/`, `litopys/prompt-cut/`, the World-info timed state.
 - **Must stay true:** a preview does not write the timed state, does not roll the probability of a lorebook entry, and does not write `databank-trace/` or `litopys/prompt-cut/`. 
 - **Enforced in:** `plugins/engine/plugin.js` `assemble` (the `dryRun` guard before `databank-trace/` and `litopys/prompt-cut/`); the lorebook scan (the `dryRun` guard before the probability roll and the timed-state update).
 - **Fails in:** `test/rp-agent-dry.test.ts` and `test/rp-agents-dry.test.ts` cover agent dry runs. No test names the engine's guards: UNVERIFIED.

@@ -36,6 +36,7 @@ export function WiStatusView({ chatId, active }: { chatId: string | null; active
   if (!status) return <p className="text-sm text-muted-foreground">{t('lore.status.checking')}</p>
   return (
     <div className="flex min-h-0 flex-col gap-2">
+      <p className="text-caption text-muted-foreground">{t('lore.status.keysOnly')}</p>
       <BudgetLine usedChars={status.usedChars} budgetChars={status.budgetChars} contextTokens={status.contextTokens} />
       <WhyRows fired={status.fired} skipped={status.skipped} blocked={status.blocked ?? []} depthOfBook={depthOfBook} />
     </div>

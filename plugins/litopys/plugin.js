@@ -3008,6 +3008,10 @@ export function llmRequest(ctx, host) {
         }),
       );
     } catch {}
+    // in how many replies each fact and chapter went in (#253)
+    try {
+      if (insert && insert.trace) recordLitFired(fsx, chatId, str(ctx.turn.op), insert.trace.rows);
+    } catch {}
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
     const promptSources = { parts: [] };
@@ -3937,7 +3941,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, EMBED_WANT_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -6446,6 +6450,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
   if (path === "/litopys/trace" && req.method === "GET") return traceRoute(fsx, req.query || {});
+  if (path === "/litopys/fired" && req.method === "GET") return firedRoute(fsx, req.query || {});
   if (path === "/litopys/vectors" && (req.method === "GET" || req.method === "POST")) return vectorsRoute(req, fsx);
   if (path === "/litopys/book" && (req.method === "GET" || req.method === "POST")) return bookRoute(req, fsx);
   if (path === "/litopys/shelf" && (req.method === "GET" || req.method === "POST")) return shelfRoute(req, fsx);
@@ -7911,6 +7916,113 @@ function finishShelfBatch(fsx, host, id, vectors, info) {
   else endEmbedWant(fsx, wantName);
 }
 
+/** A name as { name, id } for the memory views: the person's canonical name and the registry id ("" when the registry does not
+ *  know them). Reading only: the registry is loaded, never seeded or saved. */
+function makePerson(fsx, chatId, rc) {
+  let reg = null;
+  try {
+    reg = regLoad(fsx, chatId);
+  } catch {}
+  const dash = readDash(fsx, chatId);
+  const canon = reg ? makeCanon(reg, { userName: rc.meta && rc.meta.userName, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null }) : (n) => str(n);
+  const memo = new Map();
+  return (name) => {
+    const s = str(name);
+    if (!s) return null;
+    const low = s.toLowerCase();
+    if (memo.has(low)) return memo.get(low);
+    let id = "";
+    try {
+      const r = reg ? resolveName(reg, s, "person") : null;
+      const e = r && r.id ? regGet(reg, r.id) : null;
+      id = e ? e.id : "";
+    } catch {}
+    const out = { name: str(canon(s)) || s, id };
+    memo.set(low, out);
+    return out;
+  };
+}
+
+/**
+ * "What fired" for Litopys (#253): in how many replies each fact and chapter went into the prompt, kept in its own small file
+ * (the engine plugin keeps the lorebook and Data Bank counters; two plugins share no ids). Written by the reply hook after the
+ * insert file, from the trace rows: `{ i: id, k: "f" | "c" | "a", s: "in" | "out" }`. A swipe or a "continue" replaces the reply
+ * before it. Ids and counters only (the texts are joined when the panel opens); 200 facts and 200 chapters at most.
+ */
+const FIRED_DIR = "litopys/fired/";
+const FIRED_CAP = 200;
+function recordLitFired(fsx, chatId, op, rows) {
+  if (!["send", "next", "swipe", "continue", ""].includes(op)) return;
+  let log = readJson(fsx, FIRED_DIR + chatId + ".json", null);
+  if (!isObj(log) || log.v !== 1 || !isObj(log.facts) || !isObj(log.chapters)) log = { v: 1, since: Date.now(), replies: 0, facts: {}, chapters: {}, last: null };
+  const before = isObj(log.last) && isObj(log.last.keys) ? log.last.keys : null;
+  if ((op === "swipe" || op === "continue") && before) {
+    for (const [map, ids] of [[log.facts, arr(before.f)], [log.chapters, arr(before.c)]]) {
+      for (const id of ids) {
+        const e = map[id];
+        if (!e) continue;
+        e.n -= 1;
+        if (e.n <= 0) delete map[id];
+      }
+    }
+    log.replies = Math.max(0, log.replies - 1);
+  }
+  log.replies += 1;
+  const keys = { f: [], c: [] };
+  for (const r of arr(rows)) {
+    if (!isObj(r) || r.s !== "in" || !str(r.i)) continue;
+    const map = r.k === "f" ? log.facts : log.chapters;
+    const e = map[r.i] || (map[r.i] = { n: 0, at: 0 });
+    e.n += 1;
+    e.at = log.replies;
+    (r.k === "f" ? keys.f : keys.c).push(r.i);
+  }
+  for (const map of [log.facts, log.chapters]) {
+    const ids = Object.keys(map);
+    if (ids.length > FIRED_CAP) {
+      ids.sort((a, b) => map[a].n - map[b].n || map[a].at - map[b].at);
+      for (const id of ids.slice(0, ids.length - FIRED_CAP)) delete map[id];
+    }
+  }
+  log.last = { op, at: Date.now(), keys };
+  fsx.write(FIRED_DIR + chatId + ".json", JSON.stringify(log));
+}
+
+/** GET /litopys/fired?chatId=: the counters of the "whole chat" view, with the texts joined here (at most 30 of each, the most often first). */
+function firedRoute(fsx, query) {
+  const chatId = str(query.chatId);
+  const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
+  if (!rc) return { status: 404, json: { error: "no such chat" } };
+  const log = readJson(fsx, FIRED_DIR + chatId + ".json", null);
+  if (!isObj(log) || log.v !== 1) return { status: 200, json: { chatId, log: null } };
+  const st = loadChatFile(fsx, chatId);
+  const person = makePerson(fsx, chatId, rc);
+  const cut = (t, n) => (str(t).length > n ? str(t).slice(0, n - 1).trimEnd() + "…" : str(t));
+  const top = (map) => Object.entries(isObj(map) ? map : {}).sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at).slice(0, 30);
+  const facts = new Map(arr(st && st.facts).filter(isObj).map((f) => [f.id, f]));
+  const chapters = new Map(arr(st && st.chapters).filter(isObj).map((c) => [c.id, c]));
+  return {
+    status: 200,
+    json: {
+      chatId,
+      log: {
+        since: Number(log.since) || 0,
+        replies: Number(log.replies) || 0,
+        factsTotal: Object.keys(log.facts).length,
+        chaptersTotal: Object.keys(log.chapters).length,
+        facts: top(log.facts).map(([id, e]) => {
+          const f = facts.get(id);
+          return { id, n: e.n, at: e.at, gone: !f, text: f ? cut(f.text, 200) : "", by: !f ? [] : f.knownBy === "all" ? "all" : arr(f.knownBy).map(person).filter(Boolean) };
+        }),
+        chapters: top(log.chapters).map(([id, e]) => {
+          const c = chapters.get(id);
+          return { id, n: e.n, at: e.at, gone: !c, label: c ? str(c.label) : "", text: c ? cut(c.text, 200) : "" };
+        }),
+      },
+    },
+  };
+}
+
 function traceRoute(fsx, query) {
   const chatId = str(query.chatId);
   const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
@@ -7927,29 +8039,7 @@ function traceRoute(fsx, query) {
   const tr = last ? last.trace : null;
   if (!tr) return { status: 200, json: { chatId, trace: null, replies: [] } };
   const st = loadChatFile(fsx, chatId);
-  let reg = null;
-  try {
-    reg = regLoad(fsx, chatId);
-  } catch {}
-  const dash = readDash(fsx, chatId);
-  const canon = reg ? makeCanon(reg, { userName: rc.meta && rc.meta.userName, ids: isObj(dash) && isObj(dash.personIds) ? dash.personIds : null }) : (n) => str(n);
-  const memo = new Map();
-  /** A name as { name, id }: the person's canonical name and the registry id ("" when the registry does not know them). */
-  const person = (name) => {
-    const s = str(name);
-    if (!s) return null;
-    const low = s.toLowerCase();
-    if (memo.has(low)) return memo.get(low);
-    let id = "";
-    try {
-      const r = reg ? resolveName(reg, s, "person") : null;
-      const e = r && r.id ? regGet(reg, r.id) : null;
-      id = e ? e.id : "";
-    } catch {}
-    const out = { name: str(canon(s)) || s, id };
-    memo.set(low, out);
-    return out;
-  };
+  const person = makePerson(fsx, chatId, rc);
   const cut = (t, n) => (str(t).length > n ? str(t).slice(0, n - 1).trimEnd() + "…" : str(t));
   const facts = new Map(arr(st && st.facts).filter(isObj).map((f) => [f.id, f]));
   const chapters = new Map(arr(st && st.chapters).filter(isObj).map((c) => [c.id, c]));
