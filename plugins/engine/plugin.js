@@ -1255,6 +1255,8 @@ function cacheWiVectorBatch(fsx, entries, vectors) {
  *  model's context size: the Litopys hook ranks by the first and sizes its record by the second (never sent to the model). */
 function turnLabels(labels, sp, a) {
   const out = sp && Array.isArray(sp.scanVec) && sp.scanVec.length ? { ...labels, scanVec: sp.scanVec } : { ...labels };
+  // which model made the scan vector: the Litopys hook compares only vectors of that model (#184)
+  if (out.scanVec && sp.scanModel) out.scanModel = sp.scanModel;
   if (a && Number.isFinite(a.contextTokens) && a.contextTokens > 0) out.contextTokens = a.contextTokens;
   return out;
 }
@@ -1262,7 +1264,7 @@ function turnLabels(labels, sp, a) {
 /** The embed pass of a reply op. When Litopys vectors or vectorized entries
  *  exist, the scan window (pending user text + the last 4 messages) is embedded
  *  first: returns { pending } (the caller marks the chat generating and returns
- *  it as the route result) or { scanVec } (null when nothing embedded). The
+ *  it as the route result) or { scanVec, scanModel } (null when nothing embedded). The
  *  runtime allows 3 passes: embed, model request, commit. */
 export function semanticPrep(host, fsx, meta, staged, text, req) {
   if (host.llm.embed && embedCap(fsx)) {
@@ -1292,7 +1294,9 @@ export function semanticPrep(host, fsx, meta, staged, text, req) {
     }
   }
   const scan = host.llm.embedResults && host.llm.embedResults.scan;
-  return { scanVec: Array.isArray(scan) && scan[0] ? scan[0] : null };
+  const info = host.llm.embedInfo && host.llm.embedInfo.scan;
+  const scanModel = info && typeof info.model === "string" ? info.model : "";
+  return { scanVec: Array.isArray(scan) && scan[0] ? scan[0] : null, ...(scanModel ? { scanModel } : {}) };
 }
 
 // ---------- cyrillic-safe text matching (skill: cyrillic-text-matching) ----------

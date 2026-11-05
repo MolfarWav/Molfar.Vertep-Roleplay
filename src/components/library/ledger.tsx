@@ -10,6 +10,7 @@ import { announceEarned } from '@/lib/habit-earned-toast'
 import { habitCounts } from '@/lib/habit-earned'
 import { distinctName, fetchLitChat, type LitChat } from './litopys-api'
 import { WorkerLine } from './worker-line'
+import { MeaningCard } from '@/components/memory/meaning-card'
 import { ArcNotice } from './arcs'
 import { FactsTab } from './ledger-facts'
 import { ChaptersTab } from './ledger-chapters'
@@ -163,6 +164,7 @@ export function LedgerChat({
         {/* with no record yet, an idle chronicler's "Up to date" would contradict the empty state below */}
         {(!empty || chat.rebuilding || (chat.worker && chat.worker.state !== 'idle')) && <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />}
         <ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />
+        {!empty && <MeaningCard chatId={chat.chatId} refreshKey={`${chat.chapters.length}:${activeFacts}`} />}
 
         {chat.cut.count > 0 && (
           <div className="text-xs text-muted-foreground">

@@ -2288,17 +2288,23 @@ export function semanticBonuses(items, sem) {
   }
   return out;
 }
-/** A stored vector, when it is still of the text it was made from (an edited fact's old vector is not). */
-function vectorOf(vectors, id, text) {
+/**
+ * A stored vector, when it is still of the text it was made from (an edited fact's old vector is not) and, when both the
+ * vector and the caller know the embeddings model, of that model: vectors of different models do not compare (#184).
+ * A vector stored before models were recorded has no `m` and counts for any model.
+ */
+function vectorOf(vectors, id, text, model) {
   const e = isObj(vectors) ? vectors[id] : null;
-  return isObj(e) && e.hash === fnv1a(text) && Array.isArray(e.vector) ? e.vector : null;
+  if (!isObj(e) || e.hash !== fnv1a(text) || !Array.isArray(e.vector)) return null;
+  if (model && typeof e.m === "string" && e.m && e.m !== model) return null;
+  return e.vector;
 }
 /** An arc has no vector of its own: it takes the vector of the member chapter nearest to the scan window. */
-export function bestMemberVector(members, vectors, scanVec) {
+export function bestMemberVector(members, vectors, scanVec, model) {
   let best = null;
   let bestCos = -2;
   for (const c of arr(members).filter(isObj)) {
-    const v = vectorOf(vectors, c.id, str(c.text));
+    const v = vectorOf(vectors, c.id, str(c.text), model);
     const k = v ? cosine(v, scanVec) : null;
     if (k !== null && k > bestCos) {
       bestCos = k;
@@ -2566,7 +2572,7 @@ const TRACE_IN = 40;
 const TRACE_OUT = 15;
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
-export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, vectors, promptCut, voices: voices0, canon }) {
+export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
   // window may have dropped more than the recent window allows: what lies before is carried here. In
@@ -2627,8 +2633,15 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // wave 2: when the engine embedded the scan window and Litopys holds vectors, meaning counts beside words;
   // an arc has no vector of its own: it takes the best of its chapters'
   const useVec = Array.isArray(scanVec) && scanVec.length > 0 && isObj(vectors);
-  const factSem = useVec && { vec: scanVec, of: (f) => vectorOf(vectors, f.id, str(f.text)) };
-  const chapterVec = (ch) => (arcs.includes(ch) ? bestMemberVector(arr(ch.chapterIds).map((id) => allBefore.find((c) => c.id === id)), vectors, scanVec) : vectorOf(vectors, ch.id, str(ch.text)));
+  // how many of the ranked items had a usable vector, for the memory trace (#184): counted where the ranking asks, no second pass
+  const semCount = { seen: 0, have: 0 };
+  const counted = (v) => {
+    semCount.seen++;
+    if (v) semCount.have++;
+    return v;
+  };
+  const factSem = useVec && { vec: scanVec, of: (f) => counted(vectorOf(vectors, f.id, str(f.text), scanModel)) };
+  const chapterVec = (ch) => counted(arcs.includes(ch) ? bestMemberVector(arr(ch.chapterIds).map((id) => allBefore.find((c) => c.id === id)), vectors, scanVec, scanModel) : vectorOf(vectors, ch.id, str(ch.text), scanModel));
   const chapterSem = useVec && { vec: scanVec, of: chapterVec };
   // #99: names, phrases and the chat's own word counts weigh in, unless the hand-edited key asks for the old rule
   const recall = cfg && cfg.recallScoring === "words" ? null : { share: chatWordShare(line) };
@@ -2676,6 +2689,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
       n: { live: live.length, hidden: hidden.length, seen: active.length - a.length - b.length - rest.length, inF: facts.length, drop: dropped.length, unseen: unseen.length, held: held.size },
       full: !!full,
       limit: budget,
+      // meaning search: was the scan embedded and compared, and how many ranked items had a vector (the hook adds why not)
+      sem: useVec ? { scan: true, have: semCount.have, seen: semCount.seen } : { scan: false },
       rows,
     };
   };
@@ -2868,8 +2883,10 @@ export function llmRequest(ctx, host) {
     const autoSize = cfg.budgetMode === "auto" ? autoBudget(ctx.turn.contextTokens) : null;
     const sizedCfg = autoSize ? { ...cfg, budget: autoSize } : cfg;
     const scanVec = Array.isArray(ctx.turn.scanVec) && ctx.turn.scanVec.length ? ctx.turn.scanVec : null;
+    // the model that made the scan vector (the engine says it): vectors of another model are not compared
+    const scanModel = scanVec && typeof ctx.turn.scanModel === "string" ? ctx.turn.scanModel : "";
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta) }) : null;
+    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -2963,7 +2980,7 @@ export function llmRequest(ctx, host) {
           arcs: insert ? insert.arcs : 0,
           cut: insert ? insert.cut : 0,
           ...(insert && insert.full ? { full: true } : {}),
-          ...(insert && insert.trace ? { trace: { ...insert.trace, op: str(ctx.turn.op), speaker: str(speakerName) } } : {}),
+          ...(insert && insert.trace ? { trace: { ...insert.trace, op: str(ctx.turn.op), speaker: str(speakerName), sem: semOf(fsx, chatId, insert.trace.sem, scanModel, scanVec ? scanVec.length : 0) } } : {}),
           ...causeRecord(prevInsert, insert),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
@@ -3768,40 +3785,74 @@ export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, chi
 
 // ---------- vectors ----------
 
-export function needVectors(fsx, st) {
+/**
+ * The chapters and active facts of a chat with no usable vector: none yet, the text changed since, or (when the model
+ * is known) one made by another model (#184). `limit` 64 is one embed pass; the coverage view asks for all of them.
+ */
+export function vectorGaps(fsx, st, model, limit = 64) {
   const map = loadVectors(fsx, st.chatId);
+  const cur = model === undefined ? currentEmbedModel(fsx, st.chatId) : model;
+  const dim = model === undefined ? currentEmbedDim(fsx, st.chatId) : 0;
   const out = [];
+  const missing = (id, text) => {
+    const entry = map[id];
+    if (!entry || entry.hash !== fnv1a(text)) return "none";
+    if (cur && typeof entry.m === "string" && entry.m && entry.m !== cur) return "other";
+    // made before models were recorded: another length is another model
+    if (dim && !(typeof entry.m === "string" && entry.m) && Array.isArray(entry.vector) && entry.vector.length !== dim) return "other";
+    return "";
+  };
   for (const ch of st.chapters) {
     const text = str(ch.text);
     if (!text) continue;
-    const hash = fnv1a(text);
-    const entry = map[ch.id];
-    if (!entry || entry.hash !== hash) out.push({ id: ch.id, text, hash });
+    const why = missing(ch.id, text);
+    if (why) out.push({ id: ch.id, text, hash: fnv1a(text), why });
   }
   for (const f of st.facts) {
     if (f.status !== "active") continue;
     const text = str(f.text);
     if (!text) continue;
-    const hash = fnv1a(text);
-    const entry = map[f.id];
-    if (!entry || entry.hash !== hash) out.push({ id: f.id, text, hash });
+    const why = missing(f.id, text);
+    if (why) out.push({ id: f.id, text, hash: fnv1a(text), why });
   }
-  return out.slice(0, 64);
+  return out.slice(0, limit);
 }
 
-export function finishEmbed(fsx, st, needed, vectors) {
+export function needVectors(fsx, st, model) {
+  return vectorGaps(fsx, st, model, 64).map(({ id, text, hash }) => ({ id, text, hash }));
+}
+
+export function finishEmbed(fsx, st, needed, vectors, model) {
   if (!needed.length || !Array.isArray(vectors)) return 0;
   const map = loadVectors(fsx, st.chatId);
   let stored = 0;
   for (let i = 0; i < needed.length && i < vectors.length; i++) {
       const v = vectors[i];
       if (Array.isArray(v) && v.length && v.every((n) => typeof n === "number" && Number.isFinite(n))) {
-      map[needed[i].id] = { hash: needed[i].hash, vector: v };
+      map[needed[i].id] = { hash: needed[i].hash, vector: v, ...(typeof model === "string" && model ? { m: model } : {}) };
       stored++;
     }
   }
   if (stored > 0) saveVectors(fsx, st.chatId, map);
   return stored;
+}
+
+/** The length of the vectors the engine makes now (from the last reply's scan vector, else the last good batch): 0 when unknown. */
+export function currentEmbedDim(fsx, chatId) {
+  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  const d = isObj(last) && isObj(last.trace) && isObj(last.trace.sem) ? Number(last.trace.sem.dim) : 0;
+  if (d > 0) return d;
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  return isObj(status) && Number(status.dim) > 0 ? Number(status.dim) : 0;
+}
+
+/** The embeddings model the chat's vectors should be of now: the scan model of the last reply, else of the last good batch ("" when unknown). */
+export function currentEmbedModel(fsx, chatId) {
+  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  const m = isObj(last) && isObj(last.trace) && isObj(last.trace.sem) ? str(last.trace.sem.model) : "";
+  if (m) return m;
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  return isObj(status) ? str(status.model) : "";
 }
 
 export function embedAllowed(fsx) {
@@ -3814,8 +3865,14 @@ export function embedAllowed(fsx) {
   return true;
 }
 
-export function setEmbedStatus(fsx, ok) {
-  fsx.write(EMBED_STATUS_FILE, JSON.stringify({ ok: !!ok, checkedAt: Date.now() }, null, 2));
+export function setEmbedStatus(fsx, ok, info) {
+  const before = readJson(fsx, EMBED_STATUS_FILE, null);
+  const prev = isObj(before) ? before : {};
+  // the model, connection and vector length of the last good batch stay when a later call fails
+  const model = ok && isObj(info) && info.model ? str(info.model) : str(prev.model);
+  const via = ok && isObj(info) && info.via ? str(info.via) : str(prev.via);
+  const dim = ok && isObj(info) && Number(info.dim) > 0 ? Number(info.dim) : Number(prev.dim) || 0;
+  fsx.write(EMBED_STATUS_FILE, JSON.stringify({ ok: !!ok, checkedAt: Date.now(), ...(model ? { model } : {}), ...(via ? { via } : {}), ...(dim ? { dim } : {}) }, null, 2));
 }
 
 // ---------- housekeeping ----------
@@ -3863,7 +3920,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, EMBED_WANT_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -3943,6 +4000,72 @@ export function pickChats(fsx, now) {
 
 // ---------- M3b: the sweep, migrated weights, card repeats, dashboard notes, rebuild ----------
 const INSERT_DIR = "litopys/insert/";
+
+// ---------- embedding requests (#184): one record per chat of what is being embedded ----------
+const EMBED_WANT_DIR = "litopys/embed-want/";
+/** A batch that has not come back after this long is given up on, so the next tick may ask again. */
+const EMBED_FLIGHT_MS = 120000;
+
+/** The user asked for the missing vectors of a chat: written by POST /litopys/vectors/embed, carried out by the tick. */
+function wantEmbed(fsx, chatId) {
+  fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: true, at: 0, batch: null, asked: Date.now() }));
+}
+function endEmbedWant(fsx, chatId) {
+  try {
+    fsx.remove(EMBED_WANT_DIR + chatId + ".json");
+  } catch {}
+}
+/** Ask the engine to embed the next batch of a chat's gaps and record it; no gaps ends the request. */
+function kickEmbedWant(fsx, host, st, chatId) {
+  if (typeof host.llm.embed !== "function") return endEmbedWant(fsx, chatId);
+  const gaps = vectorGaps(fsx, st);
+  if (!gaps.length) return endEmbedWant(fsx, chatId);
+  fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: true, at: Date.now(), batch: gaps.map((g) => ({ id: g.id, hash: g.hash })) }));
+  host.llm.embed("lit_emb_" + chatId, { texts: gaps.map((g) => g.text) });
+}
+function kickEmbedWants(fsx, host) {
+  let files = [];
+  try {
+    files = fsx.list(EMBED_WANT_DIR);
+  } catch {
+    return;
+  }
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    const chatId = f.slice(0, -5);
+    const w = readJson(fsx, EMBED_WANT_DIR + f, null);
+    if (!isObj(w) || w.more !== true) continue;
+    // a batch is on its way
+    if (Array.isArray(w.batch) && Date.now() - (Number(w.at) || 0) < EMBED_FLIGHT_MS) continue;
+    const st = loadChatFile(fsx, chatId);
+    if (!st) {
+      endEmbedWant(fsx, chatId);
+      continue;
+    }
+    kickEmbedWant(fsx, host, st, chatId);
+    return;
+  }
+}
+
+/**
+ * The memory trace's meaning-search line (#184): what buildInsert counted, the model of the scan vector, and when the scan
+ * was not compared, why: `failing` (the last embed call failed), `novec` (the chat has no vectors yet, so the engine does
+ * not embed the scan window), `noscan` (vectors exist but the scan window came back without a vector).
+ */
+function semOf(fsx, chatId, sem, model, dim) {
+  const out = { ...(isObj(sem) ? sem : { scan: false }) };
+  if (model) out.model = model;
+  if (dim) out.dim = dim;
+  if (!out.scan) {
+    let hasFile = false;
+    try {
+      hasFile = fsx.list(VECTOR_DIR).includes(chatId + ".json");
+    } catch {}
+    const status = readJson(fsx, EMBED_STATUS_FILE, null);
+    out.why = !hasFile ? "novec" : isObj(status) && status.ok === false ? "failing" : "noscan";
+  }
+  return out;
+}
 /** #184 P6: the traces of the replies before the newest one, newest first; one file per chat, at most TRACE_RING_MAX of them. */
 const RING_DIR = "litopys/trace-ring/";
 const TRACE_RING_MAX = 4;
@@ -4287,19 +4410,33 @@ export function onTick(_ctx, host) {
       for (const key of Object.keys(host.llm.embedResults)) {
         if (!key.startsWith("lit_emb_")) continue;
         const vectors = host.llm.embedResults[key];
+        const chatId = key.slice(8);
+        const want = readJson(fsx, EMBED_WANT_DIR + chatId + ".json", null);
         if (!vectors) {
           setEmbedStatus(fsx, false);
+          endEmbedWant(fsx, chatId);
           return;
         }
-        const chatId = key.slice(8);
         const st = loadChatFile(fsx, chatId);
-        if (!st) return;
-        const needed = needVectors(fsx, st);
-        const n = finishEmbed(fsx, st, needed, vectors);
-        setEmbedStatus(fsx, n > 0);
+        if (!st) {
+          endEmbedWant(fsx, chatId);
+          return;
+        }
+        // the items the request was made for (their hashes, so a text edited meanwhile shows as a gap later); an older request has no record
+        const batch = isObj(want) && Array.isArray(want.batch) ? want.batch.filter((b) => isObj(b) && str(b.id)) : null;
+        const needed = batch ? batch.map((b) => ({ id: str(b.id), hash: str(b.hash) })) : needVectors(fsx, st);
+        const info = host.llm.embedInfo && host.llm.embedInfo[key];
+        const model = isObj(info) ? str(info.model) : "";
+        const first = Array.isArray(vectors) && Array.isArray(vectors[0]) ? vectors[0] : null;
+        const n = finishEmbed(fsx, st, needed, vectors, model);
+        setEmbedStatus(fsx, n > 0, { model, via: isObj(info) ? str(info.via) : "", dim: first ? first.length : 0 });
+        // a request of the user goes on in batches until nothing is missing or a batch brings nothing
+        if (isObj(want) && want.more === true && n > 0) kickEmbedWant(fsx, host, st, chatId);
+        else endEmbedWant(fsx, chatId);
         return;
       }
     }
+    kickEmbedWants(fsx, host);
 
     const now = Date.now();
     try {
@@ -4461,7 +4598,14 @@ export function onTick(_ctx, host) {
               if (!saveChatFile(fsx, cur)) continue;
               if (embedAllowed(fsx) && typeof host.llm.embed === "function") {
                 const needed = needVectors(fsx, cur);
-                if (needed.length) host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
+                if (needed.length) {
+                  // recorded, so the result is stored under these items even if the record changes meanwhile
+                  const mine = readJson(fsx, EMBED_WANT_DIR + chatId + ".json", null);
+                  if (!isObj(mine) || !Array.isArray(mine.batch) || Date.now() - (Number(mine.at) || 0) >= EMBED_FLIGHT_MS) {
+                    fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: false, at: Date.now(), batch: needed.map((x) => ({ id: x.id, hash: x.hash })) }));
+                    host.llm.embed("lit_emb_" + chatId, { texts: needed.map((x) => x.text) });
+                  }
+                }
               }
             } else {
               const wasOk = !isObj(g.worker) || g.worker.ok !== false;
@@ -6199,6 +6343,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/portraits" && req.method === "POST") return portraitRoute(fsx, req.body);
   if (path === "/litopys/carries" && req.method === "GET") return carriesRoute(fsx, req.query || {});
   if (path === "/litopys/trace" && req.method === "GET") return traceRoute(fsx, req.query || {});
+  if (path === "/litopys/vectors" && (req.method === "GET" || req.method === "POST")) return vectorsRoute(req, fsx);
   if (path === "/litopys/card-memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx, "card");
   if (path === "/litopys/memory" && ["GET", "PUT", "DELETE"].includes(req.method)) return cardMemoryRoute(req, fsx);
   if (path === "/litopys/card-memory/preview" && req.method === "POST") return cardMemoryPostRoute(req, fsx, "preview", "card");
@@ -7281,6 +7426,63 @@ export function greetingOpening(fsx, chatId, line, titleOf) {
  * registry ids of the people are joined here, when someone looks, so a reply never pays for them. Reading only: the
  * registry is loaded, never seeded or saved.
  */
+/**
+ * Matching by meaning, for one chat (#184): how many of its facts and chapters have a vector of the model in use, what
+ * embedding the rest would cost, and whether a request of the user is running. The client adds "not set up" (it knows
+ * the engine's connections); here only what the chat's own files say.
+ */
+export function vectorsView(fsx, chatId) {
+  const st = loadChatFile(fsx, chatId);
+  if (!st) return null;
+  let items = 0;
+  for (const ch of st.chapters) if (str(ch.text)) items++;
+  for (const f of st.facts) if (f.status === "active" && str(f.text)) items++;
+  const gaps = vectorGaps(fsx, st, undefined, Infinity);
+  const other = gaps.filter((g) => g.why === "other").length;
+  let chars = 0;
+  for (const g of gaps) chars += g.text.length;
+  const status = readJson(fsx, EMBED_STATUS_FILE, null);
+  const checkedAt = isObj(status) ? Number(status.checkedAt) || 0 : 0;
+  const failing = isObj(status) && status.ok === false && Date.now() - checkedAt < 3600000;
+  const want = readJson(fsx, EMBED_WANT_DIR + chatId + ".json", null);
+  const working = isObj(want) && want.more === true;
+  const have = items - gaps.length;
+  let state = "all";
+  if (working) state = "working";
+  else if (failing) state = "failing";
+  else if (other > 0) state = "other";
+  else if (items > 0 && have === 0) state = "none";
+  else if (gaps.length > 0) state = "partial";
+  else if (items === 0) state = "empty";
+  return {
+    chatId,
+    state,
+    items,
+    have,
+    missing: gaps.length - other,
+    other,
+    // the usual rough measure: four characters a token
+    tokens: Math.ceil(chars / 4),
+    model: currentEmbedModel(fsx, chatId),
+    via: isObj(status) ? str(status.via) : "",
+    failing: failing ? { at: checkedAt, retryAt: checkedAt + 3600000 } : null,
+  };
+}
+
+function vectorsRoute(req, fsx) {
+  const chatId = str(req.method === "GET" ? (req.query || {}).chatId : (req.body || {}).chatId);
+  if (!SAFE_ID.test(chatId) || !readChat(fsx, chatId)) return { status: 404, json: { error: "no such chat" } };
+  if (req.method === "POST") {
+    const before = vectorsView(fsx, chatId);
+    if (!before) return { status: 404, json: { error: "no such chat" } };
+    // nothing to embed ends here; a request already running is left as it is
+    if (before.missing + before.other > 0 && before.state !== "working") wantEmbed(fsx, chatId);
+    return { status: 200, json: vectorsView(fsx, chatId) };
+  }
+  const view = vectorsView(fsx, chatId);
+  return view ? { status: 200, json: view } : { status: 404, json: { error: "no such chat" } };
+}
+
 function traceRoute(fsx, query) {
   const chatId = str(query.chatId);
   const rc = SAFE_ID.test(chatId) ? readChat(fsx, chatId) : null;
@@ -7365,6 +7567,8 @@ function traceRoute(fsx, query) {
         limit: Number(tr.limit) || 0,
         tokens: Number(last.tokens) || 0,
         n: isObj(tr.n) ? tr.n : {},
+        // was the ranking by meaning used, and if not why not (#184); null for a trace made before this was recorded
+        sem: isObj(tr.sem) ? { scan: tr.sem.scan === true, have: Number(tr.sem.have) || 0, seen: Number(tr.sem.seen) || 0, why: str(tr.sem.why), model: str(tr.sem.model) } : null,
         facts: outFacts,
         chapters: outChapters,
       },

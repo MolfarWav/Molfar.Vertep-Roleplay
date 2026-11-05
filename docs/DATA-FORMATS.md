@@ -258,12 +258,28 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
   history began, `count` 0 = the whole chat); the Litopys insert carries a chapter for every message before it, and in
   `scenes` mode exactly those. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
   cut) as `meta.litopysCut`.
-- Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector } }`, one for each chapter and active fact, written
-  after a chapter when an embedding connection exists): when the engine passes the embedding of the scan window
+- Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector, m? } }`, one for each chapter and active fact, written
+  after a chapter when an embedding connection exists, or on the user's click, see below): when the engine passes the embedding of the scan window
   (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the
   nearest of its chapters). The bonus is relative to the pool's mean cosine, so models that score "unrelated" at
   different levels behave alike; a vector whose `hash` no longer matches the text, or of another size, is ignored.
   Fewer than 4 vectors in the pool, no `scanVec`, or an engine that does not pass it: words alone, as before.
+  **Models (#184).** `m` is the embeddings model that made the vector (from `host.llm.embedInfo`; absent on vectors from
+  before it was recorded). When the engine passes `turn.scanModel` and both sides know a model, a vector of another
+  model is ignored when ranking and counts as a gap (`why: "other"`) for the next embed; a vector without `m` counts
+  for any model unless its length differs from `dim` of `litopys/embed-status.json`. `embed-status.json` is
+  `{ ok, checkedAt, model?, via?, dim? }`: `model`, `via` and `dim` are those of the last good batch and survive a
+  failed call; after a failed call the plugin does not ask again for an hour (the engine keeps its own one-hour pause).
+  The chapter worker embeds the new items of a scene by itself. Everything else (a chat that has none yet, a changed
+  model) is embedded only when the user asks: `POST /litopys/vectors { chatId }` writes
+  `litopys/embed-want/<chatId>.json` (`{ more, at, batch: [{ id, hash }] | null, asked? }`, removed with the chat); the
+  tick embeds 64 gaps at a time, one request at a time, until none is left, and drops the request after a failed
+  batch or one that did not answer in 2 minutes. `GET /litopys/vectors?chatId=` answers
+  `{ chatId, state, items, have, missing, other, tokens, model, via, failing }`: `items` = active facts + chapters with
+  text, `state` one of `empty`, `all`, `partial`, `none`, `other`, `failing`, `working`, `tokens` = a rough cost of
+  embedding `missing + other` (four characters a token). The insert trace carries `sem`: `{ scan, have, seen, model?, dim? }`
+  when the reply was ranked by meaning, or `{ scan: false, why }` with `why` `novec` (no vectors file yet, so the engine
+  does not embed the scan window), `failing` or `noscan`; `GET /litopys/trace` passes it on as `trace.sem`.
 - `arcMode` (`ask`, `auto`, `off`): `auto` merges older chapters into an arc by itself (it only adds the arc over its
   chapters; nothing is deleted), `ask` offers the merge in the Library. A new install is `auto`. The first time the
   config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written

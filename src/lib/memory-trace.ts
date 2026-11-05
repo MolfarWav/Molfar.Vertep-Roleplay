@@ -4,6 +4,7 @@
 // who knows a fact and the registry ids of the people are joined by GET /litopys/trace when the view is opened.
 
 import type { LeakHit } from '@/lib/dashboard'
+import { SEM_MIN, semVerdict, type SemTrace } from '@/lib/vectors'
 
 /** A person as the registry names them: the canonical name and the id ("p3", "user"; "" when the registry does not know them). */
 export interface TracePerson { name: string; id: string }
@@ -50,6 +51,8 @@ export interface LitopysTrace {
   limit: number
   tokens: number
   n: { live?: number; hidden?: number; seen?: number; inF?: number; drop?: number; unseen?: number; held?: number }
+  /** was ranking by meaning used, and if not why (#184); null for a trace made before this was recorded */
+  sem?: SemTrace | null
   facts: TraceFact[]
   chapters: TraceChapter[]
 }
@@ -181,6 +184,16 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
         : `Filter: what anyone present knows (${lit.knowers.map(personLabel).join(', ') || 'nobody listed'})`,
     )
     out.push(`Insert: ${lit.tokens} of ${lit.limit} tokens${lit.full ? ', everything known fitted' : ', ranked: not everything fitted'}`)
+    const sem = semVerdict(lit.sem)
+    if (sem) {
+      out.push(
+        sem.kind === 'yes'
+          ? `Ranked by meaning: yes (${sem.have} of ${sem.seen} candidates had a vector)`
+          : sem.kind === 'few'
+            ? `Ranked by meaning: no (only ${sem.have} of ${sem.seen} candidates had a vector; ${SEM_MIN} are needed)`
+            : `Ranked by meaning: no (${sem.why === 'novec' ? 'this chat has no vectors yet' : sem.why === 'failing' ? 'the last embeddings call failed' : 'this reply was not embedded'})`,
+      )
+    }
     const n = lit.n
     out.push(`Facts: ${n.live ?? '?'} active, ${n.hidden ?? 0} not known to the speaker, ${n.seen ?? 0} still in the history, ${n.inF ?? 0} in, ${n.drop ?? 0} over the budget`)
     const row = (f: TraceFact) =>

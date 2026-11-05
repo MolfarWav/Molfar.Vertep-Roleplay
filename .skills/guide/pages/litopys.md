@@ -19,6 +19,10 @@ By default the record is inserted automatically. "Memory size" says how many tok
 
 Older messages can leave the prompt only when the window is full, or scene by scene once a chapter covers them; the setting "Older messages leave the prompt" chooses.
 
+## Matching by meaning
+
+Memory finds facts and chapters by words. With an embeddings model it also finds them by meaning: a question in other words still reaches the fact. The card **Matching by meaning** (at the top of a chat's record, and in Canvas > Prompt > Memory) shows where it stands: off, failing, no vectors yet, partly done, done, or made by another model. Set the model up once in Settings > Memory: by default the app uses a model on your own computer first (LM Studio or Ollama), then an API connection with a key, then OpenRouter. A chat that existed before you set it up has no vectors: press **Embed N items** on the card. It says first how many items and about how many tokens that takes, and nothing is spent until you press it. New scenes embed their own new items by themselves. If you change the embeddings model, the old vectors are not used until you press **Embed again**.
+
 ## Suggestions and tidying
 
 "Suggestions" is "Ask me first" by default: every pin and rewrite waits for your yes. The quiet option applies pins and rewrites at once and logs them in Activity. Retiring and merging always wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
