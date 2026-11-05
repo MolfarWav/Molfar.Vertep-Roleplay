@@ -330,6 +330,8 @@ export interface LitConfig {
   recollectChars?: number
   /** #99: the chapter worker also writes what each character remembers of a scene (default on); missing from an older plugin */
   recollections?: boolean
+  /** #184: missing vectors of chats and Data Bank files are asked for by themselves once embedding works (default on; a target over 300,000 tokens stays a button); missing from an older plugin */
+  autoEmbed?: boolean
   /** #184: a "who knows what" brief for a reply that voices several characters (default on); missing from an older plugin */
   castKnowledge?: boolean
   /** #184: the chapter worker also writes search words (`also`) for new facts and chapters (default on); missing from an older plugin */

@@ -277,6 +277,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         {switchRow('lit-search-words', t('lit.set.searchWords'), t('lit.set.searchWordsHint'), cfg.searchWords !== false, (v) => save({ searchWords: v }))}
         <EmbedRow />
+        {switchRow('lit-auto-embed', t('lit.set.autoEmbed'), t('lit.set.autoEmbedHint'), cfg.autoEmbed !== false, (v) => save({ autoEmbed: v }))}
       </Block>
 
       <Block tone="people" icon={Repeat} title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')} summary={cfg.habits !== false ? t('lit.sum.habits', { n: cfg.habitsEarnAfter ?? 2 }) : onOff(false)}>

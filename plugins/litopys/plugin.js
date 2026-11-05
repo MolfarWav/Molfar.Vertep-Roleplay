@@ -1084,6 +1084,9 @@ export const DEFAULT_CONFIG = {
   // #99: when a scene has a named character besides the player (one is enough), the worker also writes what each of them
   // remembers of it and what they want now (chapter.views); the reply of a character carries its own, the narrator's carries all
   recollections: true,
+  // #184: once an embeddings call has worked, a scan every few minutes asks for the missing vectors of every chat and Data Bank file by itself
+  // (a target whose gap costs more than AUTO_EMBED_MAX_TOKENS stays a button); off = vectors only on a click and after a scene
+  autoEmbed: true,
   // the room of the "what the character remembers" blocks (head and tail together), in tokens
   recollectBudget: 300,
   // how long one person's recollection of a scene may be, in characters (the model is told; a longer one is cut at a sentence)
@@ -1377,6 +1380,7 @@ export function loadConfig(fsx) {
   cfg.habits = cfg.habits !== false;
   cfg.habitsEarnAfter = clamp(intOf(cfg.habitsEarnAfter, 2), 1, 5);
   cfg.recollections = cfg.recollections !== false;
+  cfg.autoEmbed = cfg.autoEmbed !== false;
   cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
@@ -1435,6 +1439,7 @@ export function patchConfig(fsx, body) {
   if (b.habits !== undefined) next.habits = b.habits !== false && b.habits !== "off";
   if (b.habitsEarnAfter !== undefined) next.habitsEarnAfter = clamp(intOf(b.habitsEarnAfter, 2), 1, 5);
   if (b.recollections !== undefined) next.recollections = b.recollections !== false && b.recollections !== "off";
+  if (b.autoEmbed !== undefined) next.autoEmbed = b.autoEmbed !== false && b.autoEmbed !== "off";
   if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   if (b.recollectChars !== undefined) next.recollectChars = clamp(intOf(b.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
@@ -4025,6 +4030,76 @@ function kickEmbedWant(fsx, host, st, chatId) {
   fsx.write(EMBED_WANT_DIR + chatId + ".json", JSON.stringify({ more: true, at: Date.now(), batch: gaps.map((g) => ({ id: g.id, hash: g.hash })) }));
   host.llm.embed("lit_emb_" + chatId, { texts: gaps.map((g) => g.text) });
 }
+// ---------- automatic filling (#184): once embedding works, the gaps of every chat and Data Bank file are asked for by the tick ----------
+const AUTO_EMBED_FILE = "litopys/embed-auto.json";
+/** How often the tick looks for gaps. */
+const AUTO_EMBED_EVERY_MS = 5 * 60000;
+/** A chat or file whose gaps would cost more than this many tokens (four characters a token) is left to the button; one look asks for this much at most in all. */
+export const AUTO_EMBED_MAX_TOKENS = 300000;
+/** At most this many requests are written in one look; the tick carries them out one after another. */
+const AUTO_EMBED_MAX_WANTS = 25;
+
+/** Has an embeddings call worked? Litopys's own status (a good batch, with the model) or the engine's (a reply embedded its scan window). */
+function embedWorked(fsx) {
+  const own = readJson(fsx, EMBED_STATUS_FILE, null);
+  if (isObj(own) && own.ok === true && str(own.model)) return true;
+  const engine = readJson(fsx, "embed-status.json", null);
+  return isObj(engine) && engine.ok === true;
+}
+
+/**
+ * Ask for the missing vectors of every chat and Data Bank file whose gap is within the limit. Nothing happens before an embeddings call
+ * has worked once (a new connection is primed by one click or one reply), while the last call is failing, while another request runs,
+ * or with `autoEmbed` off. Returns how many requests were written.
+ */
+export function autoEmbedScan(fsx, host, cfg, now = Date.now()) {
+  if (!cfg || cfg.autoEmbed === false) return 0;
+  if (typeof host.llm.embed !== "function") return 0;
+  if (!embedAllowed(fsx) || !embedWorked(fsx)) return 0;
+  const mark = readJson(fsx, AUTO_EMBED_FILE, null);
+  if (isObj(mark) && now - (Number(mark.at) || 0) < AUTO_EMBED_EVERY_MS) return 0;
+  try {
+    for (const f of fsx.list(EMBED_WANT_DIR)) {
+      if (!f.endsWith(".json")) continue;
+      const w = readJson(fsx, EMBED_WANT_DIR + f, null);
+      if (isObj(w) && w.more === true) return 0;
+    }
+  } catch {}
+  fsx.write(AUTO_EMBED_FILE, JSON.stringify({ at: now }));
+  let wants = 0;
+  // one look asks for at most this much in all, so a long backlog fills over several looks, not in one spend
+  let spent = 0;
+  const limit = AUTO_EMBED_MAX_TOKENS;
+  let chatFiles = [];
+  try {
+    chatFiles = fsx.list(CHAT_DIR);
+  } catch {}
+  for (const f of chatFiles) {
+    if (wants >= AUTO_EMBED_MAX_WANTS) break;
+    if (!f.endsWith(".json")) continue;
+    const chatId = f.slice(0, -5);
+    if (!SAFE_ID.test(chatId)) continue;
+    const v = vectorsView(fsx, chatId);
+    if (!v || v.missing + v.other === 0 || v.tokens > limit || spent + v.tokens > limit) continue;
+    wantEmbed(fsx, chatId);
+    spent += v.tokens;
+    wants++;
+  }
+  for (const file of shelfFiles(fsx)) {
+    if (wants >= AUTO_EMBED_MAX_WANTS) break;
+    const gaps = shelfGaps(fsx, file, undefined, Infinity);
+    if (!gaps.length) continue;
+    let chars = 0;
+    for (const g of gaps) chars += g.text.length;
+    const tokens = Math.ceil(chars / 4);
+    if (tokens > limit || spent + tokens > limit) continue;
+    spent += tokens;
+    fsx.write(EMBED_WANT_DIR + SHELF_WANT + file.id + ".json", JSON.stringify({ more: true, at: 0, batch: null, asked: now, auto: true }));
+    wants++;
+  }
+  return wants;
+}
+
 function kickEmbedWants(fsx, host) {
   let files = [];
   try {
@@ -4446,6 +4521,11 @@ export function onTick(_ctx, host) {
         else endEmbedWant(fsx, chatId);
         return;
       }
+    }
+    try {
+      autoEmbedScan(fsx, host, cfg);
+    } catch (e) {
+      host.log("litopys auto embed: " + (e && e.message ? e.message : String(e)));
     }
     kickEmbedWants(fsx, host);
 
