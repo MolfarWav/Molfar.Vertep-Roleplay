@@ -80,6 +80,12 @@ describe("hook reserve: the Dashboard journal", () => {
     expect(byId(rows())["dashboard journal"]).toBeUndefined();
     expect(byId(rows())["dashboard said"]).toBe(120);
   });
+  it("the said row disappears when the chat switches the said part off (#248), the journal stays", () => {
+    expect(byId(rows())["dashboard said"]).toBe(120);
+    const r = byId(rows({ promptBoard: { off: ["plugin:said"] } }));
+    expect(r["dashboard said"]).toBeUndefined();
+    expect(r["dashboard journal"]).toBe(120 * 3);
+  });
   it("disappears when the chat mutes plugin:journal", () => {
     expect(byId(rows({ promptBoard: { off: ["plugin:journal"] } }))["dashboard journal"]).toBeUndefined();
     expect(byId(rows({ promptBoard: { off: ["plugin:said"] } }))["dashboard journal"]).toBe(120 * 3);

@@ -36,7 +36,7 @@ Date: 2026-11-05.
 - **Enforced in:** `plugins/engine/plugin.js` `hookInsertBreakdown` `hookInsertReserve`.
 - **Fails in:** `test/rp-hook-reserve.test.ts`. It checks the numbers of the rows it knows. No test compares a real insert with its row, so a new sibling block with no row passes.
 - **Why / history:** #184 (the breakdown comment cites MEMORY-INJECTION 13.1).
-- **Trap:** MISMATCH with the code's own comment. The row "dashboard said" is added without checking the Prompt board key `plugin:said`; only `dashboard.said.inject === false` turns it off. The reply path does check `plugin:said` (`plugins/relations` `offForChat`), so a chat that switched "What characters said" off still reserves 120 tokens. This over-reserves; it does not overflow. Also: a new insert in a sibling with no row here is not reserved, so the window overflows silently.
+- **Trap:** a new insert in a sibling with no row here is not reserved, so the window overflows silently, and no test compares a real insert with its row (#248, item 5; the structural fix is the `insertCeiling` hook, #220). The row "dashboard said" follows the switch `plugin:said` since #248.
 
 ### Prompt board switch keys
 - **Touches:** `meta.promptBoard.off` in the chat file; `PROMPT_BOARD_OFF_KEYS` and `PROMPT_BOARD_OFF_RE` and `cleanPromptBoard` (engine plugin); readers in `plugins/litopys`, `plugins/relations`, `plugins/world`; `src/lib/carries.ts` (`CarrySwitch`, `switchKey`); `src/components/canvas/prompt-board.tsx`; `src/lib/prompt-order.ts` (order keys for "said", "journal", "persona memory").
@@ -92,7 +92,7 @@ Date: 2026-11-05.
 - **Enforced in:** `src/lib/engine.ts` `characterToCard` `lorebookToEngine`; `docs/DATA-FORMATS.md` (section headers).
 - **Fails in:** `test/rp-data-formats.test.ts` (fails when the app writes a field the doc does not name). No test compares the two copies of the card skill.
 - **Why / history:** a rule in `AGENTS.md` and `CLAUDE.md` (no issue number).
-- **Trap:** the two copies of the card skill differ on one line: `/studio/expressions`. The engine copy gives the shape `[{ name, url, character?, outfit? }]`; the Roleplay copy says only that the Sprites tab stores images. Which copy is current is UNVERIFIED. Change both in the same change.
+- **Trap:** the card skill has two copies (this repo and the engine's `.fork/app-skills/roleplay/edit-large-card/SKILL.md`) and no test compares them; they were made identical in #248, so change both in the same change.
 
 ### Strings: shell dictionaries and guide pages
 - **Touches:** `src/lib/i18n.ts` (`en` and `uk` dictionaries, `MsgKey`, `DICTIONARIES`); guide pages `.skills/guide/pages/*.md` and translations `.skills/guide/l10n/<lang>/`; in-app guide `src/lib/guide-tips.ts` (`TIPS`, `TOURS`, `APP_VERSION`) and `manifest.json`.

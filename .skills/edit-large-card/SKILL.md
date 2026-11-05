@@ -28,7 +28,7 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - `/extensions/molfar_translation` keeps the texts from before a translation
   (for "Restore original"): leave it alone. To translate a card, point the user
   to Translate in the character editor instead of rewriting fields one by one.
-- `/studio/expressions` holds the emotion images (a `/v1/assets/<id>` URL, or base64 in older cards): never print a base64 value. Do not write sprite images into the card by hand; the editor's Sprites tab stores them.
+- `/studio/expressions` holds the emotion images, `[{ name, url, character?, outfit? }]` (`url` is a `/v1/assets/<id>` URL, or base64 in older cards): never print a base64 value. `character` names one of the card's `/studio/voices` (absent: the card itself or sprites shared by all), `outfit` a set of clothes (absent: `default`); the same `name` repeats across characters and outfits, so a sprite is told apart by (character, outfit, name), never by `name` alone. `/studio/outfit` is the outfit worn by default. A chat's own choice lives in its meta (`spriteOutfits`), not in the card. Do not write sprite images into the card by hand; the editor's Sprites tab stores them.
 - A card with `/extensions/molfar_profile` (the Profile tab) has `description` and
   `personality` WRITTEN from that profile: change the profile's fields (DATA-FORMATS,
   "The profile"), not the two texts, or the next edit in the Profile tab overwrites yours.

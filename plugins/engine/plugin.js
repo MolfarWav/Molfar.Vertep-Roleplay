@@ -1699,7 +1699,7 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   if (inj.enabled !== false && !off("plugin:relations")) {
     add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * 2 + 200);
     // the said block is its own part with its own fixed room (SAID_TOKENS in the dashboard plugin)
-    if (!(dcfg.said && dcfg.said.inject === false)) add("dashboard said", 120);
+    if (!(dcfg.said && dcfg.said.inject === false) && !off("plugin:said")) add("dashboard said", 120);
     // the character journal: one block per focused character, at most journal.maxTokens each (40..400, default 120)
     const jcfg = dcfg.journal && typeof dcfg.journal === "object" ? dcfg.journal : {};
     if (jcfg.on !== false && jcfg.inject !== false && !off("plugin:journal")) add("dashboard journal", clampInt(jcfg.maxTokens, 40, 400, 120) * DASHBOARD_FOCUS);
