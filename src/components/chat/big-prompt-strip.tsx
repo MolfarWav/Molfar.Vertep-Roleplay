@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { fetchLitConfig, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
 import { useT } from '@/hooks/use-t'
-import { lastPromptTokens, shouldOfferTrim } from '@/lib/long-chat'
+import { alertLimit, lastPromptTokens, shouldOfferTrim } from '@/lib/long-chat'
 import { chatLimits, useApp } from '@/lib/store'
 import type { Chat } from '@/lib/types'
 
@@ -30,14 +30,14 @@ export function BigPromptStrip({ chat }: { chat: Chat }) {
   const tokens = lastPromptTokens(chat.messages)
   const windowTokens = chatLimits(chat.id).contextWindow ?? null
   const [dismissed, setDismissed] = useState<number | null>(() => readDismissed(chat.id))
-  const show = shouldOfferTrim(tokens, windowTokens, dismissed)
+  // the limit lives in the Litopys settings; read again after each reply (a small call), so a change there is seen
   const [cfg, setCfg] = useState<LitConfig | null>(null)
   useEffect(() => {
-    if (!show) return
     let live = true
     fetchLitConfig().then((c) => { if (live) setCfg(c) }).catch(() => { if (live) setCfg(null) })
     return () => { live = false }
-  }, [show])
+  }, [chat.id, tokens])
+  const show = shouldOfferTrim(tokens, alertLimit(cfg, windowTokens), dismissed)
   if (!show) return null
 
   const hide = () => {
@@ -72,7 +72,7 @@ export function BigPromptStrip({ chat }: { chat: Chat }) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="break-words font-medium">{t('big.title', { n: shortTokens(tokens) })}</span>
           <span className="text-[11px] text-muted-foreground max-sm:hidden">
-            {byScenes ? t('big.bodyScenes') : canSwitch ? t('big.bodySwitch') : cfg && !litopysOn ? t('big.bodyNoLit') : t('big.body')}
+            {byScenes ? t('big.bodyScenes') : canSwitch ? t('big.bodySwitch') : cfg && !litopysOn ? t('big.bodyNoLit') : t('big.body')} {t('big.where')}
           </span>
         </div>
       </div>

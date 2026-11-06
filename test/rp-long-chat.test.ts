@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { BIG_PROMPT_TOKENS, isBigPrompt, lastPromptTokens, shouldOfferTrim } from "../src/lib/long-chat";
+import { ALERT_SHARE, alertLimit, lastPromptTokens, shouldOfferTrim } from "../src/lib/long-chat";
 import type { Message } from "../src/lib/types";
 
 const reply = (usage?: { input: number; output: number; cacheRead?: number; cacheWrite?: number }, role: Message["role"] = "assistant"): Message =>
@@ -21,20 +21,31 @@ describe("a chat that has grown large (#261)", () => {
     expect(lastPromptTokens([reply(undefined, "user")])).toBe(0);
   });
 
-  it("is big by cost, or by the share of a known window", () => {
-    expect(isBigPrompt(BIG_PROMPT_TOKENS)).toBe(true);
-    expect(isBigPrompt(BIG_PROMPT_TOKENS - 1)).toBe(false);
-    expect(isBigPrompt(5000, 8000)).toBe(true); // 62% of an 8k window
-    expect(isBigPrompt(4000, 8000)).toBe(false);
-    expect(isBigPrompt(5000, null)).toBe(false);
-    expect(isBigPrompt(0, 8000)).toBe(false);
+  it("the limit is 60% of the window by default, and nothing when the window is unknown", () => {
+    expect(ALERT_SHARE).toBe(0.6);
+    expect(alertLimit(null, 200000)).toBe(120000);
+    expect(alertLimit({ promptAlert: "auto" }, 32768)).toBe(19661);
+    expect(alertLimit(undefined, null)).toBeNull();
+    expect(alertLimit({ promptAlert: "auto" }, 0)).toBeNull();
+  });
+
+  it("the person's own size wins over the window, and Never switches it off", () => {
+    expect(alertLimit({ promptAlert: "tokens", promptAlertTokens: 45000 }, 1000000)).toBe(45000);
+    expect(alertLimit({ promptAlert: "tokens", promptAlertTokens: 45000 }, null)).toBe(45000);
+    expect(alertLimit({ promptAlert: "tokens" }, 1000000)).toBeNull();
+    expect(alertLimit({ promptAlert: "off", promptAlertTokens: 45000 }, 1000000)).toBeNull();
+  });
+
+  it("offers the trim from the limit up, not below it", () => {
+    expect(shouldOfferTrim(120000, 120000, null)).toBe(true);
+    expect(shouldOfferTrim(119999, 120000, null)).toBe(false);
+    expect(shouldOfferTrim(0, 100, null)).toBe(false);
+    expect(shouldOfferTrim(500000, null, null)).toBe(false);
   });
 
   it("stays away after Not now until the prompt has grown by half", () => {
-    expect(shouldOfferTrim(40000, 200000, null)).toBe(true);
-    expect(shouldOfferTrim(40000, 200000, 40000)).toBe(false);
-    expect(shouldOfferTrim(59000, 200000, 40000)).toBe(false);
-    expect(shouldOfferTrim(60000, 200000, 40000)).toBe(true);
-    expect(shouldOfferTrim(10000, 200000, null)).toBe(false);
+    expect(shouldOfferTrim(40000, 30000, 40000)).toBe(false);
+    expect(shouldOfferTrim(59000, 30000, 40000)).toBe(false);
+    expect(shouldOfferTrim(60000, 30000, 40000)).toBe(true);
   });
 });

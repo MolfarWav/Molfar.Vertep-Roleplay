@@ -1051,6 +1051,9 @@ export const DEFAULT_CONFIG = {
   // leaves whole as soon as its chapter exists, and sceneKeep (2 and up, no upper limit in practice) direct messages stay after the last one
   cutMode: "fit",
   sceneKeep: 2,
+  // the chat strip that offers a cut once a reply sent this much (#261): "auto" = 60% of the model's window, "tokens" = promptAlertTokens, "off" = never
+  promptAlert: "auto",
+  promptAlertTokens: 30000,
   scene: {
     minMessages: 6,
     maxMessages: 40,
@@ -1375,6 +1378,8 @@ export function loadConfig(fsx) {
   cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
   cfg.cutMode = cfg.cutMode === "scenes" ? "scenes" : "fit";
   cfg.sceneKeep = clamp(cfg.sceneKeep, 2, SCENE_KEEP_MAX);
+  cfg.promptAlert = cfg.promptAlert === "tokens" || cfg.promptAlert === "off" ? cfg.promptAlert : "auto";
+  cfg.promptAlertTokens = clamp(intOf(cfg.promptAlertTokens, 30000), 1000, 5000000);
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
@@ -1430,6 +1435,8 @@ export function patchConfig(fsx, body) {
   if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 100), 6, 200);
   if (b.cutMode !== undefined) next.cutMode = b.cutMode === "scenes" ? "scenes" : "fit";
   if (b.sceneKeep !== undefined) next.sceneKeep = clamp(intOf(b.sceneKeep, 2), 2, SCENE_KEEP_MAX);
+  if (b.promptAlert !== undefined) next.promptAlert = b.promptAlert === "tokens" || b.promptAlert === "off" ? b.promptAlert : "auto";
+  if (b.promptAlertTokens !== undefined) next.promptAlertTokens = clamp(intOf(b.promptAlertTokens, 30000), 1000, 5000000);
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);

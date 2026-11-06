@@ -8,7 +8,7 @@ The messages grow, and so does the story record that Litopys writes ([[litopys]]
 
 ## What happens by itself
 
-Litopys turns finished scenes into chapters and facts. By default the whole chat is still sent while the model's window has room for it, and the oldest messages that a chapter already holds leave only when the window runs short. So on a big window the cost keeps growing. When a reply sends about 30,000 tokens, or most of the window, a strip above the message box says so and offers the two ways out below: "Send finished scenes as chapters" and "Continue in a new chat". "Not now" hides it until the prompt has grown by half.
+By default the whole chat is sent while the window has room, and messages that a chapter already holds leave only when the window runs short. On a big window the cost keeps growing. When a reply sends 60% of the model's window, a strip above the message box says so and offers the two ways out below: "Send finished scenes as chapters" and "Continue in a new chat". "Not now" hides it until the prompt has grown by half. "Remind me when the prompt is big", next to "Memory size", sets the limit: 60% of the window, your own size in tokens, or never.
 
 The record has its own size. In the Library, gear "Litopys settings", block "In the prompt", "Memory size" is Auto by default: 15% of the model's window, between 800 and 16000 tokens. On a big window that can raise the cost; "Compact" keeps it at 800.
 
@@ -19,7 +19,7 @@ In the same block, "Older messages leave the prompt" has two choices:
 - **Only when the window is full** (default): every message is sent while it fits.
 - **By scenes**: as soon as a chapter holds a scene, the whole scene is replaced by the chapter. Only the last messages stay word for word ("Direct messages after the scenes", 2 or more). The newest scene has no chapter yet, so it is sent in full.
 
-"By scenes" is the nearest thing to automatic trimming. It costs some detail: a chapter is a retelling, so a weak model may lose a small thing that the old messages carried. Pin a fact that must never be lost ([[litopys]]).
+"By scenes" is the nearest thing to automatic trimming. It costs some detail: a chapter is a retelling, so a weak model may lose a small thing. Pin a fact that must never be lost ([[litopys]]).
 
 Other cuts:
 
@@ -40,7 +40,7 @@ The new chat opens with the card's first greeting, and a hint under it says so, 
 
 ## Save a story as a book
 
-In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and facts onto the Data Bank shelf for the chats you pick. A character only gets what they were there for or were told. See [[memory]].
+In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and facts onto the Data Bank shelf for the chats you pick. A character only gets what they witnessed or were told. See [[memory]].
 
 ## Check what the model got
 

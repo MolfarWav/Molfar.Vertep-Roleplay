@@ -114,3 +114,21 @@ describe("cutMode scenes in the plugin", () => {
     expect(put({ cutMode: "nonsense" }).json.cutMode).toBe("fit");
   });
 });
+
+describe("the prompt reminder setting (#261)", () => {
+  it("is auto by default, with 30000 tokens kept for the custom size", () => {
+    const c = L.loadConfig(mockHost().host.fs);
+    expect(c.promptAlert).toBe("auto");
+    expect(c.promptAlertTokens).toBe(30000);
+  });
+
+  it("is saved, clamped, and an unknown mode is auto", () => {
+    const m = mockHost();
+    const put = (body: any) => L.handleRoute({ method: "PUT", path: "/litopys/config", query: {}, body }, m.host);
+    expect(put({ promptAlert: "tokens", promptAlertTokens: 80000 }).json).toMatchObject({ promptAlert: "tokens", promptAlertTokens: 80000 });
+    expect(put({ promptAlertTokens: 5 }).json.promptAlertTokens).toBe(1000);
+    expect(put({ promptAlertTokens: 99999999999 }).json.promptAlertTokens).toBe(5000000);
+    expect(put({ promptAlert: "off" }).json.promptAlert).toBe("off");
+    expect(put({ promptAlert: "nonsense" }).json.promptAlert).toBe("auto");
+  });
+});

@@ -293,6 +293,9 @@ export interface LitConfig {
   cutMode?: 'fit' | 'scenes'
   /** direct messages kept after the cut scenes in 'scenes' mode, from 2 */
   sceneKeep?: number
+  /** when the chat strip offers a cut (#261): 'auto' = 60% of the model's window, 'tokens' = promptAlertTokens, 'off' = never */
+  promptAlert?: 'auto' | 'tokens' | 'off'
+  promptAlertTokens?: number
   scene: { minMessages: number; maxMessages: number }
   pinLimit: number
   insert: boolean

@@ -269,6 +269,10 @@ stale and rewritten for the new layout. Overlapping marks and marks whose messag
   history began, `count` 0 = the whole chat); the Litopys insert carries a chapter for every message before it, and in
   `scenes` mode exactly those. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
   cut) as `meta.litopysCut`.
+- `promptAlert` (`auto`, default, `tokens` or `off`) and `promptAlertTokens` (1000 to 5000000, default 30000; `litopys/config.json`, #261):
+  when the chat's strip offers a cut. The size is what the model was sent for the newest reply (`usage.input` plus cached input
+  of the active swipe). `auto`: 60% of the model's context window (no strip when the window is unknown); `tokens`: the number
+  in `promptAlertTokens`; `off`: never. "Not now" is the browser's (`rp.bigPrompt.<chatId>` in localStorage), not config.
 - Vectors (`litopys/vectors/<chatId>.json`, `{ id: { hash, vector, m? } }`, one for each chapter and active fact, written
   after a chapter when an embedding connection exists, or on the user's click, see below): when the engine passes the embedding of the scan window
   (`turn.scanVec`), the facts and chapters that are ranked get a bonus for being near it in meaning (an arc takes the
