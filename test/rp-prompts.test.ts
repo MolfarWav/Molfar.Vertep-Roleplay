@@ -153,6 +153,8 @@ describe("plugin prompts: English, with a language line where the model writes f
       await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode } }, m);
       const asked = m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content;
       expect(CYRILLIC.test(asked), mode).toBe(false);
+      // the output is capped: without it the provider reserves the model's whole output and refuses a paid account with 402
+      expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.presetParams?.max_tokens, mode).toBe(1200);
       expect(asked, mode).toContain("Write the image prompt in English, whatever language the story is in.");
     }
   });
@@ -200,6 +202,24 @@ describe("image prompt style (MolfarWav/Molfar.Vertep#53)", () => {
     const plain = await ask(undefined, "x");
     expect(plain.asked).toContain("one paragraph of plain visual description");
     expect(plain.asked).not.toContain("Danbooru tags");
+  });
+
+  it("a place the story moved to is described in the story's own setting, without the person's name", async () => {
+    const m = mockHost("x");
+    await drive(engineUrl, { method: "POST", path: "/chats", body: { characterId: "aria" } }, m);
+    const id = (fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".meta.json")) as string).replace(/\.meta\.json$/, "");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "background", subject: "Lyra's private quarters at night" } }, m);
+    const asked = m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string;
+    expect(asked).toContain("The user asked for: Lyra's private quarters at night");
+    expect(asked).toContain("never a modern one");
+    expect(asked).toContain("leave the name out");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "background", subject: "the mill", setting: "  medieval fantasy,   candlelight " } }, m);
+    expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string).toContain("(keep to it, in its own words where you can): medieval fantasy, candlelight");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "background", subject: "the mill" } }, m);
+    expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string).not.toContain("The look the user wants");
+    // the note is for a place only: a portrait or a scene does not get it
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "scene", subject: "x" } }, m);
+    expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content).not.toContain("never a modern one");
   });
 
   it("the image server's guidance goes into the request", async () => {
