@@ -69,6 +69,21 @@ describe("a job", () => {
     expect(job.failed[1]!.message).toBe("boom");
   });
 
+  it("a draw job carries its verb, and a thrown unit is listed with the reason", async () => {
+    await forEachImport(
+      "Drawing portraits",
+      ["you"],
+      (x) => x,
+      async () => {
+        throw new Error("\"You\" has nothing to describe it from");
+      },
+      { verb: "draw" },
+    );
+    const job = jobs()[0]!;
+    expect(job.verb).toBe("draw");
+    expect(job.failed).toEqual([{ name: "you", message: "\"You\" has nothing to describe it from" }]);
+  });
+
   it("Cancel on a job that has ended changes nothing", () => {
     const run = beginImport("x", 1);
     run.end();

@@ -316,8 +316,8 @@ async function fileRouteError(res: Response, label: string): Promise<string> {
   return `Download from ${label} failed (${said || res.status}).`
 }
 
-/** Install a card from a link on RisuRealm, CharaVault, Wyvern, Pygmalion or
- *  a direct file link (GitHub raw, Hugging Face, Catbox, Discord). The plugin
+/** Install a card from a link on RisuRealm, CharaVault, Wyvern, Pygmalion,
+ *  Botbooru or a direct file link (GitHub raw, Hugging Face, Catbox, Discord). The plugin
  *  says where the file is (POST /fetch/card {resolve}); the file itself comes
  *  through the engine's file route (GET <api>/file, any size up to 200 MB,
  *  the plugins' host allowlist) and goes through importCardFiles like a

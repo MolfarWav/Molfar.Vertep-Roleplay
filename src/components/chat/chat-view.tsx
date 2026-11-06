@@ -45,6 +45,7 @@ import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { WorldSheet } from '@/components/chat/world-sheet'
+import { rememberWorldTab } from '@/lib/world-nav'
 import { WorldStatusButton, useWorldDot } from '@/components/world/world-status'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
@@ -1427,6 +1428,20 @@ export function ChatView() {
                 }
               }}
             />
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2" data-testid="chat-bg-by-scene">
+              <span className="min-w-0 text-xs">
+                <span className="block font-medium">{t('chat.bg.byScene')}</span>
+                <span className="block text-muted-foreground">{t('chat.bg.bySceneHint')}</span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 text-xs max-md:h-10"
+                onClick={() => { setDisplayOpen(false); rememberWorldTab('backgrounds'); useApp.getState().focusWorldChat(chat.id) }}
+              >
+                {t('chat.bg.byScene.open')}
+              </Button>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"

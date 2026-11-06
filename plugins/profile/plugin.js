@@ -19,6 +19,8 @@
  *   POST   /profile/persona-ideas {idea?, image?, wish?}      three drafts of a new persona from a few words (and a picture),
  *          with up to two quick questions; the reply is {ok, drafts, questions} or {ok: false, error, code?}. Nothing is filed:
  *          the app makes the persona from the draft the user picks (code "no-model": no model is set up for it)
+ *   POST   /profile/portrait-prompt {characterId, style?, guide?, model?, card?}  what the card looks like, for an image server
+ *          (one model call; the reply is {ok, prompt, model} or {ok: false, code, error}; nothing is filed)
  *   GET    /profile/draft?characterId= | ?personaId= | ?groupId=  the draft, or null
  *   DELETE /profile/draft?characterId= | ?personaId= | ?groupId=  discard it
  *   GET    /profile/card-tasks?characterId=                     the card's own task settings and the model that will run
@@ -670,6 +672,103 @@ function ideasRoute(req, host) {
   return ok({ ok: true, drafts: out.drafts, questions: out.questions });
 }
 
+// ---------- Portrait prompt: what a card looks like, for an image server ----------
+
+/** One paragraph of plain visual description (the shape the image servers that read prose want) ... */
+export const PORTRAIT_DESC_RULES = [
+  "This description goes straight to an image generator. Write one paragraph of plain visual description, present tense, under 120 words.",
+  "Describe this person by what they look like: build, face, hair, eyes, skin, clothing, accessories, upper-body pose and expression, against a plain background. The image generator does not know anyone's name.",
+  "Frame it as a half-body portrait: head and shoulders to the waist, the face the clear subject.",
+  "Leave out dialogue, thoughts, sounds, smells, backstory and anything a camera could not see.",
+  "Write it in English, whatever language this character is written in.",
+  "Reply with only the description.",
+].join(" ");
+
+/** ... or one line of Danbooru tags, for the checkpoints trained on them (ComfyUI, Forge). */
+export const PORTRAIT_TAG_RULES = [
+  "This goes straight to an anime-style image generator trained on Danbooru tags.",
+  "Reply with one line of comma-separated tags, lowercase, no sentences, at most 40 tags: count (1girl, 1boy, solo), appearance, clothing, pose, expression, hair, eyes, background, framing (portrait, upper body).",
+  "No character names, no quality or style tags, no negatives. English whatever language this character is written in.",
+  "Reply with only the tags.",
+].join(" ");
+
+/** What the model reads: who the card is, in the card's own words; "" when there is nothing to draw from. */
+export function portraitContent(card) {
+  const name = str(card.name);
+  const desc = str(card.description);
+  const pers = str(card.personality);
+  const scen = str(card.scenario);
+  if (!name || (!desc && !pers && !scen)) return "";
+  return [
+    "Draw the avatar portrait of this character.",
+    "Name: " + cut(name, 200),
+    desc ? "Description:\n" + cut(desc, 3000) : "",
+    pers ? "Personality:\n" + cut(pers, 1500) : "",
+    scen ? "Scenario:\n" + cut(scen, 1000) : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+/** The reply without reasoning, fences or a "Here is..." lead-in. */
+export function cleanPortraitDesc(text) {
+  let t = String(text || "").replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, "").trim();
+  const fence = t.match(/^```[\w-]*\s*\n?([\s\S]*?)\n?```$/);
+  if (fence) t = fence[1].trim();
+  t = t
+    .replace(/^(?:portrait|prompt|description|tags)\s*:\s*/i, "")
+    .replace(/^here(?:'s| is) (?:the |your )?(?:portrait|prompt|description|tags)\s*:\s*/i, "")
+    .trim();
+  return t.replace(/\s+/g, " ").trim().slice(0, 1500);
+}
+
+/** One line of Danbooru tags: snake_case, ASCII word tags only, no repeats, at most 40. */
+export function cleanPortraitTags(text) {
+  const list = String(text || "")
+    .split(/[\n,;]+/)
+    .map((s) => s.trim().replace(/\s+/g, "_").toLowerCase())
+    .filter((s) => s && s.length <= 50 && /^[a-z0-9_()\-.]+$/.test(s) && /[a-z]/.test(s));
+  return [...new Set(list)].slice(0, 40).join(", ");
+}
+
+/**
+ * POST /profile/portrait-prompt {characterId, style?: "tags" | "description", guide?, model?, card?}
+ * One model call (the card tasks chain) that describes the card for an image server. Writes nothing: the app draws it and keeps
+ * the picture. `card` is the editor's working text, `guide` the image server's own advice for its prompts.
+ */
+function portraitRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const t = targetOf({ characterId: b.characterId });
+  if (!t) return ok({ error: "characterId required" }, 400);
+  const stored = readJson(fsx, sourcePath(t), null);
+  if (!isObj(stored)) return ok({ error: "no such character" }, 404);
+  const card = withWorkingText(stored, req.body, t);
+  const tags = str(b.style) === "tags";
+  const r = host.llm.results.portrait;
+  if (!r) {
+    const content = portraitContent(card);
+    if (!content) {
+      const name = str(card.name);
+      return ok({ ok: false, code: "nothing", error: name
+        ? "\"" + cut(name, 60) + "\" has nothing to describe it from: give the card a description, personality or scenario first."
+        : "This card has no name or text to describe it from." });
+    }
+    const model = modelOf(fsx, t.id, b.model);
+    const guide = cut(str(b.guide), 600);
+    host.llm.request("portrait", {
+      ...(model ? { model } : {}),
+      systemPrompt: (tags ? PORTRAIT_TAG_RULES : PORTRAIT_DESC_RULES)
+        + (guide ? "\n\nThe image server's own guidance (follow it where it does not break these rules): " + guide : ""),
+      messages: [{ role: "user", content }],
+      presetParams: { temperature: 0.7, max_tokens: tags ? 400 : 700 },
+    });
+    return { __llmPending: true, stash: {} };
+  }
+  if (r.error) return ok({ ok: false, code: "model", error: str(r.error.message) || str(r.error) || "The model call failed." });
+  const prompt = tags ? cleanPortraitTags(r.text) : cleanPortraitDesc(r.text);
+  if (!prompt) return ok({ ok: false, code: "empty", error: "The model returned an empty description. Try again, or pick another model." });
+  return ok({ ok: true, prompt, model: str(r.model) });
+}
+
 // ---------- Group scene: the shared scenario, then openings ----------
 
 /** How the scenario is invented: from what the cards say, or a surprise. */
@@ -863,6 +962,7 @@ export function handleRoute(req, host) {
   if (path === "/profile/structure" && req.method === "POST") return structureRoute(req, host);
   if (path === "/profile/fill" && req.method === "POST") return fillRoute(req, host);
   if (path === "/profile/persona-ideas" && req.method === "POST") return ideasRoute(req, host);
+  if (path === "/profile/portrait-prompt" && req.method === "POST") return portraitRoute(req, host);
   if (path === "/profile/group-scene" && req.method === "POST") return sceneRoute(req, host);
   if (path === "/profile/group-opening" && req.method === "POST") return openingRoute(req, host);
   if (path === "/profile/draft" && (req.method === "GET" || req.method === "DELETE")) return draftRoute(req, host.fs);

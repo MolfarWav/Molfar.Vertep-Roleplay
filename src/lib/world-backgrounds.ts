@@ -2,7 +2,11 @@
 // existing library. Pure helpers and small fetches; the store is passed in, never imported (the store
 // calls `applySceneBackground`).
 
-import { j } from '@/lib/engine'
+import { toast } from 'sonner'
+import { fetchImageModels, j } from '@/lib/engine'
+import { buildImagePrompt, describeForImage, generateImage, imageTargetOf, type ImageGenSettings } from '@/lib/image-gen'
+import { resolveLanguage, t } from '@/lib/i18n'
+import { loadWorldBackgrounds, loadWorldConfig, type WorldPlace } from '@/lib/world'
 import { backgroundBlob, storeBackground } from '@/lib/webp'
 import type { BackgroundItem, Chat, ID } from '@/lib/types'
 
@@ -103,11 +107,20 @@ export function findByName(backgrounds: BackgroundItem[], folderId: ID, name: st
  * The Dashboard sensor named an image of the chat's folder: make it the chat's background. Called after
  * each Dashboard update; nothing else changes the background by itself. A picture bound to the scene's place
  * (World > Places) wins and needs no folder; else the newest snapshot with a `background` that is in the
- * folder; no pick or an unknown name changes nothing. A bound picture that left the library is ignored.
+ * folder. A name the folder has no picture of changes nothing, unless the chat's picture checkbox is ticked
+ * (World > Backgrounds) and image generation is on: then the place is drawn (one at a time across the app, a
+ * chat at most once a minute), filed into the folder and applied. A bound picture that left the library is ignored.
  */
 export async function applySceneBackground(
   chatId: ID,
-  s: { chats: Chat[]; backgrounds: BackgroundItem[]; updateChat: (id: ID, patch: Partial<Chat>) => void },
+  s: {
+    chats: Chat[]
+    backgrounds: BackgroundItem[]
+    updateChat: (id: ID, patch: Partial<Chat>) => void
+    settings?: { imageGen?: ImageGenSettings; language?: string }
+    addBackground?: (name: string, url: string) => ID
+    updateBackground?: (id: ID, patch: Partial<BackgroundItem>) => void
+  },
 ): Promise<void> {
   const chat = s.chats.find((c) => c.id === chatId)
   const auto = chat?.autoBackground
@@ -126,12 +139,126 @@ export async function applySceneBackground(
   try {
     const r = await j<{ state: { snapshots?: Record<string, { background?: unknown }> } | null; current: string | null }>(`/dashboard/state?chatId=${encodeURIComponent(chatId)}`)
     const b = r.current ? r.state?.snapshots?.[r.current]?.background : null
-    name = typeof b === 'string' ? b : ''
+    name = typeof b === 'string' ? b.trim().slice(0, 60) : ''
   } catch {
     return
   }
   const bg = findByName(s.backgrounds, auto.folderId, name)
-  if (bg && chat.backgroundId !== bg.id) s.updateChat(chatId, { backgroundId: bg.id })
+  if (bg) {
+    if (chat.backgroundId !== bg.id) s.updateChat(chatId, { backgroundId: bg.id })
+    return
+  }
+  // a place the folder has no picture of: draw it, but only past every gate
+  if (!name) return
+  const now = Date.now()
+  if (autoDrawBlock(chatId, auto, s.settings?.imageGen?.enabled === true, now, drawingChats, lastDrawAt) || drawFailedRecently(chatId, name, now)) return
+  if (!s.addBackground || !s.updateBackground) return
+  drawingChats.add(chatId)
+  lastDrawAt.set(chatId, now)
+  // one image job at a time across the app: a single image server serves every chat, so a burst of Dashboard updates queues
+  const job = drawQueue.then(() => drawSceneBackground(chatId, name, auto.folderId!, s)).catch(() => {})
+  drawQueue = job
+  try {
+    await job
+  } finally {
+    drawingChats.delete(chatId)
+  }
+}
+
+/** Why a place with no picture is NOT being drawn right now, or null to go ahead: the chat's switch and folder, its picture
+ *  checkbox, image generation on, nothing running for this chat, and a cooldown after the last attempt (so a sensor that
+ *  invents places, or a failing image server, cannot burn the queue). */
+export function autoDrawBlock(
+  chatId: ID,
+  auto: { on?: boolean; folderId?: ID; draw?: boolean } | null | undefined,
+  imageGenOn: boolean,
+  now: number,
+  running: ReadonlySet<ID>,
+  lastAt: ReadonlyMap<ID, number>,
+  cooldownMs: number = DRAW_COOLDOWN_MS,
+): 'no-place' | 'checkbox' | 'image-gen' | 'busy' | 'cooldown' | null {
+  if (!auto?.on || !auto.folderId) return 'no-place'
+  if (auto.draw !== true) return 'checkbox'
+  if (!imageGenOn) return 'image-gen'
+  if (running.has(chatId)) return 'busy'
+  if (now - (lastAt.get(chatId) ?? 0) < cooldownMs) return 'cooldown'
+  return null
+}
+
+/** Drawing state: the running chain, the chats with a job queued, the last attempt per chat, the places that failed. */
+let drawQueue: Promise<void> = Promise.resolve()
+const drawingChats = new Set<ID>()
+const lastDrawAt = new Map<ID, number>()
+const failedDraws = new Map<string, number>()
+export const DRAW_COOLDOWN_MS = 60_000
+/** A place whose drawing failed is not tried again for this long (the sensor keeps naming it every update). */
+export const DRAW_RETRY_MS = 15 * 60_000
+
+const placeKey = (chatId: ID, name: string) => `${chatId}\u0001${name.trim().toLowerCase()}`
+export function drawFailedRecently(chatId: ID, name: string, now: number): boolean {
+  return now - (failedDraws.get(placeKey(chatId, name)) ?? 0) < DRAW_RETRY_MS
+}
+export function noteDrawFailed(chatId: ID, name: string, now: number): void {
+  failedDraws.set(placeKey(chatId, name), now)
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
+/** The World's own record of the place the sensor named, when it has one: the name matches, or contains / is contained
+ *  in the record's name or an alias (the sensor writes "old mill at dusk", the record says "Old Mill"). */
+export function placeRecordFor(name: string, places: readonly WorldPlace[]): WorldPlace | undefined {
+  const n = norm(name)
+  if (!n) return undefined
+  return places.find((p) => [p.name, ...(p.aliases ?? [])].some((x) => {
+    const k = norm(x)
+    return k.length >= 3 && (k === n || n.includes(k) || k.includes(n))
+  }))
+}
+
+/** What the description is about: the place's name, and the World's record of it when there is one. */
+export function placeSubject(name: string, record?: Pick<WorldPlace, 'text'>): string {
+  const text = record?.text?.replace(/\s+/g, ' ').trim()
+  return (text ? `${name}. ${text}` : name).slice(0, 500)
+}
+
+/** Describe the place with the chat's model, draw it with the World's image model, file it into the folder, apply it. */
+async function drawSceneBackground(
+  chatId: ID,
+  name: string,
+  folderId: ID,
+  s: {
+    chats: Chat[]
+    backgrounds: BackgroundItem[]
+    updateChat: (id: ID, patch: Partial<Chat>) => void
+    settings?: { imageGen?: ImageGenSettings; language?: string }
+    addBackground?: (name: string, url: string) => ID
+    updateBackground?: (id: ID, patch: Partial<BackgroundItem>) => void
+  },
+): Promise<void> {
+  const ig = s.settings?.imageGen
+  if (!ig?.enabled || !s.addBackground || !s.updateBackground) return
+  try {
+    const [models, cfg, world] = await Promise.all([
+      fetchImageModels(),
+      loadWorldConfig(chatId).catch(() => null),
+      loadWorldBackgrounds({ chatId }).catch(() => null),
+    ])
+    // the World's own image model when it has one (World > Settings), else the app's
+    const target = imageTargetOf(ig, models, cfg?.imageModel)
+    const subject = placeSubject(name, placeRecordFor(name, world?.places ?? []))
+    const described = await describeForImage(chatId, 'background', null, target.style, target.guide, subject)
+    const img = await generateImage({ prompt: buildImagePrompt(ig, described), negativePrompt: ig.negativePrompt, model: target.model || undefined })
+    const blob = await backgroundBlob(img.url)
+    const taken = s.backgrounds.filter((b) => b.folderId === folderId).map((b) => toSnake(b.name))
+    const stored = await storeBackground(blob, uniqueName(toSnake(name) || 'place', taken))
+    // the name stays as the sensor wrote it (matched without case later), so the next pick finds the picture instead of drawing it again
+    const id = s.addBackground(name, stored.url)
+    s.updateBackground(id, { folderId })
+    if (s.chats.find((c) => c.id === chatId)?.backgroundId !== id) s.updateChat(chatId, { backgroundId: id })
+  } catch (e) {
+    noteDrawFailed(chatId, name, Date.now())
+    toast.error(t('world.bg.drawFailed', resolveLanguage(s.settings?.language), { name, why: String((e as Error)?.message ?? e) }), { id: `autobg-${chatId}` })
+  }
 }
 
 /** A picture scaled so its longest side is `max`, as base64 JPEG, for the vision model. */

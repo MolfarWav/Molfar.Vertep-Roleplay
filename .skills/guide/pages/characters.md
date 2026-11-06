@@ -27,7 +27,7 @@ A group puts several characters into one chat. "New group" lets you pick members
 
 ## Getting cards
 
-- "Import card" accepts PNG or JSON files, one or many, and links to Chub, RisuRealm, CharaVault or a direct file.
+- "Import card" accepts PNG or JSON files, one or many, and links to Chub, RisuRealm, CharaVault, Botbooru or a direct file.
 - The Marketplace searches several sources at once; open a result to read the full card before importing. Each source has its own sort order and adult filter, and some need a manual download.
 - Export writes a PNG with the card inside.
 - "With Molfar" on Home (and in Lorebooks) asks Molfar to draft a card or a lorebook with you. See [[vertep:molfar]].
@@ -37,6 +37,12 @@ A group puts several characters into one chat. "New group" lets you pick members
 A card you have not played for a while can write you a short note in its own voice. The note lands in the inbox (Home's "Waiting on you", the inbox button in the rail) as a green Letter; opening it takes you to the old chat, or starts a chat for a card you never played. A letter never writes into a chat and never invents events.
 
 It is **off until you turn it on**. While it is off, a green card "Let your characters write to you" sits at the top of the Characters section and in Home's "Waiting on you": **Turn on** switches it on at once, **Not now** hides the card for good. The numbers (days of idle, letters a day, days between letters from one card, the writing model) and the cards you stopped are in Characters, More, Letters from cards. Letters are checked every few hours while the app is open: a chat idle for 14 days, a card you never played for 14 days, and a played card with no Soul (once).
+
+## Portraits for cards without one
+
+A card with no picture of its own (nothing, or the default avatar) can be drawn. **One card:** in the card editor, "Draw" under the portrait opens a dialog: pick the image model, a text model (the Card tasks model) writes a description of the card, which you can edit, and the image model draws it. The picture goes to the card's Gallery at once and "Use as portrait" makes it the avatar. **Many cards:** Characters, More, "Draw missing portraits (N)" asks which model and then draws them one after another through the progress card; Cancel stops it between cards and a card that fails is listed with the reason.
+
+"Draw with" lists the image models of Settings > Images: a local ComfyUI or Forge next to API models. The first choice is the app's own image model (Extensions > Image generation); a pick here is remembered for portraits only. A tag-trained model gets a line of tags, an API model a paragraph. A card with only a name has nothing to describe, and the dialog says so. Image generation must be on (Extensions); the dialogs say so and open it for you.
 
 ## What a card does not hold
 

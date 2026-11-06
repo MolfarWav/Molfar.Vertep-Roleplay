@@ -94,6 +94,7 @@ const SOURCES = [
   { value: 'wyvern', label: 'Wyvern', name: 'Wyvern' },
   { value: 'pygmalion', label: 'Pygmalion', name: 'Pygmalion' },
   { value: 'janny', label: 'JannyAI', name: 'JannyAI' },
+  { value: 'botbooru', label: 'Botbooru', name: 'Botbooru' },
 ] as const
 type SourceId = (typeof SOURCES)[number]['value']
 const sourceName = (id: string | undefined): string => SOURCES.find((s) => s.value === id)?.name ?? ''
@@ -108,6 +109,7 @@ const NOTES: Partial<Record<SourceId, string>> = {
   wyvern: 'Wyvern shows SFW cards only without an account. Lorebooks linked on Wyvern do not come with the import.',
   pygmalion: 'Pygmalion shows SFW cards only without an account.',
   janny: 'JannyAI cards can only be downloaded in the browser: press "Get on JannyAI", download the PNG there, then drop it on the bar below.',
+  botbooru: 'Botbooru shows SFW cards only without an account; the app has none there, so adult cards are not listed.',
 }
 const WYVERN_SORT_OPTIONS = [
   { value: 'popular', label: 'Popular' }, { value: 'recommended', label: 'Recommended' }, { value: 'newest', label: 'Newest' },
@@ -120,6 +122,10 @@ const PYG_SORT_OPTIONS = [
 const JANNY_SORT_OPTIONS = [
   { value: 'default', label: 'Relevance / newest' }, { value: 'oldest', label: 'Oldest' },
   { value: 'tokens', label: 'Most tokens' }, { value: 'tokens_asc', label: 'Fewest tokens' },
+] as const
+const BB_SORT_OPTIONS = [
+  { value: 'downloads', label: 'Most downloaded' }, { value: 'favorites', label: 'Most favourited' },
+  { value: 'views', label: 'Most viewed' }, { value: 'newest', label: 'Newest' }, { value: 'random', label: 'Random' },
 ] as const
 /** JannyAI's tag names; the index stores ids, so the picker offers this list. */
 const JANNY_TAGS = ['Male', 'Female', 'Non-binary', 'Celebrity', 'OC', 'Fictional', 'Real', 'Game', 'Anime', 'Historical', 'Royalty', 'Detective', 'Hero', 'Villain', 'Magical', 'Non-human', 'Monster', 'Monster Girl', 'Alien', 'Robot', 'Politics', 'Vampire', 'Giant', 'OpenAI', 'Elf', 'Multiple', 'VTuber', 'Dominant', 'Submissive', 'Scenario', 'Pokemon', 'Assistant', 'Non-English', 'Philosophy', 'RPG', 'Religion', 'Books', 'AnyPOV', 'Angst', 'Demi-Human', 'Enemies to Lovers', 'Smut', 'MLM', 'WLW', 'Action', 'Romance', 'Horror', 'Slice of Life', 'Fantasy', 'Drama', 'Comedy', 'Mystery', 'Sci-Fi', 'Yandere', 'Furry', 'Movies/TV']
@@ -247,7 +253,7 @@ const NO_SOURCE: SourceState = {
   query: '', applied: '', sort: 'downloads', trending: false,
   tags: [], tagsMode: 'all', creator: null, origin: '', page: 1,
 }
-const DEFAULT_SORT: Record<SourceId, string> = { chub: 'downloads', risurealm: 'recommended', charavault: 'downloads', wyvern: 'popular', pygmalion: 'downloads', janny: 'default' }
+const DEFAULT_SORT: Record<SourceId, string> = { chub: 'downloads', risurealm: 'recommended', charavault: 'downloads', wyvern: 'popular', pygmalion: 'downloads', janny: 'default', botbooru: 'downloads' }
 const initialSourceState = (id: SourceId): SourceState => ({ ...NO_SOURCE, sort: DEFAULT_SORT[id] })
 const NO_BROWSE: Browse = {
   source: 'chub', scrollTop: 0,
@@ -260,7 +266,7 @@ function loadSourceState(id: SourceId, raw: unknown): SourceState {
   const p = (raw && typeof raw === 'object' ? raw : {}) as Partial<SourceState>
   const sorts: readonly string[] = id === 'risurealm' ? RISU_SORT_OPTIONS.map((o) => o.value) : id === 'charavault' ? CV_SORT_OPTIONS.map((o) => o.value)
     : id === 'wyvern' ? WYVERN_SORT_OPTIONS.map((o) => o.value) : id === 'pygmalion' ? PYG_SORT_OPTIONS.map((o) => o.value)
-    : id === 'janny' ? JANNY_SORT_OPTIONS.map((o) => o.value) : SORTS
+    : id === 'janny' ? JANNY_SORT_OPTIONS.map((o) => o.value) : id === 'botbooru' ? BB_SORT_OPTIONS.map((o) => o.value) : SORTS
   return {
     query: str(p.query),
     applied: str(p.applied),
@@ -383,7 +389,7 @@ export function MarketplaceView() {
   const [tagQuery, setTagQuery] = useState('')
   /** Tag vocabulary bootstrapped from the results the user has actually seen
    *  (chub has no tag-list endpoint) — ranked by how often they appeared. */
-  const [vocabs, setVocabs] = useState<Record<SourceId, { tag: string; n: number }[]>>({ chub: [], risurealm: [], charavault: [], wyvern: [], pygmalion: [], janny: JANNY_VOCAB })
+  const [vocabs, setVocabs] = useState<Record<SourceId, { tag: string; n: number }[]>>({ chub: [], risurealm: [], charavault: [], wyvern: [], pygmalion: [], janny: JANNY_VOCAB, botbooru: [] })
   /** Filters are kept per source: chub's never leak into CharaVault. */
   const [allFilters, setAllFilters] = useState<Record<FilterSource, Filters>>(() => ({ chub: loadFilters('chub'), charavault: loadFilters('charavault'), janny: loadFilters('janny') }))
   const filterSrc: FilterSource = isFilterSource(source) ? source : 'chub'
@@ -530,7 +536,9 @@ export function MarketplaceView() {
             ? { source, search: applied, sort, page, first: PAGE_SIZE }
             : source === 'janny'
               ? { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, tags, ...(sort !== 'default' ? { sort } : {}), ...filterBody(filters, 'janny') }
-              : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
+              : source === 'botbooru'
+                ? { source, search: applied, sort, page, first: PAGE_SIZE }
+                : { source, search: applied, page, first: PAGE_SIZE, nsfw: showAdult, ...(sort !== 'recommended' ? { sort } : {}) }
     const cacheKey = JSON.stringify(body)
     // new source, page, sort or filters: the results start at the top. The
     // first search of a visit keeps the restored scroll position.
@@ -545,7 +553,7 @@ export function MarketplaceView() {
       setCount(r.count)
       setHasMore(r.hasMore ?? page * (r.first || PAGE_SIZE) < r.count)
       setPageSize(r.first || PAGE_SIZE)
-      if (source === 'risurealm' || source === 'pygmalion' || source === 'janny') return
+      if (source === 'risurealm' || source === 'pygmalion' || source === 'janny' || source === 'botbooru') return
       setVocabs((all) => {
         const by = new Map(all[source].map((v) => [v.tag, v.n]))
         for (const it of r.results) for (const t of it.topics) by.set(t, (by.get(t) ?? 0) + 1)
@@ -862,6 +870,16 @@ export function MarketplaceView() {
                   </SelectContent>
                 </Select>
               </>
+            )}
+            {source === 'botbooru' && (
+              <Select value={sort} onValueChange={(v) => patch({ sort: String(v), page: 1 })}>
+                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Sort Botbooru results">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BB_SORT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             )}
             {isChub && (
               <>
