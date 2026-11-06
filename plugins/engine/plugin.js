@@ -1178,6 +1178,68 @@ export function searchDatabank(fsx, query, limit = 3, scope, info) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/** Vector files that never pass the engine's cap on a plugin write (4 MB; a 3072-number model makes about 25 KB a vector):
+ *  a map that does not fit in about 2 MB goes on in `<name>.p2.json`, `.p3.json`, ... and the main file carries `_more: <how many
+ *  extra files>`. `field` names the object that holds the map ("" = the file itself). The Litopys plugin owns the same code
+ *  (`splitRead`, `splitWrite`) for chat and Data Bank vectors: change both together. */
+const SPLIT_PART_CHARS = 2000000;
+const SPLIT_PARTS_MAX = 200;
+const splitPath = (dir, name, k) => dir + name + ".p" + k + ".json";
+function splitRead(fsx, dir, name, field) {
+  let raw = null;
+  try { raw = JSON.parse(fsx.read(dir + name + ".json")); } catch { return null; }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const more = Number(raw._more);
+  delete raw._more;
+  if (field && (!raw[field] || typeof raw[field] !== "object")) return raw;
+  const map = field ? raw[field] : raw;
+  if (Number.isInteger(more) && more > 0) {
+    for (let k = 2; k <= Math.min(more, SPLIT_PARTS_MAX) + 1; k++) {
+      let part = null;
+      try { part = JSON.parse(fsx.read(splitPath(dir, name, k))); } catch { continue; }
+      const pm = part && typeof part === "object" ? (field ? part[field] : part) : null;
+      if (pm && typeof pm === "object") for (const id of Object.keys(pm)) if (!(id in map)) map[id] = pm[id];
+    }
+  }
+  return raw;
+}
+function splitWriteIfChanged(fsx, rel, text) {
+  try { if (fsx.read(rel) === text) return; } catch {}
+  fsx.write(rel, text);
+}
+/** Throws when a file cannot be written; the caller decides what that means. */
+function splitWrite(fsx, dir, name, raw, field) {
+  const map = field ? raw[field] : raw;
+  const parts = [{}];
+  let size = 0;
+  for (const id of Object.keys(map)) {
+    if (id === "_more") continue;
+    const len = JSON.stringify(map[id]).length + id.length + 8;
+    if (size > 0 && size + len > SPLIT_PART_CHARS) { parts.push({}); size = 0; }
+    parts[parts.length - 1][id] = map[id];
+    size += len;
+  }
+  for (let k = 1; k < parts.length; k++) splitWriteIfChanged(fsx, splitPath(dir, name, k + 1), JSON.stringify(field ? { [field]: parts[k] } : parts[k]));
+  let main = parts[0];
+  if (field) { main = { ...raw, [field]: parts[0] }; delete main._more; }
+  if (parts.length > 1) main._more = parts.length - 1;
+  splitWriteIfChanged(fsx, dir + name + ".json", JSON.stringify(main));
+  const partNo = (f) => (f.startsWith(name + ".p") && f.endsWith(".json") && /^[0-9]+$/.test(f.slice(name.length + 2, -5)) ? Number(f.slice(name.length + 2, -5)) : 0);
+  let names = [];
+  try { names = fsx.list(dir.replace(/[/]$/, "")); } catch {}
+  for (const f of names) {
+    if (partNo(f) > parts.length) { try { fsx.remove(dir + f); } catch {} }
+  }
+}
+/** Remove a split record: the main file and every extra one. */
+function splitRemove(fsx, dir, name) {
+  try { fsx.remove(dir + name + ".json"); } catch {}
+  const isPart = (f) => f.startsWith(name + ".p") && f.endsWith(".json") && /^[0-9]+$/.test(f.slice(name.length + 2, -5));
+  let names = [];
+  try { names = fsx.list(dir.replace(/[/]$/, "")); } catch {}
+  for (const f of names) if (isPart(f)) { try { fsx.remove(dir + f); } catch {} }
+}
+
 /** The vectors Litopys keeps for one Data Bank file (`databank-vectors/<id>.json`, #184 DB-vec), when they were made by the
  *  model that embedded the scan window; a file embedded by another model does not compare, so it counts as none. */
 const DB_SEM_MIN_POOL = 4;
@@ -1187,7 +1249,7 @@ const DB_SEM_BOOST = 1.5;
 function shelfVectorsFor(fsx, id, model) {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return null;
   try {
-    const vf = JSON.parse(fsx.read("databank-vectors/" + id + ".json"));
+    const vf = splitRead(fsx, "databank-vectors/", id, "chunks");
     if (!vf || typeof vf !== "object" || !vf.chunks || typeof vf.chunks !== "object") return null;
     if (model && vf.m && vf.m !== model) return null;
     return vf;
@@ -1196,12 +1258,20 @@ function shelfVectorsFor(fsx, id, model) {
 /** Forget the vector of one passage of a file (its text was edited or the passage dropped). */
 function dropShelfVector(fsx, id, chunkNo) {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return;
+  // the passage's vector is in the main file or in one of the extra ones: rewrite only the file that has it
   try {
-    const path = "databank-vectors/" + id + ".json";
-    const vf = JSON.parse(fsx.read(path));
-    if (vf && vf.chunks && typeof vf.chunks === "object" && String(chunkNo) in vf.chunks) {
-      delete vf.chunks[String(chunkNo)];
-      fsx.write(path, JSON.stringify(vf));
+    const main = JSON.parse(fsx.read("databank-vectors/" + id + ".json"));
+    const more = Number(main && main._more);
+    const files = ["databank-vectors/" + id + ".json"];
+    if (Number.isInteger(more) && more > 0) for (let k = 2; k <= Math.min(more, SPLIT_PARTS_MAX) + 1; k++) files.push(splitPath("databank-vectors/", id, k));
+    for (const path of files) {
+      let vf = null;
+      try { vf = path === files[0] ? main : JSON.parse(fsx.read(path)); } catch { continue; }
+      if (vf && vf.chunks && typeof vf.chunks === "object" && String(chunkNo) in vf.chunks) {
+        delete vf.chunks[String(chunkNo)];
+        fsx.write(path, JSON.stringify(vf));
+        return;
+      }
     }
   } catch { /* no vectors for this file */ }
 }
@@ -1266,14 +1336,29 @@ function embedModelOf(fsx) {
 }
 /** Vectorized world-info entries keep their embeddings in a sidecar cache
  *  keyed book#uid, invalidated by content hash. */
-function loadWiVectors(fsx) {
-  try {
-    const m = JSON.parse(fsx.read("lorebooks/.vectors.json"));
-    return m && typeof m === "object" ? m : {};
-  } catch { return {}; }
+export function loadWiVectors(fsx) {
+  const m = splitRead(fsx, "lorebooks/", ".vectors", "");
+  return m || {};
 }
-function saveWiVectors(fsx, map) {
-  try { fsx.write("lorebooks/.vectors.json", JSON.stringify(map, null, 2)); } catch {}
+/** Compact, rounded to 4 decimals, and in as many files as it needs (`lorebooks/.vectors.p2.json`, ...: a dot name is
+ *  never listed as a book). A failed write is not a failed reply, but it is not silent either: the entries would be embedded
+ *  again on every send, so the failure is kept in `lorebooks/.vectors-error.json` (cleared by the next good save) and returned
+ *  as text for the caller to log. Returns "" when saved. */
+export function saveWiVectors(fsx, map) {
+  try {
+    const out = {};
+    for (const key of Object.keys(map)) {
+      const e = map[key];
+      out[key] = e && Array.isArray(e.vector) ? { ...e, vector: e.vector.map((n) => Math.round(n * 1e4) / 1e4) } : e;
+    }
+    splitWrite(fsx, "lorebooks/", ".vectors", out, "");
+    try { fsx.remove("lorebooks/.vectors-error.json"); } catch {}
+    return "";
+  } catch (e) {
+    const why = String((e && e.message) || e).slice(0, 200);
+    try { fsx.write("lorebooks/.vectors-error.json", JSON.stringify({ at: Date.now(), error: why })); } catch {}
+    return why;
+  }
 }
 function wiVectorKey(book, entry, i) { return (book.id || book.name) + "#" + (entry.uid ?? i); }
 /** What of an entry is embedded: its title, text and keys (the title tells a short entry apart). */
@@ -1365,13 +1450,14 @@ export function semanticEmbedWork(fsx, meta, extraBookIds, scanText) {
   return { needed, wantScan };
 }
 /** Store freshly embedded entry vectors into the sidecar cache. */
-function cacheWiVectorBatch(fsx, entries, vectors, model) {
+function cacheWiVectorBatch(fsx, entries, vectors, model, log) {
   if (!Array.isArray(entries) || !Array.isArray(vectors)) return;
   const map = loadWiVectors(fsx);
   entries.forEach((e, i) => {
     if (e && vectors[i] && Array.isArray(vectors[i])) map[e.key] = { hash: e.hash, vector: vectors[i], ...(model ? { m: model } : {}) };
   });
-  saveWiVectors(fsx, map);
+  const why = saveWiVectors(fsx, map);
+  if (why && typeof log === "function") log("lorebook vectors not saved (the entries are embedded again on the next send): " + why);
 }
 
 /** The turn labels of a reply request, with the embedding of the scan window when there is one and the
@@ -1411,7 +1497,7 @@ export function semanticPrep(host, fsx, meta, staged, text, req) {
         const nowModel = nowInfo && typeof nowInfo.model === "string" ? nowInfo.model : "";
         setEmbedCap(fsx, true, nowModel);
         if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) {
-          cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), nowModel);
+          cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), nowModel, (m) => host.log(m));
         }
       } else {
         setEmbedCap(fsx, false);
@@ -5179,7 +5265,7 @@ export function handleRoute(req, host) {
           const peekInfo = host.llm.embedInfo && host.llm.embedInfo.scan;
           const peekModel = peekInfo && typeof peekInfo.model === "string" ? peekInfo.model : "";
           setEmbedCap(fsx, true, peekModel);
-          if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), peekModel);
+          if (Array.isArray(req.stash && req.stash.wiEmbed) && req.stash.wiEmbed.length) cacheWiVectorBatch(fsx, req.stash.wiEmbed, res.slice(1), peekModel, (m) => host.log(m));
         }
       }
     }
@@ -5754,7 +5840,7 @@ export function handleRoute(req, host) {
       }
       if (req.method === "DELETE" && id) {
         try { fsx.remove("databank/" + id + ".json"); } catch { return err(404, "no such file"); }
-        try { fsx.remove("databank-vectors/" + id + ".json"); } catch { /* none was made */ }
+        splitRemove(fsx, "databank-vectors/", id); // none may have been made
         return ok({ ok: true });
       }
     }

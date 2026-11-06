@@ -93,7 +93,7 @@ export interface EngineChatMeta {
   pinned?: boolean
   chatTags?: string[]
   backgroundId?: string | 'none' | null
-  autoBackground?: { on: boolean; folderId: string } | null
+  autoBackground?: { on: boolean; folderId: string; draw?: boolean } | null
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
   /** where the last real prompt's history started (messages before it were cut), null before any */

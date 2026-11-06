@@ -306,4 +306,57 @@ describe("rp card sources: search and detail", () => {
     });
     expect(d.json).toMatchObject({ greeting: "Hi", personality: "Desc", lorebookEntries: 2 });
   });
+
+  it("Botbooru: gallery JSON in, post JSON for the preview, the card PNG for the install", async () => {
+    const s = await drive("/marketplace/search", { source: "botbooru", search: "elf", sort: "favorites", page: 2, first: 10 }, (_k, req) => {
+      const u = new URL(String(req.url));
+      expect(u.origin + u.pathname).toBe("https://botbooru.com/posts/");
+      expect(u.searchParams.get("sort")).toBe("favorites");
+      expect(u.searchParams.get("q")).toBe("elf");
+      expect(u.searchParams.get("limit")).toBe("10");
+      expect(u.searchParams.get("offset")).toBe("10");
+      return { ok: true, status: 200, json: { total: 25, posts: [{
+        id: 58177, character_name: "Emily", filename: "47f94a6beaa54482a2fd115a1e082178.png", tagline: "A quiet one",
+        description_excerpt: "Basic info", uploader_name: "me", downloads: 12, favorite_count: 3, token_count: 900,
+        tags: [{ name: "sfw" }, { name: "contains_lorebook" }, { name: "elf" }], created_at: "2026-06-26T07:45:55",
+      }] } };
+    });
+    expect(s.json).toMatchObject({ count: 25, hasMore: true });
+    expect((s.json.results as unknown[])[0]).toMatchObject({
+      id: "58177", source: "botbooru", name: "Emily", creator: "me", downloads: 12, favorites: 3, tokens: 900, nsfw: false,
+      hasLore: true, avatar: "https://botbooru.com/images/preview/320/47f94a6beaa54482a2fd115a1e082178.png",
+      pageUrl: "https://botbooru.com/character/58177",
+    });
+    const unknownSort = await drive("/marketplace/search", { source: "botbooru", sort: "rating" }, (_k, req) => {
+      expect(new URL(String(req.url)).searchParams.get("sort")).toBe("downloads");
+      return { ok: true, status: 200, json: { total: 0, posts: [] } };
+    });
+    expect(unknownSort.status).toBe(200);
+    expect(String((await drive("/marketplace/search", { source: "botbooru" }, () => ({ ok: true, status: 200, json: { hello: 1 } }))).json.error)).toContain("unknown shape");
+
+    const d = await drive("/marketplace/detail", { source: "botbooru", id: "58177" }, (_k, req) => {
+      expect(String(req.url)).toBe("https://botbooru.com/post/58177");
+      return { ok: true, status: 200, json: {
+        id: 58177, character_name: "Emily", first_mes: "Hi", description: "Desc", scenario: "S", mes_example: "E",
+        creator_notes: "N", system_prompt: "SP", post_history_instructions: "PHI", alternate_greetings: ["Alt"],
+        has_lorebook: true, lorebook_json: JSON.stringify({ name: "B", entries: [{}, {}, {}] }),
+      } };
+    });
+    expect(d.json).toMatchObject({
+      source: "botbooru", greeting: "Hi", personality: "Desc", scenario: "S", exampleDialogs: "E",
+      creatorNotes: "N", systemPrompt: "SP", postHistoryInstructions: "PHI", alternateGreetings: ["Alt"], lorebookEntries: 3,
+    });
+    expect((await drive("/marketplace/detail", { source: "botbooru", id: "../x" })).status).toBe(400);
+
+    const link = await drive("/fetch/card", { url: "https://botbooru.com/character/58177", resolve: true });
+    expect(link.json).toMatchObject({ source: "botbooru", sourceLabel: "Botbooru", downloadUrl: "https://botbooru.com/download/png/58177", pageUrl: "https://botbooru.com/character/58177" });
+    const seen: string[] = [];
+    const f = await drive("/fetch/card", { url: "https://botbooru.com/download/png/58177" }, (_k, req) => {
+      seen.push(String(req.url));
+      return { ok: true, status: 200, url: String(req.url), base64: b64(png([["chara", cardB64({ name: "Emily" })] ])) };
+    });
+    expect(f.json).toMatchObject({ kind: "png", sourceLabel: "Botbooru", fileName: "58177.png" });
+    expect(seen[0]).toBe("https://botbooru.com/download/png/58177");
+    expect((await drive("/fetch/card", { url: "https://botbooru.com/character/abc" })).status).toBe(400);
+  });
 });

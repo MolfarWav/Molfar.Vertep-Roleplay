@@ -89,8 +89,9 @@
   --k-logic: #7c5cd6;
   --k-write: #2eaf5a;
   --k-main: #3b82c4;
-  /* second accent (primary button, active nav icon): follows the primary unless a theme sets it */
-  --cta: var(--primary);
+  /* second accent (primary button, active nav icon): follows the primary unless a theme sets it.
+     Light: the primary is a light green, white on it is 2.8:1, so the solid button takes a darker one of the same hue (#210) */
+  --cta: color-mix(in oklch, var(--primary), black 25%);
   --cta-foreground: var(--primary-foreground);
   /* group chats and groups: one hue no theme sets, so a group never looks like a single character */
   --group: #7c4dde;

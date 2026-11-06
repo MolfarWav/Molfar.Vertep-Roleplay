@@ -4157,20 +4157,40 @@ export function backdropChoices(fsx, meta) {
   return out;
 }
 
-function backdropText(ctx) {
-  if (!arr(ctx.backdrops).length) return "";
+/** Is the chat's picture checkbox on ("draw the places the folder has no picture of")? Only with the switch and a folder. */
+export function backdropDrawOn(meta) {
+  const a = isObj(meta) && isObj(meta.autoBackground) ? meta.autoBackground : null;
+  return !!a && a.on === true && !!str(a.folderId) && a.draw === true;
+}
+
+export function backdropText(ctx) {
+  const draw = ctx.backdropDraw === true;
+  if (!arr(ctx.backdrops).length && !draw) return "";
   const now = ctx.base && ctx.base.snap && str(ctx.base.snap.background);
+  const keep = now ? " Now shown: " + now + "; keep it unless the place or the mood clearly changed." : "";
+  if (!draw) {
+    return [
+      "Backgrounds: also add \"background\" to your JSON: the name of the image below that fits where the scene is at the end of the new messages, by place first, then by time, weather and mood; null when none fits." + keep,
+      ...ctx.backdrops.map((b) => "- " + b.name + (b.tags.length ? ": " + b.tags.join(", ") : "")),
+    ].join("\n");
+  }
+  // drawing is on: a place with no picture may be named, and the app draws it
+  const have = arr(ctx.backdrops);
   return [
-    "Backgrounds: also add \"background\" to your JSON: the name of the image below that fits where the scene is at the end of the new messages, by place first, then by time, weather and mood; null when none fits." + (now ? " Now shown: " + now + "; keep it unless the place or the mood clearly changed." : ""),
-    ...ctx.backdrops.map((b) => "- " + b.name + (b.tags.length ? ": " + b.tags.join(", ") : "")),
+    (have.length
+      ? "Backgrounds: also add \"background\" to your JSON: the name of the image below that fits where the scene is at the end of the new messages, by place first, then by time, weather and mood. When none fits the place, name the place in a short name instead (two to four lowercase words, like \"old mill at dusk\"): a picture is drawn for it. Null only when the scene has no clear place."
+      : "Backgrounds: also add \"background\" to your JSON: the place where the scene is at the end of the new messages, in a short name (two to four lowercase words, like \"old mill at dusk\"); a picture is drawn for it. Null when the scene has no clear place.") + keep,
+    ...have.map((b) => "- " + b.name + (b.tags.length ? ": " + b.tags.join(", ") : "")),
   ].join("\n");
 }
 
-/** The sensor's pick, only when it names an image of the folder. */
-export function readBackdrop(v, choices) {
+/** The sensor's pick: an image of the folder; with `allowNew` (the picture checkbox) also a short place name the folder has no picture of. */
+export function readBackdrop(v, choices, allowNew) {
+  if (typeof v !== "string") return null;
   const name = str(v).toLowerCase();
   const hit = name ? arr(choices).find((b) => b.name.toLowerCase() === name) : null;
-  return hit ? hit.name : null;
+  if (hit) return hit.name;
+  return allowNew === true && name ? str(v).replace(/\s+/g, " ").slice(0, 60) : null;
 }
 
 const classOf = (soul) => (soul && CLASSES.includes(soul.class) ? soul.class : "neutral");
@@ -6012,9 +6032,10 @@ function applySensor(ctx, out, op, model, unknownIds) {
     threads: applyThreads(ctx, out, turn),
     extra: {},
   };
-  if (arr(ctx.backdrops).length) {
-    // the pick holds until the sensor names another image of the folder
-    const picked = readBackdrop(out.background, ctx.backdrops) || (B && readBackdrop(B.background, ctx.backdrops));
+  if (arr(ctx.backdrops).length || ctx.backdropDraw === true) {
+    // the pick holds until the sensor names another image of the folder (or, with the picture checkbox, another place)
+    const allowNew = ctx.backdropDraw === true;
+    const picked = readBackdrop(out.background, ctx.backdrops, allowNew) || (B && readBackdrop(B.background, ctx.backdrops, allowNew));
     if (picked) snapshot.background = picked;
   }
   for (const name of Object.keys(chars)) {
@@ -6368,6 +6389,7 @@ function planUpdate(fsx, chatId, op) {
     cfg: loadConfig(fsx),
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
+    backdropDraw: backdropDrawOn(chat.meta),
     leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
   };
   ensureRegistry(ctx);

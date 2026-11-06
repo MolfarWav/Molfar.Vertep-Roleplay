@@ -27,7 +27,7 @@ function JobCard({ job }: { job: ImportJob }) {
 
   const line = running
     ? job.cancelRequested ? t('imp.cancelling') : [job.current, job.step].filter(Boolean).join(' · ')
-    : job.summary ?? (job.status === 'cancelled' ? t('imp.cancelled', { ok, total: job.total }) : t('imp.done', { ok, total: job.total }))
+    : job.summary ?? (job.status === 'cancelled' ? t(job.verb === 'draw' ? 'imp.cancelled.drawn' : 'imp.cancelled', { ok, total: job.total }) : t(job.verb === 'draw' ? 'imp.done.drawn' : 'imp.done', { ok, total: job.total }))
 
   return (
     <section
@@ -70,7 +70,7 @@ function JobCard({ job }: { job: ImportJob }) {
       </div>
       {!running && job.failed.length > 0 && (
         <div className="flex flex-col gap-1 border-t border-border pt-2 text-xs">
-          <p className="font-medium text-rose-700 dark:text-rose-300">{t('imp.failed', { n: job.failed.length })}</p>
+          <p className="font-medium text-rose-700 dark:text-rose-300">{t(job.verb === 'draw' ? 'imp.failed.drawn' : 'imp.failed', { n: job.failed.length })}</p>
           <ul className="flex flex-col gap-0.5 text-muted-foreground">
             {job.failed.slice(0, SHOW_FAILED).map((f, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: the same file can fail twice in one job

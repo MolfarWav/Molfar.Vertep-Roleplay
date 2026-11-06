@@ -25,17 +25,21 @@ const GROUP_KEY: Record<PermGroup, MsgKey> = {
 export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { agent: AgentInfo; open: boolean; onOpenChange: (o: boolean) => void; onChanged: () => Promise<void> }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
+  // what is being saved shows at once: the plugin writes the grants and the list is read again, which takes a second or two
+  const [saving, setSaving] = useState<string[] | null>(null)
+  const granted = saving ?? agent.granted
   const groups = groupNeeds(agent.needs, agent.unsupported)
-  const { done, n } = allowedCount(agent.needs, agent.unsupported, agent.granted)
+  const { done, n } = allowedCount(agent.needs, agent.unsupported, granted)
   // allowed before and asking for more now = a new version: the new lines are marked
   const added = agent.added ?? []
   const supported = agent.needs.filter((x) => !agent.unsupported.includes(x))
 
   const set = async (tokens: string[]) => {
     setBusy(true)
-    try { await grantAgentTokens(agent.id, tokens); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setBusy(false) }
+    setSaving(tokens)
+    try { await grantAgentTokens(agent.id, tokens); await onChanged() } catch (e) { toast.error(t('ag.saveFailed', { why: errText(e) })) } finally { setSaving(null); setBusy(false) }
   }
-  const flip = (token: string, on: boolean) => set(nextGranted(agent.granted, agent.needs, token, on))
+  const flip = (token: string, on: boolean) => set(nextGranted(granted, agent.needs, token, on))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,7 +63,7 @@ export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { age
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(GROUP_KEY[g.group])}</h3>
               <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
                 {g.tokens.map((tok) => {
-                  const on = agent.granted.includes(tok)
+                  const on = granted.includes(tok)
                   const fresh = added.includes(tok)
                   const what = describeNeed(tok, t)
                   return (

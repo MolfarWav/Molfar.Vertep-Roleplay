@@ -16,6 +16,7 @@ import { listWorldChats, useWorldLive, type WorldChat, type WorldRecord } from '
 import { formatK, LevelChip, type OpenWorldSettings } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
 import { WorldBackgrounds } from '@/components/world/world-backgrounds'
+import { WORLD_TAB_KEY, takeWorldTab } from '@/lib/world-nav'
 import { WorldRuns } from '@/components/world/world-runs'
 import { WorldRecords } from '@/components/world/world-records'
 import { WorldPlaces } from '@/components/world/world-places'
@@ -28,7 +29,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { refreshWorldProfiles, useWorldProfiles } from '@/lib/world-profiles'
 import { WorldSettingsDialog } from '@/components/world/world-settings'
 
-const TAB_KEY = 'rp.worldTab'
+const TAB_KEY = WORLD_TAB_KEY
 
 type Tab = 'overview' | 'places' | 'records' | 'start' | 'backgrounds' | 'runs'
 const isTab = (v: string | null): v is Tab => v === 'overview' || v === 'places' || v === 'records' || v === 'start' || v === 'backgrounds' || v === 'runs'
@@ -252,8 +253,10 @@ export function WorldView() {
     setTop('chats')
     setSelectedId(focusChat)
     setDetailOpen(true)
-    setTab('overview')
-    saveTab('overview')
+    // a link (the chat's Display sheet) may ask for another tab, once
+    const asked = takeWorldTab() ?? 'overview'
+    setTab(asked)
+    saveTab(asked)
   }, [focusChat])
 
   useEffect(() => {

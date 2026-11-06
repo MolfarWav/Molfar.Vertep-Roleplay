@@ -123,12 +123,14 @@ function WidgetRow({ id, w, state, dragging, grip, onChange, onRemove, at, count
   const setItem = (k: number, patch: Partial<{ label: string; send: string }>) => onChange({ ...w, items: items.map((x, n) => (n === k ? { ...x, ...patch } : x)) })
   return (
     <div data-rowid={id} className={cn('flex flex-col gap-1.5 rounded-md bg-muted/40 p-2', dragging && 'opacity-60 ring-2 ring-primary/50')}>
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         {count > 1 && <Grip handle={grip} />}
         {known ? (
-          <NativeSelect value={kind} label={t('fg.widget.kind')} onChange={(k) => onChange(setWidgetKind(w, k, state))}>
-            {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
-          </NativeSelect>
+          <div className="min-w-[13rem] flex-1">
+            <NativeSelect value={kind} label={t('fg.widget.kind')} onChange={(k) => onChange(setWidgetKind(w, k, state))}>
+              {WIDGET_KINDS.map((k) => <option key={k} value={k}>{t(`fg.wk.${k}` as MsgKey)}</option>)}
+            </NativeSelect>
+          </div>
         ) : <span className="flex-1 self-center text-xs text-muted-foreground">{t('fg.widget.other', { kind })}</span>}
         <Mover at={at} count={count} onMove={onMove} />
         <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.widget.remove')} onClick={onRemove}>

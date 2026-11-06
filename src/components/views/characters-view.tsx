@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, EnvelopeSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, Folder as FolderIcon } from '@phosphor-icons/react'
+import { MagnifyingGlass, Star, SquaresFour, List, Plus, Chats, Copy, Trash, Tag, DotsThree, CheckSquare, DownloadSimple, EnvelopeSimple, Users, FileCode, LinkSimple, UserCircle, Funnel, X, CircleNotch, Check, SortAscending, Folder as FolderIcon, MagicWand } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -32,10 +32,13 @@ import { buildCardPng, downloadCardPng } from '@/lib/png-card'
 import { importCardFiles, importAnyCardLink, JANNY_MESSAGE } from '@/lib/card-import'
 import { downloadJson } from '@/lib/interop'
 import { CharacterEditor } from '@/components/views/character-editor'
+import { MissingPortraitsDialog } from '@/components/portraits/portrait-dialogs'
+import { missingPortraits } from '@/lib/portrait-draw'
 import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { LettersDialog } from '@/components/letters/letters-dialog'
+import { LettersOffer } from '@/components/letters/letters-offer'
 import { folderCounts, folderTags, inFolder, moveToFolder, noFolder, removeFromFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { TagManager } from '@/components/tags/tag-manager'
@@ -106,6 +109,9 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const updateTag = useApp((s) => s.updateTag)
   const [urlOpen, setUrlOpen] = useState(false)
   const [lettersOpen, setLettersOpen] = useState(false)
+  // "Draw missing portraits": solo cards with no picture of their own (a portrait the list merely left out, avatarLazy, exists and is never redrawn)
+  const [portraitsOpen, setPortraitsOpen] = useState(false)
+  const portraitTargets = useMemo(() => (mode === 'characters' ? missingPortraits(characters) : []), [mode, characters])
   const [urlValue, setUrlValue] = useState('')
   const [urlBusy, setUrlBusy] = useState(false)
   const [page, setPage] = useState(0)
@@ -437,6 +443,11 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
         <DropdownMenuItem onClick={() => setLettersOpen(true)} data-testid="characters-letters">
           <EnvelopeSimple className="size-4" aria-hidden="true" />{t('characters.moreLetters')}
         </DropdownMenuItem>
+        {mode === 'characters' && portraitTargets.length > 0 && (
+          <DropdownMenuItem onClick={() => setPortraitsOpen(true)} data-testid="characters-draw-portraits">
+            <MagicWand className="size-4" aria-hidden="true" />{t('portraits.draw')} ({portraitTargets.length})
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -593,6 +604,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 md:px-4">{batchActions}</div>
         )}
       </header>
+      <LettersOffer className="mx-3 mt-3 md:mx-4" />
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
       <NewFolderDialog open={newFolderFor !== null} onOpenChange={(o) => { if (!o) setNewFolderFor(null) }} onCreate={onNewFolder} />
@@ -760,6 +772,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
       </ScrollArea>
 
       <LettersDialog open={lettersOpen} onOpenChange={setLettersOpen} />
+      <MissingPortraitsDialog open={portraitsOpen} onOpenChange={setPortraitsOpen} targets={portraitTargets} onApply={(id, url) => updateCharacter(id, { avatar: url })} />
 
       <Dialog open={urlOpen} onOpenChange={setUrlOpen}>
         <DialogContent className="sm:max-w-md">

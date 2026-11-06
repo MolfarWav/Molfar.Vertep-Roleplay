@@ -9,6 +9,7 @@ import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { loadWorldBackgrounds } from '@/lib/world'
+import { ImageModelSection } from '@/components/world/world-image-model'
 
 /** worldFolderId: the world's folder as the Backgrounds tab knows it right now (it can link one
  *  while this is open); without it the folder is read once from the engine. */
@@ -18,6 +19,7 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
   const folders = useApp((s) => s.folders)
   const backgrounds = useApp((s) => s.backgrounds)
   const updateChat = useApp((s) => s.updateChat)
+  const imageOn = useApp((s) => s.settings.imageGen?.enabled === true)
   const [loadedWorldFolder, setWorldFolder] = useState<string | null>(null)
   const [another, setAnother] = useState(false)
   const [dash, setDash] = useState<boolean | null>(null)
@@ -38,8 +40,10 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
   const countIn = (id: string) => backgrounds.filter((b) => b.folderId === id).length
   const defaultFolder = () => (worldFolder && bgFolders.some((f) => f.id === worldFolder) ? worldFolder : bgFolders[0]?.id ?? '')
 
-  const toggle = (on: boolean) => updateChat(chatId, { autoBackground: { on, folderId: folderId || defaultFolder() } })
-  const pick = (id: string) => updateChat(chatId, { autoBackground: { on: !!auto?.on, folderId: id } })
+  // both keep the "draw places" choice the chat already made (the spread)
+  const toggle = (on: boolean) => updateChat(chatId, { autoBackground: { ...(auto ?? {}), on, folderId: folderId || defaultFolder() } })
+  const pick = (id: string) => updateChat(chatId, { autoBackground: { ...(auto ?? {}), on: !!auto?.on, folderId: id } })
+  const setDraw = (draw: boolean) => auto && updateChat(chatId, { autoBackground: { ...auto, draw } })
 
   return (
     <div className="flex flex-col gap-2" data-testid="auto-background">
@@ -76,6 +80,25 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
             </Select>
           </label>
         )
+      )}
+      {/* the drawing controls live in World > Backgrounds; the chat's Display sheet (compact) only links there */}
+      {!compact && auto?.on && bgFolders.length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-border pt-2" data-testid="auto-background-draw-block">
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 text-sm">
+              {t('world.bg.drawMissing')}
+              <span className="block text-xs text-muted-foreground">{t('world.bg.drawHint')}</span>
+            </span>
+            <Switch checked={auto.draw === true && imageOn} disabled={!imageOn} onCheckedChange={setDraw} aria-label={t('world.bg.drawMissing')} data-testid="auto-background-draw" />
+          </div>
+          {!imageOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-off">{t('world.bg.drawNoImage')}</p>}
+          {imageOn && auto.draw === true && (
+            <div className="flex flex-col gap-1" data-testid="auto-background-draw-model">
+              <span className="text-xs text-muted-foreground">{t('world.bg.drawModel')}</span>
+              <ImageModelSection chatId={chatId} />
+            </div>
+          )}
+        </div>
       )}
       {auto?.on && dash === false && <p className="text-xs text-amber-700 dark:text-amber-300">{t('world.bg.autoNeedDash')}</p>}
     </div>

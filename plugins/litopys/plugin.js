@@ -3644,12 +3644,95 @@ export function addActivity(st, by, kind, text, ids, now, data) {
   if (st.activity.length > ACTIVITY_KEEP) st.activity.splice(0, st.activity.length - ACTIVITY_KEEP);
 }
 
+/**
+ * Vectors in files that never pass the engine's cap on a plugin write (4 MB; a 3072-number model makes about 25 KB a vector).
+ * A map that does not fit in about 2 MB goes on in `<name>.p2.json`, `.p3.json`, ... and the main file carries `_more: <how many
+ * extra files>` (a key never starts with `_`). A small one keeps the one file, the format every older version reads.
+ * `field` names the object inside the file that holds the map (`chunks` for a Data Bank file); "" = the file itself is the map.
+ * The engine plugin keeps a copy of the reading side (shelf vectors, the lorebook cache): change both together.
+ */
+const VECTOR_PART_CHARS = 2000000;
+/** Never more than this many extra files, whatever a damaged `_more` says. */
+const VECTOR_PARTS_MAX = 200;
+const VECTOR_MORE = "_more";
+const partPath = (dir, name, k) => dir + name + ".p" + k + ".json";
+
+/** The file as an object with every extra file's entries merged into its map (null: no file or not an object). */
+function splitRead(fsx, dir, name, field) {
+  const raw = readJson(fsx, dir + name + ".json", null);
+  if (!isObj(raw)) return null;
+  const more = Number(raw[VECTOR_MORE]);
+  delete raw[VECTOR_MORE];
+  if (field && !isObj(raw[field])) return raw;
+  const map = field ? raw[field] : raw;
+  if (Number.isInteger(more) && more > 0) {
+    // a part that is missing or damaged only makes its entries gaps: they are made again
+    for (let k = 2; k <= Math.min(more, VECTOR_PARTS_MAX) + 1; k++) {
+      const part = readJson(fsx, partPath(dir, name, k), null);
+      const pm = isObj(part) ? (field ? part[field] : part) : null;
+      if (isObj(pm)) for (const id of Object.keys(pm)) if (!(id in map)) map[id] = pm[id];
+    }
+  }
+  return raw;
+}
+
+/** Write a file only when it is not already so: a long record's older parts do not change when a batch is added at the end. */
+function writeIfChanged(fsx, rel, text) {
+  try {
+    if (fsx.read(rel) === text) return;
+  } catch {}
+  fsx.write(rel, text);
+}
+
+/** Write `raw` (an object whose map is `raw[field]`, or itself) in as many files as it needs; `prep` may reshape an entry. */
+function splitWrite(fsx, dir, name, raw, field, prep) {
+  const map = field ? raw[field] : raw;
+  const parts = [{}];
+  let size = 0;
+  for (const id of Object.keys(map)) {
+    if (id === VECTOR_MORE) continue;
+    const entry = prep ? prep(map[id]) : map[id];
+    const len = JSON.stringify(entry).length + id.length + 8;
+    if (size > 0 && size + len > VECTOR_PART_CHARS) {
+      parts.push({});
+      size = 0;
+    }
+    parts[parts.length - 1][id] = entry;
+    size += len;
+  }
+  // the extra files first and the main file last: a reader that comes in between sees the old record or gaps, never a torn one
+  for (let k = 1; k < parts.length; k++) writeIfChanged(fsx, partPath(dir, name, k + 1), JSON.stringify(field ? { [field]: parts[k] } : parts[k]));
+  let main = parts[0];
+  if (field) {
+    main = { ...raw, [field]: parts[0] };
+    delete main[VECTOR_MORE];
+  }
+  if (parts.length > 1) main[VECTOR_MORE] = parts.length - 1;
+  writeIfChanged(fsx, dir + name + ".json", JSON.stringify(main));
+  // extra files of an older, longer record
+  const stale = new RegExp("^" + name + "\\.p(\\d+)\\.json$");
+  let names = [];
+  try {
+    names = fsx.list(dir.replace(/\/$/, ""));
+  } catch {}
+  for (const f of names) {
+    const m = stale.exec(f);
+    if (m && Number(m[1]) > parts.length) {
+      try {
+        fsx.remove(dir + f);
+      } catch {}
+    }
+  }
+}
+
+/** A chat's vectors: `litopys/vectors/<chatId>.json` = `{ id: { hash, vector, m? } }`. */
 function loadVectors(fsx, chatId) {
-  return readJson(fsx, VECTOR_DIR + chatId + ".json", {});
+  return splitRead(fsx, VECTOR_DIR, chatId, "") || {};
 }
 
 function saveVectors(fsx, chatId, map) {
-  fsx.write(VECTOR_DIR + chatId + ".json", JSON.stringify(map, null, 2));
+  // numbers rounded to 4 decimals, as the Data Bank vectors are: no visible change to a cosine, and a third less to write
+  splitWrite(fsx, VECTOR_DIR, chatId, map, "", (e) => (isObj(e) && Array.isArray(e.vector) ? { ...e, vector: e.vector.map((n) => Math.round(n * 1e4) / 1e4) } : e));
 }
 
 // ---------- migration ----------
@@ -3957,7 +4040,8 @@ export function pruneOrphans(fsx, store, files) {
     }
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
-      const id = f.slice(0, -5);
+      // a long chat's vectors go on in `<chatId>.p2.json`, ...: they live and die with the main file's chat
+      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : f.slice(0, -5);
       // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
       if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
       if (!live.has(id)) {
@@ -4498,6 +4582,21 @@ export function rebuildChat(fsx, chatId, cfg) {
 }
 
 
+/**
+ * A batch of vectors that could not be saved. Its request is ended, so the tick does not ask for the same batch again, and the
+ * status says failing, so the automatic filling waits until a call has worked (the button still asks). The caller goes on with the
+ * rest of the tick: a failed save must never hold up the chapters of any chat (a 4 MB write limit did, on a long chat).
+ */
+function embedStoreFailed(fsx, host, wantName, e) {
+  try {
+    host.log("litopys embed save: " + (e && e.message ? e.message : String(e)));
+  } catch {}
+  try {
+    endEmbedWant(fsx, wantName);
+    setEmbedStatus(fsx, false);
+  } catch {}
+}
+
 export function onTick(_ctx, host) {
   try {
     const fsx = host && host.fs ? host.fs : null;
@@ -4514,7 +4613,12 @@ export function onTick(_ctx, host) {
     if (host.llm && host.llm.embedResults) {
       for (const key of Object.keys(host.llm.embedResults)) {
         if (key.startsWith(SHELF_KEY)) {
-          finishShelfBatch(fsx, host, key.slice(SHELF_KEY.length), host.llm.embedResults[key], host.llm.embedInfo && host.llm.embedInfo[key]);
+          const shelfId = key.slice(SHELF_KEY.length);
+          try {
+            finishShelfBatch(fsx, host, shelfId, host.llm.embedResults[key], host.llm.embedInfo && host.llm.embedInfo[key]);
+          } catch (e) {
+            embedStoreFailed(fsx, host, SHELF_WANT + shelfId, e);
+          }
           return;
         }
         if (!key.startsWith("lit_emb_")) continue;
@@ -4537,7 +4641,14 @@ export function onTick(_ctx, host) {
         const info = host.llm.embedInfo && host.llm.embedInfo[key];
         const model = isObj(info) ? str(info.model) : "";
         const first = Array.isArray(vectors) && Array.isArray(vectors[0]) ? vectors[0] : null;
-        const n = finishEmbed(fsx, st, needed, vectors, model);
+        let n = 0;
+        try {
+          n = finishEmbed(fsx, st, needed, vectors, model);
+        } catch (e) {
+          // the vectors came but could not be kept: ask no more (the same batch would come back and fail the same way) and go on to the chapters
+          embedStoreFailed(fsx, host, chatId, e);
+          break;
+        }
         setEmbedStatus(fsx, n > 0, { model, via: isObj(info) ? str(info.via) : "", dim: first ? first.length : 0 });
         // a request of the user goes on in batches until nothing is missing or a batch brings nothing
         if (isObj(want) && want.more === true && n > 0) kickEmbedWant(fsx, host, st, chatId);
@@ -7769,9 +7880,9 @@ function shelfFiles(fsx) {
   return out;
 }
 
-/** `databank-vectors/<id>.json`: { v: 1, m: model, dim, chunks: { "<passage index>": [numbers] } }. One model per file. */
+/** `databank-vectors/<id>.json`: { v: 1, m: model, dim, chunks: { "<passage index>": [numbers] } }. One model per file; a long file goes on in `<id>.p2.json`, ... (see splitRead). */
 function loadShelfVectors(fsx, id) {
-  const raw = readJson(fsx, SHELF_VEC_DIR + id + ".json", null);
+  const raw = splitRead(fsx, SHELF_VEC_DIR, id, "chunks");
   return isObj(raw) && isObj(raw.chunks) ? raw : { v: 1, m: "", dim: 0, chunks: {} };
 }
 
@@ -7818,7 +7929,7 @@ export function finishShelf(fsx, file, batch, vectors, model, dim) {
   if (stored > 0) {
     vf.m = model || vf.m || "";
     vf.dim = dim || vf.dim || 0;
-    fsx.write(SHELF_VEC_DIR + file.id + ".json", JSON.stringify(vf));
+    splitWrite(fsx, SHELF_VEC_DIR, file.id, vf, "chunks");
   }
   return stored;
 }

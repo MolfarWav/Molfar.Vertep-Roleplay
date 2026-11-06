@@ -9,6 +9,7 @@ import { useApp } from '@/lib/store'
 import { useInbox } from '@/lib/attention'
 import { InboxItem, useInboxRows } from '@/components/shell/inbox'
 import type { InboxRow } from '@/lib/attention'
+import { LettersOffer } from '@/components/letters/letters-offer'
 import { useT } from '@/hooks/use-t'
 import { BODY, BlockCard, BlockHead } from '@/components/home/home-frame'
 
@@ -52,6 +53,7 @@ export function WaitingView({ total, failures, onOpen, kinds, rows, more = 0 }: 
           </div>
         )}
         {rows ? <ul className="flex flex-col gap-2">{rows}</ul> : null}
+        <LettersOffer />
         <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
           <Button variant="outline" className="max-md:h-10" onClick={onOpen}>
             <Tray aria-hidden="true" /> {t('home.openInbox')}

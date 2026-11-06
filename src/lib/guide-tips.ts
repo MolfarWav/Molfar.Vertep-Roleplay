@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.92.0'
+export const APP_VERSION = '4.93.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.portraits-places',
+    since: '4.93.0',
+    help: 'characters',
+    keywords: { en: 'portrait avatar draw generate missing image comfyui model background place scene world botbooru marketplace letters', uk: 'портрет аватар намалювати згенерувати відсутні зображення comfyui модель тло місце сцена світ botbooru маркет листи' },
+    title: { en: 'Draw portraits for cards, places on the spot, and letters from cards', uk: 'Портрети для карток, місця наліту і листи від карток' },
+    body: {
+      en: 'A card with no picture can be drawn: Draw under its portrait in the editor, or Characters, More, Draw missing portraits, with the image model of your choice (a local ComfyUI or an API model). In World > Backgrounds, Draw places that have no picture makes a new place the story reaches. Letters from cards now have a one-tap Turn on card at the top of Characters. Botbooru is a new Marketplace source.',
+      uk: 'Картку без картинки можна намалювати: «Draw» під портретом у редакторі або Characters, More, «Draw missing portraits», обраною моделлю зображень (локальний ComfyUI чи API-модель). У World > Backgrounds перемикач «Draw places that have no picture» малює нове місце, до якого дійшла історія. Листи від карток тепер мають картку «Turn on» угорі Characters. Botbooru — нове джерело в Marketplace.',
+    },
+  },
   {
     id: 'new.request-size',
     since: '4.92.0',
