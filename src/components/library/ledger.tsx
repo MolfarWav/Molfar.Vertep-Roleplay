@@ -19,17 +19,19 @@ import { ProposalsTab } from './ledger-proposals'
 import { ActivityTab } from './ledger-activity'
 import { HabitsTab } from './ledger-habits'
 import { OverviewBody } from './overview'
+import { SettingsTab, chatConfigCount } from './ledger-settings'
 
-const TAB_IDS = ['chapters', 'facts', 'proposals', 'habits', 'activity'] as const
+const TAB_IDS = ['chapters', 'facts', 'proposals', 'habits', 'activity', 'settings'] as const
 type TabId = (typeof TAB_IDS)[number]
 
-function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.proposals' | 'lit.habits' | 'lit.activity' {
+function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.proposals' | 'lit.habits' | 'lit.activity' | 'lit.settings' {
   switch (id) {
     case 'chapters': return 'lit.chapters'
     case 'facts': return 'lit.facts'
     case 'proposals': return 'lit.proposals'
     case 'habits': return 'lit.habits'
     case 'activity': return 'lit.activity'
+    case 'settings': return 'lit.settings'
   }
 }
 
@@ -148,6 +150,7 @@ export function LedgerChat({
     { id: 'proposals', count: pending },
     { id: 'habits', count: sk.earned },
     { id: 'activity', count: chat.activity.length },
+    { id: 'settings', count: chatConfigCount(chat.chatConfig, chat.globalConfig?.cutMode) },
   ]
 
   return (
@@ -229,7 +232,7 @@ export function LedgerChat({
                   )}
                 >
                   {t(tabLabel(id))}
-                  {(id !== 'proposals' || count === 0) && <span className="text-[10px] tabular-nums opacity-70">{count}</span>}
+                  {(id === 'settings' ? count > 0 : id !== 'proposals' || count === 0) && <span className="text-[10px] tabular-nums opacity-70">{count}</span>}
                   {id === 'habits' && sk.candidates > 0 && (
                     <span className="rounded-full bg-violet-600 px-1.5 py-px text-[10px] leading-none text-white" title={t('lit.habits.candPill', { n: sk.candidates })} data-testid="habits-candidates-pill">
                       +{sk.candidates}
@@ -249,6 +252,7 @@ export function LedgerChat({
             {tab === 'proposals' && <ProposalsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'habits' && <HabitsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'activity' && <ActivityTab chat={chat} onChat={onChat} onRefresh={refresh} />}
+            {tab === 'settings' && <SettingsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
           </>
         )}
       </div>

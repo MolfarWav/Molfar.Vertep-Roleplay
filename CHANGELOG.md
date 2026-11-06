@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- New (Molfar.Vertep#122, part 2): **Litopys settings for one chat.** The record of a chat (the Record side panel and Library > Litopys > a chat) has a new **Settings** tab: shortest and longest scene, recent messages kept word for word (or the direct messages kept after the scenes), how older messages leave the prompt, and the pinned facts limit, for this chat alone. A field left empty follows the Library's Litopys settings and shows its value; **Use the Library settings** clears them all. A chat with frequent scene changes can now be chaptered more densely without changing every other chat. The chapters already written stay as they are; Rebuild rewrites them with the new lengths. Stored as `config` in `litopys/chats/<id>.json`, format in `docs/DATA-FORMATS.md`. Needs no engine change. (Part 1, saving a scene by hand, came in 4.66.0.)
+
 ## 4.93.0 (2026-11-06)
 
 - New: **Letters from cards are easy to find.** The feature is off by default and its switch was three clicks deep (Characters, More, Letters from cards), so it went unnoticed. While it is off, a green card "Let your characters write to you" shows at the top of Characters and in Home's "Waiting on you": **Turn on** in one tap (the settings dialog opens when no background model is set), **Not now** hides it for good. The menu item stays. Guide: Characters page, new section.

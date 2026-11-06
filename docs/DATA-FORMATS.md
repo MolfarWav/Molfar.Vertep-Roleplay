@@ -247,6 +247,15 @@ does not fold it into the scene before, it counts as closed even at the end of t
 or `{ chatId, op: "unmark", id }`; chapters over the same messages (not ones the user edited: those refuse the call) are marked
 stale and rewritten for the new layout. Overlapping marks and marks whose messages are gone are ignored.
 
+**Settings for one chat (#122).** `litopys/chats/<chatId>.json`, key `config`, optional: only what the chat sets for itself,
+laid over `litopys/config.json` wherever the plugin works on that chat (the worker's tick, the insert, the chat's view, a
+rebuild, the pin limit of facts and proposals).
+`{ "scene": { "minMessages": 1-40, "maxMessages": 10-200 }, "recentMessages": 6-200, "pinLimit": 1-20, "cutMode": "fit"|"scenes", "sceneKeep": 2+ }`.
+A missing key follows the global value; any other key is dropped when the file is read. A maximum below the minimum rises to the
+minimum. `POST /litopys/chat-config { chatId, config }` replaces the whole object (`config: null` or `{}` removes it; 409 during a
+rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatConfig` (the chat's own, cleaned) and
+`globalConfig` (the global values of the same keys). Chapters already written are not touched; a rebuild reads the new lengths.
+
 **Litopys config: `litopys/config.json`.** Only the keys the user changed need to be there; the plugin fills the rest
 (`GET/PUT /litopys/config`). The ones that decide what the memory does:
 - `budget` (200 to 16000, default 800): the most tokens the story record may take in a reply. When every known fact and
