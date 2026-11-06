@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
@@ -23,6 +24,8 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
   const [loadedWorldFolder, setWorldFolder] = useState<string | null>(null)
   const [another, setAnother] = useState(false)
   const [dash, setDash] = useState<boolean | null>(null)
+  const [styleText, setStyleText] = useState(auto?.style ?? '')
+  useEffect(() => { setStyleText(auto?.style ?? '') }, [auto?.style])
 
   const bgFolders = useMemo(() => folders.filter((f) => f.scope === 'backgrounds'), [folders])
   useEffect(() => {
@@ -46,6 +49,12 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
   const sceneOn = auto?.on === true
   const hasFolder = bgFolders.length > 0
   const drawOn = auto?.draw === true
+  // the look of drawn backgrounds ("medieval fantasy, candlelight"): saved when the field loses focus, one write instead of one per key
+  const saveStyle = () => {
+    const style = styleText.replace(/\s+/g, ' ').trim()
+    if (style === (auto?.style ?? '')) return
+    updateChat(chatId, { autoBackground: { ...(auto ?? { on: false, folderId: defaultFolder() }), style: style || undefined } })
+  }
   const setDraw = (draw: boolean) => auto && updateChat(chatId, { autoBackground: { ...auto, draw } })
 
   return (
@@ -95,6 +104,20 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
             </span>
             <Switch checked={drawOn && imageOn} disabled={!sceneOn || !hasFolder || !imageOn} onCheckedChange={setDraw} aria-label={t('world.bg.drawMissing')} data-testid="auto-background-draw" />
           </div>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>{t('world.bg.style')}</span>
+            <Input
+              className="h-10 md:h-9"
+              value={styleText}
+              maxLength={200}
+              placeholder={t('world.bg.stylePh')}
+              onChange={(e) => setStyleText(e.target.value)}
+              onBlur={saveStyle}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              data-testid="auto-background-style"
+            />
+            <span className="text-xs text-muted-foreground">{t('world.bg.styleHint')}</span>
+          </label>
           {!sceneOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-need-scene">{t('world.bg.drawNeedScene')}</p>}
           {sceneOn && !hasFolder && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-need-folder">{t('world.bg.drawNeedFolder')}</p>}
           {sceneOn && hasFolder && !imageOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-off">{t('world.bg.drawNoImage')}</p>}

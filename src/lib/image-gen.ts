@@ -100,7 +100,7 @@ export function modelHints(m: { api?: string; style?: PromptStyle; instructions?
 
 /** The chat model describes what to draw from the recent scene. `subject` names something outside the transcript
  *  (a place the story moved to) that the description must be about. */
-export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description', instructions?: string, subject?: string): Promise<string> {
+export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description', instructions?: string, subject?: string, setting?: string): Promise<string> {
   const r = await j<{ prompt: string }>(`/chats/${encodeURIComponent(chatId)}/image-prompt`, {
     method: 'POST',
     body: JSON.stringify({
@@ -109,6 +109,7 @@ export async function describeForImage(chatId: ID, mode: ImageMode, model?: stri
       ...(model ? { model } : {}),
       ...(instructions?.trim() ? { instructions: instructions.trim() } : {}),
       ...(subject?.trim() ? { subject: subject.trim().slice(0, 500) } : {}),
+      ...(setting?.trim() ? { setting: setting.trim().slice(0, 300) } : {}),
     }),
   })
   return r.prompt

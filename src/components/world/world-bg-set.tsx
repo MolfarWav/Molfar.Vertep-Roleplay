@@ -22,6 +22,7 @@ import {
 import { backgroundBlob, storeBackground } from '@/lib/webp';
 import { fetchImageModels } from '@/lib/engine';
 import { buildImagePrompt, generateImage } from '@/lib/image-gen';
+import { withPlaceStyle } from '@/lib/world-backgrounds';
 import {
   loadWorldBackgrounds,
   findWorldPlaces,
@@ -104,6 +105,8 @@ export function MakeSet({
   // the parent builds a new ref object each render: effects key on the ids
   const refKey = 'worldId' in wref ? `w:${wref.worldId}` : `c:${wref.chatId}`;
   const warnedRef = useRef<Set<string>>(new Set());
+  // the look this chat set for its drawn backgrounds (World > Backgrounds); a saved world has no chat, so none
+  const placeStyle = useApp((s) => ('chatId' in wref ? s.chats.find((c) => c.id === wref.chatId)?.autoBackground?.style : undefined));
 
   // Load places on mount / wref change.
   useEffect(() => {
@@ -361,7 +364,7 @@ export function MakeSet({
       setProgress({ done: Math.min(finished + 1, targets.length), total: targets.length });
       try {
         const img = await generateImage({
-          prompt: buildImagePrompt(ig, item.prompt),
+          prompt: buildImagePrompt(ig, withPlaceStyle(item.prompt, placeStyle)),
           negativePrompt: ig.negativePrompt,
           model: configModel || imageGen?.model || undefined,
           signal: ctrl.signal,

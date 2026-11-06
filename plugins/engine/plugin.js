@@ -6633,12 +6633,14 @@ const toolX = (r) => ({
         const transcript = recentTranscript(chat.msgs, 12);
         const subject = typeof b.subject === "string" ? b.subject.trim().slice(0, 500) : "";
         const guide = typeof b.instructions === "string" ? b.instructions.trim().slice(0, 1000) : "";
+        const setting = typeof b.setting === "string" ? b.setting.replace(/\s+/g, " ").trim().slice(0, 300) : "";
         const content = [
           IMAGE_PROMPT_MODES[mode].split("{{char}}").join(charName).split("{{user}}").join(userName),
           style === "tags" ? IMAGE_TAG_RULES : IMAGE_PROMPT_RULES,
           guide ? "The image server's own guidance (follow it where it does not break the rules above): " + guide : "",
           subject ? "The user asked for: " + subject : "",
           subject && mode === "background" ? IMAGE_PLACE_NOTE : "",
+          setting ? "The look the user wants for this story's pictures (keep to it, in its own words where you can): " + setting : "",
           who && mode !== "user" && mode !== "background" ? about(charName, who.card && who.card.description) : "",
           mode === "user" || mode === "scene" ? about(userName, persona && persona.description) : "",
           transcript ? "Recent chat:\n" + transcript : "",

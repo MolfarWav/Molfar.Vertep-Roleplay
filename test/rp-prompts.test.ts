@@ -213,6 +213,10 @@ describe("image prompt style (MolfarWav/Molfar.Vertep#53)", () => {
     expect(asked).toContain("The user asked for: Lyra's private quarters at night");
     expect(asked).toContain("never a modern one");
     expect(asked).toContain("leave the name out");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "background", subject: "the mill", setting: "  medieval fantasy,   candlelight " } }, m);
+    expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string).toContain("(keep to it, in its own words where you can): medieval fantasy, candlelight");
+    await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "background", subject: "the mill" } }, m);
+    expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content as string).not.toContain("The look the user wants");
     // the note is for a place only: a portrait or a scene does not get it
     await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode: "scene", subject: "x" } }, m);
     expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content).not.toContain("never a modern one");

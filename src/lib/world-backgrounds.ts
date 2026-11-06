@@ -202,6 +202,13 @@ export function noteDrawFailed(chatId: ID, name: string, now: number): void {
   failedDraws.set(placeKey(chatId, name), now)
 }
 
+/** The look the user set for the pictures of this chat's backgrounds ("medieval fantasy, candlelight"), added to the end of the
+ *  prompt so it holds whatever the description came out as. */
+export function withPlaceStyle(prompt: string, style?: string): string {
+  const st = style?.replace(/\s+/g, ' ').trim().replace(/[,\s]+$/, '')
+  return st ? `${prompt.trim().replace(/[,.;\s]+$/, '')}, ${st}` : prompt
+}
+
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
 
 /** The World's own record of the place the sensor named, when it has one: the name matches, or contains / is contained
@@ -246,8 +253,9 @@ async function drawSceneBackground(
     // the World's own image model when it has one (World > Settings), else the app's
     const target = imageTargetOf(ig, models, cfg?.imageModel)
     const subject = placeSubject(name, placeRecordFor(name, world?.places ?? []))
-    const described = await describeForImage(chatId, 'background', null, target.style, target.guide, subject)
-    const img = await generateImage({ prompt: buildImagePrompt(ig, described), negativePrompt: ig.negativePrompt, model: target.model || undefined })
+    const style = s.chats.find((c) => c.id === chatId)?.autoBackground?.style
+    const described = await describeForImage(chatId, 'background', null, target.style, target.guide, subject, style)
+    const img = await generateImage({ prompt: buildImagePrompt(ig, withPlaceStyle(described, style)), negativePrompt: ig.negativePrompt, model: target.model || undefined })
     const blob = await backgroundBlob(img.url)
     const taken = s.backgrounds.filter((b) => b.folderId === folderId).map((b) => toSnake(b.name))
     const stored = await storeBackground(blob, uniqueName(toSnake(name) || 'place', taken))

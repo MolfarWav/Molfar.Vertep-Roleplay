@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 import { backdropChoices, backdropDrawOn, backdropText, readBackdrop } from "../plugins/relations/plugin.js";
 
 (globalThis as any).location ??= { pathname: "/app/nimrod/roleplay/", host: "127.0.0.1:8788", protocol: "http:", href: "http://127.0.0.1:8788/" };
-const { autoDrawBlock, drawFailedRecently, noteDrawFailed, placeRecordFor, placeSubject, DRAW_RETRY_MS } = await import("../src/lib/world-backgrounds");
+const { autoDrawBlock, drawFailedRecently, noteDrawFailed, placeRecordFor, placeSubject, withPlaceStyle, DRAW_RETRY_MS } = await import("../src/lib/world-backgrounds");
 
 const choices = [
   { name: "tavern_night", tags: ["inn", "night"] },
@@ -117,5 +117,16 @@ describe("a place that failed, and the World's record of a place", () => {
     expect(placeSubject("old mill at dusk")).toBe("old mill at dusk");
     expect(placeSubject("old mill", places[0])).toBe("old mill. A stone mill by the river, the wheel broken.");
     expect(placeSubject("x", { text: "y\n\n z".repeat(400) }).length).toBe(500);
+  });
+});
+
+describe("withPlaceStyle", () => {
+  it("adds the chat's look to the end of the prompt, tidied", () => {
+    expect(withPlaceStyle("A stone chamber with a bed.", "  medieval fantasy,\n candlelight ")).toBe("A stone chamber with a bed, medieval fantasy, candlelight");
+    expect(withPlaceStyle("a stone chamber, ", "oil painting,")).toBe("a stone chamber, oil painting");
+  });
+  it("no look, no change", () => {
+    expect(withPlaceStyle("a stone chamber", undefined)).toBe("a stone chamber");
+    expect(withPlaceStyle("a stone chamber", "   ")).toBe("a stone chamber");
   });
 });
