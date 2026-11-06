@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.91.0'
+export const APP_VERSION = '4.92.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.request-size',
+    since: '4.92.0',
+    help: 'chat',
+    keywords: { en: 'request size tokens button header alarm limit popup continue new chat long chat cost fired what fired model', uk: 'розмір запиту токени кнопка шапка сигнал ліміт вікно продовжити новий чат довгий чат вартість що спрацювало модель' },
+    title: { en: 'See how big a request is, and carry on in a new chat', uk: 'Розмір запиту на виду і продовження в новому чаті' },
+    body: {
+      en: 'The chat header has a Request size button: the tokens the last request sent and the model that got it, teal, amber or red against your limit. Past the limit a popup offers Yes, continue in a new chat: one click, and the preset, persona, model, agents and the story come along. Set the limit in the popup (60% of the window, a size like 100k, or never). The Lore button is now Fired and shows what went into the last reply.',
+      uk: 'У шапці чату є кнопка «Request size»: скільки токенів пішло в останньому запиті й якій моделі, бірюзова, бурштинова або червона відносно вашого ліміту. Після ліміту вікно пропонує «Так, продовжити в новому чаті»: один клік, і пресет, персона, модель, агенти та історія йдуть з собою. Ліміт ставиться у вікні (60% вікна, розмір на кшталт 100k або ніколи). Кнопка Lore тепер Fired і показує, що потрапило в останню відповідь.',
+    },
+  },
   {
     id: 'new.memory-meaning',
     since: '4.91.0',
