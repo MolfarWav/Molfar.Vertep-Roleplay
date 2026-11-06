@@ -26,6 +26,14 @@ export interface LettersConfig {
 
 export const DEFAULT_LETTERS_CONFIG: LettersConfig = { enabled: false, idleDays: 14, perDay: 3, perCardDays: 30, model: '' }
 
+/** localStorage key of "Not now" on the offer card. */
+export const LETTERS_OFFER_KEY = 'rp.letters.offer'
+
+/** The offer card shows while the plugin is there, the switch is off and the player has not said "Not now". */
+export function showLettersOffer(s: { available: boolean; enabled: boolean; dismissed: boolean }): boolean {
+  return s.available && !s.enabled && !s.dismissed
+}
+
 /** One card the pass may ask the plugin about; `chatId` is set for an idle chat. */
 export interface LetterCandidate {
   characterId: string

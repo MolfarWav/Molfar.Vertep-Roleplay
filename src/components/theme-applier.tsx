@@ -1,7 +1,7 @@
 
 import { useEffect } from 'react'
 import { useApp } from '@/lib/store'
-import { hexLuminance } from '@/lib/utils'
+import { hexLuminance, legibleFill } from '@/lib/utils'
 import type { AppSettings } from '@/lib/types'
 
 /** Blend two hex colors; t=0 → a, t=1 → b. Used to derive readable
@@ -105,7 +105,8 @@ export function ThemeApplier() {
     // pair consistent for ANY preset, including user-authored ones.
     root.style.setProperty('--primary-foreground', c.chatBg)
     // second accent: absent on a preset = the accent, so older themes look as before
-    root.style.setProperty('--cta', c.cta || c.accent)
+    // the page colour is its text: a light accent on a light page is darkened until it reads (4.5:1)
+    root.style.setProperty('--cta', legibleFill(c.cta || c.accent, c.chatBg))
     root.style.setProperty('--cta-foreground', c.chatBg)
     root.style.setProperty('--secondary-foreground', c.mainText)
     root.style.setProperty('--muted-foreground', mix(c.mainText, c.chatBg, 0.35))

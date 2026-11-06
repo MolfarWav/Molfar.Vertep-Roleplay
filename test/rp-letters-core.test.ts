@@ -2,7 +2,7 @@
  * Letters from cards (#72, src/lib/letters-core.ts): who is due, in what order, and what the inbox does with a letter.
  */
 import { describe, expect, it } from 'bun:test'
-import { candidatesFor, lettersOf, type Letter } from '../src/lib/letters-core'
+import { candidatesFor, lettersOf, showLettersOffer, type Letter } from '../src/lib/letters-core'
 import { inboxRows } from '../src/lib/attention-core'
 
 const DAY = 86_400_000
@@ -85,5 +85,14 @@ describe('the inbox and letters', () => {
     const r = inboxRows({ ...input, letters: [letter('l1', 1)] })
     expect(r.failures).toBe(0)
     expect(r.total).toBe(1)
+  })
+})
+
+describe('the offer card', () => {
+  it('shows only while the plugin is there, the switch is off and "Not now" was not pressed', () => {
+    expect(showLettersOffer({ available: true, enabled: false, dismissed: false })).toBe(true)
+    expect(showLettersOffer({ available: true, enabled: true, dismissed: false })).toBe(false)
+    expect(showLettersOffer({ available: true, enabled: false, dismissed: true })).toBe(false)
+    expect(showLettersOffer({ available: false, enabled: false, dismissed: false })).toBe(false)
   })
 })

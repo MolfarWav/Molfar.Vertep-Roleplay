@@ -32,6 +32,12 @@ A group puts several characters into one chat. "New group" lets you pick members
 - Export writes a PNG with the card inside.
 - "With Molfar" on Home (and in Lorebooks) asks Molfar to draft a card or a lorebook with you. See [[vertep:molfar]].
 
+## Letters from cards
+
+A card you have not played for a while can write you a short note in its own voice. The note lands in the inbox (Home's "Waiting on you", the inbox button in the rail) as a green Letter; opening it takes you to the old chat, or starts a chat for a card you never played. A letter never writes into a chat and never invents events.
+
+It is **off until you turn it on**. While it is off, a green card "Let your characters write to you" sits at the top of the Characters section and in Home's "Waiting on you": **Turn on** switches it on at once, **Not now** hides the card for good. The numbers (days of idle, letters a day, days between letters from one card, the writing model) and the cards you stopped are in Characters, More, Letters from cards. Letters are checked every few hours while the app is open: a chat idle for 14 days, a card you never played for 14 days, and a played card with no Soul (once).
+
 ## What a card does not hold
 
 The Dashboard state, chapters and facts belong to each chat, not to the card. Card memory is also not part of the card and never appears in an export. The Soul, in contrast, is saved in the card.

@@ -36,6 +36,7 @@ import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { LettersDialog } from '@/components/letters/letters-dialog'
+import { LettersOffer } from '@/components/letters/letters-offer'
 import { folderCounts, folderTags, inFolder, moveToFolder, noFolder, removeFromFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
 import { TagManager } from '@/components/tags/tag-manager'
@@ -593,6 +594,7 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
           <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 md:px-4">{batchActions}</div>
         )}
       </header>
+      <LettersOffer className="mx-3 mt-3 md:mx-4" />
 
       <CreateGroupDialog open={groupOpen} onOpenChange={setGroupOpen} />
       <NewFolderDialog open={newFolderFor !== null} onOpenChange={(o) => { if (!o) setNewFolderFor(null) }} onCreate={onNewFolder} />

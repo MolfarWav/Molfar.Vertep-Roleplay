@@ -191,6 +191,8 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
         {items.length === 0 && <p className="px-2 py-1.5 text-[11px] text-muted-foreground">{t('ag.none')}</p>}
         {items.map((it) => {
           const info = installed?.find((a) => a.id === it.agent)
+          // the installed list loads after the chat's own: until then an id would show where the name will be
+          const label = info?.name ?? (installed ? it.agent : '…')
           const st = status(it, info)
           const ph = phaseOf(it, info)
           return (
@@ -200,7 +202,7 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
                 <Check className="size-3" aria-hidden="true" />
               </span>
               <span className="min-w-[7rem] flex-1">
-                <span className={cn('block truncate text-xs', it.on && 'font-semibold', !it.on && 'text-muted-foreground')}>{info?.name ?? it.agent}</span>
+                <span className={cn('block truncate text-xs', it.on && 'font-semibold', !it.on && 'text-muted-foreground')}>{label}</span>
                 <span className={cn('block truncate text-[10px]', st.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
                   {ph && !st.warn ? `${t(`ag.phase.${ph === 'before' && it.wait === false ? 'parallel' : ph}` as 'ag.phase.after')} · ` : ''}{st.text}
                 </span>

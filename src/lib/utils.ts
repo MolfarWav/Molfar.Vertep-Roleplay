@@ -53,6 +53,33 @@ export function hexLuminance(hex: string): number {
   return 0.2126 * f(16) + 0.7152 * f(8) + 0.0722 * f(0)
 }
 
+/** Contrast ratio of two #rrggbb colors (WCAG), 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const la = hexLuminance(a)
+  const lb = hexLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** `bg` moved toward black (when the text on it is lighter) or white (when it is darker) until the text reads on it, at
+ *  least `min`:1. A solid button takes the theme's accent as its fill and the page colour as its text; a light accent
+ *  under a light page (Daylight's green, 2.7:1) is darkened, one that already reads is returned as it was. */
+export function legibleFill(bg: string, text: string, min = 4.5): string {
+  const hex = /^#[0-9a-f]{6}$/i
+  if (!hex.test(bg) || !hex.test(text)) return bg
+  const toward = hexLuminance(text) > hexLuminance(bg) ? '#000000' : '#ffffff'
+  const mixHex = (t: number) => {
+    const pa = parseInt(bg.slice(1), 16)
+    const pb = parseInt(toward.slice(1), 16)
+    const ch = (s: number) => Math.round(((pa >> s) & 0xff) + (((pb >> s) & 0xff) - ((pa >> s) & 0xff)) * t)
+    return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('')}`
+  }
+  for (let i = 0; i <= 20; i++) {
+    const c = mixHex(i * 0.05)
+    if (contrastRatio(c, text) >= min) return c
+  }
+  return toward
+}
+
 /** Character name colors are authored against unknown surfaces (chat bg, card
  *  bg — both near-black or near-white depending on theme). A color that
  *  vanishes on one of the two extremes (like an avatar-extracted near-black)
