@@ -709,7 +709,7 @@ name starts with `_` is a template the app list skips). Fields, as the engine re
 | `markdownOnly` | `true`: changes only what is shown on screen; the saved text and the prompt stay as they are. Default `false`. |
 | `promptOnly` | `true`: changes only what the model reads; the saved text and the screen stay as they are. Default `false`. |
 | `scope`, `scopeTargetId` | `global` (everywhere, `scopeTargetId` null), `character` (that card, or a group that has it as a member), `chat` (that chat id) or `preset` (that preset id; the default preset when a chat has none). A non-global script without a `scopeTargetId` never applies. Global scripts run first, then preset, then character and chat. |
-| `minDepth`, `maxDepth` | Only for the prompt: the window of history messages the script touches, counted from the newest one (0 = the last message); `null` = no limit. |
+| `minDepth`, `maxDepth` | The window of history messages the script touches (in the prompt and on screen), counted from the newest one (0 = the last message); `null` = no limit. |
 | `trimStrings` | Strings removed from every captured group and from `{{match}}` before they go into the replacement. |
 | `runOnEdit` | `true`: also rewrites a saved message when the player edits it. Default `false`. |
 | `macroMode` | Whether macros in the pattern are expanded first: `none` (default, the pattern is used as written), `raw` (macros expanded as they are) or `escaped` (their values are regex-escaped). |

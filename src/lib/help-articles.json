@@ -1368,6 +1368,66 @@
       ]
     },
     {
+      "id": "kb.facts-filters",
+      "group": "story",
+      "title": {
+        "en": "Facts: search and filters",
+        "uk": "Факти: пошук і фільтри"
+      },
+      "aliases": {
+        "en": "facts search filter type weight who knows status active pinned retired replaced all clear messages",
+        "uk": "факти пошук фільтр тип вага хто знає статус чинні закріплені зняті замінені усі скинути повідомлення"
+      },
+      "short": {
+        "en": "The Facts tab has a search box and four filters: type, weight, who knows and status. A line above the list tells how many facts are shown.",
+        "uk": "Вкладка фактів має поле пошуку і чотири фільтри: тип, вага, хто знає і статус. Рядок над списком каже, скільки фактів показано."
+      },
+      "where": {
+        "en": "Library, Details, the Facts tab.",
+        "uk": "Бібліотека, «Деталі», вкладка фактів."
+      },
+      "details": {
+        "en": "“Search facts” looks in the text of a fact, in who it is about and in who knows it. Tick “Search the messages” to search the chat's own messages instead. Type at least 2 letters; a result opens the messages around it.\n\nThe filters work together: Type, Weight, “Who knows” and Status. “Who knows” keeps the facts about that name and the facts that name knows, with the facts everyone knows. Status starts on “Active”. The other choices are “Pinned”, “Retired”, “Replaced” and “All”. Choose “All” to see merged and retired facts too.\n\nA line above the list says how many facts are shown out of all of them. “Clear” puts the search and the filters back to the start. It appears only when something is filtered.",
+        "uk": "«Шукати у фактах» дивиться в текст факту, у того, про кого він, і в тих, хто його знає. Позначте «Шукати в повідомленнях», щоб шукати в самих повідомленнях чату. Введіть щонайменше 2 літери. Результат відкриє повідомлення навколо.\n\nФільтри працюють разом: «Тип», «Вага», «Хто знає» і «Статус». «Хто знає» залишає факти про це ім’я і факти, які воно знає, разом із фактами для всіх. «Статус» стартує з «Чинні». Інші варіанти — «Закріплені», «Зняті», «Замінені» й «Усі». Щоб побачити злиті й зняті факти, оберіть «Усі».\n\nНад списком рядок «Показано: N з M». Кнопка «Скинути» повертає пошук і фільтри до початкових. Вона з’являється лише тоді, коли щось відфільтровано."
+      },
+      "related": [
+        "kb.facts",
+        "kb.library-views"
+      ],
+      "sources": [
+        {
+          "path": "src/components/library/ledger-facts.tsx",
+          "lines": "753-753",
+          "quote": "const hay = [f.text, f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : ['all'])]"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2930-2930",
+          "quote": "'lit.msgs.searchToggle': 'Search the messages',"
+        },
+        {
+          "path": "src/components/library/ledger-facts.tsx",
+          "lines": "84-84",
+          "quote": "const STATE_FILTERS = ['active', 'pinned', 'retired', 'superseded', 'all'] as const"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2704-2704",
+          "quote": "'lit.status.superseded': 'Replaced',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3042-3042",
+          "quote": "'lit.factsShown': '{n} of {total} shown',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3043-3043",
+          "quote": "'lit.clear': 'Clear',"
+        }
+      ]
+    },
+    {
       "id": "kb.chats-map",
       "group": "story",
       "title": {
@@ -2485,6 +2545,77 @@
       ]
     },
     {
+      "id": "kb.regex-scope",
+      "group": "setup",
+      "title": {
+        "en": "Regex scripts: scope, depth and the test box",
+        "uk": "Регекс-скрипти: де діють, глибина і перевірка"
+      },
+      "aliases": {
+        "en": "regex scope global character chat preset depth min max test sandbox input output match order edit rerun",
+        "uk": "регекс скрипт область де діє глобальний персонаж чат пресет глибина мін макс тест пісочниця вхід вихід збіг порядок редагування"
+      },
+      "short": {
+        "en": "Scope says where a script runs. Depth limits it to the newest messages. The Test Sandbox shows what a pattern does before you rely on it.",
+        "uk": "«Scope» каже, де діє скрипт. Глибина обмежує його найновішими повідомленнями. «Test Sandbox» показує, що робить шаблон, ще до того, як на нього покластися."
+      },
+      "where": {
+        "en": "Tools, the Regex tab, then open a script.",
+        "uk": "Інструменти, вкладка «Regex», відкрийте скрипт."
+      },
+      "details": {
+        "en": "Scope says where a script may run. “Global” runs everywhere. “Character” runs in chats with that card; a group counts if the card is one of its members. “Chat” runs in one chat. “Preset” runs with one preset. Pick the target in the list that appears. A script that is not Global and has no target never runs. Global scripts go first, then Preset, then Character and Chat.\n\nMin Depth and Max Depth limit a script to part of the chat history. Depth counts from the newest message: 0 is the last one, 1 the one before it. An empty field means no limit. Example: Min Depth 0 and Max Depth 3 touch only the last four messages.\n\nThe Test Sandbox sits under the pattern. Type sample text in Input: matches are highlighted, and Output shows what the script makes of it. The badge shows the number of matches, or the error. A pattern that takes longer than 400 ms is stopped with an error, so the app does not freeze.\n\n“Also run when I edit a message” runs the script again when you edit a saved message. It is off by default, and it is unavailable when a script changes only what is shown or only what the model reads.",
+        "uk": "«Scope» каже, де може діяти скрипт. «Global» — скрізь. «Character» — у чатах з цією карткою; група теж враховується, якщо картка — її учасник. «Chat» — в одному чаті. «Preset» — з одним пресетом. Ціль оберіть у списку, що з’явиться. Скрипт, який не «Global» і не має цілі, не діє зовсім. Спершу йдуть «Global», потім «Preset», тоді «Character» і «Chat».\n\n«Min Depth» і «Max Depth» обмежують скрипт частиною історії чату. Глибина йде від найновішого повідомлення: 0 — останнє, 1 — передостаннє. Порожнє поле означає «без межі». Приклад: Min Depth 0 і Max Depth 3 зачепить лише чотири останні повідомлення.\n\n«Test Sandbox» стоїть під шаблоном. Введіть зразок тексту в «Input»: збіги підсвітяться, а «Output» покаже, що з нього зробить скрипт. Значок показує число збігів або помилку. Шаблон, який рахує понад 400 мс, зупиняється з помилкою, тож застосунок не зависає.\n\n«Also run when I edit a message» запускає скрипт ще раз, коли ви редагуєте збережене повідомлення. Типово вимкнено. Недоступно, якщо скрипт змінює лише показане або лише те, що читає модель."
+      },
+      "related": [
+        "kb.regex",
+        "help.tools",
+        "kb.presets"
+      ],
+      "sources": [
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "411-411",
+          "quote": "<SelectItem value=\"global\">Global</SelectItem>"
+        },
+        {
+          "path": "src/lib/display-scripts.ts",
+          "lines": "29-29",
+          "quote": "if (!r.scopeTargetId) return false"
+        },
+        {
+          "path": "docs/DATA-FORMATS.md",
+          "lines": "711-711",
+          "quote": "Global scripts run first, then preset, then character and chat."
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "588-588",
+          "quote": "<Label className=\"text-xs\">Min Depth</Label>"
+        },
+        {
+          "path": "src/lib/display-scripts.ts",
+          "lines": "12-12",
+          "quote": "/** Distance from the chat's end (0 = the last message). */"
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "72-72",
+          "quote": "text-muted-foreground\">Test Sandbox</span>"
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "64-64",
+          "quote": "timeoutMs: 400"
+        },
+        {
+          "path": "src/components/views/regex-view.tsx",
+          "lines": "563-563",
+          "quote": "<span>Also run when I edit a message</span>"
+        }
+      ]
+    },
+    {
       "id": "kb.quick-replies",
       "group": "setup",
       "title": {
@@ -2905,6 +3036,71 @@
       ]
     },
     {
+      "id": "kb.data-bank-scope",
+      "group": "setup",
+      "title": {
+        "en": "Data Bank: where a file applies, and search",
+        "uk": "Data Bank: де діє файл і як його шукати"
+      },
+      "aliases": {
+        "en": "data bank scope everywhere character chat file applies search retrieval chunk score test passages upload",
+        "uk": "банк даних data bank область де діє файл скрізь персонаж чат пошук уривок бал перевірка завантажити"
+      },
+      "short": {
+        "en": "Each Data Bank file has an area: everywhere, one character or one chat. The search box shows which passages the bank would add to a message.",
+        "uk": "Кожен файл Data Bank має область дії: скрізь, один персонаж або один чат. Поле пошуку показує, які уривки банк додав би до повідомлення."
+      },
+      "where": {
+        "en": "Tools → Data Bank.",
+        "uk": "Інструменти → Data Bank."
+      },
+      "details": {
+        "en": "The area decides which chats may use a file. “Everywhere” is the default: every chat can. “A character…” limits the file to chats with that character; pick the character in the list that appears. “A chat…” limits it to one chat. A chat that continues a linked chat reads that chat's files too.\n\nPick the area before you upload. Upload stays off until you have picked the character or the chat. To change it later, press the small label under the file's name, “Where this file applies”.\n\n“Search the bank” tests the same retrieval that runs when you send a message. Type some terms and press Enter or “Search”. Each result shows the file, the chunk number and a score. The list next to the box, “Search as this chat”, lets you pick a chat: you then see only the files that chat would use. “All files” searches every file. “No matching passages.” means nothing matched.",
+        "uk": "Область дії вирішує, які чати можуть використати файл. «Скрізь» — типово: файл бачить кожен чат. «Персонаж…» обмежує файл чатами з цим персонажем; оберіть його в списку, що з’явиться. «Чат…» обмежує файл одним чатом. Чат, що продовжує пов’язаний чат, читає й файли того чату.\n\nОберіть область до завантаження. Кнопка «Upload» вимкнена, доки не обрано персонажа або чат. Змінити область пізніше можна малою позначкою під назвою файлу: «Де діє цей файл».\n\n«Search the bank» перевіряє той самий пошук, що працює під час надсилання повідомлення. Введіть слова й натисніть Enter або «Search». Кожен результат показує файл, номер уривка та бал. Поруч із полем є список «Шукати як для цього чату». Оберіть у ньому чат, і побачите лише файли, які той чат використав би. «Усі файли» шукає по всіх файлах. «No matching passages.» означає, що нічого не знайшлося."
+      },
+      "related": [
+        "kb.data-bank",
+        "help.tools"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3563-3563",
+          "quote": "'bank.scope.global': 'Everywhere',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3570-3570",
+          "quote": "'bank.scope.change': 'Where this file applies',"
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "157-157",
+          "quote": "const needTarget = upScope !== 'global' && !upTarget"
+        },
+        {
+          "path": "plugins/engine/plugin.js",
+          "lines": "1079-1079",
+          "quote": "a chat that continues one of them (Canvas links, `scope.chain`"
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "269-269",
+          "quote": "<p className=\"text-sm font-medium\">Search the bank</p>"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3573-3573",
+          "quote": "'bank.searchChat': 'Search as this chat',"
+        },
+        {
+          "path": "src/components/extensions/data-bank-tab.tsx",
+          "lines": "295-295",
+          "quote": "No matching passages."
+        }
+      ]
+    },
+    {
       "id": "kb.backgrounds-tab",
       "group": "setup",
       "title": {
@@ -3218,7 +3414,8 @@
       "related": [
         "new.image-prompt-style",
         "help.tools",
-        "help.regen-hint"
+        "help.regen-hint",
+        "kb.image-gen-tab"
       ],
       "title": {
         "en": "Generate an image in the chat",
@@ -3233,8 +3430,8 @@
         "uk": "Увімкніть Image Generation в «Інструментах». Тоді в меню «+» з’явиться Generate image, а /imagine малює сцену або ваш опис."
       },
       "details": {
-        "en": "Image Generation is off until you switch on Enable image generation on its tab under Tools. Only then does the + menu get a Generate image submenu.\n\nType /imagine with no words to draw the scene. Type a word after it, you, face, me or background, to draw that, or write your own description.\n\nWith interactive mode on, you preview and can edit the description before the picture is posted. With it off, /imagine posts the picture in one step.",
-        "uk": "Спершу увімкніть Enable image generation на вкладці «Image Generation» в «Інструментах». Доки це вимкнено, пункту Generate image у меню «+» немає.\n\n/imagine без слів малює сцену. Після нього можна написати you, face, me або background, або власний опис.\n\nКоли інтерактивний режим увімкнено, ви бачите картинку та опис перед публікацією й можете редагувати опис. Вимкнено — /imagine публікує в один крок."
+        "en": "Image Generation is off until you switch on Enable image generation on its tab under Tools. Only then does the + menu get a Generate image submenu.\n\nType /imagine with no words to draw the scene. Type a word after it, you, face, me or background, to draw that, or write your own description.\n\nWith interactive mode on, you preview and can edit the description before the picture is posted. With it off, /imagine posts the picture in one step.\n\nIn the preview window, Draw picks what to draw: “The scene”, “Character”, “Portrait”, “Me” or “Background”. “Read chat again” asks the model for a fresh description. Press “Draw” to make the picture; the button then reads “Redraw” and makes another one from the description as it stands. “Post to chat” puts the picture in the chat and stays off until a picture exists. “Cancel” posts nothing.",
+        "uk": "Спершу увімкніть Enable image generation на вкладці «Image Generation» в «Інструментах». Доки це вимкнено, пункту Generate image у меню «+» немає.\n\n/imagine без слів малює сцену. Після нього можна написати you, face, me або background, або власний опис.\n\nКоли інтерактивний режим увімкнено, ви бачите картинку та опис перед публікацією й можете редагувати опис. Вимкнено — /imagine публікує в один крок.\n\nУ вікні перегляду «Draw» обирає, що малювати: «The scene», «Character», «Portrait», «Me» або «Background». «Read chat again» просить у моделі новий опис. Натисніть «Draw» — з’явиться картинка, а кнопка стане «Redraw»: вона малює ще одну за поточним описом. «Post to chat» кладе картинку в чат; без картинки вона вимкнена. «Cancel» нічого не публікує."
       },
       "sources": [
         {
@@ -3256,6 +3453,21 @@
           "path": "src/components/extensions/image-gen-tab.tsx",
           "lines": "162-162",
           "quote": "Preview and edit before posting. Off: <code className=\"font-mono\">/imagine</code> posts in one step."
+        },
+        {
+          "path": "src/components/chat/image-gen-dialog.tsx",
+          "lines": "173-173",
+          "quote": "{result ? 'Redraw' : 'Draw'}"
+        },
+        {
+          "path": "src/components/chat/image-gen-dialog.tsx",
+          "lines": "175-175",
+          "quote": "<Button disabled={!result || posting} onClick={() => void post()}>"
+        },
+        {
+          "path": "src/lib/image-gen.ts",
+          "lines": "75-75",
+          "quote": "{ mode: 'background', label: 'Background', words: ['background', 'bg', 'place'] },"
         }
       ],
       "where": {
