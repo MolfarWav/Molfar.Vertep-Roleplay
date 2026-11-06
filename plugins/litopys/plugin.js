@@ -4777,7 +4777,7 @@ export function onTick(_ctx, host) {
         // M4d: with every scene chaptered, the worker merges arcs (one call per tick)
         if (!work && arcStep(fsx, host, chatId, st, line, chatCfg, meta, now)) return;
         // #51: a Consolidate the user asked for, one batch per tick, after chapters and arcs
-        if (!work && consolidateStep(fsx, host, chatId, st, chatCfg, meta, now)) return;
+        if (!work && consolidateStep(fsx, host, chatId, st, chatCfg, meta, now, line, dash)) return;
         // #113: a story summary for a card's memory, after the chapters it is written from
         if (!work && summaryStep(fsx, host, chatId, st, chatCfg, meta, now)) return;
         if (!work && st.arcFlight) {
@@ -5307,6 +5307,8 @@ export const CONSOLIDATE_PROMPT = [
   "You keep the story record of an ongoing roleplay. Below are facts from that record, one per line, each with its id and subject.",
   "Find only real problems and propose fixes:",
   "- merge: two or more facts that say the same thing, or that belong in one sentence. Give the ids and the one merged sentence.",
+  "  Some facts end with {scene N, when}: the scene and the story time where it was told. Facts from different scenes are different moments.",
+  "  When a merge joins an action or event that happened more than once, keep how many times and when in the sentence (for example 'twice: on arrival and on leaving'). If the sentence cannot keep that, do not merge them.",
   "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence.",
   "- retire: a fact that a later fact makes untrue or that is a pure duplicate of another one you keep. Give the id.",
   "Each with a short reason (at most 15 words). Most facts need nothing: leave them out. Propose nothing when nothing is wrong.",
@@ -5342,9 +5344,80 @@ export function consolidateBatches(st) {
   return batches;
 }
 
-export function buildConsolidateRequest(facts, cfg, meta) {
+const WHENS_MAX = 8;
+
+/**
+ * #153: where in the story each fact was told. Returns anchorsOf(fact) -> [{ scene, of, chapter, day?, date?, time?, approx? }]:
+ * `scene` is the place of the fact's chapter among the record's chapters in story order (1-based), `of` how many there are, the
+ * rest the Dashboard clock at the chapter's first message. A merged fact carries the anchors of its parts in `whens`. Missing
+ * pieces are left out (no chapter, no Dashboard, a clock without a date); a fact with nothing known gets an empty list.
+ */
+export function factAnchors(st, line, dash) {
+  const ranked = arr(st && st.chapters)
+    .filter((ch) => isObj(ch) && ch.kind !== "merged")
+    .map((ch) => ({ ch, r: rangeOf(ch, line) }))
+    .filter((x) => !x.r.orphan)
+    .sort((a, b) => a.r.fromIdx - b.r.fromIdx);
+  const sceneOf = new Map(ranked.map((x, i) => [x.ch.id, { n: i + 1, idx: x.r.fromIdx }]));
+  const pos = new Map(arr(line).map((m, i) => [m.id, i]));
+  const clockAt = (idx) => {
+    const snap = line[idx] ? snapOf(dash, line[idx]) : null;
+    const c = snap && isObj(snap.clock) ? snap.clock : null;
+    if (!c) return {};
+    const out = {};
+    if (Number.isFinite(Number(c.day)) && Number(c.day) > 0) out.day = Number(c.day);
+    if (typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date)) out.date = c.date;
+    if (typeof c.time === "string" && /^\d{1,2}:\d{2}$/.test(c.time)) {
+      out.time = c.time;
+      if (c.approx === true) out.approx = true;
+    }
+    return out;
+  };
+  return (f) => {
+    if (!isObj(f)) return [];
+    if (Array.isArray(f.whens) && f.whens.length) return f.whens.filter(isObj).slice(0, WHENS_MAX);
+    const src = isObj(f.src) ? f.src : {};
+    const sc = src.chapter ? sceneOf.get(src.chapter) : null;
+    if (sc) return [{ scene: sc.n, of: ranked.length, chapter: str(src.chapter), ...clockAt(sc.idx) }];
+    const at = pos.get(src.from);
+    return at === undefined ? [] : [{ chapter: "", ...clockAt(at) }];
+  };
+}
+
+/** One anchor as short text: "scene 3, 2026-03-04 14:10" (a date wins over the day count; an approximate hour has a ~). */
+export function anchorText(a) {
+  if (!isObj(a)) return "";
+  const parts = [];
+  if (a.scene) parts.push("scene " + a.scene);
+  const day = a.date ? a.date : a.day ? "day " + a.day : "";
+  const time = a.time ? (a.approx ? "~" : "") + a.time : "";
+  const when = [day, time].filter(Boolean).join(" ");
+  if (when) parts.push(when);
+  return parts.join(", ");
+}
+
+/** The anchors of the parts of a merge, in story order, each place once, at most WHENS_MAX. */
+export function mergeAnchors(parts, anchorsOf) {
+  const seen = new Set();
+  const out = [];
+  for (const f of arr(parts)) {
+    for (const a of anchorsOf(f)) {
+      const k = [a.chapter, a.scene, a.date, a.day, a.time].join("|");
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(a);
+    }
+  }
+  out.sort((x, y) => (x.scene || 1e9) - (y.scene || 1e9));
+  return out.slice(0, WHENS_MAX);
+}
+
+export function buildConsolidateRequest(facts, cfg, meta, anchorsOf) {
   const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
-  const lines = facts.map((f) => f.id + " [" + (str(f.subject) || "world") + "] " + str(f.text));
+  const lines = facts.map((f) => {
+    const at = typeof anchorsOf === "function" ? arr(anchorsOf(f)).map(anchorText).filter(Boolean).join("; ") : "";
+    return f.id + " [" + (str(f.subject) || "world") + "] " + str(f.text) + (at ? " {" + at + "}" : "");
+  });
   const req = {
     systemPrompt: CONSOLIDATE_PROMPT + "\n\nOutput shape\n" + CONSOLIDATE_SHAPE,
     messages: [{ role: "user", content: "Facts\n\n" + lines.join("\n") }],
@@ -5393,7 +5466,7 @@ export function parseConsolidateReply(text, batchIds) {
  * run does not repeat itself), a rewrite to the same text is skipped, the pending list stays at
  * most PROPOSALS_KEEP. Returns how many were added.
  */
-export function addConsolidateProposals(st, ops, now) {
+export function addConsolidateProposals(st, ops, now, anchorsOf) {
   const active = new Map(st.facts.filter((f) => isObj(f) && f.status === "active").map((f) => [f.id, f]));
   const busy = new Set(st.proposals.filter((p) => p.status === "pending").flatMap((p) => arr(p.targets)));
   let added = 0;
@@ -5403,7 +5476,9 @@ export function addConsolidateProposals(st, ops, now) {
     if (!targets.length || targets.some((id) => !active.has(id) || busy.has(id))) continue;
     if (o.op === "rewrite" && str(active.get(targets[0]).text) === str(o.text)) continue;
     st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;
-    st.proposals.push({ id: "p" + st.counters.proposal, op: o.op, targets, ...(o.text ? { text: o.text } : {}), reason: o.reason || "consolidate", status: "pending", origin: "consolidate", at: now });
+    // #153: a merge remembers where its parts were told, so the merged fact still says when
+    const whens = o.op === "merge" && typeof anchorsOf === "function" ? mergeAnchors(targets.map((id) => active.get(id)), anchorsOf) : [];
+    st.proposals.push({ id: "p" + st.counters.proposal, op: o.op, targets, ...(o.text ? { text: o.text } : {}), ...(whens.length ? { whens } : {}), reason: o.reason || "consolidate", status: "pending", origin: "consolidate", at: now });
     for (const id of targets) busy.add(id);
     added++;
   }
@@ -5422,7 +5497,7 @@ export function addConsolidateProposals(st, ops, now) {
 const consolidateKey = (chatId, job) => "lit_cons_" + chatId + "_" + job.at + "_" + job.next;
 
 /** One tick's Consolidate step: apply an answer, else send the next batch. true = the tick is done. */
-function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
+function consolidateStep(fsx, host, chatId, st, cfg, meta, now, line, dash) {
   if (!isObj(st.consolidate) || st.consolidate.state !== "working") {
     if (!autoConsolidateDue(st, cfg)) return false;
     // written down first: the request below is answered on a later tick, which reads the job from the file
@@ -5451,7 +5526,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
         delete cur.consolidate.batches;
         addActivity(cur, "worker", "consolidate.fail", "Consolidating facts failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
       } else {
-        const added = addConsolidateProposals(cur, ops, now);
+        const added = addConsolidateProposals(cur, ops, now, factAnchors(cur, line || [], dash));
         applyQuiet(cur, cfg, now);
         cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
         if (next + 1 >= batches.length) finishConsolidate(cur, now);
@@ -5469,7 +5544,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now) {
     return true;
   }
   beat(fsx, chatId, now);
-  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta));
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta, factAnchors(st, line || [], dash)));
   return true;
 }
 
@@ -6404,6 +6479,8 @@ export function proposalRoute(fsx, body) {
         src: isObj(first.src) ? { ...first.src } : { from: null, to: null },
         origin: "merge",
         merges: targets.map((f) => f.id),
+        // #153: where its parts were told (the proposal worked it out); kept so a later pass still sees the count and the order
+        ...(Array.isArray(p.whens) && p.whens.length ? { whens: p.whens.slice(0, 8) } : {}),
         at: now,
         updatedAt: now,
       };

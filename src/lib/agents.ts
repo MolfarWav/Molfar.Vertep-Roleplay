@@ -38,6 +38,8 @@ export interface AgentInfo {
   blocker: string
   /** the places the chat may move this agent's results to; the first is where the author put them */
   places?: string[]
+  /** the Script cards of the agent with their code, so the person can read what they allow */
+  scripts?: { id: string; title: string; code: string }[]
   /** the model roles the author named, each with a hint ("cheap, answers in JSON"); never a model id */
   models?: Record<string, { hint?: string }>
   /** the user's own choices for this agent (see saveAgentOwn) */
@@ -290,6 +292,17 @@ export async function probeAgentOnChat(file: unknown, chatId: string): Promise<D
   return j<DryProbe>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { probe: true }) })
 }
 
+/** What the engine's script box made of one Script card's code: the values it returned, or why it did not. */
+export type ScriptAnswer = { value: Record<string, unknown> } | { error: string }
+export async function runScriptOnEngine(req: { code: string; input: Record<string, unknown>; seed: string }): Promise<ScriptAnswer> {
+  try {
+    const r = await j<{ ok?: boolean; value?: Record<string, unknown>; error?: string }>('/agents/script', { method: 'POST', body: JSON.stringify(req) })
+    return r.ok === true && r.value ? { value: r.value } : { error: r.error || 'The script did not answer.' }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
+}
+
 /** Runs the agent on the chat's model with the given inputs and memory. It costs tokens; nothing is written. */
 export async function runAgentOnChat(file: unknown, chatId: string, setup: { inputs: Record<string, string>; own: Record<string, unknown> }): Promise<DryLiveResult> {
   return j<DryLiveResult>('/agents/dry', { method: 'POST', body: dryBody(file, chatId, { live: true, inputs: setup.inputs, own: setup.own }) })
@@ -423,6 +436,7 @@ export function describeNeed(token: string, t: T): string {
   if (token === 'show:note') return t('ag.need.note')
   if (token === 'show:choices') return t('ag.need.choices')
   if (token === 'show:panel') return t('ag.need.panel')
+  if (token === 'run:code') return t('ag.need.runCode')
   const m = /^(read|write):(state|own)\.(.+)$/.exec(token)
   if (m) {
     const key: MsgKey = m[2] === 'own' ? (m[1] === 'read' ? 'ag.need.ownRead' : 'ag.need.ownWrite') : (m[1] === 'read' ? 'ag.need.dashRead' : 'ag.need.dashWrite')

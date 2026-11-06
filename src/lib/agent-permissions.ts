@@ -2,14 +2,15 @@
 // granting: the plugin keeps exactly the list it is sent, so one switch means "the old list plus/minus this token".
 // Pure, so a test can hold it.
 
-export type PermGroup = 'read' | 'write' | 'show' | 'model' | 'other'
-export const PERM_GROUPS: PermGroup[] = ['read', 'write', 'show', 'model', 'other']
+export type PermGroup = 'read' | 'write' | 'show' | 'model' | 'code' | 'other'
+export const PERM_GROUPS: PermGroup[] = ['read', 'write', 'show', 'model', 'code', 'other']
 
 export function groupOfNeed(token: string): PermGroup {
   if (token === 'llm') return 'model'
   if (token.startsWith('read:')) return 'read'
   if (token.startsWith('write:')) return 'write'
   if (token.startsWith('show:')) return 'show'
+  if (token === 'run:code') return 'code'
   return 'other'
 }
 
