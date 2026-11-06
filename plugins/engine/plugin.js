@@ -6635,7 +6635,9 @@ const toolX = (r) => ({
           mode === "user" || mode === "scene" ? about(userName, persona && persona.description) : "",
           transcript ? "Recent chat:\n" + transcript : "",
         ].filter(Boolean).join("\n\n");
-        host.llm.request("imgprompt", { messages: [{ role: "user", content }], ...(modelOf() ? { model: modelOf() } : {}) });
+        // a description is at most ~1500 characters: name the output cap, or the provider reserves the model's whole output
+        // limit and a paid account is refused with 402 "Insufficient available credits ... lower the requested maximum output tokens"
+        host.llm.request("imgprompt", { messages: [{ role: "user", content }], presetParams: { max_tokens: 1200 }, ...(modelOf() ? { model: modelOf() } : {}) });
         return pendingOut(meta);
       }
       if (reply.model === "error") return err(503, llmFailReason(reply));

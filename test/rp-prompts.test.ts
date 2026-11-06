@@ -153,6 +153,8 @@ describe("plugin prompts: English, with a language line where the model writes f
       await drive(engineUrl, { method: "POST", path: `/chats/${id}/image-prompt`, body: { mode } }, m);
       const asked = m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.messages[0]!.content;
       expect(CYRILLIC.test(asked), mode).toBe(false);
+      // the output is capped: without it the provider reserves the model's whole output and refuses a paid account with 402
+      expect(m.requests.filter((x) => x.key === "imgprompt").at(-1)!.req.presetParams?.max_tokens, mode).toBe(1200);
       expect(asked, mode).toContain("Write the image prompt in English, whatever language the story is in.");
     }
   });
