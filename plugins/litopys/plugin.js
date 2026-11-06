@@ -1051,7 +1051,7 @@ export const DEFAULT_CONFIG = {
   // leaves whole as soon as its chapter exists, and sceneKeep (2 and up, no upper limit in practice) direct messages stay after the last one
   cutMode: "fit",
   sceneKeep: 2,
-  // the chat strip that offers a cut once a reply sent this much (#261): "auto" = 60% of the model's window, "tokens" = promptAlertTokens, "off" = never
+  // the request size past which the chat popup offers a new chat (#261): "auto" = 60% of the model's window, "tokens" = promptAlertTokens, "off" = never
   promptAlert: "auto",
   promptAlertTokens: 30000,
   scene: {

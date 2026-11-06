@@ -45,3 +45,31 @@ export function shouldOfferTrim(tokens: number, limit: number | null, dismissedA
   if (limit === null || tokens <= 0 || tokens < limit) return false
   return dismissedAt === null || tokens >= dismissedAt * REOFFER_GROWTH
 }
+
+/** 45000 reads "45k", 45300 "45.3k", 900 "900" */
+export function shortTokens(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n))
+}
+
+/** How close the last request is to the limit: nothing sent yet, below the limit, within a quarter of it, or past it.
+ *  `ok` also covers "no limit" (the alarm is off or the window is unknown). */
+export type RequestLevel = 'none' | 'ok' | 'near' | 'over'
+export function requestLevel(tokens: number, limit: number | null): RequestLevel {
+  if (tokens <= 0) return 'none'
+  if (limit === null) return 'ok'
+  return tokens >= limit ? 'over' : tokens >= limit * 0.75 ? 'near' : 'ok'
+}
+
+/** The sizes a person can type: "100000", "100 000", "100k", "1.5m". null = not a size, or outside what the setting allows. */
+export const ALERT_MIN = 1000
+export const ALERT_MAX = 5_000_000
+export function parseTokens(text: string): number | null {
+  let clean = text.replace(/[\s\u00a0_]/g, '')
+  // "100,000" and "1.500.000" are thousands separators, "1.5k" is a decimal
+  if (/^\d{1,3}([,.]\d{3})+$/.test(clean)) clean = clean.replace(/[,.]/g, '')
+  const m = /^(\d+(?:[.,]\d+)?)([km]?)$/i.exec(clean)
+  if (!m) return null
+  const n = Number(m[1]!.replace(',', '.')) * (m[2]!.toLowerCase() === 'k' ? 1000 : m[2]!.toLowerCase() === 'm' ? 1_000_000 : 1)
+  const r = Math.round(n)
+  return Number.isFinite(r) && r >= ALERT_MIN && r <= ALERT_MAX ? r : null
+}

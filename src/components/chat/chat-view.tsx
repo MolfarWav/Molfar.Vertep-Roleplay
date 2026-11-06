@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -66,7 +66,9 @@ import { useLoadChatVoices } from '@/lib/chat-voices'
 import { DashPhoneMount, DashProvider, DashStripMount } from '@/components/dashboard/dash-mount'
 import { CarriesPanel, useCarries } from '@/components/chat/carries-panel'
 import { OpeningHint } from '@/components/chat/opening-hint'
-import { BigPromptStrip } from '@/components/chat/big-prompt-strip'
+import { RequestSizeButton, RequestSizeDialog, useRequestSize } from '@/components/chat/request-size'
+import { shortTokens } from '@/lib/long-chat'
+import { continueInNewChat } from '@/lib/continue-chat'
 import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -644,6 +646,8 @@ export function ChatView() {
       : null
     return { chatCost: n > 0 ? cost : null, costMsgs: n, chatModel: lastModel, tokensIn: usageN > 0 ? tin : null, tokensOut: usageN > 0 ? tout : null, lastInput: cache ? cache.prompt : null, cache }
   }, [chat])
+  // the request-size alarm (#261): the header button, the popup, and the phone menu row all read this
+  const requestSize = useRequestSize(chat ?? undefined, chatModel || defaultModel || null, windowKnown ? contextSize : null, isStreaming)
 
   const startIdx = chat ? Math.max(0, chat.messages.length - visibleCount) : 0
   // the newest real turn owns the swipe controls; a picture posted after a
@@ -701,7 +705,7 @@ export function ChatView() {
   // the chat as a whole (were in the composer's plus menu)
   const chatManage: ChatAction[] = [
     { key: 'new', icon: ChatCenteredText, label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming },
-    { key: 'continue', icon: LinkSimple, label: t('chat.continueNew'), onSelect: () => void startChatAndOpen(chat.characterId, 0, { continues: chat.id }), disabled: isStreaming },
+    { key: 'continue', icon: LinkSimple, label: t('chat.continueNew'), onSelect: () => void continueInNewChat(chat.id), disabled: isStreaming },
     { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
     { key: 'files', icon: FolderOpen, label: 'Manage chat files', onSelect: () => setManageOpen(true) },
   ]
@@ -794,7 +798,10 @@ export function ChatView() {
               </button>
             </p>
           </div>
-          {toolMode !== 'none' && <ChatToolButtons state={toolState} on={toolHandlers} labelled={toolMode === 'labelled'} />}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {toolMode !== 'none' && <ChatToolButtons state={toolState} on={toolHandlers} labelled={toolMode === 'labelled'} />}
+            <RequestSizeButton rs={requestSize} labelled={toolMode === 'labelled'} />
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <div data-guide="chat.switch" className="flex"><ChatQuickSwitch chatId={chat.id} /></div>
             <ChatDetailsButton
@@ -869,6 +876,7 @@ export function ChatView() {
           cache={cache}
           context={chatContext}
         />
+        {(requestSize.level === 'near' || requestSize.level === 'over') && <RequestSizeButton rs={requestSize} compact />}
         <WorldStatusButton phone chatId={chat.id} onClick={() => { closeDrawer(); setWorldOpen(true) }} />
         <Button variant="outline" className="h-10 shrink-0 gap-1.5 px-3" onClick={() => { closeDrawer(); setMenuOpen(true) }} aria-haspopup="dialog">
           <List className="size-4.5" aria-hidden="true" /> Menu
@@ -876,6 +884,7 @@ export function ChatView() {
       </nav>
 
       {/* what the chat carries into the prompt besides the history (#107): the panel behind the header's "~N tok" button and the phone menu's row */}
+      <RequestSizeDialog rs={requestSize} />
       <CarriesPanel chatId={chat.id} state={carries} onOpenNote={() => setNotesOpen(true)} onOpenFired={() => { setFiredTab('chron'); setLoreOpen(true) }} />
 
       <Sheet open={menuOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d?.event)) return; setMenuOpen(o) }}>
@@ -890,6 +899,7 @@ export function ChatView() {
             <div className="flex flex-col p-2">
               <p className="px-3 pt-1 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">This chat</p>
               <ChatToolTiles state={toolState} on={toolHandlers} closeMenu={() => setMenuOpen(false)} />
+              {sheetRow({ key: 'request', icon: Gauge, label: requestSize.tokens > 0 ? `${t('req.label')}: ${shortTokens(requestSize.tokens)}${requestSize.level === 'over' ? ` (${t('req.over')})` : ''}` : t('req.label'), onSelect: () => requestSize.setOpen(true) })}
               {sheetRow({ key: 'find', icon: MagnifyingGlass, label: 'Find in chat', onSelect: () => setFindOpen(true) })}
               {charChats.length > 1 && sheetRow({
                 key: 'next',
@@ -1151,7 +1161,6 @@ export function ChatView() {
           </div>
         ) : (
           <>
-            <BigPromptStrip chat={chat} />
             {character.isGroup && <GroupPicker chat={chat} group={character} />}
             <Composer chatId={chat.id} />
           </>

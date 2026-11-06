@@ -21,10 +21,10 @@ export function NewChatStep() {
   const step = useApp((s) => s.newChatStep)
   if (!step) return null
   // keyed by the request, so a second step starts from a clean state
-  return <StepDialog key={`${step.charId}:${step.greetingIndex ?? 0}:${step.continues ?? ''}`} charId={step.charId} greetingIndex={step.greetingIndex} continues={step.continues} />
+  return <StepDialog key={`${step.charId}:${step.greetingIndex ?? 0}`} charId={step.charId} greetingIndex={step.greetingIndex} />
 }
 
-function StepDialog({ charId, greetingIndex, continues }: { charId: ID; greetingIndex?: number; continues?: ID }) {
+function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: number }) {
   const t = useT()
   const character = useApp((s) => s.characters.find((c) => c.id === charId))
   const presets = useApp((s) => s.presets)
@@ -41,7 +41,7 @@ function StepDialog({ charId, greetingIndex, continues }: { charId: ID; greeting
   const [values, setValues] = useState<PresetValues>({})
   const [dontAsk, setDontAsk] = useState(false)
   // the earlier chat this one picks up (#262): 'none' = a new beginning
-  const [contPick, setContPick] = useState<ID | 'none'>(continues ?? 'none')
+  const [contPick, setContPick] = useState<ID | 'none'>('none')
   // the options can be clicked before the memory arrives: a late answer must not undo those clicks
   const touched = useRef(false)
   // a group chat: how its members answer, the group's default unless changed here
@@ -98,12 +98,7 @@ function StepDialog({ charId, greetingIndex, continues }: { charId: ID; greeting
       setMemory(m)
       if (!touched.current) {
         // the character's last choices first, else the user's own default for the preset
-        const old = continues ? useApp.getState().chats.find((c) => c.id === continues) : undefined
-        if (old?.presetId && presets.some((p) => p.id === old.presetId)) {
-          // continuing a chat starts on its preset and picks
-          setPresetId(old.presetId)
-          setValues(old.presetVars?.[old.presetId] ?? {})
-        } else if (m?.presetId && presets.some((p) => p.id === m.presetId)) {
+        if (m?.presetId && presets.some((p) => p.id === m.presetId)) {
           setPresetId(m.presetId)
           setValues(m.vars ?? {})
         } else {

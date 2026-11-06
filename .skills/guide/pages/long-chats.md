@@ -1,47 +1,49 @@
 # Long chats and token cost
 
-A chat that runs for weeks grows, and every reply sends more of it to the model. This page says what Roleplay already does about that, which switches cut the cost, and how to carry a story into a fresh chat. It is for anyone whose replies get slow or expensive, or whose model forgets the start of the story.
+A chat that runs for weeks grows, and every reply sends more of it to the model. This page is for anyone whose replies get slow or expensive, or whose model forgets the start of the story.
 
-## What is sent with each reply
+## The Request size button
 
-The messages grow, and so does the story record that Litopys writes ([[litopys]]). The Canvas Prompt board lists every part of the next request with its token count: see [[canvas]].
+By default the whole chat is sent while the window has room. On a big window the cost keeps growing, so the chat header has a **Request size** button next to the story tools (on a phone: in the Menu). It shows how many tokens the last request sent, the whole prompt as the provider counted it, and which model got it. Press it for the model, its window and your limit. It is teal below three quarters of the limit, amber from there, and red with a warning sign past it. The Canvas Prompt board lists every part of a request ([[canvas]]).
 
-## What happens by itself
+When a reply pushes the request past the limit, a popup opens:
 
-By default the whole chat is sent while the window has room, and messages that a chapter already holds leave only when the window runs short. On a big window the cost keeps growing. When a reply sends 60% of the model's window, a strip above the message box says so and offers the two ways out below: "Send finished scenes as chapters" and "Continue in a new chat". "Not now" hides it until the prompt has grown by half. "Remind me when the prompt is big", next to "Memory size", sets the limit: 60% of the window, your own size in tokens, or never.
+- **Yes, continue in a new chat** creates the next chat at once and opens it.
+- **Not now** hides the popup for this chat until the request has grown by half. Closing it counts as Not now.
+- **Send finished scenes as chapters instead** appears when Litopys is on (next section).
 
-The record has its own size. In the Library, gear "Litopys settings", block "In the prompt", "Memory size" is Auto by default: 15% of the model's window, between 800 and 16000 tokens. On a big window that can raise the cost; "Compact" keeps it at 800.
+The limit is at the bottom of the popup, and in the Library, gear "Litopys settings", block "In the prompt", "Warn me when a request gets big": 60% of the model's window (default), a size you type (100k) or pick (16k to 500k), or never. A chat already past the limit shows the red button and no popup until a new reply makes it grow.
+
+The record has its own size. In the same block, "Memory size" is Auto by default: 15% of the model's window, between 800 and 16000 tokens. "Compact" keeps it at 800.
 
 ## The switches that cut cost
 
 In the same block, "Older messages leave the prompt" has two choices:
 
 - **Only when the window is full** (default): every message is sent while it fits.
-- **By scenes**: as soon as a chapter holds a scene, the whole scene is replaced by the chapter. Only the last messages stay word for word ("Direct messages after the scenes", 2 or more). The newest scene has no chapter yet, so it is sent in full.
+- **By scenes**: as soon as a chapter holds a scene, the scene is replaced by the chapter. Only the last messages stay word for word ("Direct messages after the scenes", 2 or more). The newest scene has no chapter yet, so it is sent in full.
 
-"By scenes" is the nearest thing to automatic trimming. It costs some detail: a chapter is a retelling, so a weak model may lose a small thing. Pin a fact that must never be lost ([[litopys]]).
+"By scenes" costs some detail: a chapter is a retelling, so a weak model may lose a small thing. Pin a fact that must never be lost ([[litopys]]). Other cuts:
 
-Other cuts:
-
-- On the Canvas Prompt board, the history card's Details can send only the last N messages. This is desktop only and affects that chat alone.
+- Canvas Prompt board, history card, Details: send only the last N messages (desktop, that chat alone).
 - Lower "Memory size" to Compact, or switch "Chapters and facts" off.
 
 ## Start a fresh chat and keep the story
 
-When a story reaches a natural break, a new chat that continues the old one starts with a small prompt and still knows what happened.
+At a natural break, a new chat that continues the old one starts with a small prompt and still knows what happened.
 
-1. In the chat, open "More" and pick **Continue in a new chat** (the strip offers the same button).
-2. The "New chat with" step opens with this chat chosen in the **Continues** menu, on its preset and picks, persona and model. Change anything, then press Start.
-3. The new chat gets the old story as backstory: its chapters and facts, up to three chats back along the chain, within the "Backstory budget". The nearest chat gets the largest share. The old messages are not sent.
+1. In the chat, open "More" and pick **Continue in a new chat**, or press Yes in the popup.
+2. The new chat is created at once and opens. It keeps the preset and its picks, persona, model, agent set, a group's turn order and the World DM world.
+3. It gets the old story as backstory: chapters and facts, up to three chats back, within the "Backstory budget". The old messages are not sent.
 
-The Continues menu also lists the character's other earlier chats, so a chat can pick up any of them. The Canvas draws the same link and can change it later: see [[canvas]].
+The link is the one the Canvas draws, and the Canvas can change it later: see [[canvas]]. To pick another earlier chat, start a chat from the character and use the **Continues** menu in the "New chat with" step.
 
-The new chat opens with the card's first greeting, and a hint under it says so, with the button "Edit the first message". Use it to carry on from where the story stopped.
+The new chat opens with the card's first greeting; "Edit the first message" lets you carry on where the story stopped.
 
 ## Save a story as a book
 
-In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and facts onto the Data Bank shelf for the chats you pick. A character only gets what they witnessed or were told. See [[memory]].
+In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and facts onto the Data Bank shelf for chats you pick: see [[memory]].
 
 ## Check what the model got
 
-If a character forgets something, open Canvas > Prompt and switch from "Parts" to "Memory": it shows which facts went in and which were left out, and why. The **Fired** button in the chat header shows it for the last reply and for the whole chat.
+If a character forgets something, open Canvas > Prompt and switch from "Parts" to "Memory": it shows which facts went in and which were left out, and why. The **Fired** button in the chat header shows it for the last reply and the whole chat.

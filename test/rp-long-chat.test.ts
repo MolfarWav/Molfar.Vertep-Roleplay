@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { ALERT_SHARE, alertLimit, lastPromptTokens, shouldOfferTrim } from "../src/lib/long-chat";
+import { ALERT_SHARE, alertLimit, lastPromptTokens, parseTokens, requestLevel, shortTokens, shouldOfferTrim } from "../src/lib/long-chat";
 import type { Message } from "../src/lib/types";
 
 const reply = (usage?: { input: number; output: number; cacheRead?: number; cacheWrite?: number }, role: Message["role"] = "assistant"): Message =>
@@ -47,5 +47,42 @@ describe("a chat that has grown large (#261)", () => {
     expect(shouldOfferTrim(40000, 30000, 40000)).toBe(false);
     expect(shouldOfferTrim(59000, 30000, 40000)).toBe(false);
     expect(shouldOfferTrim(60000, 30000, 40000)).toBe(true);
+  });
+});
+
+describe("the request-size button (#261)", () => {
+  it("writes sizes short enough for a button", () => {
+    expect(shortTokens(900)).toBe("900");
+    expect(shortTokens(45000)).toBe("45k");
+    expect(shortTokens(45300)).toBe("45.3k");
+    expect(shortTokens(1200000)).toBe("1200k");
+  });
+
+  it("colours by how close the request is to the limit", () => {
+    expect(requestLevel(0, 60000)).toBe("none");
+    expect(requestLevel(10000, 60000)).toBe("ok");
+    expect(requestLevel(44999, 60000)).toBe("ok");
+    expect(requestLevel(45000, 60000)).toBe("near");
+    expect(requestLevel(60000, 60000)).toBe("over");
+    expect(requestLevel(500000, null)).toBe("ok");
+  });
+
+  it("reads the sizes people type", () => {
+    expect(parseTokens("100000")).toBe(100000);
+    expect(parseTokens("100k")).toBe(100000);
+    expect(parseTokens(" 16 K ")).toBe(16000);
+    expect(parseTokens("1.5k")).toBe(1500);
+    expect(parseTokens("1,5k")).toBe(1500);
+    expect(parseTokens("100,000")).toBe(100000);
+    expect(parseTokens("100 000")).toBe(100000);
+    expect(parseTokens("1.5m")).toBe(1500000);
+  });
+
+  it("refuses what the setting cannot hold", () => {
+    expect(parseTokens("")).toBeNull();
+    expect(parseTokens("abc")).toBeNull();
+    expect(parseTokens("999")).toBeNull();
+    expect(parseTokens("6m")).toBeNull();
+    expect(parseTokens("-5k")).toBeNull();
   });
 });

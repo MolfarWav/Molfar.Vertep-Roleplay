@@ -393,7 +393,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3554-3554",
+          "lines": "3580-3580",
           "quote": "'voices.title': 'Voices',"
         },
         {
@@ -539,12 +539,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3555-3555",
+          "lines": "3581-3581",
           "quote": "List who speaks: each one\\'s lines get their own colour."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3560-3560",
+          "lines": "3586-3586",
           "quote": "Colours not picked yet come from a built-in palette, in this order."
         },
         {
@@ -639,12 +639,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3958-3958",
+          "lines": "3976-3976",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8680-8680",
+          "lines": "8716-8716",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
@@ -654,7 +654,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4050-4050",
+          "lines": "4068-4068",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -697,12 +697,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4576-4576",
+          "lines": "4594-4594",
           "quote": "chats keep their messages."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2285-2285",
+          "lines": "2283-2283",
           "quote": "usePersona: (id) => {"
         },
         {
@@ -754,7 +754,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1892-1892",
+          "lines": "1890-1890",
           "quote": "body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),"
         },
         {
@@ -1086,7 +1086,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3860-3860",
+          "lines": "3878-3878",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
@@ -1409,7 +1409,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2852-2852",
+          "lines": "2878-2878",
           "quote": "'lit.map.hint': 'The map of this chat: the chats it continues above, the ones that continue it below."
         }
       ]
@@ -1873,7 +1873,7 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "696-696",
+          "lines": "700-700",
           "quote": "{ key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },"
         },
         {
@@ -1982,7 +1982,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3846-3846",
+          "lines": "3864-3864",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2029,17 +2029,17 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "690-690",
+          "lines": "694-694",
           "quote": "{ key: 'note', icon: Note, label: \"Author's note\", onSelect: () => setNotesOpen(true) },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "705-705",
+          "lines": "709-709",
           "quote": "{ key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "708-708",
+          "lines": "712-712",
           "quote": "// the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest"
         }
       ]
@@ -2272,7 +2272,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3122-3122",
+          "lines": "3148-3148",
           "quote": "Grey keywords: words in the chat that trigger the entry."
         }
       ]
@@ -2314,7 +2314,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3119-3119",
+          "lines": "3145-3145",
           "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
         },
         {
@@ -2361,7 +2361,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3123-3123",
+          "lines": "3149-3149",
           "quote": "'lore.testKeys': 'Test triggers'"
         },
         {
@@ -2428,7 +2428,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3698-3698",
+          "lines": "3724-3724",
           "quote": "'pc.worksWith': 'Works with: {list}',"
         }
       ]
@@ -2517,17 +2517,17 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2000-2000",
+          "lines": "1998-1998",
           "quote": ".filter((r) => r.mode === 'send' && r.autoExecute?.[event])"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3101-3101",
+          "lines": "3099-3099",
           "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1998-1998",
+          "lines": "1996-1996",
           "quote": ".filter((set) => set.enabled)"
         }
       ],
@@ -2564,7 +2564,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2896-2896",
+          "lines": "2922-2922",
           "quote": "Failures, Library suggestions and proposed souls show up here."
         },
         {
@@ -2574,12 +2574,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2925-2925",
+          "lines": "2951-2951",
           "quote": "Dismiss (the proposal is deleted)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2936-2936",
+          "lines": "2962-2962",
           "quote": "a background job fails: the World DM, the Library, the scene state or a soul rating"
         }
       ],
@@ -2680,7 +2680,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2543-2543",
+          "lines": "2541-2541",
           "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
         },
         {
@@ -2791,7 +2791,7 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "419-419",
+          "lines": "421-421",
           "quote": "if (!settings.tts.autoPlay || settings.tts.provider === 'None' || isStreaming || !chat) return"
         },
         {
@@ -2848,7 +2848,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3066-3066",
+          "lines": "3064-3064",
           "quote": "Turn on Tools → Image Generation to see it."
         }
       ]
@@ -3310,7 +3310,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3426-3426",
+          "lines": "3424-3424",
           "quote": "the old connection profiles (library.json) become the engine's quick"
         }
       ]
@@ -3357,7 +3357,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3524-3524",
+          "lines": "3550-3550",
           "quote": "'ct.app.title': 'Model for card tasks',"
         },
         {
@@ -3388,12 +3388,12 @@
         "uk": "Кнопки, що починають чат із картки, спершу відкривають короткий крок, якщо є що обрати. «Почати» створює чат; «Скасувати» нічого не створює."
       },
       "where": {
-        "en": "Home: the Start chat button on a card. Characters: the ⋯ menu on a card, then New chat. In a chat: the More menu, then Start new chat or Continue in a new chat.",
-        "uk": "Головна: кнопка «Почати чат» на картці. Персонажі: меню ⋯ на картці, потім New chat. У чаті: меню «Ще», потім Start new chat або «Продовжити в новому чаті»."
+        "en": "Home: the Start chat button on a card. Characters: the ⋯ menu on a card, then New chat. In a chat: the More menu, then Start new chat.",
+        "uk": "Головна: кнопка «Почати чат» на картці. Персонажі: меню ⋯ на картці, потім New chat. У чаті: меню «Ще», потім Start new chat."
       },
       "details": {
-        "en": "What the step is for. It sets the preset (the instructions and settings the model gets) and its options, for this one chat. Nothing is created until Start.\n\nWhat you can choose. The step is titled \"New chat with\" and the character’s name. It has:\n- a preset menu, with the token count of its instructions.\n- the preset’s own options, if it has any.\n- an agents menu, reading \"Agents: ...\", only when agent sets exist.\n- \"How they answer\" for a group.\n- a world menu, only when a saved world or a world chat of this character exists.\n\nWhere it starts. It opens on the preset and choices of this character’s last chat, if there was one. A group, or a first chat, starts on your default preset.\n\nContinues. A menu of this character’s earlier chats: see \"Continue a story in a new chat\".\n\nStart and Cancel. Start creates the chat and opens it. Cancel closes the step and creates nothing. Enter also starts, unless the focus is in a text box, menu or button.\n\nWhen the step is skipped. When \"Ask for the preset when a chat starts\" is off in Settings, or when there is nothing to choose: one preset with no options and no agent set.\n\nDon’t ask again. Tick it and press Start to turn the step off. Settings, \"Chat Behavior\", \"Ask for the preset when a chat starts\" brings it back.\n\nOther buttons. On Home, \"Start chat\" shows only on a card with no chat yet; with a chat, it reads \"Continue\" and opens the latest chat. In a chat, \"Start new chat\" is greyed out while a reply is being written.",
-        "uk": "Для чого крок. Він задає пресет (набір інструкцій і налаштувань, які отримує модель) та його параметри для цього одного чату. Нічого не створюється, доки ви не натиснете «Почати».\n\nЩо можна обрати. Заголовок «Новий чат із» і ім’я персонажа. Далі:\n- Меню пресету з кількістю токенів інструкцій.\n- Параметри пресету, якщо вони є.\n- Меню «Агенти: …», лише коли є набори агентів.\n- «Як вони відповідають» для групи.\n- Меню «Світ», лише коли є збережений світ або світовий чат цього персонажа.\n\nЗвідки починається. Крок відкривається з пресетом і вибором останнього чату цього персонажа, якщо він був. Для групи й першого чату береться ваш типовий пресет.\n\nПродовжує. Меню попередніх чатів персонажа: див. «Продовжіть історію в новому чаті».\n\nПочати і скасувати. «Почати» створює чат і відкриває його. «Скасувати» закриває крок і нічого не створює. Enter теж починає чат, якщо фокус не в полі тексту, меню чи кнопці.\n\nКоли кроку немає. Крок пропускається, якщо «Питати про пресет на початку чату» вимкнено в Налаштуваннях. Він пропускається також тоді, коли обирати нема чого: один пресет без параметрів і без набору агентів.\n\nБільше не питати. Галочка і «Почати» вимикають крок. Налаштування, Chat Behavior, «Питати про пресет на початку чату» повертають його.\n\nІнші кнопки. На екрані «Головна» кнопка «Почати чат» з’являється лише на картці без чатів. Якщо чат є, кнопка читається як «Продовжити» і відкриває останній чат. У чаті пункт Start new chat неактивний, поки модель пише відповідь."
+        "en": "What the step is for. It sets the preset (the instructions and settings the model gets) and its options, for this one chat. Nothing is created until Start.\n\nWhat you can choose. The step is titled \"New chat with\" and the character’s name. It has:\n- a preset menu, with the token count of its instructions.\n- the preset’s own options, if it has any.\n- an agents menu, reading \"Agents: ...\", only when agent sets exist.\n- \"How they answer\" for a group.\n- a world menu, only when a saved world or a world chat of this character exists.\n\nWhere it starts. It opens on the preset and choices of this character’s last chat, if there was one. A group, or a first chat, starts on your default preset.\n\nContinues. A menu of this character’s earlier chats. Its story becomes backstory. Faster: \"Continue a story in a new chat\".\n\nStart and Cancel. Start creates the chat and opens it. Cancel closes the step and creates nothing. Enter also starts, unless the focus is in a text box, menu or button.\n\nWhen the step is skipped. When \"Ask for the preset when a chat starts\" is off in Settings, or when there is nothing to choose: one preset with no options and no agent set.\n\nDon’t ask again. Tick it and press Start to turn the step off. Settings, \"Chat Behavior\", \"Ask for the preset when a chat starts\" turns it on.\n\nOther buttons. On Home, \"Start chat\" shows only on a card with no chat yet; with a chat, it reads \"Continue\" and opens the latest chat.",
+        "uk": "Для чого крок. Він задає пресет (набір інструкцій і налаштувань, які отримує модель) та його параметри для цього одного чату. Нічого не створюється, доки ви не натиснете «Почати».\n\nЩо можна обрати. Заголовок «Новий чат із» і ім’я персонажа. Далі:\n- Меню пресету з кількістю токенів інструкцій.\n- Параметри пресету, якщо вони є.\n- Меню «Агенти: …», лише коли є набори агентів.\n- «Як вони відповідають» для групи.\n- Меню «Світ», лише коли є збережений світ або світовий чат цього персонажа.\n\nЗвідки починається. Крок відкривається з пресетом і вибором останнього чату цього персонажа, якщо він був. Для групи й першого чату береться ваш типовий пресет.\n\nПродовжує. Меню попередніх чатів персонажа. Його історія стає передісторією. Швидше: «Продовжіть історію в новому чаті».\n\nПочати і скасувати. «Почати» створює чат і відкриває його. «Скасувати» закриває крок і нічого не створює. Enter теж починає чат, якщо фокус не в полі тексту, меню чи кнопці.\n\nКоли кроку немає. Крок пропускається, якщо «Питати про пресет на початку чату» вимкнено в Налаштуваннях. Він пропускається також тоді, коли обирати нема чого: один пресет без параметрів і без набору агентів.\n\nБільше не питати. Галочка і «Почати» вимикають крок. Налаштування, Chat Behavior, «Питати про пресет на початку чату» повертають його.\n\nІнші кнопки. На екрані «Головна» кнопка «Почати чат» з’являється лише на картці без чатів. Якщо чат є, кнопка читається як «Продовжити» і відкриває останній чат."
       },
       "related": [
         "kb.presets",
@@ -3406,22 +3406,22 @@
       "sources": [
         {
           "path": "src/lib/store.ts",
-          "lines": "1853-1853",
+          "lines": "1848-1848",
           "quote": "a short step with the preset and its choices, unless the user turned it off or there is"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1854-1854",
+          "lines": "1849-1849",
           "quote": "nothing to choose (one preset without variables, and no agent set to pick)"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1860-1860",
+          "lines": "1855-1855",
           "quote": "set({ newChatStep: { charId, greetingIndex } })"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "126-126",
+          "lines": "121-121",
           "quote": "if (dontAsk) updateSettings({ askPresetOnNewChat: false })"
         },
         {
@@ -3431,17 +3431,17 @@
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "115-115",
+          "lines": "110-110",
           "quote": "character?.isGroup ? null : fetchPresetMemory(charId)"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "150-150",
+          "lines": "145-145",
           "quote": "if (e.key === 'Enter' && !e.shiftKey"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "278-278",
+          "lines": "273-273",
           "quote": "onClick={closeNewChatStep}>{t('pc.step.cancel')}"
         },
         {
@@ -3451,37 +3451,37 @@
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "193-193",
+          "lines": "188-188",
           "quote": "{sets.length > 0 && ("
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3799-3799",
+          "lines": "3825-3825",
           "quote": "'pc.step.title': 'New chat with {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3800-3800",
+          "lines": "3826-3826",
           "quote": "Pick a preset for this chat: the set of instructions and settings the model gets."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3803-3803",
+          "lines": "3829-3829",
           "quote": "\"Don't ask again\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3804-3804",
+          "lines": "3830-3830",
           "quote": "You can turn this back on in Settings › Chat Behavior."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3697-3697",
+          "lines": "3723-3723",
           "quote": "'pc.total': '≈ {n} tokens of instructions',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4184-4184",
+          "lines": "4202-4202",
           "quote": "'ag.new.trigger': 'Agents: {what}',"
         },
         {
@@ -3516,7 +3516,7 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "703-703",
+          "lines": "707-707",
           "quote": "label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming"
         },
         {
@@ -3526,28 +3526,23 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3801-3801",
+          "lines": "3827-3827",
           "quote": "'pc.step.start': 'Start',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8524-8524",
+          "lines": "8568-8568",
           "quote": "Знову ввімкнути можна в Налаштуваннях › Chat Behavior."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8540-8540",
+          "lines": "8576-8576",
           "quote": "'pc.settings.ask': 'Питати про пресет на початку чату',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6313-6313",
+          "lines": "6331-6331",
           "quote": "'home.startChat': 'Почати чат',"
-        },
-        {
-          "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "44-44",
-          "quote": "const [contPick, setContPick] = useState<ID | 'none'>(continues ?? 'none')"
         }
       ]
     },
@@ -3559,72 +3554,72 @@
         "uk": "Продовжіть історію в новому чаті"
       },
       "aliases": {
-        "en": "continue new chat sequel link backstory continues earlier chat story",
-        "uk": "продовжити новий чат продовження зв’язок передісторія попередній чат історія"
+        "en": "continue new chat sequel link backstory continues earlier chat story one click same preset persona model",
+        "uk": "продовжити новий чат продовження зв’язок передісторія попередній чат історія один клік пресет персона модель"
       },
       "short": {
-        "en": "\"Continue in a new chat\" starts a chat that picks up an earlier one: the old story rides along as chapters and facts, so the prompt stays small.",
-        "uk": "«Продовжити в новому чаті» починає чат, що підхоплює попередній: стара історія йде як розділи й факти, тож промпт лишається малим."
+        "en": "\"Continue in a new chat\" starts the next chat in one click: the old story rides along as chapters and facts, with the same preset, persona and model.",
+        "uk": "«Продовжити в новому чаті» одним кліком починає наступний чат: історія йде розділами й фактами, з тим самим пресетом і моделлю."
       },
       "where": {
-        "en": "In a chat: the More menu, then Continue in a new chat. Or the Continues menu in the New chat step.",
-        "uk": "У чаті: меню «Ще», потім «Продовжити в новому чаті». Або меню «Продовжує» у кроці нового чату."
+        "en": "In a chat: the More menu, then Continue in a new chat. Or the Yes button in the request-size popup.",
+        "uk": "У чаті: меню «Ще», потім «Продовжити в новому чаті». Або кнопка «Так» у вікні розміру запиту."
       },
       "related": [
         "kb.new-chat",
         "kb.links-board",
-        "kb.long-chat-strip"
+        "kb.request-size"
       ],
       "sources": [
         {
-          "path": "src/lib/store.ts",
-          "lines": "1848-1848",
-          "quote": "continuing a chat always shows the step: it is where the person sees and can change what carries over"
+          "path": "src/lib/continue-chat.ts",
+          "lines": "13-13",
+          "quote": "export async function continueInNewChat(chatId: ID): Promise<boolean> {"
+        },
+        {
+          "path": "src/lib/continue-chat.ts",
+          "lines": "22-22",
+          "quote": "const last = lastSetFor([old]"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1873-1873",
+          "lines": "1868-1868",
           "quote": "const { setLitLink } = await import('@/components/library/litopys-api')"
         },
         {
-          "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "103-103",
-          "quote": "// continuing a chat starts on its preset and picks"
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "708-708",
+          "quote": "onSelect: () => void continueInNewChat(chat.id)"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
           "lines": "71-71",
           "quote": "const earlier = storeChats.filter((c) => c.characterId === charId && !c.temporary)"
-        },
-        {
-          "path": "src/components/chat/chat-view.tsx",
-          "lines": "704-704",
-          "quote": "startChatAndOpen(chat.characterId, 0, { continues: chat.id })"
         }
       ],
       "details": {
-        "en": "What it is for. A long chat costs more with every reply. A chat that continues it gets the old story as backstory: its chapters and facts, up to three chats back, not its messages. So you can go on with the same character and a small prompt.\n\nHow to start. In the chat, open More and pick \"Continue in a new chat\". The New chat step opens with this chat chosen in the \"Continues\" menu, on its preset and picks, persona and model. Press Start. The step always opens for this, even when it is turned off in Settings.\n\nOther ways. In the step you can pick any earlier chat of the character, or \"Nothing, this is a beginning\". The Canvas, board Chat links, draws the same link and can change it later.\n\nWhat to expect. The new chat opens with the card’s first greeting, and a hint under it offers to edit it. Litopys needs chapters to carry the story: they appear as scenes finish.",
-        "uk": "Для чого. Довгий чат дорожчає з кожною відповіддю. Чат, що його продовжує, отримує стару історію як передісторію: розділи й факти до трьох чатів назад, а не самі повідомлення. Так можна йти далі з тим самим персонажем і малим промптом.\n\nЯк почати. У чаті відкрийте «Ще» і оберіть «Продовжити в новому чаті». Відкриється крок нового чату з цим чатом у меню «Продовжує», з його пресетом і вибором, персоною та моделлю. Натисніть «Почати». Крок для цього відкривається завжди, навіть якщо його вимкнено в Налаштуваннях.\n\nІнші способи. У кроці можна обрати будь-який попередній чат персонажа або «Нічого, це початок». Полотно, дошка Chat links, малює той самий зв’язок і може змінити його пізніше.\n\nЧого чекати. Новий чат відкривається з першим привітанням картки, а підказка під ним пропонує його змінити. Щоб Litopys ніс історію, потрібні розділи: вони з’являються, коли сцени завершуються."
+        "en": "What it is for. A long chat costs more with every reply. A chat that continues it gets the old story as backstory: its chapters and facts, up to three chats back, not its messages. So you go on with the same character and a small prompt.\n\nHow to start. In the chat, open More and pick \"Continue in a new chat\", or press Yes in the request-size popup. The new chat is created at once and opens. There is no step to fill in.\n\nWhat comes along. The preset and its options, the persona, the model, the agent set, a group’s turn order, and the chat’s World DM world. The story rides along through the same link the Canvas draws, board Chat links, which you can change later.\n\nOther ways. In the New chat step, the Continues menu lets you pick any earlier chat of the character.\n\nWhat to expect. The new chat opens with the card’s first greeting; a hint under it offers to edit that message. Litopys carries the story through chapters, which appear as scenes finish.",
+        "uk": "Для чого. Довгий чат дорожчає з кожною відповіддю. Чат, що його продовжує, отримує стару історію як передісторію: розділи й факти до трьох чатів назад, а не самі повідомлення. Так ви йдете далі з тим самим персонажем і малим промптом.\n\nЯк почати. У чаті відкрийте «Ще» і оберіть «Продовжити в новому чаті» або натисніть «Так» у вікні розміру запиту. Новий чат створюється одразу й відкривається. Заповнювати нічого не треба.\n\nЩо йде з ним. Пресет і його параметри, персона, модель, набір агентів, порядок відповідей групи та світ World DM цього чату. Історія йде через той самий зв’язок, що його малює Полотно, дошка Chat links; його можна змінити пізніше.\n\nІнші способи. У кроці нового чату меню «Продовжує» дає обрати будь-який попередній чат персонажа.\n\nЧого чекати. Новий чат відкривається з першим привітанням картки, а підказка під ним пропонує його змінити. Історію несуть розділи Litopys: вони з’являються, коли сцени завершуються."
       }
     },
     {
-      "id": "kb.long-chat-strip",
+      "id": "kb.request-size",
       "group": "chat",
       "title": {
-        "en": "A chat that has grown long",
-        "uk": "Чат, що став довгим"
+        "en": "The request-size button and its alarm",
+        "uk": "Кнопка розміру запиту і її сигнал"
       },
       "aliases": {
-        "en": "long chat tokens cost big prompt trim scenes chapters continue new chat strip not now limit remind setting",
-        "uk": "довгий чат токени вартість великий промпт скоротити сцени розділи продовжити новий чат смужка не зараз ліміт нагадати налаштування"
+        "en": "request size tokens button header alarm warn big prompt limit popup model cost trim continue new chat not now remind setting nanogpt",
+        "uk": "розмір запиту токени кнопка шапка сигнал попередити великий промпт ліміт вікно модель вартість продовжити новий чат не зараз налаштування"
       },
       "short": {
-        "en": "When a reply sent more than your limit, a strip above the message box offers to send finished scenes as chapters or to continue the story in a new chat.",
-        "uk": "Коли відповідь надіслала більше за ліміт, смужка над полем пропонує надсилати сцени як розділи або продовжити історію в новому чаті."
+        "en": "A coloured button in the chat header shows how many tokens the last request sent and to which model. Past your limit a popup offers to continue in a new chat.",
+        "uk": "Кольорова кнопка в шапці чату показує, скільки токенів надіслав останній запит і якій моделі. Після ліміту вікно пропонує продовжити в новому чаті."
       },
       "where": {
-        "en": "In a chat, above the message box, after a reply that sent more than the limit (60% of the model’s window unless you set another). The limit is in the Library, Litopys settings, \"In the prompt\".",
-        "uk": "У чаті, над полем повідомлення, після відповіді, що надіслала більше за ліміт (60% вікна моделі, якщо ви не задали інший). Ліміт — у Бібліотеці, Litopys settings, «У запиті»."
+        "en": "In a chat, the header, next to the story tools (a phone: in the Menu). The limit is set in the popup, or in the Library, Litopys settings, \"In the prompt\".",
+        "uk": "У чаті, шапка, поруч з інструментами історії (телефон: у меню). Ліміт задають у вікні або в Бібліотеці, Litopys settings, «У запиті»."
       },
       "related": [
         "kb.continue-chat",
@@ -3644,24 +3639,34 @@
           "quote": "export const REOFFER_GROWTH = 1.5"
         },
         {
+          "path": "src/components/chat/request-size.tsx",
+          "lines": "70-70",
+          "quote": "opens by itself only when a reply made the request grow past the limit"
+        },
+        {
+          "path": "src/components/chat/request-size.tsx",
+          "lines": "208-208",
+          "quote": "closing a popup that asked for an answer counts as \"Not now\""
+        },
+        {
+          "path": "src/components/chat/request-size.tsx",
+          "lines": "22-22",
+          "quote": "const PRESETS = [16000, 32000, 64000, 100000, 200000, 500000]"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "803-803",
+          "quote": "<RequestSizeButton rs={requestSize} labelled={toolMode === 'labelled'} />"
+        },
+        {
           "path": "src/components/settings/memory-summary-section.tsx",
           "lines": "204-204",
           "quote": "<FieldLabel className=\"font-medium\">{t('lit.set.alert')}</FieldLabel>"
-        },
-        {
-          "path": "src/components/chat/big-prompt-strip.tsx",
-          "lines": "59-59",
-          "quote": "await putLitConfig({ cutMode: 'scenes' })"
-        },
-        {
-          "path": "src/components/chat/big-prompt-strip.tsx",
-          "lines": "92-92",
-          "quote": "startChatAndOpen(chat.characterId, 0, { continues: chat.id })"
         }
       ],
       "details": {
-        "en": "What it is for. Every reply sends the chat to the model again, so a long chat costs more with each one. When the last reply sent more than your limit, a strip appears above the message box and says how much it sent.\n\nThe limit. In the Library, Litopys settings, block \"In the prompt\", \"Remind me when the prompt is big\" has three choices: \"60% of the window\" (the default; needs the model’s window to be known), \"At a size I set\" (tokens in one reply; a cheap model with a big window may want more) and \"Never\".\n\nWhat you can do. \"Send finished scenes as chapters\" sets Litopys to replace a scene with its chapter as soon as the chapter exists; the newest scenes are still sent in full. It is a setting for all chats and needs Litopys on; the button is missing when that is already on. \"Continue in a new chat\" opens the New chat step with this chat picked. \"Not now\" hides the strip for this chat until the prompt has grown by half.\n\nWhat it does not do. It never changes anything by itself. A chapter may lose detail, so a weak model can forget a small thing from the old messages; pin a fact that must stay.",
-        "uk": "Для чого. Кожна відповідь знову надсилає чат моделі, тому довгий чат дорожчає з кожною. Коли остання відповідь надіслала більше за ваш ліміт, над полем повідомлення з’являється смужка з цією цифрою.\n\nЛіміт. Це «Нагадати, коли промпт великий» у Бібліотеці, Litopys settings, блок «У запиті». Є три варіанти. «60% вікна» (типово; вікно моделі має бути відоме). «На розмірі, який задам я» (токени в одній відповіді). «Ніколи». Дешевій моделі з великим вікном може підійти більше число.\n\nЩо можна зробити. «Надсилати завершені сцени як розділи» вмикає в Litopys заміну сцени її розділом, щойно розділ готовий; найновіші сцени ще йдуть повністю. Це налаштування для всіх чатів, потрібен ввімкнений Litopys; якщо воно вже ввімкнене, кнопки немає. «Продовжити в новому чаті» відкриває крок нового чату з цим чатом. «Не зараз» ховає смужку для цього чату, поки промпт не виросте наполовину.\n\nЧого вона не робить. Сама нічого не змінює. У розділі деталі можуть губитися, тож слабка модель забуде дрібницю зі старих повідомлень; закріпіть факт, який має лишитися."
+        "en": "What it shows. The button reads the size of the last request: everything the model got, not only the memory. The number is what the provider reported. Press it to see the model and the window next to the limit. The colour changes with the limit: teal below three quarters, amber from there, red with a warning sign past it.\n\nThe popup. After a reply pushes the request past the limit, a popup opens by itself. \"Yes, continue in a new chat\" creates the next chat at once and opens it. \"Not now\" hides the popup for this chat until the request has grown by half. Closing it counts as Not now. An old chat that is already past the limit shows the red button and no popup.\n\nThe limit. In the popup: \"60% of the window\" (default; needs the model’s window known), \"At a size I set\" (type 100k or 100000, or pick 16k to 500k) or \"Never\". It is the same setting as in the Library, Litopys settings, \"In the prompt\". It needs Litopys.\n\nAlso in the popup. \"Send finished scenes as chapters instead\" makes Litopys replace a scene with its chapter once it exists, for all chats. Nothing is changed unless you press a button.",
+        "uk": "Що вона показує. Кнопка читає розмір останнього запиту: усе, що отримала модель, а не лише пам’ять. Число дає провайдер. Натисніть її, щоб побачити модель і вікно поруч з лімітом. Колір залежить від ліміту: бірюзовий до трьох чвертей, бурштиновий далі, червоний зі знаком попередження після ліміту.\n\nВікно. Коли відповідь підіймає запит понад ліміт, вікно відкривається саме. «Так, продовжити в новому чаті» одразу створює наступний чат і відкриває його. «Не зараз» ховає вікно для цього чату, поки запит не виросте наполовину. Закриття вікна теж означає «Не зараз». Старий чат, що вже перейшов ліміт, показує червону кнопку без вікна.\n\nЛіміт. У вікні три варіанти. «60% вікна» (типово; вікно моделі має бути відоме). «На розмірі, який задам я» (введіть 100k або 100000, або оберіть від 16k до 500k). «Ніколи». Це те саме налаштування, що в Бібліотеці, Litopys settings, «У запиті». Потрібен Litopys.\n\nЩе у вікні. «Краще надсилати завершені сцени як розділи» вмикає в Litopys заміну сцени її розділом, щойно він готовий, для всіх чатів. Без натискання кнопки нічого не змінюється."
       }
     },
     {
@@ -3845,17 +3850,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7026-7026",
+          "lines": "7044-7044",
           "quote": "Закріплені"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7028-7028",
+          "lines": "7046-7046",
           "quote": "'chats.when.week': 'Цього тижня',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7060-7060",
+          "lines": "7078-7078",
           "quote": "'chats.panel.delete': 'Видалити',"
         }
       ]
@@ -4037,7 +4042,7 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "706-706",
+          "lines": "710-710",
           "quote": "label: 'Manage chat files', onSelect: () => setManageOpen(true)"
         }
       ]
@@ -4081,7 +4086,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4085-4085",
+          "lines": "4103-4103",
           "quote": "What goes into the prompt besides the history. A switch applies to this chat only."
         },
         {
@@ -4091,7 +4096,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4086-4086",
+          "lines": "4104-4104",
           "quote": "'carries.total': 'About {n} tok',"
         },
         {
@@ -4111,7 +4116,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4080-4080",
+          "lines": "4098-4098",
           "quote": "'tools.carries': '~{n} tok',"
         },
         {
@@ -4126,27 +4131,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4174-4174",
+          "lines": "4192-4192",
           "quote": "\"Off in this chat until you turn it on\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4008-4008",
+          "lines": "4026-4026",
           "quote": "\"Habits of {name}\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4090-4090",
+          "lines": "4108-4108",
           "quote": "'carries.memory.show': 'Show lines',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4107-4107",
+          "lines": "4125-4125",
           "quote": "'carries.text': 'The text that goes into the prompt',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4054-4054",
+          "lines": "4072-4072",
           "quote": "'carries.stories.toggle': 'Stories in this chat',"
         },
         {
@@ -4156,17 +4161,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4055-4055",
+          "lines": "4073-4073",
           "quote": "It changes only this chat; the card stays as it is."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4061-4061",
+          "lines": "4079-4079",
           "quote": "'carries.stories.own': 'This chat already has it.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4062-4062",
+          "lines": "4080-4080",
           "quote": "'carries.stories.cardOff': 'Switched off on the card.',"
         },
         {
@@ -4176,7 +4181,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4104-4104",
+          "lines": "4122-4122",
           "quote": "\"Author's note and card\","
         },
         {
@@ -4186,87 +4191,87 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4092-4092",
+          "lines": "4110-4110",
           "quote": "'carries.memory.edit': 'Edit in the card',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4067-4067",
+          "lines": "4085-4085",
           "quote": "'carries.label.litopys': 'Litopys',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4068-4068",
+          "lines": "4086-4086",
           "quote": "'carries.label.dashboard': 'Dashboard',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4108-4108",
+          "lines": "4126-4126",
           "quote": "'carries.label.world': 'World DM · {level}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4065-4065",
+          "lines": "4083-4083",
           "quote": "'carries.label.memory': 'Memory of {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8804-8804",
+          "lines": "8840-8840",
           "quote": "'carries.title': 'Що несе цей чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8806-8806",
+          "lines": "8842-8842",
           "quote": "'carries.total': 'Близько {n} ток.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8894-8894",
+          "lines": "8930-8930",
           "quote": "У цьому чаті вимкнено, доки ви не ввімкнете"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8774-8774",
+          "lines": "8810-8810",
           "quote": "'carries.stories.toggle': 'Історії в цьому чаті',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8810-8810",
+          "lines": "8846-8846",
           "quote": "'carries.memory.show': 'Показати рядки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8812-8812",
+          "lines": "8848-8848",
           "quote": "'carries.memory.edit': 'Змінити в картці',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8837-8837",
+          "lines": "8873-8873",
           "quote": "\"Змінити в Бібліотеці\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8897-8897",
+          "lines": "8933-8933",
           "quote": "\"Змінити в персоні\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8898-8898",
+          "lines": "8934-8934",
           "quote": "\"Змінити у світі\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8817-8817",
+          "lines": "8853-8853",
           "quote": "'carries.backstory.open': 'Відкрити той чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8821-8821",
+          "lines": "8857-8857",
           "quote": "'carries.dashboard.open': 'Відкрити дашборд',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8826-8826",
+          "lines": "8862-8862",
           "quote": "'carries.note.open': 'Відкрити',"
         }
       ]
@@ -4363,12 +4368,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3769-3769",
+          "lines": "3795-3795",
           "quote": "'composer.putIn': 'Put it in',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8489-8489",
+          "lines": "8533-8533",
           "quote": "'composer.putIn': 'Вставити',"
         },
         {
@@ -4383,7 +4388,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8490-8490",
+          "lines": "8534-8534",
           "quote": "'composer.polish': 'Причесати',"
         },
         {
@@ -4423,7 +4428,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3722-3722",
+          "lines": "3748-3748",
           "quote": "'composer.attachmentsMax': 'A message takes up to 8 attachments.',"
         },
         {
@@ -4650,67 +4655,67 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6306-6306",
+          "lines": "6324-6324",
           "quote": "'home.customize': 'Налаштувати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6308-6308",
+          "lines": "6326-6326",
           "quote": "'home.reset': 'Скинути до типового',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6307-6307",
+          "lines": "6325-6325",
           "quote": "'home.done': 'Готово',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6341-6341",
+          "lines": "6359-6359",
           "quote": "'home.edit.earlier': 'Посунути вище',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6342-6342",
+          "lines": "6360-6360",
           "quote": "'home.edit.later': 'Посунути нижче',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6343-6343",
+          "lines": "6361-6361",
           "quote": "'home.edit.size': 'Змінити розмір (зараз {size})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6344-6344",
+          "lines": "6362-6362",
           "quote": "'home.edit.sizeSm': 'Вузький',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6346-6346",
+          "lines": "6364-6364",
           "quote": "'home.edit.sizeLg': 'На всю ширину',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6347-6347",
+          "lines": "6365-6365",
           "quote": "'home.edit.hide': 'Сховати блок',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6348-6348",
+          "lines": "6366-6366",
           "quote": "'home.edit.hidden': 'Приховані блоки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6349-6349",
+          "lines": "6367-6367",
           "quote": "'home.edit.noHidden': 'Прихованих блоків немає.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6350-6350",
+          "lines": "6368-6368",
           "quote": "'home.edit.restore': 'Повернути',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6352-6352",
+          "lines": "6370-6370",
           "quote": "'home.suggestMarket': 'Підбірки з Маркетплейсу',"
         }
       ]
@@ -4761,12 +4766,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6953-6953",
+          "lines": "6971-6971",
           "quote": "'editor.tab.more': 'Ще',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6958-6958",
+          "lines": "6976-6976",
           "quote": "'editor.panel.sprites': 'Спрайти',"
         },
         {
@@ -4776,47 +4781,47 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3577-3577",
+          "lines": "3603-3603",
           "quote": "Add a whole pack at once: each file name says the emotion"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3581-3581",
+          "lines": "3607-3607",
           "quote": "'sprites.addPack': 'Add sprite pack',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8301-8301",
+          "lines": "8345-8345",
           "quote": "'sprites.addPack': 'Додати пак спрайтів',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3578-3578",
+          "lines": "3604-3604",
           "quote": "'sprites.addSlot': 'Add expression',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8298-8298",
+          "lines": "8342-8342",
           "quote": "'sprites.addSlot': 'Додати емоцію',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3580-3580",
+          "lines": "3606-3606",
           "quote": "'sprites.addSlotBtn': 'Add',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8300-8300",
+          "lines": "8344-8344",
           "quote": "'sprites.addSlotBtn': 'Додати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3614-3614",
+          "lines": "3640-3640",
           "quote": "Nothing is stored until you press Add"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8334-8334",
+          "lines": "8378-8378",
           "quote": "Нічого не зберігається, доки ви не натиснете «Додати»"
         },
         {
@@ -4831,22 +4836,22 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3596-3596",
+          "lines": "3622-3622",
           "quote": "'sprites.slotDefault': 'Set as default expression',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8316-8316",
+          "lines": "8360-8360",
           "quote": "'sprites.slotDefault': 'Зробити емоцією за замовчуванням',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3601-3601",
+          "lines": "3627-3627",
           "quote": "'sprites.defBadge': 'def',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8321-8321",
+          "lines": "8365-8365",
           "quote": "'sprites.defBadge': 'за зам.',"
         },
         {
@@ -4856,27 +4861,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3599-3599",
+          "lines": "3625-3625",
           "quote": "'sprites.slotReplace': 'replace',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8319-8319",
+          "lines": "8363-8363",
           "quote": "'sprites.slotReplace': 'замінити',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3585-3585",
+          "lines": "3611-3611",
           "quote": "Shown for the card itself and for any voice that has no sprites of its own."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3590-3590",
+          "lines": "3616-3616",
           "quote": "'sprites.wear': 'Wear by default',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8310-8310",
+          "lines": "8354-8354",
           "quote": "'sprites.wear': 'Носити за замовчуванням',"
         },
         {
@@ -4886,32 +4891,32 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3591-3591",
+          "lines": "3617-3617",
           "quote": "'sprites.deleteOutfit': 'Delete outfit',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8311-8311",
+          "lines": "8355-8355",
           "quote": "'sprites.deleteOutfit': 'Видалити одяг',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3593-3593",
+          "lines": "3619-3619",
           "quote": "Nothing is written until you press Save changes."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8313-8313",
+          "lines": "8357-8357",
           "quote": "Нічого не записується, поки ви не натиснете «Зберегти зміни»."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3653-3653",
+          "lines": "3679-3679",
           "quote": "'cd.save': 'Save changes',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8373-8373",
+          "lines": "8417-8417",
           "quote": "'cd.save': 'Зберегти зміни',"
         },
         {
@@ -5107,7 +5112,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2554-2554",
+          "lines": "2552-2552",
           "quote": "set({ settings, themes, qrSets, tags, view: 'home'"
         }
       ]
@@ -5354,32 +5359,32 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "683-683",
+          "lines": "687-687",
           "quote": "settings.chatWidth === 'full' ? '100%' :"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "685-685",
+          "lines": "689-689",
           "quote": "settings.chatWidth === 'compact' ? '36rem' :"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1011-1011",
+          "lines": "1021-1021",
           "quote": "const showDay = settings.dayDividers"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "699-699",
+          "lines": "703-703",
           "quote": "label: 'Display settings'"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1518-1518",
+          "lines": "1527-1527",
           "quote": "updateSettings({ chatWidth: v as never })"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1530-1530",
+          "lines": "1539-1539",
           "quote": "Font scale: {settings.fontScale}%"
         },
         {
@@ -5614,167 +5619,167 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2780-2780",
+          "lines": "2806-2806",
           "quote": "The older chapters take {tokens} tokens, more than the {threshold} allowed."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7500-7500",
+          "lines": "7544-7544",
           "quote": "Старіші розділи займають ~{tokens} ток., більше за дозволені {threshold}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2781-2781",
+          "lines": "2807-2807",
           "quote": "The chapters stay in the record; the prompt carries the arc in their place."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2786-2786",
+          "lines": "2812-2812",
           "quote": "Arcs now merge by themselves. Change it in the Litopys settings."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2799-2799",
+          "lines": "2825-2825",
           "quote": "Its chapters stay and go back into the prompt one by one."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2782-2782",
+          "lines": "2808-2808",
           "quote": "'lit.arc.merge': 'Merge',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7502-7502",
+          "lines": "7546-7546",
           "quote": "'lit.arc.merge': 'Злити',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2783-2783",
+          "lines": "2809-2809",
           "quote": "'lit.arc.notNow': 'Not now',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7503-7503",
+          "lines": "7547-7547",
           "quote": "'lit.arc.notNow': 'Не зараз',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2784-2784",
+          "lines": "2810-2810",
           "quote": "'lit.arc.always': 'Always merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7504-7504",
+          "lines": "7548-7548",
           "quote": "'lit.arc.always': 'Завжди зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2795-2795",
+          "lines": "2821-2821",
           "quote": "'lit.arc.menu': 'Arc menu',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7515-7515",
+          "lines": "7559-7559",
           "quote": "'lit.arc.menu': 'Меню арки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2796-2796",
+          "lines": "2822-2822",
           "quote": "'lit.arc.rewrite': 'Merge again',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7516-7516",
+          "lines": "7560-7560",
           "quote": "'lit.arc.rewrite': 'Злити знову',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2797-2797",
+          "lines": "2823-2823",
           "quote": "'lit.arc.delete': 'Delete the arc',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7517-7517",
+          "lines": "7561-7561",
           "quote": "'lit.arc.delete': 'Видалити арку',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2802-2802",
+          "lines": "2828-2828",
           "quote": "'lit.arc.chapters': 'Chapters ({n})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7522-7522",
+          "lines": "7566-7566",
           "quote": "'lit.arc.chapters': 'Розділи ({n})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2787-2787",
+          "lines": "2813-2813",
           "quote": "'lit.arcsOffer.title': 'Arcs can merge by themselves now',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7507-7507",
+          "lines": "7551-7551",
           "quote": "'lit.arcsOffer.title': 'Арки тепер можуть зливатися самі',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2789-2789",
+          "lines": "2815-2815",
           "quote": "'lit.arcsOffer.on': 'Merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7509-7509",
+          "lines": "7553-7553",
           "quote": "'lit.arcsOffer.on': 'Зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2790-2790",
+          "lines": "2816-2816",
           "quote": "'lit.arcsOffer.keep': 'Keep asking me',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7510-7510",
+          "lines": "7554-7554",
           "quote": "'lit.arcsOffer.keep': 'Питати й далі',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2822-2822",
+          "lines": "2848-2848",
           "quote": "'lit.set.arcMode': 'Arcs',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7542-7542",
+          "lines": "7586-7586",
           "quote": "'lit.set.arcMode': 'Арки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2823-2823",
+          "lines": "2849-2849",
           "quote": "'lit.set.arcAsk': 'Ask me first',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7543-7543",
+          "lines": "7587-7587",
           "quote": "'lit.set.arcAsk': 'Спершу питати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2824-2824",
+          "lines": "2850-2850",
           "quote": "'lit.set.arcAuto': 'Merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7544-7544",
+          "lines": "7588-7588",
           "quote": "'lit.set.arcAuto': 'Зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2825-2825",
+          "lines": "2851-2851",
           "quote": "'lit.set.arcOff': 'Off',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7545-7545",
+          "lines": "7589-7589",
           "quote": "'lit.set.arcOff': 'Вимкнено',"
         },
         {
@@ -5784,17 +5789,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7383-7383",
+          "lines": "7401-7401",
           "quote": "'lit.settingsTitle': 'Запис історії (Літопис)',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2764-2764",
+          "lines": "2790-2790",
           "quote": "'lit.settings.open': 'Litopys settings',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7484-7484",
+          "lines": "7528-7528",
           "quote": "'lit.settings.open': 'Налаштування Літопису',"
         },
         {
@@ -5996,7 +6001,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4240-4240",
+          "lines": "4258-4258",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
@@ -6056,7 +6061,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4199-4199",
+          "lines": "4217-4217",
           "quote": "'ag.drafts.install': 'Install'"
         },
         {
@@ -6596,7 +6601,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4240-4240",
+          "lines": "4258-4258",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
