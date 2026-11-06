@@ -99,6 +99,9 @@ export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characte
 export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent' | 'polish'; attachments?: Message['attachments'] }
 export type SendOutcome = 'sent' | 'not-sent' | 'stopped'
 
+/** What a new chat is given for its agents: the engine's `meta.agents` without the version (see docs/DATA-FORMATS.md, Agents). */
+export interface AgentBindingOpt { preset?: string; own?: { agent: string; on?: boolean; phase?: string; wait?: boolean }[]; show?: Record<string, string>; also?: Record<string, true> }
+
 interface AppState {
   boot: BootState
   bootError: string | null
@@ -283,14 +286,14 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; personaId?: ID | null; model?: string }) => Promise<ID>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; personaId?: ID | null; model?: string }) => Promise<ID>
   /** `continues`: the chat this one picks up (#262); the step always opens, preselected on it */
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: { preset: string } | { own: [] }; world?: { worldId: string } | { fromChatId: ID }; personaId?: ID | null; model?: string; continues?: ID; quietWorld?: boolean }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; world?: { worldId: string } | { fromChatId: ID }; personaId?: ID | null; model?: string; continues?: ID; quietWorld?: boolean }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */

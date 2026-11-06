@@ -69,12 +69,18 @@ export function useRequestSize(chat: Chat | undefined, model: string | null, win
 
   // the popup opens by itself only when a reply made the request grow past the limit while this chat was open;
   // opening an old chat that is already big shows the button in alarm colour and nothing else
+  // The usage lands a moment before the stream is marked finished, so the growth is remembered until the reply ends.
   const seen = useRef<{ chat: string; tokens: number } | null>(null)
+  const grew = useRef(false)
   useEffect(() => {
     const prev = seen.current
     seen.current = { chat: chatId, tokens }
-    if (!prev || prev.chat !== chatId) return
-    if (tokens > prev.tokens && !streaming && shouldOfferTrim(tokens, limit, dismissed)) setOpen(true)
+    if (!prev || prev.chat !== chatId) { grew.current = false; return }
+    if (tokens > prev.tokens) grew.current = true
+    if (grew.current && !streaming) {
+      grew.current = false
+      if (shouldOfferTrim(tokens, limit, dismissed)) setOpen(true)
+    }
   }, [tokens, chatId, limit, dismissed, streaming])
 
   const hide = () => {
@@ -173,7 +179,7 @@ function LimitControl({ rs }: { rs: RequestSize }) {
               aria-labelledby="req-limit-label"
               aria-invalid={bad}
               data-testid="request-limit-size"
-              className="h-9 w-28 text-sm tabular-nums"
+              className="h-9 w-28 text-sm tabular-nums max-md:h-10"
               onChange={(e) => { setDraft(e.target.value); setBad(false) }}
               onBlur={commit}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit() } }}

@@ -702,7 +702,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2283-2283",
+          "lines": "2286-2286",
           "quote": "usePersona: (id) => {"
         },
         {
@@ -754,7 +754,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1890-1890",
+          "lines": "1893-1893",
           "quote": "body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),"
         },
         {
@@ -1883,7 +1883,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1728-1728",
+          "lines": "1731-1731",
           "quote": "toast.success('Forked into a new chat')"
         }
       ]
@@ -2517,17 +2517,17 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1998-1998",
+          "lines": "2001-2001",
           "quote": ".filter((r) => r.mode === 'send' && r.autoExecute?.[event])"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3099-3099",
+          "lines": "3102-3102",
           "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1996-1996",
+          "lines": "1999-1999",
           "quote": ".filter((set) => set.enabled)"
         }
       ],
@@ -2680,7 +2680,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2541-2541",
+          "lines": "2544-2544",
           "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
         },
         {
@@ -2740,7 +2740,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1364-1364",
+          "lines": "1367-1367",
           "quote": "if ((outMode === 'inputs' || outMode === 'both') && effective.trim()) {"
         },
         {
@@ -2848,7 +2848,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3064-3064",
+          "lines": "3067-3067",
           "quote": "Turn on Tools → Image Generation to see it."
         }
       ]
@@ -3310,7 +3310,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3424-3424",
+          "lines": "3427-3427",
           "quote": "the old connection profiles (library.json) become the engine's quick"
         }
       ]
@@ -3406,17 +3406,17 @@
       "sources": [
         {
           "path": "src/lib/store.ts",
-          "lines": "1848-1848",
+          "lines": "1851-1851",
           "quote": "a short step with the preset and its choices, unless the user turned it off or there is"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1849-1849",
+          "lines": "1852-1852",
           "quote": "nothing to choose (one preset without variables, and no agent set to pick)"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1855-1855",
+          "lines": "1858-1858",
           "quote": "set({ newChatStep: { charId, greetingIndex } })"
         },
         {
@@ -3573,17 +3573,17 @@
       "sources": [
         {
           "path": "src/lib/continue-chat.ts",
-          "lines": "13-13",
+          "lines": "12-12",
           "quote": "export async function continueInNewChat(chatId: ID): Promise<boolean> {"
         },
         {
           "path": "src/lib/continue-chat.ts",
-          "lines": "22-22",
-          "quote": "const last = lastSetFor([old]"
+          "lines": "21-21",
+          "quote": "loadChatAgents(old.id), loadDefaultAgentSet()"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1868-1868",
+          "lines": "1871-1871",
           "quote": "const { setLitLink } = await import('@/components/library/litopys-api')"
         },
         {
@@ -3645,7 +3645,7 @@
         },
         {
           "path": "src/components/chat/request-size.tsx",
-          "lines": "208-208",
+          "lines": "214-214",
           "quote": "closing a popup that asked for an answer counts as \"Not now\""
         },
         {
@@ -3656,7 +3656,7 @@
         {
           "path": "src/components/chat/chat-view.tsx",
           "lines": "803-803",
-          "quote": "<RequestSizeButton rs={requestSize} labelled={toolMode === 'labelled'} />"
+          "quote": "<RequestSizeButton rs={requestSize} />"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
@@ -4007,12 +4007,12 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1732-1732",
+          "lines": "1735-1735",
           "quote": "const id = await get().forkChat(chatId, messageId)"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1733-1733",
+          "lines": "1736-1736",
           "quote": "get().openChat(id)"
         },
         {
@@ -4333,7 +4333,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1716-1716",
+          "lines": "1719-1719",
           "quote": "continue extends the LAST assistant message — stream it in place"
         },
         {
@@ -4353,12 +4353,12 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1367-1367",
+          "lines": "1370-1370",
           "quote": "const r = await j<{ text: string }>"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1673-1673",
+          "lines": "1676-1676",
           "quote": "the result belongs to this chat and to the draft as it reads now"
         },
         {
@@ -5107,12 +5107,12 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "396-396",
+          "lines": "399-399",
           "quote": "themes: seedThemes,"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2552-2552",
+          "lines": "2555-2555",
           "quote": "set({ settings, themes, qrSets, tags, view: 'home'"
         }
       ]

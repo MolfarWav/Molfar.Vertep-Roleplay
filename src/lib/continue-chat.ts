@@ -1,11 +1,10 @@
 // "Continue in a new chat" in one click (#262): the new chat gets everything the old one was set up with, and the
 // earlier story rides along through the same link the Canvas draws. No dialog: the person keeps chatting.
 import { toast } from 'sonner'
-import { listAgentSets, loadDefaultAgentSet, useAgentsLive } from '@/lib/agents'
-import { lastSetFor } from '@/lib/agent-usage'
+import { loadChatAgents, loadDefaultAgentSet } from '@/lib/agents'
 import { listWorldChats } from '@/lib/world'
 import { t } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { useApp, type AgentBindingOpt } from '@/lib/store'
 import type { ID } from '@/lib/types'
 
 /** Start the chat that continues `chatId` and open it. Carries the preset and its picks, the persona (if it still
@@ -15,14 +14,23 @@ export async function continueInNewChat(chatId: ID): Promise<boolean> {
   const old = app.chats.find((c) => c.id === chatId)
   if (!old) return false
 
-  // the agent set the old chat used: silent when the app has no agents plugin
-  let agents: { preset: string } | { own: [] } | undefined
+  // the agents the old chat runs now: the set it follows, or its own copy with where each result is shown.
+  // Silent when the app has no agents plugin: the new chat then follows whatever default there is.
+  let agents: AgentBindingOpt | undefined
   try {
-    const [sets, def] = await Promise.all([listAgentSets(), loadDefaultAgentSet()])
-    const last = lastSetFor([old], useAgentsLive.getState().chats, old.characterId, def, new Set(sets.map((x) => x.id)))
-    if (last.pick === 'none') agents = { own: [] }
-    else if (last.pick !== 'default') agents = { preset: last.pick }
-  } catch { /* no agents plugin: the new chat follows whatever default there is */ }
+    const [cur, def] = await Promise.all([loadChatAgents(old.id), loadDefaultAgentSet()])
+    const b: AgentBindingOpt = {}
+    // a chat that follows the default set keeps following it: only a set picked on purpose is carried
+    if (cur.presetId && (!cur.followsPreset || cur.presetId !== def)) b.preset = cur.presetId
+    if (!cur.followsPreset) {
+      b.own = cur.items.map((i) => ({ agent: i.agent, on: i.on, ...(i.phase ? { phase: i.phase } : {}), ...(i.wait === false ? { wait: false } : {}) }))
+      const show = Object.fromEntries(cur.items.filter((i) => i.show).map((i) => [i.agent, i.show as string]))
+      const also = Object.fromEntries(cur.items.filter((i) => i.also).map((i) => [i.agent, true as const]))
+      if (Object.keys(show).length) b.show = show
+      if (Object.keys(also).length) b.also = also
+    }
+    if (b.preset || b.own) agents = b
+  } catch { /* no agents plugin */ }
 
   // a world the old chat holds comes along; a failed lookup only means it does not
   let world: { fromChatId: ID } | undefined

@@ -182,8 +182,9 @@ export function ChatToolTiles({ state, on, closeMenu }: { state: ToolState; on: 
 
 /** How much of the header's width the tools may use: names and counters, counters only, or none (the More menu then lists them). */
 export type ToolMode = 'labelled' | 'icons' | 'none'
-const LABELLED_FROM = 1120
-const ICONS_FROM = 820
+// the Request size button sits beside the tools, so each step starts a little wider than the tools alone need
+const LABELLED_FROM = 1200
+const ICONS_FROM = 900
 
 export function useToolMode(el: HTMLElement | null): ToolMode {
   const [width, setWidth] = useState(0)

@@ -800,7 +800,7 @@ export function ChatView() {
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {toolMode !== 'none' && <ChatToolButtons state={toolState} on={toolHandlers} labelled={toolMode === 'labelled'} />}
-            <RequestSizeButton rs={requestSize} labelled={toolMode === 'labelled'} />
+            <RequestSizeButton rs={requestSize} />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <div data-guide="chat.switch" className="flex"><ChatQuickSwitch chatId={chat.id} /></div>
@@ -876,7 +876,7 @@ export function ChatView() {
           cache={cache}
           context={chatContext}
         />
-        {(requestSize.level === 'near' || requestSize.level === 'over') && <RequestSizeButton rs={requestSize} compact />}
+        {requestSize.level === 'over' && <RequestSizeButton rs={requestSize} compact />}
         <WorldStatusButton phone chatId={chat.id} onClick={() => { closeDrawer(); setWorldOpen(true) }} />
         <Button variant="outline" className="h-10 shrink-0 gap-1.5 px-3" onClick={() => { closeDrawer(); setMenuOpen(true) }} aria-haspopup="dialog">
           <List className="size-4.5" aria-hidden="true" /> Menu
