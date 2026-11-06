@@ -950,6 +950,8 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   card is `{ value }` or `{ error }`. A failed script goes to the `failed` wire if one is drawn, else the run fails with the reason.
   Outputs are checked against their type: a number must be finite, a flag must be a boolean (it travels as `yes`/`no`), a text is a
   string or a number, clipped to the text limit. An output the code leaves out is missing data (a card that needs it is skipped).
+  The permission is tied to the code: `agents/grants/<id>.json` keeps a fingerprint of the Script cards' code that was allowed (`codeSig`),
+  and code that differs (an update, or a hand edit of the file) drops `run:code` from `needs` and `asked`, so the Allow page asks again.
   The sandbox is the engine's (engine 1.10.1+, `host.script`, the plugin permission `script`; an older engine fails the agent with
   "this Molfar Vertep is too old to run one"): QuickJS in a worker of its own, no clock (`Date`, timers, `performance`), no network,
   no files, no `process` or `env`; `Math.random` follows `seed`, so a reply runs the same every time. Limits: about 500 ms of CPU,

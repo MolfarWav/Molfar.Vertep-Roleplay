@@ -1382,7 +1382,7 @@ function runCards(file, ctx, answers, seen) {
  *
  * Data (under the app's data/ dir):
  *   agents/<id>.vertep-agent.json        the installed agent, checked and compiled
- *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...], asked?: [...] } (asked = every need the person was shown; a need outside it is new in an update)
+ *   agents/grants/<id>.json              the permissions the user confirmed: { needs: [...], asked?: [...], codeSig?: "..." } (asked = every need the person was shown; a need outside it is new in an update; codeSig = a fingerprint of the Script card code that was allowed: changed code drops `run:code` from both lists, so the person is asked again)
  *   agents/config.json                   { model?, models?: { <role>: <model> }, byAgent?: { <id>: { models?: { <role>: <model> }, maxCalls?, everyN? } } }
  *   agents/state/<chatId>/<id>.json      the agent's own fields in that chat, { v, own, last, before }
  *   agents/runs/<chatId>.json            the newest runs: { v, runs: [...] }
@@ -1462,16 +1462,53 @@ function loadAgent(fsx, id) {
   return "file" in f ? { file: f.file, report } : null;
 }
 
-const grantedOf = (fsx, id) => {
+/** A short fingerprint of the code of every Script card of an agent file ("" when it has none): FNV-1a over the node ids and their code. */
+const codeSigOf = (file) => {
+  const parts = (file && Array.isArray(file.nodes) ? file.nodes : [])
+    .filter((n) => isObj(n) && n.type === "code.script")
+    .map((n) => str(n.id) + "\u0000" + str(isObj(n.params) ? n.params.code : ""))
+    .sort();
+  if (!parts.length) return "";
+  let h = 0x811c9dc5;
+  for (const ch of parts.join("\u0001")) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+};
+
+/** The grants file of an agent, with `run:code` dropped when the code is not the code the person read and allowed (a changed script asks again). */
+const readGrants = (fsx, id) => {
   const g = readJsonAt(fsx, "agents/grants/" + id + ".json", null);
-  return isObj(g) && Array.isArray(g.needs) ? g.needs.filter((t) => typeof t === "string") : [];
+  if (!isObj(g)) return null;
+  const list = (v) => (Array.isArray(v) ? v.filter((t) => typeof t === "string") : null);
+  let needs = list(g.needs) || [];
+  let asked = list(g.asked);
+  if (needs.includes("run:code") || (asked && asked.includes("run:code"))) {
+    const file = readJsonAt(fsx, agentPath(id), null);
+    if (str(g.codeSig) !== codeSigOf(file)) {
+      needs = needs.filter((t) => t !== "run:code");
+      if (asked) asked = asked.filter((t) => t !== "run:code");
+    }
+  }
+  return { needs, asked };
+};
+
+/** What goes into a grants file; `run:code` carries the fingerprint of the code that was allowed. */
+const grantsRecord = (file, needs, asked) => {
+  const sig = needs.includes("run:code") || (asked || []).includes("run:code") ? codeSigOf(file) : "";
+  return { v: 1, needs, ...(asked && asked.length ? { asked } : {}), ...(sig ? { codeSig: sig } : {}) };
+};
+
+const grantedOf = (fsx, id) => {
+  const g = readGrants(fsx, id);
+  return g ? g.needs : [];
 };
 
 /** The permissions the user has been shown and answered for: every need at the last grant, else (older files) what was granted. A need outside it is new in an update. */
 const askedOf = (fsx, id) => {
-  const g = readJsonAt(fsx, "agents/grants/" + id + ".json", null);
-  const a = isObj(g) && Array.isArray(g.asked) ? g.asked : grantedOf(fsx, id);
-  return a.filter((t) => typeof t === "string");
+  const g = readGrants(fsx, id);
+  return g && g.asked ? g.asked : grantedOf(fsx, id);
 };
 
 /** Why an installed agent cannot run now, or "" when it can. */
@@ -2437,7 +2474,7 @@ function installRoute(req, host) {
   const kept = grantedOf(fsx, id).filter((t) => needs.includes(t));
   const granted = [...new Set([...kept, ...(ask || [])])];
   const asked = [...new Set([...askedOf(fsx, id), ...(ask || [])])];
-  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted, ...(asked.length ? { asked } : {}) });
+  writeJsonAt(fsx, "agents/grants/" + id + ".json", grantsRecord(file, granted, asked));
   return ok({ ok: true, id, updated: !!had, needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs), warnings: report.warnings });
 }
 
@@ -2589,7 +2626,7 @@ function grantRoute(req, host) {
   if (!want) return ok({ error: "tokens: true or a list required" }, 400);
   const granted = want.filter((t) => needs.includes(t) && !UNSUPPORTED_NEEDS(t));
   // the person has now seen every need of this version, so only a later version's extra needs count as new
-  writeJsonAt(fsx, "agents/grants/" + id + ".json", { v: 1, needs: granted, asked: needs });
+  writeJsonAt(fsx, "agents/grants/" + id + ".json", grantsRecord(agent.file, granted, needs));
   return ok({ ok: true, id, granted, missing: needs.filter((t) => !granted.includes(t)) });
 }
 

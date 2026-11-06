@@ -293,3 +293,48 @@ describe("the permission page", () => {
     expect(compiled(plain).report.derived.needs).not.toContain("run:code");
   });
 });
+
+describe("changed code asks again", () => {
+  const row = () => (j("/agents/list").agents as Json[]).find((a) => a.id === "counter")!;
+  const withCode = (code: string) => {
+    const f = JSON.parse(JSON.stringify(agent()));
+    f.nodes.find((n: Json) => n.id === "sc").params.code = code;
+    return f;
+  };
+
+  it("an update with the same code keeps the permission", () => {
+    expect(row().granted).toContain("run:code");
+    const again = j("/agents/install", "PUT", { file: JSON.parse(JSON.stringify(agent())) });
+    expect(again.granted).toContain("run:code");
+    expect(row()).toMatchObject({ runnable: true, added: [] });
+  });
+
+  it("an update with other code drops run:code, shows it as new, and the agent waits", () => {
+    const changed = j("/agents/install", "PUT", { file: withCode(CODE + " // now with a twist") });
+    expect(changed.granted).not.toContain("run:code");
+    expect(changed.missing).toContain("run:code");
+    expect(row()).toMatchObject({ runnable: false, added: ["run:code"] });
+    expect(String(row().blocker)).toContain("run:code");
+    // the other permissions the update still asks for stay as they were
+    expect(row().granted).toContain("read:lastReply");
+    // allowing again, with the new code in front of the person, runs it
+    expect(j("/agents/grant", "POST", { id: "counter", tokens: true }).missing).toEqual([]);
+    expect(row()).toMatchObject({ runnable: true, added: [] });
+  });
+
+  it("code changed in the file behind the app's back also waits for a new yes", () => {
+    const file = path.join(root, "agents", "counter.vertep-agent.json");
+    const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+    raw.nodes.find((n: Json) => n.id === "sc").params.code = CODE + " // edited by hand";
+    fs.writeFileSync(file, JSON.stringify(raw));
+    expect(row().granted).not.toContain("run:code");
+    expect(row().runnable).toBe(false);
+  });
+
+  it("a person who said no to the code is not asked as if it were new, until the code changes", () => {
+    j("/agents/grant", "POST", { id: "counter", tokens: ["read:lastReply"] });
+    expect(row().added).toEqual([]);
+    j("/agents/install", "PUT", { file: withCode(CODE + " // v2") });
+    expect(row().added).toEqual(["run:code"]);
+  });
+});
