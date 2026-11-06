@@ -21,6 +21,12 @@ It runs after replies, every Nth reply ("Run after every N replies"), or right a
 
 It costs one extra model call whenever it is due, on the "DM model (all chats)"; a small, cheap model is enough. A failed run is shown in the sheet and in the Inbox, and the DM reads the same messages again next time.
 
+## Deleting or swiping a reply
+
+Delete a reply, or swipe to another one, and the DM takes back what it learned from the old one: records, clocks and a waiting event return to how they were, the world book is written again, and the DM reads the story again from there.
+
+Records you changed by hand stay, unless the DM changed the same record afterwards. A record you deleted stays deleted. Deleting old messages from the top, reading other swipes of an older reply and editing a reply's text take nothing back.
+
 ## World section tabs
 
 On the chosen chat: Overview (the same controls as the sheet), Places (a tree of places, with a background picture per place), World book (read, write, retire or delete records by hand), Runs (history, tokens, errors), Start (draft records from cards or a short interview), Backgrounds (plan and draw a set of pictures; with "Change the background by scene" on, the Dashboard picks the fitting one; with "Draw places that have no picture" also on, a place the story moves to that has no picture is drawn on the spot by the World's image model and filed in the folder; the chat's Display sheet has a link here). Also **Profiles** and **Worlds**.
