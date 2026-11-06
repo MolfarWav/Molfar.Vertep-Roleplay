@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.93.0'
+export const APP_VERSION = '4.94.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.background-look',
+    since: '4.94.0',
+    help: 'world',
+    keywords: { en: 'background place draw look style setting tags medieval fantasy picture world backgrounds scene 402 credits', uk: 'тло місце малювати вигляд стиль сетинг теги середньовіччя фентезі картинка світ тла сцена 402 кредити' },
+    title: { en: 'Set the look of drawn backgrounds', uk: 'Вигляд намальованих тл' },
+    body: {
+      en: 'In World > Backgrounds, Look of the pictures takes a few English words (medieval fantasy, candlelight) that are added to every background drawn for the chat. The Draw places that have no picture switch is now always listed there, greyed out with the reason while something is missing. A place with a person\'s name in it ("Lyra\'s private quarters") is described in the story\'s own setting, and a drawing no longer fails with 402 on an account that has credit.',
+      uk: 'У World > Backgrounds поле «Look of the pictures» бере кілька англійських слів (medieval fantasy, candlelight), які додаються до кожного тла чату. Перемикач «Draw places that have no picture» тепер завжди видно, сірим із причиною, поки чогось бракує. Місце з іменем людини в назві («Lyra\'s private quarters») описується в сетингу самої історії, а малювання більше не падає з помилкою 402 на рахунку з кредитами.',
+    },
+  },
   {
     id: 'new.portraits-places',
     since: '4.93.0',
