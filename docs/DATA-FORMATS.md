@@ -537,8 +537,13 @@ player switches it on for that chat. It writes:
   url, type, folderId, fitting, tags? }`), linked as `backgroundFolderId` in the chat's state and in a saved world.
   `name` is an English snake_case place name (`tavern`, `tavern_2`), `tags` English words for kind, time, weather
   and mood; new images are stored as WebP in the engine's asset store (`url` = `/v1/assets/<id>`), never as data
-  URLs in `library.json`. The chat meta's `autoBackground: { on, folderId }` lets the Dashboard sensor pick the
+  URLs in `library.json`. The chat meta's `autoBackground: { on, folderId, draw? }` lets the Dashboard sensor pick the
   image that fits the scene (its snapshot's `background` = the image's name); the app then sets `backgroundId`.
+  With `draw: true` (World > Backgrounds, "Draw places that have no picture"; needs image generation on) the sensor may also name a
+  place the folder has no picture of, as a short name of two to four words, and the app draws it: the chat's model describes the
+  place (`POST /chats/:id/image-prompt`, mode `background`, `subject` = the name and the World's own record of the place when it has one), the
+  World's image model (else the app's) draws it, and it is filed into the folder under the sensor's name, so the next pick finds it.
+  One drawing at a time across the app, a chat at most once a minute, a place that failed waits 15 minutes.
 
   Phase B (#240): thing and place records are linked to the chat's entity registry too, in the same `state.regIds` (`{ "<recordId>": "<registryId>" }`): a thing to `o#`, a place to `l#`, a person to `p#`. The World looks a name up in the registry (any spelling); a hit links to that id, otherwise it adds the entity with `src: "world"`. Records from older states are linked on the next DM run. The DM's input shows the scene tracker's ids (the scene's place `l#`, the swept things `o#`), and an `add` or `update` may carry `"ref": "o31"` (or `l2`): the record is linked to that registry entity whatever language it is named in, its name becomes an alias there, and an update's ref folds a registry copy the World had made itself (`src: "world"`) into it. A ref of the wrong kind or unknown to the registry is ignored. `inside` (a place's parent) and a thing's `place` are written as the linked place record's name; `holder` stays a person's display name. `state.lastPlaceId` is the registry id of the place the last run saw. The Here view compares places by id first (the sensor's `clock.placeId` against the record's link), then by words. A thing the Dashboard holds (`items`) or shows lying here (`layout.objects`, `layout.byPlace`) with the same `t#` is shown once, with the Dashboard's holder or position winning.
 

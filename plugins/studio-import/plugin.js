@@ -730,11 +730,11 @@ const BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, l
 // the card file here (allowlisted host, size cap, timeout, no host change on
 // redirect, magic bytes checked) and hands the bytes back; the Store imports
 // them exactly like a dropped file, so there is one importer for all of them.
-const HONEST_UA = "Molfar-Vertep studio-import/1.13.0 (+https://github.com/MolfarWav/Molfar.Vertep)";
+const HONEST_UA = "Molfar-Vertep studio-import/1.14.0 (+https://github.com/MolfarWav/Molfar.Vertep)";
 const CARD_MAX_BYTES = 16 * 1024 * 1024; // the chub card PNG cap
 const CARD_TIMEOUT_MS = 30000;
-const SOURCE_LABELS = { chub: "Chub", risurealm: "RisuRealm", charavault: "CharaVault", wyvern: "Wyvern", pygmalion: "Pygmalion", janny: "JannyAI", url: "a direct link" };
-const OTHER_SOURCES = ["risurealm", "charavault", "wyvern", "pygmalion", "janny"];
+const SOURCE_LABELS = { chub: "Chub", risurealm: "RisuRealm", charavault: "CharaVault", wyvern: "Wyvern", pygmalion: "Pygmalion", janny: "JannyAI", botbooru: "Botbooru", url: "a direct link" };
+const OTHER_SOURCES = ["risurealm", "charavault", "wyvern", "pygmalion", "janny", "botbooru"];
 // A direct link may only be downloaded from these services, and a redirect
 // may only stay inside the same service (Hugging Face serves files from its
 // CDN, github.com/raw lands on raw.githubusercontent.com). The engine checks
@@ -811,6 +811,18 @@ function classifyCardLink(raw) {
       headers: { accept: "image/png" },
     };
   }
+  if (/(^|\.)botbooru\.com$/.test(host)) {
+    // page /character/<id> or the download itself /download/png/<id>
+    const at = parts[0] === "character" ? 1 : parts[0] === "download" && parts[1] === "png" ? 2 : -1;
+    const id = at > 0 ? parts[at] : "";
+    if (!id || !/^\d{1,12}$/.test(id)) return { error: "Not a Botbooru card link. Use https://botbooru.com/character/<id>." };
+    return {
+      source: "botbooru", hosts: ["botbooru.com"], fileBase: id,
+      pageUrl: "https://botbooru.com/character/" + id,
+      url: "https://botbooru.com/download/png/" + id,
+      headers: { accept: "image/png" },
+    };
+  }
   // GitHub and Hugging Face "view" links point at a web page; rewrite them to
   // the file itself (a pure URL rewrite, no extra host is contacted).
   let direct = u;
@@ -821,7 +833,7 @@ function classifyCardLink(raw) {
   }
   const service = DIRECT_SERVICES.find((s) => hostIn(direct.hostname.toLowerCase(), s.hosts));
   if (!service) {
-    return { status: 422, error: "The app can only download cards from " + DIRECT_NAMES + ", RisuRealm and CharaVault. For any other site, download the file and drop it into the Store." };
+    return { status: 422, error: "The app can only download cards from " + DIRECT_NAMES + ", RisuRealm, CharaVault and Botbooru. For any other site, download the file and drop it into the Store." };
   }
   return {
     source: "url", hosts: service.hosts, service: service.name, pageUrl: u.href,
@@ -933,6 +945,11 @@ const WYVERN_SORTS = { popular: "popular", recommended: "recommended", newest: "
 // account. Page numbers start at 0 there.
 const PYG_API = "https://server.pygmalion.chat/galatea.v1.PublicCharacterService";
 const PYG_SORTS = { downloads: "downloads", rating: "stars", views: "views", newest: "approved_at", tokens: "token_count", name: "display_name" };
+// Botbooru: its own gallery endpoint (/posts/) answers JSON without an account,
+// SFW cards only — NSFW and NSFL are hidden from logged-out visitors, and the
+// app has no login there. Orders verified 2026-11-04 (an unknown key falls
+// back to the newest list, so only the ones that really sort are listed).
+const BB_SORTS = { downloads: "downloads", favorites: "favorites", newest: "latest", views: "views", random: "random" };
 // JannyAI: search only. Its site searches a public Meilisearch index from the
 // browser with this search-only key (a Meilisearch search key is meant to be
 // public); the site itself and its download API sit behind a browser check,
@@ -1000,6 +1017,38 @@ function cvItem(c) {
     createdAt: typeof c.indexed_at === "string" ? c.indexed_at : null,
     hasLore: c.has_lorebook === true,
     pageUrl: "https://charavault.net/cards/" + encodeURIComponent(folder) + "/" + encodeURIComponent(file),
+  };
+}
+
+/** One Botbooru gallery post. Its tags carry more than keywords: the rating
+ *  (sfw/nsfw/nsfl) and whether a lorebook comes with the card. */
+function bbItem(c) {
+  const id = String(c.id || "");
+  const tags = (Array.isArray(c.tags) ? c.tags : [])
+    .map((t) => (t && typeof t === "object" ? String(t.name || "") : String(t || "")).trim())
+    .filter(Boolean)
+    .slice(0, 30);
+  const rating = tags.find((t) => /^(sfw|nsfw|nsfl)$/i.test(t))?.toLowerCase() ?? "";
+  const name = String(c.character_name || c.meta_name || "").trim();
+  const file = typeof c.filename === "string" ? c.filename : "";
+  return {
+    id, source: "botbooru",
+    name: name.slice(0, 200) || "Untitled",
+    creator: str(c.uploader_name, 120),
+    tagline: str(c.tagline, 500) || firstLine(c.description_excerpt || c.description),
+    description: str(c.description_excerpt || c.description, 12000),
+    topics: tags,
+    ...NO_STATS,
+    downloads: Number(c.downloads) || 0,
+    favorites: Number(c.favorite_count) || 0,
+    tokens: Number(c.token_count) || 0,
+    nsfw: rating === "nsfw" || rating === "nsfl",
+    // the site's own resized previews (the card file itself is only fetched on install)
+    avatar: file ? "https://botbooru.com/images/preview/320/" + encodeURIComponent(file) : null,
+    maxRes: file ? "https://botbooru.com/images/preview/8192/" + encodeURIComponent(file) : null,
+    createdAt: typeof c.created_at === "string" ? c.created_at : null,
+    hasLore: tags.includes("contains_lorebook") || c.has_lorebook === true,
+    pageUrl: "https://botbooru.com/character/" + id,
   };
 }
 
@@ -1173,6 +1222,15 @@ function otherSourceSearch(source, b, host) {
     const sort = RISU_SORTS[String(b.sort)];
     if (sort) qs.set("sort", sort);
     url = "https://realm.risuai.net/__data.json?" + qs.toString();
+  } else if (source === "botbooru") {
+    // the gallery endpoint the site's own grid loads: JSON, no account, SFW
+    // only (NSFW/NSFL cards need a Botbooru login, which the app does not have)
+    const qs = new URLSearchParams({
+      sort: BB_SORTS[String(b.sort)] ?? "downloads",
+      limit: String(first), offset: String((page - 1) * first),
+    });
+    if (search) qs.set("q", search);
+    url = "https://botbooru.com/posts/?" + qs.toString();
   } else {
     // CharaVault: a public archive with a documented, keyless API (see the
     // API section on charavault.net). Its robots.txt disallows /api/ for
@@ -1239,6 +1297,12 @@ function otherSourceSearch(source, b, host) {
     const hasMore = root.cards.length >= RISU_PAGE;
     return { status: 200, json: { source, count: (page - 1) * RISU_PAGE + results.length + (hasMore ? 1 : 0), page, first: RISU_PAGE, hasMore, results } };
   }
+  if (source === "botbooru") {
+    if (!Array.isArray(r.json.posts)) return { status: 502, json: { error: "Botbooru answered in an unknown shape; the site may have changed." } };
+    const results = r.json.posts.filter((c) => c && typeof c === "object" && /^\d{1,12}$/.test(String(c.id || ""))).map(bbItem);
+    const total = Number(r.json.total) || results.length;
+    return { status: 200, json: { source, count: total, page, first, hasMore: page * first < total, results } };
+  }
   const list = Array.isArray(r.json.results) ? r.json.results : null;
   if (!list) return { status: 502, json: { error: "CharaVault answered in an unknown shape." } };
   const results = list.filter((c) => c && typeof c === "object" && c.folder && c.file).map(cvItem);
@@ -1264,13 +1328,16 @@ function otherSourceDetail(source, b, host) {
   } else if (source === "risurealm") {
     if (!UUID_RE.test(id)) return { status: 400, json: { error: "bad listing id" } };
     url = "https://realm.risuai.net/character/" + id.toLowerCase() + "/__data.json"; // unofficial, see search
+  } else if (source === "botbooru") {
+    if (!/^\d{1,12}$/.test(id)) return { status: 400, json: { error: "bad listing id" } };
+    url = "https://botbooru.com/post/" + id; // the post page's own JSON
   } else {
     const slash = id.indexOf("/");
     if (slash <= 0 || slash === id.length - 1 || id.length > 600) return { status: 400, json: { error: "bad listing id" } };
     url = "https://charavault.net/api/cards/" + encodeURIComponent(id.slice(0, slash)) + "/" + encodeURIComponent(id.slice(slash + 1));
   }
   if (!Object.keys(host.net.results).length) {
-    host.net.request("detail", { url, json: true, maxBytes: 5 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, accept: "application/json" } });
+    host.net.request("detail", { url, json: true, maxBytes: source === "botbooru" ? 16 * 1024 * 1024 : 5 * 1024 * 1024, timeoutMs: CARD_TIMEOUT_MS, headers: { "user-agent": HONEST_UA, accept: "application/json" } });
     return { __llmPending: true };
   }
   const r = host.net.results.detail;
@@ -1283,6 +1350,34 @@ function otherSourceDetail(source, b, host) {
     // the page shows the author's description only; the card itself comes
     // with the download
     return { status: 200, json: { source, id, partial: true, greeting: "", alternateGreetings: [], personality: "", scenario: "", exampleDialogs: "", creatorNotes: clip(c.desc, 8000), systemPrompt: "", postHistoryInstructions: "", lorebookEntries: c.haslore === true ? -1 : 0 } };
+  }
+  if (source === "botbooru") {
+    const c = r.json;
+    if (!c || typeof c !== "object") return { status: 502, json: { error: label + " answered in an unknown shape; the site may have changed." } };
+    // its lorebook arrives as a JSON string inside the post, not as a field
+    let bookEntries = 0;
+    if (c.has_lorebook === true && typeof c.lorebook_json === "string") {
+      try {
+        const lb = JSON.parse(c.lorebook_json);
+        const e = lb && lb.entries;
+        bookEntries = Array.isArray(e) ? e.length : Object.keys(e || {}).length;
+      } catch { bookEntries = -1; }
+    }
+    return {
+      status: 200,
+      json: {
+        source, id,
+        greeting: clip(c.first_mes, 16000),
+        alternateGreetings: Array.isArray(c.alternate_greetings) ? c.alternate_greetings.map((g) => String(g).slice(0, 16000)).slice(0, 40) : [],
+        personality: clip(c.description, 24000),
+        scenario: clip(c.scenario, 8000),
+        exampleDialogs: clip(c.mes_example, 16000),
+        creatorNotes: clip(c.creator_notes, 8000),
+        systemPrompt: clip(c.system_prompt, 8000),
+        postHistoryInstructions: clip(c.post_history_instructions, 8000),
+        lorebookEntries: bookEntries,
+      },
+    };
   }
   let d;
   if (source === "wyvern" || source === "pygmalion") {

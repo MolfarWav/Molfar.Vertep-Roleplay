@@ -26,6 +26,8 @@ export interface ImportJob {
   summary?: string
   /** show "3 of 12": off when the units are not what the user thinks of (files and batches together) */
   count: boolean
+  /** what one unit does: a draw job says "Drawn", the default (an import) says "Imported" */
+  verb?: 'draw'
 }
 
 /** 0..1: the finished units plus the share of the running one; a finished job is whole. */
@@ -68,9 +70,9 @@ export interface ImportRun {
 let counter = 0
 
 /** Begin a job of `total` units. Always call `end` (put it in a finally). */
-export function beginImport(title: string, total: number, opts?: { count?: boolean }): ImportRun {
+export function beginImport(title: string, total: number, opts?: { count?: boolean; verb?: 'draw' }): ImportRun {
   const id = `imp_${Date.now().toString(36)}_${++counter}`
-  const job: ImportJob = { id, title, current: '', step: '', total: Math.max(1, Math.floor(total)), done: 0, inner: 0, failed: [], status: 'running', cancelRequested: false, startedAt: Date.now(), count: opts?.count !== false }
+  const job: ImportJob = { id, title, current: '', step: '', total: Math.max(1, Math.floor(total)), done: 0, inner: 0, failed: [], status: 'running', cancelRequested: false, startedAt: Date.now(), count: opts?.count !== false, ...(opts?.verb ? { verb: opts.verb } : {}) }
   useImportProgress.setState((s) => ({ jobs: [...s.jobs, job] }))
   const patch = useImportProgress.getState().patch
   return {
@@ -102,16 +104,18 @@ export async function forEachImport<T>(
   items: readonly T[],
   nameOf: (item: T) => string,
   fn: (item: T, run: ImportRun) => Promise<boolean | void>,
+  opts?: { verb?: 'draw' },
 ): Promise<void> {
   if (!items.length) return
-  const run = beginImport(title, items.length)
+  const run = beginImport(title, items.length, opts)
+  const failWord = opts?.verb === 'draw' ? 'not drawn' : 'not imported'
   try {
     for (const item of items) {
       if (run.cancelled()) break
       run.start(nameOf(item))
       try {
         const ok = await fn(item, run)
-        run.finish(ok !== false, ok === false ? 'not imported' : '')
+        run.finish(ok !== false, ok === false ? failWord : '')
       } catch (e) {
         run.finish(false, String((e as Error)?.message ?? e))
       }

@@ -4,7 +4,7 @@
  * engine's images bridge (POST /v1/images) draws it and keeps the file in its
  * asset store. Credentials live engine-side.
  */
-import { j } from '@/lib/engine'
+import { j, type ImageModelInfo } from '@/lib/engine'
 import type { ID } from '@/lib/types'
 
 export interface ImageGenSettings {
@@ -34,6 +34,27 @@ export function resolvePromptStyle(ig: Pick<ImageGenSettings, 'promptStyle' | 'm
   if (ig?.promptStyle === 'description' || ig?.promptStyle === 'tags') return ig.promptStyle
   if (ig?.modelStyle === 'description' || ig?.modelStyle === 'tags') return ig.modelStyle
   return ig?.modelApi === 'comfyui' || ig?.modelApi === 'a1111' ? 'tags' : 'description'
+}
+
+/** What one picked image model needs: its ref ("provider/id", "" = the engine's default), how its prompts are best
+ *  written and the image server's own advice for them. The portrait and place drawings can use another model than the
+ *  chat's picture button, so the style is read from THAT model, not from the app-wide settings. */
+export interface ImageTarget {
+  model: string
+  style: PromptStyle
+  guide?: string
+  /** a name to show: the user's own name for it, else the engine's label, else the ref */
+  label: string
+}
+
+/** The target for `pick` (a model ref; "" or unknown = the app's own model in `ig`), from the engine's model list. */
+export function imageTargetOf(ig: ImageGenSettings | undefined, models: readonly ImageModelInfo[], pick?: string | null): ImageTarget {
+  const ref = pick?.trim() || ig?.model || ''
+  const info = ref ? models.find((m) => `${m.provider}/${m.id}` === ref) : undefined
+  if (!info) return { model: ref, style: resolvePromptStyle(ig), ...(ig?.modelInstructions?.trim() ? { guide: ig.modelInstructions.trim() } : {}), label: ref ? ref.split('/').slice(1).join('/') || ref : '' }
+  // an explicit choice in Extensions wins, then the server's own setting, then the backend's habit (tags for ComfyUI and Forge)
+  const style = resolvePromptStyle({ promptStyle: ig?.promptStyle, modelApi: info.api, modelStyle: info.style })
+  return { model: ref, style, ...(info.instructions?.trim() ? { guide: info.instructions.trim() } : {}), label: info.favorite?.name || info.label }
 }
 
 export interface GeneratedImage {
@@ -77,11 +98,18 @@ export function modelHints(m: { api?: string; style?: PromptStyle; instructions?
   return { modelApi: m?.api, modelStyle: m?.style, modelInstructions: m?.instructions || undefined }
 }
 
-/** The chat model describes what to draw from the recent scene. */
-export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description', instructions?: string): Promise<string> {
+/** The chat model describes what to draw from the recent scene. `subject` names something outside the transcript
+ *  (a place the story moved to) that the description must be about. */
+export async function describeForImage(chatId: ID, mode: ImageMode, model?: string | null, style: PromptStyle = 'description', instructions?: string, subject?: string): Promise<string> {
   const r = await j<{ prompt: string }>(`/chats/${encodeURIComponent(chatId)}/image-prompt`, {
     method: 'POST',
-    body: JSON.stringify({ mode, style, ...(model ? { model } : {}), ...(instructions?.trim() ? { instructions: instructions.trim() } : {}) }),
+    body: JSON.stringify({
+      mode,
+      style,
+      ...(model ? { model } : {}),
+      ...(instructions?.trim() ? { instructions: instructions.trim() } : {}),
+      ...(subject?.trim() ? { subject: subject.trim().slice(0, 500) } : {}),
+    }),
   })
   return r.prompt
 }

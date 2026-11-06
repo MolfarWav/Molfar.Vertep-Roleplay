@@ -138,8 +138,8 @@
         "uk": "Розділ «Персонажі» → меню ⋯ → Імпорт (так само на телефоні й на комп’ютері); експорт з плитки картки або редактора."
       },
       "details": {
-        "en": "Import from a file accepts PNG or JSON cards, single or bulk. Import from a link reads Chub, RisuRealm, CharaVault or a direct file link; JannyAI links need a manual browser download. Each result shows a toast with the card name and notes. Export writes a V2 PNG card with the card data stored inside the picture itself.",
-        "uk": "Імпорт з файлу приймає PNG чи JSON картки, одну чи пакет. Імпорт з посилання читає Chub, RisuRealm, CharaVault або пряме посилання на файл; посилання JannyAI потребують ручного завантаження в браузері. Кожен результат показує сповіщення з ім'ям картки й нотатками. Експорт записує PNG-картку V2: дані картки збережені всередині самого зображення."
+        "en": "Import from a file accepts PNG or JSON cards, single or bulk. Import from a link reads Chub, RisuRealm, CharaVault, Botbooru or a direct file link; JannyAI links need a manual browser download. Each result shows a toast with the card name and notes. Export writes a V2 PNG card with the card data stored inside the picture itself.",
+        "uk": "Імпорт з файлу приймає PNG чи JSON картки, одну чи пакет. Імпорт з посилання читає Chub, RisuRealm, CharaVault, Botbooru або пряме посилання на файл; посилання JannyAI потребують ручного завантаження в браузері. Кожен результат показує сповіщення з ім'ям картки й нотатками. Експорт записує PNG-картку V2: дані картки збережені всередині самого зображення."
       },
       "extends": "help.import",
       "related": [
@@ -176,16 +176,16 @@
         "uk": "маркет chub risurealm charavault wyvern pygmalion janny джерело завантаження"
       },
       "short": {
-        "en": "Search cards across sources (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI). Sort by downloads, rating, newest or name. Open a result to preview, then import it.",
-        "uk": "Шукайте картки з джерел (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI). Сортуйте за завантаженнями, оцінкою, новизною чи ім’ям. Відкрийте результат для перегляду, потім імпортуйте."
+        "en": "Search cards across sources (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI, Botbooru). Sort by downloads, rating, newest or name. Open a result to preview, then import it.",
+        "uk": "Шукайте картки з джерел (Chub, RisuRealm, CharaVault, Wyvern, Pygmalion, JannyAI, Botbooru). Сортуйте за завантаженнями, оцінкою, новизною чи ім’ям. Відкрийте результат для перегляду, потім імпортуйте."
       },
       "where": {
         "en": "Menu → Marketplace.",
         "uk": "Меню → Маркет."
       },
       "details": {
-        "en": "Each source has its own sort order and adult filter. Some sources show notes: CharaVault is an archive, RisuRealm has no public search, Wyvern and Pygmalion show only safe-for-work cards without an account, and JannyAI cards must be downloaded in the browser and dropped onto the bar. A preview opens the full card definition before import.",
-        "uk": "Кожне джерело має свій порядок сортування й фільтр дорослого контенту. Деякі джерела показують нотатки. CharaVault — це архів. RisuRealm не має публічного пошуку, тож сортування обмежене. Wyvern і Pygmalion без облікового запису показують лише безпечні картки. Картки JannyAI треба завантажити в браузері й скинути на панель. Попередній перегляд відкриває повну картку перед імпортом."
+        "en": "Each source has its own sort order and adult filter. Some sources show notes: CharaVault is an archive, RisuRealm has no public search, Wyvern, Pygmalion and Botbooru show only safe-for-work cards without an account, and JannyAI cards must be downloaded in the browser and dropped onto the bar. A preview opens the full card definition before import.",
+        "uk": "Кожне джерело має свій порядок сортування й фільтр дорослого контенту. Деякі джерела показують нотатки. CharaVault — це архів. RisuRealm не має публічного пошуку, тож сортування обмежене. Wyvern, Pygmalion і Botbooru без облікового запису показують лише безпечні картки. Картки JannyAI треба завантажити в браузері й скинути на панель. Попередній перегляд відкриває повну картку перед імпортом."
       },
       "extends": "help.marketplace",
       "related": [

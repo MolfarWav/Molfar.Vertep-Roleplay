@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Gauge, ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, Brain, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Gauge, MagicWand, ArrowLeft, Translate, Star, Chats, Copy, Export, Plus, Trash, ClockCounterClockwise, Palette, Image as ImageIcon, CaretDown, CaretLeft, CaretRight, ClipboardText, Check, X, UserCircle, ListBullets, ChatsCircle, SlidersHorizontal, Sparkle, Brain, BookOpen, Smiley, Images, Code, SpeakerHigh, CircleNotch, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +36,7 @@ import { CharacterBooks } from '@/components/character/character-books'
 import { ProfileTab } from '@/components/character/profile-tab'
 import { VoicesEditor } from '@/components/character/voices-editor'
 import { SpritesPanel } from '@/components/character/sprites-panel'
+import { CardPortraitDialog } from '@/components/portraits/portrait-dialogs'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { previewPendingTranslation } from '@/lib/card-translate'
 import { usePendingTranslations, savePendingTranslation, discardPendingTranslation } from '@/lib/card-translate-store'
@@ -179,6 +180,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
   const [markSections, setMarkSections] = useState(markProfileSections)
   const hasProfile = !!profileOf(character)
   const avatarInput = useRef<HTMLInputElement>(null)
+  const [portraitOpen, setPortraitOpen] = useState(false)
   const galleryInput = useRef<HTMLInputElement>(null)
 
   const exportPng = async () => {
@@ -515,6 +517,9 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                     <img src={DEFAULT_AVATAR} alt={`${c.name} avatar`} className="size-20 rounded-lg object-cover sm:size-28" />
                   )}
                   <Button variant="outline" size="sm" className="text-xs max-md:h-10" onClick={() => avatarInput.current?.click()}>Change</Button>
+                  <Button variant="ghost" size="sm" className="text-xs max-md:h-10" onClick={() => setPortraitOpen(true)} data-testid="draw-card-portrait">
+                    <MagicWand className="size-3.5" aria-hidden="true" />Draw
+                  </Button>
                 </div>
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1">
@@ -974,6 +979,15 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
       </Dialog>
 
       {confirmDialog}
+      <CardPortraitDialog
+        open={portraitOpen}
+        onOpenChange={setPortraitOpen}
+        characterId={c.id}
+        name={c.name}
+        card={{ name: c.name, description: c.description, personality: c.personality, scenario: c.scenario }}
+        onGenerated={(url) => up({ gallery: [...c.gallery, { id: uid('gal'), url, type: 'image', caption: 'Drawn portrait' }] })}
+        onUse={(url) => { up({ avatar: url }); toast.success('Avatar updated') }}
+      />
     </div>
   )
 }
