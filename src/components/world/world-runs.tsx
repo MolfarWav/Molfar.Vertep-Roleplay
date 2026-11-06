@@ -49,6 +49,12 @@ function RunRow({ run, shown }: { run: WorldRun; shown: boolean }) {
           </Badge>
         )}
 
+        {run.undone && (
+          <Badge variant="outline" className="text-muted-foreground" title={t('world.runs.undoneHint')}>
+            {t('world.runs.undone')}
+          </Badge>
+        )}
+
         {run.error && (
           <span className="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive">
             <Warning className="size-3" aria-hidden="true" />

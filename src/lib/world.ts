@@ -39,6 +39,8 @@ export interface WorldRun {
   /** unread messages left after this run (catch-up) */
   behind: number
   retried: boolean
+  /** the reply this run read was deleted or swiped, so the world went back (#75) */
+  undone?: boolean
   error?: WorldErrorCode
 }
 
@@ -325,6 +327,29 @@ export async function runWorld(chatId: string, auto: boolean): Promise<WorldRepl
     inFlight.delete(chatId)
     setRunning(chatId, false)
   }
+}
+
+const rolling = new Map<string, Promise<void>>()
+
+/**
+ * A reply was deleted, another swipe is showing, or a reply is about to be written again (`drop` = its id): the DM puts its world
+ * back to match (#75). Calls for one chat go one at a time. Never throws; an app without the plugin answers 404 and stays silent.
+ */
+export function rollbackWorld(chatId: string, drop?: string): Promise<void> {
+  const run = (rolling.get(chatId) ?? Promise.resolve()).then(async () => {
+    try {
+      const r = await j<{ undone?: number; event?: boolean }>('/world/rollback', { method: 'POST', body: JSON.stringify({ chatId, ...(drop ? { drop } : {}) }) })
+      if (r?.undone || r?.event) void loadWorld(chatId).catch(() => {})
+    } catch { /* no World DM, or no world in this chat */ }
+  })
+  rolling.set(chatId, run)
+  void run.then(() => { if (rolling.get(chatId) === run) rolling.delete(chatId) })
+  return run
+}
+
+/** The rollback still going for this chat, if any: a new reply waits for it, so the lorebook it reads is already back. */
+export function worldSettling(chatId: string): Promise<void> | undefined {
+  return rolling.get(chatId)
 }
 
 /**
