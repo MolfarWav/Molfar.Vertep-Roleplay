@@ -43,6 +43,9 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
   // both keep the "draw places" choice the chat already made (the spread)
   const toggle = (on: boolean) => updateChat(chatId, { autoBackground: { ...(auto ?? {}), on, folderId: folderId || defaultFolder() } })
   const pick = (id: string) => updateChat(chatId, { autoBackground: { ...(auto ?? {}), on: !!auto?.on, folderId: id } })
+  const sceneOn = auto?.on === true
+  const hasFolder = bgFolders.length > 0
+  const drawOn = auto?.draw === true
   const setDraw = (draw: boolean) => auto && updateChat(chatId, { autoBackground: { ...auto, draw } })
 
   return (
@@ -82,17 +85,20 @@ export function AutoBackground({ chatId, compact, worldFolderId }: { chatId: str
         )
       )}
       {/* the drawing controls live in World > Backgrounds; the chat's Display sheet (compact) only links there */}
-      {!compact && auto?.on && bgFolders.length > 0 && (
+      {/* shown even while the scene switch is off (greyed, with the reason), so the option can be found before it is usable */}
+      {!compact && (
         <div className="flex flex-col gap-2 border-t border-border pt-2" data-testid="auto-background-draw-block">
           <div className="flex items-center justify-between gap-3">
             <span className="min-w-0 text-sm">
               {t('world.bg.drawMissing')}
               <span className="block text-xs text-muted-foreground">{t('world.bg.drawHint')}</span>
             </span>
-            <Switch checked={auto.draw === true && imageOn} disabled={!imageOn} onCheckedChange={setDraw} aria-label={t('world.bg.drawMissing')} data-testid="auto-background-draw" />
+            <Switch checked={drawOn && imageOn} disabled={!sceneOn || !hasFolder || !imageOn} onCheckedChange={setDraw} aria-label={t('world.bg.drawMissing')} data-testid="auto-background-draw" />
           </div>
-          {!imageOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-off">{t('world.bg.drawNoImage')}</p>}
-          {imageOn && auto.draw === true && (
+          {!sceneOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-need-scene">{t('world.bg.drawNeedScene')}</p>}
+          {sceneOn && !hasFolder && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-need-folder">{t('world.bg.drawNeedFolder')}</p>}
+          {sceneOn && hasFolder && !imageOn && <p className="text-xs text-muted-foreground" data-testid="auto-background-draw-off">{t('world.bg.drawNoImage')}</p>}
+          {sceneOn && hasFolder && imageOn && drawOn && (
             <div className="flex flex-col gap-1" data-testid="auto-background-draw-model">
               <span className="text-xs text-muted-foreground">{t('world.bg.drawModel')}</span>
               <ImageModelSection chatId={chatId} />

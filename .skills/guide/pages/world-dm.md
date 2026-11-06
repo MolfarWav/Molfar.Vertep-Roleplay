@@ -29,7 +29,7 @@ Records you changed by hand stay, unless the DM changed the same record afterwar
 
 ## World section tabs
 
-On the chosen chat: Overview (the same controls as the sheet), Places (a tree of places, with a background picture per place), World book (read, write, retire or delete records by hand), Runs (history, tokens, errors), Start (draft records from cards or a short interview), Backgrounds (plan and draw a set of pictures; with "Change the background by scene" on, the Dashboard picks the fitting one; with "Draw places that have no picture" also on, a place the story moves to that has no picture is drawn on the spot by the World's image model and filed in the folder; the chat's Display sheet has a link here). Also **Profiles** and **Worlds**.
+On the chosen chat: Overview (the same controls as the sheet), Places (a tree of places, with a background picture per place), World book (read, write, retire or delete records by hand), Runs (history, tokens, errors), Start (draft records from cards or a short interview), Backgrounds (plan and draw a set of pictures; with "Change the background by scene" on, the Dashboard picks the fitting one; with "Draw places that have no picture" also on (it is always listed there, greyed out until the scene switch and image generation are on), a place the story moves to that has no picture is drawn on the spot by the World's image model and filed in the folder; the chat's Display sheet has a link here). Also **Profiles** and **Worlds**.
 
 ## World profiles
 
