@@ -93,7 +93,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter' | 'recollectBudget' | 'recollectChars', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'promptAlertTokens' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter' | 'recollectBudget' | 'recollectChars', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sizeField = () => {
     const mode: 'compact' | 'auto' | 'custom' = cfg.budgetMode === 'auto' ? 'auto' : sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
@@ -198,6 +198,27 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
               />
               <p className="text-xs text-muted-foreground">{cfg.cutMode === 'scenes' ? t('lit.set.cutScenesHint') : t('lit.set.cutFitHint')}</p>
             </Field>
+          </div>
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <Field>
+              <FieldLabel className="font-medium">{t('lit.set.alert')}</FieldLabel>
+              <Segmented
+                tone="scene"
+                label={t('lit.set.alert')}
+                value={cfg.promptAlert ?? 'auto'}
+                onChange={(v) => {
+                  setCfg({ ...cfg, promptAlert: v })
+                  save({ promptAlert: v })
+                }}
+                options={[
+                  { value: 'auto', label: t('lit.set.alertAuto') },
+                  { value: 'tokens', label: t('lit.set.alertTokens') },
+                  { value: 'off', label: t('lit.set.alertOff') },
+                ]}
+              />
+              <p className="text-xs text-muted-foreground">{t('lit.set.alertHint')}</p>
+            </Field>
+            {cfg.promptAlert === 'tokens' && keyField('promptAlertTokens', { id: 'lit-alert-tokens', label: t('lit.set.alertSize'), hint: t('lit.set.alertSizeHint'), unit: t('lit.unit.tokens'), min: 1000, max: 5000000, fallback: 30000 })}
           </div>
           {cfg.cutMode === 'scenes'
             ? keyField('sceneKeep', { id: 'lit-scene-keep', label: t('lit.set.sceneKeep'), hint: t('lit.set.sceneKeepHint'), min: 2, max: 100000, fallback: 2 })

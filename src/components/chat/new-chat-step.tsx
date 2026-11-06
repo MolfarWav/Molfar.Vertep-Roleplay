@@ -40,6 +40,8 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [presetId, setPresetId] = useState<ID>(defaultId)
   const [values, setValues] = useState<PresetValues>({})
   const [dontAsk, setDontAsk] = useState(false)
+  // the earlier chat this one picks up (#262): 'none' = a new beginning
+  const [contPick, setContPick] = useState<ID | 'none'>('none')
   // the options can be clicked before the memory arrives: a late answer must not undo those clicks
   const touched = useRef(false)
   // a group chat: how its members answer, the group's default unless changed here
@@ -64,6 +66,10 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   const [lastFrom, setLastFrom] = useState<string | null>(null)
   const setTouched = useRef(false)
   const storeChats = useApp((s) => s.chats)
+  const personas = useApp((s) => s.personas)
+  // this character's earlier chats, newest first: what the new one may continue
+  const earlier = storeChats.filter((c) => c.characterId === charId && !c.temporary).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 40)
+  const from = contPick === 'none' ? undefined : storeChats.find((c) => c.id === contPick)
   useEffect(() => {
     let live = true
     // silent when the app has no agents plugin
@@ -118,6 +124,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
       presetId: preset.id, presetVars: values,
       ...(setPick === 'none' ? { agents: { own: [] as [] } } : setPick !== 'default' ? { agents: { preset: setPick } } : {}),
       ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
+      ...(from ? { continues: from.id, ...(from.personaId && personas.some((p) => p.id === from.personaId) ? { personaId: from.personaId } : {}), ...(from.model ? { model: from.model } : {}) } : {}),
       ...(worldPick.startsWith('w:') ? { world: { worldId: worldPick.slice(2) } } : worldPick.startsWith('c:') ? { world: { fromChatId: worldPick.slice(2) } } : {}),
     })
   }
@@ -145,6 +152,23 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
           <DialogTitle>{t('pc.step.title', { name: character?.name ?? '' })}</DialogTitle>
           <DialogDescription>{t('pc.step.desc')}</DialogDescription>
         </DialogHeader>
+        {earlier.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium" id="new-chat-continues">{t('pc.step.continues')}</span>
+            <Select value={contPick} onValueChange={(v) => v && setContPick(v)}>
+              <SelectTrigger className="h-8 w-full text-xs" aria-labelledby="new-chat-continues" data-testid="new-chat-continues">
+                <SelectValue>
+                  {(v: string) => (v === 'none' ? t('canvas.continuesNone') : (() => { const c = storeChats.find((x) => x.id === v); return c ? `${c.title || t('mem.untitled')} · ${new Date(c.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : v })())}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('canvas.continuesNone')}</SelectItem>
+                {earlier.map((c) => <SelectItem key={c.id} value={c.id}>{(c.title || t('mem.untitled')) + ' · ' + new Date(c.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">{from ? t('pc.step.continuesHint') : t('pc.step.continuesOff')}</p>
+          </div>
+        )}
         {/* the preset picker stays in view; only the options scroll */}
         {preset && (
           <div className="flex flex-col gap-1.5">
