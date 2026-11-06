@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Gauge } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { fetchLitConfig, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
+import { fetchLitConfig, LIT_CONFIG_EVENT, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
 import { useT } from '@/hooks/use-t'
 import { alertLimit, lastPromptTokens, shouldOfferTrim } from '@/lib/long-chat'
 import { chatLimits, useApp } from '@/lib/store'
@@ -34,8 +34,11 @@ export function BigPromptStrip({ chat }: { chat: Chat }) {
   const [cfg, setCfg] = useState<LitConfig | null>(null)
   useEffect(() => {
     let live = true
-    fetchLitConfig().then((c) => { if (live) setCfg(c) }).catch(() => { if (live) setCfg(null) })
-    return () => { live = false }
+    const read = () => { fetchLitConfig().then((c) => { if (live) setCfg(c) }).catch(() => { if (live) setCfg(null) }) }
+    read()
+    // the limit was changed in the Litopys settings while this chat stayed open
+    window.addEventListener(LIT_CONFIG_EVENT, read)
+    return () => { live = false; window.removeEventListener(LIT_CONFIG_EVENT, read) }
   }, [chat.id, tokens])
   const show = shouldOfferTrim(tokens, alertLimit(cfg, windowTokens), dismissed)
   if (!show) return null

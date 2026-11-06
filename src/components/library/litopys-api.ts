@@ -348,7 +348,13 @@ export interface LitConfig {
 export const fetchLitChats = () => j<{ items: LitChatItem[]; total: number }>('/litopys/chats')
 export const fetchLitChat = (chatId: string) => j<LitChat>(`/litopys/chat?chatId=${encodeURIComponent(chatId)}`)
 export const fetchLitConfig = () => j<LitConfig>('/litopys/config')
-export const putLitConfig = (patch: Record<string, unknown>) => j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) })
+/** Fired after the Litopys settings were saved, so a view that reads them (the chat's large-prompt strip) can read them again. */
+export const LIT_CONFIG_EVENT = 'rp-litopys-config'
+export const putLitConfig = (patch: Record<string, unknown>) =>
+  j<LitConfig>('/litopys/config', { method: 'PUT', body: JSON.stringify(patch) }).then((c) => {
+    window.dispatchEvent(new CustomEvent(LIT_CONFIG_EVENT))
+    return c
+  })
 /** Both prompts back to the default, or only `key`. */
 export const deleteLitPrompts = (key?: LitPromptKey) =>
   j<LitConfig>(`/litopys/config/prompts${key ? `?key=${key}` : ''}`, { method: 'DELETE' })
