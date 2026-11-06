@@ -60,6 +60,13 @@
  *  POST /world/update {chatId, auto?}  a DM run (two-phase); auto = the app's call after a reply,
  *                                      which runs only when a trigger is due; without auto it always runs
  *                                      (except in an explicit scene)
+ *  POST /world/rollback {chatId, drop?}  puts the world back after a reply was deleted or swiped (#75); drop = the id of
+ *                                      the reply about to be written again. {ok, undone, event}
+ *
+ * Rollback (#75): before each run changes the world, a snapshot of its core (records, fronts, event, carry, ...) is kept in
+ * world/snaps/<chatId>.json, keyed by the message the run read up to. When that message is no longer on the chat's line (deleted,
+ * or another swipe showing), the snapshot is put back and the DM reads the story again from there. An event that rode a reply
+ * that is gone is sent again. The player's own record edits survive. See reconcile().
  *
  * Hook: llmRequest adds the pending event, the dice and "World · here" (the scene's place, the things in it, what the
  * people in the scene wear and carry; no model call, also at the chronicler level and with the DM off) to the last user message of a reply request.
@@ -68,6 +75,7 @@
  *
  * Files (fs root = the app's data/):
  *  world/state/<chatId>.json   the chat's world state (shape: normalizeState)
+ *  world/snaps/<chatId>.json   the last few snapshots of that state, for the rollback (#75)
  *  world/config.json           only what differs from the defaults
  *  world/profiles/<id>.json    a built-in profile's changes (only blocks that differ) or a player's own profile
  *  world/recipes/<id>.json     a recipe of the player's (an id of a built-in replaces it)
@@ -130,6 +138,7 @@ const CHANGED_MAX = 30;
 const ALIASES_MAX = 6;
 const ENTITIES_MAX = 300;
 const LOG_MAX = 30;
+const DROPPED_MAX = 50;
 const FRONTS_MAX = 8;
 const EVENT_MAX = 400;
 const CLOCK_SIZES = [4, 6, 8];
@@ -1115,6 +1124,8 @@ function cleanEvent(e) {
     retried: e.retried === true,
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     ...(Number.isFinite(e.sentAt) ? { sentAt: e.sentAt } : {}),
+    // the message the reply that carried it followed (a key), so a deleted or swiped reply can be told from a kept one (#75)
+    ...(typeof e.after === "string" && e.after ? { after: cut(e.after, 80) } : {}),
   };
 }
 
@@ -1272,6 +1283,9 @@ export function normalizeState(raw, chatId) {
   if (typeof s.lastPlaceId === "string" && /^l\d{1,6}$/.test(s.lastPlaceId)) out.lastPlaceId = s.lastPlaceId;
   if (arr(s.sweepAsked).length) out.sweepAsked = arr(s.sweepAsked).map(str).filter(Boolean).slice(-SWEEP_ASKED_MAX);
   if (Number.isInteger(s.clockReplies) && s.clockReplies > 0) out.clockReplies = s.clockReplies;
+  // records the player deleted by hand, so a rollback does not bring them back (#75)
+  const dropped = arr(s.dropped).filter((d) => isObj(d) && /^[a-z]\d{1,6}$/.test(str(d.id)) && Number.isFinite(d.at)).map((d) => ({ id: str(d.id), at: d.at })).slice(-DROPPED_MAX);
+  if (dropped.length) out.dropped = dropped;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
@@ -1350,6 +1364,164 @@ export function unreadMessages(msgs, lastKey) {
   const id = String(lastKey).split("#")[0];
   const i = msgs.findIndex((m) => String(m.id) === id);
   return i < 0 ? msgs : msgs.slice(i + 1);
+}
+
+// ---------- rollback (#75): a deleted or swiped reply takes the world's changes with it ----------
+// Before a run changes the world, a snapshot of the parts it can change is kept, keyed by the message the run reads up to.
+// The line of the chat is what counts: when that message is gone (deleted, or another swipe showing), the run is undone and
+// the snapshot goes back. The DM then reads the story again from the older lastKey. Settings, the run history, the tokens
+// spent and the player's own hand edits stay (an edit survives while the DM has not changed the same record since).
+const SNAP_DIR = "world/snaps/";
+const SNAP_MAX = 8;
+const SNAP_BYTES = 1500000;
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck"];
+const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
+const cloneJson = (v) => JSON.parse(JSON.stringify(v));
+
+/** The part of the state a rollback puts back (a copy). */
+export function coreOf(state) {
+  const core = {};
+  for (const k of CORE_KEYS) if (state[k] !== undefined) core[k] = cloneJson(state[k]);
+  return core;
+}
+
+/** The chat's snapshots, oldest first: { upTo, at, core }. */
+export function loadSnaps(fsx, chatId) {
+  const raw = readJson(fsx, snapPath(chatId), null);
+  return isObj(raw) ? arr(raw.snaps).filter((x) => isObj(x) && typeof x.upTo === "string" && x.upTo && isObj(x.core) && Number.isFinite(x.at)) : [];
+}
+
+/** Writes the newest SNAP_MAX; a big world keeps fewer (never fewer than two) so the file stays under SNAP_BYTES. */
+function saveSnaps(fsx, chatId, snaps) {
+  let list = snaps.slice(-SNAP_MAX);
+  let text = JSON.stringify({ v: 1, snaps: list });
+  while (list.length > 2 && text.length > SNAP_BYTES) {
+    list = list.slice(1);
+    text = JSON.stringify({ v: 1, snaps: list });
+  }
+  fsx.write(snapPath(chatId), text);
+}
+
+/** Called before a run changes the world; `upTo` is the key of the newest message the run reads. */
+function pushSnap(fsx, state, upTo, msgs) {
+  const snaps = loadSnaps(fsx, state.chatId);
+  // a second run over the same message goes back to before the first
+  if (!upTo || snaps.some((x) => x.upTo === upTo)) return;
+  // `head`: the chat's first message then; if it changes, old history was trimmed (see firstGone)
+  saveSnaps(fsx, state.chatId, [...snaps, { upTo, at: Date.now(), head: msgs.length ? String(msgs[0].id) : "", core: coreOf(state) }]);
+}
+
+/**
+ * Index of the oldest run to undo, or -1: the first whose message is no longer on the chat's line, or whose message is the
+ * reply about to be written again (`drop`, an id). What does NOT count, so the world is not wiped by housekeeping:
+ * - an empty read of the chat (a failed read, not a chat with no messages);
+ * - old history trimmed from the top ("delete above"): the chat's first message is not the one the run saw, so the story the
+ *   world was built from was kept in the records, not retracted;
+ * - another swipe showing on a reply that is not the newest one (someone reading the alternatives of an old reply).
+ */
+export function firstGone(snaps, msgs, drop) {
+  if (!msgs.length) return -1;
+  const byId = new Map(msgs.map((m) => [String(m.id), m]));
+  let newest = null;
+  for (let k = msgs.length - 1; k >= 0; k--) {
+    if (isReply(msgs[k])) {
+      newest = msgs[k];
+      break;
+    }
+  }
+  const head = String(msgs[0].id);
+  const dropId = drop ? String(drop) : "";
+  for (let i = 0; i < snaps.length; i++) {
+    const up = snaps[i].upTo;
+    const id = up.split("#")[0];
+    if (dropId && id === dropId) return i;
+    if (snaps[i].head && snaps[i].head !== head) continue;
+    const m = byId.get(id);
+    if (!m) return i;
+    if (keyOf(m) !== up && m === newest) return i;
+  }
+  return -1;
+}
+
+/**
+ * Did the reply that carried the pending event go away? It was inserted into the request after the message `event.after`; the
+ * reply that carries it is the first reply after that message. Gone when that message is gone, no reply follows it, or the
+ * reply is the one `drop` names (it is being written again). An event without `after` (sent before this existed) is never lost.
+ */
+export function eventLost(event, msgs, drop) {
+  if (!event || !(event.sent > 0) || !event.after || !msgs.length) return false;
+  const id = String(event.after).split("#")[0];
+  const i = msgs.findIndex((m) => String(m.id) === id);
+  if (i < 0) return true;
+  const carrier = msgs.slice(i + 1).find(isReply);
+  return !carrier || (!!drop && String(carrier.id) === String(drop));
+}
+
+/** Puts snapshot `i` back, and drops it and every later one from the list. Edits made by hand since stay. */
+function undoFrom(state, snaps, i) {
+  const snap = snaps[i];
+  const mine = state.entities.filter((e) => e.by === "player" && Number.isFinite(e.at) && e.at > snap.at);
+  const nextId = state.nextId;
+  const nextFront = state.nextFront;
+  for (const k of CORE_KEYS) {
+    if (snap.core[k] === undefined) delete state[k];
+    else state[k] = cloneJson(snap.core[k]);
+  }
+  // ids are never handed out twice, so the file of what fired and the registry links keep one meaning per id
+  state.nextId = Math.max(nextId, Number.isInteger(state.nextId) ? state.nextId : 1);
+  state.nextFront = Math.max(nextFront, Number.isInteger(state.nextFront) ? state.nextFront : 1);
+  if (!Array.isArray(state.entities)) state.entities = [];
+  if (!Array.isArray(state.fronts)) state.fronts = [];
+  const gone = new Set(arr(state.dropped).filter((d) => d.at > snap.at).map((d) => d.id));
+  state.entities = state.entities.filter((e) => !gone.has(e.id));
+  for (const e of mine) {
+    if (gone.has(e.id)) continue;
+    const j = state.entities.findIndex((x) => x.id === e.id);
+    if (j >= 0) state.entities[j] = e;
+    else if (state.entities.length < ENTITIES_MAX) state.entities.push(e);
+  }
+  const undone = new Set(snaps.slice(i).map((x) => x.upTo));
+  state.log = state.log.map((r) => (isObj(r) && undone.has(r.key) && !r.error ? { ...r, undone: true } : r));
+}
+
+/**
+ * Brings the world in line with the chat. `state` changes in place and the caller saves it (and rewrites the book when
+ * `undone` is above 0). `drop` = the id of the reply that is about to be written again (a swipe).
+ * Returns { undone: runs put back, event: the pending event is due again }.
+ */
+export function reconcile(fsx, state, msgs, { drop = "" } = {}) {
+  const out = { undone: 0, event: false };
+  if (!msgs.length) return out;
+  const snaps = loadSnaps(fsx, state.chatId);
+  const i = firstGone(snaps, msgs, drop);
+  if (i >= 0) {
+    undoFrom(state, snaps, i);
+    saveSnaps(fsx, state.chatId, snaps.slice(0, i));
+    out.undone = snaps.length - i;
+  } else {
+    // history was trimmed from the top: the first message now is the first message for the snapshots too
+    const head = String(msgs[0].id);
+    if (snaps.some((x) => x.head && x.head !== head)) saveSnaps(fsx, state.chatId, snaps.map((x) => ({ ...x, head })));
+  }
+  if (eventLost(state.event, msgs, drop)) {
+    const { after, sentAt, ...rest } = state.event;
+    state.event = { ...rest, sent: 0 };
+    out.event = true;
+  }
+  return out;
+}
+
+/** reconcile + save, and the world book written again from the restored records. */
+function settle(fsx, state, chat, drop) {
+  const r = reconcile(fsx, state, chat.msgs, { drop });
+  if (r.undone || r.event) {
+    if (r.undone && (state.entities.length || readJson(fsx, "lorebooks/" + state.bookId + ".json", null))) {
+      writeBook(fsx, state, str(chat.meta.title));
+      bindBook(fsx, state.chatId, chat.meta, state.bookId);
+    }
+    saveState(fsx, state);
+  }
+  return r;
 }
 
 const textLen = (m) => (str(m.text) ? String(m.text).trim().length : 0);
@@ -2911,13 +3083,17 @@ export function llmRequest(ctx, host) {
     const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
     const off = isObj(meta) && isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
     if (off.includes("plugin:world")) return null;
+    const chat = readChat(fsx, chatId);
+    const op = str(turn.op);
+    // a reply deleted or swiped since the last run takes its changes with it; a swipe writes the last reply again, so what
+    // the runs read of it, and an event it carried, are taken back before the new one is built (#75)
+    if (chat && chat.msgs.length) settle(fsx, state, chat, op === "swipe" ? String(chat.msgs[chat.msgs.length - 1].id) : "");
     // events and dice need a level above the chronicler and the switch "insert"; the world here does not
     const events = state.settings.insert && lv !== "chronicler" && lv !== "off";
     const profile = events ? profileFor(fsx, state.settings) : null;
     const eventDue = events && !!state.event && state.event.sent === 0;
     const dice = profile ? diceOf(profile, state.settings) : null;
     const diceMode = dice ? dice.mode : "off";
-    const chat = readChat(fsx, chatId);
     const scene = chat ? sceneOf(fsx, chatId, chat.msgs) : null;
     const dir = directionOf(state, scene);
     if (dir === "explicit") return null;
@@ -2927,7 +3103,10 @@ export function llmRequest(ctx, host) {
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
     const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
-      state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now() };
+      // the message the reply follows: a swipe writes the last reply again, so it follows the one before that
+      const msgs0 = chat ? chat.msgs : [];
+      const anchor = msgs0[msgs0.length - (op === "swipe" ? 2 : 1)];
+      state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now(), ...(anchor ? { after: keyOf(anchor) } : {}) };
       saveState(fsx, state);
       parts.push({ kind: "plugin", label: "World DM", text: eventText });
     }
@@ -4150,6 +4329,7 @@ function runView(r) {
     summary: str(r.summary), model: str(r.model), ms: Math.round(num(r.ms)),
     usage: isObj(r.usage) ? cleanUsage(r.usage) : null, limit: cleanLimit(r.limit),
     behind: Math.round(num(r.behind)), retried: r.retried === true,
+    ...(r.undone === true ? { undone: true } : {}),
     ...(ERROR_CODES.includes(r.error) ? { error: r.error } : {}),
   };
 }
@@ -4385,6 +4565,8 @@ function updateRoute(req, host) {
     if (chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
     saveState(fsx, state);
   }
+  // a reply deleted or swiped since the last run takes its changes with it (#75); the run then reads from the older point
+  if (existed) settle(fsx, state, chat, "");
   const auto = b.auto === true || b.auto === "true";
   // the DM off: the book still fills, but only by the sweep after a reply, and not in a chat that never had a world (an assistant)
   if (state.settings.level === "off" && (!auto || (!existed && !autoOn(fsx, chat.meta)))) return ok({ ok: true, skipped: "off" });
@@ -4405,6 +4587,8 @@ function updateRoute(req, host) {
   const retry = stash.retry === true;
   const key = retry ? "world_retry" : "world";
   const r = host.llm.results[key];
+  // the model answered about a message that is gone now (deleted or swiped while it worked): its answer is stale
+  if (r && str(stash.upTo) && !chat.msgs.some((m) => keyOf(m) === str(stash.upTo))) return ok({ ok: true, skipped: "story changed" });
   const cards = cardNames(fsx, chat.meta);
   const userName = userNameOf(fsx, chat.meta);
   const runReg = openRegistry(fsx, chatId, chat.meta);
@@ -4464,6 +4648,8 @@ function updateRoute(req, host) {
   if (r.error || !str(r.text)) return fail(classifyError(r, limit));
   const out = parseReply(r.text);
   if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
+  // the world as it stands now, for a rollback if the message this run reads up to goes away
+  pushSnap(fsx, state, str(stash.upTo) || upTo, chat.msgs);
   const touched = new Set();
   // the registry is read right before it may change, and saved right after
   const rc = openRegistry(fsx, chatId, chat.meta);
@@ -4501,6 +4687,19 @@ function updateRoute(req, host) {
   }
   saveState(fsx, state);
   return ok({ ok: true, changes, ...stateView(state, chat.msgs, cfg, scene, play, fsx) });
+}
+
+/** POST {chatId, drop?}: the app tells the DM a reply was deleted or is being written again; the world goes back to match (#75). */
+function rollbackRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return ok({ ok: true, undone: 0, event: false });
+  return ok({ ok: true, ...settle(fsx, state, chat, str(b.drop)) });
 }
 
 /** The World section's list: every chat with a DM state, newest run first. Chats that are gone are skipped. */
@@ -4646,8 +4845,10 @@ function recordsRoute(req, host) {
       e.status = "past";
       e.text = shortText(text || e.text, pastMaxOf(state.settings));
     } else if (op === "restore") e.status = "active";
-    else if (op === "delete") state.entities = state.entities.filter((x) => x !== e);
-    else return ok({ error: "unknown op" }, 400);
+    else if (op === "delete") {
+      state.entities = state.entities.filter((x) => x !== e);
+      state.dropped = [...arr(state.dropped), { id: e.id, at: now }].slice(-DROPPED_MAX);
+    } else return ok({ error: "unknown op" }, 400);
     if (op !== "delete") {
       e.at = now;
       e.by = "player";
@@ -4742,6 +4943,7 @@ export function handleRoute(req, host) {
   if (path === "/world/here" && req.method === "GET") return hereRoute(req, host);
   if (path === "/world/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (path === "/world/update" && req.method === "POST") return updateRoute(req, host);
+  if (path === "/world/rollback" && req.method === "POST") return rollbackRoute(req, host);
   if (path === "/world/chats" && req.method === "GET") return chatsRoute(req, host);
   if (path === "/world/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/world/dice" && req.method === "GET") return diceRoute(req, host);

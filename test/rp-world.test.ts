@@ -366,6 +366,8 @@ describe("the llmRequest hook", () => {
     expect(out.messages[1]!.content).toStartWith("We go at night.\n\n[WORLD EVENT: must happen in this reply]");
     expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "World DM" });
     expect(JSON.parse(m.files["world/state/c1.json"]!).event.sent).toBe(1);
+    // the reply is written; the next request does not carry the event again
+    m.files["chats/c1.jsonl"] += JSON.stringify(msg(5, "char", "A knock. Odarka opens.")) + "\n";
     expect(llmRequest(req(), m.host)).toBe(null);
   });
 

@@ -41,7 +41,7 @@ import {
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
 } from './engine'
-import { carryWorld, libraryBooks, triggerWorldUpdate } from './world'
+import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
 import { listAgentSets, triggerAgentsRun, triggerParallelAgents } from './agents'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
@@ -1474,6 +1474,8 @@ export const useApp = create<AppState>()(
         }
         if (!lastChar) return
         const hint = guidance?.trim()
+        // the World DM takes back what it wrote from the reply that is about to be replaced; the generation waits for it
+        void rollbackWorld(chatId, lastChar.id)
         void runGeneration(set, get, chatId, 'swipe', { dir: 1, ...(hint ? { guidance: hint } : {}) }, { regenerateInto: lastChar.id })
       },
       addSwipe: (chatId) => get().regenerate(chatId),
@@ -1517,6 +1519,8 @@ export const useApp = create<AppState>()(
                   : m)) }
                 : c)),
             }))
+            // the World DM follows the swipe now showing
+            void rollbackWorld(chatId)
             // the dashboard follows the swipe now showing as the newest message
             if (get().chats.find((c) => c.id === chatId)?.messages.at(-1)?.id === messageId) {
               void triggerDashUpdate(chatId, 'swipe', () => get().streaming?.chatId === chatId).then(() => applySceneBackground(chatId, get()))
@@ -1531,6 +1535,7 @@ export const useApp = create<AppState>()(
         void (async () => {
           try {
             await j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/swipes/${swipeIndex}`, { method: 'DELETE' })
+            void rollbackWorld(chatId)
             await refreshChat(set, get, chatId)
           } catch (e) { toast.error(String((e as Error).message ?? e)) }
         })()
@@ -1601,6 +1606,7 @@ export const useApp = create<AppState>()(
           try {
             const scope = mode === 'this' ? 'one' : mode
             await j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}?scope=${scope}`, { method: 'DELETE' })
+            void rollbackWorld(chatId)
             void refreshLists(set, get)
           } catch (e) { toast.error(String((e as Error).message ?? e)); await refreshChat(set, get, chatId) }
         })()
@@ -1614,6 +1620,7 @@ export const useApp = create<AppState>()(
           for (const mid of messageIds) {
             try { await j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(mid)}`, { method: 'DELETE' }) } catch { /* already gone */ }
           }
+          void rollbackWorld(chatId)
           void refreshLists(set, get)
         })()
       },
@@ -2739,6 +2746,9 @@ async function runGeneration(
   body: Record<string, unknown>,
   opts?: { userText?: string; attachments?: Message['attachments']; regenerateInto?: ID },
 ): Promise<boolean> {
+  // a rollback of the World DM still going (a reply deleted or swiped just now): the lorebook it writes is read by this request
+  const settling = worldSettling(chatId)
+  if (settling) await settling
   if (get().streaming?.chatId === chatId) return false
   const chat = get().chats.find((c) => c.id === chatId)
   if (!chat) return false

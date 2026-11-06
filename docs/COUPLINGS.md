@@ -22,6 +22,14 @@ Date: 2026-11-05.
 - **Why / history:** #240 (registry), with #212, #236, #185 and #123 as related (`docs/ENTITY-REGISTRY.md`, "Related").
 - **Trap:** the design doc's status line says "phase A in work", while its later sections describe more progress. Read the newest section before you assume what exists. A new feature that stores a display name where an id belongs brings back the duplicate-person problem the registry was built to fix.
 
+### World DM rollback follows the chat's line
+- **Touches:** `plugins/world/plugin.js` (`reconcile`, `firstGone`, `eventLost`, `pushSnap`, `CORE_KEYS`, `POST /world/rollback`, the calls in `updateRoute` and `llmRequest`); `src/lib/world.ts` (`rollbackWorld`, `worldSettling`); `src/lib/store.ts` (delete, swipe, regenerate, and `runGeneration` waiting for it).
+- **Must stay true:** every field a DM run changes in the state is in `CORE_KEYS` (or is meant to survive a rollback: settings, `log`, `usage`, `dropped`). A run is undone when the message it read up to (`id#swipe`) is no longer on the chat's line; an empty read of the chat undoes nothing. Ids (`nextId`, `nextFront`) never go back. A hand edit survives while it is the record's latest change.
+- **Enforced in:** `plugins/world/plugin.js`; `test/rp-world-rollback.test.ts`.
+- **Fails in:** `test/rp-world-rollback.test.ts`.
+- **Why / history:** #75 (prior art: Game Manager ST and Arbiter keep a snapshot per message).
+- **Trap:** a new state field added to `normalizeState` and a run, but not to `CORE_KEYS`, is left behind when a reply is swiped. The entity registry (`data/registry/<chatId>.json`) is not rolled back.
+
 ### World DM and Dashboard shared ids
 - **Touches:** the World DM records (`n#` ids, `ref` on a record); the scene tracker's `state.regIds` in `plugins/relations` and `plugins/world`; `src/lib/entity-registry.js`.
 - **Must stay true:** when the DM ties its record to a thing or place the tracker knows, the record carries the registry id in `ref`, whatever language the story uses. `regIds` maps each tracker id to a registry id. Holder and location fields are still names today (`docs/ENTITY-REGISTRY.md`, "Why"); a new field stores the id.
