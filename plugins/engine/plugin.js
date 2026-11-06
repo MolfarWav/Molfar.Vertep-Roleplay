@@ -1559,6 +1559,13 @@ const IMAGE_PROMPT_MODES = {
   user: "Describe {{user}} as {{char}} sees them right now: build, face, hair, clothing, pose and expression, full body.",
   background: "Describe only the place where this scene happens: location, time of day, weather, lighting, notable objects. No people.",
 };
+// a place the story moved to arrives as a bare label, often with a person's name in it ("Lyra's private quarters at night"):
+// without this the description comes out generic or modern, and a name means nothing to the image generator
+const IMAGE_PLACE_NOTE = [
+  "That is the name of the place, not a description of it, and it may hold a person's name.",
+  "Draw the kind of place it is in the world of this story: take the era, culture and genre from the recent chat (a fantasy or medieval story gets a medieval or fantasy interior, never a modern one).",
+  "A person's name only says who the place belongs to; leave the name out and show what the place looks like.",
+].join(" ");
 const IMAGE_PROMPT_RULES = [
   "This description goes straight to an image generator. Write one paragraph of plain visual description, present tense, under 120 words.",
   "Describe people by what they look like; the image generator does not know anyone's name.",
@@ -6631,6 +6638,7 @@ const toolX = (r) => ({
           style === "tags" ? IMAGE_TAG_RULES : IMAGE_PROMPT_RULES,
           guide ? "The image server's own guidance (follow it where it does not break the rules above): " + guide : "",
           subject ? "The user asked for: " + subject : "",
+          subject && mode === "background" ? IMAGE_PLACE_NOTE : "",
           who && mode !== "user" && mode !== "background" ? about(charName, who.card && who.card.description) : "",
           mode === "user" || mode === "scene" ? about(userName, persona && persona.description) : "",
           transcript ? "Recent chat:\n" + transcript : "",
