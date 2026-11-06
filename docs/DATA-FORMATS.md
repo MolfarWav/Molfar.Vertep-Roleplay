@@ -198,6 +198,13 @@ row that the last messages also have in a row add half of their weights again, a
 messages use weighs `1 / (1 + 3 * share)` of what it would (only once the chat has 20 messages). Config key `recallScoring`:
 `"phrases"` (default) or `"words"` for the old rule; it has no setting in the app and is kept when the settings page saves.
 
+**When a merged fact was told (#153).** Consolidate shows the model, beside each fact, where it was told: `{scene 3, 2026-03-04 14:10}` is
+the fact's chapter, counted in story order, and the Dashboard clock at the chapter's first message (the calendar date when the chat has
+one, else the day count, and the hour when the clock has one; a guessed hour has a `~`; whatever is not known is left out). The prompt
+tells the model to keep how many times and when in the merged sentence, or not to merge. A merge proposal and the fact made from it carry
+`whens: [{ scene, of, chapter, day?, date?, time?, approx? }]`, the anchors of the parts in story order (at most 8, each place once;
+a part that was itself a merge brings its own `whens`). Nothing reads `whens` back into the prompt of a reply; it is the record of the merge.
+
 **Causes between facts (#178).** A fact in `litopys/chats/<chatId>.json` may carry `because: "<id of an earlier fact of the same
 chat>"`: at most one, written by the chapter worker on a new fact (an `add`, or the `update` of a `change` that replaces a fact; the
 worker prompt asks for it only when the scene has Known facts to point at, and the parser reads `because`, `cause`, `caused_by`, an id
