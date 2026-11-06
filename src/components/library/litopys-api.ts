@@ -190,7 +190,7 @@ export type LitActivityKind =
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
   | 'summary.ask' | 'summary.done' | 'summary.fail'
   | 'habit.seen' | 'habit.earn' | 'habit.accept'
-  | 'scene.mark' | 'scene.unmark'
+  | 'scene.mark' | 'scene.unmark' | 'chat.config'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
@@ -261,6 +261,9 @@ export interface LitChat {
   skipped: LitSkipped[]
   /** scenes the reader set apart by hand (1-based message numbers); missing from an engine before #118 */
   marks?: { id: string; fromNo: number; toNo: number }[]
+  /** #122: what this chat sets for itself and what the Library settings give every other chat; missing from an engine before it */
+  chatConfig?: LitChatConfig
+  globalConfig?: Required<Pick<LitChatConfig, 'recentMessages' | 'pinLimit' | 'cutMode' | 'sceneKeep'>> & { scene: { minMessages: number; maxMessages: number } }
   pinLimit: number
   rev: number
   /** M4d */
@@ -284,6 +287,15 @@ export interface LitConsolidate {
 
 /** The texts the user can change and restore. */
 export type LitPromptKey = 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory'
+
+/** The settings one chat may keep for itself (#122); a missing key follows the Library's Litopys settings. */
+export interface LitChatConfig {
+  scene?: { minMessages?: number; maxMessages?: number }
+  recentMessages?: number
+  pinLimit?: number
+  cutMode?: 'fit' | 'scenes'
+  sceneKeep?: number
+}
 
 export interface LitConfig {
   enabled: boolean
@@ -385,6 +397,8 @@ export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('
 /** keepGone: the worker never writes a chapter for these messages again; they still leave the prompt. */
 /** Set messages apart as a scene of their own (message ids), or take that mark off. */
 export const markLitScene = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'mark', from, to })
+/** Set this chat's own settings, or `null` to go back to the Library's. */
+export const setLitChatConfig = (chatId: string, config: LitChatConfig | null) => post<LitChat>('/litopys/chat-config', { chatId, config })
 export const unmarkLitScene = (chatId: string, id: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'unmark', id })
 export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })
 

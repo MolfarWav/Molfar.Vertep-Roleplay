@@ -11,7 +11,7 @@ Litopys (the chronicle) is the long memory of one chat. It reads the story in th
 
 ## Where to look
 
-Press **Record** in the chat header (on a phone, in the Menu) for this chat's record in a side panel. The **Library** section of the rail shows every chat's record. It has two views: Overview (a timeline, a card per character, waiting proposals) and Details with the tabs Chapters, Facts, Proposals, Habits and Activity. The Activity tab logs what Litopys did, with Undo where possible. The gear ("Litopys settings") sets how the record is written.
+Press **Record** in the chat header (on a phone, in the Menu) for this chat's record in a side panel. The **Library** section of the rail shows every chat's record. It has two views: Overview (a timeline, a card per character, waiting proposals) and Details with the tabs Chapters, Facts, Proposals, Habits, Activity and Settings. The Activity tab logs what Litopys did, with Undo where possible. The gear ("Litopys settings") sets how the record is written.
 
 ## What goes into the prompt
 
@@ -22,6 +22,10 @@ Older messages can leave the prompt only when the window is full, or scene by sc
 ## Matching by meaning
 
 Memory finds facts and chapters by words. With an embeddings model it also finds them by meaning: a question in other words still reaches the fact. The card **Matching by meaning** (at the top of a chat's record, and in Canvas > Prompt > Memory) shows where it stands: off, failing, no vectors yet, partly done, done, or made by another model. Set the model up once in Settings > Memory: by default the app uses a model on your own computer first (LM Studio or Ollama), then an API connection with a key, then OpenRouter. Once one call to the embeddings model has worked (a press of the card's button, or a reply), the engine fills the missing vectors of every chat and Data Bank file by itself, a look every few minutes; anything over 300,000 tokens waits for the button, and a switch **Make vectors by itself** in Settings > Memory turns it off. The button **Embed N items** says first how many items and about how many tokens that takes, and does it now. New scenes embed their new items either way. If you change the embeddings model, the old vectors are not used until you press **Embed again**. The Data Bank has its own card, **Data Bank by meaning**, at the top of Settings > Data Bank: it works the same way for the passages of your files and snapshot books, and a file that is only partly covered says "7 of 12 by meaning".
+
+## Settings for one chat
+
+The **Settings** tab of a chat's record (in the Record side panel and in the Library, next to Activity) sets Litopys for this chat alone: the shortest and longest scene, how many recent messages stay word for word (or how many direct messages stay after the scenes, when older messages leave "By scenes"), the way older messages leave the prompt, and how many facts one character may have pinned. A field you leave empty follows the gear's "Litopys settings" and shows that value as "Library: N". A value is saved when you leave the field. "Use the Library settings" clears them all. A chat with frequent scene changes does well with a low shortest scene, say 3: a short scene then gets its own chapter. Chapters already written stay as they are; use Rebuild to rewrite them with the new lengths.
 
 ## Suggestions and tidying
 
