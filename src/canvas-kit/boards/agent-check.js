@@ -88,6 +88,7 @@ const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z
 const shapeOut = (shape) => Object.entries((shape ?? {})).map(([id, spec]) => ({ id, side: 'out', type: shapeType(spec) }));
 const ownType = (as) => (as === 'number' ? 'number' : as === 'flag' ? 'flag' : 'text'); // a state value on a wire
 const itemPorts = (item) => Object.entries((item ?? {})).map(([id, spec]) => ({ id, side: 'in', type: ownType(spec) }));
+const scriptList = (v) => (Array.isArray(v) ? v : []).filter((x) => typeof x === 'object' && x !== null && typeof x.id === 'string');
 const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
@@ -180,6 +181,16 @@ export const AGENT_CARDS = {
     label: 'Cut', colorVar: '--k-data', hint: 'Keeps the first or last part of a text: characters, words or lines.',
     ports: () => [{ id: 'in', side: 'in', type: 'text' }, { id: 'text', side: 'out', type: 'text' }],
     needs: () => [],
+  },
+  'code.script': {
+    label: 'Script', colorVar: '--k-logic', hint: 'Your own small program: values in, values out. It sees only what you wire in. No files, no internet, no clock.',
+    ports: (p) => [
+      ...scriptList(p.inputs).map((i) => ({ id: String(i.id), side: 'in', type: ownType(i.type) })),
+      { id: 'when', side: 'in', type: 'signal', optional: true },
+      ...scriptList(p.outputs).map((o) => ({ id: String(o.id), side: 'out', type: ownType(o.type) })),
+      { id: 'failed', side: 'out', type: 'signal' },
+    ],
+    needs: () => ['run:code'],
   },
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
@@ -364,6 +375,33 @@ function checkCodeCard(n, err) {
     if (!isInt(p.n, 1, 20000)) bad('E_PARAM', 'n is a whole number from 1 to 20000');
   }
 }
+/** Limits of the Script card (the engine enforces its own on the sandbox: .fork/handoff/script-card/DESIGN.md in the engine repo). */
+export const SCRIPT_LIMITS = { code: 8000, ports: 8, perAgent: 6 };
+/** The parameters of a Script card. */
+function checkScript(n, err) {
+  const p = n.params ?? {};
+  const bad = (code, msg) => err(code, `"${n.title}": ${msg}`, n.id);
+  if (typeof p.code !== 'string' || !p.code.trim()) { bad('E_PARAM', 'the script has no code'); return; }
+  if (p.code.length > SCRIPT_LIMITS.code) bad('E_PARAM', `the code is longer than ${SCRIPT_LIMITS.code} characters`);
+  for (const key of ['inputs', 'outputs']) {
+    const list = p[key];
+    if (!Array.isArray(list) || list.length > SCRIPT_LIMITS.ports || (key === 'outputs' && !list.length)) {
+      bad('E_PARAM', key === 'outputs' ? `outputs is a list of 1 to ${SCRIPT_LIMITS.ports} values the script gives back` : `inputs is a list of up to ${SCRIPT_LIMITS.ports} values the script receives`);
+      continue;
+    }
+    const seen = new Set();
+    for (const x of list) {
+      if (!isObj(x) || typeof x.id !== 'string' || !FIELD_ID.test(x.id) || !SCALARS.includes(x.type)) { bad('E_PARAM', `every ${key === 'inputs' ? 'input' : 'output'} needs an id (letters, digits, _ and -, starting with a letter) and a type: number, text or flag`); continue; }
+      if (x.id === 'when' || x.id === 'failed') bad('E_PARAM', `"${x.id}" is taken by the card itself; pick another name`);
+      if (seen.has(x.id)) bad('E_PARAM', `${key} lists "${x.id}" twice`);
+      seen.add(x.id);
+    }
+  }
+  if (p.code.length <= SCRIPT_LIMITS.code && typeof Function === 'function') {
+    try { new Function('input', 'seed', '"use strict";\n' + p.code); }
+    catch (e) { if (e && e.name === 'SyntaxError') bad('E_SCRIPT_SYNTAX', `the code does not parse: ${String(e.message).slice(0, 120)}`); }
+  }
+}
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' };
 /** The `grid` widget: a board of cols x rows tiles, each tile coloured by a state kept in a list (docs/DATA-FORMATS.md, "Agents"). */
 export const GRID_TONES = ['ok', 'info', 'warn', 'bad', 'accent', 'muted'];
@@ -511,8 +549,15 @@ function checkPanels(raw, state, err) {
         continue;
       }
       if (w.w === 'html') {
-        if (typeof w.template !== 'string' || !w.template.trim() || w.template.length > 8192)
-          err('E_WIDGET', `${where}: html needs a template of up to 8192 characters`);
+        // two modes: a template the author wrote (fixed look), or a text field the model writes the markup into
+        if (w.template !== undefined && w.bind !== undefined)
+          err('E_WIDGET', `${where}: html takes a template or a bind, not both`);
+        else if (w.bind !== undefined) {
+          if (state[w.bind]?.type !== 'text')
+            err('E_BIND', `${where}: bind "${w.bind}" must be a text field in agent.state (the markup the model writes goes there)`);
+        }
+        else if (typeof w.template !== 'string' || !w.template.trim() || w.template.length > 8192)
+          err('E_WIDGET', `${where}: html needs a template of up to 8192 characters, or a bind to a text field`);
         else
           checkTemplate(w.template, state, where, err);
         if (w.height !== undefined && (!Number.isInteger(w.height) || w.height < 40 || w.height > 600))
@@ -660,6 +705,8 @@ export function validateAgent(raw) {
       checkDashWrite(n, err);
     if (n.type.startsWith('state.'))
       checkStateCard(n, state, err);
+    if (n.type === 'code.script')
+      checkScript(n, err);
     if (n.type.startsWith('random.') || n.type.startsWith('text.') && n.type !== 'text.template')
       checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
@@ -680,6 +727,9 @@ export function validateAgent(raw) {
       }
     }
   }
+  const scripts = f.nodes.filter((n) => n.type === 'code.script').length;
+  if (scripts > SCRIPT_LIMITS.perAgent)
+    err('E_SCRIPT_LIMIT', `An agent may have at most ${SCRIPT_LIMITS.perAgent} Script cards, found ${scripts}`);
   if (checkPanels(a.panels, state, err))
     needs.add('show:panel');
   const inputs = f.nodes.filter((n) => n.type === 'agent.input');
@@ -756,14 +806,14 @@ export function validateAgent(raw) {
     const depth = (id) => {
       if (memo.has(id))
         return memo.get(id);
-      const own = byId.get(id)?.type === 'model.ask' ? 1 : 0;
+      const own = byId.get(id)?.type === 'model.ask' || byId.get(id)?.type === 'code.script' ? 1 : 0;
       const d = own + Math.max(0, ...(adj.get(id) ?? []).map(depth));
       memo.set(id, d);
       return d;
     };
     const rounds = Math.max(0, ...f.nodes.map((n) => depth(n.id)));
     if (rounds > AGENT_MAX_ROUNDS)
-      err('E_ROUNDS', `A path of the graph asks the model ${rounds} times one after another, and an agent may ask at most ${AGENT_MAX_ROUNDS} times in a row. Ask in parallel, or put two questions into one`);
+      err('E_ROUNDS', `A path of the graph waits for the model or a script ${rounds} times one after another, and an agent may wait at most ${AGENT_MAX_ROUNDS} times in a row. Run them in parallel, or put two questions into one`);
   }
   for (const n of f.nodes) {
     if (n.type === 'state.add' && !wiresIn.has(`${n.id}:by`) && !Number.isFinite(n.params?.amount))

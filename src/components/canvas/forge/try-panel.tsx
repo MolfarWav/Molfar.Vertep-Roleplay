@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowCounterClockwise, Check, DiceFive, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
-import { probeAgentOnChat, runAgentOnChat } from '@/lib/agents'
+import { probeAgentOnChat, runAgentOnChat, runScriptOnEngine, type ScriptAnswer } from '@/lib/agents'
 import { describeWrite, dryRun, sampleInputs, startOwn, type DryFile, type DryResult } from '@/lib/agent-dry'
 import { fmtValue } from '@/lib/agent-template'
 import type { MsgKey } from '@/lib/i18n'
@@ -41,13 +41,23 @@ export function useDry(file: DryFile | null, key: string, active: boolean) {
   // the seed of the dice and picks: it stays while the person edits, and changes only with "Roll again"
   const [seed, setSeed] = useState('try')
   useEffect(() => { setEdits(NONE); setSeed('try'); setNote(null) }, [key])
+  // what the engine said for each script of this trial, by the key of its code, input and seed; a script runs on the engine, not in the page
+  const [scripts, setScripts] = useState<Record<string, ScriptAnswer>>({})
+  const asked = useRef(new Set<string>())
   const examples = useMemo(() => (file ? sampleInputs(file) : {}), [file])
   const result = useMemo<DryResult | null>(() => {
     if (!file || !active) return null
     try {
-      return dryRun(file, { inputs: { ...examples, ...edits.inputs }, own: edits.own, replies: edits.replies, chat: { messageCount: 6, lastSpeaker: 'Character' }, seed })
+      return dryRun(file, { inputs: { ...examples, ...edits.inputs }, own: edits.own, replies: edits.replies, chat: { messageCount: 6, lastSpeaker: 'Character' }, seed }, (k) => scripts[k])
     } catch { return null }
-  }, [file, active, examples, edits, seed])
+  }, [file, active, examples, edits, seed, scripts])
+  useEffect(() => {
+    for (const s of result?.needScripts ?? []) {
+      if (asked.current.has(s.key)) continue
+      asked.current.add(s.key)
+      void runScriptOnEngine({ code: s.code, input: s.input, seed: s.seed }).then((a) => setScripts((m) => ({ ...m, [s.key]: a })))
+    }
+  }, [result])
   /** Fill the inputs and the memory from a real chat. The chat is only read. */
   const fromChat = async (chatId: string) => {
     if (!file) return
@@ -92,7 +102,8 @@ export function useDry(file: DryFile | null, key: string, active: boolean) {
     } finally { setBusy(null) }
   }
 
-  return { edits, setEdits, result, examples, reroll: () => setSeed(newSeed()), busy, note, clearNote: () => setNote(null), fromChat, askModel }
+  const waitingForScript = !!result?.needScripts?.length
+  return { edits, setEdits, result, waitingForScript, examples, reroll: () => setSeed(newSeed()), busy, note, clearNote: () => setNote(null), fromChat, askModel }
 }
 export type Dry = ReturnType<typeof useDry>
 
@@ -214,10 +225,14 @@ function Result({ r, schema, before, titleOf }: { r: DryResult; schema: Json; be
   return (
     <section className="flex flex-col gap-2" aria-label={t('fg.try.result')} data-testid="try-result">
       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('fg.try.result')}</h4>
+      {r.needScripts?.length ? (
+        <p role="status" className="text-xs text-muted-foreground" data-testid="try-script-wait">{t('fg.try.scriptWait')}</p>
+      ) : (
       <p role="status" className={cn('flex items-start gap-1.5 text-xs font-medium', r.status === 'done' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive')} data-testid="try-status">
         {r.status === 'done' ? <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> : <Warning className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />}
         <span>{r.status === 'done' ? `${t('fg.try.done')} · ${t('fg.check.calls', { n: r.calls })}` : t('fg.try.failed', { why: r.reason ?? '' })}</span>
       </p>
+      )}
       {r.status === 'done' && (
         <>
           <Lines title={t('fg.try.writes')} none={t('fg.try.noWrites')} lines={[...r.ownWrites.map((w) => describeWrite(w)), ...r.refused.map((x) => `${describeWrite(x.write)} (${t('fg.try.refused', { why: x.why })})`)]} />
