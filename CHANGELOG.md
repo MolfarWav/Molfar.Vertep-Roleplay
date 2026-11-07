@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.98.0 (2026-11-07)
 
 - New: **a fact can be known to a whole group (#184, P7).** In a fact's Known to, `group: Guild of Ravens` means every member who is in the scene. A group is made by a card tag written `group: Name` or `faction: Name` (no other tag counts), or by a World DM record of kind Group or Place with **Members** (the Records tab; the DM does not fill it). The speaker filter, the narrator's who-knows-what brief, the backstory of a continued chat and the chapter worker's Known facts all read it; the worker is told the groups of the people in the scene and may write a group for news the whole group learned (a made-up group is dropped). A snapshot book copies the members' names when it is saved. The leak check does not look at such facts yet. 0 extra calls; about 60 tokens in the worker's request when a group is in the scene.
 - New: **the ties between characters reach the prompt (#184, P8).** The Dashboard's `edges` (a role and a warmth between two characters who are not you) were stored and never sent. Now up to four are one short line in the Dashboard part, only for people in the scene: a character's own reply gets the ties it is part of, a narrator gets the ties of the people the turn is about first. About 20 to 60 tokens.

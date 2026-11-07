@@ -7,18 +7,41 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.97.0'
+export const APP_VERSION = '4.98.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
   {
     id: 'help.faction-groups',
+    since: '4.98.0',
     help: 'story',
     keywords: { en: 'group groups faction guild tag members known to memory fact secret who knows', uk: 'група групи фракція гільдія тег учасники відомо пам’ять факт секрет хто знає' },
     title: { en: 'A fact known to a whole group', uk: 'Факт, відомий цілій групі' },
     body: {
       en: 'A memory fact can be known to a whole group, for example a guild. Give each card of the group a tag written group: Guild of Ravens (or faction: Guild of Ravens), or list Members on a Group or Place record in the World book. Then type group: Guild of Ravens in the Known to field of the fact: every member in the scene knows it, the others do not.',
       uk: 'Факт пам’яті може бути відомий цілій групі, наприклад гільдії. Додайте кожній картці групи тег group: Гільдія Воронів (або faction: Гільдія Воронів) чи вкажіть Members у записі Group або Place у World book. Потім у полі Known to факту введіть group: Гільдія Воронів: його знають усі учасники в сцені, решта ні.',
+    },
+  },
+  {
+    id: 'new.changes-line',
+    since: '4.98.0',
+    help: 'story',
+    keywords: { en: 'changes since your last reply dashboard line under reply mood trust place quest', uk: 'зміни відповідь рядок панель під відповіддю настрій довіра місце квест' },
+    title: { en: 'What changed, under the newest reply', uk: 'Що змінилось, під найновішою відповіддю' },
+    body: {
+      en: 'Under the newest reply a muted line says what the Dashboard recorded for it, for example Changed: Ada, trust fell, mood calm to tense. Tap it to see the changes, and tap a change to open it in the Dashboard. You can hide it in Settings, Chat Behavior.',
+      uk: 'Під найновішою відповіддю є приглушений рядок, що саме записала панель: наприклад Змінилося: Ada, довіра впала, настрій calm → tense. Натисніть його, щоб побачити зміни, а зміну, щоб відкрити її в Dashboard. Вимкнути можна в Settings, Chat Behavior.',
+    },
+  },
+  {
+    id: 'new.verbatim',
+    since: '4.98.0',
+    help: 'story',
+    keywords: { en: 'word for word verbatim earlier chats chain detail quote memory litopys continue', uk: 'дослівно слово в слово попередні чати ланцюжок деталь цитата пам’ять літопис продовження' },
+    title: { en: 'Word-for-word memories of earlier chats', uk: 'Дослівні спогади з попередніх чатів' },
+    body: {
+      en: 'A chapter is a retelling, so a small detail of an earlier chat can be lost. In Library, Litopys settings, In the prompt, switch on Word-for-word memories of earlier chats: when this chat continues others and what is being said shares rare words with an earlier passage, one or two original passages are added to the prompt. Off by default, no model call.',
+      uk: 'Розділ це переказ, тому дрібна деталь попереднього чату може зникнути. У Library, налаштуваннях Litopys, блок In the prompt, увімкніть Word-for-word memories of earlier chats: коли цей чат продовжує інші, а сказане ділить рідкісні слова зі старим уривком, до промпту додаються один-два оригінальні уривки. Типово вимкнено, без виклику моделі.',
     },
   },
   {
