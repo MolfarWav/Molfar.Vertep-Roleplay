@@ -1,10 +1,10 @@
 import { useId, useState, type DragEvent, type ReactNode } from 'react'
-import { CaretRight, DotsThreeVertical, FolderOpen, FolderSimple, FolderSimpleDashed, Pencil, Plus, ToggleLeft, ToggleRight, X } from '@phosphor-icons/react'
+import { CaretRight, DotsThreeVertical, FolderOpen, FolderSimple, FolderSimpleDashed, FolderSimplePlus, Pencil, Plus, ToggleLeft, ToggleRight, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useT } from '@/hooks/use-t'
 import { TONES } from '@/components/ui/tone'
-import type { FolderGroup, FolderTone, FolderTree } from '@/lib/lore-folders'
+import { FOLDER_DEPTH_MAX, folderAncestors, folderDepth, folderLeaf, folderParent, type FolderGroup, type FolderTone, type FolderTree } from '@/lib/lore-folders'
 import { cn } from '@/lib/utils'
 import { formatTokens } from '@/lib/tokens'
 import type { LoreEntry } from '@/lib/types'
@@ -15,10 +15,13 @@ export const LORE_DRAG = 'application/x-lore-entry-ids'
 /** How many entries of one folder show before "Show more". */
 export const FOLDER_PAGE = 50
 
+/** A folder shows its content when it and every folder above it are open. */
+const shown = (name: string, isOpen: (name: string) => boolean) => isOpen(name) && folderAncestors(name).every(isOpen)
+
 /** The ids of the entries a tree shows right now: what "Select all visible" takes. */
 export function visibleEntries(tree: FolderTree, isOpen: (name: string) => boolean, limit: (key: string) => number): LoreEntry[] {
   return [
-    ...tree.folders.filter((f) => isOpen(f.name)).flatMap((f) => f.entries.slice(0, limit(f.name))),
+    ...tree.folders.filter((f) => shown(f.name, isOpen)).flatMap((f) => f.entries.slice(0, limit(f.name))),
     ...tree.loose.slice(0, limit('')),
   ]
 }
@@ -28,7 +31,7 @@ export function visibleEntries(tree: FolderTree, isOpen: (name: string) => boole
  * no folder. A search or filter opens the folders that have a match (`searching`) and the head says "3 of 41".
  * The rows are the caller's (`renderRow`), so an entry looks the same in a folder and in the flat list.
  */
-export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, selecting, selected, onSelectMany, renderRow, toneOf, onDropEntries, onAddHere, onEnableAll, onRename, onRemove }: {
+export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, selecting, selected, onSelectMany, renderRow, toneOf, onDropEntries, onAddHere, onAddFolder, onEnableAll, onRename, onRemove }: {
   tree: FolderTree
   searching: boolean
   isOpen: (name: string) => boolean
@@ -44,6 +47,8 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
   /** entries dropped on a folder ('' = the entries with no folder) */
   onDropEntries: (ids: string[], folder: string) => void
   onAddHere: (name: string) => void
+  /** a new folder inside this one */
+  onAddFolder: (parent: string) => void
   onEnableAll: (name: string, on: boolean) => void
   onRename: (name: string) => void
   onRemove: (name: string) => void
@@ -71,6 +76,44 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
       </Button>
     </li>
   )
+  // a folder, its head, and when it is open its own entries and then the folders below it (the same again, one level in)
+  const renderFolder = (f: FolderGroup): ReactNode => {
+    const open = isOpen(f.name)
+    const lim = limitOf(f.name)
+    const below = tree.folders.filter((c) => folderParent(c.name) === f.name)
+    const listId = `${ids}-${f.name}`
+    return (
+      <li key={f.name} data-testid="folder" data-folder={f.name} className={cn('rounded-lg', over === f.name && lit)} {...target(f.name)}>
+        <FolderHead
+          f={f}
+          tone={toneOf(f.name)}
+          open={open}
+          listId={listId}
+          searching={searching}
+          matches={allEntries(f).length}
+          selecting={selecting}
+          checked={f.total > 0 && allEntries(f).every((e) => selected.includes(e.id))}
+          onCheck={(on) => onSelectMany(allEntries(f), on)}
+          onToggle={() => onToggle(f.name)}
+          onAddHere={() => onAddHere(f.name)}
+          onAddFolder={() => onAddFolder(f.name)}
+          onEnableAll={(on) => onEnableAll(f.name, on)}
+          onRename={() => onRename(f.name)}
+          onRemove={() => onRemove(f.name)}
+        />
+        {open && (
+          <ul id={listId} className="mt-2 ml-3 flex flex-col gap-2 border-l border-border pl-3 md:ml-4 md:pl-4">
+            {f.total === 0 && <li className="px-1 py-2 text-caption text-muted-foreground">{t('lore.folder.emptyHint')}</li>}
+            {f.entries.slice(0, lim).map(renderRow)}
+            {more(f.name, lim, f.entries.length)}
+            {below.map((c) => renderFolder(c))}
+          </ul>
+        )}
+      </li>
+    )
+  }
+  // the entries a folder shows itself and those of the folders below it, for its select-all checkbox
+  const allEntries = (f: FolderGroup): LoreEntry[] => [...f.entries, ...tree.folders.filter((c) => folderParent(c.name) === f.name).flatMap(allEntries)]
   return (
     <ul
       className="flex flex-col gap-2"
@@ -78,37 +121,7 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
       onDragStart={(ev) => { if (ev.dataTransfer.types.includes(LORE_DRAG)) setDragging(true) }}
       onDragEnd={() => { setDragging(false); setOver(null) }}
     >
-      {tree.folders.map((f, i) => {
-        const open = isOpen(f.name)
-        const listId = `${ids}-${i}`
-        const lim = limitOf(f.name)
-        return (
-          <li key={f.name} data-testid="folder" data-folder={f.name} className={cn('rounded-lg', over === f.name && lit)} {...target(f.name)}>
-            <FolderHead
-              f={f}
-              tone={toneOf(f.name)}
-              open={open}
-              listId={listId}
-              searching={searching}
-              selecting={selecting}
-              checked={f.entries.length > 0 && f.entries.every((e) => selected.includes(e.id))}
-              onCheck={(on) => onSelectMany(f.entries, on)}
-              onToggle={() => onToggle(f.name)}
-              onAddHere={() => onAddHere(f.name)}
-              onEnableAll={(on) => onEnableAll(f.name, on)}
-              onRename={() => onRename(f.name)}
-              onRemove={() => onRemove(f.name)}
-            />
-            {open && (
-              <ul id={listId} className="mt-2 ml-3 flex flex-col gap-2 border-l border-border pl-3 md:ml-4 md:pl-4">
-                {f.total === 0 && <li className="px-1 py-2 text-caption text-muted-foreground">{t('lore.folder.emptyHint')}</li>}
-                {f.entries.slice(0, lim).map(renderRow)}
-                {more(f.name, lim, f.entries.length)}
-              </ul>
-            )}
-          </li>
-        )
-      })}
+      {tree.folders.filter((f) => folderParent(f.name) === '').map((f) => renderFolder(f))}
       {(tree.loose.length > 0 || (dragging && tree.folders.length > 0)) && (
         <li data-testid="folder-loose" className={cn('rounded-lg', over === '' && lit)} {...target('')}>
           {tree.folders.length > 0 && (
@@ -130,17 +143,20 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
 
 /** One folder's head: a button that opens and folds it (name, how many entries, their tokens), a checkbox while
  *  several are being selected, and the folder's menu. */
-function FolderHead({ f, tone, open, listId, searching, selecting, checked, onCheck, onToggle, onAddHere, onEnableAll, onRename, onRemove }: {
+function FolderHead({ f, tone, open, listId, searching, matches, selecting, checked, onCheck, onToggle, onAddHere, onAddFolder, onEnableAll, onRename, onRemove }: {
   f: FolderGroup
   tone: FolderTone | undefined
   open: boolean
   listId: string
   searching: boolean
+  /** how many entries of the folder (and below it) pass the search */
+  matches: number
   selecting: boolean
   checked: boolean
   onCheck: (on: boolean) => void
   onToggle: () => void
   onAddHere: () => void
+  onAddFolder: () => void
   onEnableAll: (on: boolean) => void
   onRename: () => void
   onRemove: () => void
@@ -171,12 +187,12 @@ function FolderHead({ f, tone, open, listId, searching, selecting, checked, onCh
         <CaretRight className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')} aria-hidden="true" />
         <Icon className={cn('size-5 shrink-0', tone ? TONES[tone].ink : 'text-amber-500')} weight="fill" aria-hidden="true" />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body font-medium">{f.name}</span>
+          <span className="truncate text-body font-medium" title={f.name}>{folderLeaf(f.name)}</span>
           <span className="text-caption text-muted-foreground">
             {f.total === 0 ? t('lore.folder.empty') : (
               <>
-                {searching && f.entries.length < f.total
-                  ? t('lore.folder.matches', { n: f.entries.length, total: f.total })
+                {searching && matches < f.total
+                  ? t('lore.folder.matches', { n: matches, total: f.total })
                   : t('lore.folder.count', { n: f.total })}
                 {' · '}{t('lore.header.tokens', { n: formatTokens(f.tokens) })}
                 {f.on < f.total && <>{' · '}{t('lore.folder.on', { n: f.on })}</>}
@@ -193,6 +209,9 @@ function FolderHead({ f, tone, open, listId, searching, selecting, checked, onCh
         } />
         <DropdownMenuContent align="end" className="min-w-52">
           <DropdownMenuItem onClick={onAddHere}><Plus className="size-4" aria-hidden="true" />{t('lore.folder.addHere')}</DropdownMenuItem>
+          {folderDepth(f.name) + 1 < FOLDER_DEPTH_MAX && (
+            <DropdownMenuItem onClick={onAddFolder}><FolderSimplePlus className="size-4" aria-hidden="true" />{t('lore.folder.addInside')}</DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => onEnableAll(true)}><ToggleRight className="size-4" aria-hidden="true" />{t('lore.folder.enableAll')}</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEnableAll(false)}><ToggleLeft className="size-4" aria-hidden="true" />{t('lore.folder.disableAll')}</DropdownMenuItem>
           <DropdownMenuItem onClick={onRename}><Pencil className="size-4" aria-hidden="true" />{t('lore.folder.rename')}</DropdownMenuItem>

@@ -24,9 +24,12 @@ const book = (entries: Entry[]) => ({
 }) as unknown as import("../src/lib/types").Lorebook;
 
 describe("folder names", () => {
-  it("keeps one line, no slash, at most 60 characters", () => {
+  it("keeps one line per level, at most 60 characters a level, at most three levels", () => {
     expect(F.cleanFolder("  05 - Characters  ")).toBe("05 - Characters");
-    expect(F.cleanFolder("a/b\\c")).toBe("a-b-c");
+    expect(F.cleanFolder("a/b\\c")).toBe("a/b/c");
+    expect(F.cleanFolder(" a // b / ")).toBe("a/b");
+    expect(F.cleanFolder("a/b/c/d/e")).toBe("a/b/c");
+    expect(F.cleanFolder("/")).toBe("");
     expect(F.cleanFolder("two\n lines")).toBe("two lines");
     expect(F.cleanFolder("x".repeat(100))).toHaveLength(60);
     expect(F.cleanFolder(undefined)).toBe("");
@@ -77,7 +80,7 @@ describe("empty folders", () => {
   });
 
   it("keeps the list clean: no repeats, no empty names, renames join", () => {
-    expect(F.cleanFolderList(["A", "a", " ", 3, "B/C"])).toEqual(["A", "B-C"]);
+    expect(F.cleanFolderList(["A", "a", " ", 3, "B/C"])).toEqual(["A", "B/C"]);
     expect(F.addToFolderList(["A"], "b")).toEqual(["A", "b"]);
     expect(F.renameInFolderList(["A", "B"], "A", "B")).toEqual(["B"]);
     expect(F.renameInFolderList(["A", "B"], "A", "")).toEqual(["B"]);
@@ -146,8 +149,8 @@ describe("a folder in the book file", () => {
   it("the book's folders list is written and read back clean, and an old book has none", () => {
     const b = { ...book([entry("e1")]), folders: ["Places", "places", "x/y"] };
     const out = lorebookToEngine(b) as unknown as { folders?: string[] };
-    expect(out.folders).toEqual(["Places", "x-y"]);
-    expect(engineLorebookToUI(out as never, "b").folders).toEqual(["Places", "x-y"]);
+    expect(out.folders).toEqual(["Places", "x/y"]);
+    expect(engineLorebookToUI(out as never, "b").folders).toEqual(["Places", "x/y"]);
     expect("folders" in (lorebookToEngine(book([entry("e1")])) as object)).toBe(false);
     expect(engineLorebookToUI({ name: "Old", entries: [] } as never, "b").folders).toBeUndefined();
     expect(engineLorebookToUI({ name: "Odd", folders: "nope", entries: [] } as never, "b").folders).toBeUndefined();
@@ -156,14 +159,14 @@ describe("a folder in the book file", () => {
   it("a stray value is cleaned on the way out and never a non-string", () => {
     const ui = engineLorebookToUI({ name: "X", entries: [{ uid: 1, title: "t", content: "c", folder: 7 }, { uid: 2, title: "t", content: "c", folder: " a/b " }] } as never, "b");
     expect(ui.entries[0]!.folder).toBeUndefined();
-    expect(ui.entries[1]!.folder).toBe("a-b");
+    expect(ui.entries[1]!.folder).toBe("a/b");
   });
 });
 
 const treeProps = (over = {}) => ({
     tree: F.buildTree([], []), searching: false, isOpen: () => true, onToggle: () => {}, limitOf: () => 50, onMore: () => {},
     selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
-    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddFolder: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
 });
 
 describe("the tree on screen", () => {
@@ -171,7 +174,7 @@ describe("the tree on screen", () => {
   const props = (over = {}) => ({
     tree: F.buildTree(all, all), searching: false, isOpen: (n: string) => n === "Characters", onToggle: () => {}, limitOf: () => 50, onMore: () => {},
     selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
-    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddFolder: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
   });
 
   it("an open folder shows its entries, a closed one only its head", () => {
@@ -214,7 +217,7 @@ describe("the tree on screen", () => {
 
 describe("folder colours and dropping entries", () => {
   it("keeps only known tones for clean names", () => {
-    expect(F.cleanFolderTones({ Places: "teal", places: "sky", "A/B": "pink", X: "neon", Y: "amber", " ": "sky" })).toEqual({ Places: "teal", "A-B": "pink" });
+    expect(F.cleanFolderTones({ Places: "teal", places: "sky", "A/B": "pink", X: "neon", Y: "amber", " ": "sky" })).toEqual({ Places: "teal", "A/B": "pink" });
     expect(F.cleanFolderTones(["sky"])).toEqual({});
     expect(F.cleanFolderTones(null)).toEqual({});
   });
@@ -238,11 +241,102 @@ describe("folder colours and dropping entries", () => {
   const props = (over = {}) => ({
     tree: F.buildTree(all, all), searching: false, isOpen: () => true, onToggle: () => {}, limitOf: () => 50, onMore: () => {},
     selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id}>{e.title}</li>,
-    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddFolder: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
   });
 
   it("a folder wears its colour; with none it stays amber", () => {
     expect(renderToStaticMarkup(<EntryTree {...props({ toneOf: () => "teal" })} />)).toContain("text-teal-700");
     expect(renderToStaticMarkup(<EntryTree {...props()} />)).toContain("text-amber-500");
+  });
+});
+
+describe("nested folders", () => {
+  const all = [
+    entry("e1", { folder: "Places" }),
+    entry("e2", { folder: "Places/Taverns", content: "tavern text" }),
+    entry("e3", { folder: "Places/Taverns/Cellars", enabled: false }),
+    entry("e4", { folder: "Places2" }),
+    entry("e5", { folder: "Characters" }),
+    entry("e6"),
+  ];
+
+  it("path helpers", () => {
+    expect(F.folderLeaf("A/B/C")).toBe("C");
+    expect(F.folderParent("A/B/C")).toBe("A/B");
+    expect(F.folderParent("A")).toBe("");
+    expect(F.folderDepth("A")).toBe(0);
+    expect(F.folderDepth("A/B/C")).toBe(2);
+    expect(F.folderAncestors("A/B/C")).toEqual(["A", "A/B"]);
+    expect(F.folderAncestors("A")).toEqual([]);
+    expect(F.inFolder("A/B", "A")).toBe(true);
+    expect(F.inFolder("AB", "A")).toBe(false);
+    expect(F.renamePath("A/B/C", "A", "X")).toBe("X/B/C");
+    expect(F.renamePath("A/B", "A", "")).toBe("B");
+    expect(F.renamePath("Z", "A", "X")).toBe("Z");
+  });
+
+  it("lists a folder right before the ones below it, counts include them, a parent exists with only children", () => {
+    const list = F.listFolders(all, ["Empty/Inner"]);
+    expect(list.map((f) => f.name)).toEqual(["Characters", "Empty", "Empty/Inner", "Places", "Places/Taverns", "Places/Taverns/Cellars", "Places2"]);
+    const places = list.find((f) => f.name === "Places")!;
+    expect([places.total, places.on]).toEqual([3, 2]);
+    expect(list.find((f) => f.name === "Places/Taverns")!.total).toBe(2);
+    expect(list.find((f) => f.name === "Empty")!.total).toBe(0);
+  });
+
+  it("the tree has a parent for every shown folder, and a search keeps the way down to a match", () => {
+    const tree = F.buildTree(all, all.filter((e) => e.id === "e3"));
+    expect(tree.folders.map((f) => f.name)).toEqual(["Places", "Places/Taverns", "Places/Taverns/Cellars"]);
+    expect(tree.folders[0]!.entries).toEqual([]);
+    expect(tree.folders[0]!.total).toBe(3);
+    expect(tree.folders[2]!.entries.map((e) => e.id)).toEqual(["e3"]);
+  });
+
+  it("renaming a folder takes the ones below it along", () => {
+    const out = F.renameFolder(all, "Places", "Maps");
+    expect(out.map((e) => e.folder)).toEqual(["Maps", "Maps/Taverns", "Maps/Taverns/Cellars", "Places2", "Characters", undefined]);
+    expect(F.renameFolder(all, "Places/Taverns", "Inns").map((e) => e.folder).slice(0, 3)).toEqual(["Places", "Inns", "Inns/Cellars"]);
+    expect(F.renameInFolderList(["Places/Taverns", "Other"], "Places", "Maps")).toEqual(["Maps/Taverns", "Other"]);
+    expect(F.setFolderTone({ Places: "sky", "Places/Taverns": "pink" }, "Places", "Maps", "teal")).toEqual({ Maps: "teal", "Maps/Taverns": "pink" });
+    expect(F.setFolderTone({ A: "sky", "A/B": "pink" }, "A/B", "A", undefined)).toEqual({ A: "sky" });
+  });
+
+  it("removing a folder moves its entries and subfolders up one level", () => {
+    expect(F.removeFolder(all, "Places").map((e) => e.folder)).toEqual([undefined, "Taverns", "Taverns/Cellars", "Places2", "Characters", undefined]);
+    expect(F.removeFolder(all, "Places/Taverns").map((e) => e.folder).slice(0, 3)).toEqual(["Places", "Places", "Places/Cellars"]);
+  });
+
+  it("switching a folder on or off reaches the folders below", () => {
+    const out = F.setFolderEnabled(all, "Places", false);
+    expect(out.map((e) => e.enabled)).toEqual([false, false, false, true, true, true]);
+  });
+
+  it("a typed path goes under an existing folder in any letter case", () => {
+    expect(F.resolveFolderName("places/taverns/Attic", ["Places", "Places/Taverns"])).toBe("Places/Taverns/Attic");
+    expect(F.resolveFolderName("PLACES", ["Places/Taverns"])).toBe("Places");
+    expect(F.resolveFolderName("new/one", ["Places"])).toBe("new/one");
+  });
+
+  const props = (over = {}) => ({
+    tree: F.buildTree(all, all), searching: false, isOpen: (n: string) => n === "Places" || n === "Places/Taverns", onToggle: () => {}, limitOf: () => 50, onMore: () => {},
+    selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddFolder: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+  });
+
+  it("shows a subfolder inside its open parent by its own name, and hides it while the parent is folded", () => {
+    const html = renderToStaticMarkup(<EntryTree {...props()} />);
+    expect(html).toContain('data-folder="Places/Taverns"');
+    expect(html).toContain(">Taverns<");
+    expect(html).not.toContain('data-folder="Places/Taverns/Cellars"><');
+    const folded = renderToStaticMarkup(<EntryTree {...props({ isOpen: () => false })} />);
+    expect(folded).not.toContain('data-folder="Places/Taverns"');
+    expect(folded).toContain('data-folder="Places"');
+  });
+
+  it("select-all-visible takes only what is on screen: nothing under a folded parent", () => {
+    const tree = F.buildTree(all, all);
+    const ids = (open: string[]) => visibleEntries(tree, (n) => open.includes(n), () => 50).map((e) => e.id).sort();
+    expect(ids(["Places/Taverns"])).toEqual(["e6"]);
+    expect(ids(["Places", "Places/Taverns"])).toEqual(["e2", "e1", "e6"].sort());
   });
 });

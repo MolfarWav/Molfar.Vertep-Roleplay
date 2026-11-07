@@ -21,7 +21,7 @@ import { exportAllBooks, exportOneBook } from '@/lib/lore-export'
 import { bookUsage } from '@/lib/lore-usage'
 import { askMolfar } from '@/lib/shell-bridge'
 import { entryFilterCounts, matchesEntryFilter, type BookFilter, type EntryFilter } from '@/lib/lore-filters'
-import { addToFolderList, buildTree, cleanFolderList, cleanFolderTones, folderOf, isFolderTone, setFolderTone, type FolderTone, hasFolders, listFolders, moveToFolder, removeFolder, renameFolder, renameInFolderList, setFolderEnabled } from '@/lib/lore-folders'
+import { addToFolderList, buildTree, cleanFolderList, cleanFolderTones, folderAncestors, folderOf, folderParent, inFolder, isFolderTone, renamePath, setFolderTone, type FolderTone, hasFolders, listFolders, moveToFolder, removeFolder, renameFolder, renameInFolderList, setFolderEnabled } from '@/lib/lore-folders'
 import type { Lorebook, LoreEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { BookHeader } from '@/components/lore/book-header'
@@ -256,6 +256,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const [moveIds, setMoveIds] = useState<string[] | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
+  /** the folder a New folder dialog creates inside ('' = at the top) */
+  const [newFolderIn, setNewFolderIn] = useState('')
   const [confirm, confirmDialog] = useConfirm()
   const allBooks = useApp((s) => s.lorebooks)
   const characters = useApp((s) => s.characters)
@@ -298,9 +300,11 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     saveOpen(book.id, next)
     return next
   })
+  /** Opens a folder and the ones above it, so it is on screen. */
   const openFolder = (name: string) => setOpenFolders((cur) => {
-    if (cur.includes(name)) return cur
-    const next = [...cur, name]
+    const add = [...folderAncestors(name), name].filter((n) => !cur.includes(n))
+    if (!add.length) return cur
+    const next = [...cur, ...add]
     saveOpen(book.id, next)
     return next
   })
@@ -368,14 +372,15 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const doRename = (from: string, to: string, tone: FolderTone | undefined) => {
     onUpdate({ entries: renameFolder(book.entries, from, to), folders: renameInFolderList(listed, from, to), folderTones: setFolderTone(tones, from, to, tone) })
     setOpenFolders((cur) => {
-      const next = [...new Set(cur.map((n) => (n === from ? to : n)))]
+      const next = [...new Set([...cur.map((n) => renamePath(n, from, to)), ...(to ? folderAncestors(to) : [])])]
       saveOpen(book.id, next)
       return next
     })
   }
   const doRemove = (name: string) => {
-    const n = book.entries.filter((e) => folderOf(e) === name).length
-    onUpdate({ entries: removeFolder(book.entries, name), folders: renameInFolderList(listed, name, ''), folderTones: setFolderTone(tones, name, '', undefined) })
+    const n = book.entries.filter((e) => inFolder(folderOf(e), name)).length
+    const up = folderParent(name)
+    onUpdate({ entries: removeFolder(book.entries, name), folders: renameInFolderList(listed, name, up), folderTones: setFolderTone(tones, name, up, undefined) })
     toast.success(t('lore.folder.removed', { n }))
   }
   /** A new, empty folder: it shows at once, open, ready for entries. */
@@ -442,7 +447,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             </TabsList>
             {tab === 'entries' && (
               <div className="ml-auto flex items-center gap-2 max-md:w-full max-md:justify-end">
-                <Button variant="tonal" className="max-md:h-10" onClick={() => setNewFolderOpen(true)} data-testid="new-folder">
+                <Button variant="tonal" className="max-md:h-10" onClick={() => { setNewFolderIn(''); setNewFolderOpen(true) }} data-testid="new-folder">
                   <FolderSimplePlus className="size-4" aria-hidden="true" />{t('lore.folder.new')}
                 </Button>
                 <Button variant="default" className="max-md:h-10" onClick={() => addEntry()}>
@@ -494,6 +499,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
                   renderRow={renderRow}
                   toneOf={toneOf}
                   onDropEntries={dropEntries}
+                  onAddFolder={(parent) => { setNewFolderIn(parent); setNewFolderOpen(true) }}
                   onAddHere={addEntry}
                   onEnableAll={(name, on) => onUpdate({ entries: setFolderEnabled(book.entries, name, on) })}
                   onRename={setRenaming}
@@ -562,7 +568,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
         current={selectedFolder()}
         onPick={(name) => { if (moveIds) moveTo(moveIds, name) }}
       />
-      <NewFolderDialog open={newFolderOpen} onOpenChange={setNewFolderOpen} existing={folders.map((f) => f.name)} onCreate={createFolder} />
+      <NewFolderDialog open={newFolderOpen} onOpenChange={setNewFolderOpen} parent={newFolderIn} existing={folders.map((f) => f.name)} onCreate={createFolder} />
       <RenameFolderDialog folder={renaming} folders={folders} tone={renaming ? toneOf(renaming) : undefined} onOpenChange={(o) => { if (!o) setRenaming(null) }} onRename={doRename} />
       {confirmDialog}
     </div>

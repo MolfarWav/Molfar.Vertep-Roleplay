@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
 import { TONES } from '@/components/ui/tone'
-import { FOLDER_NAME_MAX, FOLDER_TONES, cleanFolder, resolveFolderName, type FolderInfo, type FolderTone } from '@/lib/lore-folders'
+import { FOLDER_DEPTH_MAX, FOLDER_PATH_MAX, FOLDER_SEP, FOLDER_TONES, cleanFolder, folderDepth, folderLeaf, inFolder, resolveFolderName, type FolderInfo, type FolderTone } from '@/lib/lore-folders'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -49,10 +49,10 @@ export function MoveToFolderDialog({ open, onOpenChange, title, folders, current
             </Button>
           </li>
           {folders.map((f) => (
-            <li key={f.name}>
-              <Button variant="outline" size="sm" className={row} onClick={() => pick(f.name)} aria-current={current === f.name ? 'true' : undefined}>
+            <li key={f.name} style={{ paddingLeft: `${folderDepth(f.name) * 16}px` }}>
+              <Button variant="outline" size="sm" className={row} onClick={() => pick(f.name)} aria-current={current === f.name ? 'true' : undefined} title={f.name}>
                 <FolderSimple className="size-4 shrink-0" weight="fill" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate text-left">{f.name}</span>
+                <span className="min-w-0 flex-1 truncate text-left">{folderLeaf(f.name)}</span>
                 <span className="shrink-0 text-caption text-muted-foreground">{f.total}</span>
                 {current === f.name && <Check className="size-4 shrink-0" aria-hidden="true" />}
               </Button>
@@ -63,7 +63,7 @@ export function MoveToFolderDialog({ open, onOpenChange, title, folders, current
           <Input
             value={name}
             onChange={(ev) => setName(ev.target.value)}
-            maxLength={FOLDER_NAME_MAX}
+            maxLength={FOLDER_PATH_MAX}
             placeholder={t('lore.folder.newPlaceholder')}
             aria-label={t('lore.folder.newLabel')}
             className="h-8 min-w-0 flex-1 max-md:h-10"
@@ -94,9 +94,12 @@ export function RenameFolderDialog({ folder, folders, tone: current, onOpenChang
   const typed = cleanFolder(name)
   const target = folder === null ? '' : resolveFolderName(typed, folders.map((f) => f.name))
   const merges = folder !== null && typed !== '' && target !== folder && folders.some((f) => f.name === target)
+  // the folders below this one come along, so the deepest of them must still fit under the new path
+  const below = folder === null ? 0 : Math.max(0, ...folders.filter((f) => inFolder(f.name, folder)).map((f) => folderDepth(f.name) - folderDepth(folder)))
+  const tooDeep = folder !== null && typed !== '' && folderDepth(target) + below >= FOLDER_DEPTH_MAX
   const submit = (ev: FormEvent) => {
     ev.preventDefault()
-    if (folder === null || !typed) return
+    if (folder === null || !typed || tooDeep) return
     if (target !== folder || tone !== current) onRename(folder, target, tone)
     onOpenChange(false)
   }
@@ -110,11 +113,13 @@ export function RenameFolderDialog({ folder, folders, tone: current, onOpenChang
           <Input
             value={name}
             onChange={(ev) => setName(ev.target.value)}
-            maxLength={FOLDER_NAME_MAX}
+            maxLength={FOLDER_PATH_MAX}
             aria-label={t('lore.folder.newLabel')}
             className="max-md:h-10"
             autoFocus
           />
+          <p className="text-caption text-muted-foreground">{t('lore.folder.pathHint', { n: FOLDER_DEPTH_MAX })}</p>
+          {tooDeep && <p className="text-caption text-destructive" role="alert">{t('lore.folder.tooDeep', { n: FOLDER_DEPTH_MAX })}</p>}
           {merges && <p className="text-caption text-muted-foreground">{t('lore.folder.mergeNote', { name: target })}</p>}
           <div role="radiogroup" aria-label={t('lore.folder.colour')} className="flex flex-wrap items-center gap-2" data-testid="folder-colours">
             <span className="mr-1 text-caption text-muted-foreground">{t('lore.folder.colour')}</span>
@@ -143,7 +148,7 @@ export function RenameFolderDialog({ folder, folders, tone: current, onOpenChang
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" className="max-md:h-10" onClick={() => onOpenChange(false)}>{t('lore.folder.cancel')}</Button>
-            <Button type="submit" disabled={!typed} className="max-md:h-10">{t('lore.folder.save')}</Button>
+            <Button type="submit" disabled={!typed || tooDeep} className="max-md:h-10">{t('lore.folder.save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -153,9 +158,11 @@ export function RenameFolderDialog({ folder, folders, tone: current, onOpenChang
 
 /** "New folder": a name, and the folder exists (empty) until entries are moved in. A name a folder already has opens
  *  that one instead of making a second. */
-export function NewFolderDialog({ open, onOpenChange, existing, onCreate }: {
+export function NewFolderDialog({ open, onOpenChange, parent, existing, onCreate }: {
   open: boolean
   onOpenChange: (o: boolean) => void
+  /** the folder the new one goes inside; '' = at the top */
+  parent: string
   existing: string[]
   onCreate: (name: string) => void
 }) {
@@ -163,10 +170,11 @@ export function NewFolderDialog({ open, onOpenChange, existing, onCreate }: {
   const [name, setName] = useState('')
   useEffect(() => { if (open) setName('') }, [open])
   const typed = cleanFolder(name)
+  const tooDeep = typed !== '' && folderDepth(cleanFolder(parent ? parent + FOLDER_SEP + typed : typed)) >= FOLDER_DEPTH_MAX
   const submit = (ev: FormEvent) => {
     ev.preventDefault()
-    if (!typed) return
-    onCreate(resolveFolderName(typed, existing))
+    if (!typed || tooDeep) return
+    onCreate(resolveFolderName(parent ? parent + FOLDER_SEP + typed : typed, existing))
     onOpenChange(false)
   }
   return (
@@ -174,21 +182,22 @@ export function NewFolderDialog({ open, onOpenChange, existing, onCreate }: {
       <DialogContent className="sm:max-w-sm">
         <form onSubmit={submit} className="flex flex-col gap-3">
           <DialogHeader>
-            <DialogTitle>{t('lore.folder.newTitle')}</DialogTitle>
+            <DialogTitle>{parent ? t('lore.folder.newInside', { name: parent }) : t('lore.folder.newTitle')}</DialogTitle>
             <DialogDescription>{t('lore.folder.newHint')}</DialogDescription>
           </DialogHeader>
           <Input
             value={name}
             onChange={(ev) => setName(ev.target.value)}
-            maxLength={FOLDER_NAME_MAX}
+            maxLength={FOLDER_PATH_MAX}
             placeholder={t('lore.folder.newPlaceholder')}
             aria-label={t('lore.folder.newLabel')}
             className="max-md:h-10"
             autoFocus
           />
+          {tooDeep && <p className="text-caption text-destructive" role="alert">{t('lore.folder.tooDeep', { n: FOLDER_DEPTH_MAX })}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" className="max-md:h-10" onClick={() => onOpenChange(false)}>{t('lore.folder.cancel')}</Button>
-            <Button type="submit" disabled={!typed} className="max-md:h-10">{t('lore.folder.createEmpty')}</Button>
+            <Button type="submit" disabled={!typed || tooDeep} className="max-md:h-10">{t('lore.folder.createEmpty')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

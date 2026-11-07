@@ -16,7 +16,7 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
    - One `json_get` on `apps/roleplay/data/lorebooks/_example.json` for `/settings`.
    - One `write_file` to `apps/roleplay/data/lorebooks/<id>.json`: `id`, `name`, `globalActive: false`, `entries: []`, `settings` from the example.
    - One `json_set` with one `append` to `/entries` per planned entry.
-   - A book of about 30 entries or more: give each entry a `folder` (a short name such as `Places`, `05 - Characters`) in the same append. Folders only tidy the Entries tab; they never change when an entry fires, and they are not `group`.
+   - A book of about 30 entries or more: give each entry a `folder` (a short name such as `Places`, `05 - Characters`, or a path such as `Places/Taverns`, at most three levels) in the same append. Folders only tidy the Entries tab; they never change when an entry fires, and they are not `group`.
    - One `json_set` to append the book id to `apps/roleplay/data/characters/<character-id>/card.json` at `/studio/linkedLorebookIds`.
 
 4. **Existing book — read entries, then edit in one call.**
