@@ -38,10 +38,41 @@
 | `profile-drafts/<characterId>.json` | JSON | A proposed card profile waiting for review (`profile`, `leftover`, `note`, `model`, `at`; written by the `profile` plugin) |
 | `profile-drafts/group-<groupId>.json` | JSON | A proposed group scenario or opening waiting for review (`kind`: `scenario` or `opening`, `text`, `mode`, `model`, `at`; written by the `profile` plugin) |
 | `dashboard/soul-drafts/<characterId>.json` | JSON | Proposed souls of one card waiting for the user's review (`by` auto or molfar, `note`, `error`, `dismissedAt`, `characters`); see `docs/SOUL.md` (written by the `relations` plugin) |
+| `dashboard/config.json` | JSON | Dashboard settings: only what differs from the defaults (sensor model, insert limits, `said`, `journal`, quest limits...). See DATA-FORMATS.md, "Dashboard state" |
+| `dashboard/events.json` | JSON | Optional own event vocabulary of the user (changed, new, off rows); removed to go back to the default vocabulary |
+| `dashboard/agent/<chatId>.json` | JSON | Ledger of the Dashboard fields custom agents wrote (`before`, `after`, `undone`), so an undo and a re-read keep them (written by the `agents` plugin; DATA-FORMATS.md, "Agents") |
+| `dashboard/voices/<chatId>.json` | JSON | Voice colours per chat: `{v, mode, colors, hand}`, one colour per person of the entity registry |
+| `dashboard/notice/<chatId>.json` | JSON | The last time the Dashboard insert did not fit the user's limit, so the app shows the notice once |
+| `dashboard/rebase/<chatId>.json` | JSON | The state a rebuild on top of an earlier chat replaced, one copy per chat, gone with the chat |
+| `dashboard/lexicon.json`, `dashboard/other-seen.json` | JSON | `lexicon`: the user's extra words for the scene scan (or `{"off": true}`). `other-seen`: event ids the sensor made up that nobody could place (DATA-FORMATS.md, "Dashboard state") |
+| `registry/<chatId>.json` | JSON | Entity registry: one id per person, thing and place of a chat, with aliases. Written by the `relations` plugin, read by `world`, `litopys` and `agents`. DATA-FORMATS.md, "The entity registry"; `docs/ENTITY-REGISTRY.md` |
 | `chats/<id>.jsonl` | JSONL | Messages: flat list with `swipes[]` (reply variants) |
-| `chats/<id>.meta.json` | JSON | Metadata: `title`, `characterId`, `groupId`, `presetId`, `personaId`, `authorNote`, `lorebookIds`, `summary`, `memoryCutoffMessageId` |
-| `chats/<id>.memories.json` | JSON | Long-term memory: array of `{id, text, importance, pinned, at}` |
-| `databank/<id>.json` | JSON | RAG documents: `chunks[]` with `text`, `i`. Term-density retrieval. Used in `assemble()` for prompt injection |
+| `chats/<id>.meta.json` | JSON | Metadata: `title`, `characterId`, `groupId`, `presetId`, `personaId`, `authorNote`, `lorebookIds`, `worldBookId`, per-chat switches. The old Memory keys (`summary`, `memoryCutoffMessageId`, `compactions`, `memoryExtractedAt`) are removed by the engine once Litopys holds the chat |
+| `chats/<id>.memories.json` | JSON | Legacy, no longer written: the old Memory vault, array of `{id, text, importance, pinned, at}`. The Litopys sweep takes its facts into `litopys/chats/<id>.json` and then deletes the file |
+| `databank/<id>.json` | JSON | Data Bank file: `chunks[]` (`i`, `text`, ...), term-density retrieval used in `assemble()`. Also holds snapshot books (`kind: "snapshot"`: a saved story with chapter, arc and fact chunks and who knew them; written by the `litopys` plugin). Shapes: DATA-FORMATS.md, "Snapshot books (#184)" |
+| `litopys/chats/<chatId>.json` | JSON | The chat's Litopys record: chapters, arcs, facts (with `knownBy`, `cast`, beliefs and lies), proposals, marked scenes, habits, the scene in progress, counters, the worker's last run, optional per-chat `config`. The heart of story memory (written by the `litopys` plugin). DATA-FORMATS.md, "Who witnessed a scene", "Beliefs", "Scenes set apart by hand" |
+| `litopys/vectors/<chatId>.json` | JSON | Embeddings of the chat's chapters and active facts: `{id: {hash, vector, m?}}` (DATA-FORMATS.md, "Litopys config", the Vectors line) |
+| `litopys/config.json` | JSON | Litopys settings: only what the user changed (budget, prompts, recollections, `autoEmbed`...). DATA-FORMATS.md, "Litopys config" |
+| `litopys/insert/<chatId>.json`, `litopys/trace-ring/<chatId>.json`, `litopys/fired/<chatId>.json` | JSON | What the last reply took from memory: sizes and ids (the memory trace), the traces of the four replies before it, and counters of how often each fact and chapter went in. Written by the Litopys reply hook. DATA-FORMATS.md, "Memory trace", "What fired"; COUPLINGS.md, "Litopys insert file and the memory traces" |
+| `litopys/prompt-cut/<chatId>.json` | JSON | `{count, upTo}`: where the engine's last prompt started its word-for-word history; Litopys uses it so chapters cover what left the prompt (written by the `engine` plugin) |
+| `litopys/embed-status.json`, `litopys/embed-auto.json`, `litopys/embed-want/<id>.json` | JSON | Embedding bookkeeping: whether embedding works (a failed call pauses for an hour), the last automatic look for gaps, and one request file per chat or Data Bank file waiting for vectors. COUPLINGS.md, "Litopys vectors and the embeddings model" |
+| `litopys/wake.json`, `litopys/worker.json` | JSON | Worker bookkeeping: chats asked to be visited next, and the worker's last sign of life |
+| `litopys/portraits.json`, `litopys/links.json` | JSON | `portraits`: pictures the user sets for names. `links`: a chat that continues an earlier one (its backstory) |
+| `litopys/store.json`, `litopys/proposals.json` | JSON | Litopys 1.x data, kept as a backup after the migration; trimmed for deleted chats |
+| `characters/<id>/memory.json` | JSON | Card memory: stories the character remembers (snapshots imported from chats), habits, `inject` budget. Never in `card.json` or an export. DATA-FORMATS.md, "The card's long memory" |
+| `memory/personas/<id>.json`, `memory/worlds/<id>.json` | JSON | The same kind of long memory for a persona and for a saved World DM world (stories and facts only, no habits). A chat takes them in only when its meta says so. DATA-FORMATS.md, "A persona's and a saved world's long memory" |
+| `databank-vectors/<fileId>.json` | JSON | Embeddings of a Data Bank file's passages, one model per file, made on the user's click or by the automatic filling; they only raise the rank of passages the words already found. DATA-FORMATS.md, "Data Bank vectors" |
+| `databank-trace/<chatId>.json`, `fired-log/<chatId>.json` | JSON | What the Data Bank and the lorebooks put into the last real replies (never for a preview); the "last reply" views read them. Written by `assemble()`. DATA-FORMATS.md, "Memory trace", "What fired" |
+| `world/state/<chatId>.json` | JSON | World DM state of a chat: settings, records (people, things, places), fronts, event, log. The chat's world book is `lorebooks/world-<chatId>.json`. DATA-FORMATS.md, "World DM" |
+| `world/config.json`, `world/profiles/<id>.json`, `world/recipes/<id>.json` | JSON | World DM: settings that differ from the defaults, the player's profile changes or own profiles, and the player's recipes for learning a world from cards |
+| `world/library/w-<id>.json`, `world/library/w-<id>.draft.json` | JSON | A saved world, and a world being built without a chat until accepted |
+| `world/snaps/` (per chat), `world/dice/<chatId>.json` | JSON | Rollback snapshots that follow the chat's line, and the dice log (DATA-FORMATS.md, "World DM"; COUPLINGS.md, "World DM rollback follows the chat's line") |
+| `agents/<id>.vertep-agent.json` | JSON (Canvas file) | An installed custom agent: data, not code. DATA-FORMATS.md, "Agents" |
+| `agents/drafts/<name>.vertep-agent.json`, `agents/grants/<id>.json` | JSON | A draft waiting for the user to install it, and the permissions the user confirmed for an agent |
+| `agents/state/<chatId>/<id>.json`, `agents/runs/<chatId>.json`, `agents/inserts/<chatId>.json` | JSON | An agent's own state in a chat, the run log (newest 100), and prompt hints waiting for the next reply |
+| `agents/config.json`, `agents/settings.json`, `agents/presets/<id>.json` | JSON | The user's choices per agent (models, call limit), global agent settings, and agent presets (a named list of agents). DATA-FORMATS.md, "Agents" |
+| `letters/config.json`, `letters/inbox/<id>.json`, `letters/cards/<characterId>.json`, `letters/day.json` | JSON | Letters from cards: settings, unread letters, the cooldown and opt-out of each card, and the count of letters written today. DATA-FORMATS.md, "Letters from cards" |
+| `tools/<id>.json` | JSON | Tool definitions for model tool calls (dice, pictures, toy control, custom); built-ins seed themselves on first read (written by the `tools` plugin) |
 | `settings.json` | JSON | Settings: `model`, `personaId`, `ui` |
 | `library.json` | JSON | Local collections: `qrSets`, `themes`, `backgrounds`, `tags`, `folders`, `connectionProfiles` |
 
@@ -387,17 +418,19 @@ History is stored **on the engine side** (server-backed), not in the browser:
 
 ## 5. Where to Add New Features
 
-### 5.1 Character Memory
+### 5.1 Character Memory (built)
 
-| Component | What to Do |
-|-----------|-----------|
-| `src/lib/types.ts` | Add `CharacterMemory` to `Character`: `memories: CharacterMemoryEntry[]` |
-| `src/lib/engine.ts` | Adapter `characterToCard` / `cardToCharacter` — serialize to `studio` bag |
-| `plugins/engine/plugin.js` | In `assemble()`: include character memory in prompt alongside `card.description` |
-| `src/components/character/` | UI: memory editor in character card |
-| `data/characters/<id>/card.json` | Storage (already has `studio` bag) |
+Character memory exists; there is nothing to add. It belongs to the `litopys` plugin (`plugins/litopys/plugin.js`), and none of it is stored in `card.json` or in a card export.
 
-**Alternative:** Store in separate file `data/characters/<id>/memories.json` — then need CRUD routes.
+| Layer | What it is | Stored in |
+|-------|-----------|-----------|
+| Card memory | Stories the character remembers: snapshots of chats the user imports (arc, strongest facts, the character's notes and said lines), and habits (accepted by hand or earned in a chat). Edited in the card's Memory tab. Routes `/litopys/card-memory*`, `/litopys/habits`. A persona and a saved World DM world have the same kind of memory (`/litopys/memory`, `kind` = card, persona or world), stories and facts only | `characters/<id>/memory.json`, `memory/personas/<id>.json`, `memory/worlds/<id>.json` |
+| Recollections | What each character saw, heard or was told in a scene, how it left them and what they want now. The chapter worker writes them as `views` of a chapter | `litopys/chats/<chatId>.json` |
+| Litopys record | Chapters, arcs and facts of the chat, with who knows each fact (`knownBy`, `cast`), beliefs and lies. The chapter worker builds it one scene at a time | `litopys/chats/<chatId>.json`, vectors in `litopys/vectors/<chatId>.json` |
+
+**In the prompt.** The plugin adds these through its `llmRequest` hook, not in `assemble()`, each as its own part (shown in the prompt inspector): "Litopys · character memory" (also persona memory, world memory and character habits), "Litopys · recollections", "Litopys · story so far", "Litopys · facts and earlier chapters", "Litopys · who knows what" and, right before the newest player message, "Litopys · latest recollection". All of it stays inside the token budget in `litopys/config.json`. The engine reads the plugin's insert file only to reserve room in the history budget.
+
+**Where the full shape is.** DATA-FORMATS.md: "The card's long memory", "What each character remembers of a scene", "A persona's and a saved world's long memory", "Litopys config". COUPLINGS.md: "Litopys insert file and the memory traces", "Who knows what (witnesses and Data Bank scope)", "Lies, beliefs and the risk review".
 
 ### 5.2 Enhanced Lorebook
 
@@ -410,33 +443,13 @@ History is stored **on the engine side** (server-backed), not in the browser:
 
 ### 5.3 Trackers (Quest/Relationship Trackers)
 
-| Component | What to Do |
-|-----------|-----------|
-| `src/lib/types.ts` | New type: `Tracker`, `TrackerEntry` |
-| `data/trackers/<id>.json` | Tracker file: bound to chat or character |
-| `plugins/engine/plugin.js` | CRUD routes: `GET/POST/PATCH/DELETE /trackers`; inject in `assemble()` |
-| `src/components/chat/memory-panel.tsx` | UI: trackers panel (or new component) |
-| `src/lib/store.ts` | Actions: `addTracker`, `updateTracker`, `deleteTracker` |
+There is no `Tracker` type in `src/lib/types.ts`, no `data/trackers/` directory and no `/trackers` routes. What a tracker was meant to do is done by three other parts:
 
-**Tracker structure:**
-```typescript
-interface Tracker {
-  id: string
-  name: string
-  type: 'quest' | 'relationship' | 'inventory' | 'custom'
-  scope: 'chat' | 'character' | 'global'
-  scopeTargetId: string | null
-  entries: TrackerEntry[]
-}
+- **Dashboard** (`plugins/relations`). A sensor model reports what happened in each reply and code turns it into state: per-character stats and mood (relationships), a notebook of what each character saw, heard or guessed, threads (quests: main, side and everyday, with steps), what the characters said and are held to (`said`), a short journal of how each character sees another, and the story clock (day, time, place). Stored as one snapshot per chat message in `dashboard/state/<chatId>.json`; the user's own notes, tags and threads are in `dashboard/notes/<chatId>.json`. The state goes into the reply prompt as "Relationship dashboard", "Dashboard · journal" and "Dashboard · said". Full shape: DATA-FORMATS.md, "Dashboard state"; routes in the header of the plugin.
+- **Agents' own state** (`plugins/agents`). A custom agent can keep its own fields per chat (`write:own.<field>`) and, with the user's permission, write some Dashboard fields (the writes are logged and can be undone). Stored in `agents/state/<chatId>/<agentId>.json`; the Dashboard writes are logged in `dashboard/agent/<chatId>.json`. Format: DATA-FORMATS.md, "Agents".
+- **Litopys facts** (`plugins/litopys`). Long-lived story facts, including relations and changes between people, with who knows them. Stored in `litopys/chats/<chatId>.json`. See 5.1.
 
-interface TrackerEntry {
-  id: string
-  label: string
-  status: 'active' | 'completed' | 'failed' | 'hidden'
-  progress?: number
-  notes: string
-}
-```
+To add a new kind of tracking, build it as an agent or as a Dashboard field first, not as a new data type.
 
 ### 5.4 Chat Variables
 

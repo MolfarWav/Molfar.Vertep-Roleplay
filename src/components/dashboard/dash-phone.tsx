@@ -53,7 +53,7 @@ export function DashPhoneBar({ view, focus, onOpen }: {
   )
 }
 
-export function DashPhoneSheet({ chatId, view, here, focus, onFocus, onReload, avatars, onPortrait, userName }: {
+export function DashPhoneSheet({ chatId, view, here, focus, onFocus, onReload, avatars, onPortrait, userName, tab: tabIn, onTab }: {
   chatId: string
   view: DashView
   here: WorldHere | null
@@ -65,9 +65,14 @@ export function DashPhoneSheet({ chatId, view, here, focus, onFocus, onReload, a
   /** opens the portrait dialog for a name (a click on the focused character's avatar) */
   onPortrait?: (name: string) => void
   userName: string
+  /** the tab to show (the mount remembers it so a change under the newest reply can open the sheet on its tab); the sheet keeps its own when absent */
+  tab?: DashTabId
+  onTab?: (id: DashTabId) => void
 }) {
   const [chartStat, setChartStat] = useState<DispositionStat>('trust')
-  const [tab, setTab] = useState<DashTabId>('person')
+  const [own, setOwn] = useState<DashTabId>('person')
+  const tab = tabIn ?? own
+  const setTab = (id: DashTabId) => { setOwn(id); onTab?.(id) }
   useGuidePlace('dashboard')
   const char = view.chars[focus]
   if (!char) return null

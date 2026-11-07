@@ -95,6 +95,38 @@ export function sinceChanges(view: DashView, here: WorldHere | null, focus: stri
   return out
 }
 
+/** What fell comes first (the order the "Since your last reply" row and the line under the reply show). */
+export function sortChanges(list: DashChange[]): DashChange[] {
+  return [...list].sort((a, b) => Number(b.kind === 'fell') - Number(a.kind === 'fell'))
+}
+
+/** Changes the folded line under the reply spells out; the rest is a count. */
+export const SUMMARY_SHOWN = 2
+
+/**
+ * The changes the folded line spells out and how many more there are. `who` is the character every spelled-out change is
+ * about (so the line names them once: "Ada · trust fell, mood calm → tense"), or null when they differ or one has no character.
+ */
+export function summaryOf(list: DashChange[], shown = SUMMARY_SHOWN): { head: DashChange[]; more: number; who: string | null } {
+  const head = list.slice(0, shown)
+  const who = head.length > 0 && head.every((c) => c.who && c.who === head[0].who) ? head[0].who! : null
+  return { head, more: Math.max(0, list.length - shown), who }
+}
+
+/**
+ * Does the Dashboard's view belong to this reply? The line under a reply may show what changed only then: the view's
+ * newest snapshot is keyed `<messageId>#<swipe>` (the plugin's `key`), and `stale` says the newest message has no snapshot
+ * yet. Between a reply and its update the view is still the previous reply's, which must not show under the new one.
+ */
+export function viewIsOfReply(view: Pick<DashView, 'key' | 'stale'> | null | undefined, msg: { id: string; role: string; activeSwipe: number }): boolean {
+  return !!view && msg.role === 'assistant' && !view.stale && view.key === `${msg.id}#${msg.activeSwipe}`
+}
+
+/** Whether the line under a reply shows: the newest message, the setting on, the Dashboard read, no reply being written, no update running, the view that reply's own, something changed. */
+export function changesLineVisible(o: { last: boolean; on: boolean; ready: boolean; writing: boolean; updating: boolean; ofReply: boolean; count: number }): boolean {
+  return o.last && o.on && o.ready && !o.writing && !o.updating && o.ofReply && o.count > 0
+}
+
 /** The counters on the tabs: how many changes each tab holds for the focused character. */
 export function tabCounts(view: DashView, here: WorldHere | null, focus: string): Record<ChangeTab, ChangeCount | null> {
   const scene = sceneChanges(view, here)

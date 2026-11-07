@@ -4067,10 +4067,13 @@ export function leakCandidates({ facts, reply, userText, people, speakers, userN
   return out.sort((a, b) => b.score - a.score).slice(0, LEAK_MAX).map(({ score, ...c }) => c);
 }
 
-/** The Litopys facts only some know, for this chat: [{id, text, knownBy}]. */
+/**
+ * The Litopys facts only some know, for this chat: [{id, text, knownBy}]. A fact told to a whole group ("group:..." in
+ * knownBy, #184 P7) is not checked yet: this plugin cannot say who belongs to the group, and flagging its members would be wrong.
+ */
 function restrictedFacts(fsx, chatId) {
   const st = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
-  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && f.type !== "belief" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
+  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && f.type !== "belief" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length && !f.knownBy.some((k) => /^group:/i.test(str(k)))).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
 }
 
 /** The candidates of this update, [] when the check is off or nothing resembles a restricted fact. */
@@ -6868,6 +6871,26 @@ function sceneLine(snap, user, cal) {
   return "[Background, the scene: " + dayWords(snap.clock, cal) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
+/** The most ties the insert names (#184 P8): a handful, so a big cast costs about 60 tokens, not a roll call. */
+const EDGES_MAX = 4;
+
+/**
+ * How the people here stand to each other (#184 P8): the sensor's `edges` (a one-word role and warmth for two characters
+ * who are not the user) were stored but never sent. Only ties between two people who are in the scene and still on the
+ * Dashboard. With a speaker, only the ties that speaker is part of (what a character feels about a third pair is not
+ * theirs to know); without one (a narrator voicing everyone) the ties of the people this turn is about come first.
+ * Returns "" when there is nothing to say.
+ */
+export function edgesLine(snap, present, speaker, focus) {
+  const here = new Set(arr(present));
+  const rows = arr(snap && snap.edges).filter((e) => isObj(e) && here.has(e.from) && here.has(e.to) && (str(e.role) || str(e.warmth)));
+  const mine = speaker ? rows.filter((e) => e.from === speaker || e.to === speaker) : rows;
+  const about = new Set(arr(focus));
+  const ranked = speaker ? mine : [...mine.filter((e) => about.has(e.from) || about.has(e.to)), ...mine.filter((e) => !about.has(e.from) && !about.has(e.to))];
+  const lines = ranked.slice(0, EDGES_MAX).map((e) => e.from + " to " + e.to + ": " + [str(e.role), str(e.warmth)].filter(Boolean).join(", "));
+  return lines.length ? "[How they stand to each other: " + lines.join("; ") + ".]" : "";
+}
+
 /** Notes young enough for the insert: older ones are Litopys's now (pinned ones always stay). */
 export function freshNotes(notebook, turn, age) {
   const now = Number(turn);
@@ -7151,7 +7174,9 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const threads = open.length ? "[Open threads the story can move toward: " + open.join("; ") + ".]" : "";
   // maxTokens is per character block; the scene, threads and closing lines come on top
   const layoutText = cfg.layout && cfg.layout.inject === false ? "" : layoutBlock(ctx, present, focus);
-  const shared = estimateTokens(sceneLine(snap, ctx.user, ctx.calendar) + threads + layoutText + CLOSING);
+  // the ties between the people here, only where a notebook may show too: a group that cannot say who speaks gets none
+  const edgesText = notesFor.length ? edgesLine(snap, present, speaker, focus) : "";
+  const shared = estimateTokens(sceneLine(snap, ctx.user, ctx.calendar) + threads + layoutText + edgesText + CLOSING);
   const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   // a character with no pinned note shows no notebook line once the limit is 0
   const hasPinned = (n) => arr(ctx.notebook[n]).some((x) => noteRank(x) === 0);
@@ -7159,6 +7184,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const build = (withRest, notes, limit) => {
     const blocks = [sceneLine(snap, ctx.user, ctx.calendar), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
     if (layoutText) blocks.push(layoutText);
+    if (edgesText) blocks.push(edgesText);
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
     if (threads) blocks.push(threads);
     blocks.push(threads ? CLOSING : CLOSING.replace("; the open threads are there to pull on", ""));

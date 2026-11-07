@@ -110,6 +110,13 @@ Date: 2026-11-05.
 - **Why / history:** #184 (P2: "who witnessed the scene"; code comment at `plugins/litopys`).
 - **Trap:** fixing `buildInsert` alone leaves `buildBackstory` telling a non-witness about an old chapter. Every caller must pass the same `soleVoice` result. Check all four call sites when you touch one.
 
+### Groups in knownBy (#184 P7)
+- **Touches:** `groupToken`, `chatGroups`, `groupLabel`, `litCanon` (`.groups`), `buildInsert`, `castKnowledgeFor`, `buildWorkerRequest`, `applyWorkerResult`, `buildBackstory`, `bookChunks`, `knownByOf` (`plugins/litopys`); World records `members` (`spaceFields`, `applySpace`, `plugins/world`); `restrictedFacts` (`plugins/relations`); the facts lists in `src/components/library/`.
+- **Must stay true:** a `group:` token in `knownBy` is a member list, never a person. Every place that decides who may see a fact expands it through the chat's groups; a place that cannot (the Dashboard's leak check, the engine's Data Bank filter) must not treat it as an unknown person who knows nothing: the leak check skips such facts, a book copies the names. A token no group answers to hides the fact from everyone.
+- **Enforced in:** `plugins/litopys/plugin.js` (the functions above); `plugins/relations/plugin.js` `restrictedFacts`.
+- **Fails in:** `test/rp-faction-groups.test.ts`.
+- **Trap:** a new reader of `knownBy` that compares names only (as `backstoryPart` once did) drops the group fact silently. The engine's `chunkVisibleTo` compares bare names, which is why a snapshot book stores names.
+
 ### Leak check (who learned what in a reply)
 - **Touches:** `leakCandidates`, `leakCandidatesOf`, `holdLeakNotes`, `leakRoute`, `state.leaks` (Dashboard state, `plugins/relations`); route `POST /dashboard/leak`; `src/components/chat/leak-note.tsx` (the badge); Litopys op `know` (sets `knownBy` on a fact, in the Litopys edit route).
 - **Must stay true:** each leak item is keyed by message and swipe (`<messageId>#<swipe>`) and has status `open`, `found` or `ignored`. Only the user's answer sets `found` or `ignored`, through `/dashboard/leak`. A renamed or removed character rewrites the `who` of its leak items. Op `know` adds a name to `knownBy` and does not rewrite the chapter text.

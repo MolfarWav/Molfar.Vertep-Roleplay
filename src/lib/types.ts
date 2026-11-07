@@ -883,6 +883,8 @@ export interface AppSettings {
   language: string
   /** 4.31: a short step with the preset and its choices when a chat starts (absent = on). */
   askPresetOnNewChat?: boolean
+  /** #184 P8: the line under the newest reply that sums up what changed in the Dashboard (absent = on). */
+  showChanges?: boolean
   /** 0.9.5: the user picked the language here; until then it follows the shell's (shell-bridge shellLocale). */
   languageChosen?: boolean
   /** 4.46: what the in-app guide has shown (lib/guide.ts). Absent = nothing yet. */

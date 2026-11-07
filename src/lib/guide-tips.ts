@@ -12,6 +12,16 @@ export const APP_VERSION = '4.97.0'
 const HAND_TIPS: Tip[] = [
   // What's new
   {
+    id: 'help.faction-groups',
+    help: 'story',
+    keywords: { en: 'group groups faction guild tag members known to memory fact secret who knows', uk: 'група групи фракція гільдія тег учасники відомо пам’ять факт секрет хто знає' },
+    title: { en: 'A fact known to a whole group', uk: 'Факт, відомий цілій групі' },
+    body: {
+      en: 'A memory fact can be known to a whole group, for example a guild. Give each card of the group a tag written group: Guild of Ravens (or faction: Guild of Ravens), or list Members on a Group or Place record in the World book. Then type group: Guild of Ravens in the Known to field of the fact: every member in the scene knows it, the others do not.',
+      uk: 'Факт пам’яті може бути відомий цілій групі, наприклад гільдії. Додайте кожній картці групи тег group: Гільдія Воронів (або faction: Гільдія Воронів) чи вкажіть Members у записі Group або Place у World book. Потім у полі Known to факту введіть group: Гільдія Воронів: його знають усі учасники в сцені, решта ні.',
+    },
+  },
+  {
     id: 'new.beliefs',
     since: '4.97.0',
     help: 'story',

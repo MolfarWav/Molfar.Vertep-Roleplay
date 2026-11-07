@@ -20,6 +20,7 @@ import { DashEmpty } from './dash-empty'
 import { DashPhoneBar, DashPhoneSheet } from './dash-phone'
 import { DashSettings } from './dash-settings'
 import { DashStrip } from './dash-strip'
+import type { DashTabId } from './dash-tabs'
 import { clampStripWidth, readFullscreen, readStripWidth, writeFullscreen, writeStripWidth } from '@/lib/dash-strip-width'
 import { DashWide } from './dash-wide'
 import { useDashboard } from './use-dashboard'
@@ -52,12 +53,14 @@ function useSettingsGuard() {
   return { setDirty, canLeave, dialog }
 }
 
+type DashTarget = ReturnType<typeof useApp.getState>['dashTarget']
+
 /**
  * "Open the dashboard" requests (the avatar menu) arrive as a store counter. A mount reacts
  * only to a change after it mounted, and only when its own layout is the one on screen: both
  * mounts are always in the tree, CSS hides one (the strip from 1024 px, the phone bar below).
  */
-function useDashOpenRequest(wide: boolean, onOpen: () => void) {
+function useDashOpenRequest(wide: boolean, onOpen: (target: DashTarget) => void) {
   const counter = useApp((s) => s.dashOpen)
   const seen = useRef(counter)
   const open = useRef(onOpen)
@@ -65,7 +68,7 @@ function useDashOpenRequest(wide: boolean, onOpen: () => void) {
   useEffect(() => {
     if (counter === seen.current) return
     seen.current = counter
-    if (window.matchMedia('(min-width: 1024px)').matches === wide) open.current()
+    if (window.matchMedia('(min-width: 1024px)').matches === wide) open.current(useApp.getState().dashTarget)
   }, [counter, wide])
 }
 
@@ -156,6 +159,8 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const [notebookSignal, setNotebookSignal] = useState(0)
   const [width, setWidth] = useState(readStripWidth)
   const [full, setFull] = useState(readFullscreen)
+  // a change under the newest reply asked for a tab: the strip shows it (the counter tells two asks for the same tab apart)
+  const [tabAsk, setTabAsk] = useState<{ tab: DashTabId; n: number } | null>(null)
   const changeWidth = (n: number, final: boolean) => {
     const w = clampStripWidth(n)
     setWidth(w)
@@ -164,7 +169,16 @@ export function DashStripMount({ chatId }: { chatId: string }) {
   const changeFull = (on: boolean) => { setFull(on); writeFullscreen(on) }
   const guard = useSettingsGuard()
   // an empty dashboard has no sheet: asking for it unfolds the strip
-  useDashOpenRequest(true, () => { setSettings(false); if (dash?.status === 'empty') { setExpanded(true); writeExpanded(true) } else setWideOpen(true) })
+  useDashOpenRequest(true, (target) => {
+    setSettings(false)
+    if (dash?.status === 'empty') { setExpanded(true); writeExpanded(true); return }
+    if (!target) { setWideOpen(true); return }
+    // the chip of a change opens the strip on its tab, the way the Dashboard's own chip does
+    setExpanded(true)
+    writeExpanded(true)
+    if (target.who) dash?.setFocus(target.who)
+    setTabAsk((a) => ({ tab: target.tab, n: (a?.n ?? 0) + 1 }))
+  })
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
 
@@ -226,6 +240,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         userName={userName}
         width={width}
         onWidth={changeWidth}
+        tabAsk={tabAsk}
       />
       {/* inside the sheet while it is open, so its focus trap does not hold the dialog */}
       {!wideOpen && portrait.dialog}
@@ -297,8 +312,16 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
   const userName = useUserName(chatId)
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState(false)
+  // the tab the sheet opens on: the one a change under the newest reply asked for, else Person
+  const [tab, setTab] = useState<DashTabId>('person')
   const guard = useSettingsGuard()
-  useDashOpenRequest(false, () => { setSettings(false); if (dash?.status !== 'empty') setOpen(true) })
+  useDashOpenRequest(false, (target) => {
+    setSettings(false)
+    if (dash?.status === 'empty') return
+    setTab(target?.tab ?? 'person')
+    if (target?.who) dash?.setFocus(target.who)
+    setOpen(true)
+  })
   if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
 
   if (dash.status === 'empty') {
@@ -375,6 +398,8 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
                   avatars={avatars}
                   onPortrait={portrait.open}
                   userName={userName}
+                  tab={tab}
+                  onTab={setTab}
                 />
               </div>
             </>

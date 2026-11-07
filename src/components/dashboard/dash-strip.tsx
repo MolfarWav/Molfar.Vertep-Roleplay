@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { ArrowClockwise, ArrowsOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -69,7 +69,7 @@ export function StripHandle({ width, onWidth }: { width: number; onWidth: (n: nu
   )
 }
 
-export function DashStrip({ chatId, view, here, focus, onFocus, onOpen, onNotebook, onRefresh, onReload, refreshing, collapsed, onCollapse, now, avatars, onPortrait, width, onWidth }: {
+export function DashStrip({ chatId, view, here, focus, onFocus, onOpen, onNotebook, onRefresh, onReload, refreshing, collapsed, onCollapse, now, avatars, onPortrait, width, onWidth, tabAsk }: {
   chatId: string
   view: DashView
   here: WorldHere | null
@@ -91,10 +91,13 @@ export function DashStrip({ chatId, view, here, focus, onFocus, onOpen, onNotebo
   userName: string
   width: number
   onWidth: (n: number, final: boolean) => void
+  /** a tab asked for from outside (a change under the newest reply); `n` changes with every ask */
+  tabAsk?: { tab: DashTabId; n: number } | null
 }) {
   const t = useT()
   const tx = useTx()
   const [tab, setTab] = useState<DashTabId>('person')
+  useEffect(() => { if (tabAsk) setTab(tabAsk.tab) }, [tabAsk])
   const char = view.chars[focus]
   if (!char) return null
   const constName = tx('dash.const', char.constellation)

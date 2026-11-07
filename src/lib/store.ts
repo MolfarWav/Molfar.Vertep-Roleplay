@@ -230,8 +230,10 @@ interface AppState {
   characterEditorTab: string | null
   /** Counter, not persisted: bumped by openDashboard(); the mounted dashboard sheet opens when it changes. */
   dashOpen: number
-  /** Asks the open chat's dashboard to open (wide sheet on desktop, bottom sheet on a phone). */
-  openDashboard: () => void
+  /** The tab (and the character) the last openDashboard(target) asked for; null for a plain open. Read by the mounted dashboard when dashOpen changes. */
+  dashTarget: { tab: 'person' | 'here' | 'quests'; who?: string } | null
+  /** Asks the open chat's dashboard to open (wide sheet on desktop, bottom sheet on a phone). With a target (a change under the newest reply): the strip unfolds on that tab, the phone sheet opens on it. */
+  openDashboard: (target?: { tab: 'person' | 'here' | 'quests'; who?: string }) => void
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
   focusLorebook: (bookId: ID) => void
@@ -675,7 +677,8 @@ export const useApp = create<AppState>()(
       rosterPending: 0,
       characterEditorTab: null,
       dashOpen: 0,
-      openDashboard: () => set((s) => ({ dashOpen: s.dashOpen + 1 })),
+      dashTarget: null,
+      openDashboard: (target) => set((s) => ({ dashOpen: s.dashOpen + 1, dashTarget: target ?? null })),
       focusPresetId: null,
       litopysSettings: false,
       focusLibraryChatId: null,

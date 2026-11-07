@@ -1139,6 +1139,19 @@ function cleanAliases(v, name) {
   return out;
 }
 
+/** The most people a group or a place lists. */
+const MEMBERS_MAX = 30;
+/** A list of names: trimmed, cut, each once (case-insensitive), at most MEMBERS_MAX. */
+function cleanMembers(v) {
+  const out = [];
+  for (const x of arr(v)) {
+    const t = cut(str(x), NAME_MAX);
+    if (t && !out.some((o) => o.toLowerCase() === t.toLowerCase())) out.push(t);
+    if (out.length >= MEMBERS_MAX) break;
+  }
+  return out;
+}
+
 /**
  * Where a record sits (#176): a place is a "spot" (a room, a corner) inside a bigger place, named by `inside`;
  * a thing has a `holder` (a person's name) or a `place` (a place's name), never both. Names, matched to
@@ -1146,6 +1159,11 @@ function cleanAliases(v, name) {
  */
 function spaceFields(kind, raw) {
   const out = {};
+  // the people who belong to a group or a place (#184 P7): the Library's "known to" can name the group
+  if (kind === "group" || kind === "place") {
+    const members = cleanMembers(raw.members);
+    if (members.length) out.members = members;
+  }
   if (kind === "place") {
     if (raw.size === "spot") out.size = "spot";
     if (str(raw.inside)) out.inside = cut(str(raw.inside), NAME_MAX);
@@ -1160,10 +1178,19 @@ function spaceFields(kind, raw) {
 
 /** The DM's update of a record's space fields (in place): a key that is sent changes it, "" clears it. True when something changed. */
 function applySpace(e, raw) {
-  const keys = e.kind === "place" ? ["size", "inside", "background"] : e.kind === "thing" ? ["holder", "place"] : [];
+  const keys = e.kind === "place" ? ["size", "inside", "background", "members"] : e.kind === "thing" ? ["holder", "place"] : e.kind === "group" ? ["members"] : [];
   let changed = false;
   for (const k of keys) {
     if (raw[k] === undefined) continue;
+    // a list that is sent replaces the old one, [] clears it
+    if (k === "members") {
+      const next = cleanMembers(raw.members);
+      if (JSON.stringify(e.members || []) === JSON.stringify(next)) continue;
+      if (next.length) e.members = next;
+      else delete e.members;
+      changed = true;
+      continue;
+    }
     const v = k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
     if ((e[k] || "") === v) continue;
     if (v) e[k] = v;
@@ -4446,7 +4473,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -4461,7 +4488,7 @@ function hereRoute(req, host) {
   const on = existed ? state.settings.level !== "off" : autoOn(host.fs, chat.meta);
   const userName = userNameOf(host.fs, chat.meta);
   const h = hereOf(state, sceneOf(host.fs, chatId, chat.msgs), userName ? [userName] : [], regView(host.fs, chatId));
-  const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) });
+  const rec = (e) => ({ id: e.id, name: e.name, kind: e.kind, text: e.text, aliases: e.aliases, ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) });
   const heldRows = Object.entries(h.held).flatMap(([who, list]) => list.map((t) => ({ ...rec(t), who })));
   return ok({
     on,

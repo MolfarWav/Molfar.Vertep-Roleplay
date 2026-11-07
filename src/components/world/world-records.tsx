@@ -31,6 +31,8 @@ interface Form {
   name: string
   kind: WorldKind
   aliases: string[]
+  /** a group or a place: the people who belong */
+  members: string[]
   text: string
   /** a place: a spot of the place named in `inside`, else a whole place */
   spot: boolean
@@ -45,6 +47,7 @@ const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Par
   name: r.name,
   kind: r.kind,
   aliases: r.aliases,
+  members: r.members ?? [],
   text: r.text,
   spot: r.size === 'spot',
   inside: r.inside ?? '',
@@ -55,29 +58,49 @@ const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Par
 
 /** The space fields to send with a save: "" clears a field the engine would otherwise keep. */
 function spaceOf(f: Form): Partial<WorldRecord> {
-  if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '' }
+  // members belong to groups and places only; [] clears them
+  const members = hasMembers(f.kind) ? { members: f.members.slice(0, MEMBERS_MAX).map((m) => m.slice(0, MEMBER_LEN)) } : {}
+  if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '', ...members }
   if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '' }
-  return {}
+  return members
 }
 
-/** The keys of a record as removable chips plus an input: Enter or a comma adds one. */
-function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+const MEMBERS_MAX = 30
+const MEMBER_LEN = 80
+const hasMembers = (kind: WorldKind) => kind === 'group' || kind === 'place'
+
+/** A list of words as removable chips plus an input: Enter or a comma adds one. Keys by default; members with the props. */
+function KeysInput({ value, onChange, label, placeholder, removeLabel, hint, max, itemMax, testId = 'keys-input' }: {
+  value: string[]
+  onChange: (v: string[]) => void
+  label?: MsgKey
+  placeholder?: MsgKey
+  removeLabel?: MsgKey
+  /** one muted line under the input */
+  hint?: MsgKey
+  /** at most this many items; each at most itemMax characters */
+  max?: number
+  itemMax?: number
+  testId?: string
+}) {
   const t = useT()
   const [draft, setDraft] = useState('')
+  const labelKey = label ?? 'world.rec.keys'
   const add = (raw: string) => {
-    const next = parseAliases([...value, raw].join(','))
+    let next = parseAliases([...value, itemMax ? raw.split(/[,;\n]/).map((x) => x.trim().slice(0, itemMax)).join(',') : raw].join(','))
+    if (max) next = next.slice(0, max)
     if (next.length !== value.length) onChange(next)
     setDraft('')
   }
   return (
-    <div className="flex flex-col gap-1.5 text-sm" data-testid="keys-input">
-      <span className="font-medium">{t('world.rec.keys')}</span>
+    <div className="flex flex-col gap-1.5 text-sm" data-testid={testId}>
+      <span className="font-medium">{t(labelKey)}</span>
       {value.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
           {value.map((k) => (
             <li key={k} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-xs">
               <span className="break-all">{k}</span>
-              <button type="button" aria-label={t('world.rec.keyRemove', { k })} className="inline-flex size-5 items-center justify-center rounded-full hover:bg-accent max-md:size-7" onClick={() => onChange(value.filter((x) => x !== k))}>
+              <button type="button" aria-label={t(removeLabel ?? 'world.rec.keyRemove', { k })} className="inline-flex size-5 items-center justify-center rounded-full hover:bg-accent max-md:size-7" onClick={() => onChange(value.filter((x) => x !== k))}>
                 <X className="size-3" aria-hidden="true" />
               </button>
             </li>
@@ -86,8 +109,10 @@ function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[
       )}
       <Input
         value={draft}
-        aria-label={t('world.rec.keys')}
-        placeholder={t('world.rec.keysPh')}
+        aria-label={t(labelKey)}
+        placeholder={t(placeholder ?? 'world.rec.keysPh')}
+        maxLength={itemMax}
+        disabled={!!max && value.length >= max}
         className="h-10 md:h-9"
         onChange={(e) => {
           const v = e.target.value
@@ -100,6 +125,7 @@ function KeysInput({ value, onChange }: { value: string[]; onChange: (v: string[
         }}
         onBlur={() => { if (draft.trim()) add(draft) }}
       />
+      {hint && <span className="text-xs text-muted-foreground">{t(hint)}</span>}
     </div>
   )
 }
@@ -199,6 +225,19 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
       )}
       <datalist id="world-place-names">{placeNames.map((n) => <option key={n} value={n} />)}</datalist>
       <KeysInput value={f.aliases} onChange={(aliases) => setF({ ...f, aliases })} />
+      {hasMembers(f.kind) && (
+        <KeysInput
+          value={f.members}
+          onChange={(members) => setF({ ...f, members })}
+          label="world.rec.members"
+          placeholder="world.rec.membersPh"
+          removeLabel="world.rec.memberRemove"
+          hint="world.rec.membersHint"
+          max={MEMBERS_MAX}
+          itemMax={MEMBER_LEN}
+          testId="members-input"
+        />
+      )}
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">{t('world.rec.text')}</span>
         <Textarea value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} rows={4} className="min-h-24" />
@@ -259,6 +298,11 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
             <li key={k} className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{k}</li>
           ))}
         </ul>
+      )}
+      {hasMembers(r.kind) && r.members && r.members.length > 0 && (
+        <p className={cn('mt-1 break-words text-xs text-muted-foreground', past && 'opacity-70')} data-testid="record-members">
+          {t('world.rec.membersLine', { names: r.members.join(', ') })}
+        </p>
       )}
       {(r.kind === 'place' && r.size === 'spot' && r.inside) || (r.kind === 'thing' && (r.holder || r.place)) ? (
         <p className={cn('mt-1 text-xs text-muted-foreground', past && 'opacity-70')} data-testid="record-space">

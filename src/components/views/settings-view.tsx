@@ -38,7 +38,7 @@ import { defaultSettings } from "@/lib/seed"
 import { GuideSection } from "@/components/guide/guide-settings"
 
 type ControlDef =
-  | { kind: "switch"; key: keyof AppSettings; label: string; labelKey?: MsgKey; defaultOn?: boolean }
+  | { kind: "switch"; key: keyof AppSettings; label: string; labelKey?: MsgKey; hintKey?: MsgKey; defaultOn?: boolean }
   | { kind: "slider"; key: keyof AppSettings; label: string; min: number; max: number; step: number; unit?: string }
   | { kind: "select"; key: keyof AppSettings; label: string; options: [string, string][] }
 
@@ -86,6 +86,7 @@ const SECTIONS: SectionDef[] = [
       { kind: "switch", key: "autoScroll", label: "Auto-scroll" },
       { kind: "switch", key: "confirmDeletions", label: "Confirm Deletions" },
       { kind: "switch", key: "askPresetOnNewChat", label: "Ask for the preset when a chat starts", labelKey: "pc.settings.ask", defaultOn: true },
+      { kind: "switch", key: "showChanges", label: "Show what changed under the newest reply", labelKey: "dash.since.setting", hintKey: "dash.since.settingHint", defaultOn: true },
       { kind: "switch", key: "showTimestamps", label: "Show Timestamps" },
       { kind: "switch", key: "showMessageIds", label: "Show Message IDs" },
       { kind: "switch", key: "showEdited", label: "Show Edited Markers" },
@@ -161,8 +162,11 @@ export function SettingsView() {
     const value = c.key === "language" ? resolveLanguage(settings.language) : settings[c.key]
     if (c.kind === "switch") {
       return (
-        <label key={c.key} className="flex items-center justify-between py-1.5 text-sm">
-          <span>{c.labelKey ? t(c.labelKey, resolveLanguage(settings.language)) : c.label}</span>
+        <label key={c.key} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+          <span className="flex min-w-0 flex-col">
+            {c.labelKey ? t(c.labelKey, resolveLanguage(settings.language)) : c.label}
+            {c.hintKey && <span className="text-caption text-muted-foreground">{t(c.hintKey, resolveLanguage(settings.language))}</span>}
+          </span>
           <Switch checked={c.defaultOn ? value !== false : (value as boolean)} onCheckedChange={(v) => updateSettings({ [c.key]: v })} />
         </label>
       )

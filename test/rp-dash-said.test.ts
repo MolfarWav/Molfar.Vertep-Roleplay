@@ -151,6 +151,18 @@ describe("what a character said (#98)", () => {
     expect(off.saidText).toBe("");
   });
 
+  it("the ties between two people here reach the insert as one line (#184 P8), and a speaker sees only its own", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria", "Bram"], edges: [{ from: "Aria", to: "Bram", role: "rival", warmth: "cold" }] })]);
+    update(mock, "c1");
+    expect(Object.values(readStateFile("c1").snapshots as Record<string, any>).at(-1).edges).toEqual([{ from: "Aria", to: "Bram", role: "rival", warmth: "cold" }]);
+    const cfg = { injection: {}, said: { inject: true } };
+    const speaking = P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "Aria", targetId: "", userText: "hi" }, cfg);
+    expect(speaking.text).toContain("[How they stand to each other: Aria to Bram: rival, cold.]");
+    const other = P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "Bram", targetId: "", userText: "hi" }, cfg);
+    expect(other.text).toContain("Aria to Bram");
+  });
+
   it("the sensor prompt asks for it, the shape names it, and the old default is a past default", () => {
     expect(P.DEFAULT_PROMPTS.sensor).toContain("- said:");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];

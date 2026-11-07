@@ -129,6 +129,8 @@ export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
 export interface WorldRecord {
   id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean
+  /** a group or a place: the people who belong (names, up to 30, each up to 80 characters); [] clears it when saving. A fact told to the group is known to each of them */
+  members?: string[]
   /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
   size?: 'spot' | ''
   inside?: string

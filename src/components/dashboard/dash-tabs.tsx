@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { canEditNotes, noteCounts, sortedThreads, type DashView } from '@/lib/dashboard'
-import { personChanges, sinceChanges, tabCounts, tally, type ChangeKind, type DashChange } from '@/lib/dash-changes'
+import { personChanges, sinceChanges, sortChanges, tabCounts, tally, type DashChange } from '@/lib/dash-changes'
+import { ChangeChip, useChangeText } from './change-chips'
 import type { WorldHere } from '@/lib/world'
 
 export type DashTabId = 'person' | 'here' | 'quests' | 'notes' | 'history'
@@ -67,37 +68,6 @@ export function DashTabs({ tabs, value, onValueChange, view, here, focus, render
 
 // ---------- Since your last reply ----------
 
-const SINCE_TONE: Record<ChangeKind, string> = {
-  mood: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  carry: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  fell: 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300',
-  rose: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
-  place: 'border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300',
-  things: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  quest: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300',
-  proposal: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300',
-  duplicate: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
-}
-
-function useChangeText() {
-  const t = useT()
-  return (c: DashChange): string => {
-    const stats = (c.stats ?? []).map((s) => t(`soul.stat.${s}`)).join(', ')
-    const who = c.who ?? ''
-    switch (c.kind) {
-      case 'mood': return t('dash.since.mood', { from: c.from ?? '', to: c.to ?? '' })
-      case 'carry': return t('dash.since.carry')
-      case 'fell': return t('dash.since.fell', { name: who, stats })
-      case 'rose': return t('dash.since.rose', { name: who, stats })
-      case 'place': return c.place ? t('dash.since.place', { place: c.place }) : t('dash.since.placeNone')
-      case 'things': return t('dash.since.things')
-      case 'duplicate': return t('dash.since.duplicate', { name: who })
-      case 'quest': return t('dash.since.quest', { n: c.n })
-      default: return t('dash.since.proposal', { n: c.n })
-    }
-  }
-}
-
 const SINCE_SHOWN = 3
 
 /** One chip per change (the first three, the rest behind "+N more"); a click opens the tab that holds it (and focuses the character it is about). Hidden when nothing changed. */
@@ -107,7 +77,7 @@ export function SinceRow({ changes, onPick }: { changes: DashChange[]; onPick: (
   const [all, setAll] = useState(false)
   if (changes.length === 0) return null
   // what fell comes first, and only a few chips show at once: a long row would push the tabs off a phone's screen
-  const sorted = [...changes].sort((a, b) => Number(b.kind === 'fell') - Number(a.kind === 'fell'))
+  const sorted = sortChanges(changes)
   const shown = all ? sorted : sorted.slice(0, SINCE_SHOWN)
   const negative = sorted.some((c) => c.kind === 'fell')
   const hidden = sorted.length - shown.length
@@ -126,15 +96,7 @@ export function SinceRow({ changes, onPick }: { changes: DashChange[]; onPick: (
       </div>
       <div className="flex flex-wrap gap-1.5">
         {shown.map((c, i) => (
-          <button
-            key={`${c.kind}-${c.who ?? ''}-${i}`}
-            type="button"
-            onClick={() => onPick(c)}
-            className={cn('inline-flex min-h-7 max-w-full items-center gap-1.5 border px-2 py-0.5 text-left text-[12px] leading-snug break-words max-md:min-h-10', SINCE_TONE[c.kind])}
-          >
-            <span className="size-1.5 shrink-0 rounded-full bg-current" aria-hidden="true" />
-            {text(c)}
-          </button>
+          <ChangeChip key={`${c.kind}-${c.who ?? ''}-${i}`} change={c} text={text(c)} onPick={onPick} />
         ))}
         {(hidden > 0 || all) && sorted.length > SINCE_SHOWN && (
           <button
