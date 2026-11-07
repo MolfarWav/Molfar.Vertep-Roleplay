@@ -6,7 +6,7 @@ Litopys (the chronicle) is the long memory of one chat. It reads the story in th
 
 - A **chapter** says what changed in a scene, not a retelling. It is written once the next scene begins, so the latest scene may not have one yet. A new place or a jump in time closes a scene; you can also mark a run of messages as a scene yourself, from a message's "More" menu under Story.
 - A **fact** is one short sentence that stays true: "Medli hides her wings at the market." Facts have a type, a weight (Everyday, Important, Key) and who knows them. You can add, edit, pin or retire facts by hand.
-- A **belief** is a fact of the type Belief: something a character was told in a lie and still takes as true. It appears after a lie has been in the Dashboard's Said list for a while, belongs to the one who believes it, and goes into that character's replies only. It ends when that character learns the truth or you remove the lie; you can also retire it by hand like any fact. See [[dashboard]].
+- A **belief** is a fact of the type Belief: something a character was told in a lie and still takes as true. It appears after a lie has been in the Dashboard's Said list for a while, belongs to the one who believes it, and goes into that character's replies only. It ends when that character learns the truth or you remove the lie; you can also end it by hand with **Knows the truth now**, which also tells the Dashboard. The Memory view marks a belief when one went into a reply. See [[dashboard]].
 - **Proposals** are Litopys's suggestions: merge two facts, retire one, reword, pin. You accept or reject each.
 - **Habits** a character clearly shows can also appear, and become a habit after repeating in several scenes.
 

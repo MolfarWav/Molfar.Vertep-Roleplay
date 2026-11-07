@@ -136,3 +136,43 @@ describe("the worker is told a lie is not a fact (#184 P4)", () => {
     expect(JSON.stringify(req2)).toContain("f1: (Bram believes this, and it is untrue) " + LIE);
   });
 });
+
+describe("the user's word and the Library's word end up on both sides (#184 P4)", () => {
+  it("a statement the user marked as a lie becomes a belief after the age; 'not a lie' retires the belief it made", () => {
+    writeChat("c1", story(5), { updatedAt: Date.now() });
+    writeDashWithLie("c1", { Aria: [lie({ kind: "promise", heardBy: undefined })] });
+    writeJson("dashboard/notes/c1.json", { edits: { s1: { lie: true, heardBy: ["Bram"] } } });
+    tick(mockHost());
+    const st = readJson("litopys/chats/c1.json");
+    expect(st.facts.map((f: any) => [f.type, f.holder])).toEqual([["belief", "Bram"]]);
+    writeJson("dashboard/notes/c1.json", { edits: { s1: { lie: false } } });
+    tick(mockHost());
+    expect(readJson("litopys/chats/c1.json").facts[0].status).toBe("retired");
+  });
+
+  it("retiring a belief by hand tells the Dashboard its holder knows the truth, keeping the rest of the overlay", () => {
+    writeChat("c1", story(5), { updatedAt: Date.now() });
+    writeDashWithLie("c1", { Aria: [lie()] });
+    writeJson("dashboard/notes/c1.json", { counter: 3, edits: { s7: { tag: "important" } } });
+    tick(mockHost());
+    const ok = L.factRoute(mockHost().host.fs, { chatId: "c1", op: "retire", id: "f1" });
+    expect(ok.status ?? 200).toBe(200);
+    const ov = readJson("dashboard/notes/c1.json");
+    expect(ov.counter).toBe(3);
+    expect(ov.edits.s7).toEqual({ tag: "important" });
+    expect(ov.edits.s1.exposed).toEqual(["Bram"]);
+    expect(L.exposeInDashboard(mockHost().host.fs, "c1", "s1", "bram")).toBe(true);
+    expect(readJson("dashboard/notes/c1.json").edits.s1.exposed).toEqual(["Bram"]);
+  });
+
+  it("'he found out' writes how: the user told them", () => {
+    writeChat("c1", story(5), { updatedAt: Date.now() });
+    const st = L.emptyChat("c1");
+    st.migrated = true;
+    st.facts = [{ id: "f1", text: "The vault is empty.", subject: "Aria", knownBy: ["Aria"], type: "event", weight: "important", pinned: false, status: "active", src: { from: null, to: null }, origin: "chapter", at: 1, updatedAt: 1 }];
+    st.counters.fact = 1;
+    writeJson("litopys/chats/c1.json", st);
+    L.factRoute(mockHost().host.fs, { chatId: "c1", op: "know", id: "f1", who: "Bram" });
+    expect(readJson("litopys/chats/c1.json").facts[0]).toMatchObject({ knownBy: ["Aria", "Bram"], prov: { Bram: { how: "told", from: "user" } } });
+  });
+});

@@ -91,6 +91,12 @@ function SaidRow({ item, revealed, editable }: { item: SaidNote; revealed: boole
           />
           <DropdownMenuContent align="end" className="min-w-48">
             <DropdownMenuItem onClick={() => setEditing(true)}>{t('dash.note.edit')}</DropdownMenuItem>
+            {/* the user's word over the sensor's: a statement that was a lie, or a lie that was not (#184 P4) */}
+            {item.kind === 'lie' ? (
+              <DropdownMenuItem onClick={() => { void act({ op: 'set-lie', id: item.id, lie: false }) }}>{t('dash.said.notLie')}</DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => { void act({ op: 'set-lie', id: item.id, lie: true }) }}>{t('dash.said.markLie')}</DropdownMenuItem>
+            )}
             <DropdownMenuItem variant="destructive" onClick={() => { void act({ op: 'retire', id: item.id }) }}>{t('dash.note.remove')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

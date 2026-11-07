@@ -34,3 +34,10 @@ describe("believers of a lie in the Said list (#184 P4)", () => {
     expect(render(char([lie({ hidden: false, believers: ["Bram"] })], false))).not.toContain('data-testid="dash-said-believers"');
   });
 });
+
+describe("the lie toggle in the row menu (#184 P4)", () => {
+  it("is part of the markup as a menu item only through the menu, so the row itself still renders for a user-marked lie", () => {
+    const html = render(char([lie({ hidden: false, userLie: true, believers: ["Bram"] })]))
+    expect(html).toContain('data-testid="dash-said-believers"')
+  })
+})

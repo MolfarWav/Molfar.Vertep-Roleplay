@@ -515,7 +515,7 @@ export function useFactControls(chat: LitChat, onChat: (c: LitChat) => void, lin
         fact.pinned
           ? { key: 'unpin', label: t('lit.unpin'), icon: PushPinSlash, run: () => run(fact.id, withToast(t('lit.unpinnedToast'), () => unpinLitFact(chat.chatId, fact.id))) }
           : { key: 'pin', label: t('lit.pin'), icon: PushPin, run: () => pinFlow.pin(fact) },
-        { key: 'retire', label: t('lit.retire'), icon: Archive, run: () => run(fact.id, withToast(t('lit.retiredToast'), () => retireLitFact(chat.chatId, fact.id))) },
+        { key: 'retire', label: fact.type === 'belief' ? t('lit.beliefEnd') : t('lit.retire'), icon: Archive, run: () => run(fact.id, withToast(t('lit.retiredToast'), () => retireLitFact(chat.chatId, fact.id))) },
       )
     }
     if (fact.status === 'retired') out.push({ key: 'restore', label: t('lit.restore'), icon: ArrowCounterClockwise, run: () => run(fact.id, () => restoreLitFact(chat.chatId, fact.id)) })

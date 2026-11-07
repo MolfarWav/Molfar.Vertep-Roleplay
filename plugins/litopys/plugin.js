@@ -4785,12 +4785,18 @@ function liveLies(dash, line, overlay) {
   const gone = [];
   for (const [liar, list] of Object.entries(isObj(dash && dash.said) ? dash.said : {})) {
     for (const s of arr(list)) {
-      if (!isObj(s) || s.kind !== "lie" || !Array.isArray(s.heardBy) || !str(s.id)) continue;
+      if (!isObj(s) || !str(s.id)) continue;
       const e = isObj(edits[s.id]) ? edits[s.id] : null;
+      // "this was a lie" / "not a lie" in the Dashboard's Said list (#184 P4): the user's word over the sensor's
+      const userLie = !!e && e.lie === true && s.kind !== "lie" && Array.isArray(e.heardBy);
+      const notLie = !!e && e.lie === false;
+      // an entry the user took back off as a lie still counts here, so the beliefs it made can end
+      if (!((s.kind === "lie" && Array.isArray(s.heardBy)) || userLie || notLie)) continue;
+      const heardBy = Array.isArray(s.heardBy) ? s.heardBy : arr(e && e.heardBy);
       const exposed = new Set(arr(s.exposed).filter((x) => isObj(x) && str(x.who) && (x.by === undefined || keys.has(x.by))).map((x) => str(x.who)));
       for (const w of arr(e && e.exposed)) exposed.add(str(w));
-      const believers = [...new Set(s.heardBy.map(str).filter((n) => n && n !== liar && !exposed.has(n)))];
-      const entry = { liar, id: str(s.id), text: e && str(e.text) ? str(e.text) : str(s.text), turn: Number(s.turn), src: s.src, believers, exposed: [...exposed], retired: !!(e && e.retired === true), onLine: keys.has(s.src) };
+      const believers = notLie ? [] : [...new Set(heardBy.map(str).filter((n) => n && n !== liar && !exposed.has(n)))];
+      const entry = { liar, id: str(s.id), text: e && str(e.text) ? str(e.text) : str(s.text), turn: Number(s.turn), src: s.src, believers, exposed: [...exposed], retired: !!(e && e.retired === true) || notLie, onLine: keys.has(s.src) };
       if (entry.onLine && !entry.retired) out.push(entry);
       else gone.push(entry);
     }
@@ -4847,6 +4853,31 @@ function endBeliefs(fsx, chatId, st, dash, line, now) {
   }
   if (ended.length) addActivity(st, "notes", "belief.end", ended.length + " beliefs ended (the truth came out, or the lie was removed)", ended.map((f) => f.id), now, { n: ended.length });
   return ended.length + touched;
+}
+
+/**
+ * The holder of a belief learned the truth: the same word the user gives in the Dashboard's Said list ("knows the truth now"),
+ * written into that chat's note overlay (the relations plugin reads `edits[<lie id>].exposed`). Reads and writes the file as
+ * it is, keeping whatever else it holds. A file that cannot be read or written is left alone.
+ */
+export function exposeInDashboard(fsx, chatId, lieId, holder) {
+  if (!SAFE_ID.test(chatId) || !lieId || !holder) return false;
+  const path = "dashboard/notes/" + chatId + ".json";
+  const raw = readJson(fsx, path, null);
+  const ov = isObj(raw) ? { ...raw } : {};
+  const edits = isObj(ov.edits) ? { ...ov.edits } : {};
+  const e = isObj(edits[lieId]) ? { ...edits[lieId] } : {};
+  const had = arr(e.exposed).map(str);
+  if (had.some((n) => n.toLowerCase() === holder.toLowerCase())) return true;
+  e.exposed = [...had, holder];
+  edits[lieId] = e;
+  ov.edits = edits;
+  try {
+    fsx.write(path, JSON.stringify(ov, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function moveLies(fsx, chatId, st, dash, line, now, cfg) {
@@ -6655,6 +6686,8 @@ export function factRoute(fsx, body) {
       if (!who) return bad("who is empty");
       if (fact.knownBy === "all" || arr(fact.knownBy).some((k) => sameName(k, who))) return;
       fact.knownBy = [...arr(fact.knownBy), who];
+      // how they came to know it: the user said so (#184 P4)
+      fact.prov = { ...(isObj(fact.prov) ? fact.prov : {}), [who]: { how: "told", from: "user" } };
       fact.updatedAt = now;
       addActivity(st, "user", "fact.edit", who + " found out: " + quote(fact.text), [fact.id], now, { text: fact.text });
       return;
@@ -6683,6 +6716,8 @@ export function factRoute(fsx, body) {
       fact.updatedAt = now;
       expireProposals(st, fact.id, now);
       addActivity(st, "user", "fact.retire", "Retired: " + quote(fact.text), [fact.id], now, { text: fact.text });
+      // a belief retired by hand means its holder knows the truth now: the Dashboard stops giving the lie to that person too (#184 P4)
+      if (fact.type === "belief" && fact.lie && fact.holder) exposeInDashboard(fsx, str(b.chatId), str(fact.lie), str(fact.holder));
       return;
     }
     if (op === "restore") {
