@@ -49,3 +49,13 @@ export function scopeCss(css: string, prefix = '.mes_text', filterBody?: (body: 
 export function cssAttrValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
+
+/** A chat's own CSS, scoped to that chat's view (`prefix` = its root element). `html`, `:root` and `body` stand for the
+ *  chat's root, so `:root { --tap-h1: ... }` colours this chat only; `@import` and `@font-face` are dropped (nothing
+ *  may load from here). The rule bodies are the person's own and are not filtered. */
+export function scopeChatCss(css: string, prefix: string): string {
+  const bare = css.replace(/@import\b[^;{}]*;?/gi, '').replace(/@font-face\s*\{[^{}]*\}/gi, '')
+  const scoped = scopeCss(bare, prefix)
+  const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return scoped.replace(new RegExp(`${esc} (?:html|:root|body)(?![\\w-])`, 'g'), prefix)
+}

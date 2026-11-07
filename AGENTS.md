@@ -352,6 +352,16 @@ destructive, muted), never hex; below MOBILE_BREAKPOINT (768 px,
 hooks/use-mobile.ts) tap targets of 40 px, nothing hover-only, no sideways
 scroll; rare options folded under "More" like the lorebook entry editor.
 
+Lorebook entries (Lorebooks > a book > Entries): a flat paged list, or a tree once any entry has a `folder`
+(`lib/lore-folders.ts` is the pure logic, `components/lore/entry-tree.tsx` the tree, `folder-dialogs.tsx` Move and
+Rename, New folder). A folder is only the entry's optional `folder` string plus the book's optional `folders` list (so a folder can
+start empty), a path of up to three levels joined by `/` (`Places/Taverns`; a parent exists once a child does, the tree is built from the flat names in `lore-folders.ts`, `renamePath` moves a folder with everything below it), and an optional `folderTones` map (folder name to a tone name, cosmetic only): the prompt engine never reads any of them and it is not `group` (one entry fires per group). A row drags onto a folder or onto "No folder" with the mouse (`LORE_DRAG` in `entry-tree.tsx`); a phone uses Move to folder. An entry opens in a drawer from the right over the list on
+desktop (`entry-editor.tsx`), a full page below 768 px. Its content box is capped at 55% of the screen height, so a long entry
+never fills a phone screen with one text box (nothing outside it would be left to scroll by).
+
+Chat CSS: a chat's own stylesheet, `css` in the chat meta (`chat/chat-css-sheet.tsx`, Chat menu > Chat CSS; `scopeChatCss` in
+`lib/scope-css.ts` scopes it to `[data-chat-id]`, the chat view's root; it mounts after the character's CSS).
+
 ## The in-app guide
 
 What's new after an update, a short tour on the first visit to a section, and

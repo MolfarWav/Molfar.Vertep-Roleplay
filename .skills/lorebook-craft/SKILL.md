@@ -10,12 +10,13 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
 
 1. **Plan in the head before touching files.** Decide: new book or existing, which character links to it, and the entry list with purpose, anchors, and visibility. For a big world, show the user a short outline (entry titles only) and let them confirm. Never read app source code to do this.
 
-2. **Load format details only when needed.** The fields this procedure touches: `entries`, `settings`, `uid`, `keys`, `status`, `content`, `position`, `order`, `secondaryKeys`, `group`, `sticky`, `cooldown`, recursion flags, `/studio/linkedLorebookIds` on the card. For any other field, or to check what one of these means, `read_file` `apps/roleplay/docs/DATA-FORMATS.md` once.
+2. **Load format details only when needed.** The fields this procedure touches: `entries`, `settings`, `uid`, `keys`, `status`, `content`, `position`, `order`, `secondaryKeys`, `group`, `folder`, `sticky`, `cooldown`, recursion flags, `/studio/linkedLorebookIds` on the card. For any other field, or to check what one of these means, `read_file` `apps/roleplay/docs/DATA-FORMATS.md` once.
 
 3. **New book — write a small skeleton, then append entries.**
    - One `json_get` on `apps/roleplay/data/lorebooks/_example.json` for `/settings`.
    - One `write_file` to `apps/roleplay/data/lorebooks/<id>.json`: `id`, `name`, `globalActive: false`, `entries: []`, `settings` from the example.
    - One `json_set` with one `append` to `/entries` per planned entry.
+   - A book of about 30 entries or more: give each entry a `folder` (a short name such as `Places`, `05 - Characters`, or a path such as `Places/Taverns`, at most three levels) in the same append. Folders only tidy the Entries tab; they never change when an entry fires, and they are not `group`.
    - One `json_set` to append the book id to `apps/roleplay/data/characters/<character-id>/card.json` at `/studio/linkedLorebookIds`.
 
 4. **Existing book — read entries, then edit in one call.**

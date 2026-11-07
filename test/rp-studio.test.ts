@@ -474,6 +474,14 @@ describe("rp studio engine: chats + swipes", () => {
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { spriteOutfits: null } }, m);
     const cleared = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
     expect((cleared.json.meta as { spriteOutfits?: unknown }).spriteOutfits ?? null).toBeNull();
+
+    // the chat's own CSS rides the meta too: kept as written, cut at 20000, blank or null clears it
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { css: ".mes_text { color: red }" } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { css?: unknown }).css).toBe(".mes_text { color: red }");
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { css: "a".repeat(25000) } }, m);
+    expect((((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { css?: string }).css ?? "").length).toBe(20000);
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { css: "  " } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { css?: unknown }).css ?? null).toBeNull();
   }, 30_000);
 
   it("numbers forks off the root title instead of stacking suffixes", async () => {

@@ -268,6 +268,8 @@ export interface Chat {
   backgroundId: ID | 'none' | null
   /** switch the background by scene (Dashboard sensor) among this folder's images; absent = off */
   autoBackground?: { on: boolean; folderId: ID; draw?: boolean; style?: string } | null
+  /** This chat's own CSS (Chat menu > Chat CSS), scoped to this chat's view; applied after the global Custom CSS and the character's CSS. */
+  css?: string
   fieldVariantSelection: { desc?: ID; personality?: ID; scenario?: ID }
   /** From the chat list meta: what a chat shows BEFORE its transcript loads.
    *  `messages` is empty until the chat is opened, so lists read these two
@@ -585,6 +587,9 @@ export interface LoreEntry {
   groupScoringOverride: boolean | null
   automationId: string
   matchSources: { description: boolean; personality: boolean; scenario: boolean; persona: boolean }
+  /** The folder the entry sits in on the Entries tab (one level; missing or empty = no folder). Only the editor reads it:
+   *  the prompt engine ignores it, and it is not the `group` field (one entry fires per group). */
+  folder?: string
   /** Engine fields the editor does not model (imported books), written back untouched */
   extra?: Record<string, unknown>
 }
@@ -596,6 +601,10 @@ export interface Lorebook {
   globalActive: boolean
   linkedCharacterIds: ID[]
   entries: LoreEntry[]
+  /** Entry folders that exist even with no entry in them (a folder with entries exists without being listed). Names, one level. */
+  folders?: string[]
+  /** The colour of a folder by name (`sky`, `emerald`, ...); a folder with none is amber. Cosmetic only. */
+  folderTones?: Record<string, string>
   settings: {
     scanDepth: number
     contextPercent: number

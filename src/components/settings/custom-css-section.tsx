@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useApp } from "@/lib/store"
 
 /** Copy-in starting points mirroring the CSS hooks themes lean on. */
-const SNIPPETS: { name: string; css: string }[] = [
+export const SNIPPETS: { name: string; css: string }[] = [
   {
     name: "Serif prose",
     css: `.mes_text {\n  font-family: Georgia, "Times New Roman", serif;\n  font-size: 1.05em;\n}`,
@@ -35,7 +35,7 @@ const SNIPPETS: { name: string; css: string }[] = [
 ]
 
 /** Cheap balance check — catches the mistake that silently kills a stylesheet. */
-function lintCss(css: string): string | null {
+export function lintCss(css: string): string | null {
   let depth = 0
   for (const ch of css) {
     if (ch === "{") depth++

@@ -42,7 +42,7 @@ function withOpenFold<T>(id: string, render: () => T): T {
   }
 }
 const panel = (e: Entry) => renderToStaticMarkup(
-  <EntryEditor entry={e} onChange={noop} onDelete={noop} onDuplicate={noop} onCopyToBook={noop} onClose={noop} />,
+  <EntryEditor entry={e} folders={[]} onChange={noop} onDelete={noop} onDuplicate={noop} onCopyToBook={noop} onClose={noop} />,
 );
 
 describe("entry panel", () => {

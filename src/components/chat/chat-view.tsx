@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { PaintBrush, Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -38,7 +38,8 @@ import { DEFAULT_AVATAR, cn, readableNameColor } from '@/lib/utils'
 import { headerTint } from '@/components/chat/header-tint'
 import { useAvatarExtra } from '@/components/chat/use-avatar-extra'
 import type { ToneName } from '@/components/ui/tone'
-import { cssAttrValue, scopeCss } from '@/lib/scope-css'
+import { cssAttrValue, scopeChatCss, scopeCss } from '@/lib/scope-css'
+import { ChatCssSheet } from '@/components/chat/chat-css-sheet'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
 import { Composer } from './composer'
@@ -199,6 +200,9 @@ export function ChatView() {
   }, [branchTreeFor, chat?.id])
   const [displayOpen, setDisplayOpen] = useState(false)
   const [voicesOpen, setVoicesOpen] = useState(false)
+  const [cssOpen, setCssOpen] = useState(false)
+  /** the CSS being typed in the Chat CSS sheet, shown in the chat before it is saved (null = what is saved) */
+  const [cssDraft, setCssDraft] = useState<string | null>(null)
   useLoadChatVoices(chat?.id ?? '')
   const [bookmarksOpen, setBookmarksOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
@@ -701,6 +705,7 @@ export function ChatView() {
     { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
     { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
     { key: 'voices', icon: Palette, label: t('voices.chat.menu'), onSelect: () => setVoicesOpen(true) },
+    { key: 'css', icon: PaintBrush, label: t('chatCss.menu'), onSelect: () => setCssOpen(true) },
     { key: 'display', icon: GearSix, label: 'Display settings', onSelect: () => setDisplayOpen(true) },
   ]
   // the chat as a whole (were in the composer's plus menu)
@@ -751,7 +756,7 @@ export function ChatView() {
 
   return (
     <DashProvider chatId={chat.id}>
-    <div className="relative flex h-full min-h-0 flex-col" style={{ '--chat-max': chatMax } as React.CSSProperties}>
+    <div className="relative flex h-full min-h-0 flex-col" data-chat-id={chat.id} style={{ '--chat-max': chatMax } as React.CSSProperties}>
       {bg && (
         <div
           aria-hidden="true"
@@ -982,6 +987,8 @@ export function ChatView() {
           scoped to this character's own message rows so a card cannot restyle
           the user's messages or the surrounding app chrome */}
       {character.css?.trim() ? <style dangerouslySetInnerHTML={{ __html: scopeCss(character.css, `[data-char-id="${cssAttrValue(character.id)}"]`) }} /> : null}
+      {/* this chat's own CSS, after the character's: scoped to this chat's view, so it cannot restyle the app around it */}
+      {(cssDraft ?? chat.css ?? '').trim() ? <style data-chat-css dangerouslySetInnerHTML={{ __html: scopeChatCss(cssDraft ?? chat.css ?? '', `[data-chat-id="${cssAttrValue(chat.id)}"]`) }} /> : null}
 
       {/* Group member bar */}
       {character.isGroup && <GroupMemberBar chat={chat} group={character} />}
@@ -1386,6 +1393,7 @@ export function ChatView() {
         </DialogContent>
       </Dialog>
 
+      <ChatCssSheet open={cssOpen} onOpenChange={setCssOpen} saved={chat.css ?? ''} onDraft={setCssDraft} onSave={(css) => updateChat(chat.id, { css })} />
       <VoiceColorsDialog chatId={chat.id} cardColor={!!character.colors?.dialogue} open={voicesOpen} onOpenChange={setVoicesOpen} />
 
       {/* Display settings */}
