@@ -1,11 +1,11 @@
-<!-- source: a7ae85c19a0b -->
+<!-- source: a93fd36e3690 -->
 # 角色、人格与群组
 
 你所玩的一切都存放在四个部分中：Characters、Groups、Personas和Marketplace。本页说明每个部分的用途；帮助文章*Your characters*、*The card editor tabs*和*Groups of characters*包含详细信息。
 
 ## 卡片
 
-卡片是一个角色：描述、性格、场景和第一条消息。Characters部分以网格或列表形式显示你的卡片，支持搜索、标签、文件夹、收藏（星标）和多种排序方式。打开卡片即可编辑。编辑内容会保存在草稿中，直到你按“Save changes”；在有未保存编辑的情况下离开时会先询问。
+卡片是一个角色：描述、性格、场景和第一条消息。标签写作`group: Guild of Ravens`或`faction: Guild of Ravens`时，也会把该卡片的角色放入对应群组，因此告诉群组的记忆事实，群组成员也会知道（[[litopys]]）。Characters部分以网格或列表形式显示你的卡片，支持搜索、标签、文件夹、收藏（星标）和多种排序方式。打开卡片即可编辑。编辑内容会保存在草稿中，直到你按“Save changes”；在有未保存编辑的情况下离开时会先询问。
 
 编辑器有六个标签页：
 
@@ -28,10 +28,22 @@
 
 ## 获取卡片
 
-- “Import card”接受PNG或JSON文件，可导入一个或多个，并支持Chub、RisuRealm、CharaVault的链接或直接文件链接。
+- “Import card”接受PNG或JSON文件，可导入一个或多个，并支持Chub、RisuRealm、CharaVault、Botbooru的链接或直接文件链接。
 - Marketplace可同时搜索多个来源；打开结果即可在导入前阅读完整卡片。每个来源都有自己的排序方式和成人内容过滤器，有些需要手动下载。
 - 导出会写入一个内含卡片的PNG文件。
 - Home上的“With Molfar”（以及Lorebooks中）可让Molfar与你一起起草卡片或设定集。参见[[vertep:molfar]]。
+
+## 卡片的来信
+
+一张很久没玩的卡片会以它自己的口吻给你写一封短信。信件会以绿色的Letter形式进入收件箱（Home上的“Waiting on you”，以及侧边栏的收件箱按钮）；打开它会带你进入那个旧聊天，若是从未玩过的卡片，则会开始一个新聊天。信件绝不会写入聊天，也从不编造事件。
+
+它**默认关闭，直到你打开它**。关闭期间，Characters部分顶部以及Home的“Waiting on you”中会出现一张绿色卡片“Let your characters write to you”：**Turn on**立即打开它，**Not now**则永久隐藏该卡片。闲置天数、每天的信件数、同一张卡片两封信之间的天数、撰写信件的模型，以及你已停止接收信件的卡片，都在Characters的More中的“Letters from cards”里设置。应用打开期间，每隔几小时会检查一次信件：闲置14天的聊天、14天未玩过的卡片，以及一张已玩过但没有Soul的卡片（仅一次）。
+
+## 没有图片的卡片的立绘
+
+没有自己图片（无图或默认头像）的卡片可以绘制立绘。**单张卡片：**在卡片编辑器中，点击立绘下方的“Draw”会打开一个对话框：选择图像模型，文本模型（Card tasks模型）会撰写一段卡片描述，你可以编辑它，然后由图像模型绘制出来。图片会立即进入卡片的Gallery，点“Use as portrait”即可将其设为头像。**多张卡片：**在Characters的More中，“Draw missing portraits (N)”会先询问使用哪个模型，然后通过进度卡片逐张绘制；Cancel会在两张卡片之间停止，失败的卡片会列出原因。
+
+“Draw with”列出Settings > Images中的图像模型：本地的ComfyUI或Forge，以及API模型。第一个选项是应用自带的图像模型（Extensions > Image generation）；在这里的选择仅记住用于立绘。经标签训练的模型会得到一行标签，API模型则得到一段文字。只有名字的卡片没有可描述的内容，对话框会说明这一点。图像生成必须开启（Extensions）；对话框会提示，并替你打开它。
 
 ## 卡片不包含的内容
 

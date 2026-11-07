@@ -1,4 +1,4 @@
-<!-- source: 36ebfb6daad6 -->
+<!-- source: 36f23a51ff05 -->
 # Sahne Dashboard'u
 
 Dashboard, sohbetin yanında sahneyi izleyen bir paneldir: kimin orada olduğu, her karakterin size karşı ne hissettiği, ne giydikleri ve ne bildikleri, açık hikâye izlekleri. Yanıtlar arasında hikâyenin ilişkileri ve ayrıntıları hatırlamasını isteyen herkes içindir. *Scene dashboard* Yardım makalesi alanlarını listeler.
@@ -12,6 +12,24 @@ Sohbette bir portreye tıklayıp Dashboard'u seçerek açın. Yan panelde dört 
 Sayılar (güven, rahatlık, çekim, saygı, sevgi ve daha fazlası) bir modelin bildirdiği olaylardan kodla hesaplanır ve her karakterin [[soul]]'u tarafından eğilir. Durum mesaj başına tutulur; böylece bir kaydırma veya silinen bir mesaj asla bayat sayılar bırakmaz.
 
 Send'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek seferlik bir dürtü kurar; oku açık bir görevi veya bir sürprizi seçer.
+
+## Ne değişti, sohbette
+
+En yeni yanıtın altında sessiz bir satır, Dashboard'un ona ne kaydettiğini söyler: "Changed: Ada · trust fell, mood calm → tense, +2". Açmak için dokunun; aynı çipler Dashboard'un "Since your last reply" satırındaki gibi açılır; bir çip eşleşen Dashboard sekmesini açar (telefonda alt sayfasını). Eski yanıtlar hiçbir şey göstermez ve satır, bir yanıt yazılırken ya da Dashboard hâlâ güncellenirken bekler. Gizlemek için Settings > Chat Behavior içinde "Show what changed under the newest reply" anahtarını kapatın.
+
+## Karakterler arasındaki bağlar
+
+Sensör, sizin olmayan iki karakterin birbirine nasıl durduğunu, tek kelimelik bir rol ve tek kelimelik bir sıcaklık olarak not eder ("rival, cold"). Yanıtın istemi bunlardan en fazla dördünü, yalnızca sahnedeki kişiler için, tek kısa bir satır olarak taşır. Bir karakterin kendi yanıtı yalnızca o karakterin parçası olduğu bağları alır; bir anlatıcı ise tur hakkında olan kişilerin bağlarını önce alır.
+
+## Bir karakterin söyledikleri ve yalanlar
+
+Bir kişinin defterinin altındaki **Said** listesi, söyledikleri ve tutmak zorunda oldukları güçlü şeyleri saklar: bir yemin, bir tehdit, bir itiraf, bir emir. Bir yalan da orada tutulur; "Show hidden"ı seçene kadar gizlidir.
+
+Bir karakter başkalarının önünde yalan söylediğinde, diğerleri bunu doğru kabul eder. Sonraki yanıtları bunu, kendilerine söylenmiş ve kuşkulanmaları için bir neden olmayan bir şey gibi ele alır; hikâye aksini gösterene kadar. Yalnızca sahnede olan insanlar kandırılır ve yalnızca kendi yanıtlarında: başka biri konuşurken yalanı tekrarlamaz.
+
+Bir yalana açtığınızda **Believe it:** görürsünüz; bunun altında hâlâ inanan her kişi için bir düğme bulunur. Bu kişi gerçeği öğrendiğinde bir adına basın. Satırın menüsünde ayrıca, sensörün yalan olarak adlandırmadığı bir ifade için **This was a lie** (sahnedeki kişiler o zaman buna inanır) ve sensörün yanıldığı durumda **Not a lie** vardır. Bir yanıt gerçeğin ortaya çıktığını gösterdiğinde sensör inancı kendiliğinden bitirir. Yalanı listeden kaldırmak, onunla birlikte her inancı da kaldırır.
+
+> Anlatıcı tek bir yanıtta herkesi seslendirir, bu yüzden gerçeği her zaman bilir. Bu yalnızca bir karakterin, bir başkasının bildiğine dayanarak hareket etmesini engeller.
 
 ## Ne zaman güncellenir
 

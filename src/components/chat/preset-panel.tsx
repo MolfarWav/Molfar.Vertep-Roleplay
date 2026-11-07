@@ -40,6 +40,23 @@ export function PresetPanel({ chatId, open, onOpenChange }: { chatId: ID; open: 
   const costs = usePresetCosts(`${preset?.id ?? ''}|${JSON.stringify(preset?.variables ?? [])}`, preset?.id, { chatId }, JSON.stringify(stored), open)
 
   if (!chat || !preset) return null
+  // an archived chat (#263) keeps its preset: the panel only says which one
+  if (chat.archived === true) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="data-[side=right]:w-full sm:max-w-md" aria-describedby={undefined}>
+          <SheetHeader>
+            <SheetTitle>{t('pc.title')}</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-2 px-4 pb-4" data-testid="preset-panel">
+            <span className="text-xs font-medium">{t('pc.thisChat')}</span>
+            <p className="text-sm font-medium">{preset.name}</p>
+            <p className="text-sm text-muted-foreground">{t('chats.archive.readOnly')}</p>
+          </div>
+        </SheetContent>
+      </Sheet>
+    )
+  }
   const hasPicks = Object.keys(stored).length > 0
   const mine = presetDefaults?.[preset.id] ?? null
   const isMine = mine !== null && sameValues(mine, stored)

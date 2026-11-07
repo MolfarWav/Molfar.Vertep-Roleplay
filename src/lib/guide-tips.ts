@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.98.0'
+export const APP_VERSION = '4.99.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.archive',
+    since: '4.99.0',
+    help: 'story',
+    keywords: { en: 'archive archived finished story read only chats list long chat continue earlier memory', uk: 'архів архівний завершена історія лише читання чати список довгий чат продовжити попередній пам’ять' },
+    title: { en: 'Archive a finished story', uk: 'Архів для завершеної історії' },
+    body: {
+      en: 'Press Archive in a chat panel (Chats) to move a finished story out of the list. It stays readable, keeps its memory, and you can Unarchive it any time. When a new chat continues a chat, the earlier one goes to the Archive by itself; that switch is in the Library, Litopys settings.',
+      uk: 'Натисніть В архів на панелі чату (розділ Chats), щоб прибрати завершену історію зі списку. Вона лишається доступною для читання, зберігає пам’ять, а розархівувати можна будь-коли. Коли новий чат продовжує чат, попередній іде в Архів сам; цей перемикач у Library, налаштуваннях Litopys.',
+    },
+  },
   {
     id: 'help.faction-groups',
     since: '4.98.0',

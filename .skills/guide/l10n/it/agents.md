@@ -1,40 +1,48 @@
-<!-- source: a06a17fd0667 -->
+<!-- source: 56891f4e013d -->
 # Gli agenti e la fucina degli agenti
 
-Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Dopo una risposta legge parte della chat, può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
+Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
 
 ## Di cosa è fatto un agente
 
 Un agente è dato, non codice. Nell'editor è una tavola di **schede** collegate da **fili**:
 
 - una scheda **Input** indica cosa l'agente può leggere (l'ultima risposta, la cronologia della chat, la scheda del personaggio, la persona, la nota dell'autore, i fatti di Litopys, le voci del lorebook);
-- le schede **Chiedi al modello** pongono una domanda a un modello e prendono la risposta come testo libero, sì o no, oppure alcuni campi con nome;
+- le schede **Ask the model** pongono una domanda a un modello e prendono la risposta come testo libero, sì o no, oppure alcuni campi con nome;
 - schede logiche e schede che lavorano in codice senza modello: dadi, scelta di una riga, taglio o estrazione di testo;
-- schede per la **memoria** propria dell'agente (numeri, testo, sì/no, elenchi), conservate per ogni chat e separate dalla Dashboard;
-- una scheda **Output** che mostra un risultato: "Una nota sotto la risposta", "Pulsanti da toccare", un valore di stato oppure un suggerimento inserito nel prossimo prompt.
+- una scheda **Script**: poche righe di JavaScript che scrivi, con `(input, seed)` in entrata e un oggetto semplice in uscita, con ingressi e uscite tipizzati. Gira in una sandbox del motore (senza orologio, senza internet, senza file, circa mezzo secondo e 16 MB) e richiede un motore dalla 1.10.1; un motore più vecchio fa fallire l'agente con un messaggio semplice;
+- schede per la **memoria** propria dell'agente (numeri, testo, sì/no, elenchi), conservata per ogni chat e separata dalla Dashboard;
+- una scheda **Output** che mostra un risultato: "A note under the reply", "Buttons to tap", un valore di stato oppure un suggerimento inserito nel prossimo prompt.
 
-I **pannelli** (indicatori, contatori, tabelle, una tavola di tessere) mostrano ciò che l'agente conserva; in un pannello non viene eseguito nulla, e i suoi pulsanti si limitano a inserire testo nella casella del messaggio.
+**Pannelli** (indicatori, contatori, tabelle, una tavola di tessere) mostrano ciò che l'agente conserva; nulla in un pannello viene eseguito, e i suoi pulsanti si limitano a inserire testo nella casella del messaggio.
 
-Quando viene eseguito si imposta per ogni agente: dopo ogni risposta (l'unico momento che questa versione esegue); ogni N risposte; oppure solo quando compaiono parole scelte.
+Quando viene eseguito è una corsia. Il file dell'agente indica la corsia in cui parte, e ogni chat può spostare l'agente in un'altra (la scheda Agenti della chat, oppure la bacheca "Agent sets" del Canvas). Le quattro corsie:
+
+- **Before the reply**: la risposta attende l'agente, e un suggerimento che lascia finisce in quella stessa risposta. Tienilo a una o due domande rapide, perché l'attesa si aggiunge a ogni risposta. L'interruttore Wait della riga dell'agente spegne l'attesa; l'agente gira allora accanto alla risposta.
+- **Beside the reply**: gira nello stesso momento, non aggiunge attesa e non può inserire un suggerimento nella risposta accanto alla quale gira (appunti, pulsanti e pannelli funzionano).
+- **After the reply**: la corsia abituale per appunti, tracker e indicatori.
+- **By hand**: gira solo quando premi il pulsante di esecuzione della sua riga.
+
+Sopra la corsia, un agente può girare a ogni N-esima risposta oppure solo quando compaiono parole scelte.
 
 ## Agenti pronti
 
-Premi "Nuovo agente" nella bacheca Agenti del **Canvas** (la voce **Agenti** della barra laterale la apre). "Agente vuoto" fornisce un Input e una nota. "Parti da un agente pronto" ne offre sei funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio e Indicatore di tensione. Sotto "Bozze" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Bozze da Molfar").
+Premi "New agent" nella bacheca Agents del **Canvas** (la voce **Agents** della barra laterale la apre). "Empty agent" fornisce un Input e una nota. "Start from a ready agent" ne offre sei funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio e Indicatore di tensione. Sotto "Drafts" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Drafts from Molfar").
 
 ## L'editor
 
-Le modifiche vengono salvate come bozza un attimo dopo che ti fermi. Tre schede: Scheda (la scheda selezionata), Agente (nome, quando viene eseguito, la sua memoria, i pannelli) e Prova. Un controllo mostra "Supera il controllo", il numero di problemi e avvisi e "N chiamate al modello per esecuzione". Non puoi installare se restano problemi. "Esporta come file" salva un file che puoi condividere. Il pannello "Installa e gestisci agenti..." della chat ha "Installa un file agente" per importarne uno.
+Le modifiche vengono salvate come bozza un attimo dopo che ti fermi. Tre schede: Scheda (la scheda selezionata), Agente (nome, quando viene eseguito, la sua memoria, i pannelli) e Prova. Un controllo mostra "Passes the check", il numero di problemi e avvisi e "N model calls per run". Non puoi installare finché restano problemi. "Export as a file" salva un unico file che puoi condividere. Il pannello "Install and manage agents..." della chat ha "Install an agent file" per importarne uno.
 
 ## Prova
 
-La scheda Prova esegue un turno inventato senza toccare nulla. Cambi gli input e i fili sulla tavola mostrano cosa si muove; senza modello, ogni scheda "Chiedi al modello" usa una risposta di esempio che puoi modificare. Sotto "Una chat reale" scegli una chat e "Riempi da questa chat" per caricare ciò che l'agente riceverebbe davvero. "Esegui con il modello" pone poi al modello reale la domanda reale: fino a N chiamate, token reali e nulla viene salvato nella chat o nell'agente.
+La scheda Prova esegue un turno inventato senza toccare nulla. Cambi gli input e i fili sulla tavola mostrano cosa si muove; senza modello, ogni scheda "Ask the model" usa una risposta di esempio che puoi modificare. Sotto "A real chat" scegli una chat e "Fill from this chat" per caricare ciò che l'agente riceverebbe davvero. "Run with the model" pone poi al modello reale la domanda reale: fino a N chiamate, token reali e nulla viene salvato nella chat o nell'agente.
 
 ## Installa, consenti, attiva in una chat
 
-1. Premi "Installa" ("Aggiorna" per una copia modificata di un agente installato; usa "Modifica una copia" per cambiarne uno).
-2. Consenti una volta: "Esamina permessi", poi "Consenti tutto" o riga per riga. Viene eseguito quando ogni riga è attiva. Un aggiornamento che chiede di più attende un nuovo Consenti.
-3. Aggiungilo a una chat. Nella pillola dell'intestazione della chat apri la scheda **Agenti**: "In questa chat" elenca gli agenti attivi, "Installati" elenca gli altri (scegline uno per aggiungerlo). Una riga può essere eseguita di nuovo adesso, essere rimossa oppure interrompere la risposta in attesa. Una nuova chat non ha agenti finché non ne aggiungi alcuni o scegli un insieme.
+1. Premi "Install" ("Update" per una copia modificata di un agente installato; usa "Edit a copy" per cambiarne uno).
+2. Consenti una volta: "Review permissions", poi "Allow all" o riga per riga. Viene eseguito quando ogni riga è attiva. Un aggiornamento che chiede di più attende un nuovo consenso. Una scheda Script chiede "Run its own small program"; l'elenco dei permessi mostra il suo codice ("Read the code") prima che tu consenta, e se un aggiornamento cambia il codice, il permesso viene chiesto di nuovo.
+3. Aggiungilo a una chat. Nella pillola dell'intestazione della chat apri la scheda **Agents**: "In this chat" elenca gli agenti attivi, "Installed" elenca gli altri (scegline uno per aggiungerlo). Una riga può essere eseguita di nuovo adesso, essere rimossa oppure smettere di far attendere la risposta. Una nuova chat non ha agenti finché non ne aggiungi alcuni o non scegli un insieme.
 
-Un **insieme** è un elenco di agenti con nome ("Salva l'elenco di questa chat come insieme"; "Rendi predefinito" lo assegna alle nuove chat). La bacheca "Insiemi di agenti" del Canvas mostra il costo in tempo e chiamate di ogni insieme e contiene l'interruttore "Note degli agenti nelle chat" che nasconde le note di ogni agente. Il posto del risultato di ogni agente può essere cambiato nella scheda Agenti della chat, tra i posti adatti.
+Un **insieme** è un elenco di agenti con nome ("Save this chat's list as a set"; "Make default" lo assegna alle nuove chat). La bacheca "Agent sets" del Canvas mostra il costo in tempo e in chiamate di ogni insieme e contiene l'interruttore "Agents' notes in chats", che nasconde le note di tutti gli agenti. Il posto del risultato di ogni agente può essere cambiato nella scheda Agenti della chat, tra i posti adatti.
 
-Ogni scheda "Chiedi al modello" è una chiamata per esecuzione; l'editor mostra il numero. "Ogni N risposte" divide il costo.
+Ogni scheda "Ask the model" è una chiamata per esecuzione; l'editor ne mostra il numero. "Every Nth reply" divide il costo.

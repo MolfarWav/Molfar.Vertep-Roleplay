@@ -1,4 +1,4 @@
-<!-- source: 51684176be4b -->
+<!-- source: f7c0805c5597 -->
 # 你的第一个故事
 
 这是从一个空的Roleplay到运行中故事的最短路径，也是一份关于哪些内容会自动运行、以免你感到意外的清单。你首先需要一个模型连接：参见[[vertep:models]]。
@@ -32,6 +32,8 @@
 3. 在World面板中，选择“Off”级别（当场景提到新地点时，它仍会进行少量调用）或选择一个便宜的“DM model (all chats)”。
 4. 在Dashboard设置中，关闭“Rate characters automatically”。
 5. 在Canvas上，Prompt面板显示下一次请求的每个部分及其token数，并允许你为一个聊天关闭某些部分。
+
+故事变长后需要另外的措施：参见[[long-chats]]。
 
 上下文窗口较小的免费模型最适合使用Manual dashboard和Compact memory。
 

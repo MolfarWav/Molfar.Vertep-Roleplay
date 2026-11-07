@@ -1,4 +1,4 @@
-<!-- source: 0ad76afee424 -->
+<!-- source: 016e8644f058 -->
 # Roleplay: die Übersicht
 
 Roleplay ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Karte. Die eigene **Help** der App (in der Rail) hat zu fast jedem Bildschirm einen kurzen Artikel; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden hier nicht eingerichtet, sondern in den Haupt-Einstellungen: siehe [[vertep:models]].
@@ -33,6 +33,7 @@ Drei Helfer beobachten die Geschichte und verursachen zusätzliche Modellaufrufe
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: die Story-Maschinerie.
 - [[memory]]: welche Art von Gedächtnis wofür.
 - [[canvas]]: Chat-Verknüpfungen, das Prompt-Brett und die Agent-Schmiede.
+- [[long-chats]]: warum ein langer Chat langsam oder teuer wird, was ihn kürzt und wie du eine Geschichte in einen neuen Chat trägst.
 - [[settings]]: wo jede Einstellung liegt.
 
 Neu bei Molfar Vertep selbst? Beginne mit [[vertep:first-steps]] und dem [[vertep:glossary]].

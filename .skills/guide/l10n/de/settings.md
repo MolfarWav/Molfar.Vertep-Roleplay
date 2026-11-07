@@ -1,4 +1,4 @@
-<!-- source: 82c26de2d666 -->
+<!-- source: ed62a0a9288a -->
 # Wo Roleplays Einstellungen sind
 
 Roleplay hat keine einzige Einstellungsseite für alles. Einstellungen liegen nahe bei dem, was sie ändern, und zwei davon sind in den Haupt-Einstellungen von Molfar Vertep. Diese Seite ist ein Wegweiser.
@@ -35,6 +35,6 @@ Der Bereich **Tools** ist eine Reihe von Tabs, gruppiert als Panels (Plugin-Pane
 - **Plugins**: zeigt, welche Plugins hinter der App laufen und was jedes tun darf. Installieren, Aktivieren und Deaktivieren geschehen mit dem Plugins-Button in Molfar Vertep, nicht hier.
 - **Tool Calling** (in Panels): lässt das Modell beim Schreiben Werkzeuge nutzen. Dice Roller und Picture sind eingebaut und bleiben aus, bis du sie einschaltest.
 
-Außerdem: **Shortcuts** enthält Schnellantworten, die selbstständig bei Ereignissen laufen können; Themes ändern die Farbpalette sofort, Prose Colors färben Rede und Erzählung um, und Custom CSS wird zuletzt angewendet.
+Außerdem: **Shortcuts** enthält Schnellantworten, die selbstständig bei Ereignissen laufen können; Themes ändern die Farbpalette sofort, Prose Colors färben Rede und Erzählung um, und Custom CSS wird zuletzt angewendet. Ein Chat kann außerdem sein eigenes CSS haben: im Chat **More** > **Chat CSS**. Es zeigt sich, während du tippst, gilt nur für diesen Chat und hat Vorrang vor dem globalen Custom CSS und dem CSS der Karte.
 
 Zurück zum [[index]].

@@ -1,4 +1,4 @@
-<!-- source: 51684176be4b -->
+<!-- source: f7c0805c5597 -->
 # Twoja pierwsza historia
 
 To najkrótsza droga od pustego Roleplay do działającej historii oraz lista tego, co dzieje się samo, aby nic cię nie zaskoczyło. Najpierw potrzebujesz połączenia z modelem: zobacz [[vertep:models]].
@@ -32,6 +32,8 @@ Najtańsze oszczędności, po kolei:
 3. W arkuszu World wybierz poziom „Off” (wciąż robi małe wywołanie, gdy scena nazwie nowe miejsce) albo wybierz tani „DM model (all chats)”.
 4. W ustawieniach Pulpitu wyłącz „Rate characters automatically”.
 5. W Canvas plansza Prompt pokazuje każdą część następnego zapytania z jej tokenami i pozwala wyłączać części dla jednego czatu.
+
+Długa historia wymaga własnych środków: zobacz [[long-chats]].
 
 Darmowe modele z małym oknem kontekstu najlepiej radzą sobie z pulpitem Manual i pamięcią Compact.
 

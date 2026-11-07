@@ -1762,6 +1762,8 @@ export const useApp = create<AppState>()(
       setChatPreset: async (chatId, body) => {
         const before = get().chats.find((c) => c.id === chatId)
         if (!before) return
+        // an archived chat (#263) is read only: its preset and picks stay as they were
+        if (before.archived === true) { toast.info(t('chats.archive.readOnly')); return }
         bumpMutate()
         // show the pick at once; the engine's meta (with the note) replaces it a moment later
         const nextPresetId = body.presetId ?? before.presetId
@@ -1879,9 +1881,9 @@ export const useApp = create<AppState>()(
             // the same link the Canvas draws: the earlier chat's story rides along as backstory
             try {
               const { setLitLink } = await import('@/components/library/litopys-api')
-              await setLitLink(id, opts.continues)
-              const { archiveAfterLink } = await import('@/lib/archive')
-              void archiveAfterLink(opts.continues)
+              const linked = await setLitLink(id, opts.continues)
+              const { noteLinkArchived } = await import('@/lib/archive')
+              noteLinkArchived(linked.archived)
             } catch (e) { toast.error(String((e as Error).message ?? e)) }
           }
           if (opts?.world) {

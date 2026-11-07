@@ -20,22 +20,30 @@ export function archiveChats(ids: ID[]): void {
   })
 }
 
-/** `fromId` just became the earlier chat of another one: archive it, unless the user switched that off in the memory settings, it is already
- *  archived, gone, or still answering. A toast with Undo says so. Failures are silent: a missing Library only means no archiving. */
-export async function archiveAfterLink(fromId: ID): Promise<void> {
-  try {
-    const { fetchLitConfig } = await import('@/components/library/litopys-api')
-    const cfg = await fetchLitConfig()
-    if (cfg.archiveOnContinue === false) return
-  } catch { return }
+/** What a toast says about chats the links route archived (#263). */
+export function linkArchivedLine(ids: ID[]): string {
   const app = useApp.getState()
-  const chat = app.chats.find((c) => c.id === fromId)
-  if (!chat || isArchived(chat) || app.streaming?.chatId === fromId) return
-  app.updateChat(fromId, { archived: true })
-  const name = chat.title.trim() || app.characters.find((c) => c.id === chat.characterId)?.name || ''
-  toast.success(t('chats.archivedAuto', undefined, { name }), {
-    action: { label: t('canvas.undo'), onClick: () => { useApp.getState().updateChat(fromId, { archived: false }) } },
-  })
+  const names = ids
+    .map((id) => {
+      const c = app.chats.find((x) => x.id === id)
+      return c ? c.title.trim() || app.characters.find((x) => x.id === c.characterId)?.name || '' : ''
+    })
+    .filter(Boolean)
+  return t('chats.archivedAuto', undefined, { name: names.join('”, “') })
+}
+
+export function unarchiveChats(ids: ID[]): void {
+  for (const id of ids) useApp.getState().updateChat(id, { archived: false })
+}
+
+/** The links route moved these chats to the Archive because another chat now continues them: load their new meta and, unless `quiet`
+ *  (the caller has a toast of its own, the Canvas), say so with an Undo. An older plugin answers no `archived`: nothing moved. */
+export function noteLinkArchived(ids: ID[] | undefined, opts: { quiet?: boolean } = {}): void {
+  if (!ids?.length) return
+  const line = linkArchivedLine(ids)
+  for (const id of ids) void useApp.getState().reloadChat(id)
+  if (opts.quiet) return
+  toast.success(line, { action: { label: t('canvas.undo'), onClick: () => unarchiveChats(ids) } })
 }
 
 export function unarchiveChat(id: ID): void {

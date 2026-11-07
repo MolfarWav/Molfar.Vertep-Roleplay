@@ -4,7 +4,7 @@ import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
 import { fetchLitChats, setLitLink, type LitChatItem } from '@/components/library/litopys-api'
-import { archiveAfterLink } from '@/lib/archive'
+import { linkArchivedLine, noteLinkArchived, unarchiveChats } from '@/lib/archive'
 import { historyOf, commit, undo as undoHistory, redo as redoHistory, layoutForest, canConnect, connect as applyConnect, removeEdge, removeNode, moveNode } from '@/canvas-kit/graph'
 import type { CanvasNode, Graph, History } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
@@ -235,12 +235,16 @@ export function CanvasView() {
   const writeLinks = useCallback(
     async (prev: Graph, next: Graph) => {
       const stored = new Map(allChats.map((c) => [c.id, c.continues ?? null]))
+      // the chats this write moved to the Archive (#263): the toast below says so and its Undo brings them back
+      const archived: string[] = []
       for (const ch of linkChanges(prev, next)) {
         if (!stored.has(ch.chatId) || stored.get(ch.chatId) === ch.from) continue
-        await setLitLink(ch.chatId, ch.from)
-        if (ch.from) void archiveAfterLink(ch.from)
+        const linked = await setLitLink(ch.chatId, ch.from)
+        noteLinkArchived(linked.archived, { quiet: true })
+        archived.push(...(linked.archived ?? []))
         setChats((cs) => (cs ? cs.map((c) => (c.id === ch.chatId ? { ...c, continues: ch.from } : c)) : cs))
       }
+      return archived
     },
     [allChats]
   )
@@ -248,14 +252,18 @@ export function CanvasView() {
   const persistGraph = useCallback(
     async (prev: Graph, next: Graph, toastLabel?: string) => {
       try {
-        await writeLinks(prev, next)
+        const archived = await writeLinks(prev, next)
         if (toastLabel && TOAST_KEY[toastLabel]) {
+          // one toast: the change, the chat it archived (if any), one Undo for both
           toast(t(TOAST_KEY[toastLabel]), {
+            ...(archived.length ? { description: linkArchivedLine(archived) } : {}),
             action: {
               label: t('canvas.undo'),
-              onClick: () => undoRef.current(),
+              onClick: () => { undoRef.current(); unarchiveChats(archived) },
             },
           })
+        } else if (archived.length) {
+          toast.success(linkArchivedLine(archived), { action: { label: t('canvas.undo'), onClick: () => unarchiveChats(archived) } })
         }
       } catch (e) {
         setGraph(prev)

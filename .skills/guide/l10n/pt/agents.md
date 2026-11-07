@@ -1,40 +1,48 @@
-<!-- source: a06a17fd0667 -->
+<!-- source: 56891f4e013d -->
 # Agentes e a forja de agentes
 
-Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Depois de uma resposta, ele lê parte do chat, pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
+Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
 
 ## Do que um agente é feito
 
 Um agente é dado, não código. No editor, ele é um quadro de **cartões** unidos por **fios**:
 
-- um cartão de **Entrada** diz o que o agente pode ler (a última resposta, o histórico do chat, o cartão do personagem, a persona, a nota do autor, fatos do Litopys, entradas do lorebook);
-- cartões **Perguntar ao modelo** fazem uma pergunta a um modelo e recebem a resposta como texto livre, sim ou não, ou alguns campos nomeados;
+- um cartão **Input** diz o que o agente pode ler (a última resposta, o histórico do chat, o cartão do personagem, a persona, a nota do autor, fatos do Litopys, entradas do lorebook);
+- cartões **Ask the model** fazem uma pergunta a um modelo e recebem a resposta como texto livre, sim ou não, ou alguns campos nomeados;
 - cartões de lógica, e cartões que trabalham em código sem modelo: dados, escolher uma linha, recortar ou extrair texto;
+- um cartão **Script**: algumas linhas de JavaScript que você escreve, `(input, seed)` na entrada e um objeto simples na saída, com entradas e saídas tipadas. Ele roda em uma caixa de areia do motor (sem relógio, sem internet, sem arquivos, cerca de meio segundo e 16 MB) e precisa de um motor a partir da versão 1.10.1; um motor mais antigo faz o agente falhar com uma mensagem simples;
 - cartões para a **memória** do próprio agente (números, texto, sim/não, listas), mantida para cada chat e separada do Dashboard;
-- um cartão de **Saída** que mostra um resultado: "Uma nota sob a resposta", "Botões para tocar", um valor de estado, ou uma dica inserida no próximo prompt.
+- um cartão **Output** que mostra um resultado: "A note under the reply", "Buttons to tap", um valor de estado, ou uma dica colocada no próximo prompt.
 
 **Painéis** (medidores, contadores, tabelas, um quadro de peças) exibem o que o agente guarda; nada em um painel executa, e seus botões apenas colocam texto na caixa de mensagem.
 
-Quando ele executa é definido por agente: depois de cada resposta (o único momento que esta versão executa); a cada N respostas; ou somente quando palavras escolhidas aparecem.
+Quando ele executa é definido por uma faixa. O arquivo do agente indica a faixa em que ele começa, e cada chat pode levá-lo para outra faixa (na aba Agents do chat, ou no quadro "Agent sets" do Canvas). As quatro faixas:
+
+- **Before the reply**: a resposta espera pelo agente, e uma dica que ele deixa entra nessa mesma resposta. Mantenha-o em uma ou duas perguntas rápidas, porque a espera é somada a cada resposta. O interruptor Wait da linha do agente desliga a espera; o agente então roda ao lado da resposta.
+- **Beside the reply**: roda ao mesmo tempo, não soma espera, e não pode colocar uma dica na resposta ao lado da qual roda (notas, botões e painéis funcionam).
+- **After the reply**: a faixa usual para notas, rastreadores e medidores.
+- **By hand**: roda somente quando você pressiona o botão de executar da sua linha.
+
+Além da faixa, um agente pode rodar a cada N respostas, ou somente quando palavras escolhidas aparecem.
 
 ## Agentes prontos
 
-Pressione "Novo agente" no quadro Agentes do **Canvas** (o item **Agentes** da barra lateral o abre). "Agente vazio" fornece uma Entrada e uma nota. "Começar de um agente pronto" oferece seis funcionais: Próximos movimentos, Empurrão de ritmo, Mapa da história, Resumo da cena, Quadro de território e Medidor de tensão. Em "Rascunhos" estão agentes que o Molfar escreveu no seu espaço de trabalho ("Rascunhos do Molfar").
+Pressione "New agent" no quadro Agents do **Canvas** (o item **Agents** da barra lateral o abre). "Empty agent" cria um cartão Input e uma nota. "Start from a ready agent" oferece seis prontos para uso: Next moves, Pacing nudge, Story map, Scene recap, Territory board e Tension meter. Em "Drafts" ficam os agentes que o Molfar escreveu no seu espaço de trabalho ("Drafts from Molfar").
 
 ## O editor
 
-As edições são salvas como rascunho um momento depois de você parar. Três abas: Cartão (o cartão selecionado), Agente (nome, quando executa, sua memória, painéis) e Testar. Uma verificação mostra "Passa na verificação", o número de problemas e avisos, e "N chamadas de modelo por execução". Você não pode instalar com problemas pendentes. "Exportar como arquivo" salva um arquivo que você pode compartilhar. A janela "Instalar e gerenciar agentes..." do chat tem "Instalar um arquivo de agente" para trazer um.
+As edições são salvas como rascunho um instante depois de você parar. Três abas: Card (o cartão selecionado), Agent (nome, quando executa, sua memória, painéis) e Try. Uma verificação mostra "Passes the check", o número de problemas e avisos, e "N model calls per run". Você não pode instalar com problemas pendentes. "Export as a file" salva um arquivo que você pode compartilhar. A janela "Install and manage agents..." do chat tem "Install an agent file" para trazer um.
 
 ## Execução de teste
 
-A aba Testar executa um turno simulado sem tocar em nada. Você muda as entradas, e os fios no quadro mostram o que se move; sem modelo, cada cartão "Perguntar ao modelo" usa uma resposta de exemplo que você pode editar. Em "Um chat real", escolha um chat e "Preencher deste chat" para carregar o que o agente realmente receberia. "Executar com o modelo" então pergunta ao modelo real com a pergunta real: até N chamadas, tokens reais, e nada é salvo no chat ou no agente.
+A aba Try executa um turno fictício sem tocar em nada. Você muda as entradas, e os fios no quadro mostram o que se move; sem modelo, cada cartão "Ask the model" usa uma resposta de exemplo que você pode editar. Em "A real chat", escolha um chat e "Fill from this chat" para carregar o que o agente de fato receberia. "Run with the model" então pergunta ao modelo real com a pergunta real: até N chamadas, tokens reais, e nada é salvo no chat ou no agente.
 
 ## Instalar, permitir, ativar em um chat
 
-1. Pressione "Instalar" ("Atualizar" para uma cópia alterada de um agente instalado; use "Editar uma cópia" para mudar um).
-2. Permita-o uma vez: "Revisar permissões", depois "Permitir tudo" ou linha por linha. Ele executa quando cada linha está ativa. Uma atualização que pede mais espera por uma nova permissão.
-3. Adicione-o a um chat. No selo do cabeçalho do chat, abra a aba **Agentes**: "Neste chat" lista os agentes ativos, "Instalados" lista os demais (escolha um para adicioná-lo). Uma linha pode executar novamente agora, ser removida, ou impedir que a resposta espere por ela. Um chat novo não tem agentes até você adicionar alguns ou escolher um conjunto.
+1. Pressione "Install" ("Update" para uma cópia alterada de um agente instalado; use "Edit a copy" para mudar um).
+2. Permita-o uma vez: "Review permissions", depois "Allow all" ou linha por linha. Ele executa quando todas as linhas estão ativas. Uma atualização que pede mais espera por uma nova permissão. Um cartão Script pede "Run its own small program"; a lista de permissões mostra o código dele ("Read the code") antes de você permitir, e se uma atualização mudar o código, a permissão é pedida de novo.
+3. Adicione-o a um chat. No selo do cabeçalho do chat, abra a aba **Agents**: "In this chat" lista os agentes ativos, "Installed" lista os demais (escolha um para adicioná-lo). Uma linha pode executar de novo agora, ser removida, ou fazer a resposta deixar de esperar por ela. Um chat novo não tem agentes até você adicionar alguns ou escolher um conjunto.
 
-Um **conjunto** é uma lista nomeada de agentes ("Salvar a lista deste chat como conjunto"; "Tornar padrão" a dá a chats novos). O quadro "Conjuntos de agentes" do Canvas mostra o custo de cada conjunto em tempo e chamadas, e contém o interruptor "Notas dos agentes nos chats" que oculta as notas de todos os agentes. O local do resultado de cada agente pode ser mudado na aba Agentes do chat, entre os locais que lhe servem.
+Um **conjunto** é uma lista nomeada de agentes ("Save this chat's list as a set"; "Make default" o dá a chats novos). O quadro "Agent sets" do Canvas mostra o custo de cada conjunto em tempo e chamadas, e tem o interruptor "Agents' notes in chats" que oculta as notas de todos os agentes. O local do resultado de cada agente pode ser mudado na aba Agents do chat, entre os locais que lhe servem.
 
-Cada cartão "Perguntar ao modelo" é uma chamada por execução; o editor mostra o número. "A cada N respostas" divide o custo.
+Cada cartão "Ask the model" é uma chamada por execução; o editor mostra o número. "Every Nth reply" divide o custo.

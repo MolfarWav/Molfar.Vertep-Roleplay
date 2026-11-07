@@ -286,11 +286,11 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
               <CommandEmpty>Nothing matches.</CommandEmpty>
 
               {tab === 'preset' && (
-                <CommandGroup heading={`Presets · ${presets.length}`} className="flex flex-col gap-0.5">
+                <CommandGroup heading={chat.archived ? `Presets · ${t('chats.archive.readOnly')}` : `Presets · ${presets.length}`} className="flex flex-col gap-0.5">
                   {shownPresets.map((p) => {
                     const active = p.id === preset?.id
                     return (
-                      <CommandItem key={p.id} value={`preset ${p.name}`} onSelect={() => pick(() => { if (p.id !== preset?.id) void setChatPreset(chatId, { presetId: p.id }) })}
+                      <CommandItem key={p.id} value={`preset ${p.name}`} disabled={chat.archived === true} onSelect={() => pick(() => { if (p.id !== preset?.id) void setChatPreset(chatId, { presetId: p.id }) })}
                         className={cn(itemCls, active && activeItemCls)}>
                         <span className={cn(
                           'flex size-5 shrink-0 items-center justify-center rounded-full',

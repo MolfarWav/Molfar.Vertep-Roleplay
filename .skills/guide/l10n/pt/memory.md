@@ -1,4 +1,4 @@
-<!-- source: e65c6432f795 -->
+<!-- source: 95c26add0cfc -->
 # Qual memória para quê
 
 O Roleplay tem várias coisas que "lembram". Elas diferem em quem as guarda, o que contêm e quanto tempo duram. Se um personagem esquecer algo, esta página diz qual delas usar.
@@ -15,6 +15,8 @@ O Roleplay tem várias coisas que "lembram". Elas diferem em quem as guarda, o q
 
 **Lorebooks.** Entradas de referência que entram no prompt quando suas palavras-chave aparecem, ou sempre, no caso de algumas. Elas guardam as regras do mundo, lugares e pessoas. Vincule um livro a um cartão ou grupo, ou marque-o como Global para alcançar todos os chats. Um chat também ganha seu próprio livro de mundo, escrito pelo World DM ([[world-dm]]). Uma entrada definida como **By meaning** é ativada quando seu sentido fica próximo das mensagens recentes, mesmo sem palavra-chave. Com um modelo de embeddings local, o motor compara as entradas de um livro entre si: uma entrada é ativada quando se destaca das demais para esta mensagem, até 10 entradas por livro. Um livro com menos de 4 entradas desse tipo usa uma proximidade fixa. Uma entrada com palavras-chave secundárias ainda precisa delas. Se você trocar o modelo de embeddings, as entradas são refeitas sozinhas na resposta seguinte ou nas duas seguintes.
 
+**Pastas em um lorebook.** Um livro grande é mais fácil de ler em pastas. Pressione **New folder** ao lado de **Add entry** para criar uma (ela começa vazia), depois abra uma entrada e use **Folder**, ou pressione **Select several** e **Move to folder…**. Quando um livro tem uma pasta, a aba **Entries** vira uma árvore: pastas primeiro (cada uma mostra quantas entradas tem e seus tokens), depois as entradas sem pasta. O menu de uma pasta pode adicionar uma entrada nela, criar uma pasta dentro dela (até três níveis; ou digite `Places/Taverns` como nome), ligar ou desligar todas as suas entradas (inclusive as de dentro), renomear a pasta ou dar-lhe uma cor, ou removê-la (suas entradas e as pastas dentro dela sobem um nível). No computador, você também pode arrastar uma entrada para uma pasta (ou para **No folder**); uma entrada marcada arrasta todas as marcadas. No telefone, use **Move to folder…**. A busca e os chips de filtro abrem as pastas que têm algum resultado. Pastas só organizam a lista: elas não mudam quando uma entrada dispara, e não são a configuração **Group** (de um só grupo, apenas uma entrada dispara). Uma entrada abre em uma gaveta à direita no computador, e em página inteira no telefone.
+
 **Data Bank** (Tools). Documentos de texto que você envia (somente formatos de texto, até 2 MB cada). A cada mensagem, as passagens mais relevantes são adicionadas: encontradas primeiro pelas palavras e, com um modelo de embeddings configurado, também ordenadas por sentido (o cartão **Data Bank by meaning** na mesma tela: um toque, ou o motor faz sozinho assim que o embedding funcionar). Use-o para material de referência longo, não para a história em si. Um **livro** é um arquivo do Data Bank feito a partir de uma história: em Library > Litopys, **Save as a book** copia os capítulos, arcos e fatos de um chat para um arquivo de estante que outros chats podem ler. Escolha os chats que podem lê-lo (os chats que continuam este são escolhidos para você). É uma cópia, não um link: mudanças posteriores no chat não chegam até ele, e **Save a new version** mantém o antigo. Um personagem só recebe passagens que poderia conhecer: um fato mantém sua lista "known by", um capítulo, seu elenco. Na aba Data Bank, **passages** permite corrigir ou apagar uma passagem e mudar os leitores; a visão Memory conta as passagens deixadas de fora.
 
 **Nota do autor** (cabeçalho do chat, "Note"). Texto que você escreve só para este chat, posicionado na profundidade e no papel que você escolher. Use-o para direcionar: uma dica de estilo, um empurrão no enredo.
@@ -24,7 +26,7 @@ O Roleplay tem várias coisas que "lembram". Elas diferem em quem as guarda, o q
 ## Qual usar
 
 - "Ela deveria lembrar da briga de ontem à noite": o Dashboard cuida disso no curto prazo; o Litopys mantém no longo prazo. Adicione um fato fixado se ele nunca puder se perder.
-- "Ela deveria lembrar da história anterior em um chat novo": memória do cartão, ou vincule os chats no Canvas para que o chat anterior traga a história dele como pano de fundo.
+- "Ela deveria lembrar da história anterior em um chat novo": memória do cartão, ou vincule os chats no Canvas para que o chat anterior traga a história dele como pano de fundo ([[canvas]], [[long-chats]]).
 - "O mundo tem uma regra ou um lugar": um lorebook.
 - "Quero que as próximas respostas sigam por este caminho": nota do autor, ou o botão "Story, move".
 - "Tenho um documento longo": Data Bank.
@@ -39,4 +41,4 @@ O botão **Fired** (raio) no cabeçalho do chat abre um painel para a última re
 
 ## Custos
 
-Tudo isso ocupa espaço no prompt. O quadro Prompt do Canvas mostra cada parte com a sua contagem de tokens e permite desligar partes em um chat. Em um modelo pequeno, reduza o "Memory size" do Litopys, mantenha a memória do cartão em Compact e prefira poucas entradas curtas de lorebook.
+Tudo isso ocupa espaço no prompt. O quadro Prompt do Canvas mostra cada parte com a sua contagem de tokens e permite desligar partes em um chat. Em um modelo pequeno, reduza o "Memory size" do Litopys, mantenha a memória do cartão em Compact e prefira poucas entradas curtas de lorebook. Um chat que cresceu custa mais a cada resposta: [[long-chats]] diz o que o reduz e como continuar a história em um chat novo. A página do Canvas, [[canvas]], explica os quadros.

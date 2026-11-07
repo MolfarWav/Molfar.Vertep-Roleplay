@@ -1,4 +1,4 @@
-<!-- source: e65c6432f795 -->
+<!-- source: 95c26add0cfc -->
 # Quale memoria per cosa
 
 Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, cosa contengono e quanto durano. Se un personaggio dimentica qualcosa, questa pagina ti dice quale usare.
@@ -15,6 +15,8 @@ Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, 
 
 **Lorebooks.** Voci di riferimento che entrano nel prompt quando compaiono le loro parole chiave, oppure sempre per alcune. Contengono le regole del mondo, i luoghi, le persone. Collega un libro a una scheda o a un gruppo, oppure segnalo come Global per raggiungere ogni chat. Una chat riceve anche un proprio libro del mondo, scritto dal World DM ([[world-dm]]). Una voce impostata su **By meaning** scatta quando il suo senso è vicino ai messaggi recenti, anche senza una chiave. Con un modello di embeddings locale il motore confronta tra loro le voci di un libro: una voce scatta quando si distingue dalle altre per questo messaggio, fino a 10 voci per libro. Un libro con meno di 4 di queste voci usa una vicinanza fissa. Una voce con chiavi secondarie ha comunque bisogno di quelle. Se cambi il modello di embeddings, le voci vengono rifatte da sole alla risposta successiva o alle due successive.
 
+**Cartelle in un lorebook.** Un libro grande si legge meglio a cartelle. Premi **New folder** accanto a **Add entry** per crearne una (parte vuota), poi apri una voce e usa **Folder**, oppure premi **Select several** e **Move to folder…**. Appena un libro ha una cartella, la scheda **Entries** diventa un albero: prima le cartelle (ciascuna mostra quante voci contiene e i suoi token), poi le voci senza cartella. Il menu di una cartella può aggiungere una voce lì, creare una cartella al suo interno (fino a tre livelli; oppure scrivi `Places/Taverns` come nome), attivare o disattivare tutte le sue voci (anche quelle sottostanti), rinominare la cartella o darle un colore, oppure rimuoverla (le sue voci e le cartelle al suo interno salgono di un livello). Su un computer puoi anche trascinare una voce su una cartella (o su **No folder**); una voce spuntata trascina tutte quelle spuntate. Su un telefono usa **Move to folder…**. La ricerca e i chip dei filtri aprono le cartelle che hanno una corrispondenza. Le cartelle servono solo a ordinare l'elenco: non cambiano quando una voce scatta, e non sono l'impostazione **Group** (di un solo gruppo scatta una sola voce). Una voce si apre in un cassetto da destra su un computer, e come pagina intera su un telefono.
+
 **Data Bank** (Tools). Documenti di testo che carichi (solo formati di testo, fino a 2 MB ciascuno). A ogni messaggio vengono aggiunti i passaggi più pertinenti: trovati prima per parole e, con un modello di embeddings configurato, anche ordinati per significato (la scheda **Data Bank by meaning** nella stessa schermata: un solo clic, oppure il motore lo fa da solo non appena gli embeddings funzionano). Usala per materiale di riferimento lungo, non per la storia stessa. Un **book** è un file della Data Bank ricavato da una storia: in Library > Litopys, **Save as a book** copia capitoli, archi e fatti di una chat in un file da scaffale che altre chat possono leggere. Scegli quali chat possono leggerlo (quelle che continuano questa vengono scelte per te). È una copia, non un collegamento: le modifiche successive alla chat non lo raggiungono, e **Save a new version** conserva quella vecchia. Un personaggio riceve solo i passaggi che potrebbe conoscere: un fatto mantiene la sua lista "known by", un capitolo il suo cast. Nella scheda Data Bank, **passages** ti permette di correggere o eliminare un passaggio e di cambiarne i lettori; la vista Memory conta i passaggi esclusi.
 
 **Author's note** (intestazione della chat, "Note"). Testo che scrivi solo per questa chat, collocato alla profondità e con il ruolo che scegli. Usalo per guidare la storia: un suggerimento di stile, una spinta alla trama.
@@ -24,7 +26,7 @@ Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, 
 ## Quale usare
 
 - "She should remember last night's fight": la Dashboard se ne occupa nel breve termine; Litopys la conserva nel lungo termine. Aggiungi un fatto fissato se non deve mai andare perso.
-- "She should remember the previous story in a new chat": memoria della scheda, oppure collega le chat nel Canvas, così la chat precedente porta la sua storia come retroscena.
+- "She should remember the previous story in a new chat": memoria della scheda, oppure collega le chat nel Canvas, così la chat precedente porta la sua storia come retroscena ([[canvas]], [[long-chats]]).
 - "The world has a rule or a place": un lorebook.
 - "I want the next replies to go this way": nota dell'autore, oppure il pulsante "Story, move".
 - "I have a long document": Data Bank.
@@ -39,4 +41,4 @@ Il pulsante **Fired** (il fulmine) nell'intestazione della chat apre un unico pa
 
 ## Costi
 
-Tutte queste occupano spazio nel prompt. La bacheca Prompt del Canvas mostra ogni parte con il suo conteggio di token e ti permette di disattivare parti per una singola chat. Su un modello piccolo, abbassa la "Memory size" di Litopys, tieni la memoria della scheda su Compatta e preferisci poche voci brevi del lorebook.
+Tutte queste occupano spazio nel prompt. La bacheca Prompt del Canvas mostra ogni parte con il suo conteggio di token e ti permette di disattivare parti per una singola chat. Su un modello piccolo, abbassa la "Memory size" di Litopys, tieni la memoria della scheda su Compatta e preferisci poche voci brevi del lorebook. Una chat cresciuta costa di più a ogni risposta: [[long-chats]] dice cosa la riduce e come proseguire la storia in una chat nuova. La pagina Canvas, [[canvas]], spiega le bacheche.
