@@ -146,7 +146,20 @@ export function recentLines(msgs, n) {
   return line.slice(-n).map((m) => (m.role === "user" ? "Player" : str(m.name) || "Character") + ": " + cut(str(m.text), MESSAGE_CHARS));
 }
 
-export function buildLetterRequest({ why, card, recent, summary, lang, model }) {
+/** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
+ *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/litopys, relations, world,
+ *  agents (#156); test/rp-helper-names.test.ts keeps the copies equal. */
+export function expandNames(text, userName, charName) {
+  if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const u = typeof userName === "string" ? userName.trim() : "";
+  const c = typeof charName === "string" ? charName.trim() : "";
+  let out = text;
+  if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
+  if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  return out;
+}
+
+export function buildLetterRequest({ why, card, recent, summary, lang, model, names = {} }) {
   const parts = ["Character card\n" + cardText(card)];
   if (why === "idle") {
     if (summary) parts.push("Where the story stands (a summary)\n" + cut(summary, SUMMARY_CHARS));
@@ -160,7 +173,7 @@ export function buildLetterRequest({ why, card, recent, summary, lang, model }) 
   parts.push("Write in the language of the material above" + (LANG_NAME[lang] ? "; if there is none, write in " + LANG_NAME[lang] : "") + ".");
   const req = {
     systemPrompt: LETTER_SYSTEM,
-    messages: [{ role: "user", content: parts.join("\n\n") }],
+    messages: [{ role: "user", content: expandNames(parts.join("\n\n"), names.user, names.char) }],
     presetParams: { temperature: 0.8, max_tokens: 400 },
   };
   // NEVER set a reasoning field (reasoning stays off)
@@ -217,9 +230,12 @@ function writeRoute(req, host) {
     if (why === "nosoul" && hasSouls(src)) return ok({ ok: false, reason: "has-soul" });
     let recent = [];
     let summary = "";
+    // {{char}} is this card's name; a letter from a group chat leaves it raw. {{user}}: the chat's persona name, idle letters only
+    let names = { user: "", char: str(src.name) };
     if (why === "idle") {
       const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
       if (!isObj(meta) || str(meta.characterId) !== characterId) return ok({ ok: false, reason: "no-chat" });
+      names = { user: str(meta.userName), char: meta.groupId ? "" : names.char };
       const msgs = [];
       try {
         for (const l of String(fsx.read("chats/" + chatId + ".jsonl")).split("\n")) {
@@ -234,7 +250,7 @@ function writeRoute(req, host) {
     }
     const model = letterModel(fsx, config);
     if (!model) return ok({ ok: false, reason: "no-model" });
-    host.llm.request("letter", buildLetterRequest({ why, card: src, recent, summary, lang: str(b.lang), model }));
+    host.llm.request("letter", buildLetterRequest({ why, card: src, recent, summary, lang: str(b.lang), model, names }));
     return { __llmPending: true, stash: { model } };
   }
   if (r.error) return ok({ ok: false, reason: "error", message: cut(str(r.error), 200) });
