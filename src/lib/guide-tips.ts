@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.94.0'
+export const APP_VERSION = '4.95.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.lore-folders',
+    since: '4.95.0',
+    help: 'world',
+    keywords: { en: 'lorebook folder folders nested group tidy entries drag drop colour color drawer chat css style stylesheet scroll phone', uk: 'лорбук папка папки вкладені групи впорядкувати записи перетягнути колір дровер css чату стиль прокрутка телефон' },
+    title: { en: 'Folders in lorebooks, and Chat CSS', uk: 'Папки в лорбуках і CSS чату' },
+    body: {
+      en: 'A lorebook can have folders, up to three levels deep (New folder, or type Places/Taverns). Drag an entry onto a folder, give a folder a colour, or use Select several > Move to folder. An entry opens in a drawer on the right, and a long entry no longer traps scrolling on a phone. In a chat, More > Chat CSS styles that one chat.',
+      uk: 'У лорбуку можуть бути папки до трьох рівнів (New folder, або впишіть Місця/Таверни). Перетягніть запис на папку, дайте папці колір або скористайтеся Select several > Move to folder. Запис відкривається в дровері справа, а довгий запис більше не блокує прокрутку на телефоні. У чаті меню More > Chat CSS стилізує саме цей чат.',
+    },
+  },
   {
     id: 'new.background-look',
     since: '4.94.0',
