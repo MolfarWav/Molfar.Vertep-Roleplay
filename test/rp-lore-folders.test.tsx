@@ -1,0 +1,213 @@
+// Entry folders: the pure logic, the way a folder rides the book file (old files read as before, an unknown value is
+// kept clean, the prompt engine's fields do not change), and the tree on the Entries tab.
+import { describe, expect, it } from "bun:test";
+import { renderToStaticMarkup } from "react-dom/server";
+
+(globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
+const F = await import("../src/lib/lore-folders");
+const { lorebookToEngine, engineLorebookToUI } = await import("../src/lib/engine");
+const { EntryTree, visibleEntries } = await import("../src/components/lore/entry-tree");
+type Entry = import("../src/lib/types").LoreEntry;
+
+const entry = (id: string, over: Partial<Entry> = {}) => ({
+  id, uid: Number(id.slice(1)), title: id, memo: "", keys: ["k"], keysRegex: false, secondaryKeys: [], logic: "AND_ANY", status: "normal",
+  content: "some text here", position: "after_char", depth: 4, role: "system", order: 100, probability: 100, useProbability: false,
+  group: "", groupWeight: 100, groupPrioritize: false, sticky: 0, cooldown: 0, delay: 0, enabled: true, characterFilter: [],
+  characterFilterExclude: false, tagFilter: [], triggerFilters: [], nonRecursable: false, preventFurtherRecursion: false,
+  delayUntilRecursion: false, ignoreBudget: false, scanDepthOverride: null, caseSensitiveOverride: null, wholeWordsOverride: null,
+  wordFormsOverride: null, groupScoringOverride: null, automationId: "", matchSources: { description: false, personality: false, scenario: false, persona: false },
+  ...over,
+}) as Entry;
+
+const book = (entries: Entry[]) => ({
+  id: "b", name: "B", folderId: null, globalActive: false, linkedCharacterIds: [], entries, settings: {}, vectorized: {}, isEmbedded: false, formatTemplate: "",
+}) as unknown as import("../src/lib/types").Lorebook;
+
+describe("folder names", () => {
+  it("keeps one line, no slash, at most 60 characters", () => {
+    expect(F.cleanFolder("  05 - Characters  ")).toBe("05 - Characters");
+    expect(F.cleanFolder("a/b\\c")).toBe("a-b-c");
+    expect(F.cleanFolder("two\n lines")).toBe("two lines");
+    expect(F.cleanFolder("x".repeat(100))).toHaveLength(60);
+    expect(F.cleanFolder(undefined)).toBe("");
+    expect(F.cleanFolder(42)).toBe("");
+  });
+
+  it("a typed name that a folder has, in any letter case, is that folder", () => {
+    expect(F.resolveFolderName("characters", ["Bestiary", "Characters"])).toBe("Characters");
+    expect(F.resolveFolderName(" Places ", ["Characters"])).toBe("Places");
+  });
+});
+
+describe("the folder list and the tree", () => {
+  const all = [entry("e1", { folder: "05 - Characters", content: "aaaa" }), entry("e2", { folder: "10 - Places", enabled: false }), entry("e3", { folder: "05 - Characters", enabled: false }), entry("e4"), entry("e5", { folder: "02 - Guild" })];
+
+  it("lists folders by natural order and counts what is in them", () => {
+    const list = F.listFolders(all);
+    expect(list.map((f) => f.name)).toEqual(["02 - Guild", "05 - Characters", "10 - Places"]);
+    const chars = list.find((f) => f.name === "05 - Characters")!;
+    expect(chars.total).toBe(2);
+    expect(chars.on).toBe(1);
+    expect(chars.tokens).toBeGreaterThan(0);
+    expect(F.hasFolders(all)).toBe(true);
+    expect(F.hasFolders([entry("e1"), entry("e2", { folder: "" })])).toBe(false);
+  });
+
+  it("a search leaves only the matches in each folder but the folder still counts all its entries", () => {
+    const tree = F.buildTree(all, all.filter((e) => e.id === "e3" || e.id === "e4"));
+    expect(tree.folders.map((f) => f.name)).toEqual(["05 - Characters"]);
+    expect(tree.folders[0]!.entries.map((e) => e.id)).toEqual(["e3"]);
+    expect(tree.folders[0]!.total).toBe(2);
+    expect(tree.loose.map((e) => e.id)).toEqual(["e4"]);
+  });
+});
+
+describe("empty folders", () => {
+  const all = [entry("e1"), entry("e2", { folder: "A" })];
+
+  it("a listed folder exists with no entries, and shows in the tree unless a search is on", () => {
+    expect(F.hasFolders([entry("e1")], ["Places"])).toBe(true);
+    expect(F.hasFolders([entry("e1")], [" "])).toBe(false);
+    const list = F.listFolders(all, ["Places"]);
+    expect(list.map((f) => [f.name, f.total])).toEqual([["A", 1], ["Places", 0]]);
+    const tree = F.buildTree(all, all, ["Places"]);
+    expect(tree.folders.map((f) => f.name)).toEqual(["A", "Places"]);
+    expect(tree.folders[1]!.entries).toEqual([]);
+    expect(F.buildTree(all, all.slice(0, 1), []).folders).toEqual([]);
+  });
+
+  it("keeps the list clean: no repeats, no empty names, renames join", () => {
+    expect(F.cleanFolderList(["A", "a", " ", 3, "B/C"])).toEqual(["A", "B-C"]);
+    expect(F.addToFolderList(["A"], "b")).toEqual(["A", "b"]);
+    expect(F.renameInFolderList(["A", "B"], "A", "B")).toEqual(["B"]);
+    expect(F.renameInFolderList(["A", "B"], "A", "")).toEqual(["B"]);
+  });
+
+  it("an empty folder says so on screen", () => {
+    const html = renderToStaticMarkup(<EntryTree {...treeProps({ tree: F.buildTree(all, all, ["Places"]), isOpen: () => true })} />);
+    expect(html).toContain("Empty");
+    expect(html).toContain("Nothing here yet");
+  });
+});
+
+describe("changing folders", () => {
+  const all = [entry("e1"), entry("e2", { folder: "A" }), entry("e3", { folder: "A" })];
+
+  it("moves entries in and out and keeps the order of the array", () => {
+    const moved = F.moveToFolder(all, ["e1", "e2"], "B");
+    expect(moved.map((e) => [e.id, e.folder])).toEqual([["e1", "B"], ["e2", "B"], ["e3", "A"]]);
+    const out = F.moveToFolder(moved, ["e1"], "");
+    expect(out[0]).not.toHaveProperty("folder");
+    expect(F.moveToFolder(all, ["e2"], "A")[1]).toBe(all[1]!);
+  });
+
+  it("renames a folder, and a name another folder has joins the two", () => {
+    const merged = F.renameFolder(F.moveToFolder(all, ["e1"], "B"), "B", "A");
+    expect(merged.every((e) => e.folder === "A")).toBe(true);
+  });
+
+  it("removing a folder keeps its entries", () => {
+    const out = F.removeFolder(all, "A");
+    expect(out).toHaveLength(3);
+    expect(F.hasFolders(out)).toBe(false);
+  });
+
+  it("switches every entry of a folder on or off and leaves the others", () => {
+    const off = F.setFolderEnabled(all, "A", false);
+    expect(off.map((e) => e.enabled)).toEqual([true, false, false]);
+    expect(F.setFolderEnabled(off, "A", false)[1]).toBe(off[1]!);
+  });
+});
+
+describe("a folder in the book file", () => {
+  it("is written next to the entry and read back", () => {
+    const out = lorebookToEngine(book([entry("e1", { folder: "Places" }), entry("e2")])) as unknown as { entries: Record<string, unknown>[] };
+    expect(out.entries[0]!.folder).toBe("Places");
+    expect("folder" in out.entries[1]!).toBe(false);
+    const back = engineLorebookToUI(out as never, "b");
+    expect(back.entries[0]!.folder).toBe("Places");
+    expect(back.entries[0]!.extra).toBeUndefined();
+    expect(back.entries[1]!.folder).toBeUndefined();
+  });
+
+  it("a book file made before folders reads as no folders", () => {
+    const old = { name: "Old", entries: [{ uid: 1, title: "t", keys: ["k"], content: "c", group: "one-of" }] };
+    const ui = engineLorebookToUI(old as never, "b");
+    expect(F.hasFolders(ui.entries)).toBe(false);
+    expect(ui.entries[0]!.group).toBe("one-of");
+  });
+
+  it("a folder is not the group: one does not touch the other", () => {
+    const out = lorebookToEngine(book([entry("e1", { folder: "Places", group: "weather" })])) as unknown as { entries: Record<string, unknown>[] };
+    expect(out.entries[0]!.group).toBe("weather");
+    expect(out.entries[0]!.folder).toBe("Places");
+  });
+
+  it("the book's folders list is written and read back clean, and an old book has none", () => {
+    const b = { ...book([entry("e1")]), folders: ["Places", "places", "x/y"] };
+    const out = lorebookToEngine(b) as unknown as { folders?: string[] };
+    expect(out.folders).toEqual(["Places", "x-y"]);
+    expect(engineLorebookToUI(out as never, "b").folders).toEqual(["Places", "x-y"]);
+    expect("folders" in (lorebookToEngine(book([entry("e1")])) as object)).toBe(false);
+    expect(engineLorebookToUI({ name: "Old", entries: [] } as never, "b").folders).toBeUndefined();
+    expect(engineLorebookToUI({ name: "Odd", folders: "nope", entries: [] } as never, "b").folders).toBeUndefined();
+  });
+
+  it("a stray value is cleaned on the way out and never a non-string", () => {
+    const ui = engineLorebookToUI({ name: "X", entries: [{ uid: 1, title: "t", content: "c", folder: 7 }, { uid: 2, title: "t", content: "c", folder: " a/b " }] } as never, "b");
+    expect(ui.entries[0]!.folder).toBeUndefined();
+    expect(ui.entries[1]!.folder).toBe("a-b");
+  });
+});
+
+const treeProps = (over = {}) => ({
+    tree: F.buildTree([], []), searching: false, isOpen: () => true, onToggle: () => {}, limitOf: () => 50, onMore: () => {},
+    selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
+    onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+});
+
+describe("the tree on screen", () => {
+  const all = [entry("e1", { folder: "Characters", title: "Alpha" }), entry("e2", { folder: "Characters", enabled: false, title: "Beta" }), entry("e3", { title: "Loose one" })];
+  const props = (over = {}) => ({
+    tree: F.buildTree(all, all), searching: false, isOpen: (n: string) => n === "Characters", onToggle: () => {}, limitOf: () => 50, onMore: () => {},
+    selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
+    onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+  });
+
+  it("an open folder shows its entries, a closed one only its head", () => {
+    const open = renderToStaticMarkup(<EntryTree {...props()} />);
+    expect(open).toContain('aria-expanded="true"');
+    expect(open).toContain("Alpha");
+    expect(open).toContain("Loose one");
+    const shut = renderToStaticMarkup(<EntryTree {...props({ isOpen: () => false })} />);
+    expect(shut).toContain('aria-expanded="false"');
+    expect(shut).not.toContain("Alpha");
+    expect(shut).toContain("Loose one");
+  });
+
+  it("the head carries the name, the count and how many are on", () => {
+    const html = renderToStaticMarkup(<EntryTree {...props()} />);
+    expect(html).toContain("Characters");
+    expect(html).toContain("2 entries");
+    expect(html).toContain("1 on");
+  });
+
+  it("a search says how many of the folder match", () => {
+    const tree = F.buildTree(all, [all[0]!]);
+    expect(renderToStaticMarkup(<EntryTree {...props({ tree, searching: true })} />)).toContain("1 of 2 entries");
+  });
+
+  it("a folder past the limit offers more, and select all takes only what is shown", () => {
+    const many = Array.from({ length: 60 }, (_, i) => entry(`e${i + 10}`, { folder: "Big", title: `Row ${i}` }));
+    const tree = F.buildTree(many, many);
+    const html = renderToStaticMarkup(<EntryTree {...props({ tree, isOpen: () => true })} />);
+    expect(html).toContain("Show 10 more");
+    expect(visibleEntries(tree, () => true, () => 50)).toHaveLength(50);
+    expect(visibleEntries(tree, () => false, () => 50)).toHaveLength(0);
+  });
+
+  it("while selecting, a folder has a checkbox that is checked when all its shown entries are", () => {
+    const html = renderToStaticMarkup(<EntryTree {...props({ selecting: true, selected: ["e1", "e2"] })} />);
+    expect(html).toMatch(/type="checkbox"[^>]*checked/);
+  });
+});

@@ -16,8 +16,9 @@ import { bookKind, bookUsageLabel } from '@/lib/lore-usage'
 import type { Character, Lorebook } from '@/lib/types'
 
 /**
- * The book's title row: the name, three chips (entries, tokens, who uses it), the Global switch, "Test triggers" and
- * one "more" menu (translate, export, duplicate, delete). Phone: name, then the chips, then Test triggers and more.
+ * The book's title row: the name beside "Test triggers" and one "more" menu (translate, export, duplicate, delete), then the
+ * Global switch and three chips (entries, tokens, who uses it). The name takes the room that is left (at least 12 rem).
+ * Phone: name, then the chips, then Test triggers and more.
  */
 export function BookHeader({ book, characters, onUpdate, onDelete, onDuplicate, onTest }: {
   book: Lorebook
@@ -38,10 +39,10 @@ export function BookHeader({ book, characters, onUpdate, onDelete, onDuplicate, 
       <Input
         value={book.name}
         onChange={(e) => onUpdate({ name: e.target.value })}
-        className="order-1 h-9 min-w-0 basis-full text-heading font-medium md:flex-1 md:basis-auto"
+        className="order-1 h-9 min-w-0 flex-1 basis-48 text-heading font-medium max-md:basis-full"
         aria-label={t('lore.book.name')}
       />
-      <div className="order-2 flex basis-full flex-wrap items-center gap-2 md:order-3">
+      <div className="order-3 flex basis-full flex-wrap items-center gap-2 max-md:order-2">
         <label data-guide="lore.global" title={t('lore.global.tip')} className="inline-flex h-8 items-center gap-2 rounded-full border border-border px-2.5 text-caption max-md:h-10">
           <Switch tone="cta" checked={book.globalActive} onCheckedChange={(v) => onUpdate({ globalActive: v })} aria-label={t('lore.global.label')} />
           {t('lore.global.label')}
@@ -54,8 +55,8 @@ export function BookHeader({ book, characters, onUpdate, onDelete, onDuplicate, 
           <span className={use.muted ? 'opacity-70' : undefined}>{t(use.key, use.vars)}</span>
         </Chip>
       </div>
-      <div className="order-3 flex flex-1 items-center gap-2 md:order-2 md:flex-none">
-        <Button data-guide="lore.test" variant="outline" className="flex-1 max-md:h-10 md:flex-none" onClick={onTest}>
+      <div className="order-2 flex items-center gap-2 max-md:order-3 max-md:flex-1">
+        <Button data-guide="lore.test" variant="outline" className="max-md:h-10 max-md:flex-1" onClick={onTest}>
           <Flask className="size-4" aria-hidden="true" />{t('lore.testKeys')}
         </Button>
         <DropdownMenu>

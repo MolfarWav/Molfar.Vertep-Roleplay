@@ -2929,6 +2929,12 @@ function chatVoices(g, members, groupId) {
 const TURN_MODES = ["natural", "list", "manual"];
 const TURN_GEN_MODES = ["narrator", "swap", "append"];
 /** A chat's sprite outfits: { speaker (a voice's name, "" = the card itself): outfit }, short strings only; null when empty. */
+/** A chat's own CSS: the text as written, at most 20000 characters; blank or not a string = none. */
+function cleanChatCss(v) {
+  if (typeof v !== "string" || !v.trim()) return null;
+  return v.slice(0, 20000);
+}
+
 function cleanSpriteOutfits(v) {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const out = {};
@@ -6074,9 +6080,11 @@ const toolX = (r) => ({
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
         "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "autoBackground", "temporary",
-        "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits"];
+        "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits", "css"];
       // spriteOutfits: the outfit each speaker's sprite wears in this chat, { voiceName | "": outfit }; null or {} clears it
       if ("spriteOutfits" in b) b.spriteOutfits = cleanSpriteOutfits(b.spriteOutfits);
+      // css: this chat's own stylesheet (the chat view scopes it to the chat); a string up to 20000 characters, null or blank clears it
+      if ("css" in b) b.css = cleanChatCss(b.css);
       // turns: the chat's own turn settings, replaced whole; null or {} = follow the group
       const turns = "turns" in b ? cleanTurns(b.turns) : undefined;
       const turnsSame = turns === undefined || same(turns, meta.turns);

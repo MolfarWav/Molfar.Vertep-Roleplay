@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { CircleNotch } from '@phosphor-icons/react'
+import { CircleNotch, FolderSimplePlus, Plus } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,6 +21,7 @@ import { exportAllBooks, exportOneBook } from '@/lib/lore-export'
 import { bookUsage } from '@/lib/lore-usage'
 import { askMolfar } from '@/lib/shell-bridge'
 import { entryFilterCounts, matchesEntryFilter, type BookFilter, type EntryFilter } from '@/lib/lore-filters'
+import { addToFolderList, buildTree, cleanFolderList, folderOf, hasFolders, listFolders, moveToFolder, removeFolder, renameFolder, renameInFolderList, setFolderEnabled } from '@/lib/lore-folders'
 import type { Lorebook, LoreEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { BookHeader } from '@/components/lore/book-header'
@@ -30,6 +31,8 @@ import { BookUsedBy } from '@/components/lore/book-used-by'
 import { BulkBar, EntryToolbar } from '@/components/lore/entry-toolbar'
 import { EntryRowHead } from '@/components/lore/entry-row-head'
 import { EntryEditor } from '@/components/lore/entry-editor'
+import { EntryTree, visibleEntries, FOLDER_PAGE } from '@/components/lore/entry-tree'
+import { MoveToFolderDialog, NewFolderDialog, RenameFolderDialog } from '@/components/lore/folder-dialogs'
 import { KeywordTest } from '@/components/lore/keyword-test'
 import { WiStatusView } from '@/components/lore/wi-status-view'
 import { entriesKey } from '@/components/lore/lore-labels'
@@ -38,6 +41,18 @@ const BOOK_PAGE = 100
 const ENTRY_PAGE = 50
 
 type BookTab = 'entries' | 'rules' | 'used'
+
+/** Which folders of a book are open: a per-viewer convenience kept in the browser, never in the book. */
+const openKey = (bookId: string) => `rp.lore.folders.open.${bookId}`
+function loadOpen(bookId: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(openKey(bookId)) ?? '[]') as unknown
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch { return [] }
+}
+function saveOpen(bookId: string, open: string[]) {
+  try { localStorage.setItem(openKey(bookId), JSON.stringify(open)) } catch { /* private window or blocked storage */ }
+}
 
 export function LorebooksView() {
   const t = useT()
@@ -234,6 +249,13 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const [selected, setSelected] = useState<string[]>([])
   const [copyEntries, setCopyEntries] = useState<LoreEntry[] | null>(null)
   const [entryPage, setEntryPage] = useState(0)
+  const [openFolders, setOpenFolders] = useState<string[]>(() => loadOpen(book.id))
+  /** how many entries each folder shows ('' = those with no folder); missing = FOLDER_PAGE */
+  const [limits, setLimits] = useState<Record<string, number>>({})
+  /** the entries the Move dialog is for (the selected ones); null = closed */
+  const [moveIds, setMoveIds] = useState<string[] | null>(null)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [confirm, confirmDialog] = useConfirm()
   const allBooks = useApp((s) => s.lorebooks)
   const characters = useApp((s) => s.characters)
@@ -259,6 +281,27 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
 
   const safeEntryPage = clampPage(entryPage, entries.length, ENTRY_PAGE)
   const pagedEntries = entries.slice(safeEntryPage * ENTRY_PAGE, safeEntryPage * ENTRY_PAGE + ENTRY_PAGE)
+
+  // Folders: a book that has any shows its entries as a tree, a book with none keeps the flat paged list
+  const listed = useMemo(() => cleanFolderList(book.folders), [book.folders])
+  const folders = useMemo(() => listFolders(book.entries, listed), [book.entries, listed])
+  const treeMode = hasFolders(book.entries, listed)
+  const searching = query.trim() !== '' || filter !== 'all'
+  const tree = useMemo(() => (treeMode ? buildTree(book.entries, entries, searching ? [] : listed) : null), [treeMode, book.entries, entries, searching, listed])
+  const isOpen = (name: string) => searching || openFolders.includes(name)
+  const limitOf = (key: string) => limits[key] ?? FOLDER_PAGE
+  const shownEntries = tree ? visibleEntries(tree, isOpen, limitOf) : pagedEntries
+  const toggleFolder = (name: string) => setOpenFolders((cur) => {
+    const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name]
+    saveOpen(book.id, next)
+    return next
+  })
+  const openFolder = (name: string) => setOpenFolders((cur) => {
+    if (cur.includes(name)) return cur
+    const next = [...cur, name]
+    saveOpen(book.id, next)
+    return next
+  })
   const active = book.entries.find((e) => e.id === activeId) ?? null
   // the panel belongs to the Entries screen: the other tabs have no entry on screen
   const panelOpen = !!active && tab === 'entries'
@@ -298,55 +341,119 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     toast.success(t('lore.bulk.deleted'))
   }
 
+  /** Put entries into a folder ('' = out of any) and open it, so the person sees where they went. */
+  const moveTo = (ids: string[], name: string) => {
+    onUpdate({ entries: moveToFolder(book.entries, ids, name), ...(name ? { folders: addToFolderList(listed, name) } : {}) })
+    if (name) openFolder(name)
+    toast.success(name ? t('lore.folder.moved', { n: ids.length, name }) : t('lore.folder.movedOut', { n: ids.length }))
+  }
+  const addEntry = (folder?: string) => {
+    const e = { ...newEntry(), ...(folder ? { folder } : {}) }
+    onUpdate({ entries: [e, ...book.entries] })
+    setFilter('all'); setQuery('')
+    if (folder) openFolder(folder)
+    setActiveId(e.id)
+  }
+  const selectMany = (list: LoreEntry[], on: boolean) => setSelected((cur) => {
+    const ids = new Set(list.map((e) => e.id))
+    return on ? [...new Set([...cur, ...ids])] : cur.filter((id) => !ids.has(id))
+  })
+  const doRename = (from: string, to: string) => {
+    onUpdate({ entries: renameFolder(book.entries, from, to), folders: renameInFolderList(listed, from, to) })
+    setOpenFolders((cur) => {
+      const next = [...new Set(cur.map((n) => (n === from ? to : n)))]
+      saveOpen(book.id, next)
+      return next
+    })
+  }
+  const doRemove = (name: string) => {
+    const n = book.entries.filter((e) => folderOf(e) === name).length
+    onUpdate({ entries: removeFolder(book.entries, name), folders: renameInFolderList(listed, name, '') })
+    toast.success(t('lore.folder.removed', { n }))
+  }
+  /** A new, empty folder: it shows at once, open, ready for entries. */
+  const createFolder = (name: string) => {
+    onUpdate({ folders: addToFolderList(listed, name) })
+    openFolder(name)
+    toast.success(t('lore.folder.created', { name }))
+  }
+  const selectedFolder = (): string | null => {
+    const names = new Set(book.entries.filter((e) => moveIds?.includes(e.id)).map(folderOf))
+    return names.size === 1 ? [...names][0]! : null
+  }
+
   const toggleSelecting = () => {
     if (selecting) setSelected([])
     setSelecting(!selecting)
+  }
+
+  /** One entry row, the same in a folder and in the flat list. */
+  const renderRow = (e: LoreEntry) => {
+    const open = active?.id === e.id
+    return (
+      <li key={e.id} className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60', open && 'border-ring bg-accent/40')}>
+        <EntryRowHead
+          e={e}
+          open={open}
+          selecting={selecting}
+          checked={selected.includes(e.id)}
+          onCheck={(v) => setSelected((s) => v ? [...s, e.id] : s.filter((x) => x !== e.id))}
+          onToggle={() => setActiveId((id) => (id === e.id ? null : e.id))}
+          onEnable={(v) => upEntry(e.id, { enabled: v })}
+        />
+      </li>
+    )
   }
 
   return (
     // @container: the detail pane spans from a phone page to a narrow drawer to a full page; the grids below must
     // follow the PANE's width, not the viewport, or fixed-width label+input rows crush into each other
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col @container">
-      {/* Beside a wide enough pane the book column and the entry panel share a row (the book keeps >= 360 px, the panel
-          takes the rest, 320-440 px); in a narrower pane the panel covers the page as a sheet instead of squeezing it.
-          Before, the panel was an overlay and the list was padded 456 px off it: at 1280 px the pane left ~140 px. */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col @[680px]:flex-row">
+      {/* The entry panel is a drawer over the page: from the right on desktop (it covers part of the list), the whole page
+          on a phone. The list keeps the full width underneath. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* the header, the tabs and the entries scroll together: a toolbar pinned at the top eats the phone screen */}
-      <ScrollArea className="min-h-0 min-w-0 flex-1 @[680px]:min-w-[360px]">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
         <BookHeader book={book} characters={characters} onUpdate={onUpdate} onDelete={onDelete} onDuplicate={onDuplicate} onTest={onTest} />
         <Tabs value={tab} onValueChange={(v) => setTab(v as BookTab)} className="gap-0">
-          <div className="px-4 pt-3">
+          {/* the tabs, and on Entries the two things you do there, on one row: no half-empty line above the search */}
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
             <TabsList className="h-9 w-full max-md:h-11 md:w-auto">
               <TabsTrigger value="entries">{t('lore.tab.entries')}</TabsTrigger>
               <TabsTrigger value="rules">{t('lore.tab.rules')}</TabsTrigger>
               <TabsTrigger value="used">{`${t('lore.tab.usedBy')} (${users})`}</TabsTrigger>
             </TabsList>
+            {tab === 'entries' && (
+              <div className="ml-auto flex items-center gap-2 max-md:w-full max-md:justify-end">
+                <Button variant="tonal" className="max-md:h-10" onClick={() => setNewFolderOpen(true)} data-testid="new-folder">
+                  <FolderSimplePlus className="size-4" aria-hidden="true" />{t('lore.folder.new')}
+                </Button>
+                <Button variant="default" className="max-md:h-10" onClick={() => addEntry()}>
+                  <Plus className="size-4" aria-hidden="true" />{t('lore.addEntry')}
+                </Button>
+              </div>
+            )}
           </div>
 
           <TabsContent value="entries" className="flex flex-col gap-3 px-4 py-3">
             <EntryToolbar
               query={query}
-              onQuery={(q) => { setQuery(q); setEntryPage(0) }}
+              onQuery={(q) => { setQuery(q); setEntryPage(0); setLimits({}) }}
               sort={sort}
               onSort={(s) => setSort(s as (typeof SORTS)[number])}
               selecting={selecting}
               onToggleSelecting={toggleSelecting}
               filter={filter}
-              onFilter={(f) => { setFilter(f); setEntryPage(0) }}
+              onFilter={(f) => { setFilter(f); setEntryPage(0); setLimits({}) }}
               counts={counts}
               badgesInfo={t('lore.badges.info')}
-              onAdd={() => {
-                const e = newEntry()
-                onUpdate({ entries: [e, ...book.entries] })
-                setFilter('all'); setQuery('')
-                setActiveId(e.id)
-              }}
             />
             {selected.length > 0 && (
               <BulkBar
                 n={selected.length}
-                onSelectAllVisible={() => setSelected(pagedEntries.map((e) => e.id))}
+                onSelectAllVisible={() => setSelected(shownEntries.map((e) => e.id))}
                 onBulk={bulk}
+                onMove={() => setMoveIds(selected)}
                 onCopy={() => setCopyEntries(book.entries.filter((e) => selected.includes(e.id)))}
                 onDelete={() => void bulkDelete()}
                 onClear={() => setSelected([])}
@@ -355,26 +462,35 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
             {counts.vector > 0 && (
               <p className="text-caption text-muted-foreground" data-testid="vector-note">{t('lore.vector.note', { n: counts.vector })}</p>
             )}
-            <ul className="flex flex-col gap-2">
-              {pagedEntries.map((e) => {
-                const open = active?.id === e.id
-                return (
-                  <li key={e.id} className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60', open && 'border-ring bg-accent/40')}>
-                    <EntryRowHead
-                      e={e}
-                      open={open}
-                      selecting={selecting}
-                      checked={selected.includes(e.id)}
-                      onCheck={(v) => setSelected((s) => v ? [...s, e.id] : s.filter((x) => x !== e.id))}
-                      onToggle={() => setActiveId((id) => (id === e.id ? null : e.id))}
-                      onEnable={(v) => upEntry(e.id, { enabled: v })}
-                    />
-                  </li>
-                )
-              })}
-              {entries.length === 0 && <li className="px-1 py-6 text-center text-caption text-muted-foreground">{t('lore.entries.none')}</li>}
-            </ul>
-            <Pager total={entries.length} page={safeEntryPage} pageSize={ENTRY_PAGE} onPage={setEntryPage} />
+            {tree ? (
+              <>
+                <EntryTree
+                  tree={tree}
+                  searching={searching}
+                  isOpen={isOpen}
+                  onToggle={toggleFolder}
+                  limitOf={limitOf}
+                  onMore={(key) => setLimits((cur) => ({ ...cur, [key]: (cur[key] ?? FOLDER_PAGE) + FOLDER_PAGE }))}
+                  selecting={selecting}
+                  selected={selected}
+                  onSelectMany={selectMany}
+                  renderRow={renderRow}
+                  onAddHere={addEntry}
+                  onEnableAll={(name, on) => onUpdate({ entries: setFolderEnabled(book.entries, name, on) })}
+                  onRename={setRenaming}
+                  onRemove={doRemove}
+                />
+                {entries.length === 0 && <p className="px-1 py-6 text-center text-caption text-muted-foreground">{t('lore.entries.none')}</p>}
+              </>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-2">
+                  {pagedEntries.map(renderRow)}
+                  {entries.length === 0 && <li className="px-1 py-6 text-center text-caption text-muted-foreground">{t('lore.entries.none')}</li>}
+                </ul>
+                <Pager total={entries.length} page={safeEntryPage} pageSize={ENTRY_PAGE} onPage={setEntryPage} />
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="rules">
@@ -391,7 +507,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
         <EntryEditor
           key={active.id}
           entry={active}
-          onChange={(patch) => upEntry(active.id, patch)}
+          folders={folders}
+          onChange={(patch) => { upEntry(active.id, patch); if (patch.folder) { openFolder(patch.folder); if (!listed.includes(patch.folder)) onUpdate({ folders: addToFolderList(listed, patch.folder) }) } }}
           onDelete={() => deleteEntry(active)}
           onDuplicate={() => { onUpdate({ entries: [...book.entries, asCopy(active, { title: `${active.title} (copy)` })] }); toast.success(t('lore.entry.duplicated')) }}
           onCopyToBook={() => setCopyEntries([active])}
@@ -418,6 +535,16 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
           </ul>
         </DialogContent>
       </Dialog>
+      <MoveToFolderDialog
+        open={moveIds !== null}
+        onOpenChange={(o) => { if (!o) setMoveIds(null) }}
+        title={t('lore.folder.moveMany', { n: moveIds?.length ?? 0 })}
+        folders={folders}
+        current={selectedFolder()}
+        onPick={(name) => { if (moveIds) moveTo(moveIds, name) }}
+      />
+      <NewFolderDialog open={newFolderOpen} onOpenChange={setNewFolderOpen} existing={folders.map((f) => f.name)} onCreate={createFolder} />
+      <RenameFolderDialog folder={renaming} folders={folders} onOpenChange={(o) => { if (!o) setRenaming(null) }} onRename={doRename} />
       {confirmDialog}
     </div>
   )

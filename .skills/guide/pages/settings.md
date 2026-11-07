@@ -34,6 +34,6 @@ The **Tools** section is a row of tabs, grouped as Panels (plugin panels such as
 - **Plugins**: shows which plugins run behind the app and what each may do. Installing, enabling and disabling happen with the Plugins button in Molfar Vertep, not here.
 - **Tool Calling** (in Panels): lets the model use tools while writing. Dice Roller and Picture are built in and stay off until you switch them on.
 
-Also: **Shortcuts** holds quick replies, which can run by themselves on events; Themes change the palette at once, Prose Colors recolor speech and narration, and Custom CSS is applied last.
+Also: **Shortcuts** holds quick replies, which can run by themselves on events; Themes change the palette at once, Prose Colors recolor speech and narration, and Custom CSS is applied last. One chat can have its own CSS too: in the chat, **More** > **Chat CSS**. It shows as you type, applies to that chat only and wins over the global Custom CSS and the character's CSS.
 
 Back to the [[index]].

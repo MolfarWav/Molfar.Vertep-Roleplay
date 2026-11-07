@@ -12,6 +12,7 @@ import type {
   Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
+import { cleanFolder, cleanFolderList } from './lore-folders'
 import { beginImport } from './import-progress'
 import { t } from './i18n'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -94,6 +95,8 @@ export interface EngineChatMeta {
   chatTags?: string[]
   backgroundId?: string | 'none' | null
   autoBackground?: { on: boolean; folderId: string; draw?: boolean; style?: string } | null
+  /** this chat's own CSS */
+  css?: string | null
   temporary?: boolean
   litopysCut?: { count: number; upTo: string | null }
   /** where the last real prompt's history started (messages before it were cut), null before any */
@@ -1032,6 +1035,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     ...(meta.autoBackground && typeof meta.autoBackground === 'object' ? { autoBackground: meta.autoBackground } : {}),
+    ...(typeof meta.css === 'string' && meta.css.trim() ? { css: meta.css } : {}),
     fieldVariantSelection: meta.fieldVariantSelection ?? {},
     // carried so an unloaded chat still renders a preview and a count; a
     // loaded transcript makes them redundant
@@ -1055,6 +1059,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
   if ('autoBackground' in p) out.autoBackground = p.autoBackground ?? null
+  if ('css' in p) out.css = p.css?.trim() ? p.css : null
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
   if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
   if ('spriteOutfits' in p) out.spriteOutfits = p.spriteOutfits && Object.keys(p.spriteOutfits).length ? p.spriteOutfits : null
@@ -1565,10 +1570,10 @@ const LORE_ENTRY_KNOWN = new Set([
   'sticky', 'cooldown', 'delay', 'enabled', 'characterFilter', 'characterFilterExclude', 'tagFilter', 'triggerFilters',
   'nonRecursable', 'preventFurtherRecursion', 'ignoreBudget', 'delayUntilRecursion', 'automationId', 'matchSources',
   'scanDepthOverride', 'caseSensitiveOverride', 'caseSensitive', 'wholeWordsOverride', 'matchWholeWords',
-  'groupScoringOverride', 'wordFormsOverride',
+  'groupScoringOverride', 'wordFormsOverride', 'folder',
 ])
 const LORE_BOOK_KNOWN = new Set([
-  'id', 'name', 'folderId', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
+  'id', 'name', 'folderId', 'folders', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
   // a start-up summary's own fields (the plugin's bookSummary), never book data
   'stub', 'entryCount', 'tokens', 'rev',
 ])
@@ -1598,6 +1603,7 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
     id: b.id, name: b.name, globalActive: b.globalActive, linkedCharacterIds: b.linkedCharacterIds,
     settings: b.settings, vectorized: b.vectorized, isEmbedded: b.isEmbedded, formatTemplate: b.formatTemplate,
     folderId: b.folderId,
+    ...(cleanFolderList(b.folders).length ? { folders: cleanFolderList(b.folders) } : {}),
     entries: b.entries.map((e) => ({
       ...e.extra,
       uid: uidOf(e),
@@ -1616,6 +1622,7 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
       scanDepthOverride: e.scanDepthOverride, caseSensitiveOverride: e.caseSensitiveOverride,
       wholeWordsOverride: e.wholeWordsOverride, groupScoringOverride: e.groupScoringOverride,
       wordFormsOverride: e.wordFormsOverride,
+      ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
     })),
   }
 }
@@ -1656,6 +1663,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
       wordFormsOverride: boolOrNull(e.wordFormsOverride),
       automationId: (e.automationId as string) ?? '',
       matchSources: (e.matchSources as LoreEntry['matchSources']) ?? { description: false, personality: false, scenario: false, persona: false },
+      ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
       ...(extraOf(e, LORE_ENTRY_KNOWN) ? { extra: extraOf(e, LORE_ENTRY_KNOWN) } : {}),
     })),
     settings: (b.settings as Lorebook['settings']) ?? {
@@ -1666,6 +1674,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
     vectorized: (b.vectorized as Lorebook['vectorized']) ?? { embedding: 'all-MiniLM-L6-v2', queryMessages: 2, scoreThreshold: 0.35, topK: 10 },
     isEmbedded: b.isEmbedded === true,
     formatTemplate: (b.formatTemplate as string) ?? '',
+    ...(cleanFolderList(b.folders).length ? { folders: cleanFolderList(b.folders) } : {}),
     ...(extraOf(b, LORE_BOOK_KNOWN) ? { extra: extraOf(b, LORE_BOOK_KNOWN) } : {}),
     ...(typeof b.rev === 'string' && b.rev ? { rev: b.rev } : {}),
     // a start-up summary: the entries are not here yet

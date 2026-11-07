@@ -422,6 +422,9 @@ the ordered list of switchable things (`{ key, label, kind, state }`, state `on`
 `condition`, `not-this-generation` or `empty`), and every part and omitted row carries the `key` it
 belongs to.
 
+### Chat CSS: `css` in the chat meta
+`chats/<id>.meta.json` may carry `css`: a string of up to 20000 characters, the chat's own stylesheet (Chat menu > Chat CSS; `PATCH /chats/<id> { css }`, `null` or blank clears it). The chat view scopes every selector to that chat's root (`html`, `:root` and `body` mean the chat itself, so `:root { --tap-h1: #22d3ee }` colours this chat only), drops `@import` and `@font-face`, and mounts it after the global Custom CSS (Roleplay settings) and the character's `css`, so it wins where they disagree. Nothing else reads it; a fork or a continued chat does not copy it.
+
 ## Lorebooks: `data/lorebooks/<id>.json`
 
 The id is the file name without `.json`, repeated in `"id"`. A chat uses: every book with
@@ -443,6 +446,7 @@ Links live on the card (or the group) only; the book's old `linkedCharacterIds` 
 | `isEmbedded` | The book came inside a card. |
 | `formatTemplate` | Optional wrapper for each inserted entry: `{{original}}` marks the entry's text (`[Lore: {{original}}]`); empty = unwrapped. |
 | `folderId` | Library folder. |
+| `folders` | Optional list of entry folder names (strings, one level, same rules as an entry's `folder`) that exist even with no entry in them, so a new folder can start empty. An entry's `folder` that is not listed still shows its folder; a name listed with no entries shows an empty folder. Written by the editor's New folder and Move to folder; leave it out when you file entries by script. |
 | `ownerChatId` | Set only on a chat's world book (World DM): the chat that owns it. Such a book is never in the Lorebooks library or any picker; only that chat scans it (through its meta's `worldBookId`), a fork gets its own copy and deleting the chat deletes the book. Never set it on another book. |
 
 ### Entry fields
@@ -461,6 +465,7 @@ Links live on the card (or the group) only; the book's old `linkedCharacterIds` 
 | `order` | Higher is inserted later (closer to the end) and wins when the budget runs out. Default 100. |
 | `probability` | Percent chance to fire when keyed; omit for always. |
 | `group`, `groupWeight`, `groupPrioritize` | Entries in one group: only one fires, picked by weight or priority. |
+| `folder` | Optional. The folder the entry sits in on the book's Entries tab: one line of up to 60 characters, no `/` or `\`. Missing or empty = no folder. A folder is its name (no folder objects, no ids): it exists while an entry carries it or the book's `folders` lists it. The tab shows folders in natural order (`00 - Core` before `05 - Characters`). It only tidies the list: the prompt engine never reads it, it does not touch `order`, and it is not `group` (above: one entry of a group fires). To file a whole book: set `folder` on each entry when you append it. Books and exports from before folders have none and read as before. |
 | `sticky`, `cooldown`, `delay` | Timed effects, in messages: stays on, waits before firing again, waits before the first firing. |
 | `characterFilter`, `characterFilterExclude`, `tagFilter`, `triggerFilters` | Fire only when the speaking character is in `characterFilter` (ids or names) or has a tag from `tagFilter`; `characterFilterExclude: true` turns it into "never for them". `triggerFilters`: only on these generation types (`normal`, `continue`, `impersonate`, `swipe`, `regenerate`, `quiet`). Empty lists = no filter. |
 | `nonRecursable`, `preventFurtherRecursion`, `delayUntilRecursion` | How entries trigger each other. |

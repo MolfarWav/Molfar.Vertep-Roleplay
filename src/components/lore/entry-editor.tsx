@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef } from 'react'
-import { Copy, DotsThreeVertical, Trash, Warning, X } from '@phosphor-icons/react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { CaretRight, Copy, DotsThreeVertical, FolderSimple, Trash, Warning, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -10,21 +10,25 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { TONES } from '@/components/ui/tone'
 import { EntryFolds } from '@/components/lore/entry-folds'
+import { MoveToFolderDialog } from '@/components/lore/folder-dialogs'
 import { KeyChips } from '@/components/lore/key-chips'
 import { useT } from '@/hooks/use-t'
 import { APPEARANCE_HINT_KEY, APPEARANCE_KEY, APPEARANCES, appearanceOf, statusOf, type Appearance } from '@/lib/lore-entry'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import type { LoreEntry } from '@/lib/types'
 import { needsKeys } from '@/lib/lore-filters'
+import { folderOf, type FolderInfo } from '@/lib/lore-folders'
 
 /**
- * The entry panel: a side panel over the book page on desktop (non-modal: the list stays in use and an entry row opens
- * another entry), a full page on a phone. The top has the title, the on switch, a "more" menu (copy, duplicate, delete)
+ * The entry panel: a drawer from the right over the book page on desktop (it covers part of the list; non-modal, so a
+ * row that still shows opens another entry), a full page on a phone. The top has the title, the on switch, a "more" menu (copy, duplicate, delete)
  * and Close. Then the three things most people change (content, when it appears, keys), then the five folds. Edits
  * are saved as the person types, through `onChange`, as they always were. Escape closes it.
  */
-export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyToBook, onClose }: {
+export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate, onCopyToBook, onClose }: {
   entry: LoreEntry
+  /** the book's folders, for the Folder row */
+  folders: FolderInfo[]
   onChange: (p: Partial<LoreEntry>) => void
   onDelete: () => void
   onDuplicate: () => void
@@ -35,6 +39,8 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
   const ids = useId()
   const panelRef = useRef<HTMLElement>(null)
   const appearance: Appearance = appearanceOf(e.status)
+  const [moving, setMoving] = useState(false)
+  const folder = folderOf(e)
 
   // opening the panel puts the focus in it (no field is focused: phone keyboards)
   useEffect(() => { panelRef.current?.focus({ preventScroll: true }) }, [e.id])
@@ -61,7 +67,7 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
       aria-modal="false"
       aria-label={t('lore.ed.panel')}
       data-testid="entry-panel"
-      className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none @[680px]:static @[680px]:z-auto @[680px]:shrink @[680px]:basis-[440px] @[680px]:min-w-[320px] @[680px]:border-l @[680px]:border-border"
+      className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none md:inset-y-0 md:left-auto md:right-0 md:w-[min(460px,88%)] md:border-l md:border-border md:shadow-2xl md:animate-in md:slide-in-from-right md:duration-150 motion-reduce:animate-none"
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <Input
@@ -95,7 +101,7 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
         </Button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4">
+      <div className="flex min-h-0 flex-1 touch-pan-y flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4">
         <section className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor={`${ids}-content`}>{t('lore.ed.content')}</Label>
@@ -106,7 +112,7 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
             value={e.content}
             rows={6}
             onChange={(ev) => onChange({ content: ev.target.value })}
-            className="min-h-32 text-body"
+            className="min-h-32 max-h-[55dvh] overflow-y-auto text-body"
           />
         </section>
 
@@ -146,10 +152,35 @@ export function EntryEditor({ entry: e, onChange, onDelete, onDuplicate, onCopyT
           )}
         </section>
 
+        <section className="flex flex-col gap-1.5">
+          <span id={`${ids}-folder`} className="text-body font-medium">{t('lore.folder.label')}</span>
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start gap-2 max-md:h-10"
+            aria-labelledby={`${ids}-folder`}
+            aria-haspopup="dialog"
+            data-testid="entry-folder"
+            onClick={() => setMoving(true)}
+          >
+            <FolderSimple className="size-4 shrink-0 text-muted-foreground" weight={folder ? 'fill' : 'regular'} aria-hidden="true" />
+            <span className={`min-w-0 flex-1 truncate text-left ${folder ? '' : 'text-muted-foreground'}`}>{folder || t('lore.folder.none')}</span>
+            <CaretRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </Button>
+          <p className="text-caption text-muted-foreground">{t('lore.folder.hint')}</p>
+        </section>
+
         <EntryFolds entry={e} onChange={onChange} />
 
         <p className="text-caption text-muted-foreground">{t('lore.ed.saved')}</p>
       </div>
+      <MoveToFolderDialog
+        open={moving}
+        onOpenChange={setMoving}
+        title={t('lore.folder.moveOne', { title: e.title })}
+        folders={folders}
+        current={folder}
+        onPick={(name) => onChange({ folder: name || undefined })}
+      />
     </aside>
   )
 }
