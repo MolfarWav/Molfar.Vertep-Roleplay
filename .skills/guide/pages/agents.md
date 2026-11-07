@@ -1,6 +1,6 @@
 # Agents and the agent forge
 
-An agent is a small helper you build from cards and wires. After a reply it reads part of the chat, may ask a model one or more short questions, keeps notes of its own, and shows something: a note under the reply, buttons to tap, a meter, a map, or a hint for the next reply. Examples: three suggested next moves, a tension meter, a map of the places visited. This page is for those who want such extras. The Help has three articles on the editor: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
+An agent is a small helper you build from cards and wires. It reads part of the chat (before or after a reply, as you choose), may ask a model one or more short questions, keeps notes of its own, and shows something: a note under the reply, buttons to tap, a meter, a map, or a hint for the next reply. Examples: three suggested next moves, a tension meter, a map of the places visited. This page is for those who want such extras. The Help has three articles on the editor: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
 
 ## What an agent is made of
 
@@ -15,7 +15,14 @@ An agent is data, not code. In the editor it is a board of **cards** joined by *
 
 **Panels** (meters, counters, tables, a board of tiles) display what the agent keeps; nothing in a panel runs, and its buttons only put text in the message box.
 
-When it runs is set per agent: after every reply (the only timing this version runs), on every Nth reply, or only when chosen words appear.
+When it runs is a lane. The agent's file names the lane it starts in, and each chat can move the agent to another lane (the chat's Agents tab, or the Canvas's "Agent sets" board). The four lanes:
+
+- **Before the reply**: the reply waits for the agent, and a hint it leaves goes into that very reply. Keep it to one or two quick questions, because the wait is added to every reply. The Wait switch of the agent's row turns the wait off; the agent then runs beside the reply.
+- **Beside the reply**: runs at the same time, adds no wait, and cannot put a hint into the reply it runs beside (notes, buttons and panels work).
+- **After the reply**: the usual lane for notes, trackers and meters.
+- **By hand**: runs only when you press the run button of its row.
+
+On top of the lane, an agent can run on every Nth reply or only when chosen words appear.
 
 ## Ready agents
 
