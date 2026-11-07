@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Database, Eye, EyeSlash, Scroll } from '@phosphor-icons/react'
+import { Database, Eye, EyeSlash, Quotes, Scroll } from '@phosphor-icons/react'
 import { Fold } from '@/components/ui/fold'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,8 @@ import {
   type TraceChapter,
   type TraceFact,
   type TracePerson,
+  type TraceVerbatim,
+  verbatimIn,
 } from '@/lib/memory-trace'
 import { semVerdict } from '@/lib/vectors'
 import type { MsgKey } from '@/lib/i18n'
@@ -91,6 +93,20 @@ export function ChapterRow({ c, t }: { c: TraceChapter; t: T }) {
   )
 }
 
+export function VerbatimRow({ v, t }: { v: TraceVerbatim; t: T }) {
+  return (
+    <li className="flex flex-col gap-1.5 px-3 py-2 sm:flex-row sm:items-start sm:gap-3" data-testid="trace-verbatim-row">
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-body font-semibold">{v.title || v.chat}</p>
+        <p className="mt-0.5 whitespace-pre-line break-words text-sm text-muted-foreground">{v.text}</p>
+      </div>
+      <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <Chip tone="sky">{t('memtrace.verbatimShares', { n: v.words })}</Chip>
+      </span>
+    </li>
+  )
+}
+
 export function Rows({ children, empty }: { children: ReactNode[]; empty: string }) {
   return children.length ? <ul className="divide-y divide-border">{children}</ul> : <p className="px-3 py-3 text-sm text-muted-foreground">{empty}</p>
 }
@@ -138,6 +154,7 @@ export function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys
   const chOut = chaptersOut(lit)
   const hidden = lit.n.hidden ?? sp.length
   const drop = lit.n.drop ?? bu.length
+  const vb = verbatimIn(lit)
   return (
     <>
       <Fold id="memtrace.in" title={t('memtrace.foldIn')} icon={Eye} tone="emerald" summary={String(lit.n.inF ?? inF.length)} defaultOpen>
@@ -155,6 +172,11 @@ export function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys
       <Fold id="memtrace.chapters" title={t('memtrace.foldChapters')} icon={Scroll} tone="violet" summary={t('memtrace.chapterCounts', { a: chIn.length, b: chOut.length })}>
         <Rows empty={t('memtrace.none')}>{[...chIn, ...chOut].map((c) => <ChapterRow key={`${c.state}:${c.id}`} c={c} t={t} />)}</Rows>
       </Fold>
+      {vb.length > 0 && (
+        <Fold id="memtrace.verbatim" title={t('memtrace.foldVerbatim')} icon={Quotes} tone="sky" summary={String(vb.length)} defaultOpen>
+          <Rows empty={t('memtrace.none')}>{vb.map((v, i) => <VerbatimRow key={`${v.chat}:${i}`} v={v} t={t} />)}</Rows>
+        </Fold>
+      )}
     </>
   )
 }

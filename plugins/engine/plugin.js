@@ -1975,6 +1975,11 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
     // what the characters remember of old scenes (litopys recollectBudget, 100 to 1500, default 300): a group has casts, and a chat whose last insert had some
     const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
     if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
+    // word-for-word passages of the earlier chats of the chain (litopys verbatim, off by default; verbatimBudget 150 to 1200, default 400): only a chat that continues another
+    if (lit.verbatim === true && !off("plugin:verbatim") && chatId) {
+      const vlinks = jsonAt(fsx, "litopys/links.json");
+      if (vlinks && vlinks.links && vlinks.links[chatId]) add("litopys verbatim", clampInt(lit.verbatimBudget, 150, 1200, 400));
+    }
     // who knows what, and the optional hidden plan: only a reply that voices several characters. A group does, and so
     // does a chat whose card answers to several names. Litopys also runs castKnowledge for a chat with no card (its
     // soleVoice is null then too); that case is not reserved here. Mirrors Litopys cardNamesOf (the card's name,
@@ -2979,7 +2984,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -3981,6 +3986,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:recollections")) {
     omit("memory", "What the characters remember", "off for this chat", undefined, "plugin:recollections");
   }
+  if (isOff("plugin:verbatim")) {
+    omit("memory", "Earlier, word for word", "off for this chat", undefined, "plugin:verbatim");
+  }
   const memoryTaken = (k) => !!(meta.memory && typeof meta.memory === "object" && meta.memory[k] === true);
   if (memoryTaken("persona") && isOff("plugin:personamemory")) {
     omit("memory", "Persona memory", "off for this chat", undefined, "plugin:personamemory");
@@ -4171,6 +4179,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
   board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });
+  // the word-for-word passages are off by default: their switch shows only once the Library setting is on
+  try {
+    if ((readJsonFile(fsx, "litopys/config.json") || {}).verbatim === true) board.push({ key: "plugin:verbatim", label: "Earlier, word for word", kind: "memory", state: isOff("plugin:verbatim") ? "off" : "on" });
+  } catch {}
   // persona and world memory reach a chat only when the chat took them in (meta.memory.persona / .world): the rows
   // show once it did, and their switch then only mutes them
   if (memoryTaken("persona")) board.push({ key: "plugin:personamemory", label: "Persona memory", kind: "memory", state: isOff("plugin:personamemory") ? "off" : "on" });

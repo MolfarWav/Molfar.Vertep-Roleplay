@@ -105,4 +105,20 @@ describe("memory trace report", () => {
     expect(factsOut(t.litopys!, "speaker").map((f) => f.id)).toEqual(["f2"]);
     expect(personLabel(p("Ghost", ""))).toBe("Ghost");
   });
+
+  it("lists the word-for-word passages of earlier chats, and leaves the section out when there are none (#184)", () => {
+    const none = buildReport("", trace());
+    expect(none).not.toContain("word for word");
+    const t = trace();
+    t.litopys!.verbatim = [
+      { chat: "c1", title: "The harbour", words: 3, text: "…she wore a turquoise cloak\nwith a silver clasp…" },
+      { chat: "c2", title: "", words: 1, text: "A heron." },
+    ];
+    const r = buildReport("", t);
+    expect(r).toContain("Earlier, word for word (2):");
+    expect(r).toContain('- "The harbour" shares 3 rare words: …she wore a turquoise cloak with a silver clasp…');
+    expect(r).toContain('- "c2" shares 1 rare word: A heron.');
+    t.litopys!.verbatim = [];
+    expect(buildReport("", t)).not.toContain("word for word");
+  });
 });

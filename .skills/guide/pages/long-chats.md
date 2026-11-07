@@ -40,6 +40,10 @@ The link is the one the Canvas draws, and the Canvas can change it later: see [[
 
 The new chat opens with the card's first greeting; "Edit the first message" lets you carry on where the story stopped.
 
+## Details the chapters dropped
+
+A chapter is a retelling, so a small detail of an earlier chat can be gone from it. In the Library, Litopys settings, "In the prompt", the switch **Word-for-word memories of earlier chats** lets a chat that continues others bring back one or two passages of the original messages when what is being said shares rare words with them ([[litopys]]). Off by default.
+
 ## Save a story as a book
 
 In the Library, Litopys, "Save as a book" copies a chat's chapters, arcs and facts onto the Data Bank shelf for chats you pick: see [[memory]].
