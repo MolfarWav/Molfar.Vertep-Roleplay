@@ -1975,8 +1975,27 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
     // what the characters remember of old scenes (litopys recollectBudget, 100 to 1500, default 300): a group has casts, and a chat whose last insert had some
     const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
     if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
-    // who knows what, and the optional hidden plan: only a reply that voices several characters
-    if (grouped && lit.castKnowledge !== false && !off("plugin:litopys")) {
+    // who knows what, and the optional hidden plan: only a reply that voices several characters. A group does, and so
+    // does a chat whose card answers to several names. Litopys also runs castKnowledge for a chat with no card (its
+    // soleVoice is null then too); that case is not reserved here. Mirrors Litopys cardNamesOf (the card's name,
+    // data.name and molfar_soul.characters keys, trimmed, lower case) and soleVoice; change both.
+    const cardNames = (id) => {
+      const names = new Set();
+      const c = SAFE_RESERVE_ID.test(String(id || "")) ? jsonAt(fsx, "characters/" + id + "/card.json") : null;
+      if (!c) return names;
+      const add = (n) => {
+        const s = typeof n === "string" ? n.trim().toLowerCase() : "";
+        if (s) names.add(s);
+      };
+      add(c.name);
+      if (c.data && typeof c.data === "object") add(c.data.name);
+      const soul = c.extensions && typeof c.extensions === "object" ? c.extensions.molfar_soul : null;
+      const chars = soul && typeof soul === "object" ? soul.characters : null;
+      for (const k of Object.keys(chars && typeof chars === "object" ? chars : {})) add(k);
+      return names;
+    };
+    const severalVoices = grouped || cardNames(m.characterId).size > 1;
+    if (severalVoices && lit.castKnowledge !== false && !off("plugin:litopys")) {
       add("litopys who knows what", 250);
       if (lit.hiddenPlan === true) add("litopys hidden plan", 130);
     }

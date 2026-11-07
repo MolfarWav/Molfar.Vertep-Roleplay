@@ -442,6 +442,45 @@ it("GET reports where the last prompt started, null before any, count 0 when the
   expect(await getCut()).toEqual({ count: 0, upTo: null });
 });
 
+// the guard of the saved prompt cut: a record is taken only while the message at `count` is still `upTo`
+describe("prompt-cut guard (GET /chats/:id promptCut)", () => {
+  const cutRec = (id: string) => path.join("litopys", "prompt-cut", `${id}.json`);
+  const promptCutOf = async (id: string, m: ReturnType<typeof mockHost>) =>
+    ((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json as { meta: { promptCut: { count: number; upTo: string | null } | null } }).meta.promptCut;
+  // the chat is u0,c0,u1,c1,...: index 19 is c9, so a cut of 20 messages ends at c9
+  async function cutAt(count: number, upTo: string) {
+    const { id, m } = await chatWithThirty();
+    writeJson(cutRec(id), { count, upTo });
+    return { id, m };
+  }
+
+  it("the saved cut is reported while the message at its end is still the same one", async () => {
+    const { id, m } = await cutAt(20, "c9");
+    expect(await promptCutOf(id, m)).toEqual({ count: 20, upTo: "c9" });
+  });
+
+  it("deleting a message ABOVE the cut makes the guard return null", async () => {
+    const { id, m } = await cutAt(20, "c9");
+    const del = await drive(engineUrl, { method: "DELETE", path: `/chats/${id}/messages/u0` }, m);
+    expect(del.status).toBe(200);
+    expect(await promptCutOf(id, m)).toBeNull();
+  });
+
+  it("deleting the upTo message itself makes the guard return null", async () => {
+    const { id, m } = await cutAt(20, "c9");
+    const del = await drive(engineUrl, { method: "DELETE", path: `/chats/${id}/messages/c9` }, m);
+    expect(del.status).toBe(200);
+    expect(await promptCutOf(id, m)).toBeNull();
+  });
+
+  it("deleting a message BELOW the cut keeps the same cut", async () => {
+    const { id, m } = await cutAt(20, "c9");
+    const del = await drive(engineUrl, { method: "DELETE", path: `/chats/${id}/messages/u14` }, m);
+    expect(del.status).toBe(200);
+    expect(await promptCutOf(id, m)).toEqual({ count: 20, upTo: "c9" });
+  });
+});
+
 it("GET returns litopysCut matching the cut", async () => {
   const { id, m } = await chatWithThirty();
   const r = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);

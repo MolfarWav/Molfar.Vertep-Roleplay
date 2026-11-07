@@ -2897,12 +2897,6 @@ export function llmRequest(ctx, host) {
   if (!Array.isArray(req.messages)) return null;
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
-  const offForChat = (fsx, chatId, key) => {
-    const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
-    const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
-    // the habits switch was "plugin:cardskills" until 4.67.0
-    return off.includes(key) || (key === "plugin:cardhabits" && off.includes("plugin:cardskills"));
-  };
   // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
   const litOff = offForChat(fsx, chatId, "plugin:litopys");
   // persona and world memory are the chat's own opt-in (meta.memory.persona / .world), muted by their own switches
@@ -4217,6 +4211,7 @@ export function autoEmbedScan(fsx, host, cfg, now = Date.now()) {
     if (!f.endsWith(".json")) continue;
     const chatId = f.slice(0, -5);
     if (!SAFE_ID.test(chatId)) continue;
+    if (offForChat(fsx, chatId, "plugin:litopys")) continue;
     const v = vectorsView(fsx, chatId);
     if (!v || v.missing + v.other === 0 || v.tokens > limit || spent + v.tokens > limit) continue;
     wantEmbed(fsx, chatId);
@@ -4256,6 +4251,11 @@ function kickEmbedWants(fsx, host) {
     if (chatId.startsWith(SHELF_WANT)) {
       kickShelfWant(fsx, host, chatId.slice(SHELF_WANT.length));
       return;
+    }
+    // the Prompt board has Litopys off for this chat: the request is dropped, a switch back on asks again
+    if (offForChat(fsx, chatId, "plugin:litopys")) {
+      endEmbedWant(fsx, chatId);
+      continue;
     }
     const st = loadChatFile(fsx, chatId);
     if (!st) {
@@ -4630,6 +4630,17 @@ function embedStoreFailed(fsx, host, wantName, e) {
   } catch {}
 }
 
+/**
+ * Whether the Prompt board has this Litopys switch off for the chat (meta.promptBoard.off). The engine's insert and reserve
+ * and the background worker (onTick: chapters, arcs, consolidation, summaries, embeddings) all read it.
+ */
+function offForChat(fsx, chatId, key) {
+  const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
+  // the habits switch was "plugin:cardskills" until 4.67.0
+  return off.includes(key) || (key === "plugin:cardhabits" && off.includes("plugin:cardskills"));
+}
+
 export function onTick(_ctx, host) {
   try {
     const fsx = host && host.fs ? host.fs : null;
@@ -4713,6 +4724,8 @@ export function onTick(_ctx, host) {
     for (const item of chats) {
       try {
         const { chatId, meta } = item;
+        // the Prompt board has Litopys off for this chat: the worker makes no call for it (its record waits)
+        if (offForChat(fsx, chatId, "plugin:litopys")) continue;
         const rc = readChat(fsx, chatId);
         if (!rc) continue;
         const line = activeLine(rc.msgs);
