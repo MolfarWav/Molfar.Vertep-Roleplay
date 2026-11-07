@@ -120,6 +120,49 @@ describe("the client side of archived", () => {
   });
 });
 
+describe("the links route archives the earlier chat (#263)", () => {
+  const link = (chatId: string, from: string | null) => lit.linkRoute(host().fs as never, { chatId, from }) as { status: number; json: { links: Record<string, { from: string }>; archived: string[] } };
+  const metaOf = (id: string) => JSON.parse(fs.readFileSync(path.join(root, "chats", id + ".meta.json"), "utf8"));
+
+  it("archives the earlier chat of a new link and says so, once", () => {
+    const a = newChat();
+    const b = newChat();
+    const out = link(b, a);
+    expect(out.status).toBe(200);
+    expect(out.json.archived).toEqual([a]);
+    expect(metaOf(a).archived).toBe(true);
+    expect(metaOf(b).archived).toBeUndefined();
+    // the same link again changes nothing and archives nothing
+    call("PATCH", "/chats/" + a, { archived: false });
+    expect(link(b, a).json.archived).toEqual([]);
+    expect(metaOf(a).archived).toBeFalsy();
+  });
+
+  it("leaves the earlier chat alone when the switch is off, when a link is removed, or when it is archived already", () => {
+    const a = newChat();
+    const b = newChat();
+    lit.patchConfig(host().fs as never, { archiveOnContinue: false });
+    expect(link(b, a).json.archived).toEqual([]);
+    expect(metaOf(a).archived).toBeFalsy();
+    lit.patchConfig(host().fs as never, { archiveOnContinue: true });
+    expect(link(b, null).json.archived).toEqual([]);
+    call("PATCH", "/chats/" + a, { archived: true });
+    expect(link(b, a).json.archived).toEqual([]);
+    // the archived chat is untouched by the second write (still archived, meta intact)
+    expect(metaOf(a).archived).toBe(true);
+    expect(metaOf(a).id).toBe(a);
+  });
+
+  it("keeps the meta of the earlier chat as it was, apart from the flag", () => {
+    const a = newChat();
+    const b = newChat();
+    call("PATCH", "/chats/" + a, { title: "The old road", pinned: true });
+    const before = metaOf(a);
+    link(b, a);
+    expect(metaOf(a)).toEqual({ ...before, archived: true });
+  });
+});
+
 describe("Litopys switch: archive the earlier chat when it is continued", () => {
   const fsx = () => host().fs;
   it("is on by default, and an off value survives a save", () => {

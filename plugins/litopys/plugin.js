@@ -1054,7 +1054,7 @@ export const DEFAULT_CONFIG = {
   // the request size past which the chat popup offers a new chat (#261): "auto" = 60% of the model's window, "tokens" = promptAlertTokens, "off" = never
   promptAlert: "auto",
   promptAlertTokens: 30000,
-  // when a chat becomes another chat's earlier chat (a link in the Canvas, a one-click continue, a continuation picked in the new-chat step) it moves to the Archive (#263); the client does it, this is its switch
+  // when a chat becomes another chat's earlier chat (a link in the Canvas, a one-click continue, a continuation picked in the new-chat step) it moves to the Archive (#263); linkRoute does it, this is its switch
   archiveOnContinue: true,
   scene: {
     minMessages: 6,
@@ -6526,13 +6526,14 @@ export function loadLinks(fsx) {
   return out;
 }
 
-/** POST /litopys/links { chatId, from }: from = the chat this one continues, null removes the link. Answers { links }. */
+/** POST /litopys/links { chatId, from }: from = the chat this one continues, null removes the link. Answers { links, archived }: `archived` lists the earlier chat when this call moved it to the Archive (a new link, config `archiveOnContinue` not off, not archived already). */
 export function linkRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const chatId = str(b.chatId);
   if (!chatExists(fsx, chatId)) return { status: 400, json: { error: "no such chat" } };
   const links = loadLinks(fsx);
   const from = b.from === null || b.from === undefined || b.from === "" ? null : str(b.from);
+  let newLink = false;
   if (from === null) delete links[chatId];
   else {
     if (from === chatId) return { status: 400, json: { error: "a chat cannot continue itself" } };
@@ -6543,10 +6544,23 @@ export function linkRoute(fsx, body) {
       if (cur === chatId) return { status: 400, json: { error: "that would make a loop" } };
       seen.add(cur);
     }
+    newLink = !links[chatId] || links[chatId].from !== from;
     links[chatId] = { from, at: Date.now() };
   }
   fsx.write(LINKS_FILE, JSON.stringify({ v: 1, links }));
-  return { status: 200, json: { links } };
+  // the earlier chat is finished now: it goes to the Archive (#263) unless the user switched that off. Done here, not in the page,
+  // so every way of making a link does it at once and nothing waits behind other requests. The answer says which chat moved.
+  const archived = [];
+  if (newLink && from !== null && loadConfig(fsx).archiveOnContinue !== false) {
+    const file = "chats/" + from + ".meta.json";
+    const m = readJson(fsx, file, null);
+    if (isObj(m) && m.archived !== true) {
+      m.archived = true;
+      fsx.write(file, JSON.stringify(m, null, 2) + "\n");
+      archived.push(from);
+    }
+  }
+  return { status: 200, json: { links, archived } };
 }
 
 /** How far back a chain of linked chats is read (0.9.5): A -> B -> C gives C the stories of B and A. */

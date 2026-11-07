@@ -6420,6 +6420,8 @@ function planUpdate(fsx, chatId, op) {
   if (!chat) return { final: ok({ error: "no such chat" }, 404) };
   const { state, existed, before } = loadStateFor(fsx, chatId);
   const unchanged = () => ({ final: ok({ ok: true, state: existed ? state : null, unchanged: true }) });
+  // an archived chat (#263) is a finished story: opening it, or pressing Refresh, spends no model call (the sensor, the soul rating)
+  if (chat.meta.archived === true) return { final: ok({ ok: true, state: existed ? state : null, unchanged: true, skipped: "archived" }) };
   const line = activeLine(chat.msgs);
   if (!line.length) return unchanged();
   // a chat that carried an earlier chat's state keeps the choice to start clean open until the user has
@@ -7605,6 +7607,8 @@ function rateRoute(req, host) {
   // with names, treat auto: true as not auto (the button asked for it)
   const isAuto = parseBool(b.auto) === true && !names;
   if (isAuto && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
+  // the rating that runs by itself when a chat opens is not made for an archived chat (#263)
+  if (isAuto && chat && chat.meta.archived === true) return ok({ skipped: true });
   const retry = !!(isObj(req.stash) && req.stash.retry);
   const key = retry ? "soul_rate_retry" : "soul_rate";
   const r = host.llm.results[key];
