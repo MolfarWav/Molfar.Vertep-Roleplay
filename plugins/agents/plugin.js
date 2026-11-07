@@ -1567,6 +1567,33 @@ function approxTokens(text) {
   return Math.ceil(ascii / 3.5 + alpha / 2 + other);
 }
 
+/** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
+ *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/litopys, relations, world,
+ *  letters (#156); test/rp-helper-names.test.ts keeps the copies equal. */
+export function expandNames(text, userName, charName) {
+  if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const u = typeof userName === "string" ? userName.trim() : "";
+  const c = typeof charName === "string" ? charName.trim() : "";
+  let out = text;
+  if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
+  if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  return out;
+}
+
+/** The names {{user}} and {{char}} stand for in an agent's model request (#156): the persona, and the card only in a solo chat. */
+function helperNames(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  let user = str(m.userName);
+  if (!user && AG_CHAT.test(str(m.personaId))) user = str((readJsonAt(fsx, "personas/" + m.personaId + ".json", null) || {}).name);
+  const solo = new Set([str(m.characterId), ...(Array.isArray(m.characterIds) ? m.characterIds : []).map(str)].filter(Boolean));
+  let char = "";
+  if (!m.groupId && solo.size === 1 && AG_CHAT.test([...solo][0])) {
+    const card = readJsonAt(fsx, "characters/" + [...solo][0] + "/card.json", null);
+    char = isObj(card) ? str(card.name) || (isObj(card.data) ? str(card.data.name) : "") : "";
+  }
+  return { user, char };
+}
+
 /** One `give` of the Input card -> text (or undefined when the chat has nothing for it). */
 function sourceValue(fsx, chat, give, last) {
   const { meta, msgs } = chat;
@@ -2092,10 +2119,11 @@ function stepRun(host, fsx, view, picks, last, stash) {
         continue;
       }
       const model = modelFor(fsx, view.meta, q.role, r.pick.item.agent);
+      const who = helperNames(fsx, view.meta);
       host.llm.request(`ag_${r.ai}_${ni}`, {
         ...(model ? { model } : {}),
         systemPrompt: AGENT_SYSTEM,
-        messages: [{ role: "user", content: q.prompt }],
+        messages: [{ role: "user", content: expandNames(q.prompt, who.user, who.char) }],
         presetParams: { temperature: 0.3, max_tokens: Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600 },
       });
       asked++;
@@ -2393,10 +2421,11 @@ function dryRoute(req, host) {
         const ni = file.nodes.findIndex((n) => n.id === q.node);
         const model = models[q.role] || "";
         prompts[q.node] = q.prompt;
+        const who = helperNames(fsx, view.meta);
         host.llm.request("dry_" + ni, {
           ...(model ? { model } : {}),
           systemPrompt: AGENT_SYSTEM,
-          messages: [{ role: "user", content: q.prompt }],
+          messages: [{ role: "user", content: expandNames(q.prompt, who.user, who.char) }],
           presetParams: { temperature: 0.3, max_tokens: Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600 },
         });
       }

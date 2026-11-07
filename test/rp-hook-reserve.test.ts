@@ -181,6 +181,25 @@ describe("hook reserve: persona and world memory, recollections, who knows what,
     expect(byId(rows({ groupId: "g1" }))["litopys who knows what"]).toBeUndefined();
     expect(byId(rows({ groupId: "g1" }))["litopys hidden plan"]).toBeUndefined();
   });
+  it("a chat (no group) whose card answers to several names reserves them too, as Litopys runs the brief there", () => {
+    // one name, the card's own: Litopys has a sole voice, so no brief and no row
+    writeJson("characters/aria/card.json", { spec: "chara_card_v2", name: "Aria", extensions: { molfar_soul: { characters: { Aria: {} } } } });
+    writeJson("litopys/config.json", { hiddenPlan: true });
+    expect(byId(rows({ characterId: "aria" }))["litopys who knows what"]).toBeUndefined();
+    expect(byId(rows({ characterId: "aria" }))["litopys hidden plan"]).toBeUndefined();
+    // several characters on the card: both rows, the same numbers as a group
+    writeJson("characters/nora/card.json", { spec: "chara_card_v2", name: "Narrator", extensions: { molfar_soul: { characters: { Nora: {}, Vell: { aliases: ["V"] } } } } });
+    const r = byId(rows({ characterId: "nora" }));
+    expect(r["litopys who knows what"]).toBe(250);
+    expect(r["litopys hidden plan"]).toBe(130);
+    // the same card with the switch off: nothing
+    writeJson("litopys/config.json", { hiddenPlan: true, castKnowledge: false });
+    expect(byId(rows({ characterId: "nora" }))["litopys who knows what"]).toBeUndefined();
+    writeJson("litopys/config.json", { hiddenPlan: true });
+    expect(byId(rows({ characterId: "nora", promptBoard: { off: ["plugin:litopys"] } }))["litopys who knows what"]).toBeUndefined();
+    // a card with no file counts as one voice (no row), as Litopys finds no card
+    expect(byId(rows({ characterId: "ghost" }))["litopys who knows what"]).toBeUndefined();
+  });
   it("the ceilings hold the real blocks: the plan note and the brief, measured with the engine's script-aware estimate", () => {
     // the engine counts ASCII at 3.5 characters a token; the note is plain English
     const note = L.hiddenPlanNote() as string;

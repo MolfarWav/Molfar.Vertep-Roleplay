@@ -410,7 +410,8 @@ last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = foll
 ### Per-chat prompt switches
 A chat's meta can have a `promptBoard` object, `{ v: 1, off?: string[], history? }`, listing prompt parts this
 chat leaves out. Absent = everything on (today's behaviour). Keys in `off` are `section:<id>` (a preset section),
-`book:<lorebookId>`, `databank`, `authorNote`, `plugin:litopys`, `plugin:relations`. `section:chatHistory` is
+`book:<lorebookId>`, `databank`, `authorNote`, `plugin:litopys`, `plugin:relations`. `plugin:litopys` also stops
+the Litopys background worker (chapters, arcs, summaries, embeddings) for the chat, not only its insert. `section:chatHistory` is
 never allowed. `history` filters the chat history sent with every request, `{ lastN, only, thinking }`
 (defaults `{ lastN: 0, only: "all", thinking: true }`, stored only when it differs): `only` keeps the
 player's (`user`) or the character's (`char`) messages, `lastN > 0` keeps the last N of those, and

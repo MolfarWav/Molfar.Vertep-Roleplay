@@ -1791,6 +1791,33 @@ function cardNames(fsx, meta) {
   return names;
 }
 
+/** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
+ *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/litopys, relations, letters,
+ *  agents (#156); test/rp-helper-names.test.ts keeps the copies equal. */
+export function expandNames(text, userName, charName) {
+  if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const u = typeof userName === "string" ? userName.trim() : "";
+  const c = typeof charName === "string" ? charName.trim() : "";
+  let out = text;
+  if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
+  if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  return out;
+}
+
+/** The names {{user}} and {{char}} stand for in a helper request: the persona, and the card only in a solo chat (#156). */
+export function helperNames(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const names = !m.groupId && memberIds(fsx, m).length === 1 ? cardNames(fsx, m) : [];
+  return { user: userNameOf(fsx, m), char: names[0] || "" };
+}
+
+/** A helper request's text with {{user}} and {{char}} expanded (#156). Without a chat the text is returned as it is. */
+function expandNamesFor(fsx, meta, text) {
+  if (!meta || typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const n = helperNames(fsx, meta);
+  return expandNames(text, n.user, n.char);
+}
+
 function userNameOf(fsx, meta) {
   if (str(meta.userName)) return str(meta.userName);
   if (meta.personaId && CHAT_ID.test(String(meta.personaId))) {
@@ -3637,13 +3664,14 @@ function countBuild(state, built, reason, changes) {
   state.log = [...state.log, { at: Date.now(), reason, ...built.run, key: state.lastKey, changes, fronts: 0, summary: "", ...(built.error ? { error: cleanError(built.error).code } : {}) }].slice(-LOG_MAX);
 }
 
-function buildAsk(host, fsx, cfg, meta, systemPrompt, content) {
+// keepMacros: the opening's draft is saved as the chat's own first message, so its input keeps {{user}} and {{char}} raw (#156)
+function buildAsk(host, fsx, cfg, meta, systemPrompt, content, opts = {}) {
   const pick = buildModel(fsx, cfg, meta);
   return (k, maxTokens) =>
     host.llm.request(k, {
       ...(pick.model ? { model: pick.model } : {}),
       systemPrompt,
-      messages: [{ role: "user", content }],
+      messages: [{ role: "user", content: opts.keepMacros ? content : expandNamesFor(fsx, meta, content) }],
       ...callParams(fsx, cfg, meta, maxTokens || Math.max(cfg.maxTokens, 2000)),
     });
 }
@@ -4037,7 +4065,7 @@ function openingRoute(req, host) {
     ...(str(b.wish) ? ["What the player wants from this start: " + cut(str(b.wish), ANSWER_MAX)] : []),
     "Write both in " + (cut(str(b.lang), LANG_MAX) || "the language of the card's first message") + ".",
   ].join("\n\n");
-  const built = buildResult(host, "world_opening", buildAsk(host, fsx, cfg, chat.meta, OPENING_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  const built = buildResult(host, "world_opening", buildAsk(host, fsx, cfg, chat.meta, OPENING_SYSTEM, content, { keepMacros: true }), isObj(req.stash) ? req.stash : {});
   if (built.pending) return built.pending;
   if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
   const scenario = cut(str(built.out.scenario), SCENARIO_MAX);
@@ -4604,12 +4632,12 @@ function updateRoute(req, host) {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
-      messages: [{ role: "user", content: dmInput({
+      messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
         cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
-      }) }],
+      })) }],
       ...callParams(fsx, cfg, chat.meta, maxTokens),
     });
   };

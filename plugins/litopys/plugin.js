@@ -2017,6 +2017,33 @@ export function sceneCast(scene, line, dash, meta, notCast = [], canon) {
 }
 
 /** item 6: returns the request object for host.llm.request. */
+/** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
+ *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/relations, world, letters,
+ *  agents (#156); test/rp-helper-names.test.ts keeps the copies equal. */
+export function expandNames(text, userName, charName) {
+  if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const u = typeof userName === "string" ? userName.trim() : "";
+  const c = typeof charName === "string" ? charName.trim() : "";
+  let out = text;
+  if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
+  if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  return out;
+}
+
+/** The names {{user}} and {{char}} stand for in a helper request: the persona, and the card only in a solo chat (#156). */
+export function helperNames(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  let user = str(m.userName);
+  if (!user && SAFE_ID.test(str(m.personaId))) user = str((readJson(fsx, "personas/" + str(m.personaId) + ".json", null) || {}).name);
+  const solo = new Set([str(m.characterId), ...arr(m.characterIds).map(str)].filter(Boolean));
+  let char = "";
+  if (!m.groupId && solo.size === 1 && SAFE_ID.test([...solo][0])) {
+    const card = readJson(fsx, "characters/" + [...solo][0] + "/card.json", null);
+    char = isObj(card) ? str(card.name) || (isObj(card.data) ? str(card.data.name) : "") : "";
+  }
+  return { user, char };
+}
+
 /** M4d: words in a text (letters and digits between spaces), for the chapter size check. */
 export function wordCount(text) {
   return String(text || "").split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
@@ -2117,6 +2144,7 @@ export function heldLeaks(dash, line, scene) {
 
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
+  const who = opts.names || {};
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
   const parts = [];
 
@@ -2189,7 +2217,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
 
   const req = {
     systemPrompt,
-    messages: [{ role: "user", content: userText }],
+    messages: [{ role: "user", content: expandNames(userText, who.user || str(meta && meta.userName), who.char) }],
     presetParams: { temperature: 0.3, max_tokens: 2000 },
   };
   if (model) req.model = model;
@@ -2897,12 +2925,6 @@ export function llmRequest(ctx, host) {
   if (!Array.isArray(req.messages)) return null;
   const fsx = host && host.fs ? host.fs : null;
   if (!fsx) return null;
-  const offForChat = (fsx, chatId, key) => {
-    const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
-    const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
-    // the habits switch was "plugin:cardskills" until 4.67.0
-    return off.includes(key) || (key === "plugin:cardhabits" && off.includes("plugin:cardskills"));
-  };
   // the Litopys switch does not take the card's own memory with it: that one has its own (plugin:cardmemory)
   const litOff = offForChat(fsx, chatId, "plugin:litopys");
   // persona and world memory are the chat's own opt-in (meta.memory.persona / .world), muted by their own switches
@@ -4217,6 +4239,7 @@ export function autoEmbedScan(fsx, host, cfg, now = Date.now()) {
     if (!f.endsWith(".json")) continue;
     const chatId = f.slice(0, -5);
     if (!SAFE_ID.test(chatId)) continue;
+    if (offForChat(fsx, chatId, "plugin:litopys")) continue;
     const v = vectorsView(fsx, chatId);
     if (!v || v.missing + v.other === 0 || v.tokens > limit || spent + v.tokens > limit) continue;
     wantEmbed(fsx, chatId);
@@ -4256,6 +4279,11 @@ function kickEmbedWants(fsx, host) {
     if (chatId.startsWith(SHELF_WANT)) {
       kickShelfWant(fsx, host, chatId.slice(SHELF_WANT.length));
       return;
+    }
+    // the Prompt board has Litopys off for this chat: the request is dropped, a switch back on asks again
+    if (offForChat(fsx, chatId, "plugin:litopys")) {
+      endEmbedWant(fsx, chatId);
+      continue;
     }
     const st = loadChatFile(fsx, chatId);
     if (!st) {
@@ -4630,6 +4658,17 @@ function embedStoreFailed(fsx, host, wantName, e) {
   } catch {}
 }
 
+/**
+ * Whether the Prompt board has this Litopys switch off for the chat (meta.promptBoard.off). The engine's insert and reserve
+ * and the background worker (onTick: chapters, arcs, consolidation, summaries, embeddings) all read it.
+ */
+function offForChat(fsx, chatId, key) {
+  const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  const off = m && m.promptBoard && Array.isArray(m.promptBoard.off) ? m.promptBoard.off : [];
+  // the habits switch was "plugin:cardskills" until 4.67.0
+  return off.includes(key) || (key === "plugin:cardhabits" && off.includes("plugin:cardskills"));
+}
+
 export function onTick(_ctx, host) {
   try {
     const fsx = host && host.fs ? host.fs : null;
@@ -4713,6 +4752,8 @@ export function onTick(_ctx, host) {
     for (const item of chats) {
       try {
         const { chatId, meta } = item;
+        // the Prompt board has Litopys off for this chat: the worker makes no call for it (its record waits)
+        if (offForChat(fsx, chatId, "plugin:litopys")) continue;
         const rc = readChat(fsx, chatId);
         if (!rc) continue;
         const line = activeLine(rc.msgs);
@@ -4804,7 +4845,7 @@ export function onTick(_ctx, host) {
             gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
             if (!saveChatFile(fsx, st)) return;
             beat(fsx, chatId, now);
-            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { maxWords, view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) }));
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { maxWords, names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) }));
             return;
           }
           // the registry is read (and seeded) right before the names are written
@@ -4886,7 +4927,7 @@ export function onTick(_ctx, host) {
         gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) });
+        const req = buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) });
         if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {
@@ -5063,14 +5104,14 @@ export function arcKey(chatId, job) {
   return "lita_" + chatId + "_" + (job.replaces || "new") + "_" + fnv1a(job.chapters.map((ch) => ch.id).join(",") + "|" + arcSig(job.chapters));
 }
 
-export function buildArcRequest(job, cfg, meta) {
+export function buildArcRequest(job, cfg, meta, who = {}) {
   const model = cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
   const parts = job.chapters.map((ch, i) => "Chapter " + (i + 1) + (str(ch.label) ? ": " + str(ch.label) : "") + "\n" + str(ch.text));
   const systemPrompt =
     (cfg.arc || DEFAULT_PROMPTS.arc) + "\n\nSize: the arc text must be at most " + cfg.arcWords + " words.\n\nOutput shape\n" + ARC_SHAPE;
   const req = {
     systemPrompt,
-    messages: [{ role: "user", content: "Chapters\n\n" + parts.join("\n\n") }],
+    messages: [{ role: "user", content: expandNames("Chapters\n\n" + parts.join("\n\n"), who.user || str(meta && meta.userName), who.char) }],
     presetParams: { temperature: 0.3, max_tokens: 1500 },
   };
   if (model) req.model = model;
@@ -5180,7 +5221,7 @@ function arcStep(fsx, host, chatId, st, line, cfg, meta, now) {
   st.arcFlight = { key, chapters: job.chapters.length, fromNo: r1.orphan ? 0 : r1.fromIdx + 1, toNo: r2.orphan ? 0 : r2.toIdx + 1, since: now, rewrite: !!job.replaces };
   if (!saveChatFile(fsx, st)) return true;
   beat(fsx, chatId, now);
-  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildArcRequest(job, cfg, meta));
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildArcRequest(job, cfg, meta, helperNames(fsx, meta)));
   return true;
 }
 
@@ -5412,7 +5453,7 @@ export function mergeAnchors(parts, anchorsOf) {
   return out.slice(0, WHENS_MAX);
 }
 
-export function buildConsolidateRequest(facts, cfg, meta, anchorsOf) {
+export function buildConsolidateRequest(facts, cfg, meta, anchorsOf, who = {}) {
   const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
   const lines = facts.map((f) => {
     const at = typeof anchorsOf === "function" ? arr(anchorsOf(f)).map(anchorText).filter(Boolean).join("; ") : "";
@@ -5420,7 +5461,7 @@ export function buildConsolidateRequest(facts, cfg, meta, anchorsOf) {
   });
   const req = {
     systemPrompt: CONSOLIDATE_PROMPT + "\n\nOutput shape\n" + CONSOLIDATE_SHAPE,
-    messages: [{ role: "user", content: "Facts\n\n" + lines.join("\n") }],
+    messages: [{ role: "user", content: expandNames("Facts\n\n" + lines.join("\n"), who.user || str(meta && meta.userName), who.char) }],
     presetParams: { temperature: 0.2, max_tokens: 1500 },
   };
   if (model) req.model = model;
@@ -5544,7 +5585,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now, line, dash) {
     return true;
   }
   beat(fsx, chatId, now);
-  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta, factAnchors(st, line || [], dash)));
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta, factAnchors(st, line || [], dash), helperNames(fsx, meta)));
   return true;
 }
 
@@ -5645,7 +5686,7 @@ export function summaryRecord(st) {
 
 const summarySig = (parts) => fnv1a(parts.map((p) => p.label + "|" + p.text).join(String.fromCharCode(1)));
 
-export function buildSummaryRequest(parts, cfg, meta) {
+export function buildSummaryRequest(parts, cfg, meta, who = {}) {
   const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
   const total = parts.reduce((n, p) => n + p.text.length, 0);
   // a long record is cut evenly, so the first and the last parts both reach the model
@@ -5653,7 +5694,7 @@ export function buildSummaryRequest(parts, cfg, meta) {
   const body = parts.map((p, i) => "Part " + (i + 1) + (p.label ? ": " + p.label : "") + "\n" + (p.text.length > each ? cut(p.text, each) : p.text));
   const req = {
     systemPrompt: (cfg.summary || DEFAULT_PROMPTS.summary) + "\n\nSize: at most " + SUMMARY_WORDS + " words.",
-    messages: [{ role: "user", content: "Record\n\n" + body.join("\n\n") }],
+    messages: [{ role: "user", content: expandNames("Record\n\n" + body.join("\n\n"), who.user || str(meta && meta.userName), who.char) }],
     presetParams: { temperature: 0.3, max_tokens: 1200 },
   };
   if (model) req.model = model;
@@ -5711,7 +5752,7 @@ function summaryStep(fsx, host, chatId, st, cfg, meta, now) {
     return true;
   }
   beat(fsx, chatId, now);
-  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildSummaryRequest(parts, cfg, meta));
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildSummaryRequest(parts, cfg, meta, helperNames(fsx, meta)));
   return true;
 }
 

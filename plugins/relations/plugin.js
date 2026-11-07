@@ -2423,6 +2423,40 @@ function chatCharacters(fsx, meta) {
 // what the user is called when the chat and the persona give no name
 const NO_USER_NAME = "the user";
 
+/** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
+ *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/litopys, world, letters,
+ *  agents (#156); test/rp-helper-names.test.ts keeps the copies equal. */
+export function expandNames(text, userName, charName) {
+  if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const u = typeof userName === "string" ? userName.trim() : "";
+  const c = typeof charName === "string" ? charName.trim() : "";
+  let out = text;
+  if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
+  if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  return out;
+}
+
+/** The names {{user}} and {{char}} stand for in a helper request: the persona, and the card only in a solo chat (#156). */
+export function helperNames(fsx, meta) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const u = userNameOf(fsx, m);
+  const solo = new Set([str(m.characterId), ...arr(m.characterIds).map(str)].filter(Boolean));
+  let char = "";
+  if (!m.groupId && solo.size === 1 && CHAT_ID.test([...solo][0])) {
+    const card = readJson(fsx, "characters/" + [...solo][0] + "/card.json", null);
+    char = isObj(card) ? str(card.name) || (isObj(card.data) ? str(card.data.name) : "") : "";
+  }
+  return { user: u === NO_USER_NAME ? "" : u, char };
+}
+
+/** A helper request's text with {{user}} and {{char}} expanded (#156). A rating (cardId) gets the card's name only
+ *  when that card is the chat's character. Without a chat the text is returned as it is. */
+function expandNamesFor(fsx, meta, text, cardId) {
+  if (!meta || typeof text !== "string" || text.indexOf("{{") < 0) return text;
+  const n = helperNames(fsx, meta);
+  return expandNames(text, n.user, cardId && cardId !== meta.characterId ? "" : n.char);
+}
+
 function userNameOf(fsx, meta) {
   if (str(meta.userName)) return str(meta.userName);
   if (meta.personaId && CHAT_ID.test(String(meta.personaId))) {
@@ -4119,7 +4153,7 @@ function askLeakCheck(host, ctx) {
   host.llm.request("leak", {
     ...(model ? { model } : {}),
     systemPrompt: "You check a roleplay for one kind of mistake: a character acting on a secret they do not know. Answer with JSON only.",
-    messages: [{ role: "user", content: leakCheckText(ctx) + "\n\n" + newMessagesText(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta)) }],
+    messages: [{ role: "user", content: expandNamesFor(ctx.fsx, ctx.meta, leakCheckText(ctx) + "\n\n" + newMessagesText(arr(ctx.newMsgs), storyView(ctx.fsx, ctx.meta))) }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0),
   });
 }
@@ -6247,7 +6281,7 @@ function askSoul(host, cfg, cardId, meta, key, opts) {
   host.llm.request(key, {
     ...(model ? { model } : {}),
     systemPrompt: soulSystem(cfg, loadVocab(fsx)),
-    messages: [{ role: "user", content: soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName, rateNames }) }],
+    messages: [{ role: "user", content: expandNamesFor(fsx, meta, soulUser(fsx, cardId, { lorebookIds: meta ? meta.lorebookIds : [], userName: userName === NO_USER_NAME ? "" : userName, rateNames }), cardId) }],
     ...callParams(fsx, cfg, meta, 0.3),
   });
 }
@@ -6399,7 +6433,7 @@ function planUpdate(fsx, chatId, op) {
 function askSensor(host, ctx, key) {
   const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
   // what the model is given, kept for the debug record of the second pass (building it again costs the whole scan of the replies)
-  ctx.sensorText = sensorUser(ctx);
+  ctx.sensorText = expandNamesFor(ctx.fsx, ctx.meta, sensorUser(ctx));
   host.llm.request(key, {
     ...(model ? { model } : {}),
     systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),

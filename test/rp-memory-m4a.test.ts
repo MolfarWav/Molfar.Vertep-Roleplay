@@ -395,6 +395,22 @@ describe("worker", () => {
     expect(r.json.worker.inFlight).toBeTruthy();
     expect(r.json.worker.inFlight.fromNo).toBeGreaterThan(0);
   });
+
+  it("a chat with Litopys switched off on the Prompt board makes no model call on tick; switched on, it does", () => {
+    seedWorkerChat();
+    const setOff = (off: string[]) => writeJson("chats/c1.meta.json", { ...readJson("chats/c1.meta.json"), promptBoard: { off } });
+    setOff(["plugin:litopys"]);
+    const off = mockHost();
+    const quiet = tick(off, [chapterReply("The mill", "Aria waits.")]);
+    expect(quiet.requests).toEqual([]);
+    expect(quiet.embeds).toEqual([]);
+    expect(readJson("litopys/chats/c1.json").activity ?? []).toEqual([]);
+    setOff(["plugin:said"]);
+    const on = mockHost();
+    const busy = tick(on, [chapterReply("The mill", "Aria waits.")]);
+    expect(busy.requests.length).toBe(1);
+    expect(readJson("litopys/chats/c1.json").activity.some((a: any) => a.kind === "chapter.write")).toBe(true);
+  });
 });
 
 describe("workerState", () => {
