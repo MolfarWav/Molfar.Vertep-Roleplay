@@ -22,7 +22,7 @@ export function ContinueBlock() {
   const openChat = useApp((s) => s.openChat)
   const openBranchTree = useApp((s) => s.openBranchTree)
 
-  const chat = useMemo(() => [...chats].sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null, [chats])
+  const chat = useMemo(() => [...chats].filter((c) => c.archived !== true).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null, [chats])
   const character = chat ? characters.find((c) => c.id === chat.characterId) ?? null : null
 
   if (!chat || !character) {

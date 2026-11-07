@@ -92,6 +92,8 @@ export interface EngineChatMeta {
   lorebookIds?: string[]
   folderId?: string | null
   pinned?: boolean
+  /** #263: a finished story, read only and out of the main list */
+  archived?: boolean
   chatTags?: string[]
   backgroundId?: string | 'none' | null
   autoBackground?: { on: boolean; folderId: string; draw?: boolean; style?: string } | null
@@ -1029,6 +1031,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     temporary: meta.temporary === true,
     folderId: meta.folderId ?? null,
     ...(meta.pinned === true ? { pinned: true } : {}),
+    ...(meta.archived === true ? { archived: true } : {}),
     ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
     ...(meta.agents && (meta.agents.preset || meta.agents.own) ? { agents: { ...(meta.agents.preset ? { preset: meta.agents.preset } : {}), ...(meta.agents.own ? { own: meta.agents.own.map((i) => ({ agent: i.agent })) } : {}) } } : {}),
     ...(meta.spriteOutfits && Object.keys(meta.spriteOutfits).length ? { spriteOutfits: meta.spriteOutfits } : {}),
@@ -1056,6 +1059,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('temporary' in p) out.temporary = p.temporary
   if ('folderId' in p) out.folderId = p.folderId
   if ('pinned' in p) out.pinned = p.pinned === true
+  if ('archived' in p) out.archived = p.archived === true
   if ('chatTags' in p) out.chatTags = p.chatTags
   if ('backgroundId' in p) out.backgroundId = p.backgroundId
   if ('autoBackground' in p) out.autoBackground = p.autoBackground ?? null

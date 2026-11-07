@@ -223,6 +223,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
               <p className="text-xs text-muted-foreground">{t('lit.set.alertHint')}</p>
             </Field>
             {cfg.promptAlert === 'tokens' && keyField('promptAlertTokens', { id: 'lit-alert-tokens', label: t('lit.set.alertSize'), hint: t('lit.set.alertSizeHint'), unit: t('lit.unit.tokens'), min: 1000, max: 5000000, fallback: 30000 })}
+            {switchRow('lit-archive-on-continue', t('lit.set.archiveOnContinue'), t('lit.set.archiveOnContinueHint'), cfg.archiveOnContinue !== false, (v) => save({ archiveOnContinue: v }))}
           </div>
           {cfg.cutMode === 'scenes'
             ? keyField('sceneKeep', { id: 'lit-scene-keep', label: t('lit.set.sceneKeep'), hint: t('lit.set.sceneKeepHint'), min: 2, max: 100000, fallback: 2 })

@@ -78,7 +78,7 @@ export function useRecentQuests(): CrossQuests {
   const chats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
   const recent = useMemo(
-    () => [...chats].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, QUEST_CHATS),
+    () => [...chats].filter((c) => c.archived !== true).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, QUEST_CHATS),
     [chats],
   )
   const idsKey = recent.map((c) => c.id).join(',')

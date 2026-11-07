@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
-  ArrowRight, BookOpenText, ChatCircleText, DotsThree, DownloadSimple, Folder as FolderIcon, GitBranch,
+  Archive as ArchiveIcon, ArrowRight, BookOpenText, ChatCircleText, DotsThree, DownloadSimple, Folder as FolderIcon, GitBranch,
   ListBullets, PencilSimple, Plus, PushPin, PushPinSlash, Trash, Users,
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { MessagePreviewText } from '@/components/chat/chat-preview-text'
 import { estimateTokens, formatTokens, timeAgo } from '@/lib/tokens'
 import { memberColor } from '@/lib/dialogue-voices'
 import { exportChatJSONL, exportChatTxt } from '@/lib/export'
+import { isArchived, suggestArchive, unarchiveChat } from '@/lib/archive'
 import { fetchLitChat, type LitChapter } from '@/components/library/litopys-api'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
@@ -85,7 +86,7 @@ function GoTo({ onClick, label, children }: { onClick: () => void; label: string
 }
 
 /** The right side of the Chats page: what this chat is, how far the story got, its last lines and settings. */
-export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: () => void; onRename: () => void }) {
+export function ChatPanel({ chat, onDelete, onRename, onArchive }: { chat: Chat; onDelete: () => void; onRename: () => void; onArchive: () => void }) {
   const t = useT()
   const characters = useApp((s) => s.characters)
   const personas = useApp((s) => s.personas)
@@ -108,6 +109,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
 
   const owner = characters.find((c) => c.id === chat.characterId)
   const isGroup = !!owner?.isGroup
+  const archived = isArchived(chat)
   const members = useMemo(
     () => (isGroup ? (owner?.group?.memberIds ?? owner?.members ?? []).map((id) => characters.find((c) => c.id === id)).filter((c): c is Character => !!c) : []),
     [isGroup, owner, characters],
@@ -184,6 +186,7 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
                 )}
                 {isGroup && <> · {t('chats.panel.groupChat')}</>}
                 {' · '}{t('chats.panel.messages', { n: msgCount })}{' · '}{timeAgo(chat.updatedAt)}
+                {archived && <> · <span className="font-medium text-foreground">{t('chats.panel.archivedNote')}</span></>}
               </p>
               <h2 className="mt-1 font-heading text-2xl leading-tight text-balance">{chat.title}</h2>
               {isGroup && (
@@ -208,17 +211,28 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
           </div>
           <div className="relative mt-4 flex flex-wrap gap-2">
             <Button onClick={() => openChat(chat.id)} className={cn('max-sm:h-10', isGroup && 'bg-group text-group-foreground hover:bg-group/90')}>
-              <ChatCircleText className="size-4" aria-hidden="true" />{t('chats.panel.continue')}
+              {archived ? <BookOpenText className="size-4" aria-hidden="true" /> : <ChatCircleText className="size-4" aria-hidden="true" />}{t(archived ? 'chats.panel.read' : 'chats.panel.continue')}
             </Button>
-            <Button variant="secondary" className="max-sm:h-10" onClick={() => updateChat(chat.id, { pinned: !chat.pinned })}>
-              {chat.pinned ? <PushPinSlash className="size-4" aria-hidden="true" /> : <PushPin className="size-4" aria-hidden="true" />}
-              {t(chat.pinned ? 'chats.panel.unpin' : 'chats.panel.pin')}
-            </Button>
+            {!archived && (
+              <Button variant="secondary" className="max-sm:h-10" onClick={() => updateChat(chat.id, { pinned: !chat.pinned })}>
+                {chat.pinned ? <PushPinSlash className="size-4" aria-hidden="true" /> : <PushPin className="size-4" aria-hidden="true" />}
+                {t(chat.pinned ? 'chats.panel.unpin' : 'chats.panel.pin')}
+              </Button>
+            )}
             {owner && (
               <Button variant="secondary" className="max-sm:h-10" onClick={() => void startChatAndOpen(owner.id)}>
                 <Plus className="size-4" aria-hidden="true" />{t(isGroup ? 'chats.panel.newGroupChat' : 'chats.panel.newChat', { name: owner.name })}
               </Button>
             )}
+            {/* the one action that tidies memory, set apart from the grey buttons by its own fill (user, 2026-11-07) */}
+            <Button
+              variant="outline"
+              className="max-sm:h-10 border-when-pinned/50 bg-when-pinned/15 text-when-pinned hover:bg-when-pinned/25 hover:text-when-pinned"
+              data-testid="archive-button"
+              onClick={archived ? () => unarchiveChat(chat.id) : onArchive}
+            >
+              <ArchiveIcon className="size-4" weight="fill" aria-hidden="true" />{t(archived ? 'chats.panel.unarchive' : 'chats.archive.confirm')}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="secondary" className="max-sm:size-10" size="icon" aria-label={t('chats.panel.more')}><DotsThree className="size-4" aria-hidden="true" /></Button>} />
               <DropdownMenuContent align="end">
@@ -241,6 +255,9 @@ export function ChatPanel({ chat, onDelete, onRename }: { chat: Chat; onDelete: 
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {!archived && suggestArchive(chat) && (
+            <p className="relative mt-3 max-w-prose text-sm text-muted-foreground" data-testid="archive-hint">{t('chats.suggest.hint')}</p>
+          )}
         </header>
 
         <Section

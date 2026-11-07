@@ -9,6 +9,18 @@ export interface ListChat { id: string; updatedAt: number; pinned?: boolean; tit
 
 const DAY = 86_400_000
 
+/** #263: an archived chat is a finished story: read only, out of the main list and Home. */
+export const isArchived = (c: { archived?: boolean }): boolean => c.archived === true
+
+/** A long chat that has been quiet a while: the list marks it and the panel suggests archiving it (#263). */
+export const LONG_CHAT_MESSAGES = 100
+export const QUIET_DAYS = 7
+export function suggestArchive(c: { archived?: boolean; pinned?: boolean; updatedAt: number; messageCount?: number; messages?: unknown[] }, now: number = Date.now()): boolean {
+  if (isArchived(c) || c.pinned) return false
+  const n = c.messages && c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0
+  return n >= LONG_CHAT_MESSAGES && now - c.updatedAt >= QUIET_DAYS * DAY
+}
+
 /** Today = the same local day as now; this week = the six days before it. */
 export function timeGroupOf(ts: number, now: number = Date.now()): Exclude<TimeGroup, 'pinned'> {
   const start = new Date(now)

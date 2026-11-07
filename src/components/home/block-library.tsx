@@ -24,7 +24,8 @@ export function taglineOf(c: Pick<Character, 'description' | 'creatorNotes'> & {
 /** The card's most recent chat, if it has one. */
 export function latestChatOf(chats: readonly Chat[], characterId: string): Chat | null {
   let best: Chat | null = null
-  for (const c of chats) if (c.characterId === characterId && (!best || c.updatedAt > best.updatedAt)) best = c
+  // an archived chat (#263) is a finished story: Home does not offer to continue it
+  for (const c of chats) if (c.characterId === characterId && c.archived !== true && (!best || c.updatedAt > best.updatedAt)) best = c
   return best
 }
 

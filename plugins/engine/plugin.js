@@ -13,7 +13,7 @@
  *   {id, name, charId, role: "user"|"char", text, at, swipes:[], swipe,
  *    extra?: {model, usage}}
  * Chat meta: {id, title, characterId, groupId, presetId, personaId, model,
- *   authorNote, lorebookIds, folderId, pinned, createdAt, updatedAt, tainted}
+ *   authorNote, lorebookIds, folderId, pinned, archived, createdAt, updatedAt, tainted}
  *
  * Presets keep the import/export shape users already have: prompts[] +
  * prompt_order[] with markers (main, charDescription, chatHistory, ...) and
@@ -6043,6 +6043,12 @@ const forkTitle = (fsx, title) => {
   while (taken.has(n)) n++;
   return n === 1 ? base + " fork" : base + " fork " + n;
 };
+// Which chat routes change a transcript (blocked on an archived chat).
+const ARCHIVE_BLOCKED = (op, method) => {
+  if (op === "send" || op === "next" || op === "swipe" || op === "continue" || op === "impersonate" || op === "reset" || op === "preset") return method === "POST";
+  if (op === "messages") return method === "POST" || method === "PATCH" || method === "DELETE";
+  return false;
+};
 const swipeMetaEntry = (reply) => ({ model: reply.model, usage: genUsage(reply), genMs: reply.genTimeMs ?? 0 });
 // A message's extra describes its ACTIVE swipe. Each swipe keeps its own facts,
 // the body ones too (thinking, tool parts), in its swipeMeta slot; moving to
@@ -6110,7 +6116,7 @@ const toolX = (r) => ({
       // bubble mid-generation. Nothing changed → no write, no event.
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
-        "authorNoteObject", "folderId", "pinned", "chatTags", "backgroundId", "autoBackground", "temporary",
+        "authorNoteObject", "folderId", "pinned", "archived", "chatTags", "backgroundId", "autoBackground", "temporary",
         "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits", "css"];
       // spriteOutfits: the outfit each speaker's sprite wears in this chat, { voiceName | "": outfit }; null or {} clears it
       if ("spriteOutfits" in b) b.spriteOutfits = cleanSpriteOutfits(b.spriteOutfits);
@@ -6183,6 +6189,11 @@ const toolX = (r) => ({
       return ok(meta);
     }
 
+    // An archived chat (#263) is read only: whatever changes its transcript is refused here, not just hidden in the page,
+    // so an old tab or a script cannot write into a finished story. Renaming, pinning, forking, exporting, deleting
+    // the chat and Unarchive (PATCH) stay open.
+    if (meta.archived === true && ARCHIVE_BLOCKED(op, req.method)) return err(409, "archived");
+
     // the chat's preset and choices: { presetId?, vars?: { name: value | value[] | null }, reset?: true }
     // (null = back to the preset's default). Only this chat changes. meta.presetNotes records what
     // changed after which message, for a muted line in the chat that never reaches the model;
@@ -6251,6 +6262,8 @@ const toolX = (r) => ({
         // branch parentage — the UI's branch tree walks these
         parentChatId: id, parentMessageId: b.messageId || null };
       delete nmeta.tainted;
+      // a branch of an archived chat (#263) is a chat to play in: the status stays with the original
+      delete nmeta.archived;
       for (const k of OLD_MEMORY_KEYS) delete nmeta[k];
       const msgs = chat.msgs.slice(0, idx + 1).map((m) => ({ ...m }));
       // preset notes go along only where their message did

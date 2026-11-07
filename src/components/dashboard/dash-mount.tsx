@@ -149,6 +149,8 @@ function EmptySettingsSheet({ chatId, open, onClose, side }: { chatId: string; o
 
 export function DashStripMount({ chatId }: { chatId: string }) {
   const dash = useContext(DashCtx)
+  // an archived chat (#263) has nothing to build: its empty dashboard shows no bar
+  const archived = useApp((s) => s.chats.find((c) => c.id === chatId)?.archived === true)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
   const portrait = usePortraitEdit(avatars)
@@ -179,7 +181,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
     if (target.who) dash?.setFocus(target.who)
     setTabAsk((a) => ({ tab: target.tab, n: (a?.n ?? 0) + 1 }))
   })
-  if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
+  if (!dash || dash.status === 'absent' || dash.status === 'loading' || (archived && dash.status === 'empty')) return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
 
   if (dash.status === 'empty') {
@@ -306,6 +308,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
 
 export function DashPhoneMount({ chatId }: { chatId: string }) {
   const dash = useContext(DashCtx)
+  const archived = useApp((s) => s.chats.find((c) => c.id === chatId)?.archived === true)
   const t = useT()
   const avatars = useAvatars(chatId, dash?.view?.order)
   const portrait = usePortraitEdit(avatars)
@@ -322,7 +325,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
     if (target?.who) dash?.setFocus(target.who)
     setOpen(true)
   })
-  if (!dash || dash.status === 'absent' || dash.status === 'loading') return null
+  if (!dash || dash.status === 'absent' || dash.status === 'loading' || (archived && dash.status === 'empty')) return null
 
   if (dash.status === 'empty') {
     const hasMessages = (dash.data?.messages ?? 0) > 0
