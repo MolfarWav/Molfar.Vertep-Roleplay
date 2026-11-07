@@ -1072,7 +1072,9 @@ export const DEFAULT_CONFIG = {
   arcMode: "auto",
   // "pending": the Library offers an install that kept "ask" to switch to "auto", once; "done": nothing to offer
   arcNotice: "done",
-  // wave 1: "ask" waits for a click on every proposal; "quiet" applies a pin or a rewrite by itself and logs it with an Undo
+  // wave 1: "ask" waits for a click on every proposal; "quiet" applies a pin or a rewrite by itself and logs it with an Undo.
+  // #184 P5: "risky" applies every proposal by itself with an Undo except the risky ones (a merge that widens who knows a fact,
+  // a change to something pinned, edited or key, a change or belief fact), which wait with the reason; a new install gets it (stampInstall)
   // (a retire or a merge always waits)
   proposals: "ask",
   // Consolidate facts runs by itself after this many new facts; null = on only while proposals are "quiet"
@@ -1115,7 +1117,7 @@ export const DEFAULT_CONFIG = {
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
 export const ARC_MODES = ["ask", "auto", "off"];
-export const PROPOSAL_MODES = ["ask", "quiet"];
+export const PROPOSAL_MODES = ["ask", "risky", "quiet"];
 
 // What the memory parts are FOR (#110): the characters lived it. "Do not retell it" alone was read as "do not mention it".
 // It also says the past shapes how they act now: a record read only as "do not contradict" stayed a reference sheet.
@@ -1333,6 +1335,8 @@ function stampInstall(fsx) {
   } else {
     next.arcMode = "auto";
     next.arcNotice = "done";
+    // #184 P5: a new install reviews only the risky changes; one that already had data keeps what it chose ("ask" by default)
+    if (!PROPOSAL_MODES.includes(next.proposals)) next.proposals = "risky";
   }
   try {
     fsx.write(CONFIG_FILE, JSON.stringify(next, null, 2));
@@ -2142,6 +2146,25 @@ export function heldLeaks(dash, line, scene) {
   return out;
 }
 
+/** #184 P4: the lies the Dashboard recorded in this scene's replies, with the people who heard them: [{ liar, to, text }]. */
+export function sceneLies(dash, line, scene) {
+  if (!dash || !isObj(dash.said) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [liar, list] of Object.entries(dash.said)) {
+    for (const s of arr(list)) {
+      if (!isObj(s) || s.kind !== "lie" || !keys.has(s.src) || !str(s.text)) continue;
+      const to = arr(s.heardBy).map(str).filter((n) => n && n !== liar);
+      if (to.length) out.push({ liar, to, text: cut(str(s.text), 300) });
+    }
+  }
+  return out.slice(0, 4);
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const who = opts.names || {};
@@ -2171,12 +2194,16 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     return false;
   });
   activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
+  const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + (f.type === "belief" ? "(" + str(f.holder) + " believes this, and it is untrue) " : "") + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
 
   // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
   const flagged = heldLeaks(dash, line, scene);
   if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
+
+  // a lie told in front of others in this scene (#184 P4): the listeners believe it, but it is not a fact of the story
+  const lies = sceneLies(dash, line, scene);
+  if (lies.length) parts.push("Told as true, but untrue\n" + lies.map((l) => "- " + l.liar + " told " + l.to.join(", ") + ": " + l.text + " They believe it. Do not record it as a fact, and do not write it into the chapter as true.").join("\n"));
 
   // Scene messages: read whole when they fit one budget; a long one keeps its start and end, never the first 1500 only (#236)
   const sceneMsgs = [];
@@ -2653,6 +2680,19 @@ const TRACE_IN = 40;
 const TRACE_OUT = 15;
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
+/**
+ * One fact as a line of the insert. A belief (#184 P4) reads as what its holder was told, not as a fact: in the holder's
+ * own reply (`solo`) it is plain, since the holder takes it as true; a reply that voices several says it is untrue.
+ */
+export function factLineOf(f, solo) {
+  if (isObj(f) && f.type === "belief") {
+    const holder = str(f.holder);
+    const from = str(isObj(f.prov) && isObj(f.prov[holder]) ? f.prov[holder].from : "");
+    return "- " + (holder || "Someone") + " believes" + (from ? ", told by " + from : "") + ": " + str(f.text) + (solo ? "" : " (untrue)");
+  }
+  return "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+}
+
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
@@ -2734,7 +2774,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // chapters picked by relevance change every reply, so they ride after the newest turn.
   const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
   const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
-  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const solo = voices instanceof Set && voices.size === 1;
+  const factLine = (f) => factLineOf(f, solo);
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
   const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
@@ -3275,9 +3316,217 @@ export function applyQuiet(st, cfg, now) {
   return n;
 }
 
+// ---------- review by risk (#184 P5) ----------
+const knownSet = (f) => (f.knownBy === "all" ? null : new Set(arr(f.knownBy).map((k) => str(k).toLowerCase())));
+
+/** Would merging these facts tell someone what only others knew? A restricted fact next to a public one, or restricted sets that differ. */
+export function widensKnowledge(parts) {
+  if (!Array.isArray(parts) || parts.length < 2) return false;
+  const sets = parts.map(knownSet);
+  if (sets.every((s) => s === null)) return false;
+  if (sets.some((s) => s === null)) return true;
+  const union = new Set(sets.flatMap((s) => [...s]));
+  return sets.some((s) => s.size < union.size);
+}
+
+/** Why a change to these facts must wait for the user: "widens", "protected" (pinned, edited, written by the user, key) or "kind" (a change or belief fact); "" when it is routine. */
+export function riskOf(st, p) {
+  const targets = arr(p.targets).map((id) => st.facts.find((f) => f.id === id && f.status === "active")).filter(Boolean);
+  if (!targets.length) return "";
+  if (p.op === "merge" && widensKnowledge(targets)) return "widens";
+  if (p.op !== "pin" && targets.some((f) => f.pinned === true || f.edited === true || f.origin === "user" || f.weight === "key")) return "protected";
+  if (p.op !== "pin" && targets.some((f) => f.type === "change" || f.type === "belief")) return "kind";
+  return "";
+}
+
+/**
+ * A new fact the worker wants to add that the user should see first: a `change` fact (it overrides the card), or one
+ * that says nearly the same of a subject as a fact the user pinned, wrote or edited without being a copy of it (it may
+ * contradict it; a guess by shared word stems, three or more and half of the shorter text). "" when it is routine.
+ */
+export function addRisk(st, draft) {
+  if (draft.type === "change") return "change";
+  if (draft.type === "belief") return "belief";
+  const mine = heldStems(draft.text);
+  for (const f of st.facts) {
+    if (!isObj(f) || f.status !== "active" || str(f.subject).toLowerCase() !== str(draft.subject).toLowerCase()) continue;
+    if (!(f.pinned === true || f.edited === true || f.origin === "user")) continue;
+    const other = new Set(heldStems(f.text));
+    const shared = mine.filter((w) => other.has(w)).length;
+    if (shared >= 3 && shared >= Math.ceil(Math.min(mine.length, other.size) * 0.5)) return "contradicts";
+  }
+  return "";
+}
+
+/** A new fact that waits: a proposal to add it (`facts` are drafts without ids), with why it waits. */
+function queueAdd(st, drafts, why, reason, chapterId, now, origin) {
+  st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;
+  st.proposals.push({ id: "p" + st.counters.proposal, op: "add", targets: [], facts: drafts, text: drafts[0] ? str(drafts[0].text) : "", why, reason, status: "pending", ...(chapterId ? { chapter: chapterId } : {}), ...(origin ? { origin } : {}), at: now });
+}
+
+/** The proposal's `add`: the drafts become facts with new ids; a draft that replaces a fact retires that one. Returns the new ids. */
+function acceptAdd(st, p, now) {
+  const ids = [];
+  for (const d of arr(p.facts)) {
+    if (!isObj(d) || !str(d.text)) continue;
+    const { supersedes, ...rest } = d;
+    const old = supersedes ? st.facts.find((f) => f.id === supersedes && f.status === "active") : null;
+    // a draft written by an older plugin or by hand may lack fields the rest of the record relies on
+    const fact = { subject: "world", knownBy: "all", type: "event", weight: "everyday", src: { from: null, to: null }, origin: "chapter", ...rest, id: "f" + ++st.counters.fact, status: "active", pinned: old ? old.pinned === true : rest.pinned === true, ...(old ? { supersedes: old.id } : {}), at: now, updatedAt: now };
+    if (old) {
+      old.status = "superseded";
+      old.updatedAt = now;
+    }
+    st.facts.push(fact);
+    ids.push(fact.id);
+  }
+  return ids;
+}
+
+/**
+ * Merges the facts of a merge proposal into one new fact (the parts are retired and point to it). Returns { merged, moved }
+ * where `moved` lists the facts whose cause was repointed ([id, old because]) so an Undo can put them back.
+ */
+function mergeFacts(st, p, targets, text, now) {
+  const first = targets[0];
+  const knownBy = targets.some((f) => f.knownBy === "all") ? "all" : knownByOf(targets.flatMap((f) => arr(f.knownBy))) || "all";
+  const weight = FACT_WEIGHTS[Math.max(...targets.map((f) => Math.max(0, FACT_WEIGHTS.indexOf(f.weight))))];
+  const merged = {
+    id: "f" + ++st.counters.fact,
+    text,
+    subject: first.subject,
+    knownBy,
+    type: first.type,
+    weight,
+    // the merged fact keeps a pin its parts of the same subject had: that subject's pin count does not grow
+    pinned: targets.some((f) => f.pinned === true && sameName(f.subject, first.subject)),
+    status: "active",
+    src: isObj(first.src) ? { ...first.src } : { from: null, to: null },
+    origin: "merge",
+    merges: targets.map((f) => f.id),
+    // #153: where its parts were told (the proposal worked it out); kept so a later pass still sees the count and the order
+    ...(Array.isArray(p.whens) && p.whens.length ? { whens: p.whens.slice(0, 8) } : {}),
+    at: now,
+    updatedAt: now,
+  };
+  // #178: the survivor keeps the first cause of its parts that is not one of the parts themselves, and every
+  // fact that named a part as its cause now names the survivor
+  const partIds = new Set(targets.map((f) => f.id));
+  const backsToPart = (id) => partIds.has(str((st.facts.find((x) => x.id === id) || {}).because));
+  const cause = targets.map((f) => str(f.because)).find((id) => id && !partIds.has(id) && !backsToPart(id));
+  if (cause) merged.because = cause;
+  const moved = [];
+  for (const f of st.facts) {
+    if (!partIds.has(f.id) && partIds.has(str(f.because))) {
+      moved.push([f.id, f.because]);
+      f.because = merged.id;
+    }
+  }
+  const was = targets.map((f) => [f.id, f.pinned === true]);
+  for (const f of targets) {
+    f.status = "retired";
+    f.pinned = false;
+    f.mergedInto = merged.id;
+    f.updatedAt = now;
+  }
+  st.facts.push(merged);
+  return { merged, moved, was };
+}
+
+/**
+ * With config `proposals: "risky"`: every pending pin, rewrite, retire and merge applies by itself with an Undo, except
+ * the risky ones (`riskOf`), which stay pending with `why`. Returns how many were applied. A rewrite or retire is never
+ * applied to a fact the user pinned, wrote or edited: that is "protected" and waits.
+ */
+export function applyRisky(st, cfg, now) {
+  if (!cfg || cfg.proposals !== "risky") return 0;
+  let n = 0;
+  for (const p of st.proposals) {
+    if (!isObj(p) || p.status !== "pending" || !["pin", "rewrite", "retire", "merge"].includes(p.op)) continue;
+    const why = riskOf(st, p);
+    if (why) {
+      p.why = why;
+      continue;
+    }
+    const targets = arr(p.targets).map((id) => st.facts.find((f) => f.id === id && f.status === "active"));
+    if (!targets.length || targets.some((f) => !f)) continue;
+    const ids = [p.id, ...targets.map((f) => f.id)];
+    let said = str(p.text);
+    if (p.op === "rewrite") {
+      const text = cut(str(p.text), 300);
+      if (!text || text === str(targets[0].text)) continue;
+      p.undo = { text: str(targets[0].text) };
+      targets[0].text = text;
+      targets[0].updatedAt = now;
+    } else if (p.op === "pin") {
+      if (targets[0].pinned === true || pinFact(st, targets[0], "", Number(cfg.pinLimit) || 5, now)) continue;
+      p.undo = { pinned: true };
+      said = str(targets[0].text);
+    } else if (p.op === "retire") {
+      for (const f of targets) {
+        f.status = "retired";
+        f.pinned = false;
+        f.updatedAt = now;
+      }
+      p.undo = { retired: targets.map((f) => f.id) };
+      said = targets.map((f) => str(f.text)).join(" / ");
+    } else {
+      const text = cut(str(p.text), 300);
+      if (!text || targets.length < 2) continue;
+      const { merged, moved, was } = mergeFacts(st, p, targets, text, now);
+      p.undo = { merged: merged.id, moved, was };
+      ids.push(merged.id);
+    }
+    p.auto = true;
+    settle(p, "accepted", now);
+    addActivity(st, "worker", "proposal.auto", "Applied a proposal by itself: " + str(p.op) + " " + quote(said), ids, now, { op: str(p.op), text: said });
+    n++;
+  }
+  return n;
+}
+
+/** Takes back an automatic retire or merge, unless a fact it touched changed since. */
+function undoRetireOrMerge(st, p, now) {
+  if (p.op === "retire") {
+    const facts = arr(p.undo.retired).map((id) => st.facts.find((f) => f.id === id));
+    if (!facts.length || facts.some((f) => !f || f.status !== "retired")) return { status: 409, json: { error: "changed since" } };
+    for (const f of facts) {
+      f.status = "active";
+      f.updatedAt = now;
+    }
+    return facts;
+  }
+  const merged = st.facts.find((f) => f.id === p.undo.merged);
+  if (!merged || merged.status !== "active" || merged.edited === true || str(merged.text) !== str(p.text)) return { status: 409, json: { error: "changed since" } };
+  const parts = arr(p.targets).map((id) => st.facts.find((f) => f.id === id));
+  if (parts.some((f) => !f || f.status !== "retired" || f.mergedInto !== merged.id)) return { status: 409, json: { error: "changed since" } };
+  const pinned = new Map(arr(p.undo.was).map(([id, v]) => [id, v === true]));
+  for (const f of parts) {
+    f.status = "active";
+    f.pinned = pinned.get(f.id) === true;
+    delete f.mergedInto;
+    f.updatedAt = now;
+  }
+  for (const [id, because] of arr(p.undo.moved)) {
+    const f = st.facts.find((x) => x.id === id);
+    if (f) f.because = because;
+  }
+  st.facts.splice(st.facts.indexOf(merged), 1);
+  return parts;
+}
+
 /** POST /litopys/proposals op "undo": takes back a proposal applied by itself, unless the fact changed since. */
 function undoProposal(st, p, now) {
   if (p.auto !== true || p.status !== "accepted" || !isObj(p.undo)) return { status: 409, json: { error: "nothing to undo" } };
+  if (p.op === "retire" || p.op === "merge") {
+    const done = undoRetireOrMerge(st, p, now);
+    if (!Array.isArray(done)) return done;
+    p.status = "rejected";
+    p.undone = true;
+    p.settledAt = now;
+    addActivity(st, "user", "proposal.undo", "Took back a proposal: " + str(p.op) + " " + quote(p.op === "merge" ? str(p.text) : done.map((f) => str(f.text)).join(" / ")), [p.id, ...done.map((f) => f.id)], now, { op: str(p.op), text: p.op === "merge" ? str(p.text) : done.map((f) => str(f.text)).join(" / ") });
+    return null;
+  }
   const target = st.facts.find((f) => f.id === arr(p.targets)[0] && f.status === "active");
   if (!target) return { status: 409, json: { error: "target gone" } };
   if (p.op === "rewrite") {
@@ -3420,6 +3669,16 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       if (factAdds.length >= 8) break;
       const because = ctx.causes === false ? "" : causeOf(st, op);
       const also = ctx.searchWords === false ? [] : cleanAlso(op.also, text);
+      // #184 P5: with "risky" a change fact, or one that may contradict what the user pinned or wrote, waits for a yes
+      if (ctx.riskyAdds) {
+        const why = addRisk(st, { text, subject, type });
+        if (why) {
+          if (!st.proposals.some((q) => q.op === "add" && q.status === "pending" && diceSimilarity(str(q.text), text) >= DICE_LIMIT)) {
+            queueAdd(st, [{ text, subject, knownBy, type, weight, pinned: false, ...(because ? { because } : {}), ...(also.length ? { also } : {}), src: { from: scene.from, to: scene.to, chapter: chapterId }, origin: "chapter" }], why, "chapter " + chapterId, chapterId, now);
+          }
+          continue;
+        }
+      }
       const fact = {
         id: "f" + ++st.counters.fact,
         text,
@@ -3453,7 +3712,13 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       const text = cut(op.text, 300);
       if (!text) continue;
       // the user's own wording is never replaced by the worker, only proposed (M4a)
-      if ((op.type === "change" || target.type === "change") && target.edited !== true) {
+      if ((op.type === "change" || target.type === "change") && target.edited !== true && ctx.riskyAdds) {
+        // #184 P5: a new version of a change fact waits for a yes; accepting it retires the old one
+        const because = ctx.causes === false ? "" : causeOf(st, op);
+        if (!st.proposals.some((q) => q.op === "add" && q.status === "pending" && arr(q.facts).some((d) => isObj(d) && d.supersedes === target.id))) {
+          queueAdd(st, [{ text, subject: target.subject, knownBy: target.knownBy, weight: target.weight, pinned: target.pinned, type: "change", ...(because && because !== target.id ? { because } : {}), supersedes: target.id, src: { from: scene.from, to: scene.to, chapter: chapterId }, origin: "chapter" }], "change", "chapter " + chapterId, chapterId, now);
+        }
+      } else if ((op.type === "change" || target.type === "change") && target.edited !== true) {
         // Apply at once: supersede
         target.status = "superseded";
         target.updatedAt = now;
@@ -4492,7 +4757,8 @@ function liveNotes(dash, line, overlay, withCarried) {
 }
 
 /** Dashboard notes that have aged out of the dashboard insert and matter: they become facts (user, 2026-10-07). */
-export function notesToMove(fsx, chatId, st, dash, line, userName) {
+/** The Dashboard's age (in turns) after which a note or a lie moves into the record, and the turn it is now (0: no reading yet). */
+function dashAge(fsx, dash, line) {
   const dcfg = readJson(fsx, "dashboard/config.json", {});
   const age = clamp(isObj(dcfg) && dcfg.noteAgeTurns !== undefined ? dcfg.noteAgeTurns : 30, 5, 500);
   let now = 0;
@@ -4503,6 +4769,129 @@ export function notesToMove(fsx, chatId, st, dash, line, userName) {
       break;
     }
   }
+  return { age, now };
+}
+
+/**
+ * #184 P4: the lies of the Dashboard's Said list as they count on this line, with who still takes each as true.
+ * `heardBy` less the people who learned better (an exposure counts while the snapshot that wrote it is on the line)
+ * and less the user's own "knows the truth" in the edit overlay. Same rule as the Dashboard's `believersOf`.
+ * `raw` also lists a lie that is not on the line, or that the user removed, with its state: [{ id, retired, onLine }].
+ */
+function liveLies(dash, line, overlay) {
+  const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
+  const edits = isObj(overlay && overlay.edits) ? overlay.edits : {};
+  const out = [];
+  const gone = [];
+  for (const [liar, list] of Object.entries(isObj(dash && dash.said) ? dash.said : {})) {
+    for (const s of arr(list)) {
+      if (!isObj(s) || s.kind !== "lie" || !Array.isArray(s.heardBy) || !str(s.id)) continue;
+      const e = isObj(edits[s.id]) ? edits[s.id] : null;
+      const exposed = new Set(arr(s.exposed).filter((x) => isObj(x) && str(x.who) && (x.by === undefined || keys.has(x.by))).map((x) => str(x.who)));
+      for (const w of arr(e && e.exposed)) exposed.add(str(w));
+      const believers = [...new Set(s.heardBy.map(str).filter((n) => n && n !== liar && !exposed.has(n)))];
+      const entry = { liar, id: str(s.id), text: e && str(e.text) ? str(e.text) : str(s.text), turn: Number(s.turn), src: s.src, believers, exposed: [...exposed], retired: !!(e && e.retired === true), onLine: keys.has(s.src) };
+      if (entry.onLine && !entry.retired) out.push(entry);
+      else gone.push(entry);
+    }
+  }
+  return { live: out, other: gone };
+}
+
+/**
+ * #184 P4: lies that have aged out of the Dashboard's reach become beliefs: one fact for each person who still takes
+ * the lie as true, kept in that person's own section only. 0 calls. `fromLies` lists "<lie id>~<holder>" already made.
+ */
+export function liesToMove(fsx, chatId, st, dash, line) {
+  const { age, now } = dashAge(fsx, dash, line);
+  if (!now) return [];
+  const moved = new Set(arr(st.fromLies));
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  const out = [];
+  for (const lie of liveLies(dash, line, overlay).live) {
+    if (!lie.text || !Number.isFinite(lie.turn) || now - lie.turn < age) continue;
+    for (const holder of lie.believers) if (!moved.has(lie.id + "~" + holder)) out.push({ lie: lie.id, holder, liar: lie.liar, text: cut(lie.text, 300) });
+  }
+  return out;
+}
+
+/** A belief whose holder learned the truth, or whose lie the user removed, ends. A lie that is merely off the line (a rewind) is left alone. */
+function endBeliefs(fsx, chatId, st, dash, line, now) {
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  const lies = liveLies(dash, line, overlay);
+  const byId = new Map([...lies.live, ...lies.other].map((l) => [l.id, l]));
+  const ended = [];
+  for (const f of arr(st.facts)) {
+    if (!isObj(f) || f.status !== "active" || f.type !== "belief" || !f.lie || f.origin !== "dashboard") continue;
+    const lie = byId.get(str(f.lie));
+    if (!lie || (!lie.onLine && !lie.retired)) continue;
+    if (lie.retired || !lie.believers.includes(str(f.holder))) {
+      f.status = "retired";
+      f.pinned = false;
+      f.updatedAt = now;
+      ended.push(f);
+    }
+  }
+  let touched = 0;
+  // a belief still waiting for a yes (#184 P5) whose holder learned the truth, or whose lie was removed, is no longer worth asking about
+  for (const p of arr(st.proposals)) {
+    if (!isObj(p) || p.op !== "add" || p.status !== "pending" || !arr(p.facts).length || !arr(p.facts).every((d) => isObj(d) && d.type === "belief")) continue;
+    const left = arr(p.facts).filter((d) => {
+      const lie = byId.get(str(d.lie));
+      return !(lie && (lie.onLine || lie.retired) && (lie.retired || !lie.believers.includes(str(d.holder))));
+    });
+    if (!left.length) settle(p, "expired", now);
+    else if (left.length < arr(p.facts).length) p.facts = left;
+    else continue;
+    touched++;
+  }
+  if (ended.length) addActivity(st, "notes", "belief.end", ended.length + " beliefs ended (the truth came out, or the lie was removed)", ended.map((f) => f.id), now, { n: ended.length });
+  return ended.length + touched;
+}
+
+export function moveLies(fsx, chatId, st, dash, line, now, cfg) {
+  let n = endBeliefs(fsx, chatId, st, dash, line, now);
+  const list = liesToMove(fsx, chatId, st, dash, line);
+  if (!list.length) return n;
+  st.fromLies = arr(st.fromLies);
+  const made = [];
+  const asked = {};
+  const risky = !!cfg && cfg.proposals === "risky";
+  for (const x of list) {
+    st.fromLies.push(x.lie + "~" + x.holder);
+    if (st.facts.some((f) => f.status === "active" && f.type === "belief" && str(f.holder) === x.holder && diceSimilarity(x.text, f.text) >= DICE_LIMIT)) continue;
+    const draft = {
+      text: x.text,
+      subject: x.holder,
+      knownBy: [x.holder],
+      type: "belief",
+      holder: x.holder,
+      truth: false,
+      prov: { [x.holder]: { how: "told", from: x.liar } },
+      lie: x.lie,
+      weight: "important",
+      pinned: false,
+      src: { from: null, to: null },
+      origin: "dashboard",
+    };
+    // #184 P5: with "risky" a new belief waits for a yes (one proposal for a lie, the people who heard it together)
+    if (risky) {
+      (asked[x.lie] = asked[x.lie] || []).push(draft);
+      continue;
+    }
+    st.counters.fact += 1;
+    const fact = { id: "f" + st.counters.fact, ...draft, status: "active", at: now, updatedAt: now };
+    st.facts.push(fact);
+    made.push(fact.id);
+  }
+  for (const drafts of Object.values(asked)) queueAdd(st, drafts, "belief", "lie told in front of others", "", now, "dashboard");
+  if (Object.keys(asked).length) n += Object.keys(asked).length;
+  if (made.length) addActivity(st, "notes", "belief.move", made.length + " lies became beliefs", made, now, { n: made.length });
+  return n + made.length;
+}
+
+export function notesToMove(fsx, chatId, st, dash, line, userName) {
+  const { age, now } = dashAge(fsx, dash, line);
   if (!now) return [];
   const moved = new Set(arr(st.fromNotes));
   const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
@@ -4766,6 +5155,7 @@ export function onTick(_ctx, host) {
         let changed = ensured.changed;
         if (fixMigratedWeights(st)) changed = true;
         if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
+        if (moveLies(fsx, chatId, st, dash, line, now, chatCfg) > 0) changed = true;
         // a rebuild writes a new generation beside the record in use and swaps it in when done
         const gen = isObj(st.rebuild) ? st.rebuild : st;
         if (gen.worker && gen.worker.retryAt && gen.worker.retryAt > now) {
@@ -4879,6 +5269,8 @@ export function onTick(_ctx, host) {
                 habits: chatCfg.habits !== false,
                 causes: chatCfg.causes !== false,
                 searchWords: chatCfg.searchWords !== false,
+                // a rebuild's generation is written beside the record in use: nothing waits there
+                riskyAdds: chatCfg.proposals === "risky" && g === cur,
                 recollectChars: chatCfg.recollectChars,
                 habitsStore: cur,
                 earnAfter: chatCfg.habitsEarnAfter,
@@ -4892,7 +5284,10 @@ export function onTick(_ctx, host) {
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
               // a rebuild's generation is written beside the record in use: its proposals are never applied by themselves
-              if (g === cur) applyQuiet(cur, chatCfg, now);
+              if (g === cur) {
+                applyQuiet(cur, chatCfg, now);
+                applyRisky(cur, chatCfg, now);
+              }
               const span = "messages " + (w.scene.fromIdx + 1) + "-" + (w.scene.toIdx + 1);
               const verb = w.replaces ? "Rewrote" : "Wrote";
               addActivity(cur, by, "chapter.write", verb + ' the chapter "' + (chapter.label || chapter.id) + '" (' + span + "): " + added.length + " facts, " + proposed + " proposals", [chapter.id, ...added], now, { label: chapter.label || "", from: w.scene.fromIdx + 1, to: w.scene.toIdx + 1, facts: added.length, proposals: proposed, rewrite: !!w.replaces });
@@ -5569,6 +5964,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now, line, dash) {
       } else {
         const added = addConsolidateProposals(cur, ops, now, factAnchors(cur, line || [], dash));
         applyQuiet(cur, cfg, now);
+        applyRisky(cur, cfg, now);
         cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
         if (next + 1 >= batches.length) finishConsolidate(cur, now);
       }
@@ -6073,7 +6469,8 @@ function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, neare
   const header = nearerTitle
     ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]"
     : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]";
-  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const solo = voices instanceof Set && voices.size === 1;
+  const factLine = (f) => factLineOf(f, solo);
   const facts = [];
   const story = [];
   const render = () => {
@@ -6099,7 +6496,7 @@ function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, neare
 }
 
 // ---------- M4a: the user edits the record ----------
-const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan"];
+const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan", "belief"];
 const FACT_WEIGHTS = ["everyday", "important", "key"];
 const bad = (error) => ({ status: 400, json: { error } });
 const quote = (s) => '"' + cut(str(s), 120) + '"';
@@ -6482,6 +6879,14 @@ export function proposalRoute(fsx, body) {
       return;
     }
     if (op !== "accept") return bad("unknown op");
+    // a new fact that waited (#184 P5): the drafts become facts
+    if (p.op === "add") {
+      const made = acceptAdd(st, p, now);
+      if (!made.length) return bad("the proposal has no text");
+      settle(p, "accepted", now);
+      addActivity(st, "user", "proposal.accept", "Accepted a proposal: " + what, [p.id, ...made], now, { op: "add", text: str(p.text) });
+      return;
+    }
     const targets = arr(p.targets).map((id) => st.facts.find((f) => f.id === id && f.status === "active"));
     if (!targets.length || targets.some((f) => !f)) {
       settle(p, "expired", now);
@@ -6504,41 +6909,7 @@ export function proposalRoute(fsx, body) {
     } else if (p.op === "merge") {
       const text = cut(str(p.text), 300);
       if (!text || targets.length < 2) return bad("a merge needs a text and two facts");
-      const first = targets[0];
-      const knownBy = targets.some((f) => f.knownBy === "all") ? "all" : knownByOf(targets.flatMap((f) => arr(f.knownBy))) || "all";
-      const weight = FACT_WEIGHTS[Math.max(...targets.map((f) => Math.max(0, FACT_WEIGHTS.indexOf(f.weight))))];
-      const merged = {
-        id: "f" + ++st.counters.fact,
-        text,
-        subject: first.subject,
-        knownBy,
-        type: first.type,
-        weight,
-        // the merged fact keeps a pin its parts of the same subject had: that subject's pin count does not grow
-        pinned: targets.some((f) => f.pinned === true && sameName(f.subject, first.subject)),
-        status: "active",
-        src: isObj(first.src) ? { ...first.src } : { from: null, to: null },
-        origin: "merge",
-        merges: targets.map((f) => f.id),
-        // #153: where its parts were told (the proposal worked it out); kept so a later pass still sees the count and the order
-        ...(Array.isArray(p.whens) && p.whens.length ? { whens: p.whens.slice(0, 8) } : {}),
-        at: now,
-        updatedAt: now,
-      };
-      // #178: the survivor keeps the first cause of its parts that is not one of the parts themselves, and every
-      // fact that named a part as its cause now names the survivor
-      const partIds = new Set(targets.map((f) => f.id));
-      const backsToPart = (id) => partIds.has(str((st.facts.find((x) => x.id === id) || {}).because));
-      const cause = targets.map((f) => str(f.because)).find((id) => id && !partIds.has(id) && !backsToPart(id));
-      if (cause) merged.because = cause;
-      for (const f of st.facts) if (!partIds.has(f.id) && partIds.has(str(f.because))) f.because = merged.id;
-      for (const f of targets) {
-        f.status = "retired";
-        f.pinned = false;
-        f.mergedInto = merged.id;
-        f.updatedAt = now;
-      }
-      st.facts.push(merged);
+      const { merged } = mergeFacts(st, p, targets, text, now);
       ids.push(merged.id);
     } else if (p.op === "pin") {
       const err = pinFact(st, targets[0], str(b.replace), withChatConfig(cfg, st).pinLimit, now);
@@ -6613,6 +6984,13 @@ function beatAt(fsx) {
   return isObj(b) ? Number(b.at) || 0 : 0;
 }
 
+/** { why: { code: n } } for the pending proposals that carry a reason, or {} when none does. */
+function whyCounts(proposals) {
+  const why = {};
+  for (const p of arr(proposals)) if (isObj(p) && p.status === "pending" && str(p.why)) why[str(p.why)] = (why[str(p.why)] || 0) + 1;
+  return Object.keys(why).length ? { why } : {};
+}
+
 /** GET /litopys/chats: every chat with its Litopys counts. Reads only. */
 export function listChatsView(fsx) {
   let files = [];
@@ -6643,6 +7021,8 @@ export function listChatsView(fsx) {
       chapters: st ? st.chapters.length : 0,
       facts: st ? st.facts.filter((x) => x.status === "active").length : 0,
       proposals: st ? st.proposals.filter((x) => x.status === "pending").length : 0,
+      // #184 P5: why they wait, by reason (only the ones that have one)
+      ...(st ? whyCounts(st.proposals) : {}),
       worker: workerView(st, null, undefined, beatTime, now),
     });
   }

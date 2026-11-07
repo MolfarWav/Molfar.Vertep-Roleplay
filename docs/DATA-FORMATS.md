@@ -220,6 +220,20 @@ active cause that did not fit; cause and effect both there already) and `causeSt
 chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
 `false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
 
+**Beliefs (#184 P4, step 2).** A fact of `type: "belief"` is what one character was told in a lie and still takes as true. Fields
+beyond a normal fact: `holder` (the one who believes it, also `subject`, and the only name in `knownBy`, so the speaker filter gives
+it to that character's reply alone), `truth: false`, `prov: { "<holder>": { how: "told", from: "<liar>" } }` (how the holder
+knows it; only beliefs carry it), `lie: "<id of the Dashboard's said entry>"` (the link that lets it end), `origin: "dashboard"`.
+Code makes them, never the chapter worker (the `typeMap` of the worker does not accept `belief`): on the Litopys tick, a lie of the
+Dashboard's Said list (`dashboard/state/<chat>.json` `said`, see `heardBy` and `exposed` there) older than the Dashboard's
+`noteAgeTurns` (30 turns by default) gets one belief for each person who still believes it, at most once (`fromLies:
+["<lie id>~<holder>"]` in the chat file). A belief is retired when its holder learns the truth (the Dashboard's `exposed`, or the
+user's `knows-truth`) or the user removes the lie from the Said list; a lie that is only off the line (a rewind) leaves the
+belief alone. In the insert a belief reads `- Bram believes, told by Ada: <text>`, and `(untrue)` is added when the reply voices
+several characters; the worker's Known facts show it as `(Bram believes this, and it is untrue)`, and a lie told in the scene
+rides in the worker request as "Told as true, but untrue" so it is not written down as a fact. The speaker filter keeps it
+out of card memory (that takes `knownBy: "all"` only), so `characters/<id>/memory.json` is unchanged.
+
 **Memory trace (#184 P6).** The sidecar `litopys/insert/<chatId>.json` also keeps `trace` for the last reply, ids and codes only (2-4 KB at most, so a reply pays almost nothing):
 `{ v: 1, kn: [<canonical names of whoever the filter let through>], one: <true when one character spoke>, n: { live, hidden, seen, inF, drop, unseen, held }, full, limit, op, speaker, rows: [...] }`.
 A row is `{ k: "f" | "c" | "a", i: <fact, chapter or arc id>, s: "in" | "out", w: <reason>, r?: <rank> }`; reasons for facts are `pin`, `change`, `trait`, `rank`, `cause` (in) and `budget`, `speaker` (out);
@@ -316,13 +330,25 @@ rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatCo
   config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written
   down as keeping its choice (`ask` when it never made one) with `arcNotice: "pending"`: the Library offers the switch
   once, and either answer, or any choice of `arcMode`, sets `arcNotice` to `done`.
-- `proposals` (`ask`, default, or `quiet`): in `quiet` a `pin` or a `rewrite` proposed by the chapter worker or by
+- `proposals` (`ask`, `risky` or `quiet`; `ask` is the default of an install that already had data, a new install is stamped `risky`): in `quiet` a `pin` or a `rewrite` proposed by the chapter worker or by
   Consolidate is applied at once. The proposal stays in the chat's `proposals` as `status: "accepted", auto: true`
   with an `undo` note, and the chat's Activity gets a `proposal.auto` row; `POST /litopys/proposals { chatId, id, op: "undo" }`
   takes it back (the proposal becomes `rejected` with `undone: true`, a `proposal.undo` row is written) and refuses
   with 409 `changed since` when the fact was changed after it. Never a `retire` or a `merge`; a rewrite of a fact the
   user wrote, edited or pinned, and a pin past the pin limit, stay pending. (The Dashboard's own proposals are another plugin and
-  are not touched.)
+  are not touched.) `risky` (#184 P5) applies every pending `pin`, `rewrite`, `retire` and `merge` the same way, with an `undo`
+  note (a retire keeps the ids it retired; a merge keeps the new fact's id, the parts' pins and the causes it repointed, and
+  its Undo removes the merged fact and restores the parts), except the risky ones, which stay pending with `why`: `widens`
+  (a merge whose parts' `knownBy` differ, or mix `"all"` with names), `protected` (a change to a fact that is pinned, `edited`,
+  `origin: "user"` or `weight: "key"`), `kind` (a change to a `change` or `belief` fact). A new fact that waits is a proposal
+  `{ id, op: "add", targets: [], facts: [<draft without id>], text, why, reason, status: "pending" }` where `why` is `change`
+  (a `change` fact, or a new version of one: the draft then has `supersedes`), `belief` (the beliefs of one lie, one draft for
+  each person who heard it) or `contradicts` (a new fact about a subject whose pinned, edited or user-written fact it nearly
+  restates: three or more shared word stems and half of the shorter text, a guess). Accepting it (`op: "accept"`) gives each draft
+  an id and `status: "active"`, and retires the fact a draft `supersedes`; rejecting it adds nothing. A pending belief whose
+  holder learns the truth first drops out of `facts`, and the proposal expires with none left. The list of chats
+  (`GET /litopys/chats`) carries `why: { code: n }` for the pending proposals that have a reason. Only `risky` queues adds; in
+  `ask` and `quiet` a new fact is added at once as before, and a rebuild's new generation never queues.
 - `autoConsolidate` (`true`, `false`, or `null` = on only while `proposals` is `quiet`): starts Consolidate facts by
   itself when the chat's active facts grew by 30 or more since the last run (`consolidateAt: { active, at }` on the
   chat record, set by every run) and none is running and none of its proposals waits. Its proposals follow `proposals`.
@@ -756,6 +782,14 @@ character saw, heard or guessed), `names` and `history`:
   it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
   of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
   reports it in the `said` list; `said.perTurn` (1-4, default 1; the sensor also gives each a `strength` 1-3 and only 2 or 3 is kept, one kind per speaker within 3 turns counts once, a speaker holds about 8 live entries, a line the Notebook holds is skipped) and `said.inject` are in `data/dashboard/config.json`.
+  A `lie` also carries `heardBy: ["<name>"]` (#184 P4): the people present when it was told, never the liar or the
+  user's character; they take it as true. `exposed: [{ who, by, turn }]` records who learned better, `by` being the
+  snapshot key that wrote it (it counts only while that snapshot is on the line, so a rewound reply brings the belief
+  back). The user's own "knows the truth now" is `exposed: ["<name>"]` on the entry's edit in
+  `dashboard/notes/<chat>.json` (`POST /dashboard/notes` `{ op: "knows-truth", id, name }`). The remaining believers
+  (`heardBy` minus `exposed`) are shown to each listener's own reply as "was told by <liar>: ..." in the same part, and to
+  the sensor as a notebook line `s3~Bram heard from Ada: ... (untrue; Bram does not know)`; retiring that id ends the
+  belief. A chat that continues this one keeps `heardBy` as it stands and drops `exposed`. All fields are optional.
 - The character journal. In a snapshot's `chars[<name>]`: `thought` (string, at most 200 characters, or null) and `thoughtTurn`
   (the snapshot's `turn` it was written on). The sensor writes a thought for each present character every turn it has
   something to say; otherwise the old one is carried unchanged, and the reply prompt shows it only while

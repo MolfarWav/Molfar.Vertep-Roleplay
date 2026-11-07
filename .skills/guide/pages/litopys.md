@@ -6,6 +6,7 @@ Litopys (the chronicle) is the long memory of one chat. It reads the story in th
 
 - A **chapter** says what changed in a scene, not a retelling. It is written once the next scene begins, so the latest scene may not have one yet. A new place or a jump in time closes a scene; you can also mark a run of messages as a scene yourself, from a message's "More" menu under Story.
 - A **fact** is one short sentence that stays true: "Medli hides her wings at the market." Facts have a type, a weight (Everyday, Important, Key) and who knows them. You can add, edit, pin or retire facts by hand.
+- A **belief** is a fact of the type Belief: something a character was told in a lie and still takes as true. It appears after a lie has been in the Dashboard's Said list for a while, belongs to the one who believes it, and goes into that character's replies only. It ends when that character learns the truth or you remove the lie; you can also retire it by hand like any fact. See [[dashboard]].
 - **Proposals** are Litopys's suggestions: merge two facts, retire one, reword, pin. You accept or reject each.
 - **Habits** a character clearly shows can also appear, and become a habit after repeating in several scenes.
 
@@ -29,7 +30,7 @@ The **Settings** tab of a chat's record (in the Record side panel and in the Lib
 
 ## Suggestions and tidying
 
-"Suggestions" is "Ask me first" by default: every pin and rewrite waits for your yes. The quiet option applies pins and rewrites at once and logs them in Activity. Retiring and merging always wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
+"Suggestions" has three choices. "Ask me first": every suggestion waits for your yes. "Only risky ones" (the default for a new install): routine suggestions are applied at once, logged in Activity with an Undo, and only the risky ones wait, each with the reason on it: a merge that would tell more people a fact only some knew, a change to a fact you pinned, wrote, edited or marked key, a lasting change or a belief, and a new fact that may contradict one you pinned. The same reason shows in the Inbox. "Apply pins and rewrites quietly": only pins and rewrites go through; retiring and merging wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
 
 ## Rebuild
 

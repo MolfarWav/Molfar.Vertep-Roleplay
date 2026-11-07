@@ -79,7 +79,7 @@ export interface TabProps {
   onRefresh: () => void
 }
 
-const FACT_TYPES: LitFactType[] = ['event', 'trait', 'change', 'relation', 'world', 'plan']
+const FACT_TYPES: LitFactType[] = ['event', 'trait', 'change', 'relation', 'world', 'plan', 'belief']
 const FACT_WEIGHTS: LitFactWeight[] = ['everyday', 'important', 'key']
 const STATE_FILTERS = ['active', 'pinned', 'retired', 'superseded', 'all'] as const
 type StateFilter = (typeof STATE_FILTERS)[number]
@@ -104,6 +104,7 @@ function typeKey(type: LitFactType) {
     relation: 'lit.type.relation',
     world: 'lit.type.world',
     plan: 'lit.type.plan',
+    belief: 'lit.type.belief',
   }
   return map[type]
 }
@@ -397,7 +398,7 @@ function FactEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FACT_TYPES.map((tKey) => (
+              {FACT_TYPES.filter((x) => x !== 'belief' || fact?.type === 'belief').map((tKey) => (
                 <SelectItem key={tKey} value={tKey}>
                   {t(typeKey(tKey))}
                 </SelectItem>

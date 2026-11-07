@@ -17,7 +17,19 @@ const opKeys: Record<string, MsgKey> = {
   retire: 'lit.op.retire',
   rewrite: 'lit.op.rewrite',
   pin: 'lit.op.pin',
+  add: 'lit.op.add',
 }
+
+const whyKeys: Record<string, MsgKey> = {
+  widens: 'lit.why.widens',
+  protected: 'lit.why.protected',
+  kind: 'lit.why.kind',
+  change: 'lit.why.change',
+  belief: 'lit.why.belief',
+  contradicts: 'lit.why.contradicts',
+}
+/** The sentence for a why code; a code this app does not know (a newer plugin) reads as a plain wait. */
+export const whyKey = (why: string): MsgKey => whyKeys[why] ?? 'lit.why.other'
 
 const pstatusKeys: Record<string, MsgKey> = {
   pending: 'lit.pstatus.pending',
@@ -167,7 +179,18 @@ function ProposalRow({ chat, proposal, onChat, onRefresh, pin, busy, setBusy }: 
                 <div className="text-muted-foreground">{t('lit.pinWhy')}</div>
               </>
             )}
-            {allMissing && <div className="text-muted-foreground">{t('lit.factGone')}</div>}
+            {proposal.op === 'add' && (
+              <>
+                {[...new Set((proposal.facts ?? []).map((d) => d.text))].map((text, i) => <div key={i}>{text}</div>)}
+                {(proposal.facts ?? []).some((d) => d.holder) && (
+                  <div className="text-muted-foreground">{t('lit.believedBy', { names: (proposal.facts ?? []).map((d) => d.holder).filter(Boolean).join(', ') })}</div>
+                )}
+              </>
+            )}
+            {proposal.status === 'pending' && proposal.why && (
+              <div className="text-muted-foreground" data-testid="proposal-why">{t('lit.whyWaits', { text: t(whyKey(proposal.why)) })}</div>
+            )}
+            {allMissing && proposal.op !== 'add' && <div className="text-muted-foreground">{t('lit.factGone')}</div>}
           </div>
         </div>
         {canUndo(proposal) && (

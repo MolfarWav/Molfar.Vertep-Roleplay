@@ -2646,7 +2646,19 @@ function buildInherit(fsx, chatId) {
   // what the characters said and are held to: kept as it stands, the earlier chat's own source stays on each entry
   const said = {};
   for (const [name, list] of Object.entries(activeBySrc(end.state.said, end.keys))) {
-    const kept = arr(list).filter((s) => isObj(s) && str(s.text)).map((s) => ({ ...s, src: INHERIT_KEY, fromChat: from }));
+    const kept = arr(list)
+      .filter((s) => isObj(s) && str(s.text))
+      .map((s) => {
+        const { exposed: _x, ...rest } = s;
+        const c = { ...rest, src: INHERIT_KEY, fromChat: from };
+        // who still believes a lie is settled here: the new chat does not see the old chat's snapshot keys (#184 P4)
+        if (Array.isArray(s.heardBy)) {
+          const b = believersOf(s, name, end.keys, null);
+          if (b.length) c.heardBy = b;
+          else delete c.heardBy;
+        }
+        return c;
+      });
     if (kept.length) said[name] = kept;
   }
   // the people lines as they stand (the newest one per person): kept like what the characters said, the thoughts are not carried
@@ -3587,6 +3599,21 @@ function noteLine(n) {
   return n.id + " " + n.how + (n.how === "heard" && n.from ? " from " + n.from : "") + ": " + n.text + (n.by === "user" ? " (written by the user)" : "");
 }
 
+const BELIEF_ID = /^(s\d+)~(.+)$/;
+
+/**
+ * The lies a character was told and still takes as true, as notebook lines the sensor can read: `s3~Bren heard from
+ * Ada: text (untrue; Bren does not know)`. Retiring that id ends the belief (`applyBeliefEnd`). Newest five.
+ */
+function believedLines(ctx, name, gone) {
+  const keys = ctx.line.map((l) => l.key).filter((k) => !arr(gone).includes(k));
+  const out = [];
+  for (const [liar, list] of Object.entries(effectiveSaid(ctx.state, keys, ctx.overlay))) {
+    for (const s of arr(list)) if (liar !== name && arr(s.believers).includes(name)) out.push(s.id + "~" + name + " heard from " + liar + ": " + s.text + " (untrue; " + name + " does not know)");
+  }
+  return out.slice(-5);
+}
+
 function notebookTexts(ctx) {
   // the notes the dropped snapshots wrote are gone: the sensor must not read them as live
   const gone = arr(ctx.drop);
@@ -3601,7 +3628,9 @@ function notebookTexts(ctx) {
     const older = rankNotes(list.slice(0, Math.max(0, list.length - 8)), news).slice(0, 12);
     const keep = new Set([...newest, ...older].map((n) => n.id));
     const notes = list.filter((n) => keep.has(n.id));
-    if (notes.length) out.push("Notebook of " + name + "\n" + notes.map(noteLine).join("\n"));
+    // a lie they were told and still believe (#184 P4): listed so the sensor can retire it when the truth comes out
+    const lines = [...notes.map(noteLine), ...believedLines(ctx, name, gone)];
+    if (lines.length) out.push("Notebook of " + name + "\n" + lines.join("\n"));
   }
   return out;
 }
@@ -5792,10 +5821,36 @@ function applySaid(ctx, out, present, turn, K) {
     if (mine.some((e) => e.kind === kind && turn - (Number(e.turn) || 0) <= SAID_COOLDOWN && Number(s.strength) < 3)) continue;
     if (mine.length >= (Number(s.strength) >= 3 ? SAID_CAP + 4 : SAID_CAP)) continue;
     state.counters.said += 1;
-    // a lie is stored hidden: the user sees it only after asking to reveal, the character still holds to it
-    listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), turn, src: K, source: "chat" });
+    // a lie is stored hidden: the user sees it only after asking to reveal, the character still holds to it.
+    // The others in the scene heard it and take it as true until they learn better (#184 P4); never the user's character.
+    const heardBy = lie ? unique(present.filter((p) => p !== who && sideOf(p, userAll(ctx), present, ctx) !== "user")) : [];
+    listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), ...(heardBy.length ? { heardBy } : {}), turn, src: K, source: "chat" });
     listIn(fresh, who).push({ text });
     used++;
+  }
+}
+
+/**
+ * The truth came out for someone who believed a lie (#184 P4): the sensor retires the belief line it was shown
+ * (`s3~Bren`). The exposure is written with this snapshot's key, so a rewound reply brings the belief back.
+ * A bare entry id counts when only one person still believes it.
+ */
+function applyBeliefEnd(ctx, out, turn, K) {
+  const { state } = ctx;
+  const keys = ctx.line.map((l) => l.key);
+  for (const id of arr(out.retire).map(str)) {
+    const m = BELIEF_ID.exec(id);
+    const sid = m ? m[1] : /^s\d+$/.test(id) ? id : "";
+    if (!sid) continue;
+    for (const [liar, list] of Object.entries(effectiveSaid(state, keys, ctx.overlay))) {
+      const live = arr(list).find((s) => s.id === sid);
+      if (!live) continue;
+      const believers = arr(live.believers);
+      const who = m ? believers.find((b) => b.toLowerCase() === m[2].trim().toLowerCase()) : believers.length === 1 ? believers[0] : "";
+      if (!who) continue;
+      const raw = arr(state.said[liar]).find((s) => s.id === sid);
+      if (raw) raw.exposed = [...arr(raw.exposed), { who, by: K, turn }].slice(-20);
+    }
   }
 }
 
@@ -6012,6 +6067,7 @@ function applySensor(ctx, out, op, model, unknownIds) {
 
   applyNotebook(ctx, out, present, turn, K);
   applySaid(ctx, out, present, turn, K);
+  applyBeliefEnd(ctx, out, turn, K);
   applyJournal(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
   const clock = advanceClock(B && B.clock, out, op);
@@ -6965,7 +7021,21 @@ export function journalBlock(ctx, name, cfg) {
  * The insert for one reply, or null. turn = {op, speakerName, targetId, userText, recent?}.
  * Returns { text, tokens, focus, notebookOf, key }.
  */
-/** What the characters said as it counts: the active entries with the user's edits, the ones the user removed left out. */
+/**
+ * Who still takes a lie as true (#184 P4): the listeners it was told to, less the ones who learned the truth. An
+ * exposure counts while the snapshot that wrote it is on the line (a rewound reply brings the belief back); the
+ * user's own "knows the truth now" lives in the edit overlay (`e.exposed`).
+ */
+export function believersOf(s, speaker, keys, e) {
+  if (!isObj(s) || !Array.isArray(s.heardBy)) return [];
+  const on = keySet(keys);
+  const gone = new Set();
+  for (const x of arr(s.exposed)) if (isObj(x) && str(x.who) && (x.by === undefined || on.has(x.by))) gone.add(str(x.who));
+  for (const w of arr(e && e.exposed)) gone.add(str(w));
+  return unique(arr(s.heardBy).map(str).filter((n) => n && n !== speaker && !gone.has(n)));
+}
+
+/** What the characters said as it counts: the active entries with the user's edits, the ones the user removed left out. A lie carries `believers`. */
 export function effectiveSaid(state, keys, ov) {
   const edits = isObj(ov && ov.edits) ? ov.edits : {};
   const out = {};
@@ -6974,7 +7044,8 @@ export function effectiveSaid(state, keys, ov) {
       const e = isObj(edits[s.id]) ? edits[s.id] : null;
       if (e && e.retired === true) continue;
       const text = e && str(e.text) ? cut(str(e.text), 300) : s.text;
-      listIn(out, name).push(text === s.text ? s : { ...s, text, edited: true });
+      const extra = Array.isArray(s.heardBy) ? { believers: believersOf(s, name, keys, e) } : null;
+      listIn(out, name).push(text === s.text && !extra ? s : { ...s, ...extra, ...(text === s.text ? {} : { text, edited: true }) });
     }
   }
   return out;
@@ -6992,6 +7063,7 @@ export function removedSaid(state, keys, ov) {
 
 const SAID_TOKENS = 120;
 const SAID_KEEP = 4;
+const BELIEF_KEEP = 2;
 const SAID_LABEL = { vow: "vow", promise: "promise", threat: "threat", confession: "confession", secret: "secret revealed", order: "order", refusal: "refusal", lie: "a lie they told", other: "said" };
 
 /**
@@ -7001,6 +7073,11 @@ const SAID_LABEL = { vow: "vow", promise: "promise", threat: "threat", confessio
  */
 export function saidBlock(state, keys, holders, maxTokens, ov) {
   const live = effectiveSaid(state, keys, ov);
+  // what each listener was told in a lie and still takes as true (#184 P4); the liar's own line says it was a lie
+  const told = {};
+  for (const [liar, list] of Object.entries(live)) {
+    for (const s of arr(list)) for (const b of arr(s.believers)) if (b !== liar) listIn(told, b).push({ liar, text: s.text });
+  }
   const lines = [];
   for (const name of holders) {
     const items = arr(live[name]).slice(-SAID_KEEP);
@@ -7008,6 +7085,10 @@ export function saidBlock(state, keys, holders, maxTokens, ov) {
     let list = items;
     while (list.length > 1 && estimateTokens(line(list)) > maxTokens) list = list.slice(1);
     if (list.length) lines.push(line(list));
+    const believed = (l) => "[" + name + " was told by " + l.map((b) => b.liar + ": “" + b.text + "”").join("; ") + ". " + name + " has no reason to doubt it unless the story shows otherwise.]";
+    let heard = arr(told[name]).slice(-BELIEF_KEEP);
+    while (heard.length > 1 && estimateTokens(believed(heard)) > maxTokens) heard = heard.slice(1);
+    if (heard.length) lines.push(believed(heard));
   }
   return lines.join("\n");
 }
@@ -7715,7 +7796,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const history = activeHistory(state, keys);
   const saidLive = effectiveSaid(state, keys, overlay);
   const saidGone = removedSaid(state, keys, overlay);
-  const saidItem = ({ id, text, kind, hidden, turn, source, edited }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}) });
+  const saidItem = ({ id, text, kind, hidden, turn, source, edited, believers }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}), ...(Array.isArray(believers) && believers.length ? { believers } : {}) });
   const chat = readChat(fsx, chatId);
   const cast = chat ? chatCharacters(fsx, chat.meta) : { names: [], souls: {} };
   const souls = cast.souls;
@@ -8092,6 +8173,16 @@ function foldCharacter(state, ov, from, into) {
     }
     // a note remembers who told it
     for (const list of Object.values(b)) for (const n of arr(list)) if (isObj(n) && n.from === from) n.from = into;
+    // a lie remembers who heard it and who learned better (#184 P4)
+    if (bag === "said") {
+      for (const list of Object.values(b)) {
+        for (const n of arr(list)) {
+          if (!isObj(n)) continue;
+          if (Array.isArray(n.heardBy)) n.heardBy = unique(n.heardBy.map((h) => (h === from ? into : h)));
+          if (Array.isArray(n.exposed)) for (const x of n.exposed) if (isObj(x) && x.who === from) x.who = into;
+        }
+      }
+    }
   }
   for (const bag of ["names", "history", "journal"]) {
     const b = state[bag];
@@ -8234,6 +8325,17 @@ function notesRoute(req, fsx) {
     const e = editOf(noteId);
     if (op === "retire") e.retired = true;
     else delete e.retired;
+    putEdit(noteId, e);
+  } else if (op === "knows-truth") {
+    // the user says a listener learned a lie was one (#184 P4): the belief ends for that name only
+    const name = str(b.name);
+    if (!noteId || !name) return bad("id and name required");
+    const lie = Object.entries(isObj(state.said) ? state.said : {}).flatMap(([liar, l]) => arr(l).filter((s) => isObj(s) && s.id === noteId).map((s) => ({ liar, s })))[0];
+    if (!lie || !Array.isArray(lie.s.heardBy)) return bad("no such lie", 404);
+    const heard = lie.s.heardBy.find((h) => str(h).toLowerCase() === name.toLowerCase());
+    if (!heard) return bad("that person was not told it", 404);
+    const e = editOf(noteId);
+    e.exposed = unique([...arr(e.exposed).map(str), heard]);
     putEdit(noteId, e);
   } else if (op === "remove-character") {
     // a name the sensor made up or doubled: out of every snapshot, and the sensor does not bring it back

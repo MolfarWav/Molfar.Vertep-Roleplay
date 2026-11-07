@@ -409,6 +409,8 @@ describe("parseWorkerReply", () => {
 
 describe("applying worker results", () => {
   it("add stores a fact with defaults and key weight pins proposed", () => {
+    // the way proposals wait is what is tested here, not the default of a new install (#184 P5)
+    writeJson("litopys/config.json", { arcNotice: "done", proposals: "ask" });
     writeChat("c1", story(70), { updatedAt: Date.now() });
     const m = mockHost();
     const reply = chapterReply("T", "X", [

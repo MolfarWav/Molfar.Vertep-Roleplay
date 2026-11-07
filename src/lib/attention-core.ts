@@ -28,6 +28,16 @@ export function litCounts(items: Pick<LitChatItem, 'id' | 'proposals'>[]): Recor
   return out
 }
 
+/** The reason most of a chat's waiting proposals wait for (#184 P5), by chat id; chats whose proposals carry none are left out. */
+export function litWhy(items: Pick<LitChatItem, 'id' | 'why'>[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const it of items) {
+    const top = Object.entries(it.why ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])[0]
+    if (top) out[it.id] = top[0]
+  }
+  return out
+}
+
 export const totalOf = (counts: Record<string, number>) => Object.values(counts).reduce((a, b) => a + b, 0)
 
 /** The pending proposals of a chat as one-line items, newest first. */
@@ -54,7 +64,7 @@ export function takeNew(items: WaitingProposal[], seen: Set<string>): WaitingPro
   return fresh
 }
 
-const OP_KEYS = { pin: 'attn.lit.pin', merge: 'attn.lit.merge', rewrite: 'attn.lit.rewrite', retire: 'attn.lit.retire' } as const
+const OP_KEYS = { pin: 'attn.lit.pin', merge: 'attn.lit.merge', rewrite: 'attn.lit.rewrite', retire: 'attn.lit.retire', add: 'attn.lit.add' } as const
 
 /** What the toast says: one proposal gets its line and, when short, Accept / Reject in place. */
 export function toastPlan(items: WaitingProposal[], lang: Lang) {
@@ -184,7 +194,7 @@ export function takeNewFailures(items: FailedItem[], seen: Set<string>, dismisse
 
 export type InboxRow =
   | { kind: 'failed'; key: string; item: FailedItem; name: string; reason: string }
-  | { kind: 'litopys'; key: string; chatId: string; name: string; count: number }
+  | { kind: 'litopys'; key: string; chatId: string; name: string; count: number; why?: string }
   | { kind: 'soul'; key: string; characterId: string; name: string; count: number; at: number }
   | { kind: 'letter'; key: string; letter: Letter; name: string }
 
@@ -200,6 +210,8 @@ export interface InboxInput {
   settings: AttentionSettings | undefined
   /** pending Library proposals per chat id */
   litopys: Record<string, number>
+  /** the main reason a chat's proposals wait, by chat id (#184 P5) */
+  litWhy?: Record<string, string>
   soul: SoulWaiting[]
   /** unread letters from cards (#72); they are never failures and never turn the badge red */
   letters?: Letter[]
@@ -234,7 +246,7 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
   }
   if (attentionOn(input.settings, 'litopys')) {
     const chats = Object.entries(input.litopys).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
-    for (const [chatId, count] of chats) if (!input.dismissed?.has(litDismissKey(chatId, count))) rows.push({ kind: 'litopys', key: `lit:${chatId}`, chatId, name: input.chatName(chatId), count })
+    for (const [chatId, count] of chats) if (!input.dismissed?.has(litDismissKey(chatId, count))) rows.push({ kind: 'litopys', key: `lit:${chatId}`, chatId, name: input.chatName(chatId), count, ...(input.litWhy?.[chatId] ? { why: input.litWhy[chatId] } : {}) })
   }
   if (attentionOn(input.settings, 'soul')) {
     for (const d of input.soul) {

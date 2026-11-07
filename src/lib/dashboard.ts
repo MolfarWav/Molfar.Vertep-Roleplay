@@ -83,6 +83,8 @@ export interface SaidNote {
   /** where it was written: the chat, later maybe a messenger plugin */
   source: string
   edited?: boolean
+  /** a lie: the listeners who still take it as true (#184 P4); absent when nobody does or on an older plugin */
+  believers?: string[]
 }
 /** A line of a character's journal about a person: the sensor's reading, or one the user wrote. Absent on an older engine. */
 export interface JournalLine { id: string; about: string; text: string; by: 'sensor' | 'user'; turn: number }

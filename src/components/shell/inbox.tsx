@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
+import { whyKey } from '@/components/library/ledger-proposals'
 
 export { useInbox }
 
@@ -28,6 +29,7 @@ async function dismissInboxRows(rows: InboxRow[]): Promise<number> {
 export function useInboxRows() {
   const litopys = useAttention((s) => s.litopys)
   const litNames = useAttention((s) => s.litNames)
+  const litWhy = useAttention((s) => s.litWhy)
   const soul = useAttention((s) => s.soul)
   const letters = useLetters((s) => s.letters)
   const failed = useAttention((s) => s.failed)
@@ -39,6 +41,7 @@ export function useInboxRows() {
   return inboxRows({
     settings,
     litopys,
+    litWhy,
     soul,
     letters,
     failed,
@@ -139,6 +142,8 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
   const name = row.name || '…'
   const kindLabel = t(row.kind === 'failed' ? 'inbox.kind.failed' : row.kind === 'litopys' ? 'inbox.kind.litopys' : row.kind === 'letter' ? 'inbox.kind.letter' : 'inbox.kind.soul')
   const what = row.kind === 'failed' ? row.reason : row.kind === 'litopys' ? t('inbox.lit', { n: row.count }) : row.kind === 'letter' ? row.letter.text : t('inbox.soul', { n: row.count })
+  // why the suggestions wait (#184 P5): a line of its own, so a phone can read all of it
+  const whyText = row.kind === 'litopys' && row.why ? t('lit.whyWaits', { text: t(whyKey(row.why)) }) : ''
   const at = row.kind === 'failed' ? row.item.at : row.kind === 'soul' ? row.at : row.kind === 'letter' ? row.letter.at : 0
   const worker = row.kind === 'failed' ? workerName(row.item.worker, lang) : ''
   return (
@@ -147,7 +152,7 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
         type="button"
         onClick={selecting ? onToggle : () => openRow(row)}
         aria-pressed={selecting ? !!selected : undefined}
-        aria-label={`${kindLabel}${worker ? `, ${worker}` : ''}: ${name}. ${what}. ${selecting ? t('inbox.select') : t('attn.open')}`}
+        aria-label={`${kindLabel}${worker ? `, ${worker}` : ''}: ${name}. ${what}. ${whyText ? `${whyText} ` : ''}${selecting ? t('inbox.select') : t('attn.open')}`}
         className={cn(
           'flex min-w-0 flex-1 items-start gap-3 rounded-lg border px-3 text-left transition-colors',
           style.row,
@@ -169,6 +174,7 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
           </span>
           <span className="truncate text-sm font-medium text-foreground">{name}</span>
           <span className={cn('text-xs', row.kind === 'letter' ? 'line-clamp-4 whitespace-pre-line text-foreground/80' : 'text-muted-foreground', row.kind === 'failed' ? 'line-clamp-2' : row.kind !== 'letter' && 'truncate')}>{what}</span>
+          {whyText && <span className="line-clamp-3 text-xs text-muted-foreground" data-testid="inbox-row-why">{whyText}</span>}
         </span>
         {!selecting && <CaretRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
       </button>
