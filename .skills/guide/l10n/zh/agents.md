@@ -1,7 +1,7 @@
-<!-- source: a06a17fd0667 -->
+<!-- source: 56891f4e013d -->
 # 代理与代理工坊
 
-代理是一个由卡片和连线搭建的小助手。在一次回复后，它会读取聊天的一部分，可能会向模型询问一个或多个简短问题，并保留自己的笔记，然后展示一些内容：回复下方的一条注释、可点击的按钮、一个计量表、一张地图，或是对下一次回复的提示。例如：三个建议的后续行动、一个紧张度计量表、一张已到访地点的地图。本页面向那些想要这些附加功能的人。帮助中有三篇关于编辑器的文章：“Agent editor: how an agent works”、“Agent editor: the cards”和“Agent editor: three ready agents”。
+代理是一个由卡片和连线搭建的小助手。它读取聊天的一部分（在回复之前或之后，由你选择），可能会向模型提出一个或多个简短问题，保留自己的笔记，并展示一些内容：回复下方的一条注释、可点击的按钮、一个计量表、一张地图，或是对下一次回复的提示。例如：三个建议的后续行动、一个紧张度计量表、一张已到访地点的地图。本页面向那些想要这些附加功能的人。帮助中有三篇关于编辑器的文章：“Agent editor: how an agent works”、“Agent editor: the cards”和“Agent editor: three ready agents”。
 
 ## 代理由什么构成
 
@@ -9,32 +9,40 @@
 
 - 一张**输入**卡片说明代理可以读取什么（最后一次回复、聊天历史、角色卡、人格、作者备注、Litopys事实、设定集条目）；
 - **向模型提问**卡片向模型提出一个问题，并将答案作为自由文本、是/否，或几个命名字段来接收；
-- 逻辑卡片，以及无需模型、在代码中工作的卡片：骰子、选取一行文本、剪切或提取文本；
+- 逻辑卡片，以及无需模型、在代码中工作的卡片：骰子、选取一行、剪切或提取文本；
+- 一张**脚本**卡片：你编写的几行JavaScript，输入为`(input, seed)`，输出为一个普通对象，输入和输出都有类型。它在引擎的沙箱中运行（没有时钟、没有网络、没有文件，约半秒、16 MB），需要1.10.1或更高版本的引擎；更旧的引擎会以一条普通消息使代理失败；
 - 用于代理自身**记忆**的卡片（数字、文本、是/否、列表），按每个聊天保存，与Dashboard分开；
-- 一张**输出**卡片，展示结果：“回复下方的注释”“可点击的按钮”、一个状态值，或放入下一次提示的提示。
+- 一张**输出**卡片，展示结果：“A note under the reply”、“Buttons to tap”、一个状态值，或放入下一次提示的提示。
 
-**面板**（计量表、计数器、表格、图块板）显示代理保存的内容；面板中没有任何东西会运行，其按钮只会将文本放入消息框。
+**面板**（计量表、计数器、表格、图块板）显示代理保存的内容；面板中的任何东西都不会运行，其按钮只会将文本放入消息框。
 
-代理的运行时机是按代理设置的：每次回复后（本版本只在这一时机运行），每第N次回复；或仅在出现选定词语时。
+代理何时运行，称为一条**通道**。代理的文件会注明它起始的通道，每个聊天都可以把代理移到另一条通道（聊天的Agents标签页，或Canvas的“Agent sets”面板）。四条通道：
+
+- **回复之前**：回复会等待代理，代理留下的提示会进入那条回复。每次回复都会增加等待时间，因此只保留一两个快速问题。代理所在行的Wait开关可关闭等待；之后代理与回复同时运行。
+- **与回复同时**：与回复同时运行，不增加等待，但无法将提示放入它所伴随的回复（注释、按钮和面板仍可使用）。
+- **回复之后**：注释、追踪器和计量表的常用通道。
+- **手动**：仅在你按下其所在行的运行按钮时运行。
+
+在通道之上，代理还可以每第N次回复运行一次，或仅在出现选定词语时运行。
 
 ## 现成代理
 
-在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项可打开它）。“Empty agent”会提供一个输入和一条注释。“Start from a ready agent”提供六个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board和Tension meter。在“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
+在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供六个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board和Tension meter。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
 
 ## 编辑器
 
-编辑会在你停止操作片刻后保存为草稿。有三个标签页：Card（选中的卡片）、Agent（名称、运行时机、其记忆、面板）和Try。一个检查会显示“Passes the check”、问题和警告的数量，以及“N model calls per run”。存在问题未解决时无法安装。“Export as a file”会保存一个可分享的文件。聊天中的“Install and manage agents...”面板有“Install an agent file”用于导入。
+编辑会在你停止操作片刻后保存为草稿。三个标签页：Card（选中的卡片）、Agent（名称、何时运行、其记忆、面板）和Try。检查项会显示“Passes the check”、问题和警告的数量，以及“N model calls per run”。存在未解决的问题时无法安装。“Export as a file”会保存一个可分享的文件。聊天中的“Install and manage agents...”面板有“Install an agent file”，用于导入文件。
 
 ## 试运行
 
-Try标签页会运行一个虚构的回合，不会影响任何内容。你可以更改输入，板子上的连线会显示数据如何流动；在没有模型的情况下，每张“Ask the model”卡片会使用一个你可编辑的示例答案。在“A real chat”下选择一个聊天并点击“Fill from this chat”，以加载代理实际会获得的内容。然后“Run with the model”会向真实模型提出真实问题：最多N次调用，消耗真实token，并且不会将任何内容保存到聊天或代理中。
+Try标签页运行一个虚构的回合，不会改动任何内容。你可以更改输入，板子上的连线会显示哪些数据在流动；没有模型时，每张“Ask the model”卡片会使用一个你可以编辑的示例答案。在“A real chat”下选择一个聊天，再点“Fill from this chat”，即可载入代理真正会获得的内容。然后“Run with the model”会用真实的问题询问真实的模型：最多N次调用，消耗真实的token，且不会将任何内容保存到聊天或代理中。
 
 ## 安装、允许、在聊天中开启
 
-1. 按“Install”（对于已安装代理修改后的副本，则按“Update”；如需修改，请使用“Edit a copy”）。
-2. 允许一次：“Review permissions”，然后选择“Allow all”或逐项允许。当每一行都开启时，它才会运行。请求更多权限的更新会等待新的Allow确认。
-3. 将其添加到聊天中。在聊天顶部的胶囊菜单中打开**Agents**标签页：“In this chat”列出活跃代理，“Installed”列出其余代理（选择一个即可添加）。每一行都可以立即再次运行、被移除，或停止等待它的回复。新聊天在添加代理或选择一组代理之前没有代理。
+1. 按“Install”（对于已安装代理的修改版本，按“Update”；如需修改，请使用“Edit a copy”）。
+2. 允许一次：点“Review permissions”，然后选择“Allow all”或逐项允许。所有项目都开启后它才会运行。请求更多权限的更新会等待新的允许。脚本卡片会请求“Run its own small program”；在允许之前，权限列表会显示其代码（“Read the code”）；如果更新改变了代码，将再次请求权限。
+3. 将其添加到聊天中。在聊天顶部的胶囊按钮中打开**Agents**标签页：“In this chat”列出活动代理，“Installed”列出其余代理（选择一个即可添加）。每一行都可以立即再次运行、被移除，或停止让回复等待它。新聊天在你添加代理或选择一组之前没有任何代理。
 
-**组**是一个有名称的代理列表（“Save this chat's list as a set”；“Make default”会将其赋给新聊天）。Canvas的“Agent sets”面板显示每组所需的时间和调用次数，并包含“Agents' notes in chats”开关，用于隐藏所有代理的注释。每个代理的结果显示位置可以在聊天的Agents标签页中，在其适合的位置之间更改。
+**组**是一个有名称的代理列表（“Save this chat's list as a set”；“Make default”会将它赋予新聊天）。Canvas的“Agent sets”面板显示每组的时间与调用成本，并保存“Agents' notes in chats”开关，用于隐藏所有代理的注释。每个代理的结果位置可以在聊天的Agents标签页中更改，选项为适合它的位置。
 
-每张“Ask the model”卡片每次运行消耗一次调用；编辑器会显示该数量。“Every Nth reply”会分摊成本。
+每张“Ask the model”卡片每次运行调用一次；编辑器会显示数量。“Every Nth reply”可分摊成本。

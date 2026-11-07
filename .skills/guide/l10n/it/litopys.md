@@ -1,4 +1,4 @@
-<!-- source: c68da6730f1a -->
+<!-- source: 22d2bcc1795f -->
 # Litopys: il registro della storia
 
 Litopys (la cronaca) è la memoria lunga di una chat. Legge la storia in background e scrive un capitolo per ogni scena conclusa, più i fatti che la storia ha stabilito. Quando una chat diventa troppo lunga per la finestra del modello, il registro porta avanti la storia. Usalo per le storie lunghe; non devi avviarlo.
@@ -7,30 +7,42 @@ Litopys (la cronaca) è la memoria lunga di una chat. Legge la storia in backgro
 
 - Un **capitolo** dice cosa è cambiato in una scena, non è una riscrittura. Viene scritto quando inizia la scena successiva, quindi l'ultima scena potrebbe non averne ancora uno. Un nuovo luogo o un salto nel tempo chiude una scena; puoi anche segnare tu una serie di messaggi come scena, dal menu "More" di un messaggio, sotto Story.
 - Un **fatto** è una breve frase che resta vera: "Medli nasconde le ali al mercato." I fatti hanno un tipo, un peso (Quotidiano, Importante, Chiave) e chi li conosce. Puoi aggiungere, modificare, fissare o ritirare i fatti a mano.
+
+**Un fatto può essere noto a un intero gruppo**, per esempio una gilda: in "Known to" scrivi `group: Guild of Ravens`, e ogni membro presente nella scena lo conosce; gli altri no. Un gruppo esiste quando una scheda ha un'etichetta scritta `group: Guild of Ravens` o `faction: Guild of Ravens` (le altre etichette non sono gruppi), oppure quando un record del World DM di tipo Group o Place elenca Members ([[world-dm]]). Quando un membro è nella scena, il modello che scrive i capitoli viene informato del gruppo e può usarlo per notizie che l'intero gruppo ha appreso. Un libro-istantanea copia i nomi dei membri nel momento in cui lo salvi.
+
+- Una **credenza** è un fatto di tipo Belief: qualcosa che un personaggio ha sentito in una menzogna e continua a ritenere vero. Compare dopo che una bugia è stata a lungo nella lista Said della Dashboard, appartiene a chi ci crede e finisce nelle risposte solo di quel personaggio. Finisce quando quel personaggio scopre la verità o quando togli la bugia; puoi anche chiuderla a mano con **Knows the truth now**, che lo comunica anche alla Dashboard. La vista Memory segna una credenza quando una di esse è entrata in una risposta. Vedi [[dashboard]].
 - Le **proposte** sono i suggerimenti di Litopys: unire due fatti, ritirarne uno, riformulare, fissare. Accetti o rifiuti ciascuna.
 - Anche le **abitudini** che un personaggio mostra chiaramente possono comparire, e diventare un'abitudine dopo essersi ripetute in più scene.
 
 ## Dove guardare
 
-Premi **Record** nell'intestazione della chat (su un telefono, nel Menu) per vedere il registro di questa chat in un pannello laterale. La sezione **Library** della barra laterale mostra il registro di ogni chat. Ha due viste: Panoramica (una linea del tempo, una scheda per personaggio, le proposte in attesa) e Dettagli, con le schede Capitoli, Fatti, Proposte, Abitudini e Attività. La scheda Attività registra ciò che Litopys ha fatto, con Annulla dove possibile. L'ingranaggio ("Litopys settings") imposta come viene scritto il registro.
+Premi **Record** nell'intestazione della chat (su un telefono, nel Menu) per vedere il registro di questa chat in un pannello laterale. La sezione **Library** della barra laterale mostra il registro di ogni chat. Ha due viste: Overview (una linea del tempo, una scheda per personaggio, le proposte in attesa) e Details, con le schede Chapters, Facts, Proposals, Habits, Activity e Settings. La scheda Activity registra ciò che Litopys ha fatto, con Undo dove possibile. L'ingranaggio ("Litopys settings") imposta come viene scritto il registro.
+
+## Memorie parola per parola delle chat precedenti
+
+Un capitolo è una riscrittura, quindi un piccolo dettaglio (il colore di un mantello, una promessa esatta) può mancare. Quando questa chat continua chat precedenti ([[long-chats]]), attiva **Word-for-word memories of earlier chats** nella Library, in Litopys settings, nel blocco "In the prompt". Poi, quando ciò che si dice condivide più parole rare con un passaggio precedente, uno o due passaggi dei messaggi ORIGINALI entrano nel prompt, etichettati come più vecchi dei fatti. Legge l'intera catena, non solo le tre chat più vicine, e un personaggio riceve un passaggio solo di una scena in cui era presente. Nessuna chiamata al modello; è disattivata per impostazione predefinita e usa al massimo "Word-for-word budget" token (400 per impostazione predefinita). Se nulla condivide abbastanza parole rare, non viene aggiunto nulla. La vista Memory e il pannello Fired elencano ciò che è stato aggiunto per l'ultima risposta; la bacheca Prompt del Canvas ha un proprio interruttore per la chat.
 
 ## Cosa entra nel prompt
 
 Per impostazione predefinita il registro viene inserito automaticamente. "Memory size" indica quanti token può occupare: Auto per impostazione predefinita (15% della finestra del modello, almeno 800 e al massimo 16000), Compatta (800 token) oppure Personalizzata da 200 fino a 16000. Auto lascia che una finestra grande porti più storia; su un modello piccolo resta vicino a 800. Una dimensione che hai salvato tu in precedenza resta com'è. Quando tutto ci sta, viene inviato per intero; altrimenti vengono inviate le parti più importanti per la scena. Un modello piccolo vuole una dimensione piccola. Con "Chapters and facts" disattivato non ci sono nuovi capitoli o fatti e nulla viene aggiunto al prompt.
 
-I messaggi più vecchi possono uscire dal prompt solo quando la finestra è piena, oppure scena per scena una volta che un capitolo li copre; l'impostazione "Older messages leave the prompt" decide quale.
+I messaggi più vecchi possono uscire dal prompt solo quando la finestra è piena, oppure scena per scena una volta che un capitolo li copre; l'impostazione "Older messages leave the prompt" decide quale: "Only when the window is full" (predefinita) oppure "By scenes". [[long-chats]] dice quale scegliere.
 
 ## Corrispondenza per significato
 
 La memoria trova fatti e capitoli per parole. Con un modello di embeddings li trova anche per significato: una domanda con parole diverse raggiunge comunque il fatto. La scheda **Matching by meaning** (in cima al registro di una chat, e in Canvas > Prompt > Memory) mostra a che punto si è: disattivata, in errore, nessun vettore ancora, parzialmente fatta, completata, oppure fatta con un altro modello. Configura il modello una sola volta in Settings > Memory: di default l'app usa prima un modello sul tuo computer (LM Studio o Ollama), poi una connessione API con una chiave, poi OpenRouter. Appena una chiamata al modello di embeddings ha funzionato (premendo il pulsante della scheda, o con una risposta), il motore riempie da solo i vettori mancanti di ogni chat e di ogni file della Data Bank, controllando ogni pochi minuti; tutto ciò che supera i 300.000 token attende il pulsante, e l'interruttore **Make vectors by itself** in Settings > Memory lo disattiva. Il pulsante **Embed N items** dice prima quanti elementi sono e circa quanti token servono, e lo esegue subito. Le nuove scene incorporano comunque i loro nuovi elementi. Se cambi il modello di embeddings, i vecchi vettori non vengono usati finché non premi **Embed again**. La Data Bank ha una scheda propria, **Data Bank by meaning**, in cima a Settings > Data Bank: funziona allo stesso modo per i passaggi dei tuoi file e dei libri ricavati da storie, e un file coperto solo in parte dice "7 of 12 by meaning".
 
+## Impostazioni per una sola chat
+
+La scheda **Settings** del registro di una chat (nel pannello laterale Record e nella Library, accanto ad Activity) imposta Litopys per questa chat soltanto: la scena più corta e la più lunga, quanti messaggi recenti restano parola per parola (oppure quanti messaggi diretti restano dopo le scene, quando i messaggi più vecchi escono "By scenes"), il modo in cui i messaggi più vecchi escono dal prompt, e quanti fatti può avere fissati un personaggio. Un campo lasciato vuoto segue le "Litopys settings" dell'ingranaggio e mostra quel valore come "Library: N". Un valore viene salvato quando esci dal campo. "Use the Library settings" li cancella tutti. Una chat con cambi di scena frequenti si trova bene con una scena più corta bassa, per esempio 3: una scena breve riceve così un proprio capitolo. I capitoli già scritti restano come sono; usa Rebuild per riscriverli con le nuove lunghezze.
+
 ## Suggerimenti e pulizia
 
-"Suggestions" è "Ask me first" per impostazione predefinita: ogni fissaggio e ogni riscrittura attende il tuo sì. L'opzione silenziosa applica subito fissaggi e riscritture e li registra nell'Attività. Ritiri e unioni aspettano sempre te. "Tidy facts automatically" cerca duplicati e contraddizioni dopo 30 nuovi fatti, con una chiamata al modello in più ogni 60 fatti.
+"Suggestions" ha tre scelte. "Ask me first": ogni suggerimento attende il tuo sì. "Only risky ones" (predefinita per una nuova installazione): i suggerimenti di routine vengono applicati subito, registrati in Activity con un Undo, e solo quelli rischiosi attendono, ciascuno con il motivo scritto: una fusione che farebbe sapere a più persone un fatto che solo alcune conoscevano, una modifica a un fatto che hai fissato, scritto, modificato o segnato come chiave, un cambiamento duraturo o una credenza, e un nuovo fatto che può contraddire uno che hai fissato. Lo stesso motivo compare nella Inbox. "Apply pins and rewrites quietly": passano solo fissaggi e riscritture; ritirare e unire attende te. "Tidy facts automatically" cerca duplicati e contraddizioni dopo 30 nuovi fatti, con una chiamata al modello in più ogni 60 fatti.
 
 ## Ricostruisci
 
-"Rebuild from scratch" riscrive capitoli e fatti dai messaggi in background, circa una chiamata al modello ogni 30 secondi. I tuoi fatti, quelli modificati e fissati e i capitoli modificati restano, e il registro attuale viene usato finché quello nuovo non è pronto. Il comando non parte se nessuna scena si è ancora conclusa.
+"Rebuild from scratch" riscrive capitoli e fatti dai messaggi in background, circa una chiamata al modello ogni 30 secondi. I tuoi fatti, quelli modificati e fissati e i capitoli modificati restano, e il registro attuale viene usato finché quello nuovo non è pronto. Non parte se nessuna scena si è ancora conclusa.
 
 Se modifichi i messaggi dopo che un capitolo è stato scritto, quel capitolo viene segnato come superato e riscritto.
 

@@ -1,4 +1,4 @@
-<!-- source: 51684176be4b -->
+<!-- source: f7c0805c5597 -->
 # Tu primera historia
 
 Este es el camino más corto desde un Roleplay vacío hasta una historia en marcha, y una lista de lo que ocurre solo para que nada te sorprenda. Primero necesitas una conexión de modelo: véase [[vertep:models]].
@@ -32,6 +32,8 @@ Los ahorros más baratos, en orden:
 3. En la hoja World, elige el nivel "Off" (aun así hace una llamada pequeña cuando la escena nombra un lugar nuevo) o elige un "DM model (all chats)" barato.
 4. En la configuración del Dashboard, apaga "Rate characters automatically".
 5. En el Canvas, el tablero Prompt muestra cada parte de la siguiente solicitud con sus tokens, y te deja apagar partes para un chat.
+
+Una historia que ha crecido mucho necesita sus propias medidas: ver [[long-chats]].
 
 Los modelos gratuitos con ventanas de contexto pequeñas funcionan mejor con un dashboard Manual y una memoria Compact.
 

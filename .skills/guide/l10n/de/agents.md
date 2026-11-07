@@ -1,7 +1,7 @@
-<!-- source: a06a17fd0667 -->
+<!-- source: 56891f4e013d -->
 # Agents und die Agenten-Schmiede
 
-Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Nach einer Antwort liest er einen Teil des Chats, kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
+Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
 
 ## Woraus ein Agent besteht
 
@@ -10,12 +10,20 @@ Ein Agent sind Daten, kein Code. Im Editor ist er ein Brett aus **Karten**, die 
 - eine **Input**-Karte legt fest, was der Agent lesen darf (die letzte Antwort, den Chatverlauf, die Charakterkarte, die Persona, die Autorennotiz, Litopys-Fakten, Lorebook-Einträge);
 - **Ask the model**-Karten stellen einem Modell eine Frage und nehmen die Antwort als freien Text, Ja oder Nein, oder ein paar benannte Felder;
 - Logik-Karten und Karten, die ohne Modell im Code arbeiten: Würfel, das Auswählen einer Zeile, das Schneiden oder Herausziehen von Text;
-- Karten für den eigenen **Speicher** des Agenten (Zahlen, Text, Ja/Nein, Listen), pro Chat getrennt vom Dashboard geführt;
+- eine **Script**-Karte: ein paar Zeilen JavaScript, die du schreibst, `(input, seed)` hinein und ein einfaches Objekt heraus, mit typisierten Ein- und Ausgaben. Sie läuft in einer Sandbox der Engine (ohne Uhr, ohne Internet, ohne Dateien, etwa eine halbe Sekunde und 16 MB) und braucht eine Engine ab 1.10.1; eine ältere Engine lässt den Agenten mit einer einfachen Meldung scheitern;
+- Karten für den eigenen **Speicher** des Agenten (Zahlen, Text, Ja/Nein, Listen), pro Chat gehalten und getrennt vom Dashboard;
 - eine **Output**-Karte, die ein Ergebnis zeigt: „A note under the reply“, „Buttons to tap“, einen Zustandswert oder einen Hinweis, der in den nächsten Prompt gelegt wird.
 
 **Panels** (Anzeigen, Zähler, Tabellen, ein Brett aus Kacheln) zeigen an, was der Agent behält; in einem Panel läuft nichts, und seine Schaltflächen fügen nur Text in das Nachrichtenfeld ein.
 
-Wann er läuft, wird pro Agent festgelegt: nach jeder Antwort (der einzige Zeitpunkt, den diese Version ausführt); bei jeder N-ten Antwort; oder nur, wenn bestimmte Wörter auftauchen.
+Wann er läuft, ist eine Spur (lane). Die Datei des Agenten legt fest, in welcher Spur er startet, und jeder Chat kann ihn in eine andere verschieben (der Tab Agents des Chats oder das Brett „Agent sets“ im Canvas). Die vier Spuren:
+
+- **Before the reply**: die Antwort wartet auf den Agenten, und ein Hinweis, den er hinterlässt, geht in genau diese Antwort. Halte es bei ein oder zwei schnellen Fragen, denn die Wartezeit kommt zu jeder Antwort hinzu. Der Schalter Wait in der Zeile des Agenten schaltet das Warten aus; der Agent läuft dann neben der Antwort.
+- **Beside the reply**: läuft gleichzeitig, fügt keine Wartezeit hinzu und kann keinen Hinweis in die Antwort legen, neben der er läuft (Notizen, Schaltflächen und Panels funktionieren).
+- **After the reply**: die übliche Spur für Notizen, Tracker und Anzeigen.
+- **By hand**: läuft nur, wenn du den Lauf-Button seiner Zeile drückst.
+
+Zusätzlich kann ein Agent bei jeder N-ten Antwort laufen oder nur, wenn bestimmte Wörter auftauchen.
 
 ## Fertige Agents
 
@@ -32,7 +40,7 @@ Der Try-Tab führt einen erfundenen Durchlauf aus, ohne irgendetwas anzufassen. 
 ## Installieren, erlauben, in einem Chat einschalten
 
 1. Drücke „Install“ („Update“ bei einer geänderten Kopie eines installierten Agents; nutze „Edit a copy“, um einen zu ändern).
-2. Erlaube ihn einmal: „Review permissions“, dann „Allow all“ oder Zeile für Zeile. Er läuft, wenn jede Zeile an ist. Ein Update, das mehr verlangt, wartet auf ein neues Allow.
+2. Erlaube ihn einmal: „Review permissions“, dann „Allow all“ oder Zeile für Zeile. Er läuft, wenn jede Zeile an ist. Ein Update, das mehr verlangt, wartet auf ein neues Allow. Eine Script-Karte verlangt „Run its own small program“; die Berechtigungsliste zeigt ihren Code („Read the code“), bevor du erlaubst, und ändert ein Update den Code, wird die Berechtigung erneut abgefragt.
 3. Füge ihn einem Chat hinzu. Öffne in der Chat-Kopfzeilen-Pille den **Agents**-Tab: „In this chat“ listet aktive Agents, „Installed“ listet die übrigen (wähle einen, um ihn hinzuzufügen). Eine Zeile kann jetzt erneut laufen, entfernt werden oder das Warten der Antwort auf ihn beenden. Ein neuer Chat hat keine Agents, bis du welche hinzufügst oder ein Set wählst.
 
 Ein **Set** ist eine benannte Liste von Agents („Save this chat's list as a set“; „Make default“ gibt sie neuen Chats). Das Brett „Agent sets“ im Canvas zeigt die Kosten jedes Sets in Zeit und Aufrufen und enthält den Schalter „Agents' notes in chats“, der alle Notizen der Agents ausblendet. Der Ergebnisplatz jedes Agents lässt sich im Agents-Tab des Chats ändern, unter den Plätzen, die zu ihm passen.

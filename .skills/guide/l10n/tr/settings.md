@@ -1,4 +1,4 @@
-<!-- source: 82c26de2d666 -->
+<!-- source: ed62a0a9288a -->
 # Roleplay'in ayarları nerede
 
 Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikleri şeyin yanında durur ve ikisi ana Molfar Vertep Settings'tedir. Bu sayfa bir bulucudur.
@@ -35,6 +35,6 @@ Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişl
 - **Plugins**: uygulamanın arkasında hangi eklentilerin çalıştığını ve her birinin ne yapabileceğini gösterir. Kurma, etkinleştirme ve devre dışı bırakma burada değil, Molfar Vertep'teki Plugins düğmesiyle olur.
 - **Tool Calling** (Panels içinde): modelin yazarken araç kullanmasını sağlar. Dice Roller ve Picture yerleşiktir ve siz açana kadar kapalı kalır.
 
-Ayrıca: **Shortcuts**, olaylarda kendiliğinden çalışabilen hızlı yanıtları tutar; Themes paleti hemen değiştirir, Prose Colors konuşmayı ve anlatımı yeniden renklendirir ve Custom CSS en son uygulanır.
+Ayrıca: **Shortcuts**, olaylarda kendiliğinden çalışabilen hızlı yanıtları tutar; Themes paleti hemen değiştirir, Prose Colors konuşmayı ve anlatımı yeniden renklendirir ve Custom CSS en son uygulanır. Bir sohbetin kendi CSS'i de olabilir: sohbette **More** > **Chat CSS**. Yazdıkça görünür, yalnızca o sohbete uygulanır ve genel Custom CSS'i ile karakterin CSS'ini geçersiz kılar.
 
 [[index]] sayfasına geri dön.

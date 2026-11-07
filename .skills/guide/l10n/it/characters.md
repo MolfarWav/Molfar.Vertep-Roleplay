@@ -1,37 +1,49 @@
-<!-- source: a7ae85c19a0b -->
+<!-- source: a93fd36e3690 -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Personaggi, Gruppi, Persone e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* hanno i dettagli.
 
 ## Schede
 
-Una scheda è un personaggio: descrizione, personalità, scenario e un primo messaggio. La sezione Personaggi mostra le tue schede come griglia o elenco, con ricerca, etichette, cartelle, preferiti (una stella) e vari ordinamenti. Apri una scheda per modificarla. Le modifiche restano in una bozza finché non premi "Salva modifiche"; uscendo con modifiche non salvate viene chiesto prima.
+Una scheda è un personaggio: descrizione, personalità, scenario e un primo messaggio. Un'etichetta scritta `group: Guild of Ravens` oppure `faction: Guild of Ravens` mette anche il personaggio della scheda in quel gruppo, così un fatto di memoria raccontato al gruppo è noto a loro ([[litopys]]). La sezione Personaggi mostra le tue schede come griglia o elenco, con ricerca, etichette, cartelle, preferiti (una stella) e vari ordinamenti. Apri una scheda per modificarla. Le modifiche restano in una bozza finché non premi "Save changes"; uscendo con modifiche non salvate viene chiesto prima.
 
 L'editor ha sei schede:
 
-- **Nucleo**: il testo della scheda, il dialogo e il saluto.
-- **Profilo**: la stessa descrizione divisa in campi strutturati (identità, aspetto, obiettivi). Ogni salvataggio li riscrive nel testo della scheda. Una scheda narratore può descrivere qui un intero cast.
-- **Anima**: come il personaggio reagisce a te, più le abitudini. Vedi [[soul]].
-- **Memoria**: le chat concluse che il personaggio ricorda. Vedi [[memory]].
+- **Core**: il testo della scheda, il dialogo e il saluto.
+- **Profile**: la stessa descrizione divisa in campi strutturati (identità, aspetto, obiettivi). Ogni salvataggio li riscrive nel testo della scheda. Una scheda narratore può descrivere qui un intero cast.
+- **Soul**: come il personaggio reagisce a te, più le abitudini. Vedi [[soul]].
+- **Memory**: le chat concluse che il personaggio ricorda. Vedi [[memory]].
 - **Lorebook**: i libri collegati a questa scheda.
-- **Altro**: colori e voci, sprite, galleria, regex, impostazioni avanzate.
+- **More**: colori e voci, sprite, galleria, regex, impostazioni avanzate.
 
-Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). In Colori, "Voci" dà a ciascun parlante il proprio colore. Se non elenchi nessuna voce, la chat lo fa per te: una scheda che contiene più personaggi (sezioni con il nome di ciascuno) colora da sola le battute di ogni personaggio, ognuno con un colore diverso, e il colore resta salvato con la chat. In qualsiasi altra chat, apri il menu della chat, "Colori delle voci", e attiva l'interruttore; "Distribuisci i colori" dà un colore diverso a tutti quelli che non hai scelto. Serve il Dashboard Relationship, che fornisce l'elenco dei personaggi.
+Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). Sotto Colors, "Voices" dà a ciascun parlante il proprio colore. Se non elenchi nessuna voce, la chat lo fa per te: una scheda che contiene più personaggi (sezioni con il nome di ciascuno) colora da sola le battute di ogni personaggio, ognuno con un colore diverso, e il colore resta salvato con la chat. In qualsiasi altra chat, apri il menu della chat, "Voice colors", e attiva l'interruttore; "Spread colors" dà un colore diverso a tutti quelli che non hai scelto. Serve il Dashboard Relationship, che fornisce l'elenco dei personaggi.
 
 ## Persone
 
-Una persona sei tu: nome, pronomi, descrizione, avatar. Il modello la vede ovunque il prompt parli dell'utente. "Usa questa persona" la rende predefinita e porta la chat aperta a usarla. Una persona può portare i propri lorebook e può essere bloccata su personaggi scelti, così le nuove chat con loro iniziano con essa.
+Una persona sei tu: nome, pronomi, descrizione, avatar. Il modello la vede ovunque il prompt parli dell'utente. "Use this persona" la rende predefinita e porta la chat aperta a usarla. Una persona può portare i propri lorebook e può essere bloccata su personaggi scelti, così le nuove chat con loro iniziano con essa.
 
 ## Gruppi
 
-Un gruppo mette più personaggi in una chat. "Nuovo gruppo" ti consente di scegliere i membri. L'editor ha Panoramica, Membri, Scena, Turni, Lore e Chat. La scheda Turni decide chi risponde: Narratore (una risposta dà voce a tutti) o Ciascuno a turno. Un nuovo gruppo inizia come Narratore. Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri. I membri senza un colore proprio ricevono automaticamente colori diversi.
+Un gruppo mette più personaggi in una chat. "New group" ti consente di scegliere i membri. L'editor ha Overview, Members, Scene, Turns, Lore e Chats. La scheda Turns decide chi risponde: Narrator (una risposta dà voce a tutti) o Each in turn. Un nuovo gruppo inizia come Narrator. Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri. I membri senza un colore proprio ricevono automaticamente colori diversi.
 
 ## Ottenere schede
 
-- "Importa scheda" accetta file PNG o JSON, uno o molti, e collegamenti a Chub, RisuRealm, CharaVault o un file diretto.
+- "Import card" accetta file PNG o JSON, uno o molti, e collegamenti a Chub, RisuRealm, CharaVault, Botbooru o un file diretto.
 - Il Marketplace cerca più fonti contemporaneamente; apri un risultato per leggere la scheda completa prima di importarla. Ogni fonte ha il proprio ordinamento e filtro per adulti, e alcune richiedono un download manuale.
-- Esporta scrive un PNG con la scheda dentro.
-- "Con Molfar" nella Home (e nei Lorebook) chiede a Molfar di preparare con te una scheda o un lorebook. Vedi [[vertep:molfar]].
+- Export scrive un PNG con la scheda dentro.
+- "With Molfar" nella Home (e nei Lorebook) chiede a Molfar di preparare con te una scheda o un lorebook. Vedi [[vertep:molfar]].
+
+## Lettere dalle schede
+
+Una scheda che non giochi da un po' può scriverti una breve nota con la propria voce. La nota arriva nella posta (la sezione "Waiting on you" della Home e il pulsante della posta nella barra laterale) come Lettera verde; aprirla ti porta alla vecchia chat, oppure avvia una chat per una scheda che non hai mai giocato. Una lettera non scrive mai dentro una chat e non inventa eventi.
+
+È **disattivata finché non la accendi**. Finché è spenta, una scheda verde "Let your characters write to you" sta in cima alla sezione Personaggi e in "Waiting on you" della Home: **Turn on** la accende subito, **Not now** nasconde la scheda per sempre. I numeri (giorni di inattività, lettere al giorno, giorni tra due lettere della stessa scheda, il modello che scrive) e le schede che hai fermato si trovano in Personaggi, More, "Letters from cards". Le lettere vengono controllate ogni poche ore mentre l'app è aperta: una chat inattiva da 14 giorni, una scheda che non hai mai giocato da 14 giorni, e una scheda giocata senza Anima (una sola volta).
+
+## Ritratti per le schede senza
+
+Una scheda senza immagine propria (nessuna, o l'avatar predefinito) può essere disegnata. **Una scheda:** nell'editor della scheda, "Draw" sotto il ritratto apre una finestra: scegli il modello di immagini, un modello di testo (il modello Card tasks) scrive una descrizione della scheda, che puoi modificare, e il modello di immagini la disegna. L'immagine va subito nella Galleria della scheda e "Use as portrait" la rende l'avatar. **Molte schede:** Personaggi, More, "Draw missing portraits (N)" chiede quale modello usare e poi le disegna una dopo l'altra nella scheda di avanzamento; Cancel si ferma tra una scheda e l'altra, e una scheda che fallisce compare con il motivo.
+
+"Draw with" elenca i modelli di immagini di Settings > Images: un ComfyUI o Forge locale accanto ai modelli via API. La prima scelta è il modello di immagini dell'app (Extensions > Image generation); una scelta fatta qui viene ricordata solo per i ritratti. Un modello addestrato con tag riceve una riga di tag, un modello via API un paragrafo. Una scheda con solo un nome non ha nulla da descrivere, e la finestra lo dice. La generazione di immagini deve essere attiva (Extensions); le finestre lo segnalano e la aprono per te.
 
 ## Cosa una scheda non contiene
 

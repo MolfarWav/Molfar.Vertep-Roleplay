@@ -1,4 +1,4 @@
-<!-- source: 0ad76afee424 -->
+<!-- source: 016e8644f058 -->
 # Roleplay: el panorama
 
 Roleplay es la app de historias de Molfar Vertep: guardas tarjetas de personajes, juegas chats con ellas y dejas que la app siga la escena, recuerde la historia y mueva el mundo a tu alrededor. Esta página es un mapa. El **Help** propio de la app (en el riel) tiene un artículo corto para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí sino en los Settings principales: véase [[vertep:models]].
@@ -22,7 +22,7 @@ El encabezado del chat tiene las herramientas de la historia: **Note** (nota del
 
 Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que conviene conocerlos:
 
-- El **Dashboard** lee cada escena: [[dashboard]]. Recibe una sola entrada, el [[soul]] de un personaje.
+- El **Dashboard** lee cada escena: [[dashboard]], con una sola entrada, el [[soul]] de un personaje.
 - **Litopys** escribe capítulos y hechos: [[litopys]].
 - El **World DM** lleva un libro de personas y lugares: [[world-dm]].
 
@@ -33,6 +33,7 @@ Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que 
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: la maquinaria de la historia.
 - [[memory]]: qué clase de memoria usar para qué.
 - [[canvas]]: enlaces entre chats, el tablero de prompt y la forja de agentes.
+- [[long-chats]]: por qué un chat largo se vuelve lento o caro, qué lo recorta, y cómo llevar una historia a un chat nuevo.
 - [[settings]]: dónde vive cada ajuste.
 
 ¿Nuevo en Molfar Vertep? Empieza con [[vertep:first-steps]] y el [[vertep:glossary]].

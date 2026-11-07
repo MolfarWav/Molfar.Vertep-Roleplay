@@ -1,4 +1,4 @@
-<!-- source: 51684176be4b -->
+<!-- source: f7c0805c5597 -->
 # İlk hikâyeniz
 
 Bu, boş bir Roleplay'den çalışan bir hikâyeye giden en kısa yol ve hiçbir şeyin sizi şaşırtmaması için kendiliğinden olanların listesidir. Önce bir model bağlantısına ihtiyacınız var: bkz. [[vertep:models]].
@@ -32,6 +32,8 @@ En ucuz tasarruflar, sırayla:
 3. World sayfasında "Off" düzeyini seçin (sahne yeni bir yer adlandırdığında yine küçük bir çağrı yapar) veya ucuz bir "DM model (all chats)" seçin.
 4. Dashboard ayarlarında "Rate characters automatically"i kapatın.
 5. Canvas'ta Prompt panosu sonraki isteğin her parçasını token'larıyla gösterir ve tek bir sohbet için parçaları kapatmanızı sağlar.
+
+Uzayıp giden bir hikâyenin kendi önlemleri gerekir: bkz. [[long-chats]].
 
 Küçük bağlam pencereli ücretsiz modeller, Manual bir dashboard ve Compact bir bellek ile en iyi sonucu verir.
 

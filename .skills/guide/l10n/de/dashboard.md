@@ -1,4 +1,4 @@
-<!-- source: 36ebfb6daad6 -->
+<!-- source: 36f23a51ff05 -->
 # Das Szenen-Dashboard
 
 Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend ist, wie jeder Charakter zu dir steht, was sie tragen und wissen, die offenen Erzählfäden. Es ist für alle, die möchten, dass die Geschichte Beziehungen und Details zwischen den Antworten behält. Der Hilfeartikel *Scene dashboard* listet seine Felder.
@@ -12,6 +12,24 @@ Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend
 Die Zahlen (trust, comfort, attraction, respect, affection und mehr) werden per Code aus Ereignissen errechnet, die ein Modell meldet, und durch die [[soul]] jedes Charakters geneigt. Der Zustand wird pro Nachricht geführt, sodass ein Swipe oder eine gelöschte Nachricht niemals veraltete Zahlen hinterlässt.
 
 Der Schalter „Story, move“ neben Senden aktiviert einen einmaligen Anstoß für die nächste Antwort; sein Pfeil wählt einen offenen Quest oder eine Wendung.
+
+## Was sich im Chat geändert hat
+
+Unter der neuesten Antwort zeigt eine gedämpfte Zeile, was das Dashboard dazu festgehalten hat: „Changed: Ada · trust fell, mood calm → tense, +2“. Tippe darauf, um dieselben Chips aufzuklappen wie in der Zeile „Since your last reply“ des Dashboards; ein Chip öffnet den passenden Dashboard-Tab (auf einem Telefon dessen Bottom Sheet). Ältere Antworten zeigen nichts, und die Zeile wartet, während eine Antwort geschrieben wird oder das Dashboard noch aktualisiert. Zum Ausblenden schalte „Show what changed under the newest reply“ in Settings > Chat Behavior aus.
+
+## Beziehungen zwischen Charakteren
+
+Der Sensor notiert, wie zwei Charaktere, die nicht du sind, zueinander stehen, als eine Rolle in einem Wort und eine Wärme in einem Wort („rival, cold“). Der Prompt der Antwort trägt bis zu vier davon als eine kurze Zeile, nur für Personen in der Szene. Die eigene Antwort eines Charakters bekommt nur die Beziehungen, an denen dieser Charakter beteiligt ist; ein Erzähler bekommt zuerst die Beziehungen der Personen, um die es im Zug geht.
+
+## Was ein Charakter gesagt hat, und Lügen
+
+Unter dem Notizbuch einer Person hält die Liste **Said** die starken Aussagen fest, an denen sie sich messen lassen muss: ein Schwur, eine Drohung, ein Geständnis, ein Befehl. Eine Lüge wird dort ebenfalls gehalten, verdeckt, bis du „Show hidden“ wählst.
+
+Lügt ein Charakter vor anderen, halten die anderen es für wahr. Ihre nächsten Antworten behandeln es als etwas, das ihnen gesagt wurde, und haben keinen Grund zu zweifeln, bis die Geschichte es anders zeigt. Nur die Personen, die in der Szene waren, werden getäuscht, und nur in ihren eigenen Antworten: Spricht jemand anderes, wiederholt er die Lüge nicht.
+
+Öffne eine Lüge, und du siehst **Believe it:** mit einem Button für jede Person, die ihr noch glaubt. Drücke einen Namen, wenn diese Person es herausgefunden hat. Das Menü der Zeile hat außerdem **This was a lie** für eine Aussage, die der Sensor nicht als Lüge eingestuft hat (die Personen in der Szene glauben sie dann), und **Not a lie**, wenn der Sensor sich geirrt hat. Der Sensor beendet den Glauben von selbst, wenn eine Antwort zeigt, dass die Wahrheit ans Licht kommt. Entfernst du die Lüge aus der Liste, verschwinden alle Glaubensinhalte mit ihr.
+
+> Der Erzähler spricht alle in einer Antwort, also kennt er immer die Wahrheit. Das verhindert nur, dass ein Charakter aufgrund dessen handelt, was ein anderer Charakter weiß.
 
 ## Wann es aktualisiert
 

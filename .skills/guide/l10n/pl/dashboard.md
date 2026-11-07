@@ -1,4 +1,4 @@
-<!-- source: 36ebfb6daad6 -->
+<!-- source: 36f23a51ff05 -->
 # Pulpit sceny
 
 Pulpit to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać do ciebie czuje, co nosi i co wie, otwarte wątki historii. Jest dla tych, którzy chcą, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł Pomocy *Scene dashboard* opisuje jego pola.
@@ -12,6 +12,24 @@ Otwórz go, klikając portret w czacie i wybierając Dashboard. Panel boczny ma 
 Liczby (zaufanie, komfort, pociąg, szacunek, sympatia i więcej) są wyliczane przez kod ze zdarzeń, które zgłasza model, i nachylane przez [[soul]] każdej postaci. Stan jest trzymany dla każdej wiadomości, więc przeciągnięcie lub usunięta wiadomość nigdy nie zostawia nieaktualnych liczb.
 
 Przycisk „Story, move” obok Wyślij uzbraja jednorazową podpowiedź do następnej odpowiedzi; jego strzałka wybiera otwarty wątek lub zwrot akcji.
+
+## Co się zmieniło w czacie
+
+Pod najnowszą odpowiedzią stonowany wiersz mówi, co Pulpit zapisał przy niej: „Changed: Ada · trust fell, mood calm → tense, +2”. Dotknij go, aby rozwinąć te same chipy, co wiersz „Since your last reply” Pulpitu; chip otwiera pasującą kartę Pulpitu (na telefonie jej dolny arkusz). Starsze odpowiedzi nic nie pokazują, a wiersz czeka, gdy odpowiedź jest pisana albo Pulpit wciąż się aktualizuje. Aby go ukryć, wyłącz „Show what changed under the newest reply” w Settings > Chat Behavior.
+
+## Powiązania między postaciami
+
+Sensor zapisuje, jak względem siebie stoją dwie postacie, które nie są tobą: jako jedną rolę i jedno słowo o cieple („rival, cold”). Prompt odpowiedzi niesie do czterech takich wpisów jako jedną krótką linię, tylko dla osób w scenie. Odpowiedź postaci dostaje tylko te powiązania, w których ta postać uczestniczy; narrator najpierw dostaje powiązania osób, których dotyczy tura.
+
+## Co powiedziała postać i kłamstwa
+
+Pod notatnikiem osoby lista **Said** przechowuje mocne rzeczy, które powiedziała i których się trzyma: przysięgę, groźbę, wyznanie, rozkaz. Kłamstwo jest tam także przechowywane, zakryte, dopóki nie wybierzesz „Show hidden”.
+
+Gdy postać kłamie przy innych, inni biorą to za prawdę. Ich kolejne odpowiedzi traktują to jako coś, co im powiedziano, i nie mają powodu w to wątpić, dopóki historia nie pokaże inaczej. Oszukani są tylko ci, którzy byli w scenie, i tylko w swoich własnych odpowiedziach: ktoś inny, mówiąc, nie powtarza kłamstwa.
+
+Otwórz kłamstwo, a zobaczysz **Believe it:** z przyciskiem dla każdej osoby, która wciąż w nie wierzy. Naciśnij imię, gdy ta osoba się dowiedziała. Menu wiersza ma też **This was a lie** dla stwierdzenia, którego sensor nie uznał za kłamstwo (wtedy wierzą w nie osoby w scenie), oraz **Not a lie**, gdy sensor się pomylił. Sensor sam kończy wiarę, gdy odpowiedź pokazuje wychodzącą na jaw prawdę. Usunięcie kłamstwa z listy usuwa wraz z nim każdą wiarę.
+
+> Narrator wypowiada wszystkich w jednej odpowiedzi, więc zawsze zna prawdę. To tylko powstrzymuje jedną postać przed działaniem na podstawie tego, co wie inna postać.
 
 ## Kiedy się aktualizuje
 

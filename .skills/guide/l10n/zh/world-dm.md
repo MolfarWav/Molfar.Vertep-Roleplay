@@ -1,4 +1,4 @@
-<!-- source: 84df8a0f921b -->
+<!-- source: 827aa22ed836 -->
 # World DM
 
 World DM是一个聊天世界的游戏主持人。在回复之后，它会阅读故事，并将遇到的人物、地点和事物保存在聊天自己的设定集中，称为世界设定集。在更高级别下，它还会推动世界运转，并将事件送入场景。当你希望世界显得生动且连贯时，可以使用它。
@@ -18,13 +18,19 @@ World DM是一个聊天世界的游戏主持人。在回复之后，它会阅读
 
 ## 每回合做什么
 
-它在回复后运行，每第N次回复运行一次（“Run after every N replies”），或通过“World turn”立即运行。它会读取新消息，并在世界设定集中写入或停用记录：人物、地点、事物以及谁持有它们。从Living world级别起，它还会推动势力和时钟，并可能准备一个将加入下一次回复的事件。可选骰子（World面板，Dice，从Living world起，默认关闭）：在回复前，代码掷2d6并告诉模型一个不确定行动的走向，方式为Hint或Binding。
+它在回复后运行，每第N次回复运行一次（“Run after every N replies”），或通过“World turn”立即运行。它会读取新消息，并在世界设定集中写入或停用记录：人物、地点、事物以及谁持有它们。你可以在World book标签页中为群组或地点记录填写**Members**（属于该群组的人），此后在Litopys中告诉该群组的事实，每位成员都会知道（[[litopys]]）。DM不会自行填写Members。从Living world级别起，它还会推动势力和时钟，并可能准备一个将加入下一次回复的事件。可选骰子（World面板，Dice，从Living world起，默认关闭）：在回复前，代码掷2d6并告诉模型一个不确定行动的走向，方式为Hint或Binding。
 
 每次到期运行时，它会额外调用一次模型，使用“DM model (all chats)”；一个便宜的小模型就足够了。运行失败会显示在面板和Inbox中，DM会在下次再次读取相同的消息。
 
-## World部分标签页
+## 删除或滑动回复
 
-在选定的聊天上：Overview（与面板相同的控件）、Places（地点树，每个地点有一张背景图）、World book（手动阅读、写入、停用或删除记录）、Runs（历史、token、错误）、Start（从卡片或简短访谈起草记录）、Backgrounds（规划并绘制一组图片；开启“Change the background by scene”后，Dashboard会选择合适的图片）。还有**Profiles**和**Worlds**。
+删除一条回复，或滑动到另一条回复，DM会收回它从旧回复中学到的内容：记录、时钟和等待中的事件都会恢复到原来的样子，世界设定集会重新写入，DM会从那里重新读取故事。
+
+你手动更改过的记录会保留，除非DM之后又改动了同一条记录。你删除的记录仍保持删除。从顶部删除旧消息、查看较早回复的其他滑动版本，以及编辑回复的文本，都不会收回任何内容。
+
+## World部分的标签页
+
+在所选聊天上：Overview（与面板相同的控件）、Places（地点树，每个地点有一张背景图）、World book（手动阅读、写入、停用或删除记录）、Runs（历史、token、错误）、Start（从卡片或简短访谈起草记录）、Backgrounds（规划并绘制一组图片；开启“Change the background by scene”后，Dashboard会选择合适的图片；同时开启“Draw places that have no picture”（该选项始终在此列出，在场景切换和图像生成开启之前为灰色）时，故事转到的、没有图片的地点会由World的图像模型当场绘制，并存入文件夹；此处的“Look of the pictures”接受几个英文词（例如`medieval fantasy, candlelight`），它们会加入为该聊天绘制的每一张背景图，包括当场绘制的地点图或整组图片；聊天的Display面板中有一个指向此处的链接）。还有**Profiles**和**Worlds**。
 
 ## 世界配置文件
 

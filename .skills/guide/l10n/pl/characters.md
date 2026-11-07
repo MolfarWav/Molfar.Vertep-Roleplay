@@ -1,11 +1,11 @@
-<!-- source: a7ae85c19a0b -->
+<!-- source: a93fd36e3690 -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, żyje w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego każda służy; szczegóły są w artykułach Pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
 
 ## Karty
 
-Karta to postać: opis, osobowość, scenariusz i pierwsza wiadomość. Sekcja Characters pokazuje twoje karty jako siatkę lub listę, z wyszukiwaniem, tagami, folderami, ulubionymi (gwiazdka) i kilkoma sortowaniami. Otwórz kartę, aby ją edytować. Zmiany zostają w szkicu do czasu „Save changes”; wyjście z niezapisanymi zmianami najpierw pyta.
+Karta to postać: opis, osobowość, scenariusz i pierwsza wiadomość. Tag zapisany jako `group: Guild of Ravens` lub `faction: Guild of Ravens` wkłada też postać karty do tej grupy, więc fakt z pamięci powiedziany grupie jest jej znany ([[litopys]]). Sekcja Characters pokazuje twoje karty jako siatkę lub listę, z wyszukiwaniem, tagami, folderami, ulubionymi (gwiazdka) i kilkoma sortowaniami. Otwórz kartę, aby ją edytować. Zmiany zostają w szkicu do czasu „Save changes”; wyjście z niezapisanymi zmianami najpierw pyta.
 
 Edytor ma sześć zakładek:
 
@@ -28,10 +28,22 @@ Grupa umieszcza kilka postaci w jednym czacie. „New group” pozwala wybrać c
 
 ## Zdobywanie kart
 
-- „Import card” przyjmuje pliki PNG lub JSON, jeden lub wiele, i linkuje do Chub, RisuRealm, CharaVault lub bezpośredniego pliku.
+- „Import card” przyjmuje pliki PNG lub JSON, jeden lub wiele, i linkuje do Chub, RisuRealm, CharaVault, Botbooru lub bezpośredniego pliku.
 - Marketplace przeszukuje kilka źródeł naraz; otwórz wynik, aby przeczytać całą kartę przed importem. Każde źródło ma własny porządek sortowania i filtr dla dorosłych, a niektóre wymagają ręcznego pobrania.
 - Eksport zapisuje PNG z kartą w środku.
 - „With Molfar” na Home (oraz w Lorebooks) prosi Molfara o naszkicowanie z tobą karty lub księgi wiedzy. Zobacz [[vertep:molfar]].
+
+## Listy od kart
+
+Karta, której od jakiegoś czasu nie grałeś, może napisać do ciebie krótki list we własnym głosie. List trafia do skrzynki (Home, „Waiting on you”, oraz przycisk skrzynki na pasku) jako zielony Letter; otwarcie go przenosi cię do starego czatu albo zaczyna czat z kartą, z którą nigdy nie grałeś. List nigdy nie pisze do czatu i nigdy nie wymyśla zdarzeń.
+
+Jest **wyłączone, dopóki go nie włączysz**. Dopóki jest wyłączone, na górze sekcji Characters i w „Waiting on you” na Home wisi zielona karta „Let your characters write to you”: **Turn on** włącza go od razu, **Not now** chowa kartę na dobre. Liczby (dni bezczynności, listy dziennie, dni między listami z jednej karty, model piszący) oraz karty, które wyłączyłeś, są w Characters, More, Letters from cards. Listy są sprawdzane co kilka godzin, gdy aplikacja jest otwarta: czat bezczynny przez 14 dni, karta, której nigdy nie grałeś, przez 14 dni, oraz zagrana karta bez Soul (raz).
+
+## Portrety kart bez obrazka
+
+Karta bez własnego obrazka (nic albo domyślny awatar) może zostać narysowana. **Jedna karta:** w edytorze karty „Draw” pod portretem otwiera okno: wybierz model obrazu, model tekstowy (model zadań kart) napisze opis karty, który możesz edytować, a model obrazu go narysuje. Obrazek trafia od razu do Galerii karty, a „Use as portrait” ustawia go jako awatar. **Wiele kart:** w Characters, More, „Draw missing portraits (N)” wybierasz model, a potem karty są rysowane jedna po drugiej w karcie postępu; Cancel zatrzymuje się między kartami, a karta, która się nie udała, jest wymieniona z powodem.
+
+„Draw with” wymienia modele obrazów z Settings > Images: lokalne ComfyUI lub Forge obok modeli API. Pierwszym wyborem jest własny model obrazów aplikacji (Extensions > Image generation); wybór tutaj jest zapamiętany tylko dla portretów. Model wytrenowany na tagach dostaje linijkę tagów, model API akapit. Karta z samym imieniem nie ma czego opisać, a okno to mówi. Generowanie obrazów musi być włączone (Extensions); okna o tym mówią i same je dla ciebie otwierają.
 
 ## Czego karta nie zawiera
 

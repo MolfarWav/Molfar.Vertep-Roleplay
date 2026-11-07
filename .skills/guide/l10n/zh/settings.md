@@ -1,4 +1,4 @@
-<!-- source: 82c26de2d666 -->
+<!-- source: ed62a0a9288a -->
 # Roleplay设置的位置
 
 Roleplay没有针对所有内容的单一设置页面。设置位于它们所更改内容的附近，其中两个位于Molfar Vertep的主Settings中。本页是一个查找指南。
@@ -35,6 +35,6 @@ Roleplay没有针对所有内容的单一设置页面。设置位于它们所更
 - **Plugins**：显示哪些插件在应用背后运行以及每个插件可以做什么。安装、启用和禁用在Molfar Vertep的Plugins按钮中进行，而不是在这里。
 - **Tool Calling**（在Panels中）：让模型在书写时使用工具。Dice Roller和Picture是内置的，在你开启之前保持关闭。
 
-此外：**Shortcuts**保存快速回复，可在事件上自动运行；Themes可立即更改配色方案，Prose Colors重新着色对话和叙述，Custom CSS最后应用。
+此外：**Shortcuts**保存快速回复，可在事件上自动运行；Themes可立即更改配色方案，Prose Colors重新着色对话和叙述，Custom CSS最后应用。一个聊天也可以有自己的CSS：在聊天中，**More** > **Chat CSS**。它会在你输入时生效，仅作用于该聊天，并优先于全局Custom CSS和角色的CSS。
 
 返回[[index]]。

@@ -1,4 +1,4 @@
-<!-- source: 84df8a0f921b -->
+<!-- source: 827aa22ed836 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -18,13 +18,19 @@ Domyślnie DM jest już włączony na poziomie Chronicler w czacie fabularnym, o
 
 ## Co robi w każdej turze
 
-Działa po odpowiedziach, co N-tą odpowiedź („Run after every N replies”) albo od razu przez „World turn”. Czyta nowe wiadomości i zapisuje lub wycofuje rekordy w księdze świata: osoby, miejsca, rzeczy i to, kto je trzyma. Od Living world w górę porusza też fronty i zegary oraz może przygotować zdarzenie dodawane do następnej odpowiedzi. Opcjonalne kości (arkusz World, Dice, od Living world w górę, domyślnie wyłączone): przed odpowiedzią kod rzuca 2k6 i mówi modelowi, jak kończy się niepewna akcja, jako Hint lub Binding.
+Działa po odpowiedziach, co N-tą odpowiedź („Run after every N replies”) albo od razu przez „World turn”. Czyta nowe wiadomości i zapisuje lub wycofuje rekordy w księdze świata: osoby, miejsca, rzeczy i to, kto je trzyma. Rekordom typu Group lub Place możesz nadać **Members** (osoby, które do nich należą) w zakładce księgi świata; fakt przekazany tej grupie w Litopys jest wtedy znany każdemu z nich ([[litopys]]). DM sam nie wypełnia Members. Od Living world w górę porusza też fronty i zegary oraz może przygotować zdarzenie dodawane do następnej odpowiedzi. Opcjonalne kości (arkusz World, Dice, od Living world w górę, domyślnie wyłączone): przed odpowiedzią kod rzuca 2k6 i mówi modelowi, jak kończy się niepewna akcja, jako Hint lub Binding.
 
 Kosztuje jedno dodatkowe wywołanie modelu, gdy wypada jego kolej, na „DM model (all chats)”; wystarczy mały, tani model. Nieudany przebieg jest pokazany w arkuszu i w Skrzynce odbiorczej, a DM czyta te same wiadomości następnym razem.
 
+## Usuwanie lub przełączanie odpowiedzi
+
+Usuń odpowiedź albo przełącz się na inną, a DM cofa to, czego nauczył się ze starej: rekordy, zegary i czekające zdarzenie wracają do stanu sprzed niej, księga świata jest zapisywana od nowa, a DM czyta historię ponownie od tego miejsca.
+
+Rekordy, które zmieniłeś ręcznie, zostają, chyba że DM zmienił ten sam rekord później. Rekord, który usunąłeś, pozostaje usunięty. Usuwanie starych wiadomości od góry, czytanie innych swipe'ów starszej odpowiedzi i edycja tekstu odpowiedzi niczego nie cofają.
+
 ## Karty sekcji World
 
-Na wybranym czacie: Overview (te same ustawienia co arkusz), Places (drzewo miejsc, z obrazem tła dla każdego miejsca), World book (czytaj, zapisuj, wycofuj lub usuwaj rekordy ręcznie), Runs (historia, tokeny, błędy), Start (szkic rekordów z kart lub krótkiego wywiadu), Backgrounds (planuj i rysuj zestaw obrazów; przy włączonym „Change the background by scene” Pulpit wybiera pasujący). Także **Profiles** i **Worlds**.
+Na wybranym czacie: Overview (te same ustawienia co arkusz), Places (drzewo miejsc, z obrazem tła dla każdego miejsca), World book (czytaj, zapisuj, wycofuj lub usuwaj rekordy ręcznie), Runs (historia, tokeny, błędy), Start (szkic rekordów z kart lub krótkiego wywiadu), Backgrounds (zaplanuj i narysuj zestaw obrazów; przy włączonym „Change the background by scene” Pulpit wybiera pasujący; przy włączonym także „Draw places that have no picture” (zawsze tam widoczne, wyszarzone, dopóki nie włączysz zmiany sceny i generowania obrazów) miejsce, do którego przenosi się historia i które nie ma obrazu, jest rysowane od razu przez model obrazów Świata i zapisywane w folderze; „Look of the pictures” w tym miejscu przyjmuje kilka angielskich słów (na przykład `medieval fantasy, candlelight`), które są dodawane do każdego tła narysowanego dla czatu, miejsca narysowanego od razu lub zestawu; arkusz Display czatu ma tu link). Także **Profiles** i **Worlds**.
 
 ## Profile światów
 

@@ -1,4 +1,4 @@
-<!-- source: e65c6432f795 -->
+<!-- source: 95c26add0cfc -->
 # Welches Gedächtnis wofür
 
 Roleplay hat mehrere Dinge, die sich „erinnern“. Sie unterscheiden sich darin, wer sie behält, was sie enthalten und wie lange sie halten. Vergisst ein Charakter etwas, sagt dir diese Seite, zu welchem du greifen solltest.
@@ -15,6 +15,8 @@ Roleplay hat mehrere Dinge, die sich „erinnern“. Sie unterscheiden sich dari
 
 **Lorebooks.** Referenzeinträge, die in den Prompt kommen, wenn ihre Schlüsselwörter auftauchen, oder bei einigen immer. Sie enthalten die Regeln, Orte und Personen der Welt. Verknüpfe ein Buch mit einer Karte oder Gruppe oder markiere es als Global, damit es jeden Chat erreicht. Ein Chat bekommt außerdem ein eigenes Weltbuch, das der World DM schreibt ([[world-dm]]). Ein Eintrag auf **By meaning** greift, wenn sein Sinn nah an den letzten Nachrichten liegt, auch ohne Schlüssel. Mit einem lokalen Embeddings-Modell vergleicht die Engine die Einträge eines Buchs untereinander: ein Eintrag greift, wenn er für diese Nachricht aus dem Rest herausragt, bis zu 10 Einträge pro Buch. Ein Buch mit weniger als 4 solchen Einträgen nutzt eine feste Nähe. Ein Eintrag mit Zweitschlüsseln braucht sie trotzdem. Wechselst du das Embeddings-Modell, werden die Einträge bei der nächsten oder übernächsten Antwort von selbst neu erstellt.
 
+**Ordner in einem Lorebook.** Ein großes Buch lässt sich in Ordnern leichter lesen. Drücke **New folder** neben **Add entry**, um einen zu erstellen (er beginnt leer), dann öffne einen Eintrag und nutze **Folder**, oder drücke **Select several** und **Move to folder…**. Hat ein Buch einen Ordner, wird der Tab **Entries** zu einem Baum: zuerst die Ordner (jeder zeigt, wie viele Einträge er enthält und wie viele Tokens), dann die Einträge ohne Ordner. Das Menü eines Ordners kann dort einen Eintrag hinzufügen, einen Ordner darin anlegen (bis zu drei Ebenen; oder schreibe `Places/Taverns` als Namen), alle seine Einträge ein- oder ausschalten (auch die darunter), den Ordner umbenennen oder ihm eine Farbe geben, oder ihn entfernen (seine Einträge und die Ordner darin rücken eine Ebene nach oben). Am Computer kannst du einen Eintrag außerdem auf einen Ordner ziehen (oder auf **No folder**); ein markierter Eintrag zieht alle markierten mit. Auf einem Telefon nutze **Move to folder…**. Suche und Filter-Chips öffnen die Ordner, die einen Treffer haben. Ordner ordnen nur die Liste: Sie ändern nicht, wann ein Eintrag greift, und sie sind nicht die Einstellung **Group** (von einer Gruppe greift nur ein Eintrag). Ein Eintrag öffnet sich am Computer in einer Schublade von rechts, auf einem Telefon als ganze Seite.
+
 **Data Bank** (Tools). Textdokumente, die du hochlädst (nur Textformate, je bis zu 2 MB). Bei jeder Nachricht werden die relevantesten Passagen hinzugefügt: zuerst über Wörter gefunden und, wenn ein Embeddings-Modell eingerichtet ist, zusätzlich nach Bedeutung sortiert (die Karte **Data Bank by meaning** auf demselben Bildschirm: ein Druck, oder die Engine erledigt es selbst, sobald das Einbetten funktioniert). Nutze sie für langes Referenzmaterial, nicht für die Geschichte selbst. Ein **Buch** ist eine Data-Bank-Datei, die aus einer Geschichte entsteht: In Library > Litopys kopiert **Save as a book** die Kapitel, Handlungsbögen und Fakten eines Chats in eine Regal-Datei, die andere Chats lesen können. Wähle die Chats, die sie lesen dürfen (die Chats, die diesen fortsetzen, werden für dich gewählt). Es ist eine Kopie, kein Link: spätere Änderungen am Chat erreichen sie nicht, und **Save a new version** behält die alte. Eine Figur bekommt nur Passagen, die sie wissen könnte: ein Fakt behält seine Liste „known by“, ein Kapitel seine Besetzung. Im Tab Data Bank kannst du mit **passages** eine Passage korrigieren oder löschen und die Leser ändern; die Memory-Ansicht zählt die ausgeschlossenen Passagen.
 
 **Autorennotiz** (Chat-Kopfzeile, „Note“). Text, den du nur für diesen Chat schreibst, eingefügt auf einer Tiefe und Rolle, die du wählst. Nutze ihn zum Steuern: einen Stilhinweis, einen Plot-Anstoß.
@@ -24,7 +26,7 @@ Roleplay hat mehrere Dinge, die sich „erinnern“. Sie unterscheiden sich dari
 ## Welches wofür
 
 - „Sie soll sich an den Streit von letzter Nacht erinnern“: Das Dashboard übernimmt das kurzfristig; Litopys behält es langfristig. Füge einen angehefteten Fakt hinzu, wenn er niemals verloren gehen darf.
-- „Sie soll sich in einem neuen Chat an die vorige Geschichte erinnern“: Kartengedächtnis, oder verknüpfe die Chats auf dem Canvas, damit der frühere Chat seine Geschichte als Hintergrund mitbringt.
+- „Sie soll sich in einem neuen Chat an die vorige Geschichte erinnern“: Kartengedächtnis, oder verknüpfe die Chats auf dem Canvas, damit der frühere Chat seine Geschichte als Hintergrund mitbringt ([[canvas]], [[long-chats]]).
 - „Die Welt hat eine Regel oder einen Ort“: ein Lorebook.
 - „Ich will, dass die nächsten Antworten so laufen“: Autorennotiz oder der Button „Story, move“.
 - „Ich habe ein langes Dokument“: Data Bank.
@@ -39,4 +41,4 @@ Der Button **Fired** (Blitz) in der Chat-Kopfzeile öffnet ein Panel für die le
 
 ## Kosten
 
-All diese nehmen Platz im Prompt ein. Das Prompt-Brett des Canvas zeigt jeden Teil mit seiner Tokenzahl und lässt dich Teile für einen Chat ausschalten. Bei einem kleinen Modell senke bei Litopys die „Memory size“, halte das Kartengedächtnis auf Compact und bevorzuge wenige kurze Lorebook-Einträge.
+All diese nehmen Platz im Prompt ein. Das Prompt-Brett des Canvas zeigt jeden Teil mit seiner Tokenzahl und lässt dich Teile für einen Chat ausschalten. Bei einem kleinen Modell senke bei Litopys die „Memory size“, halte das Kartengedächtnis auf Compact und bevorzuge wenige kurze Lorebook-Einträge. Ein Chat, der länger geworden ist, kostet mit jeder Antwort mehr: [[long-chats]] sagt, was ihn kürzt und wie du die Geschichte in einem neuen Chat weiterführst. Die Canvas-Seite, [[canvas]], erklärt die Bretter.

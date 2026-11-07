@@ -1,4 +1,4 @@
-<!-- source: 0ad76afee424 -->
+<!-- source: 016e8644f058 -->
 # Roleplay：概览
 
 Roleplay是Molfar Vertep的故事应用：你保存角色卡，与角色聊天，让应用跟踪场景、记住故事并运行你周围的世界。本页是一张地图。应用自带的**Help**（在侧边栏中）几乎为每个界面都提供了简短文章；本指南解释这些部分如何协同工作。模型和连接不在这里设置，而是在主Settings中设置：参见[[vertep:models]]。
@@ -33,6 +33,7 @@ Roleplay自己的设置没有侧边栏条目。点击Home顶部的“Roleplay se
 - [[soul]]、[[dashboard]]、[[litopys]]、[[world-dm]]、[[agents]]：故事的运行机制。
 - [[memory]]：各类记忆分别用于什么。
 - [[canvas]]：聊天链接、提示面板和智能体工坊。
+- [[long-chats]]：长聊天为何变慢或变贵、什么能削减成本，以及如何把故事带入新聊天。
 - [[settings]]：每项设置的位置。
 
 初次使用Molfar Vertep？请先阅读[[vertep:first-steps]]和[[vertep:glossary]]。
