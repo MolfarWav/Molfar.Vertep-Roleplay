@@ -30,7 +30,7 @@ The **Settings** tab of a chat's record (in the Record side panel and in the Lib
 
 ## Suggestions and tidying
 
-"Suggestions" is "Ask me first" by default: every pin and rewrite waits for your yes. The quiet option applies pins and rewrites at once and logs them in Activity. Retiring and merging always wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
+"Suggestions" has three choices. "Ask me first": every suggestion waits for your yes. "Only risky ones" (the default for a new install): routine suggestions are applied at once, logged in Activity with an Undo, and only the risky ones wait, each with the reason on it: a merge that would tell more people a fact only some knew, a change to a fact you pinned, wrote, edited or marked key, a lasting change or a belief, and a new fact that may contradict one you pinned. The same reason shows in the Inbox. "Apply pins and rewrites quietly": only pins and rewrites go through; retiring and merging wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
 
 ## Rebuild
 

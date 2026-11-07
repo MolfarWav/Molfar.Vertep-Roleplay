@@ -1,10 +1,12 @@
 // #184 P4 step 2: a lie of the Dashboard's Said list that has aged out becomes a belief fact for each person who still
 // believes it; the insert gives it to its holder only, as what they were told; it ends when the holder learns the truth or
 // the lie is removed; the worker is told the lie is not a fact. No card-memory path carries it.
-import { describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { L, useRoot, readJson, writeJson, story, writeChat, line, mockHost, tick } from "./rp-memory-m2-kit";
 
 useRoot();
+// these tests are about beliefs, not about which changes wait (#184 P5 has its own file)
+beforeEach(() => writeJson("litopys/config.json", { arcNotice: "done", proposals: "ask" }));
 
 const LIE = "The debt to the tavern is already paid.";
 

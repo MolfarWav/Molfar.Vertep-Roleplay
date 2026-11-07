@@ -19,7 +19,7 @@ import { acceptLitProposal, rejectLitProposal, fetchLitChat, fetchLitChats, isPi
 import { t, type Lang } from '@/lib/i18n'
 import { listWorldChats } from '@/lib/world'
 import {
-  failKey, failReason, litCounts, litopysFailures, soulFailures, takeNew, takeNewFailures, toastPlan, waitingOf, worldFailures, workerName,
+  failKey, failReason, litCounts, litopysFailures, litWhy, soulFailures, takeNew, takeNewFailures, toastPlan, waitingOf, worldFailures, workerName,
   type FailedItem, type SoulWaiting, type WaitingProposal,
 } from './attention-core'
 
@@ -30,6 +30,8 @@ interface AttentionState {
   litopys: Record<string, number>
   /** the Library's name for each of those chats (a fallback when the app has not loaded the chat) */
   litNames: Record<string, string>
+  /** the main reason each chat's proposals wait (#184 P5) */
+  litWhy: Record<string, string>
   /** cards with souls proposed or a failed rating, newest first */
   soul: SoulWaiting[]
   /** background failures by source (soul failures ride in `soul`) */
@@ -41,7 +43,7 @@ interface AttentionState {
 }
 
 export const useAttention = create<AttentionState>(() => ({
-  litopys: {}, litNames: {}, soul: [], failedBy: {}, failed: [], dismissed: new Set(),
+  litopys: {}, litNames: {}, litWhy: {}, soul: [], failedBy: {}, failed: [], dismissed: new Set(),
 }))
 
 const mergeFailed = (by: AttentionState['failedBy'], dismissed: Set<string>) =>
@@ -76,8 +78,8 @@ const namesOf = (items: Pick<LitChatItem, 'id' | 'name' | 'proposals'>[]) =>
   Object.fromEntries(items.filter((it) => it.proposals > 0 && it.name).map((it) => [it.id, it.name]))
 
 /** The Library view already polls the list: it hands the counts over so the badge follows at once. */
-export function setLitCounts(items: Pick<LitChatItem, 'id' | 'name' | 'proposals'>[], on = true) {
-  useAttention.setState({ litopys: on ? litCounts(items) : {}, litNames: on ? namesOf(items) : {} })
+export function setLitCounts(items: Pick<LitChatItem, 'id' | 'name' | 'proposals' | 'why'>[], on = true) {
+  useAttention.setState({ litopys: on ? litCounts(items) : {}, litNames: on ? namesOf(items) : {}, litWhy: on ? litWhy(items) : {} })
 }
 
 /** The soul poll (store.ts, which owns the engine helper) hands its list over here. */
@@ -297,7 +299,7 @@ let fetched: Record<string, number> = {}
 /** The Library half of a round: the failed workers, the counts, and the toast for new proposals. */
 async function litopysRound(deps: AttentionDeps) {
   if (!deps.on && !deps.failedOn) {
-    useAttention.setState({ litopys: {}, litNames: {} })
+    useAttention.setState({ litopys: {}, litNames: {}, litWhy: {} })
     setFailed('litopys', [])
     toast.dismiss('attention-litopys')
     return
@@ -305,12 +307,12 @@ async function litopysRound(deps: AttentionDeps) {
   const { items } = await fetchLitChats()
   setFailed('litopys', deps.failedOn ? litopysFailures(items) : [])
   if (!deps.on) {
-    useAttention.setState({ litopys: {}, litNames: {} })
+    useAttention.setState({ litopys: {}, litNames: {}, litWhy: {} })
     toast.dismiss('attention-litopys')
     return
   }
   const counts = litCounts(items)
-  useAttention.setState({ litopys: counts, litNames: namesOf(items) })
+  useAttention.setState({ litopys: counts, litNames: namesOf(items), litWhy: litWhy(items) })
   const seen = readSeen()
   const fresh: WaitingProposal[] = []
   for (const chatId of Object.keys(counts)) {

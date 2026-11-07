@@ -330,13 +330,25 @@ rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatCo
   config is read, an install that already has Litopys data (a config file, chat records or the 1.x store) is written
   down as keeping its choice (`ask` when it never made one) with `arcNotice: "pending"`: the Library offers the switch
   once, and either answer, or any choice of `arcMode`, sets `arcNotice` to `done`.
-- `proposals` (`ask`, default, or `quiet`): in `quiet` a `pin` or a `rewrite` proposed by the chapter worker or by
+- `proposals` (`ask`, `risky` or `quiet`; `ask` is the default of an install that already had data, a new install is stamped `risky`): in `quiet` a `pin` or a `rewrite` proposed by the chapter worker or by
   Consolidate is applied at once. The proposal stays in the chat's `proposals` as `status: "accepted", auto: true`
   with an `undo` note, and the chat's Activity gets a `proposal.auto` row; `POST /litopys/proposals { chatId, id, op: "undo" }`
   takes it back (the proposal becomes `rejected` with `undone: true`, a `proposal.undo` row is written) and refuses
   with 409 `changed since` when the fact was changed after it. Never a `retire` or a `merge`; a rewrite of a fact the
   user wrote, edited or pinned, and a pin past the pin limit, stay pending. (The Dashboard's own proposals are another plugin and
-  are not touched.)
+  are not touched.) `risky` (#184 P5) applies every pending `pin`, `rewrite`, `retire` and `merge` the same way, with an `undo`
+  note (a retire keeps the ids it retired; a merge keeps the new fact's id, the parts' pins and the causes it repointed, and
+  its Undo removes the merged fact and restores the parts), except the risky ones, which stay pending with `why`: `widens`
+  (a merge whose parts' `knownBy` differ, or mix `"all"` with names), `protected` (a change to a fact that is pinned, `edited`,
+  `origin: "user"` or `weight: "key"`), `kind` (a change to a `change` or `belief` fact). A new fact that waits is a proposal
+  `{ id, op: "add", targets: [], facts: [<draft without id>], text, why, reason, status: "pending" }` where `why` is `change`
+  (a `change` fact, or a new version of one: the draft then has `supersedes`), `belief` (the beliefs of one lie, one draft for
+  each person who heard it) or `contradicts` (a new fact about a subject whose pinned, edited or user-written fact it nearly
+  restates: three or more shared word stems and half of the shorter text, a guess). Accepting it (`op: "accept"`) gives each draft
+  an id and `status: "active"`, and retires the fact a draft `supersedes`; rejecting it adds nothing. A pending belief whose
+  holder learns the truth first drops out of `facts`, and the proposal expires with none left. The list of chats
+  (`GET /litopys/chats`) carries `why: { code: n }` for the pending proposals that have a reason. Only `risky` queues adds; in
+  `ask` and `quiet` a new fact is added at once as before, and a rebuild's new generation never queues.
 - `autoConsolidate` (`true`, `false`, or `null` = on only while `proposals` is `quiet`): starts Consolidate facts by
   itself when the chat's active facts grew by 30 or more since the last run (`consolidateAt: { active, at }` on the
   chat record, set by every run) and none is running and none of its proposals waits. Its proposals follow `proposals`.

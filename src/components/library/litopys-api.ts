@@ -47,6 +47,8 @@ export interface LitChatItem {
   facts: number
   /** Pending proposals only. */
   proposals: number
+  /** Pending proposals by the reason they wait (#184 P5); absent on an older plugin or when none has one. */
+  why?: Record<string, number>
   worker: LitWorker | null
 }
 
@@ -164,9 +166,13 @@ export interface LitFact {
 
 export interface LitProposal {
   id: string
-  op: 'merge' | 'retire' | 'rewrite' | 'pin'
+  op: 'merge' | 'retire' | 'rewrite' | 'pin' | 'add'
   targets: string[]
   text?: string
+  /** why it waits for the user (#184 P5): widens, protected, kind, change, belief or contradicts; absent when it simply waits */
+  why?: string
+  /** an `add` proposal: the facts it would add (drafts without ids) */
+  facts?: { text: string; subject?: string; type?: string; holder?: string; knownBy?: string[] | 'all' }[]
   reason?: string
   status: LitProposalStatus
   /** The chapter whose writing produced it. */
@@ -321,8 +327,8 @@ export interface LitConfig {
   arcMode: LitArcMode
   /** 'pending': the Library offers to switch arcs to automatic, once (an install that kept "ask") */
   arcNotice?: 'pending' | 'done'
-  /** 'ask': every proposal waits for a click; 'quiet': a pin or a rewrite is applied by itself and can be undone */
-  proposals?: 'ask' | 'quiet'
+  /** 'ask': every proposal waits for a click; 'risky': every one is applied by itself and can be undone except the risky ones; 'quiet': a pin or a rewrite is applied by itself and can be undone */
+  proposals?: 'ask' | 'risky' | 'quiet'
   /** Consolidate facts by itself after 30 new facts; null/absent = on only while proposals are quiet */
   autoConsolidate?: boolean | null
   arcKeep: number

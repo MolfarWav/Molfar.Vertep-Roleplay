@@ -226,7 +226,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         </div>
       </Block>
 
-      <Block tone="plot" icon={PencilSimple} defaultOpen title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')} summary={cfg.proposals === 'quiet' ? t('lit.set.proposalsQuiet') : t('lit.set.proposalsAsk')}>
+      <Block tone="plot" icon={PencilSimple} defaultOpen title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')} summary={cfg.proposals === 'quiet' ? t('lit.set.proposalsQuiet') : cfg.proposals === 'risky' ? t('lit.set.proposalsRisky') : t('lit.set.proposalsAsk')}>
         <Field>
           <FieldLabel className="font-medium">{t('lit.set.proposals')}</FieldLabel>
           <Segmented
@@ -239,12 +239,13 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             }}
             options={[
               { value: 'ask', label: t('lit.set.proposalsAsk') },
+              { value: 'risky', label: t('lit.set.proposalsRisky') },
               { value: 'quiet', label: t('lit.set.proposalsQuiet') },
             ]}
           />
-          <p className="text-xs text-muted-foreground">{t('lit.set.proposalsHint')}</p>
+          <p className="text-xs text-muted-foreground">{cfg.proposals === 'quiet' ? t('lit.set.proposalsHint') : cfg.proposals === 'risky' ? t('lit.set.proposalsHintRisky') : t('lit.set.proposalsHintAsk')}</p>
         </Field>
-        {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? cfg.proposals === 'quiet', (v) => save({ autoConsolidate: v }))}
+        {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? (cfg.proposals === 'quiet' || cfg.proposals === 'risky'), (v) => save({ autoConsolidate: v }))}
       </Block>
 
       <Block tone="people" icon={PenNib} title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')} summary={t('lit.sum.writing', { model: cfg.model || t('lit.sum.modelDefault'), min: cfg.scene.minMessages, max: cfg.scene.maxMessages })}>

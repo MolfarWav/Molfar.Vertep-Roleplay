@@ -617,7 +617,8 @@ describe("Litopys 2.0 state", () => {
       const res = L.handleRoute({ method: "GET", path: "/litopys/config" }, m.host);
       expect(res).toBeDefined();
       expect(res.status).toBe(200);
-      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, custom: [] });
+      // a new install reviews only the risky changes (#184 P5); the stored default stays "ask" for installs that already had data
+      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, proposals: "risky", ...L.DEFAULT_PROMPTS, custom: [] });
     });
 
     it("restores one prompt or both, and says which differ", () => {
