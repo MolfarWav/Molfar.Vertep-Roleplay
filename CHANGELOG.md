@@ -2,6 +2,15 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.99.0 (2026-11-08)
+
+- New: **archive a finished story (#263).** A status on the chat, not a move: the chat stays where it is, so its memory, its Canvas links and the books made from it keep working. In Chats an amber **Archive** row under the filters opens the archived chats and an amber **Archive** button in a chat's panel archives it (several at once with Select; in a chat it is in the menu under "Manage chat"); the confirmation offers **Archive and continue** when no chat continues it yet. An archived chat leaves the list and Home and opens read only: a banner, no composer ("Continue in a new chat" stands in its place), no edit, swipe, regenerate, hide, move, delete or marking, its preset and picks fixed. Reading, copying, branching from a message (a branch is a normal chat), export, the Dashboard and the Library work. The engine refuses every route that changes the transcript with `409 archived`.
+- New: **the earlier chat is archived when another chat continues it.** A link on the Canvas, "Continue in a new chat" (also from the popup that warns about a big request) or a pick in the new-chat step's Continues moves the earlier chat to the Archive at once; a toast with Undo (one toast on the Canvas, its Undo brings back the chat too) says so. Branches never count. Switch it off in Library > Litopys settings > "In the prompt" > "Archive the earlier chat when it is continued".
+- New: **a long chat that has been quiet for a week gets a tag.** From 100 messages and 7 days without a message the list shows "Long chat · archive?" and the panel a hint. Nothing is archived for you.
+- Changed: **an archived chat costs no model call.** Opening it or pressing Refresh no longer runs the Dashboard sensor or the automatic soul rating.
+- Docs: the guide page on long chats has the Archive section; its translations in 13 languages were refreshed (every page of the book had gone stale; names of screens stay English except in Ukrainian). `docs/DATA-FORMATS.md`: "Archived chats".
+- Format: `archived: true` in `chats/<id>.meta.json` (a fork does not copy it); Litopys config `archiveOnContinue` (default on); `POST /litopys/links` answers `{ links, archived }`.
+
 ## 4.98.0 (2026-11-07)
 
 - New: **a fact can be known to a whole group (#184, P7).** In a fact's Known to, `group: Guild of Ravens` means every member who is in the scene. A group is made by a card tag written `group: Name` or `faction: Name` (no other tag counts), or by a World DM record of kind Group or Place with **Members** (the Records tab; the DM does not fill it). The speaker filter, the narrator's who-knows-what brief, the backstory of a continued chat and the chapter worker's Known facts all read it; the worker is told the groups of the people in the scene and may write a group for news the whole group learned (a made-up group is dropped). A snapshot book copies the members' names when it is saved. The leak check does not look at such facts yet. 0 extra calls; about 60 tokens in the worker's request when a group is in the scene.
