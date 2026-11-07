@@ -2,6 +2,11 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- New: **a lie told in front of others is believed by them (#184, P4).** When the sensor marks a statement as a lie, the people present who heard it (not the liar, never your character) are remembered on that entry. In their own replies they now get "Bram was told by Ada: ... Bram has no reason to doubt it unless the story shows otherwise", while Ada's line still says it was a lie. Someone else speaking, or a reply with a different speaker, does not carry it. The belief ends for one person when the sensor sees the truth come out (it is shown the belief as a line of that person's notebook and can retire it), when you press their name under the lie in the Said list ("Believe it:"), or for everyone when you remove the lie. A rewound reply brings the belief back. The belief rides with the Dashboard's Said part (the same switch), costs no extra call and about 30 tokens a believer. Not in this step: Litopys facts of type belief, `prov` on facts, and card memory (a later P4 step).
+- Format: `said[]` entries of a lie may carry `heardBy: [name]` and `exposed: [{ who, by, turn }]`; the user's own "knows the truth" is `exposed: [name]` on the edit of that entry in `dashboard/notes/<chat>.json`. All optional; documented in `docs/DATA-FORMATS.md`.
+
 ## 4.96.0 (2026-11-07)
 
 - Fixed: **helper models no longer read `{{user}}` and `{{char}}` as literal text.** The chat prompt always filled these in, but the calls that write the story record (chapters, arcs, summaries, consolidation), the Dashboard sensor, the World builder and Dungeon Master, the letters and the Agents plugin sent them raw. They now get your persona's name, and the character's name when the chat has one character. Stored chats, cards, lorebooks and records still keep the macros; other macros such as `{{getvar}}` are not filled in these calls. (Molfar.Vertep#156)

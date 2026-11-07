@@ -756,6 +756,14 @@ character saw, heard or guessed), `names` and `history`:
   it (the entry counts only while that message is on the chat's line), `source` is `chat` today and may be another kind
   of writer later. Its own part in the reply prompt (`Dashboard · said`), not the notebook's budget. The sensor
   reports it in the `said` list; `said.perTurn` (1-4, default 1; the sensor also gives each a `strength` 1-3 and only 2 or 3 is kept, one kind per speaker within 3 turns counts once, a speaker holds about 8 live entries, a line the Notebook holds is skipped) and `said.inject` are in `data/dashboard/config.json`.
+  A `lie` also carries `heardBy: ["<name>"]` (#184 P4): the people present when it was told, never the liar or the
+  user's character; they take it as true. `exposed: [{ who, by, turn }]` records who learned better, `by` being the
+  snapshot key that wrote it (it counts only while that snapshot is on the line, so a rewound reply brings the belief
+  back). The user's own "knows the truth now" is `exposed: ["<name>"]` on the entry's edit in
+  `dashboard/notes/<chat>.json` (`POST /dashboard/notes` `{ op: "knows-truth", id, name }`). The remaining believers
+  (`heardBy` minus `exposed`) are shown to each listener's own reply as "was told by <liar>: ..." in the same part, and to
+  the sensor as a notebook line `s3~Bram heard from Ada: ... (untrue; Bram does not know)`; retiring that id ends the
+  belief. A chat that continues this one keeps `heardBy` as it stands and drops `exposed`. All fields are optional.
 - The character journal. In a snapshot's `chars[<name>]`: `thought` (string, at most 200 characters, or null) and `thoughtTurn`
   (the snapshot's `turn` it was written on). The sensor writes a thought for each present character every turn it has
   something to say; otherwise the old one is carried unchanged, and the reply prompt shows it only while

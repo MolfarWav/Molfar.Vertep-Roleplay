@@ -12,6 +12,16 @@ The numbers (trust, comfort, attraction, respect, affection, and more) are worke
 
 The "Story, move" button next to Send arms a one-time nudge for the next reply; its arrow picks an open quest or a twist.
 
+## What a character said, and lies
+
+Under a person's notebook the **Said** list keeps the strong things they said and are held to: a vow, a threat, a confession, an order. A lie is kept there too, covered until you choose "Show hidden".
+
+When a character lies in front of others, the others take it as true. Their next replies treat it as something they were told and have no reason to doubt, until the story shows otherwise. Only the people who were in the scene are fooled, and only in their own replies: someone else speaking does not repeat the lie.
+
+Open a lie and you see **Believe it:** with a button for each person who still believes it. Press a name when that person has found out. The sensor ends the belief by itself when a reply shows the truth coming out. Removing the lie from the list removes every belief with it.
+
+> The narrator voices everyone in one reply, so it always knows the truth. This only keeps one character from acting on what another character knows.
+
 ## When it updates
 
 The "Settings" button inside the Dashboard opens its settings; the Sensor tab has the mode:

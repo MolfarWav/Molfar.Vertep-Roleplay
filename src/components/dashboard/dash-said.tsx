@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CaretDown, CaretRight, DotsThree, Eye, EyeSlash, Quotes } from '@phosphor-icons/react'
+import { CaretDown, CaretRight, DotsThree, Eye, EyeSlash, Quotes, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -61,6 +61,28 @@ function SaidRow({ item, revealed, editable }: { item: SaidNote; revealed: boole
           {item.edited && <span>{t('dash.note.edited')}</span>}
           <span>{t('dash.story.turn', { n: item.turn })}</span>
         </div>
+        {!covered && editable && item.believers && item.believers.length > 0 && (
+          <div className="mt-1.5" data-testid="dash-said-believers">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-caption text-muted-foreground">{t('dash.said.believers')}</span>
+              {item.believers.map((who) => (
+                <Button
+                  key={who}
+                  size="xs"
+                  variant="outline"
+                  className={cn(FIELD, 'max-md:h-10')}
+                  aria-label={t('dash.said.knows', { name: who })}
+                  title={t('dash.said.knows', { name: who })}
+                  onClick={() => { void act({ op: 'knows-truth', id: item.id, name: who }) }}
+                >
+                  {who}
+                  <X className="size-3" aria-hidden="true" />
+                </Button>
+              ))}
+            </div>
+            <p className="mt-1 text-caption text-muted-foreground">{t('dash.said.believersHint')}</p>
+          </div>
+        )}
       </div>
       {editable && !editing && !covered && (
         <DropdownMenu>
