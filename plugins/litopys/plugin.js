@@ -2142,6 +2142,25 @@ export function heldLeaks(dash, line, scene) {
   return out;
 }
 
+/** #184 P4: the lies the Dashboard recorded in this scene's replies, with the people who heard them: [{ liar, to, text }]. */
+export function sceneLies(dash, line, scene) {
+  if (!dash || !isObj(dash.said) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [liar, list] of Object.entries(dash.said)) {
+    for (const s of arr(list)) {
+      if (!isObj(s) || s.kind !== "lie" || !keys.has(s.src) || !str(s.text)) continue;
+      const to = arr(s.heardBy).map(str).filter((n) => n && n !== liar);
+      if (to.length) out.push({ liar, to, text: cut(str(s.text), 300) });
+    }
+  }
+  return out.slice(0, 4);
+}
+
 export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const scene = work.scene;
   const who = opts.names || {};
@@ -2171,12 +2190,16 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     return false;
   });
   activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + f.text);
+  const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + (f.type === "belief" ? "(" + str(f.holder) + " believes this, and it is untrue) " : "") + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
 
   // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
   const flagged = heldLeaks(dash, line, scene);
   if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
+
+  // a lie told in front of others in this scene (#184 P4): the listeners believe it, but it is not a fact of the story
+  const lies = sceneLies(dash, line, scene);
+  if (lies.length) parts.push("Told as true, but untrue\n" + lies.map((l) => "- " + l.liar + " told " + l.to.join(", ") + ": " + l.text + " They believe it. Do not record it as a fact, and do not write it into the chapter as true.").join("\n"));
 
   // Scene messages: read whole when they fit one budget; a long one keeps its start and end, never the first 1500 only (#236)
   const sceneMsgs = [];
@@ -2653,6 +2676,19 @@ const TRACE_IN = 40;
 const TRACE_OUT = 15;
 
 /** The fill order and text of the Litopys insert; null when nothing can be inserted. */
+/**
+ * One fact as a line of the insert. A belief (#184 P4) reads as what its holder was told, not as a fact: in the holder's
+ * own reply (`solo`) it is plain, since the holder takes it as true; a reply that voices several says it is untrue.
+ */
+export function factLineOf(f, solo) {
+  if (isObj(f) && f.type === "belief") {
+    const holder = str(f.holder);
+    const from = str(isObj(f.prov) && isObj(f.prov[holder]) ? f.prov[holder].from : "");
+    return "- " + (holder || "Someone") + " believes" + (from ? ", told by " + from : "") + ": " + str(f.text) + (solo ? "" : " (untrue)");
+  }
+  return "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+}
+
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
@@ -2734,7 +2770,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // chapters picked by relevance change every reply, so they ride after the newest turn.
   const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
   const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
-  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const solo = voices instanceof Set && voices.size === 1;
+  const factLine = (f) => factLineOf(f, solo);
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
   const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
@@ -4492,7 +4529,8 @@ function liveNotes(dash, line, overlay, withCarried) {
 }
 
 /** Dashboard notes that have aged out of the dashboard insert and matter: they become facts (user, 2026-10-07). */
-export function notesToMove(fsx, chatId, st, dash, line, userName) {
+/** The Dashboard's age (in turns) after which a note or a lie moves into the record, and the turn it is now (0: no reading yet). */
+function dashAge(fsx, dash, line) {
   const dcfg = readJson(fsx, "dashboard/config.json", {});
   const age = clamp(isObj(dcfg) && dcfg.noteAgeTurns !== undefined ? dcfg.noteAgeTurns : 30, 5, 500);
   let now = 0;
@@ -4503,6 +4541,110 @@ export function notesToMove(fsx, chatId, st, dash, line, userName) {
       break;
     }
   }
+  return { age, now };
+}
+
+/**
+ * #184 P4: the lies of the Dashboard's Said list as they count on this line, with who still takes each as true.
+ * `heardBy` less the people who learned better (an exposure counts while the snapshot that wrote it is on the line)
+ * and less the user's own "knows the truth" in the edit overlay. Same rule as the Dashboard's `believersOf`.
+ * `raw` also lists a lie that is not on the line, or that the user removed, with its state: [{ id, retired, onLine }].
+ */
+function liveLies(dash, line, overlay) {
+  const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
+  const edits = isObj(overlay && overlay.edits) ? overlay.edits : {};
+  const out = [];
+  const gone = [];
+  for (const [liar, list] of Object.entries(isObj(dash && dash.said) ? dash.said : {})) {
+    for (const s of arr(list)) {
+      if (!isObj(s) || s.kind !== "lie" || !Array.isArray(s.heardBy) || !str(s.id)) continue;
+      const e = isObj(edits[s.id]) ? edits[s.id] : null;
+      const exposed = new Set(arr(s.exposed).filter((x) => isObj(x) && str(x.who) && (x.by === undefined || keys.has(x.by))).map((x) => str(x.who)));
+      for (const w of arr(e && e.exposed)) exposed.add(str(w));
+      const believers = [...new Set(s.heardBy.map(str).filter((n) => n && n !== liar && !exposed.has(n)))];
+      const entry = { liar, id: str(s.id), text: e && str(e.text) ? str(e.text) : str(s.text), turn: Number(s.turn), src: s.src, believers, exposed: [...exposed], retired: !!(e && e.retired === true), onLine: keys.has(s.src) };
+      if (entry.onLine && !entry.retired) out.push(entry);
+      else gone.push(entry);
+    }
+  }
+  return { live: out, other: gone };
+}
+
+/**
+ * #184 P4: lies that have aged out of the Dashboard's reach become beliefs: one fact for each person who still takes
+ * the lie as true, kept in that person's own section only. 0 calls. `fromLies` lists "<lie id>~<holder>" already made.
+ */
+export function liesToMove(fsx, chatId, st, dash, line) {
+  const { age, now } = dashAge(fsx, dash, line);
+  if (!now) return [];
+  const moved = new Set(arr(st.fromLies));
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  const out = [];
+  for (const lie of liveLies(dash, line, overlay).live) {
+    if (!lie.text || !Number.isFinite(lie.turn) || now - lie.turn < age) continue;
+    for (const holder of lie.believers) if (!moved.has(lie.id + "~" + holder)) out.push({ lie: lie.id, holder, liar: lie.liar, text: cut(lie.text, 300) });
+  }
+  return out;
+}
+
+/** A belief whose holder learned the truth, or whose lie the user removed, ends. A lie that is merely off the line (a rewind) is left alone. */
+function endBeliefs(fsx, chatId, st, dash, line, now) {
+  const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
+  const lies = liveLies(dash, line, overlay);
+  const byId = new Map([...lies.live, ...lies.other].map((l) => [l.id, l]));
+  const ended = [];
+  for (const f of arr(st.facts)) {
+    if (!isObj(f) || f.status !== "active" || f.type !== "belief" || !f.lie || f.origin !== "dashboard") continue;
+    const lie = byId.get(str(f.lie));
+    if (!lie || (!lie.onLine && !lie.retired)) continue;
+    if (lie.retired || !lie.believers.includes(str(f.holder))) {
+      f.status = "retired";
+      f.pinned = false;
+      f.updatedAt = now;
+      ended.push(f);
+    }
+  }
+  if (ended.length) addActivity(st, "notes", "belief.end", ended.length + " beliefs ended (the truth came out, or the lie was removed)", ended.map((f) => f.id), now, { n: ended.length });
+  return ended.length;
+}
+
+export function moveLies(fsx, chatId, st, dash, line, now) {
+  let n = endBeliefs(fsx, chatId, st, dash, line, now);
+  const list = liesToMove(fsx, chatId, st, dash, line);
+  if (!list.length) return n;
+  st.fromLies = arr(st.fromLies);
+  const made = [];
+  for (const x of list) {
+    st.fromLies.push(x.lie + "~" + x.holder);
+    if (st.facts.some((f) => f.status === "active" && f.type === "belief" && str(f.holder) === x.holder && diceSimilarity(x.text, f.text) >= DICE_LIMIT)) continue;
+    st.counters.fact += 1;
+    const fact = {
+      id: "f" + st.counters.fact,
+      text: x.text,
+      subject: x.holder,
+      knownBy: [x.holder],
+      type: "belief",
+      holder: x.holder,
+      truth: false,
+      prov: { [x.holder]: { how: "told", from: x.liar } },
+      lie: x.lie,
+      weight: "important",
+      pinned: false,
+      status: "active",
+      src: { from: null, to: null },
+      origin: "dashboard",
+      at: now,
+      updatedAt: now,
+    };
+    st.facts.push(fact);
+    made.push(fact.id);
+  }
+  if (made.length) addActivity(st, "notes", "belief.move", made.length + " lies became beliefs", made, now, { n: made.length });
+  return n + made.length;
+}
+
+export function notesToMove(fsx, chatId, st, dash, line, userName) {
+  const { age, now } = dashAge(fsx, dash, line);
   if (!now) return [];
   const moved = new Set(arr(st.fromNotes));
   const overlay = readJson(fsx, "dashboard/notes/" + chatId + ".json", null);
@@ -4766,6 +4908,7 @@ export function onTick(_ctx, host) {
         let changed = ensured.changed;
         if (fixMigratedWeights(st)) changed = true;
         if (moveNotes(fsx, chatId, st, dash, line, str(meta.userName) || "You", now) > 0) changed = true;
+        if (moveLies(fsx, chatId, st, dash, line, now) > 0) changed = true;
         // a rebuild writes a new generation beside the record in use and swaps it in when done
         const gen = isObj(st.rebuild) ? st.rebuild : st;
         if (gen.worker && gen.worker.retryAt && gen.worker.retryAt > now) {
@@ -6073,7 +6216,8 @@ function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, neare
   const header = nearerTitle
     ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]"
     : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]";
-  const factLine = (f) => "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  const solo = voices instanceof Set && voices.size === 1;
+  const factLine = (f) => factLineOf(f, solo);
   const facts = [];
   const story = [];
   const render = () => {
@@ -6099,7 +6243,7 @@ function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, neare
 }
 
 // ---------- M4a: the user edits the record ----------
-const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan"];
+const FACT_TYPES = ["event", "trait", "change", "relation", "world", "plan", "belief"];
 const FACT_WEIGHTS = ["everyday", "important", "key"];
 const bad = (error) => ({ status: 400, json: { error } });
 const quote = (s) => '"' + cut(str(s), 120) + '"';

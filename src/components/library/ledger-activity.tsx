@@ -60,6 +60,8 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'worker.fail': return t('lit.act.workerFail', { error })
     case 'import': return t('lit.act.import', { n })
     case 'notes.move': return t('lit.act.notesMove', { n })
+    case 'belief.move': return t('lit.act.beliefMove', { n })
+    case 'belief.end': return t('lit.act.beliefEnd', { n })
     case 'rebuild.start': return t('lit.act.rebuildStart')
     case 'rebuild.finish': return t('lit.act.rebuildFinish', { chapters: num(d.chapters), facts })
     case 'arc.ask': return t('lit.act.arcAsk', { n: num(d.chapters) })

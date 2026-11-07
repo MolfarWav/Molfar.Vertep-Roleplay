@@ -131,7 +131,7 @@ export interface LitSkipped {
   toNo: number
 }
 
-export type LitFactType = 'event' | 'trait' | 'change' | 'relation' | 'world' | 'plan'
+export type LitFactType = 'event' | 'trait' | 'change' | 'relation' | 'world' | 'plan' | 'belief'
 export type LitFactWeight = 'everyday' | 'important' | 'key'
 export type LitFactStatus = 'active' | 'retired' | 'superseded'
 
@@ -185,7 +185,7 @@ export type LitActivityKind =
   | 'fact.add' | 'fact.edit' | 'fact.pin' | 'fact.unpin' | 'fact.retire' | 'fact.restore' | 'fact.delete'
   | 'chapter.edit' | 'chapter.rewrite' | 'chapter.delete' | 'chapter.write'
   | 'proposal.accept' | 'proposal.reject' | 'proposal.auto' | 'proposal.undo'
-  | 'worker.fail' | 'import' | 'notes.move' | 'rebuild.start' | 'rebuild.finish'
+  | 'worker.fail' | 'import' | 'notes.move' | 'belief.move' | 'belief.end' | 'rebuild.start' | 'rebuild.finish'
   | 'arc.ask' | 'arc.write' | 'arc.rewrite' | 'arc.delete' | 'arc.drop' | 'arc.fail'
   | 'consolidate.ask' | 'consolidate.done' | 'consolidate.fail'
   | 'summary.ask' | 'summary.done' | 'summary.fail'

@@ -11,6 +11,7 @@ export const TYPE_TONE: Record<LitFactType, string> = {
   relation: 'border-rose-500/35 bg-rose-500/12 text-rose-700 dark:text-rose-300',
   world: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
   plan: 'border-indigo-500/35 bg-indigo-500/12 text-indigo-700 dark:text-indigo-300',
+  belief: 'border-orange-500/35 bg-orange-500/12 text-orange-700 dark:text-orange-300',
 }
 
 export const WEIGHT_TONE: Record<LitFactWeight, string> = {

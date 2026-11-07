@@ -220,6 +220,20 @@ active cause that did not fit; cause and effect both there already) and `causeSt
 chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
 `false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
 
+**Beliefs (#184 P4, step 2).** A fact of `type: "belief"` is what one character was told in a lie and still takes as true. Fields
+beyond a normal fact: `holder` (the one who believes it, also `subject`, and the only name in `knownBy`, so the speaker filter gives
+it to that character's reply alone), `truth: false`, `prov: { "<holder>": { how: "told", from: "<liar>" } }` (how the holder
+knows it; only beliefs carry it), `lie: "<id of the Dashboard's said entry>"` (the link that lets it end), `origin: "dashboard"`.
+Code makes them, never the chapter worker (the `typeMap` of the worker does not accept `belief`): on the Litopys tick, a lie of the
+Dashboard's Said list (`dashboard/state/<chat>.json` `said`, see `heardBy` and `exposed` there) older than the Dashboard's
+`noteAgeTurns` (30 turns by default) gets one belief for each person who still believes it, at most once (`fromLies:
+["<lie id>~<holder>"]` in the chat file). A belief is retired when its holder learns the truth (the Dashboard's `exposed`, or the
+user's `knows-truth`) or the user removes the lie from the Said list; a lie that is only off the line (a rewind) leaves the
+belief alone. In the insert a belief reads `- Bram believes, told by Ada: <text>`, and `(untrue)` is added when the reply voices
+several characters; the worker's Known facts show it as `(Bram believes this, and it is untrue)`, and a lie told in the scene
+rides in the worker request as "Told as true, but untrue" so it is not written down as a fact. The speaker filter keeps it
+out of card memory (that takes `knownBy: "all"` only), so `characters/<id>/memory.json` is unchanged.
+
 **Memory trace (#184 P6).** The sidecar `litopys/insert/<chatId>.json` also keeps `trace` for the last reply, ids and codes only (2-4 KB at most, so a reply pays almost nothing):
 `{ v: 1, kn: [<canonical names of whoever the filter let through>], one: <true when one character spoke>, n: { live, hidden, seen, inF, drop, unseen, held }, full, limit, op, speaker, rows: [...] }`.
 A row is `{ k: "f" | "c" | "a", i: <fact, chapter or arc id>, s: "in" | "out", w: <reason>, r?: <rank> }`; reasons for facts are `pin`, `change`, `trait`, `rank`, `cause` (in) and `budget`, `speaker` (out);
