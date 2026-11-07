@@ -232,7 +232,10 @@ user's `knows-truth`) or the user removes the lie from the Said list; a lie that
 belief alone. In the insert a belief reads `- Bram believes, told by Ada: <text>`, and `(untrue)` is added when the reply voices
 several characters; the worker's Known facts show it as `(Bram believes this, and it is untrue)`, and a lie told in the scene
 rides in the worker request as "Told as true, but untrue" so it is not written down as a fact. The speaker filter keeps it
-out of card memory (that takes `knownBy: "all"` only), so `characters/<id>/memory.json` is unchanged.
+out of card memory (that takes `knownBy: "all"` only), so `characters/<id>/memory.json` is unchanged. A belief is not
+a secret: the Dashboard's leak check leaves it out. Retiring a belief by hand (`POST /litopys/facts { op: "retire" }`) writes the
+holder into `edits[<lie id>].exposed` of the chat's note overlay, so the Dashboard stops giving the lie to that person too. The
+"he found out" action (`op: "know"`) also records how: `prov: { "<name>": { how: "told", from: "user" } }`.
 
 **Memory trace (#184 P6).** The sidecar `litopys/insert/<chatId>.json` also keeps `trace` for the last reply, ids and codes only (2-4 KB at most, so a reply pays almost nothing):
 `{ v: 1, kn: [<canonical names of whoever the filter let through>], one: <true when one character spoke>, n: { live, hidden, seen, inF, drop, unseen, held }, full, limit, op, speaker, rows: [...] }`.
@@ -790,6 +793,11 @@ character saw, heard or guessed), `names` and `history`:
   (`heardBy` minus `exposed`) are shown to each listener's own reply as "was told by <liar>: ..." in the same part, and to
   the sensor as a notebook line `s3~Bram heard from Ada: ... (untrue; Bram does not know)`; retiring that id ends the
   belief. A chat that continues this one keeps `heardBy` as it stands and drops `exposed`. All fields are optional.
+  The user's own reading of an entry (#184 P4) is `lie: true` or `lie: false` on its edit in `dashboard/notes/<chat>.json`
+  (`POST /dashboard/notes { op: "set-lie", id, lie }`): `true` on a statement that is not a `lie` makes it one (hidden, with
+  `heardBy` kept on the edit as the people in the scene at that moment), `false` on a `lie` takes it off (kind `other`, no
+  believers, and the beliefs it made in Litopys end); setting it to what the sensor said removes the edit. The view marks it
+  `userLie` or `notLie`.
 - The character journal. In a snapshot's `chars[<name>]`: `thought` (string, at most 200 characters, or null) and `thoughtTurn`
   (the snapshot's `turn` it was written on). The sensor writes a thought for each present character every turn it has
   something to say; otherwise the old one is carried unchanged, and the reply prompt shows it only while

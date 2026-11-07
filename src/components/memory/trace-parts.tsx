@@ -60,6 +60,7 @@ export function FactRow({ f, t }: { f: TraceFact; t: T }) {
         <p className={cn('line-clamp-3 break-words text-body', f.gone && 'italic text-muted-foreground')}>{f.gone ? t('memtrace.removed') : f.text}</p>
         <p className="mt-0.5 break-words text-caption text-muted-foreground">
           {f.id} · {t('memtrace.known')}: <Who people={f.by} t={t} />
+          {f.type === 'belief' && <> · <span data-testid="trace-belief">{t('lit.type.belief')}</span></>}
         </p>
       </div>
       <WhyChips why={f.why} rank={f.rank} t={t} />

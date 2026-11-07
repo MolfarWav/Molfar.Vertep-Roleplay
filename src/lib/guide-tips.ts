@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.96.0'
+export const APP_VERSION = '4.97.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.beliefs',
+    since: '4.97.0',
+    help: 'story',
+    keywords: { en: 'lie lies believe belief believed truth said dashboard litopys suggestions risky undo review secret', uk: 'брехня брехні вірить переконання правда сказане панель літопис пропозиції ризиковані скасувати секрет' },
+    title: { en: 'Lies are believed, and risky changes wait', uk: 'Брехні вірять, а ризиковані зміни чекають' },
+    body: {
+      en: 'When a character lies in front of others, the others now take it as true in their own replies. Under the lie in the Said list you see who believes it; press a name when they find out, or use the row menu: This was a lie / Not a lie. An old lie becomes a Belief fact in the Library. Suggestions has a new choice, Only risky ones: routine changes apply at once with an Undo, and the risky ones (a merge that tells more people a secret, a change to something you pinned or wrote, a lasting change, a belief) wait with the reason.',
+      uk: 'Коли персонаж бреше при інших, ті тепер вважають це правдою у своїх відповідях. Під брехнею в списку Said видно, хто їй вірить: натисніть на ім’я, коли людина дізналась, або скористайтесь меню рядка: Це була брехня / Не брехня. Стара брехня стає фактом Переконання в Бібліотеці. У Пропозиціях є новий вибір, Лише ризиковані: звичайні зміни застосовуються одразу з «Скасувати», а ризиковані (злиття, після якого більше людей знатимуть секрет, зміна закріпленого чи написаного вами, постійна зміна, переконання) чекають із причиною.',
+    },
+  },
   {
     id: 'new.lore-folders',
     since: '4.95.0',

@@ -230,3 +230,44 @@ describe("a belief travels with the chat (#184 P4)", () => {
     expect(carried.exposed).toBeUndefined();
   });
 });
+
+describe("the user says what was a lie (#184 P4)", () => {
+  const readOv = () => JSON.parse(fs.readFileSync(path.join(root, "dashboard/notes/c1.json"), "utf8")).edits;
+
+  it("'set-lie' on a promise makes it a hidden lie its listeners believe; setting it back undoes it", () => {
+    writeChat("c1", three());
+    const mock = mockHost([reply({ present: ["Aria", "Bram"], said: [said("Aria", "I will pay the debt.", "promise")] })]);
+    update(mock, "c1");
+    const chars = () => view(mock, "c1").view.chars.Aria.said[0];
+    expect(chars()).toMatchObject({ kind: "promise", hidden: false });
+    expect(chars().believers).toBeUndefined();
+    expect(notes(mock, { op: "set-lie", id: "s1", lie: true }).json.ok).toBe(true);
+    expect(chars()).toMatchObject({ kind: "lie", hidden: true, userLie: true, believers: ["Bram"] });
+    const text = P.saidBlock(readStateFile("c1"), ["m3#0"], ["Aria", "Bram"], 120, { edits: readOv() });
+    expect(text).toContain("a lie they told");
+    expect(text).toContain("Bram was told by Aria: “I will pay the debt.”");
+    expect(notes(mock, { op: "set-lie", id: "s1", lie: false }).json.ok).toBe(true);
+    expect(chars()).toMatchObject({ kind: "promise", hidden: false });
+    expect(chars().believers).toBeUndefined();
+    expect(readOv().s1).toBeUndefined();
+  });
+
+  it("'set-lie' false on a sensor lie takes it off: not a lie, nobody believes it", () => {
+    const mock = lied();
+    expect(notes(mock, { op: "set-lie", id: "s1", lie: false }).json.ok).toBe(true);
+    const item = view(mock, "c1").view.chars.Aria.said[0];
+    expect(item).toMatchObject({ kind: "other", hidden: false, notLie: true });
+    expect(item.believers).toBeUndefined();
+    const text = P.saidBlock(readStateFile("c1"), ["m3#0"], ["Aria", "Bram"], 120, { edits: readOv() });
+    expect(text).not.toContain("Bram was told");
+    expect(text).not.toContain("a lie they told");
+    expect(notes(mock, { op: "set-lie", id: "s1", lie: true }).json.ok).toBe(true);
+    expect(view(mock, "c1").view.chars.Aria.said[0].believers).toEqual(["Bram"]);
+  });
+
+  it("refuses an unknown entry or a missing flag", () => {
+    const mock = lied();
+    expect(notes(mock, { op: "set-lie", id: "s99", lie: true }).status).toBe(404);
+    expect(notes(mock, { op: "set-lie", id: "s1" }).status).toBe(400);
+  });
+});

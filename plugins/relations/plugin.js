@@ -4070,7 +4070,7 @@ export function leakCandidates({ facts, reply, userText, people, speakers, userN
 /** The Litopys facts only some know, for this chat: [{id, text, knownBy}]. */
 function restrictedFacts(fsx, chatId) {
   const st = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
-  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
+  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && f.type !== "belief" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
 }
 
 /** The candidates of this update, [] when the check is off or nothing resembles a restricted fact. */
@@ -7027,12 +7027,14 @@ export function journalBlock(ctx, name, cfg) {
  * user's own "knows the truth now" lives in the edit overlay (`e.exposed`).
  */
 export function believersOf(s, speaker, keys, e) {
-  if (!isObj(s) || !Array.isArray(s.heardBy)) return [];
+  if (!isObj(s) || (e && e.lie === false)) return [];
+  const heardBy = Array.isArray(s.heardBy) ? s.heardBy : e && e.lie === true && Array.isArray(e.heardBy) ? e.heardBy : null;
+  if (!heardBy) return [];
   const on = keySet(keys);
   const gone = new Set();
   for (const x of arr(s.exposed)) if (isObj(x) && str(x.who) && (x.by === undefined || on.has(x.by))) gone.add(str(x.who));
   for (const w of arr(e && e.exposed)) gone.add(str(w));
-  return unique(arr(s.heardBy).map(str).filter((n) => n && n !== speaker && !gone.has(n)));
+  return unique(arr(heardBy).map(str).filter((n) => n && n !== speaker && !gone.has(n)));
 }
 
 /** What the characters said as it counts: the active entries with the user's edits, the ones the user removed left out. A lie carries `believers`. */
@@ -7044,8 +7046,11 @@ export function effectiveSaid(state, keys, ov) {
       const e = isObj(edits[s.id]) ? edits[s.id] : null;
       if (e && e.retired === true) continue;
       const text = e && str(e.text) ? cut(str(e.text), 300) : s.text;
-      const extra = Array.isArray(s.heardBy) ? { believers: believersOf(s, name, keys, e) } : null;
-      listIn(out, name).push(text === s.text && !extra ? s : { ...s, ...extra, ...(text === s.text ? {} : { text, edited: true }) });
+      // "this was a lie" / "not a lie" (#184 P4): the user's word over the sensor's, kept in the edit overlay
+      const asLie = e && e.lie === true && s.kind !== "lie" ? { kind: "lie", hidden: true, userLie: true } : e && e.lie === false && s.kind === "lie" ? { kind: "other", hidden: false, notLie: true } : null;
+      const believers = believersOf(s, name, keys, e);
+      const extra = believers.length || Array.isArray(s.heardBy) || (e && e.lie === true && Array.isArray(e.heardBy)) ? { believers } : null;
+      listIn(out, name).push(text === s.text && !extra && !asLie ? s : { ...s, ...asLie, ...extra, ...(text === s.text ? {} : { text, edited: true }) });
     }
   }
   return out;
@@ -7796,7 +7801,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
   const history = activeHistory(state, keys);
   const saidLive = effectiveSaid(state, keys, overlay);
   const saidGone = removedSaid(state, keys, overlay);
-  const saidItem = ({ id, text, kind, hidden, turn, source, edited, believers }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}), ...(Array.isArray(believers) && believers.length ? { believers } : {}) });
+  const saidItem = ({ id, text, kind, hidden, turn, source, edited, believers, userLie, notLie }) => ({ id, text, kind, hidden: hidden === true, turn, source: source || "chat", ...(edited ? { edited: true } : {}), ...(userLie ? { userLie: true } : {}), ...(notLie ? { notLie: true } : {}), ...(Array.isArray(believers) && believers.length ? { believers } : {}) });
   const chat = readChat(fsx, chatId);
   const cast = chat ? chatCharacters(fsx, chat.meta) : { names: [], souls: {} };
   const souls = cast.souls;
@@ -8325,6 +8330,22 @@ function notesRoute(req, fsx) {
     const e = editOf(noteId);
     if (op === "retire") e.retired = true;
     else delete e.retired;
+    putEdit(noteId, e);
+  } else if (op === "set-lie") {
+    // the user says a statement was (or was not) a lie (#184 P4): the listeners are the people in the scene now
+    if (!noteId || typeof b.lie !== "boolean") return bad("id and lie required");
+    const hit = Object.entries(isObj(state.said) ? state.said : {}).flatMap(([liar, l]) => arr(l).filter((s) => isObj(s) && s.id === noteId).map((s) => ({ liar, s })))[0];
+    if (!hit) return bad("no such entry", 404);
+    const wasLie = hit.s.kind === "lie";
+    const e = editOf(noteId);
+    if (b.lie === wasLie) {
+      delete e.lie;
+      delete e.heardBy;
+    } else {
+      e.lie = b.lie;
+      if (b.lie) e.heardBy = unique(arr(snap && snap.present).map(str).filter((n) => n && n !== hit.liar));
+      else delete e.heardBy;
+    }
     putEdit(noteId, e);
   } else if (op === "knows-truth") {
     // the user says a listener learned a lie was one (#184 P4): the belief ends for that name only
