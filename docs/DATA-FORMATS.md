@@ -447,6 +447,7 @@ Links live on the card (or the group) only; the book's old `linkedCharacterIds` 
 | `formatTemplate` | Optional wrapper for each inserted entry: `{{original}}` marks the entry's text (`[Lore: {{original}}]`); empty = unwrapped. |
 | `folderId` | Library folder. |
 | `folders` | Optional list of entry folder names (strings, one level, same rules as an entry's `folder`) that exist even with no entry in them, so a new folder can start empty. An entry's `folder` that is not listed still shows its folder; a name listed with no entries shows an empty folder. Written by the editor's New folder and Move to folder; leave it out when you file entries by script. |
+| `folderTones` | Optional map of folder name to a colour: `sky`, `emerald`, `violet`, `pink`, `teal` or `slate` (no entry = amber). Cosmetic only; a name that is not a folder, or a colour not in the list, is dropped on save. Set by the folder menu's Rename or recolour. |
 | `ownerChatId` | Set only on a chat's world book (World DM): the chat that owns it. Such a book is never in the Lorebooks library or any picker; only that chat scans it (through its meta's `worldBookId`), a fork gets its own copy and deleting the chat deletes the book. Never set it on another book. |
 
 ### Entry fields

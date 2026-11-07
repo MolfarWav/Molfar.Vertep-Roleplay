@@ -12,7 +12,7 @@ import type {
   Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
-import { cleanFolder, cleanFolderList } from './lore-folders'
+import { cleanFolder, cleanFolderList, cleanFolderTones } from './lore-folders'
 import { beginImport } from './import-progress'
 import { t } from './i18n'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -1573,7 +1573,7 @@ const LORE_ENTRY_KNOWN = new Set([
   'groupScoringOverride', 'wordFormsOverride', 'folder',
 ])
 const LORE_BOOK_KNOWN = new Set([
-  'id', 'name', 'folderId', 'folders', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
+  'id', 'name', 'folderId', 'folders', 'folderTones', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
   // a start-up summary's own fields (the plugin's bookSummary), never book data
   'stub', 'entryCount', 'tokens', 'rev',
 ])
@@ -1604,6 +1604,7 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
     settings: b.settings, vectorized: b.vectorized, isEmbedded: b.isEmbedded, formatTemplate: b.formatTemplate,
     folderId: b.folderId,
     ...(cleanFolderList(b.folders).length ? { folders: cleanFolderList(b.folders) } : {}),
+    ...(Object.keys(cleanFolderTones(b.folderTones)).length ? { folderTones: cleanFolderTones(b.folderTones) } : {}),
     entries: b.entries.map((e) => ({
       ...e.extra,
       uid: uidOf(e),
@@ -1675,6 +1676,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
     isEmbedded: b.isEmbedded === true,
     formatTemplate: (b.formatTemplate as string) ?? '',
     ...(cleanFolderList(b.folders).length ? { folders: cleanFolderList(b.folders) } : {}),
+    ...(Object.keys(cleanFolderTones(b.folderTones)).length ? { folderTones: cleanFolderTones(b.folderTones) } : {}),
     ...(extraOf(b, LORE_BOOK_KNOWN) ? { extra: extraOf(b, LORE_BOOK_KNOWN) } : {}),
     ...(typeof b.rev === 'string' && b.rev ? { rev: b.rev } : {}),
     // a start-up summary: the entries are not here yet

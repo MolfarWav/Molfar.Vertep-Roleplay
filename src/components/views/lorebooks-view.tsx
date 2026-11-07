@@ -21,7 +21,7 @@ import { exportAllBooks, exportOneBook } from '@/lib/lore-export'
 import { bookUsage } from '@/lib/lore-usage'
 import { askMolfar } from '@/lib/shell-bridge'
 import { entryFilterCounts, matchesEntryFilter, type BookFilter, type EntryFilter } from '@/lib/lore-filters'
-import { addToFolderList, buildTree, cleanFolderList, folderOf, hasFolders, listFolders, moveToFolder, removeFolder, renameFolder, renameInFolderList, setFolderEnabled } from '@/lib/lore-folders'
+import { addToFolderList, buildTree, cleanFolderList, cleanFolderTones, folderOf, isFolderTone, setFolderTone, type FolderTone, hasFolders, listFolders, moveToFolder, removeFolder, renameFolder, renameInFolderList, setFolderEnabled } from '@/lib/lore-folders'
 import type { Lorebook, LoreEntry } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { BookHeader } from '@/components/lore/book-header'
@@ -31,7 +31,7 @@ import { BookUsedBy } from '@/components/lore/book-used-by'
 import { BulkBar, EntryToolbar } from '@/components/lore/entry-toolbar'
 import { EntryRowHead } from '@/components/lore/entry-row-head'
 import { EntryEditor } from '@/components/lore/entry-editor'
-import { EntryTree, visibleEntries, FOLDER_PAGE } from '@/components/lore/entry-tree'
+import { EntryTree, LORE_DRAG, visibleEntries, FOLDER_PAGE } from '@/components/lore/entry-tree'
 import { MoveToFolderDialog, NewFolderDialog, RenameFolderDialog } from '@/components/lore/folder-dialogs'
 import { KeywordTest } from '@/components/lore/keyword-test'
 import { WiStatusView } from '@/components/lore/wi-status-view'
@@ -285,6 +285,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   // Folders: a book that has any shows its entries as a tree, a book with none keeps the flat paged list
   const listed = useMemo(() => cleanFolderList(book.folders), [book.folders])
   const folders = useMemo(() => listFolders(book.entries, listed), [book.entries, listed])
+  const tones = useMemo(() => cleanFolderTones(book.folderTones), [book.folderTones])
+  const toneOf = (name: string): FolderTone | undefined => { const x = tones[name]; return isFolderTone(x) ? x : undefined }
   const treeMode = hasFolders(book.entries, listed)
   const searching = query.trim() !== '' || filter !== 'all'
   const tree = useMemo(() => (treeMode ? buildTree(book.entries, entries, searching ? [] : listed) : null), [treeMode, book.entries, entries, searching, listed])
@@ -347,6 +349,11 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     if (name) openFolder(name)
     toast.success(name ? t('lore.folder.moved', { n: ids.length, name }) : t('lore.folder.movedOut', { n: ids.length }))
   }
+  /** Entries dropped on a folder (or on "No folder"). Dropping on the folder an entry already sits in changes nothing. */
+  const dropEntries = (ids: string[], name: string) => {
+    const moving = ids.filter((id) => { const e = book.entries.find((x) => x.id === id); return e && folderOf(e) !== name })
+    if (moving.length) moveTo(moving, name)
+  }
   const addEntry = (folder?: string) => {
     const e = { ...newEntry(), ...(folder ? { folder } : {}) }
     onUpdate({ entries: [e, ...book.entries] })
@@ -358,8 +365,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
     const ids = new Set(list.map((e) => e.id))
     return on ? [...new Set([...cur, ...ids])] : cur.filter((id) => !ids.has(id))
   })
-  const doRename = (from: string, to: string) => {
-    onUpdate({ entries: renameFolder(book.entries, from, to), folders: renameInFolderList(listed, from, to) })
+  const doRename = (from: string, to: string, tone: FolderTone | undefined) => {
+    onUpdate({ entries: renameFolder(book.entries, from, to), folders: renameInFolderList(listed, from, to), folderTones: setFolderTone(tones, from, to, tone) })
     setOpenFolders((cur) => {
       const next = [...new Set(cur.map((n) => (n === from ? to : n)))]
       saveOpen(book.id, next)
@@ -368,7 +375,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   }
   const doRemove = (name: string) => {
     const n = book.entries.filter((e) => folderOf(e) === name).length
-    onUpdate({ entries: removeFolder(book.entries, name), folders: renameInFolderList(listed, name, '') })
+    onUpdate({ entries: removeFolder(book.entries, name), folders: renameInFolderList(listed, name, ''), folderTones: setFolderTone(tones, name, '', undefined) })
     toast.success(t('lore.folder.removed', { n }))
   }
   /** A new, empty folder: it shows at once, open, ready for entries. */
@@ -391,7 +398,17 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const renderRow = (e: LoreEntry) => {
     const open = active?.id === e.id
     return (
-      <li key={e.id} className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60', open && 'border-ring bg-accent/40')}>
+      <li
+        key={e.id}
+        draggable={treeMode}
+        onDragStart={treeMode ? (ev) => {
+          // a ticked row drags every ticked entry; the rest drag alone
+          const ids = selecting && selected.includes(e.id) ? selected : [e.id]
+          ev.dataTransfer.setData(LORE_DRAG, JSON.stringify(ids))
+          ev.dataTransfer.effectAllowed = 'move'
+        } : undefined}
+        className={cn('rounded-lg border border-border', !e.enabled && 'opacity-60', open && 'border-ring bg-accent/40')}
+      >
         <EntryRowHead
           e={e}
           open={open}
@@ -475,6 +492,8 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
                   selected={selected}
                   onSelectMany={selectMany}
                   renderRow={renderRow}
+                  toneOf={toneOf}
+                  onDropEntries={dropEntries}
                   onAddHere={addEntry}
                   onEnableAll={(name, on) => onUpdate({ entries: setFolderEnabled(book.entries, name, on) })}
                   onRename={setRenaming}
@@ -544,7 +563,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
         onPick={(name) => { if (moveIds) moveTo(moveIds, name) }}
       />
       <NewFolderDialog open={newFolderOpen} onOpenChange={setNewFolderOpen} existing={folders.map((f) => f.name)} onCreate={createFolder} />
-      <RenameFolderDialog folder={renaming} folders={folders} onOpenChange={(o) => { if (!o) setRenaming(null) }} onRename={doRename} />
+      <RenameFolderDialog folder={renaming} folders={folders} tone={renaming ? toneOf(renaming) : undefined} onOpenChange={(o) => { if (!o) setRenaming(null) }} onRename={doRename} />
       {confirmDialog}
     </div>
   )

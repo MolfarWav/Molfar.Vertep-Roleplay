@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useT } from '@/hooks/use-t'
-import { FOLDER_NAME_MAX, cleanFolder, resolveFolderName, type FolderInfo } from '@/lib/lore-folders'
+import { TONES } from '@/components/ui/tone'
+import { FOLDER_NAME_MAX, FOLDER_TONES, cleanFolder, resolveFolderName, type FolderInfo, type FolderTone } from '@/lib/lore-folders'
+import type { MsgKey } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 /**
  * "Move to folder": the book's folders as a list, "No folder" on top, and a box to start a new one. The same dialog
@@ -74,24 +77,27 @@ export function MoveToFolderDialog({ open, onOpenChange, title, folders, current
   )
 }
 
-/** Rename a folder. A name another folder has joins the two, and the dialog says so. */
-export function RenameFolderDialog({ folder, folders, onOpenChange, onRename }: {
-  /** the folder being renamed; null = closed */
+/** Edit a folder: its name and its colour. A name another folder has joins the two, and the dialog says so. */
+export function RenameFolderDialog({ folder, folders, tone: current, onOpenChange, onRename }: {
+  /** the folder being edited; null = closed */
   folder: string | null
   folders: FolderInfo[]
+  /** the folder's colour now (undefined = the default) */
+  tone: FolderTone | undefined
   onOpenChange: (o: boolean) => void
-  onRename: (from: string, to: string) => void
+  onRename: (from: string, to: string, tone: FolderTone | undefined) => void
 }) {
   const t = useT()
   const [name, setName] = useState('')
-  useEffect(() => { if (folder !== null) setName(folder) }, [folder])
+  const [tone, setTone] = useState<FolderTone | undefined>(undefined)
+  useEffect(() => { if (folder !== null) { setName(folder); setTone(current) } }, [folder]) // eslint-disable-line react-hooks/exhaustive-deps
   const typed = cleanFolder(name)
   const target = folder === null ? '' : resolveFolderName(typed, folders.map((f) => f.name))
   const merges = folder !== null && typed !== '' && target !== folder && folders.some((f) => f.name === target)
   const submit = (ev: FormEvent) => {
     ev.preventDefault()
     if (folder === null || !typed) return
-    if (target !== folder) onRename(folder, target)
+    if (target !== folder || tone !== current) onRename(folder, target, tone)
     onOpenChange(false)
   }
   return (
@@ -110,6 +116,31 @@ export function RenameFolderDialog({ folder, folders, onOpenChange, onRename }: 
             autoFocus
           />
           {merges && <p className="text-caption text-muted-foreground">{t('lore.folder.mergeNote', { name: target })}</p>}
+          <div role="radiogroup" aria-label={t('lore.folder.colour')} className="flex flex-wrap items-center gap-2" data-testid="folder-colours">
+            <span className="mr-1 text-caption text-muted-foreground">{t('lore.folder.colour')}</span>
+            {[undefined, ...FOLDER_TONES].map((x) => {
+              const on = tone === x
+              const label = x ? t(`lore.folder.tone.${x}` as MsgKey) : t('lore.folder.tone.amber')
+              return (
+                <button
+                  key={x ?? 'default'}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  aria-label={label}
+                  title={label}
+                  onClick={() => setTone(x)}
+                  className={cn(
+                    'relative flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-10',
+                    on && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+                  )}
+                >
+                  <span className={cn('size-5 rounded-full', TONES[x ?? 'amber'].square)} />
+                  {on && <Check className="absolute size-3 text-white" weight="bold" aria-hidden="true" />}
+                </button>
+              )
+            })}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" className="max-md:h-10" onClick={() => onOpenChange(false)}>{t('lore.folder.cancel')}</Button>
             <Button type="submit" disabled={!typed} className="max-md:h-10">{t('lore.folder.save')}</Button>

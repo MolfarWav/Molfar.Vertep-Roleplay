@@ -1,12 +1,16 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type DragEvent, type ReactNode } from 'react'
 import { CaretRight, DotsThreeVertical, FolderOpen, FolderSimple, FolderSimpleDashed, Pencil, Plus, ToggleLeft, ToggleRight, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useT } from '@/hooks/use-t'
-import type { FolderGroup, FolderTree } from '@/lib/lore-folders'
+import { TONES } from '@/components/ui/tone'
+import type { FolderGroup, FolderTone, FolderTree } from '@/lib/lore-folders'
 import { cn } from '@/lib/utils'
 import { formatTokens } from '@/lib/tokens'
 import type { LoreEntry } from '@/lib/types'
+
+/** The drag payload of entry rows: a JSON list of entry ids. */
+export const LORE_DRAG = 'application/x-lore-entry-ids'
 
 /** How many entries of one folder show before "Show more". */
 export const FOLDER_PAGE = 50
@@ -24,7 +28,7 @@ export function visibleEntries(tree: FolderTree, isOpen: (name: string) => boole
  * no folder. A search or filter opens the folders that have a match (`searching`) and the head says "3 of 41".
  * The rows are the caller's (`renderRow`), so an entry looks the same in a folder and in the flat list.
  */
-export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, selecting, selected, onSelectMany, renderRow, onAddHere, onEnableAll, onRename, onRemove }: {
+export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, selecting, selected, onSelectMany, renderRow, toneOf, onDropEntries, onAddHere, onEnableAll, onRename, onRemove }: {
   tree: FolderTree
   searching: boolean
   isOpen: (name: string) => boolean
@@ -35,6 +39,10 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
   selected: string[]
   onSelectMany: (entries: LoreEntry[], on: boolean) => void
   renderRow: (e: LoreEntry) => ReactNode
+  /** the colour a folder wears (undefined = the default amber) */
+  toneOf: (name: string) => FolderTone | undefined
+  /** entries dropped on a folder ('' = the entries with no folder) */
+  onDropEntries: (ids: string[], folder: string) => void
   onAddHere: (name: string) => void
   onEnableAll: (name: string, on: boolean) => void
   onRename: (name: string) => void
@@ -42,6 +50,20 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
 }) {
   const t = useT()
   const ids = useId()
+  // drag and drop (a mouse): a row drags onto a folder or onto "No folder". `over` is the target lit up right now;
+  // `dragging` shows the "No folder" target even when every entry sits in a folder. A phone uses Move to folder.
+  const [dragging, setDragging] = useState(false)
+  const [over, setOver] = useState<string | null>(null)
+  const target = (name: string) => ({
+    onDragOver: (ev: DragEvent) => { if (ev.dataTransfer.types.includes(LORE_DRAG)) { ev.preventDefault(); ev.stopPropagation(); setOver(name) } },
+    onDragLeave: (ev: DragEvent) => { if (!(ev.currentTarget as HTMLElement).contains(ev.relatedTarget as Node | null)) setOver((o) => (o === name ? null : o)) },
+    onDrop: (ev: DragEvent) => {
+      ev.preventDefault(); ev.stopPropagation()
+      setOver(null); setDragging(false)
+      try { onDropEntries(JSON.parse(ev.dataTransfer.getData(LORE_DRAG)) as string[], name) } catch { /* not ours */ }
+    },
+  })
+  const lit = 'ring-2 ring-primary ring-offset-2 ring-offset-background'
   const more = (key: string, shown: number, total: number) => total > shown && (
     <li className="px-1 pt-1">
       <Button variant="ghost" size="sm" className="text-caption max-md:h-10" onClick={() => onMore(key)}>
@@ -50,15 +72,21 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
     </li>
   )
   return (
-    <ul className="flex flex-col gap-2" data-testid="entry-tree">
+    <ul
+      className="flex flex-col gap-2"
+      data-testid="entry-tree"
+      onDragStart={(ev) => { if (ev.dataTransfer.types.includes(LORE_DRAG)) setDragging(true) }}
+      onDragEnd={() => { setDragging(false); setOver(null) }}
+    >
       {tree.folders.map((f, i) => {
         const open = isOpen(f.name)
         const listId = `${ids}-${i}`
         const lim = limitOf(f.name)
         return (
-          <li key={f.name} data-testid="folder" data-folder={f.name}>
+          <li key={f.name} data-testid="folder" data-folder={f.name} className={cn('rounded-lg', over === f.name && lit)} {...target(f.name)}>
             <FolderHead
               f={f}
+              tone={toneOf(f.name)}
               open={open}
               listId={listId}
               searching={searching}
@@ -81,8 +109,8 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
           </li>
         )
       })}
-      {tree.loose.length > 0 && (
-        <li data-testid="folder-loose">
+      {(tree.loose.length > 0 || (dragging && tree.folders.length > 0)) && (
+        <li data-testid="folder-loose" className={cn('rounded-lg', over === '' && lit)} {...target('')}>
           {tree.folders.length > 0 && (
             <p className="flex items-center gap-2 px-1 pb-2 text-caption text-muted-foreground">
               <FolderSimpleDashed className="size-4 shrink-0" aria-hidden="true" />
@@ -102,8 +130,9 @@ export function EntryTree({ tree, searching, isOpen, onToggle, limitOf, onMore, 
 
 /** One folder's head: a button that opens and folds it (name, how many entries, their tokens), a checkbox while
  *  several are being selected, and the folder's menu. */
-function FolderHead({ f, open, listId, searching, selecting, checked, onCheck, onToggle, onAddHere, onEnableAll, onRename, onRemove }: {
+function FolderHead({ f, tone, open, listId, searching, selecting, checked, onCheck, onToggle, onAddHere, onEnableAll, onRename, onRemove }: {
   f: FolderGroup
+  tone: FolderTone | undefined
   open: boolean
   listId: string
   searching: boolean
@@ -140,7 +169,7 @@ function FolderHead({ f, open, listId, searching, selecting, checked, onCheck, o
         className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-11"
       >
         <CaretRight className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')} aria-hidden="true" />
-        <Icon className="size-5 shrink-0 text-amber-500" weight="fill" aria-hidden="true" />
+        <Icon className={cn('size-5 shrink-0', tone ? TONES[tone].ink : 'text-amber-500')} weight="fill" aria-hidden="true" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-body font-medium">{f.name}</span>
           <span className="text-caption text-muted-foreground">

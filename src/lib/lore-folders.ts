@@ -43,6 +43,33 @@ export const addToFolderList = (list: readonly string[], name: string): string[]
 export const renameInFolderList = (list: readonly string[], from: string, to: string): string[] =>
   cleanFolderList(list.map((n) => (n === from ? to : n)))
 
+/** The colours a folder may wear: the app's tone names (`ui/tone.ts`). A folder with none is amber (the default, so it is not listed). */
+export const FOLDER_TONES = ['sky', 'emerald', 'violet', 'pink', 'teal', 'slate'] as const
+export type FolderTone = (typeof FOLDER_TONES)[number]
+export const isFolderTone = (v: unknown): v is FolderTone => typeof v === 'string' && (FOLDER_TONES as readonly string[]).includes(v)
+
+/** The book's `folderTones` as it is stored: clean folder names, known tones only, a name that differs only in letter
+ *  case from an earlier one dropped. */
+export function cleanFolderTones(map: unknown): Record<string, FolderTone> {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return {}
+  const seen = new Set<string>()
+  const out: Record<string, FolderTone> = {}
+  for (const [k, v] of Object.entries(map)) {
+    const name = cleanFolder(k)
+    if (!name || !isFolderTone(v) || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    out[name] = v
+  }
+  return out
+}
+
+/** The colours after a folder is renamed and/or recoloured. `tone` is the colour the folder should have now (undefined =
+ *  the default). The old name's colour goes; a new name an existing folder has takes `tone` too. */
+export function setFolderTone(map: Readonly<Record<string, FolderTone>>, from: string, to: string, tone: FolderTone | undefined): Record<string, FolderTone> {
+  const rest = Object.fromEntries(Object.entries(map).filter(([k]) => k !== from && k.toLowerCase() !== to.toLowerCase()))
+  return cleanFolderTones(to && tone ? { ...rest, [to]: tone } : rest)
+}
+
 export interface FolderInfo {
   name: string
   /** every entry in the folder */

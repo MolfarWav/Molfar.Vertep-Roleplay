@@ -163,7 +163,7 @@ describe("a folder in the book file", () => {
 const treeProps = (over = {}) => ({
     tree: F.buildTree([], []), searching: false, isOpen: () => true, onToggle: () => {}, limitOf: () => 50, onMore: () => {},
     selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
-    onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
 });
 
 describe("the tree on screen", () => {
@@ -171,7 +171,7 @@ describe("the tree on screen", () => {
   const props = (over = {}) => ({
     tree: F.buildTree(all, all), searching: false, isOpen: (n: string) => n === "Characters", onToggle: () => {}, limitOf: () => 50, onMore: () => {},
     selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id} data-row={e.id}>{e.title}</li>,
-    onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
   });
 
   it("an open folder shows its entries, a closed one only its head", () => {
@@ -209,5 +209,40 @@ describe("the tree on screen", () => {
   it("while selecting, a folder has a checkbox that is checked when all its shown entries are", () => {
     const html = renderToStaticMarkup(<EntryTree {...props({ selecting: true, selected: ["e1", "e2"] })} />);
     expect(html).toMatch(/type="checkbox"[^>]*checked/);
+  });
+});
+
+describe("folder colours and dropping entries", () => {
+  it("keeps only known tones for clean names", () => {
+    expect(F.cleanFolderTones({ Places: "teal", places: "sky", "A/B": "pink", X: "neon", Y: "amber", " ": "sky" })).toEqual({ Places: "teal", "A-B": "pink" });
+    expect(F.cleanFolderTones(["sky"])).toEqual({});
+    expect(F.cleanFolderTones(null)).toEqual({});
+  });
+
+  it("a colour follows its folder through a rename and goes with a removal", () => {
+    expect(F.setFolderTone({ A: "sky" }, "A", "B", "sky")).toEqual({ B: "sky" });
+    expect(F.setFolderTone({ A: "sky", B: "teal" }, "A", "B", "pink")).toEqual({ B: "pink" });
+    expect(F.setFolderTone({ A: "sky" }, "A", "A", undefined)).toEqual({});
+    expect(F.setFolderTone({ A: "sky", B: "teal" }, "A", "", undefined)).toEqual({ B: "teal" });
+  });
+
+  it("rides the book file, and an old book or a stray value has none", () => {
+    const out = lorebookToEngine({ ...book([entry("e1")]), folderTones: { Places: "teal", Bad: "neon" } }) as unknown as { folderTones?: Record<string, string> };
+    expect(out.folderTones).toEqual({ Places: "teal" });
+    expect(engineLorebookToUI(out as never, "b").folderTones).toEqual({ Places: "teal" });
+    expect("folderTones" in (lorebookToEngine(book([entry("e1")])) as object)).toBe(false);
+    expect(engineLorebookToUI({ name: "Odd", folderTones: "x", entries: [] } as never, "b").folderTones).toBeUndefined();
+  });
+
+  const all = [entry("e1", { folder: "Characters" }), entry("e2")];
+  const props = (over = {}) => ({
+    tree: F.buildTree(all, all), searching: false, isOpen: () => true, onToggle: () => {}, limitOf: () => 50, onMore: () => {},
+    selecting: false, selected: [] as string[], onSelectMany: () => {}, renderRow: (e: Entry) => <li key={e.id}>{e.title}</li>,
+    toneOf: () => undefined, onDropEntries: () => {}, onAddHere: () => {}, onEnableAll: () => {}, onRename: () => {}, onRemove: () => {}, ...over,
+  });
+
+  it("a folder wears its colour; with none it stays amber", () => {
+    expect(renderToStaticMarkup(<EntryTree {...props({ toneOf: () => "teal" })} />)).toContain("text-teal-700");
+    expect(renderToStaticMarkup(<EntryTree {...props()} />)).toContain("text-amber-500");
   });
 });

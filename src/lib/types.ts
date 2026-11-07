@@ -603,6 +603,8 @@ export interface Lorebook {
   entries: LoreEntry[]
   /** Entry folders that exist even with no entry in them (a folder with entries exists without being listed). Names, one level. */
   folders?: string[]
+  /** The colour of a folder by name (`sky`, `emerald`, ...); a folder with none is amber. Cosmetic only. */
+  folderTones?: Record<string, string>
   settings: {
     scanDepth: number
     contextPercent: number
