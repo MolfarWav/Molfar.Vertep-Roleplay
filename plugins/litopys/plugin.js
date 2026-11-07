@@ -1103,6 +1103,10 @@ export const DEFAULT_CONFIG = {
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
   // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
   hiddenPlan: false,
+  // #184 step 8 (#264): passages of the earlier chats of the chain, word for word, found by rare shared words. Off by default;
+  // the budget is in tokens (VERBATIM_MIN to VERBATIM_MAX)
+  verbatim: false,
+  verbatimBudget: 400,
   // #184: the chapter worker also writes a few search words (synonyms, the story's own language) for each new fact and for the chapter,
   // kept as `also` and read only by the word search, never shown to the model
   searchWords: true,
@@ -1406,6 +1410,8 @@ export function loadConfig(fsx) {
   cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
+  cfg.verbatim = cfg.verbatim === true;
+  cfg.verbatimBudget = clamp(intOf(cfg.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
   cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
@@ -1497,6 +1503,8 @@ export function patchConfig(fsx, body) {
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
+  if (b.verbatim !== undefined) next.verbatim = b.verbatim === true || b.verbatim === "on";
+  if (b.verbatimBudget !== undefined) next.verbatimBudget = clamp(intOf(b.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -3168,10 +3176,33 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
+    // word-for-word passages of the earlier chats of the chain (#184 step 8): off by default, off with the Litopys switch and
+    // with "start clean" (the chat's Dashboard)
+    let verbatim = null;
+    if (!litOff && cfg.verbatim === true && line.length && !offForChat(fsx, chatId, "plugin:verbatim")) {
+      try {
+        const dashNow = readDash(fsx, chatId);
+        if (!(isObj(dashNow) && isObj(dashNow.inherited) && dashNow.inherited.off === true)) {
+          const vcanon = litCanon(fsx, chatId, rc.meta);
+          const vkey = keyOf(vcanon);
+          const sole = soleVoice(fsx, rc.meta, speakerName);
+          const recent = req.messages
+            .filter((m) => m && m.role !== "system" && typeof m.content === "string")
+            .slice(-RECALL_SCAN_MESSAGES)
+            .map((m) => m.content)
+            .join("\n");
+          verbatim = verbatimFor({ fsx, chatId, scanText: recent, voices: sole instanceof Set && sole.size ? new Set([...sole].map(vkey)) : null, key: vkey, budget: cfg.verbatimBudget });
+        }
+      } catch (e) {
+        try {
+          host.log("litopys verbatim: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
     // the hidden plan: only beside the brief, only on a new reply
     let plan = null;
     if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn) return null;
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim) return null;
     // #184 P6: the trace of the reply before this one moves into a short ring (the newest stays in the insert file)
     try {
       if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
@@ -3197,6 +3228,7 @@ export function llmRequest(ctx, host) {
           ...(worldMem ? { worldMemory: { worldId: worldMem.ownerId, tokens: worldMem.tokens, sources: worldMem.sources, dupes: worldMem.dupes } } : {}),
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
           ...(recall ? { recollections: { tokens: recall.tokens, scenes: recall.scenes, who: recall.who } } : {}),
+          ...(verbatim ? { verbatim: { tokens: verbatim.tokens, chunks: verbatim.chunks, chats: verbatim.chats, rows: verbatim.rows } } : {}),
         }),
       );
     } catch {}
@@ -3244,6 +3276,11 @@ export function llmRequest(ctx, host) {
       const t_recall_text = said(recall.text);
       messages = withInsert(messages, t_recall_text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · recollections", text: t_recall_text.trim() });
+    }
+    if (verbatim && verbatim.text) {
+      const t_verbatim_text = said(verbatim.text);
+      messages = withInsert(messages, t_verbatim_text);
+      promptSources.parts.push({ kind: "memory", label: "Litopys · earlier, word for word", text: t_verbatim_text.trim() });
     }
     if (insert && insert.head) {
       const t_insert_head = said(insert.head);
@@ -4442,7 +4479,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -4452,7 +4489,7 @@ export function pruneOrphans(fsx, store, files) {
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
       // a long chat's vectors go on in `<chatId>.p2.json`, ...: they live and die with the main file's chat
-      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : f.slice(0, -5);
+      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.t$/, "") : f.slice(0, -5);
       // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
       if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
       if (!live.has(id)) {
@@ -5194,6 +5231,16 @@ export function onTick(_ctx, host) {
     } catch {}
     const store = loadStore(fsx);
     if (pruneOrphans(fsx, store, all)) saveStore(fsx, store);
+    // the word-for-word indexes of the chats other chats continue stay current (#184 step 8)
+    if (cfg.verbatim === true) {
+      try {
+        recallRefresh(fsx);
+      } catch (e) {
+        try {
+          host.log("litopys verbatim index: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
 
     if (host.llm && host.llm.embedResults) {
       for (const key of Object.keys(host.llm.embedResults)) {
@@ -6621,6 +6668,289 @@ function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFact
   for (const f of facts) usedFacts.add(factKey(f));
   const text = render();
   return { text, tokens: estimateTokens(text), from, facts: facts.length, chapters: story.length };
+}
+
+// ---------- word-for-word memories of earlier chats of the chain (#184 step 8, #264) ----------
+// A chapter is a retelling, so a small detail (a cloak's colour, an exact promise) can be gone from the record. This part
+// finds the ORIGINAL passages of the earlier chats of the chat's chain (the whole chain, not the backstory's three) that
+// share rare words with what is being said now, and puts one or two of them in the prompt, labelled as older than the facts.
+// Words only: a chunk is let in by rare shared words (vectors may reorder it later, not admit it). Off by default.
+const RECALL_DIR = "litopys/recall/";
+const RECALL_V = 1;
+/** The rarest words are the ones that find a passage: a stem in at most this many chunks of its chat is indexed. */
+const RECALL_RARE_DF = 6;
+const RECALL_CHAIN_MAX = 40;
+const RECALL_CHUNKS_MAX = 2400;
+const RECALL_CHUNK_CHARS = 700;
+const RECALL_CHUNK_CHARS_MAX = 2000;
+/** One index file stays well below the engine's 4 MB plugin write limit. */
+const RECALL_FILE_MAX = 3500000;
+const RECALL_EXCERPTS = 2;
+const RECALL_PICKED = 4;
+export const VERBATIM_BUDGET = 400;
+export const VERBATIM_MIN = 150;
+export const VERBATIM_MAX = 1200;
+/** The newest messages a find looks at: the reply that is being answered and the two before. */
+const RECALL_SCAN_MESSAGES = 3;
+
+const recallStem = (t) => wordStemM3b(t);
+const recallStemsOf = (text) => [...new Set(wordTokensM3b(text).map(recallStem).filter((s) => s.length >= 4))];
+
+/** Every earlier chat of the chat's chain, nearest first, cycle-safe (the links file allows one predecessor a chat). */
+export function recallChain(fsx, chatId, links = loadLinks(fsx)) {
+  const out = [];
+  const seen = new Set([chatId]);
+  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && out.length < RECALL_CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
+    seen.add(cur);
+    out.push(cur);
+  }
+  return out;
+}
+
+/** A message as one line of a passage: "Name: text", spaces folded. */
+function recallLine(m) {
+  const text = str(m && m.text).replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const name = str(m.name) || (m.role === "user" ? "You" : "");
+  return name ? name + ": " + text : text;
+}
+
+/** A long line cut at sentence ends into pieces of at most `size` characters. */
+function recallPieces(line, size) {
+  if (line.length <= size) return [line];
+  const out = [];
+  let rest = line;
+  while (rest.length > size) {
+    const head = rest.slice(0, size);
+    const at = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("… "));
+    const end = at > size * 0.4 ? at + 1 : size;
+    out.push(rest.slice(0, end).trim());
+    rest = rest.slice(end).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+/**
+ * The passages of one chat: its active line cut into chunks of about RECALL_CHUNK_CHARS characters, never across a chapter
+ * (a chunk carries the `cast` of its chapter, so the speaker filter of the story applies to it), and the index of the rare
+ * stems. A chat too long for RECALL_CHUNKS_MAX chunks gets bigger chunks. Pure: `st` is the chat's Litopys record or null.
+ */
+export function recallBuild(msgs, st) {
+  const line = activeLine(msgs);
+  const chapAt = new Array(line.length).fill(null);
+  for (const ch of arr(st && st.chapters)) {
+    if (!isObj(ch) || ch.stale) continue;
+    const r = rangeOf(ch, line);
+    if (r.orphan) continue;
+    for (let i = r.fromIdx; i <= r.toIdx && i < line.length; i++) chapAt[i] = ch;
+  }
+  const lines = line.map(recallLine);
+  const total = lines.reduce((n, l) => n + l.length, 0);
+  const size = clamp(Math.ceil(total / (RECALL_CHUNKS_MAX - 100)), RECALL_CHUNK_CHARS, RECALL_CHUNK_CHARS_MAX);
+  const chunks = [];
+  let buf = [];
+  let bufLen = 0;
+  let bufFrom = null;
+  let bufTo = null;
+  let bufCh = null;
+  const flush = () => {
+    if (buf.length) {
+      const cast = arr(bufCh && bufCh.cast).map(str).filter(Boolean);
+      chunks.push({ t: buf.join("\n"), a: str(bufFrom), b: str(bufTo), ...(cast.length ? { c: cast } : {}) });
+    }
+    buf = [];
+    bufLen = 0;
+    bufFrom = null;
+    bufTo = null;
+    bufCh = null;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (!lines[i]) continue;
+    if (buf.length && chapAt[i] !== bufCh) flush();
+    for (const piece of recallPieces(lines[i], size)) {
+      if (buf.length && bufLen + piece.length + 1 > size) flush();
+      if (!buf.length) {
+        bufFrom = line[i].id;
+        bufCh = chapAt[i];
+      }
+      buf.push(piece);
+      bufLen += piece.length + 1;
+      bufTo = line[i].id;
+    }
+  }
+  flush();
+  const capped = chunks.slice(0, RECALL_CHUNKS_MAX);
+  const df = new Map();
+  const where = new Map();
+  capped.forEach((c, idx) => {
+    for (const s of recallStemsOf(c.t)) {
+      df.set(s, (df.get(s) || 0) + 1);
+      if (!where.has(s)) where.set(s, []);
+      where.get(s).push(idx);
+    }
+  });
+  const p = {};
+  // rare means rare in this chat: a word in a tenth of the chunks (at most RECALL_RARE_DF of them) is not a detail
+  const rareMax = clamp(Math.floor(capped.length * 0.1), 1, RECALL_RARE_DF);
+  for (const [s, n] of df) if (n <= rareMax) p[s] = where.get(s);
+  return { chunks: capped, p };
+}
+
+/** Writes the two files of a chat's index (postings and texts); false when it does not fit. */
+function recallSave(fsx, chatId, title, rev, built) {
+  const head = JSON.stringify({ v: RECALL_V, rev, built: Date.now(), n: built.chunks.length, title: cut(str(title), 80), p: built.p });
+  const body = JSON.stringify({ v: RECALL_V, chunks: built.chunks });
+  if (head.length > RECALL_FILE_MAX || body.length > RECALL_FILE_MAX) return false;
+  fsx.write(RECALL_DIR + chatId + ".t.json", body);
+  fsx.write(RECALL_DIR + chatId + ".json", head);
+  return true;
+}
+
+/** Builds and keeps the index of one chat. null when the chat is gone, empty or too big for a file. */
+export function recallIndexChat(fsx, chatId) {
+  const rc = readChat(fsx, chatId);
+  if (!rc) return null;
+  const st = loadChatFile(fsx, chatId);
+  const built = recallBuild(rc.msgs, st);
+  if (!built.chunks.length) return null;
+  const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
+  const title = str(rc.meta && rc.meta.title);
+  if (!recallSave(fsx, chatId, title, rev, built)) return null;
+  return { v: RECALL_V, rev, n: built.chunks.length, title, p: built.p };
+}
+
+/** The index of a chat, built on first use. A finished chat is not read again until the tick sees its record change. */
+function recallIndexOf(fsx, chatId) {
+  const have = readJson(fsx, RECALL_DIR + chatId + ".json", null);
+  if (isObj(have) && have.v === RECALL_V && isObj(have.p)) return have;
+  return recallIndexChat(fsx, chatId);
+}
+
+/**
+ * The tick keeps the indexes of the chats other chats continue: one chat a tick, rebuilt when its Litopys record has a new
+ * revision (a rebuild, an edit) since the index was made. Chats that no chat continues are never indexed.
+ */
+export function recallRefresh(fsx) {
+  const links = loadLinks(fsx);
+  const sources = [...new Set(Object.values(links).map((l) => str(l && l.from)).filter(Boolean))];
+  for (const id of sources) {
+    const have = readJson(fsx, RECALL_DIR + id + ".json", null);
+    if (!isObj(have)) continue; // built on the first reply that needs it
+    const st = loadChatFile(fsx, id);
+    const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
+    if (have.v === RECALL_V && have.rev === rev) continue;
+    recallIndexChat(fsx, id);
+    return id;
+  }
+  return null;
+}
+
+/** P(X >= k) for a Poisson count with mean `lambda`, summed from the head so a tiny tail does not vanish. */
+function poissonTail(k, lambda) {
+  let term = Math.exp(-lambda);
+  for (let j = 1; j <= k; j++) term *= lambda / j; // P(X = k)
+  let sum = 0;
+  for (let j = k; j < k + 40; j++) {
+    sum += term;
+    term *= lambda / (j + 1);
+  }
+  return Math.min(1, sum);
+}
+
+/**
+ * The chunks of one chat that share more of the scan's rare stems than chance explains. A random chunk holds each indexed
+ * scan stem with probability df/n, so it shares about `lambda` = sum(df/n) of them; a chunk with `k` shared is admitted when
+ * the chance that ANY of the n chunks gets k by luck (n times the Poisson tail) is below RECALL_CHANCE. That makes the rule
+ * independent of how long the chat or the scan is: a long scan or a big chat asks for more, a planted detail needs two or three
+ * words only. `sig` is the minus log of that chance, the order of the finds.
+ */
+const RECALL_CHANCE = 0.003;
+function recallCandidates(index, scanStems) {
+  const n = Math.max(1, Number(index.n) || 1);
+  const hit = new Map();
+  let lambda = 0;
+  for (const s of scanStems) {
+    const list = index.p[s];
+    if (!Array.isArray(list)) continue;
+    lambda += list.length / n;
+    for (const i of list) {
+      const h = hit.get(i) || { n: 0, stems: [] };
+      h.n += 1;
+      h.stems.push(s);
+      hit.set(i, h);
+    }
+  }
+  const out = [];
+  for (const [i, h] of hit) {
+    if (h.n < 2) continue;
+    const chance = n * poissonTail(h.n, lambda);
+    if (chance <= RECALL_CHANCE) out.push({ i, n: h.n, stems: h.stems, w: Math.round(-Math.log(Math.max(chance, 1e-300)) * 10) / 10 });
+  }
+  return out;
+}
+
+/** The part of a passage around the first rare word the scan shares, at most `max` characters, cut at spaces. */
+function recallExcerpt(text, stems, max) {
+  if (text.length <= max) return text;
+  const words = [...text.matchAll(/[\p{L}\p{N}']+/gu)];
+  const hitWord = words.find((w) => stems.includes(recallStem(normTextM3b(w[0]).replace(/^'+|'+$/g, ""))));
+  const at = hitWord ? hitWord.index : 0;
+  let from = Math.max(0, at - Math.floor(max / 3));
+  let to = Math.min(text.length, from + max);
+  from = Math.max(0, to - max);
+  const sp = text.indexOf(" ", from);
+  if (from > 0 && sp >= 0 && sp < from + 40) from = sp + 1;
+  const ep = text.lastIndexOf(" ", to);
+  if (to < text.length && ep > from + max * 0.6) to = ep;
+  return (from > 0 ? "… " : "") + text.slice(from, to).trim() + (to < text.length ? " …" : "");
+}
+
+/**
+ * The word-for-word part of a reply: null when nothing in the earlier chats shares enough rare words with the scan, or the
+ * chat continues nothing. `voices` (the speaking character's names, keyed like `key`) keeps out a passage of a chapter the
+ * speaker did not witness. At most RECALL_EXCERPTS passages, together within `budget` tokens.
+ */
+export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n).toLowerCase(), budget, links }) {
+  const chain = recallChain(fsx, chatId, links);
+  if (!chain.length) return null;
+  const scanStems = recallStemsOf(scanText);
+  if (scanStems.length < 3) return null;
+  const found = [];
+  chain.forEach((id, near) => {
+    const index = recallIndexOf(fsx, id);
+    if (!index) return;
+    for (const c of recallCandidates(index, scanStems)) found.push({ id, near, title: index.title, ...c });
+  });
+  if (!found.length) return null;
+  // the best match first; a tie goes to the nearer chat and the later passage
+  found.sort((a, b) => b.w - a.w || b.n - a.n || a.near - b.near || b.i - a.i);
+  const texts = new Map();
+  const head = "[Earlier in this story, word for word: passages of an earlier chat that share rare words with what is being said now. The facts and what has happened since are newer and win over them.]";
+  const room = Math.max(60, clamp(intOf(budget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX) - estimateTokens(head));
+  const parts = [];
+  const rows = [];
+  let spent = 0;
+  for (const f of found.slice(0, RECALL_PICKED)) {
+    if (parts.length >= RECALL_EXCERPTS) break;
+    if (!texts.has(f.id)) texts.set(f.id, arr((readJson(fsx, RECALL_DIR + f.id + ".t.json", null) || {}).chunks));
+    const chunk = texts.get(f.id)[f.i];
+    if (!isObj(chunk) || !str(chunk.t)) continue;
+    if (!witnessed({ cast: chunk.c }, voices, key)) continue;
+    const label = 'From "' + (str(f.title) || f.id) + '":\n';
+    const left = room - spent - estimateTokens(label);
+    if (left < 40) break;
+    const text = recallExcerpt(chunk.t, f.stems, Math.min(1400, left * 3));
+    const part = label + text;
+    const tokens = estimateTokens(part);
+    if (tokens > room - spent) continue;
+    parts.push(part);
+    rows.push({ c: f.id, i: f.i, t: cut(str(f.title), 80), a: str(chunk.a), b: str(chunk.b), w: f.w, n: f.n, x: recallExcerpt(chunk.t, f.stems, 240) });
+    spent += tokens;
+  }
+  if (!parts.length) return null;
+  const text = head + "\n" + parts.join("\n\n");
+  return { text, tokens: estimateTokens(text), chunks: parts.length, chats: new Set(rows.map((r) => r.c)).size, rows };
 }
 
 // ---------- M4a: the user edits the record ----------
@@ -8925,9 +9255,19 @@ function traceRoute(fsx, query) {
         sem: isObj(tr.sem) ? { scan: tr.sem.scan === true, have: Number(tr.sem.have) || 0, seen: Number(tr.sem.seen) || 0, why: str(tr.sem.why), model: str(tr.sem.model) } : null,
         facts: outFacts,
         chapters: outChapters,
+        // the word-for-word passages of the newest reply (#184 step 8): the earlier chat, the shared rare words, the start of the passage
+        verbatim: back === 0 ? verbatimRows(fsx, newest) : [],
       },
     },
   };
+}
+
+/** The passages the newest reply carried word for word, for the Memory view: [{ chat, title, words, text }]. */
+export function verbatimRows(_fsx, insertFile) {
+  const rows = isObj(insertFile) && isObj(insertFile.verbatim) ? arr(insertFile.verbatim.rows) : [];
+  return rows
+    .filter((r) => isObj(r) && SAFE_ID.test(str(r.c)))
+    .map((r) => ({ chat: str(r.c), title: str(r.t), words: Number(r.n) || 0, text: str(r.x) }));
 }
 
 /**

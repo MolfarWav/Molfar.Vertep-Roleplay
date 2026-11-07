@@ -203,6 +203,14 @@ describe("prompt board: keys, board list, history filter", () => {
     }
   });
 
+  it("the word-for-word part has a switch on the board only while the Litopys setting is on (#184 step 8)", () => {
+    expect(preview(chat(), "Hello.").sources.board.some((x) => x.key === "plugin:verbatim")).toBe(false);
+    fs.mkdirSync(path.join(root, "litopys"), { recursive: true });
+    fs.writeFileSync(path.join(root, "litopys/config.json"), JSON.stringify({ verbatim: true }));
+    const row = preview(chat(), "Hello.").sources.board.find((x) => x.key === "plugin:verbatim");
+    expect(row).toMatchObject({ label: "Earlier, word for word", kind: "memory", state: "on" });
+  });
+
   it("sources.board lists all sections in order with states, lorebook, and the four fixed keys", () => {
     const p = preview(chat(), "Hello.");
     const board = p.sources.board;

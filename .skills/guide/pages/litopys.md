@@ -16,6 +16,10 @@ Litopys (the chronicle) is the long memory of one chat. It reads the story in th
 
 Press **Record** in the chat header (on a phone, in the Menu) for this chat's record in a side panel. The **Library** section of the rail shows every chat's record. It has two views: Overview (a timeline, a card per character, waiting proposals) and Details with the tabs Chapters, Facts, Proposals, Habits, Activity and Settings. The Activity tab logs what Litopys did, with Undo where possible. The gear ("Litopys settings") sets how the record is written.
 
+## Word-for-word memories of earlier chats
+
+A chapter is a retelling, so a small detail (a cloak's colour, an exact promise) can be missing from it. When this chat continues earlier chats ([[long-chats]]), switch on **Word-for-word memories of earlier chats** in the Library, Litopys settings, block "In the prompt". Then, when what is being said shares several rare words with an earlier passage, one or two passages of the ORIGINAL messages go into the prompt, labelled as older than the facts. It reads the whole chain, not only the three nearest chats, and a character only gets a passage of a scene the character was in. No model call; it is off by default and takes at most "Word-for-word budget" tokens (400 by default). If nothing shares enough rare words, nothing is added. The Memory view and the Fired panel list what was added for the last reply; the Canvas Prompt board has its own switch for the chat.
+
 ## What goes into the prompt
 
 By default the record is inserted automatically. "Memory size" says how many tokens it may take: Auto by default (15% of the model's window, at least 800 and at most 16000), Compact (800 tokens) or Custom from 200 up to 16000. Auto lets a big window carry more of the story; on a small model it stays near 800. A size you saved yourself earlier stays as it was. When everything fits, all of it is sent; otherwise the parts that matter most to the scene. A small model wants a small size. "Chapters and facts" off means no new chapters or facts and nothing added to the prompt.
