@@ -205,6 +205,8 @@ function ThinkBlock({ text, ms, live, open, onOpenChange, onEdit }: {
 
 /** stable fallback: a fresh {} would make every render a new value */
 const EMPTY_THINK_OPEN: Record<number, boolean> = {}
+/** The message actions an archived chat keeps (#263): the ones that do not change the transcript. */
+const READ_ONLY_ACTIONS: ReadonlySet<string> = new Set(['copy', 'speak', 'fork', 'genData', 'peek'])
 
 const NO_VOICES: DialogueVoice[] = []
 
@@ -551,7 +553,10 @@ export const MessageRow = memo(function MessageRow({
   const realUsage = !isUser ? swipe?.usage : undefined
   const msgCost = knownCost(realUsage)
 
+  // an archived chat (#263) is read only: no editing, swiping, regenerating, hiding, moving, deleting or marking
+  const readOnly = chat.archived === true
   const startEdit = () => {
+    if (readOnly) return
     setDraft(swipe?.content ?? '')
     setEditing(true)
   }
@@ -588,7 +593,7 @@ export const MessageRow = memo(function MessageRow({
   if (settings.showMessageIds) meta.push({ k: "id", node: <span>#{index}</span> })
 
   const canAct = !editing && !isStreamingThis && !slidePhase
-  const showSwipes = !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis
+  const showSwipes = !readOnly && !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis
   const pinned = settings.expandMessageActions || coarsePointer
 
   const runAction = (id: MessageActionId) => {
@@ -613,6 +618,9 @@ export const MessageRow = memo(function MessageRow({
     hidden: !!message.hidden, bookmarked: !!message.bookmarked,
     translated: !!message.translation, translating: translateBusy, speaking: isSpeaking,
   })
+    // read only: what only looks, reads aloud, copies or branches into a new chat stays
+    .map((g) => (readOnly ? { ...g, items: g.items.filter((i) => READ_ONLY_ACTIONS.has(i.id)) } : g))
+    .filter((g) => g.items.length > 0)
 
   const moreMenu = (
     <DropdownMenu>
@@ -802,7 +810,7 @@ export const MessageRow = memo(function MessageRow({
                     </button>
                   }
                 />
-                {!reasonEditing && (
+                {!reasonEditing && !readOnly && (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -890,7 +898,7 @@ export const MessageRow = memo(function MessageRow({
                                 ms={p.ms}
                                 open={thinkOpen[n] ?? settings.reasoningAutoExpand}
                                 onOpenChange={(o) => thinkToggle(n, o)}
-                                onEdit={(t) => editThinkPart(chat.id, message.id, i, t)}
+                                onEdit={readOnly ? undefined : (t) => editThinkPart(chat.id, message.id, i, t)}
                               />
                             </div>
                           )
@@ -985,15 +993,17 @@ export const MessageRow = memo(function MessageRow({
               )}
               {canAct && (
                 <div data-guide={isLast ? 'chat.actions' : undefined} data-guide-reveal className={cn('ls-acts', pinned && 'is-pinned', coarsePointer && 'is-touch')}>
-                  <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.edit')} onClick={startEdit}>
-                    <PencilSimple aria-hidden="true" />
-                    <span className="ls-act-label">{t('msg.edit')}</span>
-                  </Button>
+                  {!readOnly && (
+                    <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.edit')} onClick={startEdit}>
+                      <PencilSimple aria-hidden="true" />
+                      <span className="ls-act-label">{t('msg.edit')}</span>
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.copy')} onClick={copyBody}>
                     <Copy aria-hidden="true" />
                     <span className="ls-act-label">{t('msg.copy')}</span>
                   </Button>
-                  {!isUser && (
+                  {!isUser && !readOnly && (
                     <Button variant="ghost" size="sm" className="ls-act" aria-label={t('msg.regenerate')} onClick={() => regenerate(chat.id)}>
                       <ArrowsClockwise aria-hidden="true" />
                       <span className="ls-act-label">{t('msg.regenerate')}</span>

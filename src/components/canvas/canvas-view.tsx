@@ -4,6 +4,7 @@ import { takeCanvasFocus } from './canvas-focus'
 import { CanvasBoard } from '@/canvas-kit/canvas-board'
 import { CHAT_LINKS, boardFromChats, linkChanges } from '@/canvas-kit/boards/chat-links'
 import { fetchLitChats, setLitLink, type LitChatItem } from '@/components/library/litopys-api'
+import { archiveAfterLink } from '@/lib/archive'
 import { historyOf, commit, undo as undoHistory, redo as redoHistory, layoutForest, canConnect, connect as applyConnect, removeEdge, removeNode, moveNode } from '@/canvas-kit/graph'
 import type { CanvasNode, Graph, History } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
@@ -237,6 +238,7 @@ export function CanvasView() {
       for (const ch of linkChanges(prev, next)) {
         if (!stored.has(ch.chatId) || stored.get(ch.chatId) === ch.from) continue
         await setLitLink(ch.chatId, ch.from)
+        if (ch.from) void archiveAfterLink(ch.from)
         setChats((cs) => (cs ? cs.map((c) => (c.id === ch.chatId ? { ...c, continues: ch.from } : c)) : cs))
       }
     },

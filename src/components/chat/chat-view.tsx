@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { PaintBrush, Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Archive, PaintBrush, Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -42,6 +42,9 @@ import { cssAttrValue, scopeChatCss, scopeCss } from '@/lib/scope-css'
 import { ChatCssSheet } from '@/components/chat/chat-css-sheet'
 import { toast } from 'sonner'
 import { MessageRow } from './message-row'
+import { ArchivedBanner, ArchivedFooter } from './archived-banner'
+import { ArchiveDialog } from '@/components/chats/archive-dialog'
+import { isArchived } from '@/lib/archive'
 import { Composer } from './composer'
 import { GroupMemberBar, GroupPicker } from './group-member-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
@@ -222,6 +225,7 @@ export function ChatView() {
     return () => window.removeEventListener(GUIDE_MENU_EVENT, open)
   }, [])
   const [manageOpen, setManageOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
   const [portraitOpen, setPortraitOpen] = useState(false)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   // group auto mode: keep the scene moving while this chat is open — a bare
@@ -702,7 +706,7 @@ export function ChatView() {
     { key: 'record', icon: Brain, label: t('lit.recordTitle'), onSelect: () => setSummaryOpen(true) },
     { key: 'world', icon: GlobeHemisphereWest, label: t('world.menu'), onSelect: () => setWorldOpen(true) },
     ...(carries.result.visible ? [{ key: 'carries', icon: Stack, label: t('carries.title'), onSelect: () => carries.setOpen(true) }] : []),
-    ...(!character.isGroup ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
+    ...(!character.isGroup && !isArchived(chat) ? [{ key: 'convert', icon: UserPlus, label: 'Convert to group', onSelect: () => setConvertOpen(true) }] : []),
     { key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },
     { key: 'bookmarks', icon: BookmarkSimple, label: 'Bookmarks', onSelect: () => setBookmarksOpen(true) },
     { key: 'voices', icon: Palette, label: t('voices.chat.menu'), onSelect: () => setVoicesOpen(true) },
@@ -713,7 +717,12 @@ export function ChatView() {
   const chatManage: ChatAction[] = [
     { key: 'new', icon: ChatCenteredText, label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming },
     { key: 'continue', icon: LinkSimple, label: t('chat.continueNew'), onSelect: () => void continueInNewChat(chat.id), disabled: isStreaming },
-    { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
+    ...(isArchived(chat)
+      ? []
+      : [
+          { key: 'archive', icon: Archive, label: t('chat.archive.menu'), onSelect: () => setArchiveOpen(true), disabled: isStreaming },
+          { key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },
+        ]),
     { key: 'files', icon: FolderOpen, label: 'Manage chat files', onSelect: () => setManageOpen(true) },
   ]
   // the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest
@@ -991,6 +1000,8 @@ export function ChatView() {
       {/* this chat's own CSS, after the character's: scoped to this chat's view, so it cannot restyle the app around it */}
       {(cssDraft ?? chat.css ?? '').trim() ? <style data-chat-css dangerouslySetInnerHTML={{ __html: scopeChatCss(cssDraft ?? chat.css ?? '', `[data-chat-id="${cssAttrValue(chat.id)}"]`) }} /> : null}
 
+      {isArchived(chat) && <ArchivedBanner chat={chat} />}
+
       {/* Group member bar */}
       {character.isGroup && <GroupMemberBar chat={chat} group={character} />}
 
@@ -1125,15 +1136,17 @@ export function ChatView() {
         </div>
       </div>
 
-      {!deleteMode && <AgentBlock chatId={chat.id} />}
-      {!deleteMode && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
+      {!deleteMode && !isArchived(chat) && <AgentBlock chatId={chat.id} />}
+      {!deleteMode && !isArchived(chat) && <AgentChoices chatId={chat.id} msgKey={lastAgentKey} />}
       {!deleteMode && !windowKnown && defaultModel && <WindowUnknownNote model={defaultModel} assumed={UNKNOWN_WINDOW} />}
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
-        {!deleteMode && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}
+        {!deleteMode && !isArchived(chat) && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}
         {/* While selecting, `chat-column` keeps the bulk bar inset to the
             message column so it lines up with the composer it replaces. */}
-        {deleteMode ? (
+        {isArchived(chat) ? (
+          <ArchivedFooter chat={chat} />
+        ) : deleteMode ? (
           <div className="chat-column mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
             <span className="text-sm font-medium">
               {selectedIds.length === 0
@@ -1179,6 +1192,8 @@ export function ChatView() {
       </div>
       <DashStripMount chatId={chat.id} />
       </div>
+
+      <ArchiveDialog ids={archiveOpen ? [chat.id] : null} onClose={() => setArchiveOpen(false)} />
 
       {chat.characterId && (
         <ManageChatsDialog open={manageOpen} onOpenChange={setManageOpen} characterId={chat.characterId} currentChatId={chat.id} />

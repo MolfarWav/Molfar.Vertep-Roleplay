@@ -1880,6 +1880,8 @@ export const useApp = create<AppState>()(
             try {
               const { setLitLink } = await import('@/components/library/litopys-api')
               await setLitLink(id, opts.continues)
+              const { archiveAfterLink } = await import('@/lib/archive')
+              void archiveAfterLink(opts.continues)
             } catch (e) { toast.error(String((e as Error).message ?? e)) }
           }
           if (opts?.world) {

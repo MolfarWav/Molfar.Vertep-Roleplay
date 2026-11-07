@@ -264,6 +264,8 @@ export interface Chat {
   folderId: ID | null
   /** pinned to the top of the Chats page */
   pinned?: boolean
+  /** #263: archived = a finished story. Read only (the engine refuses writes with 409), out of the main Chats list and Home; the file stays where it is. */
+  archived?: boolean
   chatTags: string[]
   backgroundId: ID | 'none' | null
   /** switch the background by scene (Dashboard sensor) among this folder's images; absent = off */

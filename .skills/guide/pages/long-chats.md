@@ -36,9 +36,22 @@ At a natural break, a new chat that continues the old one starts with a small pr
 2. The new chat is created at once and opens. It keeps the preset and its picks, persona, model, agent set, a group's turn order and the World DM world.
 3. It gets the old story as backstory: chapters and facts, up to three chats back, within the "Backstory budget". The old messages are not sent.
 
-The link is the one the Canvas draws, and the Canvas can change it later: see [[canvas]]. To pick another earlier chat, start a chat from the character and use the **Continues** menu in the "New chat with" step.
+The earlier chat then moves to the Archive on its own (next section). The link is the one the Canvas draws, and the Canvas can change it later: see [[canvas]]. To pick another earlier chat, start a chat from the character and use the **Continues** menu in the "New chat with" step.
 
 The new chat opens with the card's first greeting; "Edit the first message" lets you carry on where the story stopped.
+
+## Archive a finished story
+
+A story you are done with can go to the **Archive**. It is a status on the chat, not a move: the chat stays where it is, so its memory, its links on the Canvas and any book made from it keep working.
+
+- In Chats, pick a chat and press **Archive** (the amber button in its panel), or tick several with Select. In a chat it is in the menu under "Manage chat".
+- An archived chat leaves the list and Home. The amber **Archive** row under the filters opens them; **Back to chats** returns.
+- It opens read only: you can read, copy, branch from a message, export and look at its Dashboard and Library, but not send, swipe, edit or delete. Its place at the bottom offers **Continue in a new chat**. **Unarchive** (in its panel or the banner) makes it normal again.
+- The confirmation offers **Archive and continue** when no chat continues this one yet.
+- **It happens by itself** when a chat becomes the earlier chat of another: a link on the Canvas, Continue in a new chat, the popup above, or a pick in "Continues". A toast with Undo says so. Branches are not continuations and stay as they are. Switch it off in the Library, gear "Litopys settings", "Archive the earlier chat when it is continued".
+- A chat of 100 messages or more that has been quiet for a week gets a small "Long chat · archive?" tag in the list and a hint in its panel. Nothing is archived for you.
+
+Why bother: the earlier chat no longer changes, so the memory of it stays stable and a new chat that continues it reads it as a finished story ([[litopys]]).
 
 ## Details the chapters dropped
 

@@ -14,6 +14,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Archive, ArrowLeft, CaretRight } from '@phosphor-icons/react'
+import { isArchived, suggestArchive } from '@/lib/archive'
+import { ArchiveDialog } from '@/components/chats/archive-dialog'
 import { useApp } from '@/lib/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
@@ -62,6 +65,9 @@ export function ChatsView() {
   const deleteFolder = useApp((s) => s.deleteFolder)
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<ChatKind>('all')
+  // the Archive chip: shows only archived chats; everything else hides them
+  const [showArchive, setShowArchive] = useState(false)
+  const [archiveIds, setArchiveIds] = useState<string[] | null>(null)
   const [sort, setSortState] = useState<ChatSort>(readSort)
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null)
   const [filter, setFilter] = useState<ChatFilter>(NO_FILTER)
@@ -107,14 +113,18 @@ export function ChatsView() {
     toast.success(`Folder "${name}" created`)
   }
 
+  const live = useMemo(() => chats.filter((c) => !isArchived(c)), [chats])
+  const archivedCount = chats.length - live.length
   const counts = useMemo(() => {
-    const groups = chats.filter((c) => byId.get(c.characterId)?.isGroup).length
-    return { all: chats.length, group: groups, single: chats.length - groups }
-  }, [chats, byId])
+    const groups = live.filter((c) => byId.get(c.characterId)?.isGroup).length
+    return { all: live.length, group: groups, single: live.length - groups }
+  }, [live, byId])
+  // the Archive chip only appears once something is archived (or while it is open)
+  useEffect(() => { if (showArchive && archivedCount === 0) setShowArchive(false) }, [showArchive, archivedCount])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const list = filterChats([...chats], characters, filter)
+    const list = filterChats(chats.filter((c) => isArchived(c) === showArchive), characters, filter)
       .filter((c) => !personaOnly || c.personaId === personaOnly)
       .filter((c) => !activeFolderId || c.folderId === activeFolderId)
       .filter((c) => kind === 'all' || (kind === 'group') === !!byId.get(c.characterId)?.isGroup)
@@ -124,7 +134,7 @@ export function ChatsView() {
         return c.title.toLowerCase().includes(q) || !!owner?.name.toLowerCase().includes(q) || (c.preview ?? '').toLowerCase().includes(q)
       })
     return sortChats(list, sort, (c) => (c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0), (c) => byId.get(c.characterId)?.name ?? '')
-  }, [chats, characters, query, activeFolderId, filter, kind, sort, byId, personaOnly])
+  }, [chats, characters, query, activeFolderId, filter, kind, sort, byId, personaOnly, showArchive])
   const sections = useMemo(() => groupChats(filtered, sort), [filtered, sort])
 
   // desktop: the panel always shows a chat, the top one until another is picked
@@ -178,6 +188,11 @@ export function ChatsView() {
               )}
               {chat.branches.length > 0 && (
                 <Badge variant="outline" className="gap-1 px-1 text-[10px]"><GitBranch className="size-3" aria-hidden="true" />{chat.branches.length}</Badge>
+              )}
+              {suggestArchive(chat) && (
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-when-pinned/50 px-1.5 text-xs text-when-pinned" data-testid="archive-suggest">
+                  <Archive className="size-3" aria-hidden="true" />{t('chats.suggest.mark')}
+                </span>
               )}
             </span>
             <span className="line-clamp-1 text-xs text-muted-foreground">
@@ -286,6 +301,20 @@ export function ChatsView() {
               <Plus className="size-3" aria-hidden="true" /> {t('chats.newFolder')}
             </button>
           </div>
+          {(archivedCount > 0 || showArchive) && (
+            <button
+              type="button"
+              aria-pressed={showArchive}
+              data-testid="archive-entry"
+              onClick={() => { setShowArchive((v) => !v); setSelectedId(null); setDetailOpen(false) }}
+              className="flex min-h-10 w-full items-center gap-2 rounded-lg border border-when-pinned/50 bg-when-pinned/15 text-when-pinned hover:bg-when-pinned/25 px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {showArchive ? <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> : <Archive className="size-4 shrink-0" weight="fill" aria-hidden="true" />}
+              <span className="flex-1 text-left">{showArchive ? t('chats.archive.back') : t('chats.kind.archive')}</span>
+              <span className="tabular-nums">{archivedCount}</span>
+              {!showArchive && <CaretRight className="size-3.5 shrink-0" aria-hidden="true" />}
+            </button>
+          )}
           {personaOnly && (
             <button
               type="button"
@@ -346,6 +375,17 @@ export function ChatsView() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="max-sm:h-10"
+            disabled={!picked.size}
+            onClick={() => {
+              if (showArchive) { for (const id of picked) updateChat(id, { archived: false }); toast.success(t('chats.unarchived')); stopSelecting() } else setArchiveIds([...picked])
+            }}
+          >
+            <Archive className="size-4" aria-hidden="true" />{showArchive ? t('chats.panel.unarchive') : t('chats.archive.confirm')}
+          </Button>
           <Button variant="destructive" size="sm" className="max-sm:h-10" disabled={!picked.size} onClick={() => setConfirmIds([...picked])}>
             <Trash className="size-4" aria-hidden="true" />{t('chats.panel.delete')}
           </Button>
@@ -359,6 +399,7 @@ export function ChatsView() {
       chat={selected}
       onDelete={() => setConfirmIds([selected.id])}
       onRename={() => { setRenameId(selected.id); setRenameValue(selected.title) }}
+      onArchive={() => setArchiveIds([selected.id])}
     />
   ) : (
     <Empty>
@@ -370,7 +411,7 @@ export function ChatsView() {
   )
 
   return (
-    <SectionPage section="chats" count={chats.length} hideOnPhone>
+    <SectionPage section="chats" count={live.length} hideOnPhone>
       <MasterDetail
         detailOpen={detailOpen && !!selected}
         onBack={() => setDetailOpen(false)}
@@ -400,6 +441,8 @@ export function ChatsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ArchiveDialog ids={archiveIds} onClose={() => { setArchiveIds(null); stopSelecting() }} />
 
       <AlertDialog open={!!confirmIds} onOpenChange={(o) => !o && setConfirmIds(null)}>
         <AlertDialogContent>

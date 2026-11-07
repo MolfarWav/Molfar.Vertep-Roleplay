@@ -1054,6 +1054,8 @@ export const DEFAULT_CONFIG = {
   // the request size past which the chat popup offers a new chat (#261): "auto" = 60% of the model's window, "tokens" = promptAlertTokens, "off" = never
   promptAlert: "auto",
   promptAlertTokens: 30000,
+  // when a chat becomes another chat's earlier chat (a link in the Canvas, a one-click continue, a continuation picked in the new-chat step) it moves to the Archive (#263); the client does it, this is its switch
+  archiveOnContinue: true,
   scene: {
     minMessages: 6,
     maxMessages: 40,
@@ -1388,6 +1390,7 @@ export function loadConfig(fsx) {
   cfg.sceneKeep = clamp(cfg.sceneKeep, 2, SCENE_KEEP_MAX);
   cfg.promptAlert = cfg.promptAlert === "tokens" || cfg.promptAlert === "off" ? cfg.promptAlert : "auto";
   cfg.promptAlertTokens = clamp(intOf(cfg.promptAlertTokens, 30000), 1000, 5000000);
+  cfg.archiveOnContinue = cfg.archiveOnContinue !== false;
   cfg.pinLimit = clamp(cfg.pinLimit, 1, 20);
   cfg.insert = cfg.insert !== false;
   cfg.budget = clamp(cfg.budget, 200, BUDGET_MAX);
@@ -1476,6 +1479,7 @@ export function patchConfig(fsx, body) {
   if (b.sceneKeep !== undefined) next.sceneKeep = clamp(intOf(b.sceneKeep, 2), 2, SCENE_KEEP_MAX);
   if (b.promptAlert !== undefined) next.promptAlert = b.promptAlert === "tokens" || b.promptAlert === "off" ? b.promptAlert : "auto";
   if (b.promptAlertTokens !== undefined) next.promptAlertTokens = clamp(intOf(b.promptAlertTokens, 30000), 1000, 5000000);
+  if (b.archiveOnContinue !== undefined) next.archiveOnContinue = b.archiveOnContinue !== false && b.archiveOnContinue !== "off";
   if (b.pinLimit !== undefined) next.pinLimit = clamp(intOf(b.pinLimit, 5), 1, 20);
   if (b.insert !== undefined) next.insert = b.insert !== false && b.insert !== "off";
   if (b.budget !== undefined) next.budget = clamp(intOf(b.budget, 800), 200, BUDGET_MAX);

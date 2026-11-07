@@ -314,6 +314,8 @@ export interface LitConfig {
   /** when the chat's request-size popup offers a new chat (#261): 'auto' = 60% of the model's window, 'tokens' = promptAlertTokens, 'off' = never */
   promptAlert?: 'auto' | 'tokens' | 'off'
   promptAlertTokens?: number
+  /** #263: the earlier chat moves to the Archive when another chat continues it; default on, absent from an older plugin */
+  archiveOnContinue?: boolean
   scene: { minMessages: number; maxMessages: number }
   pinLimit: number
   insert: boolean
