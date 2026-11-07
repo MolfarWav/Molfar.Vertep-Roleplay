@@ -17,7 +17,7 @@ By default the DM is already on at the Chronicler level in a story chat, from it
 
 ## What it does each turn
 
-It runs after replies, every Nth reply ("Run after every N replies"), or right away with "World turn". It reads the new messages and writes or retires records in the world book: people, places, things and who holds them. From Living world up it also moves fronts and clocks, and may prepare an event that is added to the next reply. Optional dice (World sheet, Dice, from Living world up, off by default): before a reply, code rolls 2d6 and tells the model how an uncertain action turns out, as a Hint or Binding.
+It runs after replies, every Nth reply ("Run after every N replies"), or right away with "World turn". It reads the new messages and writes or retires records in the world book: people, places, things and who holds them. You can give a Group or a Place record **Members** (the people who belong) in the World book tab; a fact told to that group in Litopys is then known to each of them ([[litopys]]). The DM does not fill Members itself. From Living world up it also moves fronts and clocks, and may prepare an event that is added to the next reply. Optional dice (World sheet, Dice, from Living world up, off by default): before a reply, code rolls 2d6 and tells the model how an uncertain action turns out, as a Hint or Binding.
 
 It costs one extra model call whenever it is due, on the "DM model (all chats)"; a small, cheap model is enough. A failed run is shown in the sheet and in the Inbox, and the DM reads the same messages again next time.
 

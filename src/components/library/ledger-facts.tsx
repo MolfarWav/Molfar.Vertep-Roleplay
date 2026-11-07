@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useConfirm } from '@/components/ui/confirm'
+import { groupWords, isGroupToken, knownEditorName, knownName, knownNames, parseKnownInput } from '@/lib/known-by'
 import {
   type LitChat,
   type LitFact,
@@ -296,7 +297,7 @@ function FactEditor({
   const [subject, setSubject] = useState(fact?.subject === 'world' ? '' : (fact?.subject ?? ''))
   const [everyone, setEveryone] = useState(fact ? fact.knownBy === 'all' : true)
   const [knownInput, setKnownInput] = useState(
-    fact && Array.isArray(fact.knownBy) ? fact.knownBy.join(', ') : ''
+    fact && Array.isArray(fact.knownBy) ? fact.knownBy.map(knownEditorName).join(', ') : ''
   )
   const [type, setType] = useState<LitFactType>(fact?.type ?? 'event')
   const [weight, setWeight] = useState<LitFactWeight>(fact?.weight ?? 'everyday')
@@ -304,10 +305,7 @@ function FactEditor({
   const normSubject = subject.trim() || 'world'
   const normKnown: string[] | 'all' = everyone
     ? 'all'
-    : knownInput
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
+    : parseKnownInput(knownInput, fact?.knownBy)
 
   const patch: LitFactFields = {}
   if (!fact || text.trim() !== fact.text) patch.text = text.trim()
@@ -386,9 +384,11 @@ function FactEditor({
               value={knownInput}
               onChange={(e) => setKnownInput(e.target.value)}
               placeholder={t('lit.knownByPlaceholder')}
+              aria-label={t('lit.f.knownBy')}
               className="text-sm"
             />
           )}
+          {!everyone && <p className="text-xs text-muted-foreground">{t('lit.knownByHint')}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -438,14 +438,21 @@ function FactEditor({
   )
 }
 
-/** Every name the record knows (subjects and knownBy), for editors and the who-filter. */
+/** Every name the record knows (subjects and knownBy), for editors and the who-filter. Group tokens are not names. */
 function namesOf(facts: LitFact[]) {
   const map = new Map<string, string>()
   for (const f of facts) {
     if (f.subject) map.set(f.subject.toLowerCase(), f.subject)
-    if (Array.isArray(f.knownBy)) for (const n of f.knownBy) map.set(n.toLowerCase(), n)
+    if (Array.isArray(f.knownBy)) for (const n of f.knownBy) if (!isGroupToken(n)) map.set(n.toLowerCase(), n)
   }
   return Array.from(map.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+/** The group tokens that facts are told to (raw, one per group), for the who-filter. */
+function groupsOf(facts: LitFact[]) {
+  const map = new Map<string, string>()
+  for (const f of facts) if (Array.isArray(f.knownBy)) for (const n of f.knownBy) if (isGroupToken(n)) map.set(n.trim().toLowerCase(), n.trim())
+  return Array.from(map.values()).sort()
 }
 
 /**
@@ -601,7 +608,7 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
             )}
             <Badge variant="outline" className={cn('gap-1 text-[10px]', TONE.knownBy)}>
               <Eye className="size-3" aria-hidden="true" />
-              {fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: fact.knownBy.join(', ') })}
+              {fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: knownNames(fact.knownBy, t) })}
             </Badge>
             <Badge variant="outline" className={cn('text-[10px]', TYPE_TONE[fact.type])}>{t(typeKey(fact.type))}</Badge>
             <Badge variant="outline" className={cn('text-[10px]', WEIGHT_TONE[fact.weight])}>
@@ -709,6 +716,7 @@ export function FactsTab({ chat, onChat }: TabProps) {
   const [whoFilter, setWhoFilter] = useState<'all' | string>('all')
   const [stateFilter, setStateFilter] = useState<StateFilter>('active')
   const names = ctl.names
+  const groups = useMemo(() => groupsOf(chat.facts), [chat.facts])
   // M4d: the search box can look in the original messages instead of the facts
   const [inMessages, setInMessages] = useState(false)
   const [hits, setHits] = useState<LitSearchHit[] | null>(null)
@@ -751,7 +759,7 @@ export function FactsTab({ chat, onChat }: TabProps) {
     return chat.facts
       .filter((f) => {
         if (q) {
-          const hay = [f.text, f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy : ['all'])]
+          const hay = [f.text, f.subject, ...(Array.isArray(f.knownBy) ? f.knownBy.map((n) => (isGroupToken(n) ? groupWords(n) : n)) : ['all'])]
             .join('\n')
             .toLowerCase()
           if (!hay.includes(q)) return false
@@ -879,11 +887,16 @@ export function FactsTab({ chat, onChat }: TabProps) {
           <SelectTrigger className="w-full min-w-0 text-sm md:w-auto md:min-w-[120px]" aria-label={t('lit.f.knownBy')}>
             <SelectValue placeholder={t('lit.f.knownBy')} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="min-w-56">
             <SelectItem value="all">{t('lit.filter.anyone')}</SelectItem>
             {names.map((n) => (
               <SelectItem key={n} value={n}>
                 {n}
+              </SelectItem>
+            ))}
+            {groups.map((g) => (
+              <SelectItem key={g} value={g}>
+                {knownName(g, t)}
               </SelectItem>
             ))}
           </SelectContent>

@@ -9,6 +9,7 @@ import { TONES, type ToneName } from '@/components/ui/tone'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { knownNames } from '@/lib/known-by'
 import { dropPassage, editPassage, loadBookPassages, passageWho, setBookReaders, type BookPassage } from '@/lib/books'
 import type { DataBankFile } from '@/lib/types'
 import { ChatPickerList } from '@/components/memory/chat-picker-list'
@@ -84,7 +85,7 @@ export function BookPassages({ book, open, onOpenChange }: { book: DataBankFile;
                     <li key={p.i} className="flex flex-col gap-1.5 px-3 py-2" data-testid="book-passage">
                       <div className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
                         <span className={cn('inline-flex h-5 items-center rounded-full border px-1.5 font-medium', TONES[KIND_TONE[p.kind]].chip)}>{t(`book.kind.${p.kind}` as MsgKey)}</span>
-                        <span className="min-w-0 break-words">{who === 'all' ? t('book.everyone') : t('book.knownTo', { names: who.join(', ') })}</span>
+                        <span className="min-w-0 break-words">{who === 'all' ? t('book.everyone') : t('book.knownTo', { names: knownNames(who, t) })}</span>
                       </div>
                       {editing === p.i ? (
                         <div className="flex flex-col gap-2">

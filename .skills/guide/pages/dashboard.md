@@ -12,6 +12,14 @@ The numbers (trust, comfort, attraction, respect, affection, and more) are worke
 
 The "Story, move" button next to Send arms a one-time nudge for the next reply; its arrow picks an open quest or a twist.
 
+## What changed, in the chat
+
+Under the newest reply, a muted line says what the Dashboard recorded for it: "Changed: Ada · trust fell, mood calm → tense, +2". Tap it to unfold the same chips as the Dashboard's "Since your last reply" row; a chip opens the matching Dashboard tab (on a phone, its bottom sheet). Older replies show nothing, and the line waits while a reply is being written or the Dashboard is still updating. To hide it, switch off "Show what changed under the newest reply" in Settings > Chat Behavior.
+
+## Ties between characters
+
+The sensor notes how two characters who are not you stand to each other, as a one-word role and a one-word warmth ("rival, cold"). The reply's prompt carries up to four of these as one short line, only for people in the scene. A character's own reply gets just the ties that character is part of; a narrator gets the ties of the people the turn is about first.
+
 ## What a character said, and lies
 
 Under a person's notebook the **Said** list keeps the strong things they said and are held to: a vow, a threat, a confession, an order. A lie is kept there too, covered until you choose "Show hidden".

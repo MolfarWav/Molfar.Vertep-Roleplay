@@ -4,7 +4,7 @@ Everything you play with lives in four sections: Characters, Groups, Personas an
 
 ## Cards
 
-A card is a character: description, personality, scenario and a first message. The Characters section shows your cards as a grid or list, with search, tags, folders, favorites (a star) and several sorts. Open a card to edit it. Edits stay in a draft until "Save changes"; leaving with unsaved edits asks first.
+A card is a character: description, personality, scenario and a first message. A tag written `group: Guild of Ravens` or `faction: Guild of Ravens` also puts the card's character in that group, so a memory fact told to the group is known to them ([[litopys]]). The Characters section shows your cards as a grid or list, with search, tags, folders, favorites (a star) and several sorts. Open a card to edit it. Edits stay in a draft until "Save changes"; leaving with unsaved edits asks first.
 
 The editor has six tabs:
 

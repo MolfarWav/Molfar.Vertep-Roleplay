@@ -38,8 +38,10 @@ The user guide (what each part of the app is and how the parts fit) is in
 - Presets with a drag-and-drop prompt manager and every sampler setting
 - Lorebooks (world info), global or linked to a character or persona
 - Regex scripts for input, output, prompts and display
-- Chat memory: a running summary with undo, plus a per-chat facts vault
-- Data bank: attach documents a chat can draw on
+- Litopys story memory: a chapter for every scene, arcs, and facts with who knows what, put back into the prompt within a budget you set
+- Dashboard: relationships, a notebook of what each character knows, quests, and what was said and promised
+- Character memory: a long memory for a card (also a persona or a world) built from chats you import, and what each character remembers of a scene
+- Data bank: attach documents a chat can draw on, or save a story as a snapshot book that remembers who knew what; passages are found by words and ranked by meaning when embeddings are on
 - Macros and chat-local variables
 
 **More**

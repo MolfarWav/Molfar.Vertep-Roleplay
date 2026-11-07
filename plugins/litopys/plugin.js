@@ -1899,6 +1899,74 @@ function workList(st, line, dash, cfg, limit) {
 /** One name per person: a function that lower-cases a name, or its canonical form through the registry's canon. */
 const keyOf = (canon) => (typeof canon === "function" ? (n) => str(canon(str(n))).toLowerCase() : (n) => str(n).toLowerCase());
 
+// ---------- groups of people (#184 P7): a faction, a region ----------
+/** A fact's `knownBy` may name a whole group by its token: "group:" and the slug of the group's name. */
+const GROUP_PREFIX = "group:";
+export const isGroupToken = (k) => typeof k === "string" && k.toLowerCase().startsWith(GROUP_PREFIX);
+/** "Guild of Ravens" -> "group:guild-of-ravens"; "" when the name has no letter or digit. */
+export function groupToken(name) {
+  const slug = str(name).normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/g, "");
+  return slug ? GROUP_PREFIX + slug : "";
+}
+/** A card tag that makes its character a member: "group: Guild of Ravens" or "faction: Guild of Ravens". */
+const GROUP_TAG = /^\s*(?:group|faction)\s*:\s*(.{1,60}?)\s*$/i;
+const GROUP_SHOWN = 6;
+const GROUP_PEOPLE_SHOWN = 8;
+
+/**
+ * The groups of a chat and who belongs to them: a card tag "group: <name>" (or "faction: <name>") puts that card's character in
+ * the group, and a World DM record of kind group or place with `members` lists people by name. The same name is the same
+ * group wherever it is written. Names are compared as `canon` says (the registry), like every other knownBy name. Read only;
+ * null when the chat has no group.
+ */
+export function chatGroups(fsx, chatId, meta, canon) {
+  const key = keyOf(canon);
+  const byToken = new Map();
+  const put = (groupName, member) => {
+    const token = groupToken(groupName);
+    const k = key(member);
+    if (!token || !k) return;
+    let g = byToken.get(token);
+    if (!g) byToken.set(token, (g = { token, name: cut(str(groupName), 60), members: new Map() }));
+    if (!g.members.has(k)) g.members.set(k, str(member));
+  };
+  for (const { card } of chatCards(fsx, meta)) {
+    const names = [...cardNamesOf(card)];
+    for (const tag of arr(isObj(card) ? card.tags : [])) {
+      const m = GROUP_TAG.exec(str(tag));
+      if (m) for (const n of names) put(m[1], n);
+    }
+  }
+  if (SAFE_ID.test(str(chatId))) {
+    const world = readJson(fsx, "world/state/" + chatId + ".json", null);
+    for (const e of arr(isObj(world) ? world.entities : [])) {
+      if (!isObj(e) || (e.kind !== "group" && e.kind !== "place") || e.status === "past" || !Array.isArray(e.members)) continue;
+      for (const m of e.members) put(e.name, m);
+    }
+  }
+  if (!byToken.size) return null;
+  const list = [...byToken.values()];
+  return {
+    has: (token) => byToken.has(str(token).toLowerCase()),
+    nameOf: (token) => (byToken.get(str(token).toLowerCase()) || {}).name || "",
+    /** the keyed names of a group's members */
+    membersOf: (token) => new Set((byToken.get(str(token).toLowerCase()) || { members: new Map() }).members.keys()),
+    /** the display names of a group's members */
+    peopleOf: (token) => [...(byToken.get(str(token).toLowerCase()) || { members: new Map() }).members.values()],
+    /** the tokens of the groups that have a member among these keyed names */
+    tokensFor: (keys) => new Set(list.filter((g) => [...g.members.keys()].some((k) => keys.has(k))).map((g) => g.token)),
+    /** the groups that have a member among these keyed names, for the worker's list */
+    listFor: (keys) => list.filter((g) => [...g.members.keys()].some((k) => keys.has(k))).slice(0, GROUP_SHOWN).map((g) => ({ token: g.token, name: g.name, people: [...g.members.values()].slice(0, GROUP_PEOPLE_SHOWN) })),
+  };
+}
+
+/** A knownBy entry as people read it: a group token as "Guild of Ravens (group)", any other name as written. */
+export function groupLabel(k, groups) {
+  if (!isGroupToken(k)) return k;
+  const name = groups && groups.nameOf(k);
+  return name ? name + " (group)" : str(k).slice(GROUP_PREFIX.length) + " (group)";
+}
+
 /** The same name once (case-insensitive), first spelling kept. */
 function dedupeNames(list) {
   const seen = new Set();
@@ -1973,7 +2041,13 @@ export function litCanon(fsx, chatId, meta, dash, seed) {
       if (JSON.stringify(reg) !== before) regSave(fsx, reg);
     }
     const d = isObj(dash) ? dash : readDash(fsx, chatId);
-    return makeCanon(reg, { userName: meta && meta.userName, ids: isObj(d) && isObj(d.personIds) ? d.personIds : null });
+    const canon = makeCanon(reg, { userName: meta && meta.userName, ids: isObj(d) && isObj(d.personIds) ? d.personIds : null });
+    // the chat's groups ride on the canon: "who is this person" and "which groups is this person in" are one lookup (#184 P7)
+    try {
+      const groups = chatGroups(fsx, chatId, meta, canon);
+      if (groups) canon.groups = groups;
+    } catch {}
+    return canon;
   } catch {
     return (n) => str(n);
   }
@@ -2182,6 +2256,9 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const key = keyOf(opts.canon);
   const names = sceneNames(scene, line, dash, meta);
   const nameSet = new Set(names.map(key));
+  // a fact told to a group reaches the worker when a member is in the scene (#184 P7)
+  const groups = opts.canon && opts.canon.groups ? opts.canon.groups : null;
+  const nameSetG = groups ? new Set([...nameSet, ...groups.tokensFor(nameSet)]) : nameSet;
   const activeFacts = st.facts.filter((f) => {
     if (f.status !== "active") return false;
     const subj = str(f.subject).toLowerCase();
@@ -2189,13 +2266,18 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
     if (nameSet.has(key(f.subject))) return true;
     if (f.knownBy === "all") return false;
     if (Array.isArray(f.knownBy)) {
-      return f.knownBy.some((k) => nameSet.has(key(k)));
+      return f.knownBy.some((k) => nameSetG.has(key(k)));
     }
     return false;
   });
   activeFacts.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const factLines = activeFacts.slice(0, 40).map((f) => f.id + ": " + (f.type === "belief" ? "(" + str(f.holder) + " believes this, and it is untrue) " : "") + f.text);
   if (factLines.length) parts.push("Known facts\n" + factLines.join("\n"));
+  // the groups of people in this scene: the worker may name one in knownBy by its token (#184 P7)
+  const groupsHere = groups ? groups.listFor(nameSet) : [];
+  if (groupsHere.length) {
+    parts.push("Groups here\nWhen a fact was learned by the whole group (an order given to it, news told to all of it), knownBy may hold the group's token instead of its people. Use a token only for such a fact; otherwise list the people, and never invent a token.\n" + groupsHere.map((g) => "- " + g.name + " = " + g.token + ": " + g.people.join(", ")).join("\n"));
+  }
 
   // a reply of this scene was flagged: a character seems to act on a secret it does not know; not canon until the user says so
   const flagged = heldLeaks(dash, line, scene);
@@ -2638,10 +2720,16 @@ export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = 
     .map((n) => (typeof canon === "function" ? str(canon(n)) || n : n))
     .filter((n) => !seenPeople.has(n.toLowerCase()) && seenPeople.add(n.toLowerCase()));
   if (people.length < 2) return null;
+  const groupsOf = canon && canon.groups ? canon.groups : null;
   const groups = new Map();
   for (const f of arr(st.facts)) {
     if (!isObj(f) || f.status !== "active" || !str(f.text) || !Array.isArray(f.knownBy)) continue;
-    const by = new Set(f.knownBy.map(kf));
+    const by = new Set();
+    for (const k of f.knownBy) {
+      // a group token means each of its members (#184 P7)
+      if (isGroupToken(k) && groupsOf && groupsOf.has(k)) for (const m of groupsOf.membersOf(k)) by.add(m);
+      else by.add(kf(k));
+    }
     const who = people.filter((n) => by.has(kf(n)));
     if (who.length === people.length) continue;
     const key = who.join("\u0000");
@@ -2684,13 +2772,13 @@ const TRACE_OUT = 15;
  * One fact as a line of the insert. A belief (#184 P4) reads as what its holder was told, not as a fact: in the holder's
  * own reply (`solo`) it is plain, since the holder takes it as true; a reply that voices several says it is untrue.
  */
-export function factLineOf(f, solo) {
+export function factLineOf(f, solo, groups) {
   if (isObj(f) && f.type === "belief") {
     const holder = str(f.holder);
     const from = str(isObj(f.prov) && isObj(f.prov[holder]) ? f.prov[holder].from : "");
     return "- " + (holder || "Someone") + " believes" + (from ? ", told by " + from : "") + ": " + str(f.text) + (solo ? "" : " (untrue)");
   }
-  return "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.join(", ") + ")" : "");
+  return "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.map((k) => groupLabel(k, groups)).join(", ") + ")" : "");
 }
 
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
@@ -2711,7 +2799,10 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // #184 P2: a character's reply gets what that character knows (or everyone does), never what only the player or
   // another one present knows; a reply that voices several (`voices` unset) gets what anyone present knows
   const knowers = voices instanceof Set && voices.size ? voices : here;
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowers.has(key(k))));
+  // a fact told to a whole group is known to each member who is speaking or here (#184 P7)
+  const groups = canon && canon.groups ? canon.groups : null;
+  const knowsAs = groups ? new Set([...knowers, ...groups.tokensFor(knowers)]) : knowers;
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowsAs.has(key(k))));
   const live = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text));
   const active = live.filter(known);
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
@@ -2775,7 +2866,7 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
   const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
   const solo = voices instanceof Set && voices.size === 1;
-  const factLine = (f) => factLineOf(f, solo);
+  const factLine = (f) => factLineOf(f, solo, groups);
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
   const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
@@ -3636,7 +3727,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       if (!text) continue;
       const subject = canon(op.subject) || "world";
       // a model that says nothing (or nothing usable) about who knows gets the people of the scene, not everyone (#184 P1a)
-      const told = Array.isArray(op.knownBy) ? dedupeNames(op.knownBy.map((x) => str(x)).filter(Boolean).map(canon)) : [];
+      // a group token stays only when it is one of this chat's groups (#184 P7)
+      const chatGroupsHere = ctx.canon && ctx.canon.groups ? ctx.canon.groups : null;
+      const told = Array.isArray(op.knownBy) ? dedupeNames(op.knownBy.map((x) => str(x)).filter(Boolean).map(canon)).filter((n) => !isGroupToken(n) || (chatGroupsHere && chatGroupsHere.has(n))) : [];
       const witnesses = dedupeNames(arr(ctx.witnesses).map(str).filter(Boolean).map(canon));
       let knownBy = op.knownBy === "all" ? "all" : told.length ? told : witnesses.length ? witnesses : "all";
       // #184 P3: a fact that says what a flagged reply leaked does not make the leaking character a knower
@@ -6439,6 +6532,10 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
   if (str(speakerName)) here.add(str(speakerName).toLowerCase());
   here.add((str(meta && meta.userName) || "You").toLowerCase());
 
+  // a fact told to a group is known to each member who is here (#184 P7); this chat's groups, the old chat's facts
+  const groups = chatGroups(fsx, chatId, meta, null);
+  const knowers = voices instanceof Set && voices.size ? voices : here;
+  const knowsAs = groups ? new Set([...knowers, ...groups.tokensFor(knowers)]) : knowers;
   const shares = CHAIN_SHARES[chain.length - 1];
   const usedFacts = new Set();
   const parts = [];
@@ -6447,7 +6544,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, knowers: voices instanceof Set && voices.size ? voices : here, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, knowers: knowsAs, groups, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
@@ -6470,7 +6567,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, nearerTitle, continues }) {
+function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFacts, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
@@ -6501,7 +6598,7 @@ function backstoryPart({ fsx, from, here, knowers, voices, cap, usedFacts, neare
     ? "[Backstory (Litopys), older: the story before " + quote(nearerTitle) + ", from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]"
     : "[Backstory (Litopys): the earlier story this chat continues, from the chat " + quote(title) + ". " + (continues || CONTINUES) + "]";
   const solo = voices instanceof Set && voices.size === 1;
-  const factLine = (f) => factLineOf(f, solo);
+  const factLine = (f) => factLineOf(f, solo, groups);
   const facts = [];
   const story = [];
   const render = () => {
@@ -6533,13 +6630,14 @@ const bad = (error) => ({ status: 400, json: { error } });
 const quote = (s) => '"' + cut(str(s), 120) + '"';
 const sameName = (a, b) => str(a).toLowerCase() === str(b).toLowerCase();
 
-/** "all", or up to 16 names; null when the value is neither. */
+/** "all", or up to 16 names; null when the value is neither. A group may be typed as "group: Guild of Ravens": it is kept as its token. */
 function knownByOf(v) {
   if (v === "all") return "all";
   if (!Array.isArray(v)) return null;
   const names = [];
   for (const x of v) {
-    const n = cut(str(x), 80);
+    const typed = /^\s*group\s*:\s*(.+)$/i.exec(str(x));
+    const n = typed ? groupToken(typed[1]) : cut(str(x), 80);
     if (n && !names.some((m) => sameName(m, n))) names.push(n);
   }
   return names.length ? names.slice(0, 16) : null;
@@ -8254,10 +8352,20 @@ const SAID_KIND_SET = new Set(["vow", "promise", "threat", "confession", "secret
 const BOOK_DIR = "databank/";
 const BOOK_CHUNKS_MAX = 800;
 /** The names a chapter was written for: `cast` is kept only when it is short enough to mean something. */
-const nameList = (v) => arr(v).map((x) => str(x)).filter(Boolean).slice(0, 12);
+const nameList = (v, n = 12) => arr(v).map((x) => str(x)).filter(Boolean).slice(0, n);
+/** A fact's knowers for a book: a group token becomes the people it names now (a book is a copy), up to 40 names. A token no group answers to stays, so the passage stays hidden. */
+const BOOK_KNOWERS_MAX = 40;
+function bookKnowers(knownBy, groups) {
+  const out = [];
+  for (const k of arr(knownBy)) {
+    if (isGroupToken(k) && groups && groups.has(k)) out.push(...groups.peopleOf(k));
+    else out.push(k);
+  }
+  return nameList(dedupeNames(out.map((x) => str(x)).filter(Boolean)), BOOK_KNOWERS_MAX);
+}
 
 /** The chunks of a chat's record, in story order: arcs and chapters first, then the facts. */
-export function bookChunks(st) {
+export function bookChunks(st, groups) {
   const chunks = [];
   const castOf = new Map();
   for (const ch of arr(st.chapters)) {
@@ -8281,7 +8389,7 @@ export function bookChunks(st) {
   for (const f of arr(st.facts)) {
     const text = str(f.text);
     if (f.status !== "active" || !text) continue;
-    const knownBy = f.knownBy === "all" ? "all" : nameList(f.knownBy);
+    const knownBy = f.knownBy === "all" ? "all" : bookKnowers(f.knownBy, groups);
     chunks.push({ i: 0, text, kind: "fact", ref: str(f.id), knownBy: Array.isArray(knownBy) && !knownBy.length ? "all" : knownBy });
   }
   return chunks.slice(0, BOOK_CHUNKS_MAX).map((c, i) => ({ ...c, i }));
@@ -8308,7 +8416,7 @@ export function bookPreview(fsx, chatId) {
   const st = SAFE_ID.test(chatId) ? loadChatFile(fsx, chatId) : null;
   const rc = st ? readChat(fsx, chatId) : null;
   if (!st || !rc) return null;
-  const chunks = bookChunks(st);
+  const chunks = bookChunks(st, chatGroups(fsx, chatId, rc.meta, null));
   let chars = 0;
   for (const c of chunks) chars += c.text.length;
   const links = loadLinks(fsx);
@@ -8340,7 +8448,7 @@ export function bookSave(fsx, body) {
   if (!st || !rc) return { status: 404, json: { error: "no such chat" } };
   const readers = [...new Set(arr(b.readers).map((x) => str(x)).filter((x) => SAFE_ID.test(x) && chatExists(fsx, x)))].slice(0, 24);
   if (!readers.length) return { status: 400, json: { error: "pick at least one chat that reads the book" } };
-  const chunks = bookChunks(st);
+  const chunks = bookChunks(st, chatGroups(fsx, chatId, rc.meta, null));
   if (!chunks.length) return { status: 400, json: { error: "this chat has no chapters or facts to save yet" } };
   let family = "";
   let version = 1;
