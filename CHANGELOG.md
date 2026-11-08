@@ -4,8 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.103.0 (2026-11-08)
+
 - Fixed: **Enter saves a number field** in the Litopys settings (the Library gear and Settings > Memory). It saved only when you left the field (#235).
-- Docs: six new Help articles (the chat shelf of the Canvas, the World tabs, the Constellation map, the card-task model, the opening hint of a continued chat, the /gallery dialog) in English and Ukrainian; the "Overview vs Details" article lists all seven tabs; the World DM tip no longer says the DM is off until a level is picked (it starts at Chronicler). The guide translations of five pages were refreshed in 13 languages (#235, #274, #304).
+- Docs: six new Help articles (the chat shelf of the Canvas, the World tabs, the Constellation map, the card-task model, the opening hint of a continued chat, the /gallery dialog) in English and Ukrainian; the "Overview vs Details" article lists all seven tabs; the Tool Calling article says what a user sees when a model refuses tools (an error toast; switching the tools off recovers the chat); the World DM tip no longer says the DM is off until a level is picked (it starts at Chronicler). The guide translations of five pages were refreshed in 13 languages (#235, #274, #304).
 
 ## 4.102.0 (2026-11-08)
 
