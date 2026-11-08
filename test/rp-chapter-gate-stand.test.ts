@@ -23,12 +23,12 @@ function oldChat(id: string, theme: string, secret: string) {
 
 // a bag-of-words "embedder": each word sets a few dimensions
 const embed = (text: string) => {
-  const v = new Array(64).fill(0);
+  const v = new Array(512).fill(0);
   for (const w of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
     let h = 7;
     for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    v[h % 64] += 1;
-    v[(h >>> 6) % 64] += 0.5;
+    v[h % 512] += 1;
+    v[(h >>> 6) % 512] += 0.5;
   }
   const n = Math.sqrt(v.reduce((t, x) => t + x * x, 0)) || 1;
   return v.map((x) => x / n);
@@ -63,6 +63,30 @@ describe("the chapter-gate stand", () => {
     const out = printStand(res, dump);
     expect(out).toContain("agreement");
     expect(out).not.toMatch(/turquoise|heron|lantern|willow/i);
+  });
+
+  it("with --split a long chat that continues nothing is cut at a chapter border: the early chapters are the pool, the late windows the probes", () => {
+    const msgs: Msg[] = [];
+    for (let i = 1; i <= 300; i++) msgs.push(i % 2 ? U(`s${i}`, filler("solo", i)) : C(`s${i}`, filler("solo", i)));
+    msgs.splice(6, 1, C("s7", "Aria wore the turquoise cloak with a silver clasp shaped like a heron."));
+    msgs.splice(250, 3, U("s251", "Do you remember the turquoise cloak?"), C("s252", "The silver clasp, shaped like a heron, yes."), U("s253", "And the heron on the clasp."));
+    writeChat("solo", msgs, { title: "solo", userName: "Jude" });
+    const chapters = Array.from({ length: 20 }, (_, k) => ({ id: "c" + (k + 1), from: msgs[k * 15]!.id, to: msgs[k * 15 + 14]!.id, count: 15, kind: "scene", text: k === 0 ? "A harbour fog. Aria wore the turquoise cloak with a silver clasp shaped like a heron." : `Quiet journey number ${k} through the hills.`, label: "L", at: k, cast: ["Aria"], sig: "x" }));
+    writeJson("litopys/chats/solo.json", { ...L.emptyChat("solo"), migrated: true, chapters });
+    const fsx = readOnlyFs(env.root);
+    expect(dumpStand(fsx, { split: false }).probes).toEqual([]);
+    const dump = dumpStand(fsx, { split: true });
+    expect(dump.splits).toBe(1);
+    const hit = dump.probes.filter((p) => p.kind === "split" && p.wordDocs.length);
+    expect(hit.length).toBeGreaterThan(0);
+    expect(dump.docs[hit[0]!.wordDocs[0]!]).toMatchObject({ chat: "solo", id: "c1" });
+    // the pool holds only chapters that end before the cut; no probe lies inside it
+    expect(hit[0]!.pool.length).toBeGreaterThanOrEqual(4);
+    expect(hit[0]!.pool.length).toBeLessThan(20);
+    const vecs = { doc: Object.fromEntries(dump.doc.map((t) => [t, embed(t)])), query: Object.fromEntries(dump.query.map((t) => [t, embed(t)])) };
+    const res = scoreStand(dump, vecs);
+    expect(res.agreement?.top1).toBe(1);
+    expect(printStand(res, dump)).not.toMatch(/turquoise|heron/i);
   });
 
   it("scores nothing and does not throw when a chat has no chain", () => {
