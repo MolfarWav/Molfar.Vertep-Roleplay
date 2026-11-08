@@ -73,3 +73,6 @@ export function turnNames(chat: Pick<LitChat, 'facts'> & { turns?: LitTurn[] }):
   }
   return Array.from(map.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
+
+/** The Undo on an Activity row "found a turning point": only for one the worker added, still there and not touched since. */
+export const canUndoFoundTurn = (turn: LitTurn | undefined): turn is LitTurn => !!turn && turn.origin === 'chapter' && !turn.edited

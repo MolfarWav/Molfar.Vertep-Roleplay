@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Eye, Trophy } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Eye, Trophy } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useT, useRelativeTime } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import type { LitActivity, LitActivityKind } from './litopys-api'
+import type { LitActivity, LitActivityKind, LitChat } from './litopys-api'
+import { removeLitTurn } from './litopys-api'
+import { canUndoFoundTurn } from './turns-util'
 import type { TabProps } from './ledger-facts'
 import { UndoAuto, canUndo } from './ledger-proposals'
 import type { MsgKey } from '@/lib/i18n'
@@ -95,6 +99,30 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
   }
 }
 
+/** Undo for a turning point the worker found: it is taken out again, and whatever it undid is active again. */
+function UndoFoundTurn({ chat, turnId, onChat, onRefresh }: { chat: LitChat; turnId: string; onChat: (c: LitChat) => void; onRefresh: () => void }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      onChat(await removeLitTurn(chat.chatId, turnId))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      onRefresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button size="sm" variant="outline" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void run()} data-testid="turn-undo-found">
+      <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
+      {t('lit.undo')}
+    </Button>
+  )
+}
+
 /** A small icon for the rows about habits (the other rows have none): a glance tells a habit seen from a habit earned. */
 function HabitIcon({ kind }: { kind: string }) {
   const cls = 'size-4 shrink-0 text-violet-700 dark:text-violet-300'
@@ -166,6 +194,10 @@ export function ActivityTab({ chat, onChat, onRefresh }: TabProps) {
                 {a.kind === 'proposal.auto' && (() => {
                   const p = chat.proposals.find((x) => x.id === a.ids[0])
                   return canUndo(p) ? <span className="ml-auto"><UndoAuto chat={chat} proposal={p} onChat={onChat} onRefresh={onRefresh} /></span> : null
+                })()}
+                {a.kind === 'turn.add' && a.by === 'worker' && (() => {
+                  const turn = (chat.turns ?? []).find((x) => x.id === a.ids[0])
+                  return canUndoFoundTurn(turn) ? <span className="ml-auto"><UndoFoundTurn chat={chat} turnId={turn.id} onChat={onChat} onRefresh={onRefresh} /></span> : null
                 })()}
               </div>
             </li>

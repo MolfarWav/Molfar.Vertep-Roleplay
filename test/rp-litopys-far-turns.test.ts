@@ -396,3 +396,41 @@ describe("a turning point built on a lie (#184 P4, #288)", () => {
     expect(r.json.turns[0].believers).toBeUndefined();
   });
 });
+
+describe("the far part as a source of its own in What fired (#288)", () => {
+  const get = (path: string, chatId: string, host: any) => L.handleRoute({ method: "GET", path, query: { chatId }, body: undefined }, host);
+
+  it("counts the replies that carried it, takes a swipe back, and says what it held", () => {
+    const m = longChain(6, (i) => (i === 1 ? { turns: [turn("t1", "The oath was sworn.")] } : {}));
+    writeJson("litopys/config.json", { linkBudget: 1500 });
+    L.llmRequest(ctx("c6"), m.host);
+    L.llmRequest({ ...ctx("c6"), turn: { op: "next", chatId: "c6", speakerName: "Aria" } }, m.host);
+    let far = get("/litopys/fired", "c6", m.host).json.log.far;
+    expect(far).toMatchObject({ n: 2, chats: 2, first: 1, last: 2, turns: 1 });
+    expect(far.tokens).toBeGreaterThan(0);
+    L.llmRequest({ ...ctx("c6"), turn: { op: "swipe", chatId: "c6", speakerName: "Aria" } }, m.host);
+    far = get("/litopys/fired", "c6", m.host).json.log.far;
+    expect(far.n).toBe(2);
+    expect(get("/litopys/fired", "c6", m.host).json.log.replies).toBe(2);
+  });
+
+  it("a short chain has no far row, and a chat with no record of its own still counts it", () => {
+    const m = longChain(3);
+    L.llmRequest(ctx("c3"), m.host);
+    expect(get("/litopys/fired", "c3", m.host).json.log?.far ?? null).toBeNull();
+    const m2 = longChain(6);
+    writeJson("litopys/config.json", { linkBudget: 1500 });
+    writeChat("fresh", story(2, "x"), { title: "Fresh" });
+    route(m2.host, "POST", "/litopys/links", { chatId: "fresh", from: "c6" });
+    L.llmRequest(ctx("fresh"), m2.host);
+    expect(get("/litopys/fired", "fresh", m2.host).json.log.far).toMatchObject({ n: 1, first: 1 });
+  });
+
+  it("the Memory trace of the newest reply carries it, an older reply does not", () => {
+    const m = longChain(6);
+    writeJson("litopys/config.json", { linkBudget: 1500 });
+    L.llmRequest(ctx("c6"), m.host);
+    const tr = get("/litopys/trace", "c6", m.host).json.trace;
+    expect(tr.far).toMatchObject({ chats: 2, first: 1, last: 2 });
+  });
+});

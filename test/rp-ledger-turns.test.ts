@@ -67,3 +67,14 @@ describe("turning points strings", () => {
     expect(t("lit.turns.count", "en", { n: 2 })).toBe("2 turning points");
   });
 });
+
+describe("Undo on a found turning point (#288)", () => {
+  it("offers it only for one the worker added that is still there and untouched", async () => {
+    const { canUndoFoundTurn } = await import("../src/components/library/turns-util");
+    expect(canUndoFoundTurn(undefined)).toBe(false);
+    expect(canUndoFoundTurn(turn("t1", 1))).toBe(true);
+    expect(canUndoFoundTurn(turn("t1", 1, { edited: true }))).toBe(false);
+    expect(canUndoFoundTurn(turn("t1", 1, { origin: "user" }))).toBe(false);
+    expect(canUndoFoundTurn(turn("t1", 1, { origin: "mark" }))).toBe(false);
+  });
+});

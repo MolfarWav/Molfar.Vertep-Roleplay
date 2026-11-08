@@ -3280,7 +3280,8 @@ export function llmRequest(ctx, host) {
     } catch {}
     // in how many replies each fact and chapter went in (#253)
     try {
-      if (insert && insert.trace) recordLitFired(fsx, chatId, str(ctx.turn.op), insert.trace.rows);
+      const farUsed = back && back.far ? back.far : null;
+      if ((insert && insert.trace) || farUsed) recordLitFired(fsx, chatId, str(ctx.turn.op), insert && insert.trace ? insert.trace.rows : [], farUsed);
     } catch {}
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
@@ -9639,12 +9640,17 @@ function makePerson(fsx, chatId, rc) {
  */
 const FIRED_DIR = "litopys/fired/";
 const FIRED_CAP = 200;
-function recordLitFired(fsx, chatId, op, rows) {
+function recordLitFired(fsx, chatId, op, rows, far) {
   if (!["send", "next", "swipe", "continue", ""].includes(op)) return;
   let log = readJson(fsx, FIRED_DIR + chatId + ".json", null);
   if (!isObj(log) || log.v !== 1 || !isObj(log.facts) || !isObj(log.chapters)) log = { v: 1, since: Date.now(), replies: 0, facts: {}, chapters: {}, last: null };
   const before = isObj(log.last) && isObj(log.last.keys) ? log.last.keys : null;
   if ((op === "swipe" || op === "continue") && before) {
+    // the far part of a long backstory counts as one source of its own (#288)
+    if (before.far === true && isObj(log.far)) {
+      log.far.n -= 1;
+      if (log.far.n <= 0) delete log.far;
+    }
     for (const [map, ids] of [[log.facts, arr(before.f)], [log.chapters, arr(before.c)]]) {
       for (const id of ids) {
         const e = map[id];
@@ -9656,7 +9662,11 @@ function recordLitFired(fsx, chatId, op, rows) {
     log.replies = Math.max(0, log.replies - 1);
   }
   log.replies += 1;
-  const keys = { f: [], c: [] };
+  const keys = { f: [], c: [], ...(far ? { far: true } : {}) };
+  if (far) {
+    const was = isObj(log.far) ? log.far : { n: 0, at: 0 };
+    log.far = { n: was.n + 1, at: log.replies, chats: Number(far.chats) || 0, first: Number(far.first) || 0, last: Number(far.last) || 0, tokens: Number(far.tokens) || 0, turns: Number(far.turns) || 0, facts: Number(far.facts) || 0, units: Number(far.units) || 0 };
+  }
   for (const r of arr(rows)) {
     if (!isObj(r) || r.s !== "in" || !str(r.i)) continue;
     const map = r.k === "f" ? log.facts : log.chapters;
@@ -9698,6 +9708,7 @@ function firedRoute(fsx, query) {
         replies: Number(log.replies) || 0,
         factsTotal: Object.keys(log.facts).length,
         chaptersTotal: Object.keys(log.chapters).length,
+        far: isObj(log.far) ? log.far : null,
         facts: top(log.facts).map(([id, e]) => {
           const f = facts.get(id);
           return { id, n: e.n, at: e.at, gone: !f, text: f ? cut(f.text, 200) : "", by: !f ? [] : f.knownBy === "all" ? "all" : arr(f.knownBy).map(person).filter(Boolean) };
@@ -9779,6 +9790,8 @@ function traceRoute(fsx, query) {
         chapters: outChapters,
         // the word-for-word passages of the newest reply (#184 step 8): the earlier chat, the shared rare words, the start of the passage
         verbatim: back === 0 ? verbatimRows(fsx, newest) : [],
+        // the far part of a long backstory the newest reply carried (#288)
+        far: back === 0 && isObj(newest) && isObj(newest.backstory) && isObj(newest.backstory.far) ? newest.backstory.far : null,
       },
     },
   };

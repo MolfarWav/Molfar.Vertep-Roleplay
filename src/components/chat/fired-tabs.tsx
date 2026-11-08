@@ -2,7 +2,7 @@
 // lorebook chips (`components/lore/why-rows.tsx`); this file only arranges them for the last reply and for the whole chat.
 
 import type { ReactNode } from 'react'
-import { Prohibit, Scissors, Lightning, Key, LinkSimple, PushPin, RadioButton, BookOpenText, Database, Scroll } from '@phosphor-icons/react'
+import { Prohibit, Scissors, Lightning, Key, LinkSimple, PushPin, RadioButton, BookOpenText, Database, Scroll, GitMerge } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Fold } from '@/components/ui/fold'
 import { TONES, type ToneName } from '@/components/ui/tone'
@@ -269,6 +269,21 @@ export function ChronChat({ lit, t, date }: { lit: LitFired; t: T; date: (ts: nu
           <p className="px-3 py-3 text-sm text-muted-foreground">{t('fired.none')}</p>
         )}
       </Fold>
+      {lit.far && (
+        <Fold id="fired.chat.far" title={t('fired.chat.far')} icon={GitMerge} tone="violet" count={lit.far.n}>
+          <Rows>
+            <CountRow
+              tone="violet"
+              title={t('fired.far.title', { range: lit.far.first === lit.far.last ? String(lit.far.first) : `${lit.far.first}-${lit.far.last}` })}
+              sub={t('memtrace.farBody', { chats: lit.far.chats, turns: lit.far.turns, facts: lit.far.facts, units: lit.far.units, tokens: lit.far.tokens })}
+              n={lit.far.n}
+              replies={lit.replies}
+              ago={repliesAgo(lit, lit.far.at)}
+              t={t}
+            />
+          </Rows>
+        </Fold>
+      )}
     </>
   )
 }
