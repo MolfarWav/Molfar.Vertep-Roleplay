@@ -5827,7 +5827,7 @@ function applySaid(ctx, out, present, turn, K) {
     // a lie is stored hidden: the user sees it only after asking to reveal, the character still holds to it.
     // The others in the scene heard it and take it as true until they learn better (#184 P4); never the user's character.
     const heardBy = lie ? unique(present.filter((p) => p !== who && sideOf(p, userAll(ctx), present, ctx) !== "user")) : [];
-    listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), ...(heardBy.length ? { heardBy } : {}), turn, src: K, source: "chat" });
+    listIn(state.said, who).push({ id: "s" + state.counters.said, text, kind, ...(lie ? { hidden: true } : {}), ...(heardBy.length ? { heardBy } : {}), ...(Number(s.strength) >= 3 ? { hinge: true } : {}), turn, src: K, source: "chat" });
     listIn(fresh, who).push({ text });
     used++;
   }

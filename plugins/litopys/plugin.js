@@ -29,6 +29,8 @@
 
 const LITOPYS_DIR = "litopys";
 const CHAT_DIR = "litopys/chats/";
+/** One small digest of a finished chat for the far tier of a long chain (#288): rebuilt only when that chat's record is saved. */
+const FAR_DIR = "litopys/far/";
 const VECTOR_DIR = "litopys/vectors/";
 const CONFIG_FILE = "litopys/config.json";
 const STORE_FILE = "litopys/store.json";
@@ -1119,6 +1121,8 @@ export const DEFAULT_CONFIG = {
   // #178: a new fact may name the earlier fact that caused it (fact.because); when the insert picks an effect and
   // the budget has room, its cause (if active) rides right after it. No setting in the app: a hand-edited key to turn it off.
   causes: true,
+  // #288: the worker may report a turning point of the story (a betrayal, a death, a vow broken) and how characters feel about it. No setting in the app.
+  turns: true,
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -1231,6 +1235,26 @@ export const SEARCH_RULE = [
   "- Single lowercase words. No names (names are matched already), no words the text already has, nothing the text does not mean.",
 ].join("\n");
 export const SEARCH_SHAPE = ',"also":["word"]?';
+
+/**
+ * Added to the chapter prompt while turning points are on (#288). A turning point is an event the whole story turns on, kept almost word
+ * for word in every later chat of the chain, with how the people it touched feel about it. Reported rarely; one a scene at most.
+ */
+export const TURNS_RULE = [
+  "Turning points (optional, usually none):",
+  "- A turning point is an event the story turns on: a betrayal, a death, a vow kept or broken, a secret coming out, a choice that closed a door. Not a mood, a detail or a routine scene. Most scenes have none. Report at most one add.",
+  '- Add it as {"op":"add","text":...}: 2 to 4 sentences close to what the messages show, who did what and what it cost. Keep names and the telling detail; do not turn it into a theme.',
+  '- stances: one line for each character it touched, how they feel about it now: {"who":"a name","line":"short"}. Up to 6. Only what the messages show.',
+  '- When it undoes an earlier turning point under Known turning points (a vow released, a lie exposed), add "undoes": that id.',
+  '- When a character\'s feeling about a Known turning point changed in this scene, give {"op":"stance","id":"t1","who":"a name","line":"short"} and no new turning point for it.',
+].join("\n");
+export const TURNS_SHAPE = ',"turns":[{"op":"add","text":"2-4 sentences","stances":[{"who":"","line":""}],"undoes":"t1"?},{"op":"stance","id":"t1","who":"","line":""}]';
+/** What a turning point keeps, and how many a chain shows at once. */
+const TURN_CHARS = 450;
+const STANCE_CHARS = 120;
+const STANCES_MAX = 6;
+const TURNS_KEEP = 40;
+export const TURNS_SHOWN = 12;
 /** At most this many search words to a chapter or a fact, each this long. */
 const ALSO_MAX = 8;
 const ALSO_CHARS = 24;
@@ -1418,6 +1442,7 @@ export function loadConfig(fsx) {
   cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
+  cfg.turns = cfg.turns !== false;
   return cfg;
 }
 
@@ -2295,6 +2320,13 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const flagged = heldLeaks(dash, line, scene);
   if (flagged.length) parts.push("Not canon (flagged)\n" + flagged.map((h) => "- " + h.who + " may have acted on a secret " + h.who + " does not know (" + h.texts[0] + "). Do not record that " + h.who + " knows it.").join("\n"));
 
+  // the turning points this scene may touch: the ones these people know (#288)
+  const turnsOn = cfg.turns !== false;
+  const knownTurns = turnsOn ? arr(st.turns).filter((t) => t.status !== "removed" && !t.overriddenBy && (t.knownBy === "all" || (Array.isArray(t.knownBy) && t.knownBy.some((k) => nameSetG.has(key(k)))))).slice(-8) : [];
+  if (knownTurns.length) parts.push("Known turning points\n" + knownTurns.map((t) => t.id + ": " + cut(t.text, 200) + stanceTail(t)).join("\n"));
+  const hinges = turnsOn ? sceneHinges(dash, line, scene) : [];
+  if (hinges.length) parts.push("Said, and the story may hinge on it\n" + hinges.map((h) => "- " + h.who + ": " + h.text).join("\n"));
+
   // a lie told in front of others in this scene (#184 P4): the listeners believe it, but it is not a fact of the story
   const lies = sceneLies(dash, line, scene);
   if (lies.length) parts.push("Told as true, but untrue\n" + lies.map((l) => "- " + l.liar + " told " + l.to.join(", ") + ": " + l.text + " They believe it. Do not record it as a fact, and do not write it into the chapter as true.").join("\n"));
@@ -2329,10 +2361,10 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const base = causesOn ? WORKER_SHAPE.replace('"weight":"everyday|important|key"}', '"weight":"everyday|important|key"' + CAUSE_SHAPE + "}") : WORKER_SHAPE;
   const alsoOn = cfg.searchWords !== false;
   const baseAlso = alsoOn ? base.replace(/("weight":"everyday\|important\|key"(?:,"because":"f3"\?)?)\}/, "$1" + SEARCH_SHAPE + "}").replace('"text":"3-6 sentences"', '"text":"3-6 sentences"' + SEARCH_SHAPE) : base;
-  const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + recollectionsRule(cfg.recollectChars) : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + "\n\nOutput shape\n" + shape;
+  const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + (turnsOn ? TURNS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + recollectionsRule(cfg.recollectChars) : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + (turnsOn ? "\n\n" + TURNS_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
-  if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short.";
+  if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short." + (turnsOn ? " Report it as a turning point (one add)." : "");
   // the first answer retold the scene at full length: ask again, shorter
   if (opts.maxWords) systemPrompt += "\n\nSize: the chapter text must be at most " + opts.maxWords + " words, far shorter than the messages. Keep only the consequences.";
 
@@ -3226,7 +3258,7 @@ export function llmRequest(ctx, host) {
           ...(insert && insert.full ? { full: true } : {}),
           ...(insert && insert.trace ? { trace: { ...insert.trace, op: str(ctx.turn.op), speaker: str(speakerName), sem: semOf(fsx, chatId, insert.trace.sem, scanModel, scanVec ? scanVec.length : 0) } } : {}),
           ...causeRecord(prevInsert, insert),
-          ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters } } : {}),
+          ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters, ...(back.turns ? { turns: back.turns } : {}), ...(back.far ? { far: { chats: back.far.chats, first: back.far.first, last: back.far.last, tokens: back.far.tokens, turns: back.far.turns, facts: back.far.facts, units: back.far.units } } : {}) } } : {}),
           ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
           ...(personaMem ? { personaMemory: { personaId: personaMem.ownerId, tokens: personaMem.tokens, sources: personaMem.sources, dupes: personaMem.dupes } } : {}),
           ...(worldMem ? { worldMemory: { worldId: worldMem.ownerId, tokens: worldMem.tokens, sources: worldMem.sources, dupes: worldMem.dupes } } : {}),
@@ -3394,7 +3426,13 @@ function workerShape(v) {
   }
   if (!text) return null;
   const also = isObj(v.chapter) ? v.chapter.also : v.also;
-  return { chapter: { label: cut(label, 80), text: cut(text, 1500), ...(Array.isArray(also) ? { also } : {}) }, facts: factOps(v), habits: habitList(v), views: viewList(v) };
+  return { chapter: { label: cut(label, 80), text: cut(text, 1500), ...(Array.isArray(also) ? { also } : {}) }, facts: factOps(v), habits: habitList(v), views: viewList(v), ...(turnOps(v).length ? { turns: turnOps(v) } : {}) };
+}
+
+/** The worker's turning-point ops wherever the model put them: a list under `turns`, or one `turn` object (read as an add). */
+function turnOps(v) {
+  const raw = Array.isArray(v.turns) ? v.turns : isObj(v.turn) ? [{ op: "add", ...v.turn }] : [];
+  return raw.filter(isObj).slice(0, 4);
 }
 
 /** item 7: parse the worker's reply JSON, tolerating a cut reply. */
@@ -3917,6 +3955,11 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     }
   }
 
+  // A turning point of the scene, and how characters feel now about earlier ones (#288)
+  if (ctx.turns !== false) {
+    applyTurns(st, { scene, chapterId, chapterText: newChapter.text, ops: parsed.turns, now, canon, witnesses: ctx.witnesses, replaces, mark: scene.marked === true });
+  }
+
   // Habits the characters showed (#106), kept on the chat record itself (a rebuild keeps its own generation apart)
   if (ctx.habits) {
     const earned = applyHabits(ctx.habitsStore || st, parsed.habits, {
@@ -3992,7 +4035,8 @@ export function emptyChat(chatId) {
     scene: { openFrom: null },
     arcs: [],
     habits: [],
-    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0 },
+    turns: [],
+    counters: { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0, turn: 0 },
   };
 }
 
@@ -4057,9 +4101,12 @@ export function loadChatFile(fsx, chatId) {
         proposal: Number(st.counters.proposal) || 0,
         arc: Number(st.counters.arc) || 0,
         habit: Number(st.counters.habit ?? st.counters.skill) || 0,
+        turn: Number(st.counters.turn) || 0,
       }
-    : { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0 };
+    : { chapter: 0, fact: 0, proposal: 0, arc: 0, habit: 0, turn: 0 };
   st.arcs = arr(st.arcs).filter(isObj);
+  // turning points (#288): their own list, so fact ranking, merging and compression never touch them
+  st.turns = arr(st.turns).filter(isObj);
   // habits were called skills until 4.67.0
   st.habits = arr(st.habits ?? st.skills).filter(isObj);
   delete st.skills;
@@ -4080,6 +4127,10 @@ export function saveChatFile(fsx, st) {
   if (isObj(disk) && (Number(disk.rev) || 0) !== (Number(st.rev) || 0)) return false;
   st.rev = (Number(st.rev) || 0) + 1;
   fsx.write(CHAT_DIR + st.chatId + ".json", JSON.stringify(st, null, 2));
+  // the far-tier digest of this chat is now out of date; the next long chain that needs it makes it again (#288)
+  try {
+    fsx.remove(FAR_DIR + st.chatId + ".json");
+  } catch {}
   return true;
 }
 
@@ -4294,6 +4345,7 @@ export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, chi
     chapter: Number(parentSt.counters.chapter) || 0,
     fact: Number(parentSt.counters.fact) || 0,
     proposal: Number(parentSt.counters.proposal) || 0,
+    turn: Number(parentSt.counters.turn) || 0,
   };
 
   const boundaryIndex = parentMessageId != null ? parentLine.findIndex((m) => m && m.id === parentMessageId) : parentLine.length - 1;
@@ -4325,6 +4377,18 @@ export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, chi
   }
 
   dropLostCauses(child.facts);
+  // a turning point belongs to its chapter: it comes along when that chapter does; an override whose cause stayed behind is undone here (#288)
+  for (const t of arr(parentSt.turns)) {
+    if (!isObj(t) || !(copyAll || !t.chapterId || copiedIds.has(t.chapterId))) continue;
+    child.turns.push({ ...t });
+    copiedIds.add(t.id);
+  }
+  const turnIds = new Set(child.turns.map((t) => t.id));
+  for (const t of child.turns) {
+    if (t.overriddenBy && !turnIds.has(t.overriddenBy)) delete t.overriddenBy;
+    if (t.overrides && !turnIds.has(t.overrides)) delete t.overrides;
+    if (arr(t.pending).length) t.pending = t.pending.filter((x) => isObj(x) && turnIds.has(str(x.by || t.id)));
+  }
   // a superseded fact whose successor stayed behind in the parent is current here
   for (const f of child.facts) {
     if (f.status !== "superseded") continue;
@@ -4483,7 +4547,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR, FAR_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -5132,7 +5196,8 @@ export function finishRebuild(st, now) {
   dropLostCauses(facts);
   st.facts = facts;
   st.proposals = arr(g.proposals);
-  st.counters = { ...st.counters, chapter: g.counters.chapter, fact: Math.max(g.counters.fact, st.counters.fact), proposal: Math.max(g.counters.proposal, st.counters.proposal) };
+  st.counters = { ...st.counters, chapter: g.counters.chapter, fact: Math.max(g.counters.fact, st.counters.fact), proposal: Math.max(g.counters.proposal, st.counters.proposal), turn: Math.max(Number(g.counters.turn) || 0, Number(st.counters.turn) || 0) };
+  st.turns = arr(g.turns);
   st.worker = isObj(g.worker) ? g.worker : st.worker;
   delete st.inFlight;
   st.queue = isObj(g.queue) ? g.queue : { next: 0 };
@@ -5181,11 +5246,13 @@ export function rebuildChat(fsx, chatId, cfg) {
       chapters: st.chapters.filter((ch) => ch.edited === true).map((ch) => ({ ...ch })),
       facts: st.facts.filter((f) => f.status === "active" && keptByUser(f)).map((f) => ({ ...f })),
       proposals: [],
+      // the reader's own turning points and the ones the user edited stay; the rest are reported again by the new chapters (#288)
+      turns: arr(st.turns).filter((t) => t.origin === "user" || t.edited === true).map((t) => ({ ...t })),
       // facts copied from the record in use: at the swap they take the state the user left them in
       carried: st.facts.filter((f) => f.status === "active" && keptByUser(f)).map((f) => f.id),
       skipScenes: arr(st.skipScenes).map((s) => ({ ...s })),
       marks: arr(st.marks).map((m) => ({ ...m })),
-      counters: { chapter: st.counters.chapter, fact: st.counters.fact, proposal: st.counters.proposal },
+      counters: { chapter: st.counters.chapter, fact: st.counters.fact, proposal: st.counters.proposal, turn: st.counters.turn || 0 },
     };
     addActivity(st, "user", "rebuild.start", "Rebuild from scratch started", [], now);
     if (!saveChatFile(fsx, st)) continue;
@@ -5444,6 +5511,7 @@ export function onTick(_ctx, host) {
                 habits: chatCfg.habits !== false,
                 causes: chatCfg.causes !== false,
                 searchWords: chatCfg.searchWords !== false,
+                turns: chatCfg.turns !== false,
                 // a rebuild's generation is written beside the record in use: nothing waits there
                 riskyAdds: chatCfg.proposals === "risky" && g === cur,
                 recollectChars: chatCfg.recollectChars,
@@ -6576,20 +6644,23 @@ const CHAIN_SHARES = [[1], [0.65, 0.35], [0.5, 0.3, 0.2]];
  * rest. Rendered oldest first, each chat as its own part (backstoryPart).
  */
 export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voices }) {
-  const budget = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
-  if (!budget) return null;
+  const budget0 = clamp(cfg && cfg.linkBudget !== undefined ? cfg.linkBudget : 800, 0, 3000);
+  if (!budget0) return null;
   // "Start clean" in the chat's Dashboard (#100) is one switch for the whole carried memory: the story too
   const dash = readDash(fsx, chatId);
   if (isObj(dash) && isObj(dash.inherited) && dash.inherited.off === true) return null;
   const links = loadLinks(fsx);
-  // nearest first; the link route refuses loops, the seen set guards files written before it did
-  const chain = [];
+  // nearest first; the link route refuses loops, the seen set guards files written before it did. The nearest CHAIN_MAX chats are read
+  // in full; the older ones of a long chain make the far part (#288)
+  const whole = [];
   const seen = new Set([chatId]);
-  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && chain.length < CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
+  for (let cur = links[chatId] ? links[chatId].from : null; cur && !seen.has(cur) && whole.length < RECALL_CHAIN_MAX; cur = links[cur] ? links[cur].from : null) {
     seen.add(cur);
-    chain.push(cur);
+    whole.push(cur);
   }
-  if (!chain.length) return null;
+  if (!whole.length) return null;
+  const chain = whole.slice(0, CHAIN_MAX);
+  const farChain = whole.slice(CHAIN_MAX);
 
   // present: the names of the new chat's recent messages, the speaker and the user
   const here = new Set();
@@ -6601,21 +6672,26 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
   const groups = chatGroups(fsx, chatId, meta, null);
   const knowers = voices instanceof Set && voices.size ? voices : here;
   const knowsAs = groups ? new Set([...knowers, ...groups.tokensFor(knowers)]) : knowers;
-  const shares = CHAIN_SHARES[chain.length - 1];
   const usedFacts = new Set();
+  // the far part comes first: its own share of the one budget, taken before the near shares; what it leaves unused goes to the near chats
+  const bank = { left: TURNS_SHOWN };
+  const far = farChain.length ? farPart({ fsx, farChain, firstIdx: CHAIN_MAX, total: whole.length, here, knowers: knowsAs, groups, voices, cap: Math.floor(budget0 * FAR_SHARE), usedFacts, bank }) : null;
+  const budget = budget0 - (far ? far.tokens : 0);
+  const shares = CHAIN_SHARES[chain.length - 1];
   const parts = [];
   let spent = 0;
   for (let i = chain.length - 1; i >= 0; i--) {
     // this chat and the older ones together may use their summed shares
     const cap = i === 0 ? budget - spent : Math.floor(budget * shares.slice(i).reduce((a, b) => a + b, 0)) - spent;
     const nearer = i > 0 ? readChat(fsx, chain[i - 1]) : null;
-    const part = backstoryPart({ fsx, from: chain[i], here, knowers: knowsAs, groups, voices, cap, usedFacts, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
+    const part = backstoryPart({ fsx, from: chain[i], here, knowers: knowsAs, groups, voices, cap, usedFacts, bank, continues: cfg && cfg.continues, nearerTitle: nearer ? str(nearer.meta && nearer.meta.title) || chain[i - 1] : null });
     if (!part) continue;
     parts.push(part);
     spent += part.tokens;
   }
-  if (!parts.length) return null;
-  const text = parts.map((p) => p.text).join("\n\n");
+  if (!parts.length && !far) return null;
+  const nearText = parts.map((p) => p.text).join("\n\n");
+  const text = [far ? far.text : "", nearText].filter(Boolean).join("\n\n");
   return {
     text,
     tokens: estimateTokens(text),
@@ -6623,6 +6699,9 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
     ...(chain.length > 1 ? { chain: parts.map((p) => p.from) } : {}),
     facts: parts.reduce((n, p) => n + p.facts, 0),
     chapters: parts.reduce((n, p) => n + p.chapters, 0),
+    ...(parts.some((p) => p.turns) ? { turns: parts.reduce((n, p) => n + (p.turns || 0), 0) } : {}),
+    nearText,
+    ...(far ? { far: { text: far.text, tokens: far.tokens, chats: far.chats, first: far.first, last: far.last, turns: far.turns, facts: far.facts, units: far.units, from: far.from } } : {}),
   };
 }
 
@@ -6632,7 +6711,7 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
  * chat's last chapter, key facts (newest first), then arcs and the chapters no fresh arc holds,
  * walking back from the end. A fact already given by an older part is not repeated.
  */
-function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFacts, nearerTitle, continues }) {
+function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFacts, bank, nearerTitle, continues }) {
   if (cap <= 0) return null;
   const prc = readChat(fsx, from);
   const pst = loadChatFile(fsx, from);
@@ -6666,8 +6745,10 @@ function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFact
   const factLine = (f) => factLineOf(f, solo, groups);
   const facts = [];
   const story = [];
+  const turns = [];
   const render = () => {
     const out = [header];
+    if (turns.length) out.push("Turning points:", ...turns.map((r) => turnLine(r, here)));
     if (story.length) out.push("The story so far:", ...story.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx).map(itemLine));
     if (facts.length) out.push("Facts:", ...facts.map(factLine));
     return out.join("\n");
@@ -6679,13 +6760,281 @@ function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFact
     return false;
   };
   for (const f of a) if (!tryAdd(facts, f)) break;
+  // turning points (#288) ride in every later chat, near or far: newest first, at most half of this part's room, and TURNS_SHOWN across the chain
+  const mine = turnsFor(pst.turns, knowers).sort((x, y) => (Number(y.t.at) || 0) - (Number(x.t.at) || 0));
+  const half = (list) => estimateTokens([header, "Turning points:", ...list.map((r) => turnLine(r, here))].join("\n")) <= cap / 2;
+  for (const r of mine) {
+    if (r.undone ? turns.filter((x) => x.undone).length >= 2 : bank.left <= 0) continue;
+    if (!half([...turns, r]) || !tryAdd(turns, r)) break;
+    if (!r.undone) bank.left--;
+  }
   if (last) tryAdd(story, last);
   for (const f of c) if (!tryAdd(facts, f)) break;
   for (const x of older) if (!tryAdd(story, x)) break;
-  if (!facts.length && !story.length) return null;
+  if (!facts.length && !story.length && !turns.length) return null;
   for (const f of facts) usedFacts.add(factKey(f));
   const text = render();
-  return { text, tokens: estimateTokens(text), from, facts: facts.length, chapters: story.length };
+  return { text, tokens: estimateTokens(text), from, facts: facts.length, chapters: story.length, turns: turns.length };
+}
+
+// ---------- turning points (#288) ----------
+// Events the story turns on (a betrayal, a death, a vow broken, a secret out). Not facts: their own list `turns` in the chat's record, so fact
+// ranking, merging and compression never touch them. Kept almost word for word, with how the people they touched feel about each
+// (`stances`: name -> one line), and carried into every later chat of the chain, near or far. A later event may undo an earlier one
+// (`overriddenBy`; the earlier stays, marked) or change a stance. No model call of its own: the chapter worker reports them.
+
+/** " [Bram: forgave Ada; Ada: ashamed]" for a turning point's stances; only the names in `only` when given. */
+function stanceTail(t, only) {
+  const rows = Object.entries(isObj(t && t.stances) ? t.stances : {}).filter(([n, l]) => str(l) && (!only || only.has(str(n).toLowerCase())));
+  return rows.length ? " [" + rows.map(([n, l]) => n + ": " + cut(str(l), STANCE_CHARS)).join("; ") + "]" : "";
+}
+
+/** The Dashboard's strength-3 "said" lines of the scene's messages ("the story will hinge on it"): candidates the worker may turn into a turning point. */
+export function sceneHinges(dash, line, scene) {
+  if (!dash || !isObj(dash.said) || !scene) return [];
+  const keys = new Set();
+  for (let i = scene.fromIdx; i <= scene.toIdx && i < line.length; i++) {
+    const m = line[i];
+    if (m) keys.add(m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0));
+  }
+  const out = [];
+  for (const [who, list] of Object.entries(dash.said)) {
+    for (const s of arr(list)) if (isObj(s) && s.hinge === true && s.kind !== "lie" && keys.has(s.src) && str(s.text)) out.push({ who, text: cut(str(s.text), 240) });
+  }
+  return out.slice(0, 3);
+}
+
+/** A map name -> line from the worker's list ([{who, line}]) or a map, names through `canon`, at most STANCES_MAX. */
+export function cleanStances(raw, canon) {
+  const nm = typeof canon === "function" ? canon : (n) => str(n);
+  const rows = Array.isArray(raw) ? raw.filter(isObj).map((x) => [x.who || x.name || x.character, x.line || x.text || x.stance]) : isObj(raw) ? Object.entries(raw) : [];
+  const out = {};
+  for (const [who, line] of rows) {
+    const name = cut(nm(str(who)), 60);
+    const l = cutAtSentence(str(line).replace(/\s+/g, " ").trim(), STANCE_CHARS);
+    if (!name || !l || Object.keys(out).some((k) => k.toLowerCase() === name.toLowerCase())) continue;
+    out[name] = l;
+    if (Object.keys(out).length >= STANCES_MAX) break;
+  }
+  return out;
+}
+
+/** Take a turning point out of the list; whatever it undid is active again. */
+function dropTurn(st, id) {
+  st.turns = arr(st.turns).filter((t) => t.id !== id);
+  for (const t of st.turns) {
+    if (t.overriddenBy === id) {
+      delete t.overriddenBy;
+      delete t.overriddenAt;
+    }
+    if (t.overrides === id) delete t.overrides;
+    if (arr(t.pending).length) t.pending = t.pending.filter((x) => x.by !== id);
+  }
+}
+
+/** The list stays at TURNS_KEEP: the oldest undone ones go first. */
+function trimTurns(st) {
+  while (st.turns.length > TURNS_KEEP) {
+    const gone = st.turns.find((t) => t.overriddenBy && t.edited !== true);
+    if (!gone) break;
+    dropTurn(st, gone.id);
+  }
+}
+
+/** A turning point of a scene, at most one a scene, and the stance changes. Returns the turning point added, if any. */
+export function applyTurns(st, { scene, chapterId, chapterText, ops, now, canon, witnesses, replaces, mark }) {
+  st.turns = arr(st.turns);
+  st.counters.turn = Number(st.counters.turn) || 0;
+  const nm = typeof canon === "function" ? canon : (n) => str(n);
+  // a chapter written again makes its own turning point again; the reader's and the edited ones stay
+  if (replaces) for (const t of st.turns.filter((x) => x.chapterId === chapterId && x.origin !== "user" && x.edited !== true && !arr(x.pending).length)) dropTurn(st, t.id);
+  const list = arr(ops).filter(isObj);
+  const opOf = (o) => (str(o.op).toLowerCase() === "stance" ? "stance" : "add");
+  let added = null;
+  const addOp = list.find((o) => opOf(o) === "add");
+  let text = addOp ? cutAtSentence(str(addOp.text).replace(/\s+/g, " ").trim(), TURN_CHARS) : "";
+  // a scene the reader marked always proposes one: when the model gave none, the chapter's own words stand in
+  if (!text && mark) text = cutAtSentence(str(chapterText).replace(/\s+/g, " ").trim(), TURN_CHARS);
+  const live = st.turns.filter((t) => !t.overriddenBy);
+  if (text && !live.some((t) => diceSimilarity(text, t.text) >= DICE_LIMIT)) {
+    const people = dedupeNames(arr(witnesses).map(str).filter(Boolean).map(nm));
+    const target = addOp && str(addOp.undoes) ? live.find((t) => t.id === str(addOp.undoes)) : null;
+    const turn = {
+      id: "t" + ++st.counters.turn,
+      text,
+      chapterId,
+      cast: people,
+      knownBy: people.length ? people : "all",
+      stances: addOp ? cleanStances(addOp.stances, nm) : {},
+      origin: mark ? "mark" : "chapter",
+      ...(target ? { overrides: target.id } : {}),
+      at: now,
+      updatedAt: now,
+    };
+    st.turns.push(turn);
+    added = turn;
+    if (target) {
+      // against what the user wrote or edited it waits for a yes (the Turning points list shows the reason)
+      if (target.edited === true || target.origin === "user") {
+        if (!arr(target.pending).some((x) => x.kind === "override" && x.by === turn.id)) target.pending = [...arr(target.pending), { kind: "override", by: turn.id, reason: "later events undid it", at: now }];
+      } else {
+        target.overriddenBy = turn.id;
+        target.overriddenAt = now;
+      }
+    }
+    addActivity(st, "worker", "turn.add", "Marked a turning point: " + quote(text), [turn.id], now, { text });
+    trimTurns(st);
+  }
+  for (const op of list.filter((o) => opOf(o) === "stance").slice(0, 3)) {
+    const t = st.turns.find((x) => x.id === str(op.id) && !x.overriddenBy);
+    const who = nm(str(op.who || op.name));
+    const lineText = cutAtSentence(str(op.line || op.text).replace(/\s+/g, " ").trim(), STANCE_CHARS);
+    if (!t || !who || !lineText) continue;
+    if (t.edited === true || t.origin === "user") {
+      if (!arr(t.pending).some((x) => x.kind === "stance" && sameName(x.who, who) && x.line === lineText)) t.pending = [...arr(t.pending), { kind: "stance", who, line: lineText, reason: "a character's feeling changed", at: now }];
+      continue;
+    }
+    t.stances = isObj(t.stances) ? t.stances : {};
+    const had = Object.keys(t.stances).find((k) => sameName(k, who));
+    if (had) delete t.stances[had];
+    t.stances[who] = lineText;
+    t.updatedAt = now;
+    addActivity(st, "worker", "turn.stance", who + " now: " + quote(lineText), [t.id], now, { who, line: lineText });
+  }
+  return added;
+}
+
+/** Is this record's item (fact, turning point) known to these knowers? "all", or a listed name (or a group token) among them. */
+function knownTo(item, knowers) {
+  return item.knownBy === "all" || (Array.isArray(item.knownBy) && item.knownBy.some((k) => knowers.has(str(k).toLowerCase())));
+}
+
+/** The turning points of one chat as seen by `knowers`: [{ t, undone }], `undone` = the later turning point that undid it when they know of that one too. */
+function turnsFor(turns, knowers) {
+  const list = arr(turns).filter((t) => isObj(t) && str(t.text));
+  const byId = new Map(list.map((t) => [t.id, t]));
+  const out = [];
+  for (const t of list) {
+    if (!knownTo(t, knowers)) continue;
+    const by = t.overriddenBy ? byId.get(t.overriddenBy) : null;
+    out.push({ t, undone: by && knownTo(by, knowers) ? by : null });
+  }
+  return out;
+}
+
+/** One line of the prompt: the event, what undid it (near tier only), and how the people who are here feel about it. */
+function turnLine({ t, undone }, here, tag) {
+  return "- " + (tag ? "(" + tag + ") " : "") + str(t.text) + (undone ? " (later undone: " + cut(str(undone.text), 90) + ")" : "") + stanceTail(t, here);
+}
+
+// ---------- the far tier of a long chain (#288) ----------
+// A chat is read in full for its three nearest earlier chats (backstoryPart). The older ones of the chain go into one condensed part: the turning
+// points, the pinned and key facts, and one line per arc (chapter, when no arc holds it). No model call: the words are the ones the record
+// already has. Each chat is read as a small digest kept beside the record and made again only when that chat's record is saved.
+const FAR_V = 1;
+/** The far part's share of the backstory budget; what it leaves unused goes to the near chats. */
+export const FAR_SHARE = 0.18;
+const FAR_LINE_CHARS = 240;
+/** Turning points the far part may carry; the near chats keep the rest of TURNS_SHOWN. */
+const FAR_TURNS_MAX = 8;
+
+/** The digest of one finished chat: what the far part may use, whole (it is filtered by who is speaking when it is read). */
+export function farDigest(fsx, chatId) {
+  const cached = readJson(fsx, FAR_DIR + chatId + ".json", null);
+  if (isObj(cached) && cached.v === FAR_V) return cached;
+  const st = loadChatFile(fsx, chatId);
+  if (!st) return null;
+  const chapters = st.chapters.filter((ch) => usable(ch) && str(ch.text) && ch.stale !== true);
+  const pos = new Map(chapters.map((ch, i) => [ch.id, i]));
+  const arcs = freshArcs(st).filter((a) => arr(a.chapterIds).every((id) => pos.has(id)));
+  const held = new Set(arcs.flatMap((a) => a.chapterIds));
+  const castOf = (members) => {
+    const casts = members.map((m) => arr(m.cast).map(str).filter(Boolean));
+    return casts.every((c) => c.length) ? [...new Set(casts.flat())] : [];
+  };
+  const units = [
+    ...arcs.map((a) => {
+      const members = a.chapterIds.map((id) => chapters[pos.get(id)]);
+      return { at: Math.min(...a.chapterIds.map((id) => pos.get(id))), text: cutAtSentence(str(a.text).replace(/\s+/g, " ").trim(), FAR_LINE_CHARS), cast: castOf(members) };
+    }),
+    ...chapters
+      .filter((ch) => !held.has(ch.id))
+      .map((ch) => ({ at: pos.get(ch.id), text: cutAtSentence((str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text).replace(/\s+/g, " ").trim(), FAR_LINE_CHARS), cast: arr(ch.cast).map(str).filter(Boolean) })),
+  ]
+    .filter((u) => u.text)
+    .sort((x, y) => x.at - y.at);
+  const facts = st.facts
+    .filter((f) => isObj(f) && f.status === "active" && str(f.text) && (f.pinned === true || f.weight === "key"))
+    .sort((x, y) => (Number(y.updatedAt) || 0) - (Number(x.updatedAt) || 0))
+    .slice(0, 30)
+    .map((f) => ({ text: str(f.text), subject: str(f.subject), knownBy: f.knownBy, type: f.type, pinned: f.pinned === true, weight: f.weight, ...(f.type === "belief" ? { holder: f.holder, prov: f.prov } : {}) }));
+  const turns = arr(st.turns).filter((t) => isObj(t) && str(t.text)).map((t) => ({ id: t.id, text: t.text, knownBy: t.knownBy, stances: t.stances, ...(t.overriddenBy ? { overriddenBy: t.overriddenBy } : {}), at: t.at }));
+  const digest = { v: FAR_V, chatId, rev: st.rev, units, facts, turns };
+  try {
+    fsx.write(FAR_DIR + chatId + ".json", JSON.stringify(digest));
+  } catch {}
+  return digest;
+}
+
+/**
+ * The far part of a backstory, within `cap` tokens, or null. `farChain` = the chats past the near ones, nearest first; `total` = the
+ * chain's length (the oldest chat is "chat 1"). Fill order: turning points, pinned and key facts, then arc lines newest chat first, so
+ * the oldest chats are cut first and the turning points last. The speaker filter is the near part's (`knownBy`, `cast`).
+ */
+function farPart({ fsx, farChain, firstIdx, total, here, knowers, groups, voices, cap, usedFacts, bank }) {
+  if (cap <= 0 || !farChain.length) return null;
+  const digests = farChain.map((id, i) => ({ id, n: total - (firstIdx + i), d: farDigest(fsx, id) })).filter((x) => x.d);
+  if (!digests.length) return null;
+  const subj = (f) => str(f.subject).toLowerCase();
+  const nums = digests.map((x) => x.n);
+  const hi = Math.max(...nums);
+  const lo = Math.min(...nums);
+  const header = "[Backstory (Litopys), far: " + (hi === lo ? "chat " + hi : "chats " + lo + "-" + hi) + " of this story, condensed. Older than the parts below, the same canon: it really happened to the characters, so let it show naturally and do not retell it unprompted.]";
+  const turns = [];
+  const facts = [];
+  const units = [];
+  const render = () => {
+    const out = [header];
+    if (turns.length) out.push("Turning points:", ...turns.slice().sort((x, y) => x.n - y.n || (Number(x.t.at) || 0) - (Number(y.t.at) || 0)).map((x) => turnLine(x.row, here, "chat " + x.n)));
+    if (facts.length) out.push("Facts:", ...facts.map((f) => factLineOf(f, voices instanceof Set && voices.size === 1, groups)));
+    if (units.length) {
+      const byChat = new Map();
+      for (const u of units) byChat.set(u.n, [...(byChat.get(u.n) || []), u]);
+      out.push("The story so far:");
+      for (const n of [...byChat.keys()].sort((a, b) => a - b)) out.push("Chat " + n + ":", ...byChat.get(n).sort((a, b) => a.at - b.at).map((u) => "- " + u.text));
+    }
+    return out.join("\n");
+  };
+  const tryAdd = (list, item) => {
+    list.push(item);
+    if (estimateTokens(render()) <= cap) return true;
+    list.pop();
+    return false;
+  };
+  let turnsAdded = 0;
+  for (const x of digests) {
+    for (const row of turnsFor(x.d.turns, knowers).filter((r) => !r.undone)) {
+      if (bank.left <= 0 || turnsAdded >= FAR_TURNS_MAX) break;
+      if (!tryAdd(turns, { n: x.n, t: row.t, row })) break;
+      bank.left--;
+      turnsAdded++;
+    }
+  }
+  for (const x of digests) {
+    const mine = arr(x.d.facts).filter((f) => knownTo(f, knowers) && !usedFacts.has(str(f.text).trim().toLowerCase()) && (f.weight === "key" || (f.pinned && (subj(f) === "world" || here.has(subj(f))))));
+    for (const f of mine) if (!tryAdd(facts, f)) break;
+  }
+  for (const x of digests) {
+    for (const u of arr(x.d.units).slice().reverse()) {
+      const seen = !arr(u.cast).length || !(voices instanceof Set) || !voices.size || arr(u.cast).some((c) => voices.has(str(c).toLowerCase()));
+      if (!seen) continue;
+      if (!tryAdd(units, { n: x.n, at: u.at, text: u.text })) break;
+    }
+  }
+  if (!turns.length && !facts.length && !units.length) return null;
+  for (const f of facts) usedFacts.add(str(f.text).trim().toLowerCase());
+  const text = render();
+  return { text, tokens: estimateTokens(text), from: digests.map((x) => x.id), chats: digests.length, turns: turns.length, facts: facts.length, units: units.length, first: lo, last: hi };
 }
 
 // ---------- word-for-word memories of earlier chats of the chain (#184 step 8, #264) ----------
@@ -7052,6 +7401,117 @@ function expireProposals(st, factId, now) {
 }
 
 /** POST /litopys/facts { chatId, op, id?, ... } */
+/**
+ * The Turning points list (#288): the user adds one, marks a chapter as one, edits, removes, says which later one undid an earlier one,
+ * and answers what the worker left waiting (`pending`: an override or a stance change against what the user wrote). Everything the
+ * worker adds by itself can be taken back here (remove puts back what it undid).
+ */
+export function turnRoute(fsx, body) {
+  const b = isObj(body) ? body : {};
+  const op = str(b.op);
+  if (!["add", "mark", "edit", "remove", "undo", "resolve"].includes(op)) return bad("unknown op");
+  return mutateChat(fsx, str(b.chatId), (st) => {
+    const now = Date.now();
+    st.turns = arr(st.turns);
+    st.counters.turn = Number(st.counters.turn) || 0;
+    const people = (v) => (v === "all" ? "all" : Array.isArray(v) ? dedupeNames(v.map((x) => cut(str(x), 60)).filter(Boolean)) : null);
+    if (op === "add" || op === "mark") {
+      let text = "";
+      let chapter = null;
+      if (op === "mark") {
+        chapter = st.chapters.find((c) => c.id === str(b.chapterId));
+        if (!chapter) return { status: 404, json: { error: "no such chapter" } };
+        text = cutAtSentence(str(b.text || chapter.text).replace(/\s+/g, " ").trim(), TURN_CHARS);
+        if (st.turns.some((t) => t.chapterId === chapter.id && t.origin === "mark")) return { status: 409, json: { error: "already marked" } };
+      } else text = cutAtSentence(str(b.text).replace(/\s+/g, " ").trim(), TURN_CHARS);
+      if (!text) return bad("text is empty");
+      let knownBy = b.knownBy === undefined ? null : people(b.knownBy);
+      if (b.knownBy !== undefined && !knownBy) return bad("knownBy must be \"all\" or a list of names");
+      const cast = chapter ? arr(chapter.cast).map(str).filter(Boolean) : [];
+      if (!knownBy) knownBy = cast.length ? cast : "all";
+      const turn = {
+        id: "t" + ++st.counters.turn,
+        text,
+        chapterId: chapter ? chapter.id : str(b.chapterId) || null,
+        cast,
+        knownBy,
+        stances: cleanStances(b.stances),
+        origin: op === "mark" ? "mark" : "user",
+        ...(op === "add" ? { edited: true } : {}),
+        at: now,
+        updatedAt: now,
+      };
+      st.turns.push(turn);
+      trimTurns(st);
+      addActivity(st, "user", "turn.add", (op === "mark" ? "Marked a chapter as a turning point: " : "Added a turning point: ") + quote(text), [turn.id], now, { text });
+      return;
+    }
+    const turn = st.turns.find((t) => t.id === str(b.id));
+    if (!turn) return { status: 404, json: { error: "no such turning point" } };
+    if (op === "edit") {
+      if (b.text !== undefined) {
+        const text = cutAtSentence(str(b.text).replace(/\s+/g, " ").trim(), TURN_CHARS);
+        if (!text) return bad("text is empty");
+        turn.text = text;
+      }
+      if (b.knownBy !== undefined) {
+        const k = people(b.knownBy);
+        if (!k) return bad("knownBy must be \"all\" or a list of names");
+        turn.knownBy = k;
+      }
+      if (b.stances !== undefined) turn.stances = cleanStances(b.stances);
+      turn.edited = true;
+      turn.updatedAt = now;
+      addActivity(st, "user", "turn.edit", "Edited a turning point: " + quote(turn.text), [turn.id], now, { text: turn.text });
+      return;
+    }
+    if (op === "remove") {
+      dropTurn(st, turn.id);
+      addActivity(st, "user", "turn.remove", "Removed a turning point: " + quote(turn.text), [turn.id], now, { text: turn.text });
+      return;
+    }
+    if (op === "undo") {
+      // `by` = the later turning point that undid this one; no `by` puts it back
+      const by = str(b.by) ? st.turns.find((t) => t.id === str(b.by)) : null;
+      if (str(b.by) && (!by || by.id === turn.id)) return bad("no such turning point to undo it with");
+      if (by) {
+        turn.overriddenBy = by.id;
+        turn.overriddenAt = now;
+        by.overrides = turn.id;
+      } else {
+        const was = turn.overriddenBy && st.turns.find((t) => t.id === turn.overriddenBy);
+        if (was && was.overrides === turn.id) delete was.overrides;
+        delete turn.overriddenBy;
+        delete turn.overriddenAt;
+      }
+      turn.pending = arr(turn.pending).filter((x) => x.kind !== "override");
+      addActivity(st, "user", "turn.undo", (by ? "Marked as undone: " : "Put back: ") + quote(turn.text), [turn.id], now, { text: turn.text });
+      return;
+    }
+    // resolve: the answer to one waiting item, found by its kind and its `by` (an override) or `who` (a stance)
+    const at = arr(turn.pending).findIndex((x) => x.kind === str(b.kind) && (x.kind === "override" ? x.by === str(b.by) : sameName(x.who, b.who)));
+    if (at < 0) return { status: 404, json: { error: "nothing waiting like that" } };
+    const item = turn.pending[at];
+    turn.pending.splice(at, 1);
+    if (b.accept === true) {
+      if (item.kind === "override") {
+        const by = st.turns.find((t) => t.id === item.by);
+        if (by) {
+          turn.overriddenBy = by.id;
+          turn.overriddenAt = now;
+          by.overrides = turn.id;
+        }
+      } else {
+        turn.stances = isObj(turn.stances) ? turn.stances : {};
+        for (const k of Object.keys(turn.stances)) if (sameName(k, item.who)) delete turn.stances[k];
+        turn.stances[item.who] = item.line;
+      }
+      turn.updatedAt = now;
+    }
+    addActivity(st, "user", b.accept === true ? "turn.accept" : "turn.dismiss", (b.accept === true ? "Accepted a change to a turning point: " : "Dismissed a change to a turning point: ") + quote(turn.text), [turn.id], now, { text: turn.text });
+  });
+}
+
 export function factRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
@@ -7553,6 +8013,8 @@ export function chatView(fsx, chatId) {
     migrated: st ? st.migrated : false,
     chapters,
     facts: st ? st.facts : [],
+    // turning points (#288)
+    turns: st ? st.turns : [],
     proposals: st ? st.proposals : [],
     habits: st ? st.habits.filter((k) => k.status !== "rejected") : [],
     scene: st ? st.scene : { openFrom: null },
@@ -7636,6 +8098,7 @@ export function handleRoute(req, host) {
   if (path === "/litopys/links" && req.method === "GET") return { status: 200, json: { links: loadLinks(fsx) } };
   if (path === "/litopys/links" && req.method === "POST") return linkRoute(fsx, req.body);
   if (path === "/litopys/facts" && req.method === "POST") return factRoute(fsx, req.body);
+  if (path === "/litopys/turns" && req.method === "POST") return turnRoute(fsx, req.body);
   if (path === "/litopys/chapters" && req.method === "POST") return chapterRoute(fsx, req.body);
   if (path === "/litopys/scenes" && req.method === "POST") return sceneRoute(fsx, req.body);
   if (path === "/litopys/chat-config" && req.method === "POST") return chatConfigRoute(fsx, req.body);
@@ -9380,7 +9843,9 @@ function carriesRoute(fsx, query) {
         causes: isObj(last) && isObj(last.causes) ? { pulled: Number(last.causes.pulled) || 0, missed: Number(last.causes.missed) || 0, together: Number(last.causes.together) || 0 } : null,
         causeStats: isObj(last) && isObj(last.causeStats) ? { replies: Number(last.causeStats.replies) || 0, pulled: Number(last.causeStats.pulled) || 0, missed: Number(last.causeStats.missed) || 0, together: Number(last.causeStats.together) || 0 } : null,
       },
-      backstory: back ? { from: back.from, title: titleOf(back.from), tokens: back.tokens, facts: back.facts, chapters: back.chapters, text: str(back.text) } : null,
+      // the near chats' part and the far part (#288) are two rows: the far one is condensed, so a reader sees the first chats were kept
+      backstory: back && back.nearText ? { from: back.from, title: titleOf(back.from), tokens: back.tokens - (back.far ? back.far.tokens : 0), facts: back.facts, chapters: back.chapters, ...(back.turns ? { turns: back.turns } : {}), text: str(back.nearText) } : null,
+      backstoryFar: back && back.far ? { chats: back.far.chats, first: back.far.first, last: back.far.last, tokens: back.far.tokens, turns: back.far.turns, facts: back.far.facts, units: back.far.units, text: str(back.far.text) } : null,
       opening: greetingOpening(fsx, chatId, line, titleOf),
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
       cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,

@@ -125,6 +125,14 @@ Date: 2026-11-05.
 - **Fails in:** `test/rp-faction-groups.test.ts`.
 - **Trap:** a new reader of `knownBy` that compares names only (as `backstoryPart` once did) drops the group fact silently. The engine's `chunkVisibleTo` compares bare names, which is why a snapshot book stores names.
 
+### The backstory chain: near chats, far tier, turning points (#288)
+- **Touches:** `buildBackstory`, `backstoryPart`, `farPart`, `farDigest`, `turnsFor`, `turnLine`, `applyTurns`, `turnRoute`, `saveChatFile`, `pruneOrphans`, `carriesRoute` (`plugins/litopys`); the `hinge` flag on a `said` entry (`plugins/relations`); `src/lib/carries.ts` and the carries panel (the `backstoryFar` row); the engine plugin's reserve for "litopys backstory" (`linkBudget` + 100, unchanged: the far part lives inside `linkBudget`).
+- **Must stay true:** the three nearest chats are read whole (`CHAIN_MAX`), every older one is condensed into the far part, and both together fit `linkBudget` (the far part takes at most `FAR_SHARE` of it first). Turning points and facts go through the same speaker filter (`knownBy`, group tokens). The far digest is dropped by `saveChatFile` and by nothing else: a new writer of `litopys/chats/<id>.json` that bypasses `saveChatFile` leaves a stale far part. Card memory's `storyChain` and the Data Bank chain rule stay at three links (not decided to follow the whole chain).
+- **Enforced in:** `plugins/litopys/plugin.js` (the functions above).
+- **Fails in:** `test/rp-litopys-far-turns.test.ts`, `test/rp-chat-links.test.ts`.
+- **Why / history:** #288. The window dropped chat 1 of a long story without a word; a turning point is not a fact, so ranking and merging cannot shrink it.
+- **Trap:** the CONTINUES sentence is repeated in the header of every near part (about 130 tokens each), so at the default budget (800) a chain of four or more chats leaves the oldest near chat no room. Raising the budget works; trimming the repeated sentence would give the room back (not done: it changes prompt text for every chain).
+
 ### Leak check (who learned what in a reply)
 - **Touches:** `leakCandidates`, `leakCandidatesOf`, `holdLeakNotes`, `leakRoute`, `state.leaks` (Dashboard state, `plugins/relations`); route `POST /dashboard/leak`; `src/components/chat/leak-note.tsx` (the badge); Litopys op `know` (sets `knownBy` on a fact, in the Litopys edit route).
 - **Must stay true:** each leak item is keyed by message and swipe (`<messageId>#<swipe>`) and has status `open`, `found` or `ignored`. Only the user's answer sets `found` or `ignored`, through `/dashboard/leak`. A renamed or removed character rewrites the `who` of its leak items. Op `know` adds a name to `knownBy` and does not rewrite the chapter text.

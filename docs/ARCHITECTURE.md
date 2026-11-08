@@ -57,6 +57,7 @@
 | `litopys/prompt-cut/<chatId>.json` | JSON | `{count, upTo}`: where the engine's last prompt started its word-for-word history; Litopys uses it so chapters cover what left the prompt (written by the `engine` plugin) |
 | `litopys/embed-status.json`, `litopys/embed-auto.json`, `litopys/embed-want/<id>.json` | JSON | Embedding bookkeeping: whether embedding works (a failed call pauses for an hour), the last automatic look for gaps, and one request file per chat or Data Bank file waiting for vectors. COUPLINGS.md, "Litopys vectors and the embeddings model" |
 | `litopys/wake.json`, `litopys/worker.json` | JSON | Worker bookkeeping: chats asked to be visited next, and the worker's last sign of life |
+| `litopys/far/<chatId>.json` | JSON | A small digest of a finished chat for the far tier of a long backstory (its turning points, pinned and key facts, one line per arc). Dropped whenever that chat's record is saved, made again on the next read (#288) |
 | `litopys/portraits.json`, `litopys/links.json` | JSON | `portraits`: pictures the user sets for names. `links`: a chat that continues an earlier one (its backstory) |
 | `litopys/store.json`, `litopys/proposals.json` | JSON | Litopys 1.x data, kept as a backup after the migration; trimmed for deleted chats |
 | `characters/<id>/memory.json` | JSON | Card memory: stories the character remembers (snapshots imported from chats), habits, `inject` budget. Never in `card.json` or an export. DATA-FORMATS.md, "The card's long memory" |

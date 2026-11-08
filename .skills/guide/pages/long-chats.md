@@ -34,11 +34,17 @@ At a natural break, a new chat that continues the old one starts with a small pr
 
 1. In the chat, open "More" and pick **Continue in a new chat**, or press Yes in the popup.
 2. The new chat is created at once and opens. It keeps the preset and its picks, persona, model, agent set, a group's turn order and the World DM world.
-3. It gets the old story as backstory: chapters and facts, up to three chats back, within the "Backstory budget". The old messages are not sent.
+3. It gets the old story as backstory, within the "Backstory budget". The nearest three earlier chats are read in full: chapters, facts and turning points. Older chats of a long chain are not dropped: they ride in one condensed part (see below). The old messages are not sent.
 
 The earlier chat then moves to the Archive on its own (next section). The link is the one the Canvas draws, and the Canvas can change it later: see [[canvas]]. To pick another earlier chat, start a chat from the character and use the **Continues** menu in the "New chat with" step.
 
 The new chat opens with the card's first greeting; "Edit the first message" lets you carry on where the story stopped.
+
+## A story of many chats
+
+A story can go on for many chats. The three nearest earlier chats give their chapters, arcs and facts as before. Every older chat goes into one **far** part, placed first: its turning points, the pinned and key facts, and one line for each arc. The part is built from what Litopys already wrote, with no extra model call, and takes about a fifth of the Backstory budget. If the budget is short, the oldest chats lose their lines first and the turning points last. In **What this chat carries** it is its own row, "Far backstory, chats 1-2", so you can see the first chats were kept, not lost. A short chain has no far part. Raise the Backstory budget if a long story feels thin.
+
+A condensed part drops small details (a cloak's colour); the word-for-word memories below bring those back.
 
 ## Archive a finished story
 

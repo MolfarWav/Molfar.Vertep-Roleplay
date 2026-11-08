@@ -48,6 +48,15 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'fact.retire': return t('lit.act.factRetire', { text })
     case 'fact.restore': return t('lit.act.factRestore', { text })
     case 'fact.delete': return t('lit.act.factDelete', { text })
+    case 'turn.add':
+      // the server writes one kind for all three: the worker found it, the user marked a chapter, the user wrote it
+      return a.by === 'worker' ? t('lit.act.turnFound', { text }) : a.text.startsWith('Marked') ? t('lit.act.turnMark', { text }) : t('lit.act.turnAdd', { text })
+    case 'turn.edit': return t('lit.act.turnEdit', { text })
+    case 'turn.remove': return t('lit.act.turnRemove', { text })
+    case 'turn.undo': return a.text.startsWith('Put back') ? t('lit.act.turnPutBack', { text }) : t('lit.act.turnUndo', { text })
+    case 'turn.stance': return t('lit.act.turnStance', { who: typeof d.who === 'string' ? d.who : '', line: typeof d.line === 'string' ? d.line : '' })
+    case 'turn.accept': return t('lit.act.turnAccept', { text })
+    case 'turn.dismiss': return t('lit.act.turnDismiss', { text })
     case 'chapter.edit': return t('lit.act.chapterEdit', { label })
     case 'chapter.rewrite': return t('lit.act.chapterRewrite', { label })
     case 'chapter.delete': return keepGone ? t('lit.act.chapterDeleteKept', { label }) : t('lit.act.chapterDelete', { label })
