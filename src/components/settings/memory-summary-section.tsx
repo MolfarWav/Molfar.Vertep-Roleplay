@@ -79,6 +79,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         max={o.max}
         value={o.value ?? o.fallback ?? o.min}
         onChange={(e) => o.setLocal(Number(e.target.value))}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
         onBlur={(e) => {
           const raw = e.target.value.trim()
           const v = clamp(raw === '' || Number.isNaN(Number(raw)) ? (o.fallback ?? o.min) : Math.round(Number(raw)), o.min, o.max)
