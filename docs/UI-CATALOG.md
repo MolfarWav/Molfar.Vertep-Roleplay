@@ -387,6 +387,10 @@ Marketplace pick + Create a world + Waiting; Quests + Favourites; What's new + D
 
 Not decided or not started: the Lorebooks tab; phase 2 (tokens, shared pieces, building) waits for the DM branch.
 
+### 8.0 Entry panel from the left, World settings like Litopys settings (owner, 2026-11-08, #288 thread)
+- The lorebook **entry panel** no longer opens as a 460 px drawer on the right (the earlier "L1" pick). On a desktop it opens from the left over the list and the book together, almost the whole width (`calc(100% - 2rem)`), and the Library drawer goes full screen while it is open (back to its own size on close). Panel width 48rem or more: content on the left (tall, no auto-grow), When it appears / Keys / Folder / folds in a 22rem column on the right, each scrolling by itself; narrower: one column; phone: unchanged, a full page. The panel is a portal into a box over the lorebooks view (`PanelHost` in `lorebooks-view.tsx`); without a host it is drawn in place (tests).
+- **World settings** is made like the Litopys settings: `SettingsBlock` (shared, `components/settings/settings-block.tsx`: tinted title bar with icon, summary when folded, hint when open) and `SwitchRow`. Blocks: Play model (open: model, "Override for the World" as a switch, limit, test), Build model (open when reached from "Pick another model"), Images, Backgrounds, Failures. The Litopys settings use the same shared block.
+
 ### 8.1 Side panel: Settings moves (owner, 2026-10-31)
 
 The rail's Settings (the gear, which opens the Roleplay settings page) leaves the bottom corner, where it floated far from everything,

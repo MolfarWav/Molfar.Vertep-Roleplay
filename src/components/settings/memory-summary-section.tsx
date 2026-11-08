@@ -1,15 +1,14 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { BookOpen, Bell, CaretDown, MagnifyingGlass, PencilSimple, PenNib, Quotes, Repeat, Stack, TextT, TreeStructure, type Icon } from '@phosphor-icons/react'
+import { BookOpen, Bell, MagnifyingGlass, PencilSimple, PenNib, Quotes, Repeat, Stack, TextT, TreeStructure } from '@phosphor-icons/react'
 import { MARK, TONE, type Tone } from '@/components/dashboard/dash-common'
 import { cn } from '@/lib/utils'
 import { ModelPicker } from '@/components/settings/model-picker'
 import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
+import { SettingsBlock, SwitchRow } from '@/components/settings/settings-block'
 import { useT } from '@/hooks/use-t'
 import { toast } from 'sonner'
 import { embedConfig, embedStatus, setEmbedConfig } from '@/lib/engine'
@@ -133,13 +132,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   const sceneField = (key: 'minMessages' | 'maxMessages', o: { id: string; label: string; min: number; max: number }) =>
     numField({ ...o, value: cfg.scene[key], setLocal: (v) => setCfg({ ...cfg, scene: { ...cfg.scene, [key]: v } }), commit: (v) => saveScene({ [key]: v }) })
   const switchRow = (id: string, label: string, hint: string, checked: boolean, onChange: (v: boolean) => void) => (
-    <Field orientation="horizontal">
-      <div className="flex flex-col gap-0.5">
-        <FieldLabel htmlFor={id} className="font-medium">{label}</FieldLabel>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
-    </Field>
+    <SwitchRow id={id} label={label} hint={hint} checked={checked} onChange={onChange} />
   )
   /** A prompt text: its label with Restore default, the box, an optional hint. */
   const textField = (key: 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory', label: string, rows: number, hint?: string) => (
@@ -171,12 +164,12 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         <p className="text-xs text-muted-foreground">{t('lit.set.hint')}</p>
       </div>
 
-      <Block tone="memory" icon={BookOpen} defaultOpen title={t('lit.blk.record')} hint={t('lit.blk.recordHint')} summary={`${onOff(cfg.enabled !== false)} · ${onOff(cfg.insert)}`}>
+      <SettingsBlock tone="memory" icon={BookOpen} defaultOpen title={t('lit.blk.record')} hint={t('lit.blk.recordHint')} summary={`${onOff(cfg.enabled !== false)} · ${onOff(cfg.insert)}`}>
         {switchRow('lit-enabled', t('lit.set.enabled'), t('lit.set.enabledHint'), cfg.enabled !== false, (v) => save({ enabled: v }))}
         {switchRow('lit-insert', t('lit.set.insert'), t('lit.set.insertHint'), cfg.insert, (v) => save({ insert: v }))}
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="scene" icon={Stack} defaultOpen title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')} summary={cfg.cutMode === 'scenes' ? t('lit.sum.promptScenes', { size: sizeText, n: cfg.sceneKeep ?? 2 }) : t('lit.sum.prompt', { size: sizeText, n: cfg.recentMessages })}>
+      <SettingsBlock tone="scene" icon={Stack} defaultOpen title={t('lit.blk.prompt')} hint={t('lit.blk.promptHint')} summary={cfg.cutMode === 'scenes' ? t('lit.sum.promptScenes', { size: sizeText, n: cfg.sceneKeep ?? 2 }) : t('lit.sum.prompt', { size: sizeText, n: cfg.recentMessages })}>
         <div className="grid gap-3 sm:grid-cols-2">
           {sizeField()}
           {keyField('linkBudget', { id: 'lit-link-budget', label: t('lit.set.linkBudget'), hint: t('lit.set.linkBudgetHint'), unit: t('lit.unit.tokens'), min: 0, max: 3000 })}
@@ -231,9 +224,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             ? keyField('sceneKeep', { id: 'lit-scene-keep', label: t('lit.set.sceneKeep'), hint: t('lit.set.sceneKeepHint'), min: 2, max: 100000, fallback: 2 })
             : keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
         </div>
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="plot" icon={PencilSimple} defaultOpen title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')} summary={cfg.proposals === 'quiet' ? t('lit.set.proposalsQuiet') : cfg.proposals === 'risky' ? t('lit.set.proposalsRisky') : t('lit.set.proposalsAsk')}>
+      <SettingsBlock tone="plot" icon={PencilSimple} defaultOpen title={t('lit.blk.proposals')} hint={t('lit.blk.proposalsHint')} summary={cfg.proposals === 'quiet' ? t('lit.set.proposalsQuiet') : cfg.proposals === 'risky' ? t('lit.set.proposalsRisky') : t('lit.set.proposalsAsk')}>
         <Field>
           <FieldLabel className="font-medium">{t('lit.set.proposals')}</FieldLabel>
           <Segmented
@@ -253,9 +246,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           <p className="text-xs text-muted-foreground">{cfg.proposals === 'quiet' ? t('lit.set.proposalsHint') : cfg.proposals === 'risky' ? t('lit.set.proposalsHintRisky') : t('lit.set.proposalsHintAsk')}</p>
         </Field>
         {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? (cfg.proposals === 'quiet' || cfg.proposals === 'risky'), (v) => save({ autoConsolidate: v }))}
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="people" icon={PenNib} title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')} summary={t('lit.sum.writing', { model: cfg.model || t('lit.sum.modelDefault'), min: cfg.scene.minMessages, max: cfg.scene.maxMessages })}>
+      <SettingsBlock tone="people" icon={PenNib} title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')} summary={t('lit.sum.writing', { model: cfg.model || t('lit.sum.modelDefault'), min: cfg.scene.minMessages, max: cfg.scene.maxMessages })}>
         <Field>
           <div className="flex flex-col gap-0.5">
             <FieldLabel className="font-medium">{t('lit.set.model')}</FieldLabel>
@@ -272,9 +265,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           {sceneField('minMessages', { id: 'lit-scene-min', label: t('lit.set.sceneMin'), min: 1, max: 40 })}
           {sceneField('maxMessages', { id: 'lit-scene-max', label: t('lit.set.sceneMax'), min: 10, max: 200 })}
         </div>
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="scene" icon={TreeStructure} title={t('lit.blk.arcs')} hint={t('lit.blk.arcsHint')} summary={cfg.arcMode === 'off' ? modeText : t('lit.sum.arcs', { mode: modeText, n: cfg.arcThreshold || 2 * cfg.budget })}>
+      <SettingsBlock tone="scene" icon={TreeStructure} title={t('lit.blk.arcs')} hint={t('lit.blk.arcsHint')} summary={cfg.arcMode === 'off' ? modeText : t('lit.sum.arcs', { mode: modeText, n: cfg.arcThreshold || 2 * cfg.budget })}>
         <Field>
           <FieldLabel htmlFor="lit-arc-mode" className="font-medium">{t('lit.set.arcMode')}</FieldLabel>
           <select
@@ -300,39 +293,39 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           {keyField('arcSizeMax', { id: 'lit-arc-size-max', label: t('lit.set.arcSizeMax'), min: 2, max: 30 })}
           {keyField('arcWords', { id: 'lit-arc-words', label: t('lit.set.arcWords'), unit: t('lit.unit.words'), min: 40, max: 400 })}
         </div>
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="memory" icon={MagnifyingGlass} title={t('lit.blk.facts')} hint={t('lit.blk.factsHint')} summary={t('lit.sum.facts', { n: cfg.pinLimit })}>
+      <SettingsBlock tone="memory" icon={MagnifyingGlass} title={t('lit.blk.facts')} hint={t('lit.blk.factsHint')} summary={t('lit.sum.facts', { n: cfg.pinLimit })}>
         {keyField('pinLimit', { id: 'lit-pin-limit', label: t('lit.set.pinLimit'), min: 1, max: 20 })}
         {switchRow('lit-search-words', t('lit.set.searchWords'), t('lit.set.searchWordsHint'), cfg.searchWords !== false, (v) => save({ searchWords: v }))}
         <EmbedRow />
         {switchRow('lit-auto-embed', t('lit.set.autoEmbed'), t('lit.set.autoEmbedHint'), cfg.autoEmbed !== false, (v) => save({ autoEmbed: v }))}
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="people" icon={Repeat} title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')} summary={cfg.habits !== false ? t('lit.sum.habits', { n: cfg.habitsEarnAfter ?? 2 }) : onOff(false)}>
+      <SettingsBlock tone="people" icon={Repeat} title={t('lit.blk.habits')} hint={t('lit.blk.habitsHint')} summary={cfg.habits !== false ? t('lit.sum.habits', { n: cfg.habitsEarnAfter ?? 2 }) : onOff(false)}>
         {switchRow('lit-habits', t('lit.set.habits'), t('lit.set.habitsHint'), cfg.habits !== false, (v) => save({ habits: v }))}
         {cfg.habits !== false && keyField('habitsEarnAfter', { id: 'lit-habits-after', label: t('lit.set.habitsAfter'), hint: t('lit.set.habitsAfterHint'), min: 1, max: 5, fallback: 2 })}
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="people" icon={Quotes} title={t('lit.blk.recollections')} hint={t('lit.blk.recollectionsHint')} summary={onOff(cfg.recollections !== false)}>
+      <SettingsBlock tone="people" icon={Quotes} title={t('lit.blk.recollections')} hint={t('lit.blk.recollectionsHint')} summary={onOff(cfg.recollections !== false)}>
         {switchRow('lit-recollections', t('lit.set.recollections'), t('lit.set.recollectionsHint'), cfg.recollections !== false, (v) => save({ recollections: v }))}
         {cfg.recollections !== false && keyField('recollectBudget', { id: 'lit-recollect-budget', label: t('lit.set.recollectBudget'), hint: t('lit.set.recollectBudgetHint'), unit: t('lit.unit.tokens'), min: 100, max: 1500, fallback: 300 })}
         {cfg.recollections !== false && keyField('recollectChars', { id: 'lit-recollect-chars', label: t('lit.set.recollectChars'), hint: t('lit.set.recollectCharsHint'), unit: t('lit.unit.chars'), min: 150, max: 1000, fallback: 300 })}
         {switchRow('lit-cast-knowledge', t('lit.set.castKnowledge'), t('lit.set.castKnowledgeHint'), cfg.castKnowledge !== false, (v) => save({ castKnowledge: v }))}
         {cfg.castKnowledge !== false && switchRow('lit-hidden-plan', t('lit.set.hiddenPlan'), t('lit.set.hiddenPlanHint'), cfg.hiddenPlan === true, (v) => save({ hiddenPlan: v }))}
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
+      <SettingsBlock tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
         <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
-      </Block>
+      </SettingsBlock>
 
-      <Block tone="scene" icon={TextT} title={t('lit.blk.texts')} hint={t('lit.blk.textsHint')} summary={changedTexts === null ? undefined : changedTexts === 0 ? t('lit.sum.textsDefault') : t('lit.sum.texts', { n: changedTexts, total: textKeys.length })}>
+      <SettingsBlock tone="scene" icon={TextT} title={t('lit.blk.texts')} hint={t('lit.blk.textsHint')} summary={changedTexts === null ? undefined : changedTexts === 0 ? t('lit.sum.textsDefault') : t('lit.sum.texts', { n: changedTexts, total: textKeys.length })}>
         {textField('chapter', t('lit.set.prompt'), 5)}
         {textField('arc', t('lit.set.arcPrompt'), 5)}
         {textField('summary', t('lit.set.summaryPrompt'), 5, t('lit.set.summaryPromptHint'))}
         {(['remembers', 'continues', 'cardMemory'] as const).map((key) => textField(key, t(`lit.set.${key}`), 3, t(`lit.set.${key}Hint`)))}
-      </Block>
+      </SettingsBlock>
     </div>
   )
 }
@@ -354,31 +347,6 @@ function Segmented<T extends string>({ label, value, onChange, options, tone }: 
         </button>
       ))}
     </div>
-  )
-}
-
-/**
- * One block of the settings: a tinted title bar with its icon (the Dashboard's colours: one hue for a kind
- * of content), and what is set when it is folded. A block folds, so a long list of settings reads as a list
- * of titles; the everyday ones start open.
- */
-function Block({ title, hint, tone, icon: Glyph, summary, defaultOpen = false, children }: { title: string; hint: string; tone: Tone; icon: Icon; summary?: string; defaultOpen?: boolean; children: ReactNode }) {
-  const look = TONE[tone]
-  return (
-    <Collapsible defaultOpen={defaultOpen} className="min-w-0 overflow-hidden rounded-md border border-border bg-card">
-      <CollapsibleTrigger
-        className={cn('group flex min-h-11 w-full items-center gap-2 border-b border-transparent px-3 py-2 text-left aria-expanded:border-border', look.bar)}
-      >
-        <Glyph className={cn('size-4 shrink-0', look.text)} aria-hidden="true" />
-        <span className={cn('shrink-0 text-sm font-semibold', look.text)}>{title}</span>
-        {summary && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground group-aria-expanded:hidden">{summary}</span>}
-        <CaretDown className={cn('ml-auto size-4 shrink-0 transition-transform group-aria-expanded:rotate-180', look.text)} aria-hidden="true" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-3 p-3">
-        <p className="text-xs text-muted-foreground">{hint}</p>
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
   )
 }
 

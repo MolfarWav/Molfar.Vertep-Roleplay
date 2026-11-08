@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CaretRight, Copy, DotsThreeVertical, FolderSimple, Trash, Warning, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,20 +14,26 @@ import { EntryFolds } from '@/components/lore/entry-folds'
 import { MoveToFolderDialog } from '@/components/lore/folder-dialogs'
 import { KeyChips } from '@/components/lore/key-chips'
 import { useT } from '@/hooks/use-t'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { APPEARANCE_HINT_KEY, APPEARANCE_KEY, APPEARANCES, appearanceOf, statusOf, type Appearance } from '@/lib/lore-entry'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import type { LoreEntry } from '@/lib/types'
 import { needsKeys } from '@/lib/lore-filters'
 import { folderOf, type FolderInfo } from '@/lib/lore-folders'
+import { cn } from '@/lib/utils'
 
 /**
- * The entry panel: a drawer from the right over the book page on desktop (it covers part of the list; non-modal, so a
- * row that still shows opens another entry), a full page on a phone. The top has the title, the on switch, a "more" menu (copy, duplicate, delete)
- * and Close. Then the three things most people change (content, when it appears, keys), then the five folds. Edits
- * are saved as the person types, through `onChange`, as they always were. Escape closes it.
+ * The entry panel: on desktop it opens from the left over the book list and the book together, almost the whole width
+ * (owner, 2026-11-08: an entry is read, edited and marked up at length, so it needs room). Wide, the content takes the
+ * left and the settings the right, each scrolling on its own; narrow, one column. On a phone it is a full page. Without a
+ * `host` (a test, a view that gives none) it is drawn in place, over the book pane. The top has the title, the on switch,
+ * a "more" menu (copy, duplicate, delete) and Close. Then the three things most people change (content, when it appears,
+ * keys), then the five folds. Edits are saved as the person types, through `onChange`, as they always were. Escape closes it.
  */
-export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate, onCopyToBook, onClose }: {
+export function EntryEditor({ entry: e, host, folders, onChange, onDelete, onDuplicate, onCopyToBook, onClose }: {
   entry: LoreEntry
+  /** the box to draw the panel into on a desktop (it must be `relative`); null or absent: in place */
+  host?: HTMLElement | null
   /** the book's folders, for the Folder row */
   folders: FolderInfo[]
   onChange: (p: Partial<LoreEntry>) => void
@@ -36,6 +43,7 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
   onClose: () => void
 }) {
   const t = useT()
+  const isMobile = useIsMobile()
   const ids = useId()
   const panelRef = useRef<HTMLElement>(null)
   const appearance: Appearance = appearanceOf(e.status)
@@ -59,7 +67,7 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
-  return (
+  const panel = (
     <aside
       ref={panelRef}
       tabIndex={-1}
@@ -67,7 +75,13 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
       aria-modal="false"
       aria-label={t('lore.ed.panel')}
       data-testid="entry-panel"
-      className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none md:inset-y-0 md:left-auto md:right-0 md:w-[min(460px,88%)] md:border-l md:border-border md:shadow-2xl md:animate-in md:slide-in-from-right md:duration-150 motion-reduce:animate-none"
+      className={cn(
+        'absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none @container motion-reduce:animate-none',
+        // desktop: from the left, almost the whole width; the sliver at the right shows there is a page beneath
+        host && !isMobile
+          ? 'md:inset-y-0 md:right-auto md:left-0 md:w-[calc(100%-2rem)] md:border-r md:border-border md:shadow-2xl md:animate-in md:slide-in-from-left md:duration-150'
+          : 'md:inset-y-0 md:left-auto md:right-0 md:w-[min(460px,88%)] md:border-l md:border-border md:shadow-2xl md:animate-in md:slide-in-from-right md:duration-150',
+      )}
     >
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <Input
@@ -101,8 +115,9 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
         </Button>
       </header>
 
-      <div className="flex min-h-0 flex-1 touch-pan-y flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4">
-        <section className="flex flex-col gap-1.5">
+      {/* narrow: one column that scrolls; wide (the panel is 48rem or more): the content on the left, the rest on the right, each scrolling by itself */}
+      <div className="flex min-h-0 flex-1 touch-pan-y flex-col overflow-y-auto overscroll-contain @3xl:flex-row @3xl:overflow-hidden">
+        <section className="flex flex-col gap-1.5 px-4 pt-4 @3xl:min-h-0 @3xl:min-w-0 @3xl:flex-1 @3xl:pb-4">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor={`${ids}-content`}>{t('lore.ed.content')}</Label>
             <Badge variant="outline" className="text-caption font-normal">{t('lore.header.tokens', { n: formatTokens(estimateTokens(e.content)) })}</Badge>
@@ -112,9 +127,11 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
             value={e.content}
             rows={6}
             onChange={(ev) => onChange({ content: ev.target.value })}
-            className="min-h-32 max-h-[55dvh] overflow-y-auto text-body"
+            className="min-h-32 max-h-[55dvh] overflow-y-auto text-body @3xl:max-h-none @3xl:min-h-0 @3xl:flex-1 @3xl:resize-none @3xl:[field-sizing:fixed] @3xl:text-base @3xl:leading-relaxed"
           />
         </section>
+
+        <div className="flex flex-col gap-5 px-4 py-4 @3xl:w-[22rem] @3xl:shrink-0 @3xl:overflow-y-auto @3xl:overscroll-contain @3xl:border-l @3xl:border-border @3xl:pt-4">
 
         <section className="flex flex-col gap-1.5">
           <span id={`${ids}-appears`} className="text-body font-medium">{t('lore.ed.appears')}</span>
@@ -172,6 +189,7 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
         <EntryFolds entry={e} onChange={onChange} />
 
         <p className="text-caption text-muted-foreground">{t('lore.ed.saved')}</p>
+        </div>
       </div>
       <MoveToFolderDialog
         open={moving}
@@ -183,5 +201,6 @@ export function EntryEditor({ entry: e, folders, onChange, onDelete, onDuplicate
       />
     </aside>
   )
+  return host && !isMobile ? createPortal(panel, host) : panel
 }
 
