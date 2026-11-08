@@ -52,8 +52,11 @@ export interface LitFiredFact { id: string; n: number; at: number; gone: boolean
 export interface LitFiredChapter { id: string; n: number; at: number; gone: boolean; label: string; text: string }
 /** How often the far part of a long backstory went in (#288), and what it held the last time. */
 export interface LitFiredFar { n: number; at: number; chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number }
+/** How often passages of earlier chats went in word for word (#264), and what the last reply carried. */
+export interface LitFiredVerbatim { n: number; at: number; chunks: number; chats: number; tokens: number }
 export interface LitFired {
   far?: LitFiredFar | null
+  verbatim?: LitFiredVerbatim | null
   since: number
   replies: number
   factsTotal: number
@@ -148,6 +151,7 @@ export function buildFiredReport(title: string, log: FiredLog | null, trace: Mem
   if (lit) {
     out.push('', `Litopys facts by replies they went into (top ${lit.facts.length} of ${lit.factsTotal}):`, ...(lit.facts.length ? lit.facts.map((f) => `- ${f.id} ${f.n}/${lit.replies} ${f.gone ? '(removed since)' : cut(f.text, 120)}`) : ['- none']))
     if (lit.far) out.push('', `Litopys far backstory (chats ${lit.far.first === lit.far.last ? lit.far.first : `${lit.far.first}-${lit.far.last}`}, condensed): ${lit.far.n}/${lit.replies} replies, last time ~${lit.far.tokens} tok.: ${lit.far.turns} turning point(s), ${lit.far.facts} fact(s), ${lit.far.units} arc line(s)`)
+    if (lit.verbatim) out.push('', `Litopys word for word, from earlier chats: ${lit.verbatim.n}/${lit.replies} replies, last time ${lit.verbatim.chunks} passage(s) from ${lit.verbatim.chats} chat(s), ~${lit.verbatim.tokens} tok.`)
     out.push('', `Litopys chapters (top ${lit.chapters.length} of ${lit.chaptersTotal}):`, ...(lit.chapters.length ? lit.chapters.map((c) => `- ${c.id} ${c.n}/${lit.replies} ${c.gone ? '(removed since)' : cut(c.label ? `${c.label}: ${c.text}` : c.text, 120)}`) : ['- none']))
   }
   if (trace) out.push('', buildReport('', trace, now))

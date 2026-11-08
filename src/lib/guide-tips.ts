@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.100.0'
+export const APP_VERSION = '4.101.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.deep-memory',
+    since: '4.101.0',
+    help: 'story',
+    keywords: { en: 'deep memory archive archived chats word for word verbatim earlier chats detail forgot fired quote', uk: 'глибока пам’ять архів архівні чати дослівно слово в слово попередні чати деталь забула спрацювало цитата' },
+    title: { en: 'Details from old chats come back', uk: 'Деталі зі старих чатів повертаються' },
+    body: {
+      en: 'When a new chat continues an earlier one, the earlier chat goes to the Archive and is indexed at once. Now, when what is being said shares rare words with an old passage, one or two original passages (a cloak\'s colour, an exact promise) are added to the prompt. It is on by default and costs no model call; switch it off in the Library, Litopys settings, In the prompt. The Fired panel, Whole chat, counts in how many replies it helped.',
+      uk: 'Коли новий чат продовжує попередній, той іде в Архів і одразу індексується. Тепер, коли сказане ділить рідкісні слова зі старим уривком, до промпту додаються один-два оригінальні уривки (колір плаща, точна обіцянка). Увімкнено за замовчуванням, без виклику моделі; вимкнути можна в Library, налаштуваннях Litopys, блок In the prompt. Панель Fired, Whole chat, рахує, у скількох відповідях це допомогло.',
+    },
+  },
   {
     id: 'new.long-story',
     since: '4.100.0',

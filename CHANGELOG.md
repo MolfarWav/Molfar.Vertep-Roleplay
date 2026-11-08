@@ -2,6 +2,14 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.101.0 (2026-11-08)
+
+- New: **deep memory, on by default (#264).** The word-for-word memories of earlier chats (4.98.0) were off; they are on now. A reply of a chat that continues earlier ones can carry one or two passages of the ORIGINAL messages of any chat of the story's chain, found by rare shared words, above the facts and labelled as older than them. A chat that continues nothing, or says nothing that shares enough rare words, gets nothing: no change for it. The switch stays (Library > Litopys settings > "In the prompt", and the chat's Prompt board), and a chat that had it switched off on purpose stays off. **This changes the prompt of every chat that continues another one**, by at most "Word-for-word budget" tokens (400 by default).
+- New: **the earlier chat is indexed when it goes to the Archive.** The index of the original messages is made at the link that archives the chat (and by the tick, one chat at a time, for links made earlier), not on the first reply that needs it. A chat with nothing to index is remembered so it is not tried again.
+- New: **What fired counts it over the whole chat.** The Litopys tab, Whole chat, has "Earlier chats, word for word": in how many replies a passage came back and what the last one held; Copy report has the same line.
+- Docs: `docs/DATA-FORMATS.md` and `docs/COUPLINGS.md` ("Word-for-word recall"); the guide pages for Litopys and Long chats.
+- Format: Litopys config `verbatim` defaults to `true` (only an explicit `false` turns it off); `litopys/recall/<chatId>.none.json`; `verbatim: { n, at, chunks, chats, tokens }` in `litopys/fired/<chatId>.json` and `log.verbatim` in `GET /litopys/fired`.
+
 ## 4.100.0 (2026-11-08)
 
 - New: **a far tier for long chains (#288).** The backstory read only the three nearest earlier chats and the first chats dropped out without a word. Now every older chat of the chain (up to 40 back) goes into one condensed part placed before the near ones: its turning points, its pinned and key facts and one line for each arc. No model call. It takes 18% of the Backstory budget by default (setting `Share for the far chats`, 5 to 40; taken before the near shares; what it does not use goes to them); when short, the oldest chats are cut first and turning points last. The header says "far: chats 1-2 of this story, condensed" and What this chat carries shows it as its own row. Each finished chat is read as a small digest (`litopys/far/<chat>.json`) that is made again only when that chat's record is saved. A chain of four or more chats has less room for the nearest three at the default budget; raise the Backstory budget for a long story.

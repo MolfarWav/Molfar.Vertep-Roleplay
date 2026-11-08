@@ -1976,8 +1976,8 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
     // what the characters remember of old scenes (litopys recollectBudget, 100 to 1500, default 300): a group has casts, and a chat whose last insert had some
     const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
     if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
-    // word-for-word passages of the earlier chats of the chain (litopys verbatim, off by default; verbatimBudget 150 to 1200, default 400): only a chat that continues another
-    if (lit.verbatim === true && !off("plugin:verbatim") && chatId) {
+    // word-for-word passages of the earlier chats of the chain (litopys verbatim, on unless switched off; verbatimBudget 150 to 1200, default 400): only a chat that continues another
+    if (lit.verbatim !== false && !off("plugin:verbatim") && chatId) {
       const vlinks = jsonAt(fsx, "litopys/links.json");
       if (vlinks && vlinks.links && vlinks.links[chatId]) add("litopys verbatim", clampInt(lit.verbatimBudget, 150, 1200, 400));
     }
@@ -4180,9 +4180,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
   board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });
-  // the word-for-word passages are off by default: their switch shows only once the Library setting is on
+  // the word-for-word passages are on by default: their switch shows unless the Library setting is off
   try {
-    if ((readJsonFile(fsx, "litopys/config.json") || {}).verbatim === true) board.push({ key: "plugin:verbatim", label: "Earlier, word for word", kind: "memory", state: isOff("plugin:verbatim") ? "off" : "on" });
+    if ((readJsonFile(fsx, "litopys/config.json") || {}).verbatim !== false) board.push({ key: "plugin:verbatim", label: "Earlier, word for word", kind: "memory", state: isOff("plugin:verbatim") ? "off" : "on" });
   } catch {}
   // persona and world memory reach a chat only when the chat took them in (meta.memory.persona / .world): the rows
   // show once it did, and their switch then only mutes them
