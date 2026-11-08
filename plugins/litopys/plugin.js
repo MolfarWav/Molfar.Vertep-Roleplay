@@ -1112,6 +1112,11 @@ export const DEFAULT_CONFIG = {
   // (VERBATIM_MIN to VERBATIM_MAX)
   verbatim: true,
   verbatimBudget: 400,
+  // #264 door B: the scene's vector may also open one or two old CHAPTERS (the chapter vectors already on disk), and a rare word
+  // shared with a passage of that chapter picks the passage. Off by default until it is calibrated on a real long story (#300);
+  // `verbatimMeaningZ` (2 to 8, hand-edited) is how many deviations above the pool's mean a chapter must lie
+  verbatimMeaning: false,
+  verbatimMeaningZ: 4,
   // #184: the chapter worker also writes a few search words (synonyms, the story's own language) for each new fact and for the chapter,
   // kept as `also` and read only by the word search, never shown to the model
   searchWords: true,
@@ -1446,6 +1451,8 @@ export function loadConfig(fsx) {
   cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.verbatim = cfg.verbatim !== false;
   cfg.verbatimBudget = clamp(intOf(cfg.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
+  cfg.verbatimMeaning = cfg.verbatimMeaning === true;
+  cfg.verbatimMeaningZ = Number.isFinite(Number(cfg.verbatimMeaningZ)) ? Math.min(MEANING_Z_MAX, Math.max(MEANING_Z_MIN, Number(cfg.verbatimMeaningZ))) : MEANING_Z;
   cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
@@ -1543,6 +1550,7 @@ export function patchConfig(fsx, body) {
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   if (b.verbatim !== undefined) next.verbatim = b.verbatim === true || b.verbatim === "on";
   if (b.verbatimBudget !== undefined) next.verbatimBudget = clamp(intOf(b.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
+  if (b.verbatimMeaning !== undefined) next.verbatimMeaning = b.verbatimMeaning === true || b.verbatimMeaning === "on";
   if (b.farShare !== undefined) next.farShare = clamp(intOf(b.farShare, FAR_SHARE_PCT), FAR_SHARE_MIN, FAR_SHARE_MAX);
   if (b.turnsShown !== undefined) next.turnsShown = clamp(intOf(b.turnsShown, TURNS_SHOWN), TURNS_SHOWN_MIN, TURNS_SHOWN_MAX);
   // a max below the min follows the min
@@ -3238,7 +3246,15 @@ export function llmRequest(ctx, host) {
             .slice(-RECALL_SCAN_MESSAGES)
             .map((m) => m.content)
             .join("\n");
-          verbatim = verbatimFor({ fsx, chatId, scanText: recent, voices: sole instanceof Set && sole.size ? new Set([...sole].map(vkey)) : null, key: vkey, budget: cfg.verbatimBudget });
+          verbatim = verbatimFor({
+            fsx,
+            chatId,
+            scanText: recent,
+            voices: sole instanceof Set && sole.size ? new Set([...sole].map(vkey)) : null,
+            key: vkey,
+            budget: cfg.verbatimBudget,
+            meaning: cfg.verbatimMeaning === true && scanVec ? { vec: scanVec, model: scanModel, z: cfg.verbatimMeaningZ } : null,
+          });
         }
       } catch (e) {
         try {
@@ -7088,7 +7104,7 @@ function farPart({ fsx, farChain, firstIdx, total, here, knowers, groups, voices
 // share rare words with what is being said now, and puts one or two of them in the prompt, labelled as older than the facts.
 // Words only: a chunk is let in by rare shared words (vectors may reorder it later, not admit it). Off by default.
 const RECALL_DIR = "litopys/recall/";
-const RECALL_V = 1;
+const RECALL_V = 2;
 /** The rarest words are the ones that find a passage: a stem in at most this many chunks of its chat is indexed. */
 const RECALL_RARE_DF = 6;
 const RECALL_CHAIN_MAX = 40;
@@ -7100,6 +7116,13 @@ const RECALL_FILE_MAX = 3500000;
 const RECALL_EXCERPTS = 2;
 const RECALL_PICKED = 4;
 export const VERBATIM_BUDGET = 400;
+export const MEANING_Z = 4;
+export const MEANING_Z_MIN = 2;
+export const MEANING_Z_MAX = 8;
+/** Door B reads the vectors of this many of the nearest earlier chats only (each reply reads their files). */
+const MEANING_CHATS = 12;
+/** Door B opens at most this many chapters a reply. */
+const MEANING_CHAPTERS = 2;
 export const VERBATIM_MIN = 150;
 export const VERBATIM_MAX = 1200;
 /** The newest messages a find looks at: the reply that is being answered and the two before. */
@@ -7169,7 +7192,7 @@ export function recallBuild(msgs, st) {
   const flush = () => {
     if (buf.length) {
       const cast = arr(bufCh && bufCh.cast).map(str).filter(Boolean);
-      chunks.push({ t: buf.join("\n"), a: str(bufFrom), b: str(bufTo), ...(cast.length ? { c: cast } : {}) });
+      chunks.push({ t: buf.join("\n"), a: str(bufFrom), b: str(bufTo), ...(cast.length ? { c: cast } : {}), ...(bufCh && str(bufCh.id) ? { k: str(bufCh.id) } : {}) });
     }
     buf = [];
     bufLen = 0;
@@ -7338,7 +7361,39 @@ function recallExcerpt(text, stems, max) {
  * chat continues nothing. `voices` (the speaking character's names, keyed like `key`) keeps out a passage of a chapter the
  * speaker did not witness. At most RECALL_EXCERPTS passages, together within `budget` tokens.
  */
-export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n).toLowerCase(), budget, links }) {
+/**
+ * Door B (#264): the old chapters that lie unusually close, by meaning, to the scene. The pool is every chapter that has a vector of
+ * this model in the nearest MEANING_CHATS earlier chats; a chapter is let in when its cosine is `zMin` deviations above the pool's
+ * mean (relative to the pool, because models disagree on what "unrelated" scores), at most MEANING_CHAPTERS. A pool under
+ * SEM_MIN_POOL, or equal cosines, opens nothing. Vectors of another model, or of a chapter text that was edited, are not used.
+ * Returns [{ id: chat, near, chapterId, z }].
+ */
+export function meaningRegions({ fsx, chain, vec, model, zMin }) {
+  if (!Array.isArray(vec) || !vec.length) return [];
+  const pool = [];
+  chain.slice(0, MEANING_CHATS).forEach((id, near) => {
+    const st = loadChatFile(fsx, id);
+    if (!st) return;
+    const vectors = loadVectors(fsx, id);
+    for (const ch of arr(st.chapters).filter(isObj)) {
+      if (ch.stale || !str(ch.text)) continue;
+      const v = vectorOf(vectors, ch.id, str(ch.text), model);
+      const c = v ? cosine(v, vec) : null;
+      if (c !== null) pool.push({ id, near, chapterId: str(ch.id), c });
+    }
+  });
+  if (pool.length < SEM_MIN_POOL) return [];
+  const mean = pool.reduce((t, x) => t + x.c, 0) / pool.length;
+  const sd = Math.sqrt(pool.reduce((t, x) => t + (x.c - mean) * (x.c - mean), 0) / pool.length);
+  if (!(sd > 1e-6)) return [];
+  return pool
+    .map((x) => ({ id: x.id, near: x.near, chapterId: x.chapterId, z: (x.c - mean) / sd }))
+    .filter((x) => x.z >= zMin)
+    .sort((a, b) => b.z - a.z)
+    .slice(0, MEANING_CHAPTERS);
+}
+
+export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n).toLowerCase(), budget, links, meaning }) {
   const chain = recallChain(fsx, chatId, links);
   if (!chain.length) return null;
   const scanStems = recallStemsOf(scanText);
@@ -7349,6 +7404,22 @@ export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n)
     if (!index) return;
     for (const c of recallCandidates(index, scanStems)) found.push({ id, near, title: index.title, ...c });
   });
+  // door B: a chapter the scene's vector opened lends its passages that share a rare word with the scan. The words still decide
+  // WHICH passage and that there is one: a chapter with no shared rare word brings nothing (vectors alone never let a passage in)
+  if (isObj(meaning) && Array.isArray(meaning.vec)) {
+    for (const r of meaningRegions({ fsx, chain, vec: meaning.vec, model: str(meaning.model), zMin: Number.isFinite(meaning.z) ? meaning.z : MEANING_Z })) {
+      const index = recallIndexOf(fsx, r.id);
+      if (!index || !isObj(index.p)) continue;
+      const chunks = arr((readJson(fsx, RECALL_DIR + r.id + ".t.json", null) || {}).chunks);
+      let best = null;
+      chunks.forEach((chunk, i) => {
+        if (!isObj(chunk) || chunk.k !== r.chapterId) return;
+        const stems = scanStems.filter((s) => Array.isArray(index.p[s]) && index.p[s].includes(i));
+        if (stems.length && (!best || stems.length > best.stems.length)) best = { i, stems };
+      });
+      if (best && !found.some((f) => f.id === r.id && f.i === best.i)) found.push({ id: r.id, near: r.near, title: index.title, i: best.i, n: best.stems.length, stems: best.stems, w: 0, z: Math.round(r.z * 10) / 10 });
+    }
+  }
   if (!found.length) return null;
   // the best match first; a tie goes to the nearer chat and the later passage
   found.sort((a, b) => b.w - a.w || b.n - a.n || a.near - b.near || b.i - a.i);
@@ -7372,7 +7443,7 @@ export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n)
     const tokens = estimateTokens(part);
     if (tokens > room - spent) continue;
     parts.push(part);
-    rows.push({ c: f.id, i: f.i, t: cut(str(f.title), 80), a: str(chunk.a), b: str(chunk.b), w: f.w, n: f.n, x: recallExcerpt(chunk.t, f.stems, 240) });
+    rows.push({ c: f.id, i: f.i, t: cut(str(f.title), 80), a: str(chunk.a), b: str(chunk.b), w: f.w, n: f.n, ...(f.z !== undefined ? { z: f.z } : {}), x: recallExcerpt(chunk.t, f.stems, 240) });
     spent += tokens;
   }
   if (!parts.length) return null;
@@ -9838,7 +9909,7 @@ export function verbatimRows(_fsx, insertFile) {
   const rows = isObj(insertFile) && isObj(insertFile.verbatim) ? arr(insertFile.verbatim.rows) : [];
   return rows
     .filter((r) => isObj(r) && SAFE_ID.test(str(r.c)))
-    .map((r) => ({ chat: str(r.c), title: str(r.t), words: Number(r.n) || 0, text: str(r.x) }));
+    .map((r) => ({ chat: str(r.c), title: str(r.t), words: Number(r.n) || 0, text: str(r.x), ...(Number.isFinite(r.z) ? { meaning: r.z } : {}) }));
 }
 
 /**

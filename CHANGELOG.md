@@ -2,6 +2,12 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- New: **old chapters by meaning, experimental (#264).** In Library > Litopys settings > "In the prompt", the switch "Also find old chapters by meaning" (off) lets the vectors of your chapters, already made for the Vectors tab, open an old chapter of an earlier chat of the story when its meaning lies unusually far above the average of all the chapters (default 4 deviations; `verbatimMeaningZ`, hand-edited, 2 to 8). A passage of that chapter then comes into the reply only if it also shares a rare word with what is being said: meaning picks the chapter, words pick the passage, and meaning alone never adds text. It needs an embeddings model; a short story has too few chapters to reach the line, so it opens nothing there. The Memory view marks such a passage with "chapter close by meaning, z". Not calibrated on a real long story yet (#300), which is why it is off. The index of word-for-word passages now knows each passage's chapter, so every earlier chat's index is made again once (the tick does it).
+- Docs: `docs/DATA-FORMATS.md` and `docs/COUPLINGS.md` ("Word-for-word recall"); the guide pages for Litopys and Long chats.
+- Format: Litopys config `verbatimMeaning` (default `false`) and `verbatimMeaningZ` (default 4); `k` (chapter id) on a chunk of `litopys/recall/<chatId>.t.json`, index version 2; `z` on a row of `verbatim` in `litopys/insert/<chatId>.json` and `meaning` on `trace.verbatim`.
+
 ## 4.101.0 (2026-11-08)
 
 - New: **deep memory, on by default (#264).** The word-for-word memories of earlier chats (4.98.0) were off; they are on now. A reply of a chat that continues earlier ones can carry one or two passages of the ORIGINAL messages of any chat of the story's chain, found by rare shared words, above the facts and labelled as older than them. A chat that continues nothing, or says nothing that shares enough rare words, gets nothing: no change for it. The switch stays (Library > Litopys settings > "In the prompt", and the chat's Prompt board), and a chat that had it switched off on purpose stays off. **This changes the prompt of every chat that continues another one**, by at most "Word-for-word budget" tokens (400 by default).

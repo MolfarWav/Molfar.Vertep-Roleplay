@@ -104,6 +104,7 @@ export function VerbatimRow({ v, t }: { v: TraceVerbatim; t: T }) {
       </div>
       <span className="flex shrink-0 flex-wrap items-center gap-1.5">
         <Chip tone="sky">{t('memtrace.verbatimShares', { n: v.words })}</Chip>
+        {v.meaning !== undefined && <Chip tone="violet">{t('memtrace.verbatimMeaning', { z: v.meaning.toFixed(1) })}</Chip>}
       </span>
     </li>
   )

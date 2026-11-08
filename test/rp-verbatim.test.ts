@@ -240,6 +240,68 @@ describe("verbatim recall: the Fired panel counts it over the whole chat", () =>
   });
 });
 
+describe("verbatim recall: door B, an old chapter opened by meaning (#264)", () => {
+  const ASK = "What happened to the heron near the harbour?"; // one rare word only: the word rule alone lets nothing in
+  const unit = (k: number, n = 8) => Array.from({ length: n }, (_, i) => (i === k ? 1 : 0));
+
+  /** first <- now; `first` has six chapters with a vector each, the cloak lies in chapter c1 (messages 1 to 15). */
+  function withVectors(extraCfg: Record<string, unknown>, vecIdx = [0, 1, 2, 3, 4, 5]) {
+    const msgs = oldChat("first", true);
+    writeChat("now", [U("n1", "Hello again."), C("n2", "Aria", "Hello, Jude.")], { title: "Now", userName: "Jude" });
+    const chapters = vecIdx.map((_, k) => ({ id: "c" + (k + 1), from: msgs[k * 15]!.id, to: msgs[k * 15 + 14]!.id, count: 15, kind: "scene", text: `Chapter ${k + 1} of the road.`, label: "L", at: k, sig: "x" }));
+    writeJson("litopys/chats/first.json", { ...L.emptyChat("first"), migrated: true, chapters });
+    const vectors: Record<string, unknown> = {};
+    chapters.forEach((c, k) => (vectors[c.id] = { hash: L.fnv1a(c.text), vector: unit(vecIdx[k]!), m: "model-a" }));
+    writeJson("litopys/vectors/first.json", vectors);
+    writeJson("litopys/config.json", { verbatim: true, ...extraCfg });
+    return chainOf(["first", "now"]);
+  }
+  const withScan = (text: string, vec: number[] | null, model = "model-a") => {
+    const c = ctx(text);
+    return { ...c, turn: { ...c.turn, ...(vec ? { scanVec: vec, scanModel: model } : {}) } };
+  };
+
+  it("is off by default: the same scene brings nothing", () => {
+    const m = withVectors({});
+    expect(labels(L.llmRequest(withScan(ASK, unit(0)), m.host))).not.toContain("Litopys · earlier, word for word");
+  });
+
+  it("opens the chapter nearest by meaning and takes the passage that shares a rare word with the scene", () => {
+    const m = withVectors({ verbatimMeaning: true, verbatimMeaningZ: 2 });
+    const res = L.llmRequest(withScan(ASK, unit(0)), m.host);
+    expect(textOf(res)).toContain(CLOAK);
+    const row = readJson("litopys/insert/now.json").verbatim.rows[0];
+    expect(row).toMatchObject({ c: "first", n: 1, w: 0 });
+    expect(row.z).toBeGreaterThanOrEqual(2);
+  });
+
+  it("brings nothing when the scene's vector points at another chapter, has no vector, or is of another model", () => {
+    const m = withVectors({ verbatimMeaning: true, verbatimMeaningZ: 2 });
+    expect(textOf(L.llmRequest(withScan(ASK, unit(3)), m.host))).not.toContain(CLOAK);
+    expect(textOf(L.llmRequest(withScan(ASK, null), m.host))).not.toContain(CLOAK);
+    expect(textOf(L.llmRequest(withScan(ASK, unit(0), "model-b"), m.host))).not.toContain(CLOAK);
+  });
+
+  it("the default line (4 deviations) is out of reach of a short story: a pool of six cannot lie that far out", () => {
+    const m = withVectors({ verbatimMeaning: true });
+    expect(L.loadConfig(m.host.fs).verbatimMeaningZ).toBe(4);
+    expect(textOf(L.llmRequest(withScan(ASK, unit(0)), m.host))).not.toContain(CLOAK);
+  });
+
+  it("never lets a passage in by meaning alone: the chapter is open but the scene shares no rare word with it", () => {
+    const m = withVectors({ verbatimMeaning: true, verbatimMeaningZ: 2 });
+    expect(textOf(L.llmRequest(withScan("How are the horses doing in the stable today, friend?", unit(0)), m.host))).not.toContain(CLOAK);
+  });
+
+  it("the meaning setting and its line are kept and clamped", () => {
+    const m = withVectors({});
+    L.handleRoute({ method: "PUT", path: "/litopys/config", query: {}, body: { verbatimMeaning: true } }, m.host);
+    expect(L.loadConfig(m.host.fs).verbatimMeaning).toBe(true);
+    writeJson("litopys/config.json", { verbatimMeaning: true, verbatimMeaningZ: 99 });
+    expect(L.loadConfig(m.host.fs).verbatimMeaningZ).toBe(8);
+  });
+});
+
 describe("verbatim recall: what the Memory view and the engine see", () => {
   it("the trace route lists the passages of the newest reply", () => {
     const m = setup();

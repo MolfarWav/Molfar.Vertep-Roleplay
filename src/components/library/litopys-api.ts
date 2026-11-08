@@ -400,10 +400,12 @@ export interface LitConfig {
   searchWords?: boolean
   /** #184: on top of the brief, the narrator writes a hidden plan first (default off); missing from an older plugin */
   hiddenPlan?: boolean
-  /** #184: add one or two word-for-word passages of the earlier chats this chat continues (default off); missing from an older plugin */
+  /** #184: add one or two word-for-word passages of the earlier chats this chat continues (default on since 4.101.0); missing from an older plugin */
   verbatim?: boolean
   /** the most tokens those passages may take (150 to 1200, default 400); missing from an older plugin */
   verbatimBudget?: number
+  /** #264 door B: the scene's vector may also open an old chapter (off by default) */
+  verbatimMeaning?: boolean
   /** which prompts differ from the default (4.34; absent on an older plugin) */
   custom?: string[]
 }
