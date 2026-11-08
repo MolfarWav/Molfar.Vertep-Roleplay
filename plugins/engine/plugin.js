@@ -1088,13 +1088,14 @@ function databankInScope(file, scope) {
   return true;
 }
 
-/** The chats this one continues through Canvas links, nearest first, at most 3 (the same chain the Litopys backstory reads). */
-function chatChain(fsx, chatId) {
+/** The chats this one continues through Canvas links, nearest first, up to CHAIN_WALK_MAX (the whole chain the Litopys backstory walks: three whole, the older ones condensed, #288). */
+const CHAIN_WALK_MAX = 40;
+export function chatChain(fsx, chatId) {
   const links = (jsonAt(fsx, "litopys/links.json") || {}).links;
   const out = [];
   if (!links || typeof links !== "object") return out;
   const seen = new Set([chatId]);
-  for (let cur = links[chatId] && links[chatId].from; typeof cur === "string" && cur && !seen.has(cur) && out.length < 3; cur = links[cur] && links[cur].from) {
+  for (let cur = links[chatId] && links[chatId].from; typeof cur === "string" && cur && !seen.has(cur) && out.length < CHAIN_WALK_MAX; cur = links[cur] && links[cur].from) {
     seen.add(cur);
     out.push(cur);
   }

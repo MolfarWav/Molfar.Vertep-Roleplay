@@ -116,3 +116,19 @@ describe("saving a book", () => {
     expect(save(m, { chatId: "bk6", readers: ["r"], update: "bk_nope" }).status).toBe(404);
   });
 });
+
+describe("a book reaches the whole chain (#288)", () => {
+  it("a chat reads a book saved for a chat many links back, not only three", async () => {
+    const engine = (await import(new URL("../plugins/engine/plugin.js", import.meta.url).href)) as Record<string, any>;
+    const m = mockHost();
+    const links: Record<string, any> = {};
+    for (let i = 2; i <= 6; i++) {
+      writeChat("s" + i, story(2, "s" + i), { title: "S" + i });
+      links["s" + i] = { from: "s" + (i - 1), at: i };
+    }
+    writeChat("s1", story(2, "s1"), { title: "S1" });
+    writeJson("litopys/links.json", { v: 1, links });
+    expect(engine.chatChain(m.host.fs, "s6")).toEqual(["s5", "s4", "s3", "s2", "s1"]);
+    expect(engine.chatChain(m.host.fs, "s1")).toEqual([]);
+  });
+});
