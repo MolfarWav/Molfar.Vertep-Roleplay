@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.99.0'
+export const APP_VERSION = '4.100.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.long-story',
+    since: '4.100.0',
+    help: 'story',
+    keywords: { en: 'long story many chats chain far backstory turning points older chats condensed memory continue earlier', uk: 'довга історія багато чатів ланцюг далека передісторія поворотні моменти старші чати стисло пам’ять продовжити попередній' },
+    title: { en: 'A long story keeps its beginning', uk: 'Довга історія пам’ятає свій початок' },
+    body: {
+      en: 'A story of many chats no longer forgets its first chats: the three nearest are read whole, every older one comes in as one condensed part. Events the story turns on are kept almost word for word in the new Turning points tab (Library, Litopys). The share for the far chats and how many turning points show are in Litopys settings, In the prompt. The Data Bank books of an earlier chat now reach the whole chain.',
+      uk: 'Історія з багатьох чатів більше не забуває перші чати: три найближчі читаються цілком, кожен старший іде одним стисненим блоком. Події, на яких історія повертає, зберігаються майже дослівно в новій вкладці Поворотні моменти (Library, Litopys). Частка для далеких чатів і скільки поворотних моментів показувати налаштовуються в Litopys, «У промпті». Книги Data Bank з попереднього чату тепер доходять до всього ланцюга.',
+    },
+  },
   {
     id: 'new.archive',
     since: '4.99.0',
