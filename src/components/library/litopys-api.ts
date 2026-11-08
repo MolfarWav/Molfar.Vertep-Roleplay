@@ -237,6 +237,10 @@ export interface LitTurn {
   /** chapter: found by the worker · mark: the user marked a chapter · user: written by the user */
   origin: 'chapter' | 'mark' | 'user'
   edited?: true
+  /** it retells a lie told in the scene (#184 P4): `believers` take it as true, `liar` told it */
+  untrue?: true
+  liar?: string
+  believers?: string[]
   /** the later turning point that undid this one */
   overriddenBy?: string
   overrides?: string
@@ -355,6 +359,10 @@ export interface LitConfig {
   budgetMode?: 'fixed' | 'auto'
   /** 0.9.2: the most a linked earlier chat's story may take as backstory, 0 = none */
   linkBudget: number
+  /** #288: the far part's share of the backstory budget, percent (5 to 40) */
+  farShare?: number
+  /** #288: active turning points shown across a chain (3 to 30) */
+  turnsShown?: number
   chapter: string
   /** M4d arcs; arcThreshold 0 = twice the budget */
   arcMode: LitArcMode
@@ -440,6 +448,8 @@ export interface LitTurnFields {
   text?: string
   knownBy?: string[] | 'all'
   stances?: Record<string, string>
+  /** false: it was not a lie after all */
+  untrue?: false
 }
 export const addLitTurn = (chatId: string, fields: LitTurnFields & { text: string }) => post<LitChat>('/litopys/turns', { chatId, op: 'add', ...fields })
 /** 409 "already marked" when that chapter is already a turning point. */

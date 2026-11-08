@@ -325,3 +325,74 @@ describe("the Fired panel's rows (#288)", () => {
     expect(r.json.backstory.tokens + r.json.backstoryFar.tokens).toBe(L.estimateTokens(r.json.backstoryFar.text + "\n\n" + r.json.backstory.text));
   });
 });
+
+describe("far share and turning points shown are settings (#288)", () => {
+  it("defaults to 18% and 12, clamps, and is read by the backstory", () => {
+    const m = longChain(6);
+    expect(route(m.host, "GET", "/litopys/config").json.farShare).toBe(18);
+    expect(route(m.host, "GET", "/litopys/config").json.turnsShown).toBe(12);
+    route(m.host, "PUT", "/litopys/config", { farShare: 99, turnsShown: 1 });
+    const cfg = route(m.host, "GET", "/litopys/config").json;
+    expect(cfg.farShare).toBe(40);
+    expect(cfg.turnsShown).toBe(3);
+  });
+
+  it("a bigger far share lets the far part carry more", () => {
+    const m = longChain(8);
+    writeJson("litopys/config.json", { linkBudget: 3000, farShare: 5 });
+    L.llmRequest(ctx("c8"), m.host);
+    const small = readJson("litopys/insert/c8.json").backstory.far.tokens;
+    writeJson("litopys/config.json", { linkBudget: 3000, farShare: 40 });
+    L.llmRequest(ctx("c8"), m.host);
+    const big = readJson("litopys/insert/c8.json").backstory.far.tokens;
+    expect(small).toBeLessThanOrEqual(Math.floor(3000 * 0.05));
+    expect(big).toBeGreaterThan(small);
+  });
+
+  it("turnsShown caps the turning points across the chain", () => {
+    const many = Array.from({ length: 10 }, (_, k) => turn("t" + (k + 1), `Turning event ${k + 1}.`, { at: k + 1 }));
+    const m = longChain(2, (i) => (i === 1 ? { turns: many } : {}));
+    writeJson("litopys/config.json", { linkBudget: 3000, turnsShown: 4 });
+    const text = L.llmRequest(ctx("c2"), m.host).messages[1].content as string;
+    expect((text.match(/Turning event/g) || []).length).toBe(4);
+  });
+});
+
+describe("a turning point built on a lie (#184 P4, #288)", () => {
+  const ln = () => L.activeLine(story(10));
+  const scene = { from: "m1", to: "m6", fromIdx: 0, toIdx: 5, count: 6, kind: "scene", label: "" };
+
+  it("is flagged untrue when it retells a lie told in the scene, and keeps who believes it", () => {
+    const st = L.emptyChat("c1");
+    const lies = [{ liar: "Ada", to: ["Bram", "Aria"], text: "Bram stole the royal map from the vault." }];
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "Court", text: "Ada accused Bram." }, turns: [{ op: "add", text: "Ada tells the court that Bram stole the royal map from the vault." }] }));
+    L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln(), witnesses: ["Ada", "Bram", "Aria"], lies });
+    expect(st.turns[0]).toMatchObject({ untrue: true, liar: "Ada", believers: ["Bram", "Aria"] });
+  });
+
+  it("is not flagged when it says something else", () => {
+    const st = L.emptyChat("c1");
+    const lies = [{ liar: "Ada", to: ["Bram"], text: "Bram stole the royal map from the vault." }];
+    const parsed = L.parseWorkerReply(JSON.stringify({ chapter: { label: "x", text: "y" }, turns: [{ op: "add", text: "The tower fell at dawn and the garrison fled." }] }));
+    L.applyWorkerResult(st, { scene, replaces: null }, parsed, { now: 1, line: ln(), witnesses: ["Ada", "Bram"], lies });
+    expect(st.turns[0].untrue).toBeUndefined();
+  });
+
+  it("reads as plain to a believer and as untrue to everyone else", () => {
+    const m = longChain(2, (i) => (i === 1 ? { turns: [turn("t1", "Ada tells the court Bram stole the map.", { untrue: true, liar: "Ada", believers: ["Bram"] })] } : {}));
+    const rc = (voices: Set<string> | null, speakerName: string) => L.buildBackstory({ fsx: m.host.fs, chatId: "c2", line: L.activeLine(story(2, "n")), meta: { userName: "You" }, cfg: L.loadConfig(m.host.fs), speakerName, voices }).text as string;
+    const forBram = rc(new Set(["bram"]), "Bram");
+    expect(forBram).toContain("Ada tells the court Bram stole the map.");
+    expect(forBram).not.toContain("(untrue");
+    const forAria = rc(new Set(["aria"]), "Aria");
+    expect(forAria).toContain("(untrue: Bram believes it, told by Ada)");
+  });
+
+  it("the user can say it was not a lie", () => {
+    writeChat("c1", story(4, "a"), { title: "One" });
+    writeJson("litopys/chats/c1.json", { ...L.emptyChat("c1"), migrated: true, turns: [turn("t1", "Ada accused Bram.", { untrue: true, liar: "Ada", believers: ["Bram"] })] });
+    const r = route(mockHost().host, "POST", "/litopys/turns", { chatId: "c1", op: "edit", id: "t1", untrue: false });
+    expect(r.json.turns[0].untrue).toBeUndefined();
+    expect(r.json.turns[0].believers).toBeUndefined();
+  });
+});

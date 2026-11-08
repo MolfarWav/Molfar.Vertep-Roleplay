@@ -258,6 +258,7 @@ function TurnCard({ turn, byId, ctl }: { turn: LitTurn; byId: Map<string, LitTur
   const actions: RowAction[] = [{ key: 'edit', label: t('lit.edit'), icon: PencilSimple, run: () => ctl.setEditingId(turn.id) }]
   if (undone) actions.push({ key: 'putback', label: t('lit.turns.putBack'), icon: ArrowCounterClockwise, run: () => ctl.putBack(turn) })
   else if (ctl.count > 1) actions.push({ key: 'undoneby', label: t('lit.turns.undoneByAction'), icon: ArrowUUpLeft, run: () => ctl.askUndoneBy(turn) })
+  if (turn.untrue) actions.push({ key: 'notlie', label: t('lit.turns.notLie'), icon: ArrowCounterClockwise, run: () => ctl.save(turn, { untrue: false }) })
   actions.push({ key: 'delete', label: t('lit.delete'), icon: Trash, run: () => ctl.remove(turn), destructive: true })
 
   return (
@@ -291,6 +292,7 @@ function TurnCard({ turn, byId, ctl }: { turn: LitTurn; byId: Map<string, LitTur
               <Eye className="size-3" aria-hidden="true" />
               {turn.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: knownNames(turn.knownBy, t) })}
             </Badge>
+            {turn.untrue && <Badge variant="outline" className={cn(TAG, TONE.edited)} data-testid="turn-untrue-tag">{t('lit.turns.untrue', { who: (turn.believers ?? []).join(', ') || '…' })}</Badge>}
             {turn.edited && turn.origin !== 'user' && <Badge variant="outline" className={cn(TAG, TONE.edited)}>{t('lit.edited')}</Badge>}
             {undone && (
               <Badge variant="outline" className={cn('h-auto max-w-full whitespace-normal border-border bg-muted text-left text-muted-foreground', TAG)} data-testid="turn-undone-tag">

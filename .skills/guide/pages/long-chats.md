@@ -42,7 +42,7 @@ The new chat opens with the card's first greeting; "Edit the first message" lets
 
 ## A story of many chats
 
-A story can go on for many chats. The three nearest earlier chats give their chapters, arcs and facts as before. Every older chat goes into one **far** part, placed first: its turning points, the pinned and key facts, and one line for each arc. The part is built from what Litopys already wrote, with no extra model call, and takes about a fifth of the Backstory budget. If the budget is short, the oldest chats lose their lines first and the turning points last. In **What this chat carries** it is its own row, "Far backstory, chats 1-2", so you can see the first chats were kept, not lost. A short chain has no far part. Raise the Backstory budget if a long story feels thin.
+A story can go on for many chats. The three nearest earlier chats give their chapters, arcs and facts as before. Every older chat goes into one **far** part, placed first: its turning points, the pinned and key facts, and one line for each arc. The part is built from what Litopys already wrote, with no extra model call, and takes 18% of the Backstory budget by default (Library, Litopys settings, "In the prompt", **Share for the far chats**, 5 to 40). **Turning points shown** in the same block sets how many ride in a reply across the whole story (12 by default). If the budget is short, the oldest chats lose their lines first and the turning points last. In **What this chat carries** it is its own row, "Far backstory, chats 1-2", so you can see the first chats were kept, not lost. A short chain has no far part. Raise the Backstory budget if a long story feels thin.
 
 A condensed part drops small details (a cloak's colour); the word-for-word memories below bring those back.
 

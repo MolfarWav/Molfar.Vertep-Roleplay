@@ -1123,6 +1123,9 @@ export const DEFAULT_CONFIG = {
   causes: true,
   // #288: the worker may report a turning point of the story (a betrayal, a death, a vow broken) and how characters feel about it. No setting in the app.
   turns: true,
+  // #288: the far part's share of the backstory budget (percent) and how many active turning points ride across the whole chain
+  farShare: 18,
+  turnsShown: 12,
 };
 
 /** ask: the Library offers a merge; auto: the worker merges by itself; off: no new arcs. */
@@ -1245,6 +1248,7 @@ export const TURNS_RULE = [
   "- A turning point is an event the story turns on: a betrayal, a death, a vow kept or broken, a secret coming out, a choice that closed a door. Not a mood, a detail or a routine scene. Most scenes have none. Report at most one add.",
   '- Add it as {"op":"add","text":...}: 2 to 4 sentences close to what the messages show, who did what and what it cost. Keep names and the telling detail; do not turn it into a theme.',
   '- stances: one line for each character it touched, how they feel about it now: {"who":"a name","line":"short"}. Up to 6. Only what the messages show.',
+  '- When it rests on a lie told in the scene (see "Told as true, but untrue"), write what was told and by whom; the app marks it untrue and keeps it from those who know the truth as fact.',
   '- When it undoes an earlier turning point under Known turning points (a vow released, a lie exposed), add "undoes": that id.',
   '- When a character\'s feeling about a Known turning point changed in this scene, give {"op":"stance","id":"t1","who":"a name","line":"short"} and no new turning point for it.',
 ].join("\n");
@@ -1255,6 +1259,8 @@ const STANCE_CHARS = 120;
 const STANCES_MAX = 6;
 const TURNS_KEEP = 40;
 export const TURNS_SHOWN = 12;
+export const TURNS_SHOWN_MIN = 3;
+export const TURNS_SHOWN_MAX = 30;
 /** At most this many search words to a chapter or a fact, each this long. */
 const ALSO_MAX = 8;
 const ALSO_CHARS = 24;
@@ -1443,6 +1449,8 @@ export function loadConfig(fsx) {
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
   cfg.causes = cfg.causes !== false;
   cfg.turns = cfg.turns !== false;
+  cfg.farShare = clamp(intOf(cfg.farShare, FAR_SHARE_PCT), FAR_SHARE_MIN, FAR_SHARE_MAX);
+  cfg.turnsShown = clamp(intOf(cfg.turnsShown, TURNS_SHOWN), TURNS_SHOWN_MIN, TURNS_SHOWN_MAX);
   return cfg;
 }
 
@@ -1534,6 +1542,8 @@ export function patchConfig(fsx, body) {
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   if (b.verbatim !== undefined) next.verbatim = b.verbatim === true || b.verbatim === "on";
   if (b.verbatimBudget !== undefined) next.verbatimBudget = clamp(intOf(b.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
+  if (b.farShare !== undefined) next.farShare = clamp(intOf(b.farShare, FAR_SHARE_PCT), FAR_SHARE_MIN, FAR_SHARE_MAX);
+  if (b.turnsShown !== undefined) next.turnsShown = clamp(intOf(b.turnsShown, TURNS_SHOWN), TURNS_SHOWN_MIN, TURNS_SHOWN_MAX);
   // a max below the min follows the min
   if (intOf(next.arcSizeMax, 8) < intOf(next.arcSizeMin, 5)) next.arcSizeMax = intOf(next.arcSizeMin, 5);
   next.scene = { ...DEFAULT_CONFIG.scene, ...(isObj(stored.scene) ? stored.scene : {}) };
@@ -2323,7 +2333,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   // the turning points this scene may touch: the ones these people know (#288)
   const turnsOn = cfg.turns !== false;
   const knownTurns = turnsOn ? arr(st.turns).filter((t) => t.status !== "removed" && !t.overriddenBy && (t.knownBy === "all" || (Array.isArray(t.knownBy) && t.knownBy.some((k) => nameSetG.has(key(k)))))).slice(-8) : [];
-  if (knownTurns.length) parts.push("Known turning points\n" + knownTurns.map((t) => t.id + ": " + cut(t.text, 200) + stanceTail(t)).join("\n"));
+  if (knownTurns.length) parts.push("Known turning points\n" + knownTurns.map((t) => t.id + ": " + cut(t.text, 200) + untrueTail(t) + stanceTail(t)).join("\n"));
   const hinges = turnsOn ? sceneHinges(dash, line, scene) : [];
   if (hinges.length) parts.push("Said, and the story may hinge on it\n" + hinges.map((h) => "- " + h.who + ": " + h.text).join("\n"));
 
@@ -3957,7 +3967,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
 
   // A turning point of the scene, and how characters feel now about earlier ones (#288)
   if (ctx.turns !== false) {
-    applyTurns(st, { scene, chapterId, chapterText: newChapter.text, ops: parsed.turns, now, canon, witnesses: ctx.witnesses, replaces, mark: scene.marked === true });
+    applyTurns(st, { scene, chapterId, chapterText: newChapter.text, ops: parsed.turns, now, canon, witnesses: ctx.witnesses, replaces, mark: scene.marked === true, lies: ctx.lies });
   }
 
   // Habits the characters showed (#106), kept on the chat record itself (a rebuild keeps its own generation apart)
@@ -5523,6 +5533,7 @@ export function onTick(_ctx, host) {
                 cast: chatCfg.recollections !== false ? sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta), canon) : [],
                 witnesses: sceneCast(w.scene, line, dash, meta, narratorNames(fsx, meta), canon),
                 held: heldLeaks(dash, line, w.scene),
+                lies: sceneLies(dash, line, w.scene),
               });
               const added = g.facts.filter((f) => !before.has(f.id)).map((f) => f.id);
               const proposed = Math.max(0, g.proposals.filter((p) => p.status === "pending").length - pendingBefore);
@@ -6674,8 +6685,9 @@ export function buildBackstory({ fsx, chatId, line, meta, cfg, speakerName, voic
   const knowsAs = groups ? new Set([...knowers, ...groups.tokensFor(knowers)]) : knowers;
   const usedFacts = new Set();
   // the far part comes first: its own share of the one budget, taken before the near shares; what it leaves unused goes to the near chats
-  const bank = { left: TURNS_SHOWN };
-  const far = farChain.length ? farPart({ fsx, farChain, firstIdx: CHAIN_MAX, total: whole.length, here, knowers: knowsAs, groups, voices, cap: Math.floor(budget0 * FAR_SHARE), usedFacts, bank }) : null;
+  const shown = clamp(intOf(cfg && cfg.turnsShown, TURNS_SHOWN), TURNS_SHOWN_MIN, TURNS_SHOWN_MAX);
+  const bank = { left: shown, farMax: farTurnsMax(shown) };
+  const far = farChain.length ? farPart({ fsx, farChain, firstIdx: CHAIN_MAX, total: whole.length, here, knowers: knowsAs, groups, voices, cap: Math.floor((budget0 * clamp(intOf(cfg && cfg.farShare, FAR_SHARE_PCT), FAR_SHARE_MIN, FAR_SHARE_MAX)) / 100), usedFacts, bank }) : null;
   const budget = budget0 - (far ? far.tokens : 0);
   const shares = CHAIN_SHARES[chain.length - 1];
   const parts = [];
@@ -6748,7 +6760,7 @@ function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFact
   const turns = [];
   const render = () => {
     const out = [header];
-    if (turns.length) out.push("Turning points:", ...turns.map((r) => turnLine(r, here)));
+    if (turns.length) out.push("Turning points:", ...turns.map((r) => turnLine(r, here, "", voices)));
     if (story.length) out.push("The story so far:", ...story.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx).map(itemLine));
     if (facts.length) out.push("Facts:", ...facts.map(factLine));
     return out.join("\n");
@@ -6762,7 +6774,7 @@ function backstoryPart({ fsx, from, here, knowers, groups, voices, cap, usedFact
   for (const f of a) if (!tryAdd(facts, f)) break;
   // turning points (#288) ride in every later chat, near or far: newest first, at most half of this part's room, and TURNS_SHOWN across the chain
   const mine = turnsFor(pst.turns, knowers).sort((x, y) => (Number(y.t.at) || 0) - (Number(x.t.at) || 0));
-  const half = (list) => estimateTokens([header, "Turning points:", ...list.map((r) => turnLine(r, here))].join("\n")) <= cap / 2;
+  const half = (list) => estimateTokens([header, "Turning points:", ...list.map((r) => turnLine(r, here, "", voices))].join("\n")) <= cap / 2;
   for (const r of mine) {
     if (r.undone ? turns.filter((x) => x.undone).length >= 2 : bank.left <= 0) continue;
     if (!half([...turns, r]) || !tryAdd(turns, r)) break;
@@ -6819,6 +6831,16 @@ export function cleanStances(raw, canon) {
   return out;
 }
 
+/**
+ * A turning point that retells a lie told in front of others in the scene (#184 P4) is not true: the listeners believe it (their own
+ * replies read it as plain), everyone else is told it is untrue. `lies` = sceneLies of the scene. {} when it does not say what a lie said.
+ */
+function untrueOf(text, lies, nm) {
+  const hit = arr(lies).find((l) => saysHeld(text, l.text));
+  if (!hit) return {};
+  return { untrue: true, liar: nm(str(hit.liar)), believers: dedupeNames(arr(hit.to).map(str).filter(Boolean).map(nm)) };
+}
+
 /** Take a turning point out of the list; whatever it undid is active again. */
 function dropTurn(st, id) {
   st.turns = arr(st.turns).filter((t) => t.id !== id);
@@ -6842,7 +6864,7 @@ function trimTurns(st) {
 }
 
 /** A turning point of a scene, at most one a scene, and the stance changes. Returns the turning point added, if any. */
-export function applyTurns(st, { scene, chapterId, chapterText, ops, now, canon, witnesses, replaces, mark }) {
+export function applyTurns(st, { scene, chapterId, chapterText, ops, now, canon, witnesses, replaces, mark, lies }) {
   st.turns = arr(st.turns);
   st.counters.turn = Number(st.counters.turn) || 0;
   const nm = typeof canon === "function" ? canon : (n) => str(n);
@@ -6867,6 +6889,7 @@ export function applyTurns(st, { scene, chapterId, chapterText, ops, now, canon,
       knownBy: people.length ? people : "all",
       stances: addOp ? cleanStances(addOp.stances, nm) : {},
       origin: mark ? "mark" : "chapter",
+      ...untrueOf(text, lies, nm),
       ...(target ? { overrides: target.id } : {}),
       at: now,
       updatedAt: now,
@@ -6923,8 +6946,17 @@ function turnsFor(turns, knowers) {
 }
 
 /** One line of the prompt: the event, what undid it (near tier only), and how the people who are here feel about it. */
-function turnLine({ t, undone }, here, tag) {
-  return "- " + (tag ? "(" + tag + ") " : "") + str(t.text) + (undone ? " (later undone: " + cut(str(undone.text), 90) + ")" : "") + stanceTail(t, here);
+function turnLine({ t, undone }, here, tag, voices) {
+  return "- " + (tag ? "(" + tag + ") " : "") + str(t.text) + untrueTail(t, voices) + (undone ? " (later undone: " + cut(str(undone.text), 90) + ")" : "") + stanceTail(t, here);
+}
+
+/** " (untrue: Bram believes it, told by Ada)" for a turning point built on a lie, except in the reply of one who believes it (#184 P4). */
+function untrueTail(t, voices) {
+  if (!t || t.untrue !== true) return "";
+  const bel = arr(t.believers).map((b) => str(b).toLowerCase()).filter(Boolean);
+  if (voices instanceof Set && voices.size === 1 && bel.includes([...voices][0])) return "";
+  const who = arr(t.believers).map(str).filter(Boolean);
+  return " (untrue" + (who.length ? ": " + who.join(", ") + (who.length === 1 ? " believes" : " believe") + " it" : "") + (str(t.liar) ? ", told by " + str(t.liar) : "") + ")";
 }
 
 // ---------- the far tier of a long chain (#288) ----------
@@ -6933,10 +6965,13 @@ function turnLine({ t, undone }, here, tag) {
 // already has. Each chat is read as a small digest kept beside the record and made again only when that chat's record is saved.
 const FAR_V = 1;
 /** The far part's share of the backstory budget; what it leaves unused goes to the near chats. */
-export const FAR_SHARE = 0.18;
+export const FAR_SHARE_PCT = 18;
+export const FAR_SHARE_MIN = 5;
+export const FAR_SHARE_MAX = 40;
+export const FAR_SHARE = FAR_SHARE_PCT / 100;
 const FAR_LINE_CHARS = 240;
-/** Turning points the far part may carry; the near chats keep the rest of TURNS_SHOWN. */
-const FAR_TURNS_MAX = 8;
+/** Turning points the far part may carry: two thirds of `turnsShown`; the near chats keep the rest. */
+const farTurnsMax = (shown) => Math.max(1, Math.floor((shown * 2) / 3));
 
 /** The digest of one finished chat: what the far part may use, whole (it is filtered by who is speaking when it is read). */
 export function farDigest(fsx, chatId) {
@@ -6995,7 +7030,7 @@ function farPart({ fsx, farChain, firstIdx, total, here, knowers, groups, voices
   const units = [];
   const render = () => {
     const out = [header];
-    if (turns.length) out.push("Turning points:", ...turns.slice().sort((x, y) => x.n - y.n || (Number(x.t.at) || 0) - (Number(y.t.at) || 0)).map((x) => turnLine(x.row, here, "chat " + x.n)));
+    if (turns.length) out.push("Turning points:", ...turns.slice().sort((x, y) => x.n - y.n || (Number(x.t.at) || 0) - (Number(y.t.at) || 0)).map((x) => turnLine(x.row, here, "chat " + x.n, voices)));
     if (facts.length) out.push("Facts:", ...facts.map((f) => factLineOf(f, voices instanceof Set && voices.size === 1, groups)));
     if (units.length) {
       const byChat = new Map();
@@ -7014,7 +7049,7 @@ function farPart({ fsx, farChain, firstIdx, total, here, knowers, groups, voices
   let turnsAdded = 0;
   for (const x of digests) {
     for (const row of turnsFor(x.d.turns, knowers).filter((r) => !r.undone)) {
-      if (bank.left <= 0 || turnsAdded >= FAR_TURNS_MAX) break;
+      if (bank.left <= 0 || turnsAdded >= bank.farMax) break;
       if (!tryAdd(turns, { n: x.n, t: row.t, row })) break;
       bank.left--;
       turnsAdded++;
@@ -7460,6 +7495,12 @@ export function turnRoute(fsx, body) {
         turn.knownBy = k;
       }
       if (b.stances !== undefined) turn.stances = cleanStances(b.stances);
+      // `untrue: false` says it was not a lie after all
+      if (b.untrue === false) {
+        delete turn.untrue;
+        delete turn.liar;
+        delete turn.believers;
+      }
       turn.edited = true;
       turn.updatedAt = now;
       addActivity(st, "user", "turn.edit", "Edited a turning point: " + quote(turn.text), [turn.id], now, { text: turn.text });
