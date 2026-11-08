@@ -39,7 +39,7 @@ export interface TraceChapter {
 }
 
 /** One word-for-word passage of an earlier chat that was put into the newest reply (#184): the chat's title, how many rare words it shares with what was being said, and the excerpt shown (about 240 characters, may start or end with "…"). */
-export interface TraceVerbatim { chat: string; title: string; words: number; text: string }
+export interface TraceVerbatim { chat: string; title: string; words: number; text: string; /** set when the chapter was opened by meaning (#264): how many deviations above the pool's mean it lay */ meaning?: number }
 
 /** The far part of a long backstory the newest reply carried (#288): chats `first` to `last` of the story, condensed. */
 export interface TraceFar { chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number }

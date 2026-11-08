@@ -61,7 +61,7 @@ Why bother: the earlier chat no longer changes, so the memory of it stays stable
 
 ## Details the chapters dropped
 
-A chapter is a retelling, so a small detail of an earlier chat can be gone from it. In the Library, Litopys settings, "In the prompt", the switch **Word-for-word memories of earlier chats** (on by default) lets a chat that continues others bring back one or two passages of the original messages when what is being said shares rare words with them ([[litopys]]). The earlier chat is indexed when it goes to the Archive. It matches words, not meaning, so a detail told in other words is not found.
+A chapter is a retelling, so a small detail of an earlier chat can be gone from it. In the Library, Litopys settings, "In the prompt", the switch **Word-for-word memories of earlier chats** (on by default) lets a chat that continues others bring back one or two passages of the original messages when what is being said shares rare words with them ([[litopys]]). The earlier chat is indexed when it goes to the Archive. It matches words, so a detail told in other words is not found; the experimental switch **Also find old chapters by meaning** (off) narrows that gap a little when you use embeddings: it finds the chapter by meaning, but a passage still needs one rare word of its own.
 
 ## Save a story as a book
 

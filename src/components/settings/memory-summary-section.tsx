@@ -177,6 +177,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           {keyField('turnsShown', { id: 'lit-turns-shown', label: t('lit.set.turnsShown'), hint: t('lit.set.turnsShownHint'), unit: t('lit.unit.turns'), min: 3, max: 30, fallback: 12 })}
           <div className="flex flex-col gap-3 sm:col-span-2">
             {switchRow('lit-verbatim', t('lit.set.verbatim'), t('lit.set.verbatimHint'), cfg.verbatim !== false, (v) => save({ verbatim: v }))}
+            {cfg.verbatim !== false && switchRow('lit-verbatim-meaning', t('lit.set.verbatimMeaning'), t('lit.set.verbatimMeaningHint'), cfg.verbatimMeaning === true, (v) => save({ verbatimMeaning: v }))}
             {cfg.verbatim !== false && keyField('verbatimBudget', { id: 'lit-verbatim-budget', label: t('lit.set.verbatimBudget'), hint: t('lit.set.verbatimBudgetHint'), unit: t('lit.unit.tokens'), min: 150, max: 1200, fallback: 400 })}
           </div>
           <div className="flex flex-col gap-3 sm:col-span-2">

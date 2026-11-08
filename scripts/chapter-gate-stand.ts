@@ -35,6 +35,10 @@ import { activeLine, loadChatFile, loadLinks, readChat, recallBuild, recallCandi
 
 const SCAN_MESSAGES = 3;
 const MIN_POOL = 4;
+/** What the embedder gets: a window keeps its last WINDOW_CHARS characters, a chapter its first DOC_CHARS. A long message would make
+ *  the whole batch as long as itself (attention grows with the square of the length: one 4000-token window asked for 14 GB). */
+export const WINDOW_CHARS = 2000;
+export const DOC_CHARS = 3000;
 
 type Fsx = { read(p: string): string; write(p: string, c: string): void; list(p?: string): string[]; remove(p: string): void };
 
@@ -109,7 +113,7 @@ export function dumpStand(fsx: Fsx, opts: DumpOptions | number = {}): StandDump 
       const key = chatId + ":" + c.id;
       if (!docIndex.has(key)) {
         docIndex.set(key, doc.length);
-        doc.push(c.text);
+        doc.push(c.text.length > DOC_CHARS ? c.text.slice(0, DOC_CHARS) : c.text);
         docs.push({ chat: chatId, id: String(c.id) });
       }
       out.push(docIndex.get(key)!);
@@ -157,7 +161,7 @@ export function dumpStand(fsx: Fsx, opts: DumpOptions | number = {}): StandDump 
         }
       }
       probes.push({ chat: chatId, pos, wordDocs: [...wordDocs], pool, kind, q: query.length });
-      query.push(text);
+      query.push(text.length > WINDOW_CHARS ? text.slice(-WINDOW_CHARS) : text);
     }
   };
 

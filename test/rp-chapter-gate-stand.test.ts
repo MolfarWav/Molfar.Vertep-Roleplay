@@ -3,8 +3,8 @@
  * vectors, and prints numbers without any chat text. Checked here with a hashed bag-of-words as the "model".
  */
 import { describe, expect, it } from "bun:test";
-import { L, env, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
-import { dumpStand, printStand, readOnlyFs, scoreStand } from "../scripts/chapter-gate-stand";
+import { L, env, readJson, readText, useRoot, writeChat, writeJson, type Msg } from "./rp-memory-m2-kit";
+import { DOC_CHARS, WINDOW_CHARS, dumpStand, printStand, readOnlyFs, scoreStand } from "../scripts/chapter-gate-stand";
 
 useRoot();
 
@@ -87,6 +87,22 @@ describe("the chapter-gate stand", () => {
     const res = scoreStand(dump, vecs);
     expect(res.agreement?.top1).toBe(1);
     expect(printStand(res, dump)).not.toMatch(/turquoise|heron/i);
+  });
+
+  it("cuts what goes to the embedder: a long window keeps its tail, a long chapter its head (one huge message once asked for 14 GB)", () => {
+    const fsx = build();
+    // the same chain, but the newest message is huge and so is a chapter
+    const huge = "turquoise cloak silver clasp heron " + "word ".repeat(5000);
+    const now = readText("chats/now.jsonl").trim().split("\n").map((l: string) => JSON.parse(l));
+    now[22] = { ...now[22], text: huge };
+    writeChat("now", now, { title: "now", userName: "Jude" });
+    const st = readJson("litopys/chats/one.json");
+    st.chapters[0].text = "A harbour fog. " + "long ".repeat(3000);
+    writeJson("litopys/chats/one.json", st);
+    const dump = dumpStand(fsx, 40);
+    expect(dump.query.every((q) => q.length <= WINDOW_CHARS)).toBe(true);
+    expect(dump.doc.every((d) => d.length <= DOC_CHARS)).toBe(true);
+    expect(dump.query.some((q) => q.length === WINDOW_CHARS)).toBe(true);
   });
 
   it("scores nothing and does not throw when a chat has no chain", () => {

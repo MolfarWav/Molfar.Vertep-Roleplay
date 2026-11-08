@@ -17,6 +17,12 @@ describe("the word-for-word fold in the memory trace (#184)", () => {
     expect(html).toContain("memtrace.verbatimShares");
     expect(html).toContain("a turquoise cloak with a silver clasp");
   });
+  it("marks a passage whose chapter was opened by meaning, with its z (#264)", () => {
+    const html = renderToStaticMarkup(<LitopysFolds lit={lit([{ chat: "c1", title: "The harbour", words: 1, text: "…a heron…", meaning: 4.26 }])} t={t} />);
+    expect(html).toContain("memtrace.verbatimMeaning");
+    expect(html).toContain("4.3");
+    expect(renderToStaticMarkup(<LitopysFolds lit={lit([{ chat: "c1", title: "The harbour", words: 3, text: "…a heron…" }])} t={t} />)).not.toContain("memtrace.verbatimMeaning");
+  });
   it("has no fold when the array is empty or absent (an older plugin)", () => {
     expect(renderToStaticMarkup(<LitopysFolds lit={lit([])} t={t} />)).not.toContain("memtrace.foldVerbatim");
     expect(renderToStaticMarkup(<LitopysFolds lit={lit()} t={t} />)).not.toContain("memtrace.foldVerbatim");
