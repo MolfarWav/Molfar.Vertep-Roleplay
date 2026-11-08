@@ -1107,9 +1107,10 @@ export const DEFAULT_CONFIG = {
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
   // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
   hiddenPlan: false,
-  // #184 step 8 (#264): passages of the earlier chats of the chain, word for word, found by rare shared words. Off by default;
-  // the budget is in tokens (VERBATIM_MIN to VERBATIM_MAX)
-  verbatim: false,
+  // #184 step 8 (#264): passages of the earlier chats of the chain, word for word, found by rare shared words. On by default
+  // since 4.101.0 (a chat that continues none, or has no shared rare words, gets nothing); the budget is in tokens
+  // (VERBATIM_MIN to VERBATIM_MAX)
+  verbatim: true,
   verbatimBudget: 400,
   // #184: the chapter worker also writes a few search words (synonyms, the story's own language) for each new fact and for the chapter,
   // kept as `also` and read only by the word search, never shown to the model
@@ -1443,7 +1444,7 @@ export function loadConfig(fsx) {
   cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
-  cfg.verbatim = cfg.verbatim === true;
+  cfg.verbatim = cfg.verbatim !== false;
   cfg.verbatimBudget = clamp(intOf(cfg.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
   cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
@@ -3222,8 +3223,8 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    // word-for-word passages of the earlier chats of the chain (#184 step 8): off by default, off with the Litopys switch and
-    // with "start clean" (the chat's Dashboard)
+    // word-for-word passages of the earlier chats of the chain (#184 step 8): on by default, off with its own switch, the Litopys
+    // switch and with "start clean" (the chat's Dashboard)
     let verbatim = null;
     if (!litOff && cfg.verbatim === true && line.length && !offForChat(fsx, chatId, "plugin:verbatim")) {
       try {
@@ -3281,7 +3282,8 @@ export function llmRequest(ctx, host) {
     // in how many replies each fact and chapter went in (#253)
     try {
       const farUsed = back && back.far ? back.far : null;
-      if ((insert && insert.trace) || farUsed) recordLitFired(fsx, chatId, str(ctx.turn.op), insert && insert.trace ? insert.trace.rows : [], farUsed);
+      const verbUsed = verbatim && verbatim.chunks ? { chunks: verbatim.chunks, chats: verbatim.chats, tokens: verbatim.tokens } : null;
+      if ((insert && insert.trace) || farUsed || verbUsed) recordLitFired(fsx, chatId, str(ctx.turn.op), insert && insert.trace ? insert.trace.rows : [], farUsed, verbUsed);
     } catch {}
     // the backstory first (it is the older story), then the chat's own record
     let messages = req.messages;
@@ -4568,7 +4570,7 @@ export function pruneOrphans(fsx, store, files) {
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
       // a long chat's vectors go on in `<chatId>.p2.json`, ...: they live and die with the main file's chat
-      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.t$/, "") : f.slice(0, -5);
+      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.(t|none)$/, "") : f.slice(0, -5);
       // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
       if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
       if (!live.has(id)) {
@@ -6640,6 +6642,13 @@ export function linkRoute(fsx, body) {
       archived.push(from);
     }
   }
+  // the earlier chat is a source of word-for-word memories from now on: its index is made now, while it is finished, not on the
+  // first reply that needs it (#264). A failure here never fails the link; the tick and the first use build it too.
+  if (newLink && from !== null && loadConfig(fsx).verbatim !== false) {
+    try {
+      recallIndexChat(fsx, from);
+    } catch {}
+  }
   return { status: 200, json: { links, archived } };
 }
 
@@ -7216,10 +7225,15 @@ export function recallIndexChat(fsx, chatId) {
   if (!rc) return null;
   const st = loadChatFile(fsx, chatId);
   const built = recallBuild(rc.msgs, st);
-  if (!built.chunks.length) return null;
   const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
   const title = str(rc.meta && rc.meta.title);
-  if (!recallSave(fsx, chatId, title, rev, built)) return null;
+  if (!built.chunks.length || !recallSave(fsx, chatId, title, rev, built)) {
+    // nothing to index (empty, or too big for a file): remembered for this revision so the tick and the replies do not try again
+    try {
+      fsx.write(RECALL_DIR + chatId + ".none.json", JSON.stringify({ v: RECALL_V, rev }));
+    } catch {}
+    return null;
+  }
   return { v: RECALL_V, rev, n: built.chunks.length, title, p: built.p };
 }
 
@@ -7227,7 +7241,16 @@ export function recallIndexChat(fsx, chatId) {
 function recallIndexOf(fsx, chatId) {
   const have = readJson(fsx, RECALL_DIR + chatId + ".json", null);
   if (isObj(have) && have.v === RECALL_V && isObj(have.p)) return have;
+  if (recallMissed(fsx, chatId)) return null;
   return recallIndexChat(fsx, chatId);
+}
+
+/** A chat with nothing to index (empty, or too big for a file) is not tried again on every tick: a marker file says so for the rev. */
+function recallMissed(fsx, chatId) {
+  const mark = readJson(fsx, RECALL_DIR + chatId + ".none.json", null);
+  if (!isObj(mark)) return false;
+  const st = loadChatFile(fsx, chatId);
+  return mark.rev === (st && Number.isFinite(st.rev) ? st.rev : 0);
 }
 
 /**
@@ -7239,10 +7262,11 @@ export function recallRefresh(fsx) {
   const sources = [...new Set(Object.values(links).map((l) => str(l && l.from)).filter(Boolean))];
   for (const id of sources) {
     const have = readJson(fsx, RECALL_DIR + id + ".json", null);
-    if (!isObj(have)) continue; // built on the first reply that needs it
     const st = loadChatFile(fsx, id);
     const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
-    if (have.v === RECALL_V && have.rev === rev) continue;
+    // no index yet (a link made before the setting was on, or before 4.100.0): made here, one chat a tick
+    if (isObj(have) && have.v === RECALL_V && have.rev === rev) continue;
+    if (!isObj(have) && recallMissed(fsx, id)) continue;
     recallIndexChat(fsx, id);
     return id;
   }
@@ -9640,7 +9664,7 @@ function makePerson(fsx, chatId, rc) {
  */
 const FIRED_DIR = "litopys/fired/";
 const FIRED_CAP = 200;
-function recordLitFired(fsx, chatId, op, rows, far) {
+function recordLitFired(fsx, chatId, op, rows, far, verb) {
   if (!["send", "next", "swipe", "continue", ""].includes(op)) return;
   let log = readJson(fsx, FIRED_DIR + chatId + ".json", null);
   if (!isObj(log) || log.v !== 1 || !isObj(log.facts) || !isObj(log.chapters)) log = { v: 1, since: Date.now(), replies: 0, facts: {}, chapters: {}, last: null };
@@ -9650,6 +9674,11 @@ function recordLitFired(fsx, chatId, op, rows, far) {
     if (before.far === true && isObj(log.far)) {
       log.far.n -= 1;
       if (log.far.n <= 0) delete log.far;
+    }
+    // the word-for-word passages of earlier chats count the same way (#264)
+    if (before.verb === true && isObj(log.verbatim)) {
+      log.verbatim.n -= 1;
+      if (log.verbatim.n <= 0) delete log.verbatim;
     }
     for (const [map, ids] of [[log.facts, arr(before.f)], [log.chapters, arr(before.c)]]) {
       for (const id of ids) {
@@ -9662,7 +9691,11 @@ function recordLitFired(fsx, chatId, op, rows, far) {
     log.replies = Math.max(0, log.replies - 1);
   }
   log.replies += 1;
-  const keys = { f: [], c: [], ...(far ? { far: true } : {}) };
+  const keys = { f: [], c: [], ...(far ? { far: true } : {}), ...(verb ? { verb: true } : {}) };
+  if (verb) {
+    const was = isObj(log.verbatim) ? log.verbatim : { n: 0, at: 0 };
+    log.verbatim = { n: was.n + 1, at: log.replies, chunks: Number(verb.chunks) || 0, chats: Number(verb.chats) || 0, tokens: Number(verb.tokens) || 0 };
+  }
   if (far) {
     const was = isObj(log.far) ? log.far : { n: 0, at: 0 };
     log.far = { n: was.n + 1, at: log.replies, chats: Number(far.chats) || 0, first: Number(far.first) || 0, last: Number(far.last) || 0, tokens: Number(far.tokens) || 0, turns: Number(far.turns) || 0, facts: Number(far.facts) || 0, units: Number(far.units) || 0 };
@@ -9709,6 +9742,7 @@ function firedRoute(fsx, query) {
         factsTotal: Object.keys(log.facts).length,
         chaptersTotal: Object.keys(log.chapters).length,
         far: isObj(log.far) ? log.far : null,
+        verbatim: isObj(log.verbatim) ? log.verbatim : null,
         facts: top(log.facts).map(([id, e]) => {
           const f = facts.get(id);
           return { id, n: e.n, at: e.at, gone: !f, text: f ? cut(f.text, 200) : "", by: !f ? [] : f.knownBy === "all" ? "all" : arr(f.knownBy).map(person).filter(Boolean) };

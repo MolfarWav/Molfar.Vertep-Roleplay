@@ -1,5 +1,5 @@
 /**
- * #184 step 8 (#264): word-for-word passages of the earlier chats of the chat's chain. Off by default; found by rare shared
+ * #184 step 8 (#264): word-for-word passages of the earlier chats of the chat's chain. On by default; found by rare shared
  * words; the whole chain, not three chats; the speaker filter of the story applies; its own small budget; never a guess.
  */
 import { describe, expect, it } from "bun:test";
@@ -52,8 +52,15 @@ function setup(extraCfg: Record<string, unknown> = { verbatim: true }) {
 }
 
 describe("verbatim recall: when it speaks", () => {
-  it("is off by default: no part, no index, nothing written", () => {
+  it("is on by default: a chat with no setting of its own finds the passage", () => {
     const m = setup({});
+    expect(L.loadConfig(m.host.fs).verbatim).toBe(true);
+    const res = L.llmRequest(ctx("What colour was the turquoise cloak with the silver clasp?"), m.host);
+    expect(labels(res)).toContain("Litopys · earlier, word for word");
+  });
+
+  it("switched off: no part, no index, nothing written", () => {
+    const m = setup({ verbatim: false });
     const res = L.llmRequest(ctx("What colour was the turquoise cloak with the silver clasp?"), m.host);
     expect(labels(res)).not.toContain("Litopys · earlier, word for word");
     expect(exists("litopys/recall/first.json")).toBe(false);
@@ -178,6 +185,61 @@ describe("verbatim recall: the index", () => {
   });
 });
 
+describe("verbatim recall: the index is made when the chat is archived", () => {
+  it("a new link builds the earlier chat's index at once, before any reply asks for it", () => {
+    oldChat("first", true);
+    writeChat("now", [U("n1", "Hello again."), C("n2", "Aria", "Hello, Jude.")], { title: "Now", userName: "Jude" });
+    writeJson("litopys/config.json", {});
+    expect(exists("litopys/recall/first.json")).toBe(false);
+    chainOf(["first", "now"]);
+    expect(exists("litopys/recall/first.json")).toBe(true);
+    expect(exists("litopys/recall/first.t.json")).toBe(true);
+  });
+
+  it("with the switch off the link builds nothing", () => {
+    oldChat("first", true);
+    writeChat("now", [U("n1", "Hello again.")], { title: "Now", userName: "Jude" });
+    writeJson("litopys/config.json", { verbatim: false });
+    chainOf(["first", "now"]);
+    expect(exists("litopys/recall/first.json")).toBe(false);
+  });
+
+  it("the tick builds a missing index, one chat at a time, and does not retry a chat with nothing to index", () => {
+    const m = setup();
+    m.host.fs.remove("litopys/recall/first.json");
+    m.host.fs.remove("litopys/recall/first.t.json");
+    expect(L.recallRefresh(m.host.fs)).toBe("first");
+    expect(exists("litopys/recall/first.json")).toBe(true);
+    writeChat("empty", [], { title: "Empty", userName: "Jude" });
+    writeChat("after", [U("a1", "Hi.")], { title: "After", userName: "Jude" });
+    L.handleRoute({ method: "POST", path: "/litopys/links", query: {}, body: { chatId: "after", from: "empty" } }, m.host);
+    expect(exists("litopys/recall/empty.json")).toBe(false);
+    expect(exists("litopys/recall/empty.none.json")).toBe(true);
+    for (const id of ["first", "second", "third", "fourth"]) L.recallRefresh(m.host.fs);
+    expect(L.recallRefresh(m.host.fs)).toBe(null);
+    L.pruneOrphans(m.host.fs, { chats: {} }, ["now.jsonl"]);
+    expect(exists("litopys/recall/empty.none.json")).toBe(false);
+  });
+});
+
+describe("verbatim recall: the Fired panel counts it over the whole chat", () => {
+  it("counts the replies that carried a passage, takes back a swiped one, and reports the last", () => {
+    const m = setup();
+    const ask = "the turquoise cloak, the silver clasp, the heron";
+    L.llmRequest(ctx(ask), m.host);
+    L.llmRequest(ctx("Nothing in common here, only a plain greeting."), m.host);
+    let log = L.handleRoute({ method: "GET", path: "/litopys/fired", query: { chatId: "now" } }, m.host).json.log;
+    expect(log.verbatim).toMatchObject({ n: 1, chunks: 1, chats: 1 });
+    expect(log.replies).toBeGreaterThanOrEqual(1);
+    L.llmRequest({ ...ctx(ask), turn: { op: "swipe", chatId: "now", speakerName: "Aria" } }, m.host);
+    log = L.handleRoute({ method: "GET", path: "/litopys/fired", query: { chatId: "now" } }, m.host).json.log;
+    expect(log.verbatim.n).toBe(1);
+    L.llmRequest(ctx(ask), m.host);
+    log = L.handleRoute({ method: "GET", path: "/litopys/fired", query: { chatId: "now" } }, m.host).json.log;
+    expect(log.verbatim.n).toBe(2);
+  });
+});
+
 describe("verbatim recall: what the Memory view and the engine see", () => {
   it("the trace route lists the passages of the newest reply", () => {
     const m = setup();
@@ -200,7 +262,8 @@ describe("verbatim recall: what the Memory view and the engine see", () => {
     };
     const on = ids({ verbatim: true, verbatimBudget: 300 }, "now");
     expect(on.find((r) => r.id === "litopys verbatim")?.tokens).toBe(300);
-    expect(ids({}, "now").some((r) => r.id === "litopys verbatim")).toBe(false);
+    expect(ids({}, "now").find((r) => r.id === "litopys verbatim")?.tokens).toBe(400);
+    expect(ids({ verbatim: false }, "now").some((r) => r.id === "litopys verbatim")).toBe(false);
     expect(ids({ verbatim: true }, "first").some((r) => r.id === "litopys verbatim")).toBe(false);
     writeJson("chats/now.meta.json", { ...readJson("chats/now.meta.json"), promptBoard: { off: ["plugin:verbatim"] } });
     expect(ids({ verbatim: true }, "now").some((r) => r.id === "litopys verbatim")).toBe(false);

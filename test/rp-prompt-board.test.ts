@@ -203,10 +203,11 @@ describe("prompt board: keys, board list, history filter", () => {
     }
   });
 
-  it("the word-for-word part has a switch on the board only while the Litopys setting is on (#184 step 8)", () => {
-    expect(preview(chat(), "Hello.").sources.board.some((x) => x.key === "plugin:verbatim")).toBe(false);
+  it("the word-for-word part has a switch on the board unless the Litopys setting is off (#184 step 8)", () => {
     fs.mkdirSync(path.join(root, "litopys"), { recursive: true });
-    fs.writeFileSync(path.join(root, "litopys/config.json"), JSON.stringify({ verbatim: true }));
+    fs.writeFileSync(path.join(root, "litopys/config.json"), JSON.stringify({ verbatim: false }));
+    expect(preview(chat(), "Hello.").sources.board.some((x) => x.key === "plugin:verbatim")).toBe(false);
+    fs.writeFileSync(path.join(root, "litopys/config.json"), JSON.stringify({}));
     const row = preview(chat(), "Hello.").sources.board.find((x) => x.key === "plugin:verbatim");
     expect(row).toMatchObject({ label: "Earlier, word for word", kind: "memory", state: "on" });
   });
@@ -242,9 +243,9 @@ describe("prompt board: keys, board list, history filter", () => {
     const book = board.find((x) => x.key === "book:b")!;
     expect(book).toEqual({ key: "book:b", label: "City", kind: "lorebook", state: "on" });
 
-    // last nine fixed keys
-    const fixed = board.slice(-9).map((x) => x.key);
-    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:recollections"]);
+    // last ten fixed keys (the word-for-word switch is there unless the Litopys setting is off)
+    const fixed = board.slice(-10).map((x) => x.key);
+    expect(fixed).toEqual(["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:recollections", "plugin:verbatim"]);
     const authorNote = board.find((x) => x.key === "authorNote")!;
     expect(authorNote.state).toBe("empty");
   });

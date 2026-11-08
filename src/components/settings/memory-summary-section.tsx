@@ -176,8 +176,8 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           {keyField('farShare', { id: 'lit-far-share', label: t('lit.set.farShare'), hint: t('lit.set.farShareHint'), unit: '%', min: 5, max: 40, fallback: 18 })}
           {keyField('turnsShown', { id: 'lit-turns-shown', label: t('lit.set.turnsShown'), hint: t('lit.set.turnsShownHint'), unit: t('lit.unit.turns'), min: 3, max: 30, fallback: 12 })}
           <div className="flex flex-col gap-3 sm:col-span-2">
-            {switchRow('lit-verbatim', t('lit.set.verbatim'), t('lit.set.verbatimHint'), cfg.verbatim === true, (v) => save({ verbatim: v }))}
-            {cfg.verbatim === true && keyField('verbatimBudget', { id: 'lit-verbatim-budget', label: t('lit.set.verbatimBudget'), hint: t('lit.set.verbatimBudgetHint'), unit: t('lit.unit.tokens'), min: 150, max: 1200, fallback: 400 })}
+            {switchRow('lit-verbatim', t('lit.set.verbatim'), t('lit.set.verbatimHint'), cfg.verbatim !== false, (v) => save({ verbatim: v }))}
+            {cfg.verbatim !== false && keyField('verbatimBudget', { id: 'lit-verbatim-budget', label: t('lit.set.verbatimBudget'), hint: t('lit.set.verbatimBudgetHint'), unit: t('lit.unit.tokens'), min: 150, max: 1200, fallback: 400 })}
           </div>
           <div className="flex flex-col gap-3 sm:col-span-2">
             <Field>
