@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **Enter saves a number field** in the Litopys settings (the Library gear and Settings > Memory). It saved only when you left the field (#235).
+- Docs: six new Help articles (the chat shelf of the Canvas, the World tabs, the Constellation map, the card-task model, the opening hint of a continued chat, the /gallery dialog) in English and Ukrainian; the "Overview vs Details" article lists all seven tabs; the World DM tip no longer says the DM is off until a level is picked (it starts at Chronicler). The guide translations of five pages were refreshed in 13 languages (#235, #274, #304).
+
 ## 4.102.0 (2026-11-08)
 
 - New: **old chapters by meaning, experimental (#264).** In Library > Litopys settings > "In the prompt", the switch "Also find old chapters by meaning" (off) lets the vectors of your chapters, already made for the Vectors tab, open an old chapter of an earlier chat of the story when its meaning lies unusually far above the average of all the chapters (default 4 deviations; `verbatimMeaningZ`, hand-edited, 2 to 8). A passage of that chapter then comes into the reply only if it also shares a rare word with what is being said: meaning picks the chapter, words pick the passage, and meaning alone never adds text. It needs an embeddings model; a short story has too few chapters to reach the line, so it opens nothing there. The Memory view marks such a passage with "chapter close by meaning, z". Not calibrated on a real long story yet (#300), which is why it is off. The index of word-for-word passages now knows each passage's chapter, so every earlier chat's index is made again once (the tick does it).
