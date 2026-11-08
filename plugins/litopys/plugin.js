@@ -7106,7 +7106,7 @@ export const VERBATIM_MAX = 1200;
 const RECALL_SCAN_MESSAGES = 3;
 
 const recallStem = (t) => wordStemM3b(t);
-const recallStemsOf = (text) => [...new Set(wordTokensM3b(text).map(recallStem).filter((s) => s.length >= 4))];
+export const recallStemsOf = (text) => [...new Set(wordTokensM3b(text).map(recallStem).filter((s) => s.length >= 4))];
 
 /** Every earlier chat of the chat's chain, nearest first, cycle-safe (the links file allows one predecessor a chat). */
 export function recallChain(fsx, chatId, links = loadLinks(fsx)) {
@@ -7293,7 +7293,7 @@ function poissonTail(k, lambda) {
  * words only. `sig` is the minus log of that chance, the order of the finds.
  */
 const RECALL_CHANCE = 0.003;
-function recallCandidates(index, scanStems) {
+export function recallCandidates(index, scanStems) {
   const n = Math.max(1, Number(index.n) || 1);
   const hit = new Map();
   let lambda = 0;
