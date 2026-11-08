@@ -3273,8 +3273,8 @@
         "uk": "«Інструменти» → Tool Calling."
       },
       "details": {
-        "en": "Tool Calling lists the tools the model may use during a reply. Only the switched-on ones are offered to the model.\n\nDice Roller is built in and off by default: the model rolls dice when an outcome should be left to chance, such as an attack or a leap. A roll appears in the reply as a row with the call and its result. Press the row to open the full result.\n\nPicture lets the character draw a picture into the chat. It needs Image Generation switched on; see the Image Generation article.",
-        "uk": "Tool Calling показує інструменти, які модель може використати під час відповіді. Моделі пропонують лише ті, що ви увімкнули.\n\nDice Roller вбудований і за замовчуванням вимкнений: модель кидає кубики, коли результат має вирішити випадок, наприклад атаку чи стрибок. Кидок з’являється у відповіді рядком із викликом і результатом. Натисніть рядок, щоб побачити повний результат.\n\nPicture дає персонажу намалювати картинку в чат. Для цього має бути увімкнено Image Generation; див. статтю про нього."
+        "en": "Tool Calling lists the tools the model may use during a reply. Only the switched-on ones are offered to the model.\n\nDice Roller is built in and off by default: the model rolls dice when an outcome should be left to chance, such as an attack or a leap. A roll appears in the reply as a row with the call and its result. Press the row to open the full result.\n\nPicture lets the character draw a picture into the chat. It needs Image Generation switched on; see the Image Generation article.\n\nSome free models cannot use tools. A reply that fails with \"No endpoints found that support tool use\" means the model refuses every request that carries tools. Switch the tools off here, or pick another model; the next reply goes through. The messages you sent before stay without an answer.",
+        "uk": "Tool Calling показує інструменти, які модель може використати під час відповіді. Моделі пропонують лише ті, що ви увімкнули.\n\nDice Roller вбудований і за замовчуванням вимкнений: модель кидає кубики, коли результат має вирішити випадок, наприклад атаку чи стрибок. Кидок з’являється у відповіді рядком із викликом і результатом. Натисніть рядок, щоб побачити повний результат.\n\nPicture дає персонажу намалювати картинку в чат. Для цього має бути увімкнено Image Generation; див. статтю про нього.\n\nДеякі безкоштовні моделі не вміють працювати з інструментами. Відповідь із помилкою «No endpoints found that support tool use» означає, що модель відхиляє кожен запит з інструментами. Вимкніть інструменти тут або оберіть іншу модель, і наступна відповідь пройде. Повідомлення, надіслані раніше, лишаться без відповіді."
       },
       "related": [
         "kb.image-gen-tab",
@@ -3872,7 +3872,7 @@
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "204-204",
+          "lines": "205-205",
           "quote": "<FieldLabel className=\"font-medium\">{t('lit.set.alert')}</FieldLabel>"
         }
       ],
@@ -5761,17 +5761,17 @@
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "273-273",
+          "lines": "274-274",
           "quote": "<FieldLabel htmlFor=\"lit-arc-mode\" className=\"font-medium\">{t('lit.set.arcMode')}</FieldLabel>"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "284-284",
+          "lines": "285-285",
           "quote": "<option value=\"ask\">{t('lit.set.arcAsk')}</option>"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "286-286",
+          "lines": "287-287",
           "quote": "<option value=\"off\">{t('lit.set.arcOff')}</option>"
         },
         {
@@ -6920,6 +6920,572 @@
           "path": "src/lib/i18n.ts",
           "lines": "1217-1217",
           "quote": "It starts with an example in the format the card wants."
+        }
+      ]
+    },
+    {
+      "id": "kb.canvas-shelf",
+      "group": "canvas",
+      "title": {
+        "en": "The chat shelf: search, sort and chains",
+        "uk": "Полиця чатів: пошук, сортування, пов’язані чати"
+      },
+      "aliases": {
+        "en": "shelf chat list chats search sort recent title character add plus chain linked put on the board hide collapse count waiting",
+        "uk": "полиця список чатів пошук сортування нові назва персонаж плюс ланцюжок пов’язані поставити на дошку сховати лічильник"
+      },
+      "short": {
+        "en": "The Chats shelf lists the chats that are not on the board yet. Search it and sort it. Press + to put one chat on the board, or the link button to put it there with its linked chats.",
+        "uk": "Полиця «Чати» показує чати, яких ще немає на полотні. Її можна шукати й сортувати. Натисніть +, щоб поставити чат на полотно, або кнопку зв’язку, щоб поставити його разом із пов’язаними чатами."
+      },
+      "where": {
+        "en": "Canvas → Board: Chat links → the Chats list on the left (in Edit mode).",
+        "uk": "Полотно → «Полотно:» → «Зв’язки чатів» → список «Чати» ліворуч (у режимі «Редагувати»)."
+      },
+      "details": {
+        "en": "The shelf is the list on the left of the links board. It holds every chat that is not on the board yet. Next to the heading \"Chats\", the counter shows how many chats wait out of all your chats, for example 3 / 10.\n\nSearch: the box at the top shows the chats whose title or character name contains the text you type. Capitals do not matter. Messages are not searched.\n\nSort: the drop-down under the search box offers \"Recent first\" (the chat with the latest activity comes first), \"Title, A to Z\" and \"By character\" (by the character’s name, then by title). The choice is remembered in this browser.\n\nThe + button (\"Put on the board\") puts that one chat on the board, to the right of the cards already there.\n\nThe link button appears only on a chat linked to another chat: one continues the other, or one is a branch of the other. Its tooltip reads \"Put on the board with its linked chats\". It puts the chat on the board together with every linked chat that is not on the board yet. They are placed as one group, to the right of the cards.\n\nThe arrow at the top hides the shelf; a button on the left edge shows it again. This choice is remembered in this browser.\n\nWhat it does not do: the rows do not show links, so the board is the place to see them. The shelf is hidden in View mode, and on a phone there is no shelf; use the List there.",
+        "uk": "Полиця — список ліворуч від полотна зв’язків. Вона містить кожен чат, якого ще немає на полотні. Поруч із заголовком «Чати» лічильник показує, скільки чатів чекає з усіх ваших чатів, наприклад 3 / 10.\n\nПошук: поле зверху показує чати, у назві або імені персонажа яких є введений текст. Великі й малі літери не мають значення. Повідомлення не шукаються.\n\nСортування: список під полем пошуку. «Спершу нові» ставить першим чат з найновішою активністю. «За назвою, А–Я» і «За персонажем» упорядковують за алфавітом; за персонажем — спершу за його іменем, потім за назвою. Вибір запам’ятовується в цьому браузері.\n\nКнопка + («Поставити на дошку») ставить на полотно лише цей чат, праворуч від карток, які вже там є.\n\nКнопка зв’язку з’являється лише в чатів, пов’язаних з іншим чатом. Один чат продовжує другий або є його гілкою. Підказка кнопки: «Поставити на дошку разом із пов’язаними чатами». Вона ставить чат разом з усіма пов’язаними чатами, яких ще немає на полотні. Вони стають праворуч від карток однією групою.\n\nСтрілка зверху ховає полицю; кнопка на лівому краю показує її знову. Цей вибір теж запам’ятовується в цьому браузері.\n\nЧого полиця не робить: рядки не показують зв’язків, тож їх видно на полотні. У режимі «Переглядати» полиці немає, а на телефоні її взагалі немає: там користуйтеся списком."
+      },
+      "related": [
+        "kb.links-board",
+        "kb.prompt-board"
+      ],
+      "sources": [
+        {
+          "path": "src/components/canvas/chat-shelf.tsx",
+          "lines": "53-53",
+          "quote": "return c.title.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)"
+        },
+        {
+          "path": "src/components/canvas/chat-shelf.tsx",
+          "lines": "65-65",
+          "quote": "return b.updatedAt - a.updatedAt"
+        },
+        {
+          "path": "src/components/canvas/chat-shelf.tsx",
+          "lines": "144-144",
+          "quote": "{hasChain(chat.id) && ("
+        },
+        {
+          "path": "src/components/canvas/canvas-view.tsx",
+          "lines": "737-737",
+          "quote": "{!isMobile && editable && !phoneList && !shelfCollapsed && ("
+        },
+        {
+          "path": "src/components/canvas/canvas-view.tsx",
+          "lines": "745-745",
+          "quote": "onAddChain={(id) => placeChats(chainOf(id).filter((c) => !onBoard.has(c)))}"
+        },
+        {
+          "path": "src/components/canvas/canvas-view.tsx",
+          "lines": "74-74",
+          "quote": "const chainIn = (chats: LitChatItem[], id: string): string[] => {"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1438-1438",
+          "quote": "'canvas.shelf.addChain': 'Put on the board with its linked chats',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1434-1434",
+          "quote": "'canvas.shelf.sortRecent': 'Recent first',"
+        }
+      ]
+    },
+    {
+      "id": "kb.world-tabs",
+      "group": "world",
+      "title": {
+        "en": "World tabs: Overview, Places, World book, Runs",
+        "uk": "Вкладки «Світу»: Огляд, Місця, Книга світу, Запуски"
+      },
+      "aliases": {
+        "en": "world tabs overview places world book records runs show places show the world book spoiler look at the world what changed taken back retire always in the prompt",
+        "uk": "світ вкладки огляд місця книга світу записи запуски показати місця спойлер подивитись світ що змінилося відкочено"
+      },
+      "short": {
+        "en": "A chat's World section has six tabs. Overview runs the DM, Places shows places and things, World book lists every record and Runs logs each run. Places and World book may ask once before they show a world that Start built.",
+        "uk": "У розділі «Світ» для кожного чату шість вкладок. Огляд керує майстром, Місця показують місця й речі, Книга світу — усі записи, Запуски — журнал запусків. Місця й Книга світу можуть спершу запитати перед показом світу, який зібрав Старт."
+      },
+      "where": {
+        "en": "World section → pick a chat in the list → the tabs under its name.",
+        "uk": "Розділ «Світ» → оберіть чат у списку → вкладки під його назвою."
+      },
+      "details": {
+        "en": "The open tab stays open when you pick another chat. On a phone the tabs sit in two rows of three.\n\n- Overview: the DM's controls. When it runs (the schedule and the World turn button), What it writes (how often records are written, limits), What it adds to the story (Send events to the story). Then So far: the counts and the last run. Look at the world shows the records in a dialog, after a question.\n- Places: the world's places as a tree. Each place shows its spots, how often the story visited it, and \"you are here\" where the story is now. Things lying in a place sit under it; the rest are under \"Not placed\". Background sets a picture for a place, the trash button deletes it after a confirmation, and the name opens its World book record.\n- World book: every person, place, group, thing and fact. Search and filter by kind. Retire moves a record to the past with a shorter text. Always in the prompt sends a record with every reply, at a token cost.\n- Runs: one entry per DM run: when, why, the changes, tokens and cost. A run whose reply was deleted or swiped shows \"taken back\". Its summary stays hidden until you confirm \"Show what changed\".\n\nPlaces and the World book may ask first. A world that Start built, or a chat started from a saved world or from another chat, keeps its records hidden until you press \"Show places\" or \"Show the world book\" and confirm. The answer holds for this chat in this session, and both tabs share it. A world the DM wrote from your story opens at once.",
+        "uk": "Вкладка, яку ви відкрили, лишається відкритою, коли вибираєте інший чат. На телефоні вкладки стоять у два рядки по три.\n\n- Огляд: керування майстром. «Коли запускається» задає розклад і кнопку «Хід світу». «Що пише» — як часто писати записи й ліміти. «Що додає до історії» — «Надсилати події в історію». Нижче «Поки що» показує лічильники й останній запуск. «Подивитись світ» показує записи у вікні, але спершу питає.\n- Місця: місця світу деревом. Кожне місце показує свої кімнати й куточки, скільки разів історія туди заходила і «ви тут», де історія зараз. Речі, що лежать у місці, стоять під ним; решта — у «Без місця». «Тло» ставить картинку місцю, кошик видаляє місце з підтвердженням, а назва відкриває його запис у Книзі світу.\n- Книга світу: кожна людина, місце, група, річ і факт. Пошук за назвою, фільтр за видом. «У минуле» переносить запис у минуле: текст стає коротшим. «Завжди в промпті» додає запис до кожної відповіді, і це коштує токени.\n- Запуски: один запис на кожен запуск майстра: коли, чому, скільки змін, токени й вартість. Запуск, чию відповідь видалили або перемкнули, позначено «відкочено». Підсумок змін прихований, доки ви не натиснете «Показати, що змінилося» й не підтвердите.\n\nМісця та Книга світу можуть спершу запитати. Світ, який зібрав Старт, ховає записи. Так само чат, розпочатий зі збереженого світу або з іншого чату. Записи лишаються сховані, доки ви не натиснете «Показати місця» чи «Показати книгу світу» і не підтвердите. Відповідь діє для цього чату в цій сесії, і обидві вкладки її спільно використовують. Світ, який майстер написав із вашої історії, відкривається одразу."
+      },
+      "related": [
+        "kb.world-dm",
+        "kb.world-start",
+        "kb.world-backgrounds",
+        "kb.world-profiles"
+      ],
+      "sources": [
+        {
+          "path": "src/components/world/world-view.tsx",
+          "quote": "type Tab = 'overview' | 'places' | 'records' | 'start' | 'backgrounds' | 'runs'",
+          "lines": "34-34"
+        },
+        {
+          "path": "src/components/world/world-view.tsx",
+          "quote": "{tab === 'places' && <WorldPlaces",
+          "lines": "193-193"
+        },
+        {
+          "path": "src/components/world/world-view.tsx",
+          "quote": "{tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}",
+          "lines": "197-197"
+        },
+        {
+          "path": "src/components/world/use-world-book.tsx",
+          "quote": "const open = !!o.initial || revealed || gated === false",
+          "lines": "40-40"
+        },
+        {
+          "path": "src/lib/world-reveal.ts",
+          "quote": "return !!info.origin",
+          "lines": "20-20"
+        },
+        {
+          "path": "src/lib/world-reveal.ts",
+          "quote": "The answer is kept for the session, per chat or world.",
+          "lines": "3-3"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "quote": "'world.places.show': 'Show places',",
+          "lines": "4811-4811"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "quote": "'world.tab.records': 'World book',",
+          "lines": "114-114"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "quote": "'world.runs.show': 'Show what changed',",
+          "lines": "363-363"
+        },
+        {
+          "path": "src/components/world/world-controls.tsx",
+          "quote": "onClick={() => void lookAtWorld()}",
+          "lines": "537-537"
+        },
+        {
+          "path": "src/components/world/world-records.tsx",
+          "quote": "onClick={() => onOp('retire')}",
+          "lines": "323-323"
+        },
+        {
+          "path": "src/components/world/world-runs.tsx",
+          "quote": "const [shown, setShown] = useState(false)",
+          "lines": "100-100"
+        },
+        {
+          "path": "src/components/world/world-tabs.tsx",
+          "quote": "the tabs spread evenly over the width (two rows of three on a phone)",
+          "lines": "1-1"
+        }
+      ]
+    },
+    {
+      "id": "kb.constellation",
+      "group": "story",
+      "title": {
+        "en": "Constellation: the relationship map",
+        "uk": "Сузірʼя: карта стосунків"
+      },
+      "aliases": {
+        "en": "constellation star map relationship stars rays trust comfort attraction respect affection name shape friendship romance dashboard",
+        "uk": "сузірʼя зірки карта стосунки промені довіра комфорт тяга повага прихильність назва форма дружба романтика дашборд"
+      },
+      "short": {
+        "en": "The Constellation is a star map of how one character feels about you: five rays, one star each, and a name such as Friendship or Romance that the rules work out from the numbers.",
+        "uk": "Сузірʼя — мапа стосунків персонажа: п’ять променів, по зірці на почуття, і назва, як «Дружба», яку правила дають із цифр."
+      },
+      "where": {
+        "en": "Scene state panel, \"Person\" tab, the card with the name (desktop). Big map: \"Open dashboard\", then \"Constellation\". Needs the dashboard plugin.",
+        "uk": "Панель «Стан сцени», вкладка «Персона», картка з іменем (комп’ютер). Велика мапа: «Відкрити панель», далі «Сузірʼя». Потрібен плагін дашборду."
+      },
+      "details": {
+        "en": "What it is for. The map shows at a glance how one character feels about you. Five rays, one per feeling, start at the top and go clockwise: Trust, Comfort, Attraction, Respect, Affection.\n\nHow to read a star. Further out is higher. The dashed ring is zero; the centre is the lowest. A glowing star is above zero, and bigger means higher. A hollow ring is zero or below.\n\nThe shape. A solid gold line joins the stars the name reads. After a change of name, a dotted line shows the old shape, and the big map adds \"trace: <old name>\".\n\nThe names. Rules are checked top to bottom; the first that fits gives the name:\n- Contempt: Respect below -50.\n- Grudging respect: a hostile character with Respect above 30.\n- Fear: Comfort below -50, Respect above 0.\n- Romance: Attraction and Affection above 40, Trust above 20.\n- Dangerous pull: Attraction above 50, Trust below 0.\n- Honor without trust: Respect above 50, Trust below 0.\n- Loyal: Trust above 50, Respect above 40, Attraction below 20.\n- Friendship: Trust, Comfort and Affection above 30.\n- Outsider: Trust below -30, Comfort below -20.\n- Strangers: all five within 15 of zero.\n- Unsettled: none of the above.\n\nOn a phone, tap the dashboard bar for the Person tab with the same map.\n\nWhat it does not do. Nothing on the map can be clicked, and it changes no value. Code works out the name after each update. A change of name adds a line such as \"Romance → Friendship\" to the story list. In Manual mode the map changes only on \"Refresh\".",
+        "uk": "Навіщо це. Мапа показує з першого погляду, як персонаж ставиться до вас. Це п’ять променів, по одному на почуття: Довіра згори, далі за годинниковою стрілкою Комфорт, Тяга, Повага й Прихильність. Підписи є лише на великій мапі.\n\nЯк читати зірку. Чим далі від центру, тим вище значення. Пунктирне коло — нуль, центр — найнижче значення. Яскрава зірка зі сяйвом — вище нуля, і вона росте разом зі значенням. Порожнє кільце — нуль або менше; від’ємне значення лежить усередині пунктирного кола.\n\nФорма. Суцільна золота лінія з’єднує зірки, за якими названо сузірʼя, тож видно, які почуття його творять. Коли назва змінилась на останній відповіді, пунктирна лінія показує стару форму, а на великій мапі з’являється рядок «слід: <стара назва>».\n\nНазви. Правила перевіряються згори вниз; перше, що підходить, дає назву:\n- Зневага: Повага нижче −50.\n- Ворожа шана: персонаж класу «ворог» із Повагою вище 30.\n- Страх: Комфорт нижче −50 і Повага вище 0.\n- Романтика: Тяга і Прихильність вище 40, Довіра вище 20.\n- Небезпечна тяга: Тяга вище 50, Довіра нижче 0.\n- Шана без довіри: Повага вище 50, Довіра нижче 0.\n- Вірність: Довіра вище 50, Повага вище 40, Тяга нижче 20.\n- Дружба: Довіра, Комфорт і Прихильність вище 30.\n- Чужі: Довіра нижче −30 і Комфорт нижче −20.\n- Незнайомці: усі п’ять не далі 15 від нуля.\n- Невизначеність: нічого з наведеного.\n\nНа телефоні. Натисніть смугу дашборду з назвою: шторка відкриється на вкладці «Персона» з тією самою малою мапою.\n\nЧого це не робить. Мапу не можна натиснути чи перетягнути, і вона не змінює значень: код визначає назву після кожного оновлення, з цифр. Кожна зміна назви додає рядок в історію персонажа, на кшталт «Романтика → Дружба». Він є у великому дашборді й на вкладці «Історія» телефона. У режимі «Вручну» мапа змінюється лише після натискання «Оновити»."
+      },
+      "related": [
+        "kb.dashboard",
+        "kb.soul",
+        "kb.notebook"
+      ],
+      "sources": [
+        {
+          "path": "src/components/dashboard/dash-wide.tsx",
+          "lines": "153-153",
+          "quote": "title={t('dash.tab.constellation')}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2005-2005",
+          "quote": "'dash.tab.constellation': 'Constellation',"
+        },
+        {
+          "path": "src/components/dashboard/dash-strip.tsx",
+          "lines": "14-14",
+          "quote": "const STRIP_TABS: DashTabId[] = ['person', 'here', 'quests', 'notes']"
+        },
+        {
+          "path": "src/components/dashboard/dash-cards.tsx",
+          "lines": "79-79",
+          "quote": "<Constellation stats={char.stats} prevStats={char.prev?.stats}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "1743-1743",
+          "quote": "'dash.title': 'Scene state',"
+        },
+        {
+          "path": "src/components/dashboard/dash-mount.tsx",
+          "lines": "225-225",
+          "quote": "<div className=\"hidden h-full shrink-0 lg:block\">"
+        },
+        {
+          "path": "plugins/relations/plugin.js",
+          "lines": "271-271",
+          "quote": "{ id: \"romance\", test: (s) => s.attraction > 40 && s.affection > 40 && s.trust > 20 },"
+        },
+        {
+          "path": "plugins/relations/plugin.js",
+          "lines": "2019-2019",
+          "quote": "return CONSTELLATIONS.find((c) => c.test(stats, cls));"
+        },
+        {
+          "path": "src/components/dashboard/constellation.tsx",
+          "lines": "40-40",
+          "quote": "const prevPts = prevId && prevStats && prevId !== id ? pointsFor(prevStats, prevId) : []"
+        },
+        {
+          "path": "src/components/dashboard/constellation.tsx",
+          "lines": "64-64",
+          "quote": "if (v > 0) {"
+        },
+        {
+          "path": "src/lib/soul.ts",
+          "lines": "58-58",
+          "quote": "export const DISPOSITION: readonly DispositionStat[] = ['trust', 'comfort', 'attraction', 'respect', 'affection']"
+        },
+        {
+          "path": "src/lib/dashboard.ts",
+          "lines": "385-385",
+          "quote": "export const ZERO_RADIUS = 21.5"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2107-2107",
+          "quote": "'dash.const.legend': 'Further out = warmer; the dashed ring is zero.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2079-2079",
+          "quote": "'dash.set.mode.manual.hint': 'The state updates only when you press Refresh.',"
+        },
+        {
+          "path": "plugins/relations/plugin.js",
+          "lines": "5682-5682",
+          "quote": "if (was !== entry.constellation) lines.push({ turn, kind: \"constellation\", from: was, to: entry.constellation, src: K });"
+        },
+        {
+          "path": "src/components/dashboard/dash-phone.tsx",
+          "lines": "33-33",
+          "quote": "{tx('dash.const', char.constellation)}"
+        },
+        {
+          "path": "src/components/dashboard/dash-mount.tsx",
+          "lines": "184-184",
+          "quote": "dash.status === 'absent' || dash.status === 'loading'"
+        },
+        {
+          "path": "src/components/chat/avatar-menu.tsx",
+          "lines": "59-59",
+          "quote": "<DropdownMenuItem onClick={() => openDashboard()}>"
+        }
+      ]
+    },
+    {
+      "id": "kb.card-tasks",
+      "group": "setup",
+      "title": {
+        "en": "Card tasks: the model for Structure it and Soul",
+        "uk": "Завдання картки: модель для Structure it і Soul"
+      },
+      "aliases": {
+        "en": "card tasks model structure it fill empty soul rating follow app default sensor dashboard settings profile",
+        "uk": "завдання картки модель structure it fill empty soul оцінка сенсор dashboard налаштування застосунку за замовчуванням"
+      },
+      "short": {
+        "en": "Card tasks is the model that Structure it, Fill empty and the Soul rating use for a card that has no model of its own. Left empty, they use the Dashboard sensor's model, then the app's default.",
+        "uk": "Якщо картка не має своєї моделі, «Structure it», «Fill empty» і оцінка Soul беруть цю. Порожньо: модель сенсора Dashboard, потім модель застосунку за замовчуванням."
+      },
+      "where": {
+        "en": "Roleplay settings → Card tasks. A card's own model: open the card's editor, Profile tab, \"Model for this card's tasks\".",
+        "uk": "Налаштування Roleplay → Завдання картки. Модель однієї картки: редактор картки, вкладка «Профіль», «Модель для завдань картки»."
+      },
+      "details": {
+        "en": "Card tasks sets the model for three jobs on a card: Structure it (sorts the card's text into the Profile fields), Fill empty (writes the Profile fields that are still empty) and the Soul rating (the Soul values of the card's characters). Read from picture has its own model choice next to that button; this setting does not change it.\n\nEach job takes the first model that is set, in this order: the model picked for the card in its editor, this setting, the Dashboard sensor's model, the app's default model. A card's own pick is saved with Save changes. It is kept outside the card file, so a shared card does not carry it. Personas have the same choice on their page.\n\nWhen this setting is empty, it reads \"Dashboard sensor model, then the app default\". Pick a model to use it for every card that has none of its own. If no model is set anywhere, the card shows \"No model set\". This setting does not change the model that writes the chat replies.\n\n- The Rate now button on the Soul tab does not use the chat's model: after the card and this setting and the sensor, it uses the app default.\n- A rating that runs by itself for a chat's characters can use that chat's model, when no sensor model is set, before the app default.",
+        "uk": "Завдання картки — модель для трьох дій: «Structure it», «Fill empty» і оцінки Soul. «Structure it» розкладає текст картки по полях профілю, «Fill empty» заповнює порожні поля, а оцінка Soul оцінює риси персонажів картки.\n\n«Read from picture» має власний вибір моделі поруч із кнопкою; цей параметр його не змінює.\n\nКожна дія бере першу задану модель у такому порядку: модель картки, цей параметр, модель сенсора Dashboard, модель застосунку за замовчуванням.\n\nМодель картки вибирають у редакторі, на вкладці «Профіль». Вона зберігається кнопкою «Зберегти зміни» і не входить до файлу картки, тож спільна картка її не несе. Персона має той самий вибір на своїй сторінці.\n\nКоли параметр порожній, тут написано «Модель сенсора Dashboard, потім модель за замовчуванням». Оберіть модель, щоб вона працювала для всіх карток без власної. Якщо моделі немає взагалі, на картці написано «Модель не задана». Цей параметр не змінює модель, яка пише відповіді в чаті.\n\n- Кнопка «Оцінити зараз» на вкладці «Душа» не бере модель чату. Після картки, цього параметра й сенсора вона бере модель застосунку.\n- Оцінка, яка запускається сама для персонажів чату, може взяти модель цього чату, якщо сенсор не заданий. Це раніше за модель застосунку."
+      },
+      "related": [
+        "kb.card-editor",
+        "kb.soul-rate",
+        "kb.card-save",
+        "kb.model-switch"
+      ],
+      "sources": [
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3834-3834",
+          "quote": "'ct.app.nav': 'Card tasks',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3836-3836",
+          "quote": "Structure it, Fill empty and the Soul rating use this model when a card has none of its own."
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3837-3837",
+          "quote": "'ct.app.follow': 'Dashboard sensor model, then the app default',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "3822-3822",
+          "quote": "'ct.covers': 'Used by Structure it, Fill empty and the Soul rating of this card."
+        },
+        {
+          "path": "src/components/views/settings-view.tsx",
+          "lines": "137-137",
+          "quote": "{ id: \"card-tasks\", label: t(\"ct.app.nav\", resolveLanguage(settings.language)) },"
+        },
+        {
+          "path": "src/lib/card-tasks.ts",
+          "lines": "21-21",
+          "quote": "if (pick) return { model: pick, source: 'card' }"
+        },
+        {
+          "path": "plugins/profile/plugin.js",
+          "lines": "218-218",
+          "quote": "if (app) return { model: app, source: \"app\" };"
+        },
+        {
+          "path": "plugins/relations/plugin.js",
+          "lines": "6291-6291",
+          "quote": "(isObj(ui.cardTasks) ? str(ui.cardTasks.model) : \"\")"
+        },
+        {
+          "path": "src/components/dashboard/soul-tab.tsx",
+          "lines": "427-427",
+          "quote": "j<{ ok?: boolean; added?: unknown; error?: string }>('/dashboard/soul/rate'"
+        },
+        {
+          "path": "src/components/character/structure-draft.tsx",
+          "lines": "92-92",
+          "quote": "'settings' (the default) = the engine's Vision model,"
+        }
+      ]
+    },
+    {
+      "id": "kb.opening-hint",
+      "group": "chat",
+      "title": {
+        "en": "The opening hint under a continued chat",
+        "uk": "Підказка під початком продовженого чату"
+      },
+      "aliases": {
+        "en": "opening hint greeting first message continued chat edit leave it dismiss hide link story first meeting",
+        "uk": "підказка привітання перше повідомлення продовжений чат редагувати залишити приховати зв’язок історія перша зустріч"
+      },
+      "short": {
+        "en": "Under the first message of a chat that continues an earlier story but still opens with the card’s greeting, a note offers to edit that greeting. \"Leave it\" hides the note on this device.",
+        "uk": "Під першим повідомленням чату, що продовжує попередню історію, але починається з привітання картки, є підказка. Вона пропонує відредагувати привітання. «Залишити» ховає її на цьому пристрої."
+      },
+      "where": {
+        "en": "Open a chat that continues an earlier chat (made with Continue in a new chat, or linked on the Chat links board). The note sits under its first message.",
+        "uk": "Відкрийте чат, що продовжує попередній (створений через «Продовжити в новому чаті» або зв’язаний на дошці «Зв'язки чатів»). Підказка стоїть під його першим повідомленням."
+      },
+      "details": {
+        "en": "What it is for. A continued chat opens with the card’s first greeting, which reads like a first meeting. The earlier story is already in the prompt, so the greeting can clash with it. The note points at that greeting.\n\nWhat it says. \"This chat continues “…”, but it opens with the card’s first greeting.\" Under it: a greeting is written for a first meeting, so edit the first message to let the story carry on.\n\nWhen it shows. Only when all of these hold: the chat is linked to an earlier chat; its first message is the card’s greeting and has not been edited; the chat has at most four messages. It appears a moment after the chat opens, when the chat’s carried parts have loaded.\n\nWhen it does not show. In a chat with no link; after the greeting is edited; once the chat has more than four messages; while Delete mode is on.\n\nEdit the first message. Opens the editor on that message, the same as editing any message. After you save, the note is gone.\n\nLeave it. Hides the note for this chat on this device. The choice is kept in the browser: it does not follow you to another device, and the note stays hidden after a reload. The link to the earlier chat stays.\n\nWhat it does not do. The note changes nothing in the prompt, the card or the earlier chat, and it does not rewrite the greeting.",
+        "uk": "Для чого. Продовжений чат починається з першого привітання картки. Воно читається як перша зустріч, хоча історія вже йде в промпті. Підказка вказує на це привітання.\n\nТекст: «Цей чат продовжує «…», але починається з першого привітання картки». Під ним рядок: привітання написане для першої зустрічі. Відредагуйте перше повідомлення, щоб історія тривала.\n\nКоли вона з’являється. Лише тоді, коли виконано всі умови. Чат зв’язаний з попереднім; перше повідомлення є привітанням картки і не редагувалося; повідомлень не більше чотирьох. З’являється трохи згодом після відкриття чату, коли завантажуються його частини.\n\nКоли її немає. У чаті без зв’язку; після редагування привітання; коли повідомлень більше чотирьох; у режимі видалення.\n\nРедагувати перше повідомлення. Відкриває редактор цього повідомлення, як і редагування будь-якого повідомлення. Після збереження підказка зникає.\n\nЗалишити. Ховає підказку для цього чату на цьому пристрої. Вибір зберігається в браузері: на інший пристрій не переходить, і після перезавантаження підказка лишається прихованою. Зв’язок з попереднім чатом лишається.\n\nЧого вона не робить. Підказка не змінює промпт, картку чи попередній чат і не переписує привітання."
+      },
+      "related": [
+        "kb.new-chat",
+        "kb.continue-chat",
+        "kb.carries",
+        "kb.links-board",
+        "kb.edit-message"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/opening-hint.tsx",
+          "lines": "25-25",
+          "quote": "if (!opening || hidden) return null"
+        },
+        {
+          "path": "src/components/chat/opening-hint.tsx",
+          "lines": "16-16",
+          "quote": "return localStorage.getItem(key(chatId)) === '1'"
+        },
+        {
+          "path": "src/components/chat/chat-view.tsx",
+          "lines": "1131-1131",
+          "quote": "{i === 0 && !deleteMode && !msg.edited && <OpeningHint"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "9450-9450",
+          "quote": "const OPENING_HINT_MAX = 4;"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "9459-9459",
+          "quote": "first.greeting !== true || first.edited || arr(line).length > OPENING_HINT_MAX"
+        },
+        {
+          "path": "plugins/litopys/plugin.js",
+          "lines": "10010-10010",
+          "quote": "opening: greetingOpening(fsx, chatId, line, titleOf),"
+        },
+        {
+          "path": "src/components/chat/message-row.tsx",
+          "lines": "571-571",
+          "quote": "window.addEventListener(EDIT_MESSAGE_EVENT, on)"
+        },
+        {
+          "path": "src/lib/continue-chat.ts",
+          "lines": "51-51",
+          "quote": "continues: old.id,"
+        },
+        {
+          "path": "src/lib/store.ts",
+          "lines": "1884-1884",
+          "quote": "const linked = await setLitLink(id, opts.continues)"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2830-2830",
+          "quote": "'opening.hint': 'This chat continues “{title}”, but it opens with the card’s first greeting.',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2832-2832",
+          "quote": "'opening.edit': 'Edit the first message',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2833-2833",
+          "quote": "'opening.dismiss': 'Leave it',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "7897-7897",
+          "quote": "'opening.edit': 'Редагувати перше повідомлення',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "6462-6462",
+          "quote": "'canvas.board.links': \"Зв'язки чатів\","
+        }
+      ]
+    },
+    {
+      "id": "kb.gallery-dialog",
+      "group": "chat",
+      "title": {
+        "en": "The /gallery command and gallery dialog",
+        "uk": "Команда /gallery і вікно галереї"
+      },
+      "aliases": {
+        "en": "gallery pictures images photos reference art view attach /gallery slash command character group members viewer",
+        "uk": "галерея картинки зображення фото референс переглянути прикріпити /gallery команда персонаж група учасники"
+      },
+      "short": {
+        "en": "Type /gallery in the message box to open the gallery of the character in the chat, or of all members of a group. You can view the pictures there and attach one to your next message.",
+        "uk": "Введіть /gallery у полі повідомлення, щоб відкрити галерею персонажа в чаті або галерею всіх учасників групи. Там можна переглянути картинки й прикріпити одну до повідомлення."
+      },
+      "where": {
+        "en": "In the message box, type /gallery and press Enter, or pick /gallery from the list that opens when you type /. The + menu has no gallery item.",
+        "uk": "У полі повідомлення введіть /gallery і натисніть Enter або оберіть /gallery зі списку, що відкривається після /. У меню «+» пункту галереї немає."
+      },
+      "details": {
+        "en": "The dialog shows the pictures of the character in this chat, from the Gallery panel of the card editor (under More). In a group chat it shows the pictures of every member together. A picture without a caption shows its owner's name in the viewer.\n\nThe title reads the character's name and \"gallery\". Pictures sit in a grid of squares. Videos appear in the grid too; the viewer plays them with controls.\n\nPress a picture to open it. The viewer shows its caption (or the owner's name), its place such as \"3 of 12\", and arrow buttons to go back and forward. If the gallery is empty, the dialog says so and points to the Gallery panel.\n\nAn image in the viewer has the button \"Attach to message\". It closes the dialog and puts the picture among the files waiting in the message box. Send the message as usual. Videos cannot be attached.\n\nWhat it does not do:\n- It does not change pictures. Captions and removal are on the Gallery panel of the card editor.\n- It does not show pictures from the chat messages, only the character's gallery.\n- The command itself is never sent to the model.",
+        "uk": "Вікно показує картинки персонажа цього чату: з панелі «Галерея» в редакторі картки (у вкладці «Ще»). У груповому чаті тут картинки всіх учасників разом. Якщо картинка без підпису, у перегляді видно ім’я її власника.\n\nЗаголовок: ім’я персонажа і слово «gallery». Картинки лежать сіткою квадратів. Відео теж є в сітці; у перегляді їх можна відтворити з керуванням.\n\nНатисніть картинку, щоб відкрити її. Перегляд показує підпис (або ім’я власника), місце, наприклад «3 of 12», і стрілки назад і вперед. Якщо галерея порожня, вікно про це пише й радить додати картинки на панелі «Галерея».\n\nУ перегляді картинки є кнопка «Attach to message». Вона закриває вікно й кладе картинку до файлів, що чекають у полі повідомлення. Надішліть повідомлення як звичайно. Відео прикріпити не можна.\n\nЩо вікно не робить:\n- Не змінює картинки. Підписи й видалення — на панелі «Галерея» редактора картки.\n- Не показує картинки з повідомлень чату, лише галерею персонажа.\n- Команда /gallery ніколи не надсилається моделі."
+      },
+      "related": [
+        "kb.slash",
+        "kb.compose-menu",
+        "kb.card-editor",
+        "kb.groups",
+        "kb.image-gen"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "358-358",
+          "quote": "if (t === \"/gallery\") { setGalleryOpen(true); return true }"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "356-356",
+          "quote": "/help and /gallery open UI only — never sent to the model"
+        },
+        {
+          "path": "src/components/chat/composer.tsx",
+          "lines": "631-631",
+          "quote": "{characterId && ("
+        },
+        {
+          "path": "src/components/chat/composer-autocomplete.tsx",
+          "lines": "57-57",
+          "quote": "{ key: \"/gallery\", label: \"/gallery\", insert: \"\", hint: \"Open this character's gallery\""
+        },
+        {
+          "path": "src/components/chat/gallery-dialog.tsx",
+          "lines": "28-28",
+          "quote": "const items: Item[] = owners.flatMap((o) => o.gallery.map((g) => ({ ...g, owner: o.name })))"
+        },
+        {
+          "path": "src/components/chat/gallery-dialog.tsx",
+          "lines": "38-38",
+          "quote": "{character ? `${character.name} gallery` : 'Gallery'}"
+        },
+        {
+          "path": "src/components/chat/gallery-dialog.tsx",
+          "lines": "42-42",
+          "quote": "Nothing here yet. Add images on the character&apos;s Gallery tab."
+        },
+        {
+          "path": "src/components/chat/gallery-dialog.tsx",
+          "lines": "87-87",
+          "quote": "{props.onAttach && open.type === 'image' && ("
+        },
+        {
+          "path": "src/components/chat/gallery-dialog.tsx",
+          "lines": "99-99",
+          "quote": "Attach to message"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2345-2345",
+          "quote": "'editor.panel.gallery': 'Gallery',"
+        },
+        {
+          "path": "src/lib/editor-tabs.ts",
+          "lines": "19-19",
+          "quote": "more: ['advanced', 'colors', 'sprites', 'gallery', 'regex', 'voice'],"
+        },
+        {
+          "path": "src/components/views/character-editor.tsx",
+          "lines": "795-795",
+          "quote": "up({ gallery: c.gallery.filter((x) => x.id !== lightboxItem.id) })"
         }
       ]
     }

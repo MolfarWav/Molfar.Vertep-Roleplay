@@ -921,8 +921,8 @@ const HAND_TIPS: Tip[] = [
     help: 'story',
     title: { en: 'World DM', uk: 'Майстер світу' },
     body: {
-      en: 'World in the chat header (on a phone: Menu) switches on a game master for this chat. It keeps the people and places of the story in the chat’s own lorebook, and from Living world up it moves the world and brings events into the next reply. It is off until you pick a level.',
-      uk: '«Світ» у шапці чату (на телефоні: Меню) вмикає майстра гри для цього чату. Він записує людей і місця історії у власний лорбук чату, а від рівня «Живий світ» рухає світ і приносить події в наступну відповідь. Поки не оберете рівень, він вимкнений.',
+      en: 'World in the chat header (on a phone: Menu) switches on a game master for this chat. It keeps the people and places of the story in the chat’s own lorebook, and from Living world up it moves the world and brings events into the next reply. A story chat starts at the Chronicler level; pick Off to switch it off.',
+      uk: '«Світ» у шапці чату (на телефоні: Меню) вмикає майстра гри для цього чату. Він записує людей і місця історії у власний лорбук чату, а від рівня «Живий світ» рухає світ і приносить події в наступну відповідь. Чат історії починає з рівня «Хроніст»; щоб вимкнути, оберіть «Вимкнено».',
     },
     keywords: { en: 'dm game master gm world lorebook events fronts chaos director', uk: 'майстер гри дм світ лорбук події фронти хаос режисер' },
   },
