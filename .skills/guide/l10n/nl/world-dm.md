@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 De World DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en bewaart hij de mensen, plaatsen en dingen die hij tegenkomt in het eigen lorebook van de chat, het wereldboek genoemd. Op hogere niveaus beweegt hij ook de wereld en stuurt hij gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levendig en consistent aanvoelt.
@@ -29,6 +29,8 @@ Verwijder een antwoord, of swipe naar een ander, en de DM neemt terug wat hij ui
 Records die je met de hand hebt gewijzigd blijven, tenzij de DM hetzelfde record daarna heeft gewijzigd. Een record dat je hebt verwijderd blijft verwijderd. Oude berichten van bovenaf verwijderen, andere swipes van een ouder antwoord lezen en de tekst van een antwoord bewerken nemen niets terug.
 
 ## Tabbladen van de sectie World
+
+Het tandwiel naast de kop van de lijst World opent **World settings**, in inklapbare blokken zoals de Litopys settings: het speelmodel (met een schakelaar om het voor deze World te overschrijven, de antwoordlimiet en een testknop), het bouwmodel, het beeldmodel, de schakelaar voor achtergronden en of je over fouten wordt verteld. Een ingeklapt blok toont in één regel wat er is ingesteld.
 
 Op de gekozen chat: Overview (dezelfde bediening als het blad), Places (een boom van plaatsen, met per plaats een achtergrondafbeelding), World book (records met de hand lezen, schrijven, beëindigen of verwijderen), Runs (geschiedenis, tokens, fouten), Start (records opstellen uit kaarten of een kort interview), Backgrounds (een set afbeeldingen plannen en tekenen; met "Change the background by scene" aan kiest het Dashboard de passende; met "Draw places that have no picture" ook aan (het staat er altijd, grijs tot de scène-wissel en beeldgeneratie aan staan), wordt een plaats waar het verhaal naartoe gaat en die geen afbeelding heeft ter plekke getekend door het beeldmodel van de World en in de map opgeslagen; "Look of the pictures" daar neemt een paar Engelse woorden (bijvoorbeeld `medieval fantasy, candlelight`) die aan elke achtergrond voor de chat worden toegevoegd, een plaats die ter plekke wordt getekend of een set; het Display-blad van de chat heeft er een link naartoe). Ook **Profiles** en **Worlds**.
 

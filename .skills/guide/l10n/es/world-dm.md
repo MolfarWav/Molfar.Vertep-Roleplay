@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 El World DM es un director de juego para el mundo de un chat. Después de las respuestas lee la historia y guarda las personas, lugares y cosas que encuentra en el propio lorebook del chat, llamado el libro de mundo. En niveles más altos también mueve el mundo y envía eventos a la escena. Úsalo cuando quieras que el mundo se sienta vivo y coherente.
@@ -29,6 +29,8 @@ Borra una respuesta, o desliza hacia otra, y el DM retira lo que aprendió de la
 Los registros que cambiaste a mano se conservan, salvo que el DM cambiara después el mismo registro. Un registro que borraste sigue borrado. Borrar mensajes antiguos desde arriba, leer otros deslizamientos de una respuesta anterior y editar el texto de una respuesta no retira nada.
 
 ## Pestañas de la sección World
+
+El engranaje junto al título de la lista de World abre **World settings**, en bloques plegables como los ajustes de Litopys: el modelo de juego (con un interruptor para cambiarlo solo para este World, el límite de respuestas y un botón de prueba), el modelo de construcción, el modelo de imagen, el interruptor de fondos y si se te avisa de los fallos. Un bloque plegado muestra en una línea lo que está configurado.
 
 En el chat elegido: Overview (los mismos controles que la hoja), Places (un árbol de lugares, con una imagen de fondo por lugar), World book (leer, escribir, retirar o eliminar registros a mano), Runs (historial, tokens, errores), Start (redactar registros desde tarjetas o una entrevista corta), Backgrounds (planear y dibujar un conjunto de imágenes; con "Change the background by scene" activo, el Dashboard elige la adecuada; con "Draw places that have no picture" también activo (siempre aparece ahí, atenuado hasta que el cambio de escena y la generación de imágenes estén activos), un lugar al que se muda la historia y que no tiene imagen se dibuja en el momento con el modelo de imagen del World y se archiva en la carpeta; "Look of the pictures" acepta unas pocas palabras en inglés (por ejemplo `medieval fantasy, candlelight`) que se añaden a cada fondo dibujado para el chat, a un lugar dibujado en el momento o a un conjunto; el panel Display del chat tiene un enlace aquí). También **Profiles** y **Worlds**.
 

@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: Chat-Verknüpfungen, Prompt und Agents
 
 Canvas ist die technische Werkbank von Roleplay: ein Bildschirm mit Brettern, auf dem du siehst und änderst, wie Chats miteinander verbunden sind und was jeder Chat an das Modell schickt. Zum Spielen brauchst du es nicht. Öffne es, wenn eine Geschichte eine Fortsetzung braucht, wenn dich eine Antwort überrascht hat oder wenn du Agents baust.
@@ -7,7 +7,7 @@ Wähle ein Brett mit dem Schalter **Board** oben: **Chat links**, **Prompt**, **
 
 ## Chat-Verknüpfungen
 
-Eine Karte deiner Chats. Jeder Chat ist eine Karte. Eine Linie von einem Chat zum anderen bedeutet: „dieser Chat setzt jenen fort“. Die Geschichte des früheren Chats reist dann als Hintergrund in den Antworten des späteren Chats mit, innerhalb des Hintergrund-Budgets, das in der Library eingestellt ist. Eine durchgezogene Linie ist eine Fortsetzung. Eine gestrichelte Linie ist ein Zweig, der von einer Nachricht abgezweigt wurde.
+Eine Karte deiner Chats. Jeder Chat ist eine Karte. Eine Linie von einem Chat zum anderen bedeutet: „dieser Chat setzt jenen fort“. Die Geschichte des früheren Chats reist dann als Hintergrund in den Antworten des späteren Chats mit, innerhalb des Hintergrund-Budgets, das in der Library eingestellt ist. Die drei nächsten früheren Chats werden vollständig gelesen, ältere verdichtet ([[long-chats]]). Eine durchgezogene Linie ist eine Fortsetzung. Eine gestrichelte Linie ist ein Zweig, der von einer Nachricht abgezweigt wurde.
 
 - Chats, die du nicht aufs Brett gelegt hast, warten links in der Liste (**Chats**). Zieh einen auf das Brett oder nutze **Put on the board** (mit **its linked chats**, um die ganze Kette zu holen). Zieh eine Karte zurück in die Liste oder nutze **Remove**, um sie vom Brett zu nehmen. Der Chat selbst bleibt in der Library.
 - Schalte **Edit** ein, um Karten zu verbinden oder zu trennen. Eine Verknüpfung, die eine Schleife bilden würde, einen Chat mit sich selbst verbinden oder eine bestehende wiederholen würde, wird abgelehnt, und das Brett sagt, warum. **Undo** und **Redo** sind da. **Fit** rahmt den ganzen Graphen ein.

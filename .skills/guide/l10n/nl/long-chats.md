@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Lange chats en tokenkosten
 
 Een chat die weken doorloopt groeit, en bij elk antwoord gaat meer ervan naar het model. Deze pagina is voor wie merkt dat de antwoorden traag of duur worden, of dat het model het begin van het verhaal vergeet.
@@ -35,11 +35,17 @@ Bij een natuurlijk moment begint een nieuwe chat die de oude voortzet met een kl
 
 1. Open in de chat "More" en kies **Continue in a new chat**, of druk op Yes in de pop-up.
 2. De nieuwe chat wordt meteen aangemaakt en opent. Hij behoudt de preset en zijn keuzes, persona, model, agentset, de beurtvolgorde van een groep en de wereld van de World DM.
-3. Hij krijgt het oude verhaal als achtergrond: hoofdstukken en feiten, tot drie chats terug, binnen het "Backstory budget". De oude berichten worden niet verstuurd.
+3. Hij krijgt het oude verhaal als achtergrond, binnen het "Backstory budget". De drie dichtstbijzijnde eerdere chats worden volledig gelezen: hoofdstukken, feiten en wendepunten. Oudere chats van een lange keten vallen niet weg: ze reizen mee in één samengevat deel (zie hieronder). De oude berichten worden niet verstuurd.
 
 De eerdere chat verhuist daarna vanzelf naar het Archief (volgende sectie). De koppeling is die van het Canvas, en het Canvas kan haar later wijzigen: zie [[canvas]]. Wil je een andere eerdere chat kiezen, start dan een chat vanaf het personage en gebruik het menu **Continues** in de stap "New chat with".
 
 De nieuwe chat opent met de eerste begroeting van de kaart; "Edit the first message" laat je verdergaan waar het verhaal stopte.
+
+## Een verhaal van veel chats
+
+Een verhaal kan over vele chats doorlopen. De drie dichtstbijzijnde eerdere chats leveren hun hoofdstukken, bogen en feiten zoals eerder. Elke oudere chat gaat in één **far**-deel, dat eerst komt: zijn wendepunten, de vastgezette en key-feiten, en één regel per boog. Het deel wordt gebouwd uit wat Litopys al heeft geschreven, zonder extra modelaanroep, en neemt standaard 18% van het Backstory budget (Library, Litopys settings, "In the prompt", **Share for the far chats**, 5 tot 40). **Turning points shown** in hetzelfde blok bepaalt hoeveel er in elk antwoord meegaan, over het hele verhaal (standaard 12). Is het budget krap, dan verliezen de oudste chats eerst hun regels en de wendepunten het laatst. In **What this chat carries** heeft het een eigen rij, "Far backstory, chats 1-2", zodat je kunt zien dat de eerste chats bewaard zijn en niet verloren. Een korte keten heeft geen far-deel. Verhoog het Backstory budget als een lang verhaal dun aanvoelt.
+
+Een samengevat deel laat kleine details weg (de kleur van een mantel); de woord-voor-woord herinneringen hieronder brengen die terug.
 
 ## Een afgerond verhaal archiveren
 
@@ -56,7 +62,7 @@ Waarom het de moeite waard is: de eerdere chat verandert niet meer, dus het gehe
 
 ## Details die de hoofdstukken hebben weggelaten
 
-Een hoofdstuk is een navertelling, dus een klein detail van een eerdere chat kan eruit verdwenen zijn. In de Library, Litopys settings, "In the prompt", laat de schakelaar **Word-for-word memories of earlier chats** een chat die andere voortzet één of twee passages van de oorspronkelijke berichten terughalen wanneer wat er gezegd wordt zeldzame woorden met hen deelt ([[litopys]]). Standaard uit.
+Een hoofdstuk is een navertelling, dus een klein detail van een eerdere chat kan eruit verdwenen zijn. In de Library, Litopys settings, "In the prompt", laat de schakelaar **Word-for-word memories of earlier chats** (standaard aan) een chat die andere voortzet één of twee passages van de oorspronkelijke berichten terughalen wanneer wat er gezegd wordt zeldzame woorden met hen deelt ([[litopys]]). De eerdere chat wordt geïndexeerd wanneer hij naar het Archief gaat. Het zoekt op woorden, dus een detail dat met andere woorden is verteld wordt niet gevonden; de experimentele schakelaar **Also find old chapters by meaning** (uit) verkleint die kloof een beetje wanneer je embeddings gebruikt: hij vindt het hoofdstuk op betekenis, maar een passage heeft nog steeds één eigen zeldzaam woord nodig.
 
 ## Een verhaal als boek bewaren
 

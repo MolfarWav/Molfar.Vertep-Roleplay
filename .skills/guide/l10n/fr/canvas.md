@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas : liens entre discussions, requête et agents
 
 Canvas est l'atelier technique de Roleplay : un seul écran avec des planches, où vous voyez et modifiez la façon dont les discussions se relient et ce que chaque discussion envoie au modèle. Vous n'en avez pas besoin pour jouer. Ouvrez-le quand une histoire a besoin d'une suite, quand une réponse vous a surpris, ou quand vous construisez des agents.
@@ -7,7 +7,7 @@ Choisissez une planche avec l'interrupteur **Board** en haut : **Chat links**, *
 
 ## Chat links
 
-Une carte de vos discussions. Chaque discussion est une carte. Une ligne d'une discussion à une autre signifie « cette discussion continue celle-là » : l'histoire de la discussion précédente voyage comme contexte dans les réponses de la discussion suivante, dans la limite du budget de contexte défini dans la Library. Une ligne pleine est une continuation. Une ligne en pointillés est une branche issue d'un message.
+Une carte de vos discussions. Chaque discussion est une carte. Une ligne d'une discussion à une autre signifie « cette discussion continue celle-là » : l'histoire de la discussion précédente voyage comme contexte dans les réponses de la discussion suivante, dans la limite du budget de contexte défini dans la Library. Les trois discussions précédentes les plus proches sont lues en entier, les plus anciennes sont condensées ([[long-chats]]). Une ligne pleine est une continuation. Une ligne en pointillés est une branche issue d'un message.
 
 - Les discussions que vous n'avez pas posées sur la planche attendent dans la liste à gauche (**Chats**). Glissez-en une sur la planche, ou utilisez **Put on the board** (avec **its linked chats** pour amener toute la chaîne). Glissez une carte vers la liste, ou utilisez **Remove**, pour la retirer de la planche. La discussion elle-même reste dans la Library.
 - Activez **Edit** pour relier ou délier des cartes. Un lien qui créerait une boucle, relierait une discussion à elle-même ou répéterait un lien existant est refusé, et la planche indique pourquoi. **Undo** et **Redo** sont disponibles. **Fit** cadre tout le graphe.

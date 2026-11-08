@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: collegamenti tra chat, prompt e agenti
 
 Canvas è il banco di lavoro tecnico di Roleplay: una sola schermata con delle bacheche, dove vedi e modifichi come sono collegate le chat e cosa ogni chat invia al modello. Per giocare non ne hai bisogno. Aprilo quando una storia ha bisogno di un seguito, quando una risposta ti ha sorpreso, o quando costruisci agenti.
@@ -7,7 +7,7 @@ Scegli una bacheca con il selettore **Board** in alto: **Chat links**, **Prompt*
 
 ## Chat links
 
-Una mappa delle tue chat. Ogni chat è una scheda. Una linea da una chat a un'altra significa "questa chat continua quella": la storia della chat precedente viaggia come retroscena nelle risposte della chat successiva, entro il budget del retroscena impostato nella Library. Una linea continua è una continuazione. Una linea tratteggiata è un ramo biforcato da un messaggio.
+Una mappa delle tue chat. Ogni chat è una scheda. Una linea da una chat a un'altra significa "questa chat continua quella": la storia della chat precedente viaggia come retroscena nelle risposte della chat successiva, entro il budget del retroscena impostato nella Library. Le tre chat precedenti più vicine vengono lette per intero e quelle più vecchie vengono condensate ([[long-chats]]). Una linea continua è una continuazione. Una linea tratteggiata è un ramo biforcato da un messaggio.
 
 - Le chat che non hai ancora messo sulla bacheca aspettano nell'elenco a sinistra (**Chats**). Trascinane una sulla bacheca, oppure usa **Put on the board** (con **its linked chats** per portare l'intera catena). Trascina una scheda indietro nell'elenco, oppure usa **Remove**, per toglierla dalla bacheca. La chat resta nella Library.
 - Attiva **Edit** per collegare o scollegare le schede. Un collegamento che creerebbe un ciclo, unirebbe una chat a se stessa o ripeterebbe un collegamento esistente viene rifiutato, e la bacheca dice perché. Ci sono **Undo** e **Redo**. **Fit** inquadra l'intero grafo.

@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Uzun sohbetler ve token maliyeti
 
 Haftalarca süren bir sohbet büyür ve her yanıt modele daha fazlasını gönderir. Bu sayfa, yanıtları yavaşlayan ya da pahalılaşan, ya da modelin hikâyenin başlangıcını unuttuğu herkes içindir.
@@ -35,11 +35,17 @@ Doğal bir aranın ardından, eski sohbeti sürdüren yeni bir sohbet küçük b
 
 1. Sohbette "More"u açın ve **Continue in a new chat**i seçin ya da açılır pencerede Yes'e basın.
 2. Yeni sohbet hemen oluşturulur ve açılır. Preset'i ve onun seçimlerini, persona'yı, modeli, ajan setini, bir grubun tur sırasını ve World DM dünyasını korur.
-3. Eski hikâyeyi arka plan olarak alır: "Backstory budget" içinde, üç sohbete kadar geriye giden bölümler ve olgular. Eski mesajlar gönderilmez.
+3. Eski hikâyeyi arka plan olarak alır: "Backstory budget" içinde, en yakın üç önceki sohbetin bölümleri, olguları ve dönüm noktaları. Uzun bir zincirin daha eski sohbetleri kaybolmaz: tek bir özetlenmiş bölümde taşınırlar (aşağıya bakın). Eski mesajlar gönderilmez.
 
 Önceki sohbet bundan sonra kendiliğinden Archive'a taşınır (sonraki bölüm). Bağlantı Canvas'ın çizdiği bağlantıdır ve Canvas bunu sonra değiştirebilir: bkz. [[canvas]]. Başka bir önceki sohbeti seçmek için karakterden bir sohbet başlatın ve "New chat with" adımındaki **Continues** menüsünü kullanın.
 
 Yeni sohbet kartın ilk selamlamasıyla açılır; "Edit the first message" hikâyenin durduğu yerden devam etmenizi sağlar.
+
+## Birçok sohbetten oluşan bir hikâye
+
+Bir hikâye birçok sohbete yayılabilir. En yakın üç önceki sohbet, daha önce olduğu gibi bölümlerini, yaylarını (arcs) ve olgularını verir. Daha eski her sohbet, en başa yerleştirilen tek bir **far** (uzak) bölüme girer: dönüm noktaları, sabitlenmiş ve key olgular ve her yay için bir satır. Bu bölüm, Litopys'in zaten yazdıklarından ekstra bir model çağrısı olmadan oluşturulur ve varsayılan olarak Backstory budget'ın %18'ini kullanır (Library, Litopys settings, "In the prompt", **Share for the far chats**, 5 ile 40 arası). Aynı blokta **Turning points shown**, bütün hikâye boyunca bir yanıtta kaç dönüm noktasının taşınacağını belirler (varsayılan 12). Bütçe kısaysa, en eski sohbetler önce satırlarını, dönüm noktaları ise en son kaybeder. **What this chat carries** içinde bu kendi satırıdır: "Far backstory, chats 1-2"; böylece ilk sohbetlerin kaybolmadığını, tutulduğunu görürsünüz. Kısa bir zincirin uzak bölümü yoktur. Uzun bir hikâye ince geliyorsa Backstory budget değerini yükseltin.
+
+Özetlenmiş bir bölüm küçük ayrıntıları düşürür (bir pelerinin rengi); aşağıdaki kelimesi kelimesine anılar bunları geri getirir.
 
 ## Bitmiş bir hikâyeyi arşivleme
 
@@ -56,7 +62,7 @@ Neden uğraşmalı: önceki sohbet artık değişmez; belleği sabit kalır ve o
 
 ## Bölümlerin düşürdüğü ayrıntılar
 
-Bir bölüm bir yeniden anlatımdır; bu yüzden önceki bir sohbetin küçük bir ayrıntısı içinden kaybolmuş olabilir. Library'de, Litopys settings, "In the prompt" içinde **Word-for-word memories of earlier chats** anahtarı, diğer sohbetleri devam eden bir sohbetin, söylenenler onlarla nadir kelimeleri paylaştığında orijinal mesajlardan bir veya iki pasajı geri getirmesine izin verir ([[litopys]]). Varsayılan olarak kapalıdır.
+Bir bölüm bir yeniden anlatımdır; bu yüzden önceki bir sohbetin küçük bir ayrıntısı içinden kaybolmuş olabilir. Library'de, Litopys settings, "In the prompt" içinde **Word-for-word memories of earlier chats** anahtarı (varsayılan olarak açık), diğer sohbetleri devam eden bir sohbetin, söylenenler onlarla nadir kelimeleri paylaştığında orijinal mesajlardan bir ya da iki pasajı geri getirmesine izin verir ([[litopys]]). Önceki sohbet Archive'a gittiğinde dizinlenir. Yalnızca kelimeleri eşleştirir; bu yüzden başka sözcüklerle anlatılan bir ayrıntı bulunmaz. Deneysel **Also find old chapters by meaning** anahtarı (kapalı), gömme modelleri kullandığınızda bu boşluğu biraz kapatır: bölümü anlamla bulur, ama bir pasajın yine de kendine özgü bir nadir kelimeye ihtiyacı vardır.
 
 ## Hikâyeyi kitap olarak kaydetme
 

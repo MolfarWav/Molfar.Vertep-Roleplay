@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 Der World DM ist ein Spielleiter für die Welt eines Chats. Nach Antworten liest er die Geschichte und hält die Personen, Orte und Dinge, die er trifft, im eigenen Lorebook des Chats fest, dem Weltbuch. Auf höheren Stufen bewegt er auch die Welt und sendet Ereignisse in die Szene. Nutze ihn, wenn die Welt lebendig und stimmig wirken soll.
@@ -29,6 +29,8 @@ Lösche eine Antwort oder swipe zu einer anderen, und der DM nimmt zurück, was 
 Von dir geänderte Einträge bleiben, außer der DM hat denselben Eintrag danach geändert. Ein von dir gelöschter Eintrag bleibt gelöscht. Das Löschen alter Nachrichten von oben, das Lesen anderer Swipes einer älteren Antwort und das Bearbeiten des Antworttexts nehmen nichts zurück.
 
 ## Tabs des World-Bereichs
+
+Das Zahnrad neben der Überschrift der World-Liste öffnet die **World settings**, in klappbaren Blöcken wie die Litopys settings: das Spielmodell (mit einem Schalter, um es für diese World zu überschreiben, das Antwortlimit und einen Testbutton), das Build-Modell, das Bildmodell, den Schalter für die Hintergründe und ob du über Fehler informiert wirst. Ein zugeklappter Block zeigt in einer Zeile, was eingestellt ist.
 
 Beim gewählten Chat: Overview (dieselben Steuerungen wie das Sheet), Places (ein Baum von Orten, mit einem Hintergrundbild pro Ort), World book (Einträge von Hand lesen, schreiben, zurückziehen oder löschen), Runs (Verlauf, Tokens, Fehler), Start (Einträge aus Karten oder einem kurzen Interview entwerfen), Backgrounds (eine Reihe von Bildern planen und zeichnen; mit „Change the background by scene“ an wählt das Dashboard das passende; mit zusätzlich eingeschaltetem „Draw places that have no picture“ (es steht dort immer, ausgegraut, bis Szenenwechsel und Bilderzeugung an sind) wird ein Ort, zu dem die Geschichte wechselt und der kein Bild hat, sofort vom Bildmodell der Welt gezeichnet und im Ordner abgelegt; „Look of the pictures“ dort nimmt ein paar englische Wörter (zum Beispiel `medieval fantasy, candlelight`), die jedem Hintergrund hinzugefügt werden, der für den Chat gezeichnet wird, einem sofort gezeichneten Ort oder einem Set; das Display-Blatt des Chats hat dort einen Link). Außerdem **Profiles** und **Worlds**.
 

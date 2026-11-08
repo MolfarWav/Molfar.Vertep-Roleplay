@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Longues discussions et coût en jetons
 
 Une discussion qui dure des semaines grossit, et chaque réponse envoie davantage au modèle. Cette page s'adresse à quiconque voit ses réponses ralentir ou coûter cher, ou dont le modèle oublie le début de l'histoire.
@@ -35,11 +35,17 @@ Dans le même bloc, « Older messages leave the prompt » propose deux choix :
 
 1. Dans la discussion, ouvrez « More » et choisissez **Continue in a new chat**, ou appuyez sur Yes dans la fenêtre.
 2. La nouvelle discussion est créée tout de suite et s'ouvre. Elle garde le preset et ses choix, le persona, le modèle, l'ensemble d'agents, l'ordre des tours d'un groupe et le monde du World DM.
-3. Elle reçoit l'ancienne histoire comme contexte : chapitres et faits, jusqu'à trois discussions en arrière, dans le « Backstory budget ». Les anciens messages ne sont pas envoyés.
+3. Elle reçoit l'ancienne histoire comme contexte, dans le « Backstory budget ». Les trois discussions antérieures les plus proches sont lues en entier : chapitres, faits et tournants. Les discussions plus anciennes d'une longue chaîne ne sont pas écartées : elles entrent dans une seule partie condensée (voir plus bas). Les anciens messages ne sont pas envoyés.
 
 L'ancienne discussion passe ensuite toute seule dans l'Archive (section suivante). Le lien est celui que trace le Canvas, et le Canvas peut le modifier plus tard : voir [[canvas]]. Pour choisir une autre discussion antérieure, démarrez une discussion à partir du personnage et utilisez le menu **Continues** à l'étape « New chat with ».
 
 La nouvelle discussion s'ouvre avec la salutation de la carte ; « Edit the first message » vous permet de reprendre là où l'histoire s'est arrêtée.
+
+## Une histoire faite de nombreuses discussions
+
+Une histoire peut se poursuivre sur beaucoup de discussions. Les trois discussions antérieures les plus proches donnent leurs chapitres, arcs et faits comme avant. Chaque discussion plus ancienne entre dans une seule partie **far**, placée en premier : ses tournants, les faits épinglés et clés, et une ligne pour chaque arc. Cette partie est construite à partir de ce que Litopys a déjà écrit, sans appel de modèle supplémentaire, et prend par défaut 18 % du Backstory budget (Library, Litopys settings, « In the prompt », **Share for the far chats**, de 5 à 40). **Turning points shown** dans le même bloc règle combien en entrent dans une réponse sur toute l'histoire (12 par défaut). Si le budget est court, les plus anciennes discussions perdent leurs lignes en premier, et les tournants en dernier. Dans **What this chat carries**, elle a sa propre ligne, « Far backstory, chats 1-2 », pour que vous voyiez que les premières discussions ont été gardées, et non perdues. Une chaîne courte n'a pas de partie far. Augmentez le Backstory budget si une longue histoire paraît maigre.
+
+Une partie condensée perd de petits détails (la couleur d'une cape) ; les souvenirs mot pour mot ci-dessous les rapportent.
 
 ## Archiver une histoire terminée
 
@@ -56,7 +62,7 @@ Pourquoi s'en soucier : l'ancienne discussion ne change plus, donc sa mémoire r
 
 ## Détails que les chapitres ont laissés de côté
 
-Un chapitre est un récit, donc un petit détail d'une ancienne discussion peut en disparaître. Dans la Library, Litopys settings, « In the prompt », l'interrupteur **Word-for-word memories of earlier chats** permet à une discussion qui en poursuit d'autres de faire revenir un ou deux passages des messages originaux quand ce qui est dit partage des mots rares avec eux ([[litopys]]). Désactivé par défaut.
+Un chapitre est un récit, donc un petit détail d'une ancienne discussion peut en disparaître. Dans la Library, Litopys settings, « In the prompt », l'interrupteur **Word-for-word memories of earlier chats** (activé par défaut) permet à une discussion qui en poursuit d'autres de faire revenir un ou deux passages des messages originaux quand ce qui est dit partage des mots rares avec eux ([[litopys]]). L'ancienne discussion est indexée quand elle passe dans l'Archive. Cela ne fait que comparer des mots : un détail raconté autrement n'est pas trouvé ; l'interrupteur expérimental **Also find old chapters by meaning** (désactivé) réduit un peu cet écart quand vous utilisez des embeddings : il trouve le chapitre par le sens, mais un passage a toujours besoin d'un mot rare qui lui est propre.
 
 ## Enregistrer une histoire comme livre
 
