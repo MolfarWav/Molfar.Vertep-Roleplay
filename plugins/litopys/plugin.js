@@ -9731,6 +9731,8 @@ function traceRoute(fsx, query) {
   // the replies that left a trace, newest first: the insert file holds the latest, the ring the few before it
   const entries = [
     ...(isObj(newest) && isObj(newest.trace) ? [{ at: Number(newest.at) || 0, tokens: Number(newest.tokens) || 0, trace: newest.trace }] : []),
+    // a reply that carried only the earlier story (a fresh continuation, #288) has no rows of its own but still has the far part to show
+    ...(isObj(newest) && !isObj(newest.trace) && isObj(newest.backstory) && isObj(newest.backstory.far) ? [{ at: Number(newest.at) || 0, tokens: Number(newest.tokens) || 0, trace: { op: "", rows: [] } }] : []),
     ...(isObj(ringFile) && Array.isArray(ringFile.list) ? ringFile.list.filter((e) => isObj(e) && isObj(e.trace)) : []),
   ].slice(0, TRACE_RING_MAX + 1);
   const back = Math.max(0, Math.min(entries.length - 1, Math.floor(Number(query.back)) || 0));

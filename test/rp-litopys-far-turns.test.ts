@@ -434,3 +434,17 @@ describe("the far part as a source of its own in What fired (#288)", () => {
     expect(tr.far).toMatchObject({ chats: 2, first: 1, last: 2 });
   });
 });
+
+describe("the Memory trace of a reply that carried only the earlier story (#288)", () => {
+  it("still answers, with the far part and no rows", () => {
+    const m = longChain(6);
+    writeJson("litopys/config.json", { linkBudget: 1500 });
+    writeChat("fresh", story(2, "x"), { title: "Fresh" });
+    route(m.host, "POST", "/litopys/links", { chatId: "fresh", from: "c6" });
+    L.llmRequest(ctx("fresh"), m.host);
+    const tr = L.handleRoute({ method: "GET", path: "/litopys/trace", query: { chatId: "fresh" }, body: undefined }, m.host).json.trace;
+    expect(tr).not.toBeNull();
+    expect(tr.far).toMatchObject({ first: 1 });
+    expect(tr.facts).toEqual([]);
+  });
+});
