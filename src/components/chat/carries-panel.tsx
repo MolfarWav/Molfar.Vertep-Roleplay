@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, Gauge, GlobeHemisphereWest, MapTrifold, Note, Quotes, UserCircle } from '@phosphor-icons/react'
+import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, GitMerge, Gauge, GlobeHemisphereWest, MapTrifold, Note, Quotes, UserCircle } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
 
-const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, personamem: UserCircle, worldmem: MapTrifold, recollections: Quotes, backstory: GitBranch, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
+const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, personamem: UserCircle, worldmem: MapTrifold, recollections: Quotes, backstory: GitBranch, backstoryFar: GitMerge, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
 
 interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
@@ -104,6 +104,7 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
     recollections: (names: string) => t('carries.label.recollections', { names }),
     characters: (n: number) => t('carries.characters', { n }),
     backstory: (title: string) => t('carries.label.backstory', { title }),
+    backstoryFar: (range: string) => t('carries.label.backstoryFar', { range }),
     litopys: t('carries.label.litopys'),
     dashboard: t('carries.label.dashboard'),
     said: t('carries.label.said'),
@@ -231,16 +232,18 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
   const cm = carries?.cardMemory
   const sk = carries?.cardHabits
   const bs = carries?.backstory
+  const bf = carries?.backstoryFar
   const wd = carries?.world
   const shared = part.kind === 'personamem' ? carries?.personaMemory : part.kind === 'worldmem' ? carries?.worldMemory : null
   const rcl = part.kind === 'recollections' ? carries?.recollections : null
-  const text = part.kind === 'memory' ? cm?.text : shared ? shared.text : rcl ? rcl.text : part.kind === 'habits' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
+  const text = part.kind === 'memory' ? cm?.text : shared ? shared.text : rcl ? rcl.text : part.kind === 'habits' ? sk?.text : part.kind === 'backstory' ? bs?.text : part.kind === 'backstoryFar' ? bf?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
     part.kind === 'memory' ? (cm && cm.sources.length === 0 ? t('carries.memory.none') : t('carries.memory.detail', { n: cm?.sources.length ?? 0 }))
     : rcl ? t('carries.recollections.detail', { n: rcl.scenes })
     : shared ? t(part.kind === 'personamem' ? 'carries.persona.detail' : 'carries.worldmem.detail', { n: shared.stories, name: shared.name })
     : part.kind === 'habits' ? t('carries.habits.detail', { n: sk?.habits.length ?? 0, name: sk?.name ?? '' })
     : part.kind === 'backstory' ? t('carries.backstory.detail', { facts: bs?.facts ?? 0, chapters: bs?.chapters ?? 0 })
+    : part.kind === 'backstoryFar' ? t('carries.backstoryFar.detail', { chats: bf?.chats ?? 0, turns: bf?.turns ?? 0, facts: bf?.facts ?? 0 })
     : part.kind === 'litopys' ? t('carries.litopys.detail', { facts: carries?.litopys.facts ?? 0, chapters: carries?.litopys.chapters ?? 0 })
     : part.kind === 'dashboard' ? t('carries.dashboard.detail')
     : part.kind === 'world' ? (wd?.level === 'chronicler' ? t('carries.world.chronicler') : wd?.waiting ? t('carries.world.waiting') : t('carries.world.idle'))
@@ -274,7 +277,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.habits.dupes', { n: sk.dupes })}</p>
       )}
       <div className="flex flex-wrap gap-1">
-        {(part.kind === 'memory' || part.kind === 'habits' || part.kind === 'backstory' || part.kind === 'world' || !!shared || !!rcl) && !!text && (
+        {(part.kind === 'memory' || part.kind === 'habits' || part.kind === 'backstory' || part.kind === 'backstoryFar' || part.kind === 'world' || !!shared || !!rcl) && !!text && (
           <Button variant="ghost" size="sm" className="max-md:h-10" aria-expanded={shown} aria-controls={textId} onClick={() => setShown((v) => !v)}>{showLabel}</Button>
         )}
         {part.kind === 'memory' && !!cm && (

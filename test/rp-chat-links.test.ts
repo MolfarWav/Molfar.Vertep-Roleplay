@@ -183,7 +183,7 @@ describe("backstory along a chain (0.9.5)", () => {
     expect(text).toContain("Aria left the valley.");
   });
 
-  it("stops after three chats back", () => {
+  it("reads three chats back whole, and the older ones condensed", () => {
     chain();
     writeChat("first", story(4, "z"), { title: "Before" });
     writeJson("litopys/chats/first.json", {
@@ -193,6 +193,7 @@ describe("backstory along a chain (0.9.5)", () => {
     });
     writeChat("fourth", story(2, "q"), { title: "Later" });
     const m = mockHost();
+    writeJson("litopys/config.json", { linkBudget: 1400 });
     route(m.host, "POST", "/litopys/links", { chatId: "old", from: "first" });
     route(m.host, "POST", "/litopys/links", { chatId: "fourth", from: "new" });
     writeJson("litopys/chats/new.json", {
@@ -203,6 +204,10 @@ describe("backstory along a chain (0.9.5)", () => {
     const text = L.llmRequest(ctx("fourth"), m.host).messages[1].content as string;
     expect(text).toContain("Aria came home.");
     expect(text).toContain("Aria burned the mill down.");
-    expect(text).not.toContain("Aria was born.");
+    // the fourth chat back is not read whole any more (#288): it rides as the condensed far part, before the three near ones
+    expect(text).toContain("far: chat 1 of this story, condensed");
+    expect(text).toContain("Aria was born.");
+    expect(text.indexOf("far: chat 1")).toBeLessThan(text.indexOf("Aria burned the mill down."));
+    expect(readJson("litopys/insert/fourth.json").backstory.far).toMatchObject({ chats: 1, first: 1, last: 1 });
   });
 });

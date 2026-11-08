@@ -50,7 +50,10 @@ export interface FiredLog {
 
 export interface LitFiredFact { id: string; n: number; at: number; gone: boolean; text: string; by: 'all' | TracePerson[] }
 export interface LitFiredChapter { id: string; n: number; at: number; gone: boolean; label: string; text: string }
+/** How often the far part of a long backstory went in (#288), and what it held the last time. */
+export interface LitFiredFar { n: number; at: number; chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number }
 export interface LitFired {
+  far?: LitFiredFar | null
   since: number
   replies: number
   factsTotal: number
@@ -144,6 +147,7 @@ export function buildFiredReport(title: string, log: FiredLog | null, trace: Mem
   }
   if (lit) {
     out.push('', `Litopys facts by replies they went into (top ${lit.facts.length} of ${lit.factsTotal}):`, ...(lit.facts.length ? lit.facts.map((f) => `- ${f.id} ${f.n}/${lit.replies} ${f.gone ? '(removed since)' : cut(f.text, 120)}`) : ['- none']))
+    if (lit.far) out.push('', `Litopys far backstory (chats ${lit.far.first === lit.far.last ? lit.far.first : `${lit.far.first}-${lit.far.last}`}, condensed): ${lit.far.n}/${lit.replies} replies, last time ~${lit.far.tokens} tok.: ${lit.far.turns} turning point(s), ${lit.far.facts} fact(s), ${lit.far.units} arc line(s)`)
     out.push('', `Litopys chapters (top ${lit.chapters.length} of ${lit.chaptersTotal}):`, ...(lit.chapters.length ? lit.chapters.map((c) => `- ${c.id} ${c.n}/${lit.replies} ${c.gone ? '(removed since)' : cut(c.label ? `${c.label}: ${c.text}` : c.text, 120)}`) : ['- none']))
   }
   if (trace) out.push('', buildReport('', trace, now))

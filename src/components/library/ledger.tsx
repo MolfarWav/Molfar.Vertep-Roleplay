@@ -14,6 +14,8 @@ import { MeaningCard } from '@/components/memory/meaning-card'
 import { BookDialog } from '@/components/memory/book-dialog'
 import { ArcNotice } from './arcs'
 import { FactsTab } from './ledger-facts'
+import { TurnsTab } from './ledger-turns'
+import { activeTurnCount } from './turns-util'
 import { ChaptersTab } from './ledger-chapters'
 import { ProposalsTab } from './ledger-proposals'
 import { ActivityTab } from './ledger-activity'
@@ -21,13 +23,14 @@ import { HabitsTab } from './ledger-habits'
 import { OverviewBody } from './overview'
 import { SettingsTab, chatConfigCount } from './ledger-settings'
 
-const TAB_IDS = ['chapters', 'facts', 'proposals', 'habits', 'activity', 'settings'] as const
+const TAB_IDS = ['chapters', 'facts', 'turns', 'proposals', 'habits', 'activity', 'settings'] as const
 type TabId = (typeof TAB_IDS)[number]
 
-function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.proposals' | 'lit.habits' | 'lit.activity' | 'lit.settings' {
+function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.turns' | 'lit.proposals' | 'lit.habits' | 'lit.activity' | 'lit.settings' {
   switch (id) {
     case 'chapters': return 'lit.chapters'
     case 'facts': return 'lit.facts'
+    case 'turns': return 'lit.turns'
     case 'proposals': return 'lit.proposals'
     case 'habits': return 'lit.habits'
     case 'activity': return 'lit.activity'
@@ -140,13 +143,15 @@ export function LedgerChat({
 
   const pending = chat.proposals.filter((p) => p.status === 'pending').length
   const activeFacts = chat.facts.filter((f) => f.status === 'active').length
+  const activeTurns = activeTurnCount(chat.turns)
   // a record file with nothing in it yet reads as empty: one explanation instead of three "none yet" lines
-  const empty = !chat.hasData || (chat.chapters.length === 0 && activeFacts === 0 && pending === 0)
+  const empty = !chat.hasData || (chat.chapters.length === 0 && activeFacts === 0 && pending === 0 && !(chat.turns?.length))
 
   const sk = habitCounts(chat.habits)
   const tabs: { id: TabId; count: number }[] = [
     { id: 'chapters', count: chat.chapters.length },
     { id: 'facts', count: activeFacts },
+    { id: 'turns', count: activeTurns },
     { id: 'proposals', count: pending },
     { id: 'habits', count: sk.earned },
     { id: 'activity', count: chat.activity.length },
@@ -249,6 +254,7 @@ export function LedgerChat({
 
             {tab === 'chapters' && <ChaptersTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'facts' && <FactsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
+            {tab === 'turns' && <TurnsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'proposals' && <ProposalsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'habits' && <HabitsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'activity' && <ActivityTab chat={chat} onChat={onChat} onRefresh={refresh} />}

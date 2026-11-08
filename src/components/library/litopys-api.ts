@@ -197,6 +197,7 @@ export type LitActivityKind =
   | 'summary.ask' | 'summary.done' | 'summary.fail'
   | 'habit.seen' | 'habit.earn' | 'habit.accept'
   | 'scene.mark' | 'scene.unmark' | 'chat.config'
+  | 'turn.add' | 'turn.edit' | 'turn.remove' | 'turn.undo' | 'turn.stance' | 'turn.accept' | 'turn.dismiss'
 
 /**
  * One line of the Activity tab (newest LAST in the array). text is an English sentence (fallback);
@@ -205,7 +206,7 @@ export type LitActivityKind =
  * chapter.write: { label, from, to, facts, proposals, rewrite } · proposal.*: { op, text } ·
  * worker.fail: { error } · import / notes.move: { n } · rebuild.finish: { chapters, facts } · rebuild.start: none ·
  * arc.ask: { chapters } · arc.write: { label, chapters, from, to, rewrite } · arc.rewrite / arc.delete / arc.drop: { label } ·
- * arc.fail: { error }.
+ * arc.fail: { error } · turn.*: { text } (turn.stance: { who, line }).
  */
 export interface LitActivity {
   at: number
@@ -214,6 +215,38 @@ export interface LitActivity {
   text: string
   ids: string[]
   data?: Record<string, string | number | boolean>
+}
+
+/**
+ * A turning point (#288): an event the story turns on, kept almost word for word. `stances` is how the people it touched feel
+ * about it (name -> one line, at most 6, 120 characters each). A later one may undo it (`overriddenBy`; it stays, marked).
+ * `pending` is what the automatic worker wanted to change in one the user wrote or edited and did not apply: the user answers it.
+ */
+export type LitTurnPending =
+  | { kind: 'override'; by: string; reason?: string; at: number }
+  | { kind: 'stance'; who: string; line: string; reason?: string; at: number }
+
+export interface LitTurn {
+  id: string
+  /** 2 to 4 sentences, at most 450 characters */
+  text: string
+  chapterId?: string | null
+  cast?: string[]
+  knownBy: string[] | 'all'
+  stances: Record<string, string>
+  /** chapter: found by the worker · mark: the user marked a chapter · user: written by the user */
+  origin: 'chapter' | 'mark' | 'user'
+  edited?: true
+  /** it retells a lie told in the scene (#184 P4): `believers` take it as true, `liar` told it */
+  untrue?: true
+  liar?: string
+  believers?: string[]
+  /** the later turning point that undid this one */
+  overriddenBy?: string
+  overrides?: string
+  pending?: LitTurnPending[]
+  at: number
+  updatedAt: number
 }
 
 /** A habit a character showed in this chat (#106): a candidate (proposed, seen once) or an earned habit (active, acts in this chat). */
@@ -250,6 +283,8 @@ export interface LitChat {
   migrated: boolean
   chapters: LitChapter[]
   facts: LitFact[]
+  /** #288 turning points; missing from a plugin before it */
+  turns?: LitTurn[]
   proposals: LitProposal[]
   /** habits the characters showed (rejected ones left out); missing from an engine before #106 */
   habits?: LitHabit[]
@@ -324,6 +359,10 @@ export interface LitConfig {
   budgetMode?: 'fixed' | 'auto'
   /** 0.9.2: the most a linked earlier chat's story may take as backstory, 0 = none */
   linkBudget: number
+  /** #288: the far part's share of the backstory budget, percent (5 to 40) */
+  farShare?: number
+  /** #288: active turning points shown across a chain (3 to 30) */
+  turnsShown?: number
   chapter: string
   /** M4d arcs; arcThreshold 0 = twice the budget */
   arcMode: LitArcMode
@@ -403,6 +442,27 @@ export const unpinLitFact = (chatId: string, id: string) => post<LitChat>('/lito
 export const retireLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'retire', id })
 export const restoreLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'restore', id })
 export const deleteLitFact = (chatId: string, id: string) => post<LitChat>('/litopys/facts', { chatId, op: 'delete', id })
+
+/** #288 turning points: every call answers the whole chat view. */
+export interface LitTurnFields {
+  text?: string
+  knownBy?: string[] | 'all'
+  stances?: Record<string, string>
+  /** false: it was not a lie after all */
+  untrue?: false
+}
+export const addLitTurn = (chatId: string, fields: LitTurnFields & { text: string }) => post<LitChat>('/litopys/turns', { chatId, op: 'add', ...fields })
+/** 409 "already marked" when that chapter is already a turning point. */
+export const markLitTurn = (chatId: string, chapterId: string) => post<LitChat>('/litopys/turns', { chatId, op: 'mark', chapterId })
+export const editLitTurn = (chatId: string, id: string, fields: LitTurnFields) => post<LitChat>('/litopys/turns', { chatId, op: 'edit', id, ...fields })
+/** What this one undid becomes active again. */
+export const removeLitTurn = (chatId: string, id: string) => post<LitChat>('/litopys/turns', { chatId, op: 'remove', id })
+/** `by` = the later turning point that undid `id`; without it the turning point is put back. */
+export const undoLitTurn = (chatId: string, id: string, by?: string) => post<LitChat>('/litopys/turns', { chatId, op: 'undo', id, ...(by ? { by } : {}) })
+/** Answer one waiting item: an override by the turning point `by`, or a stance change of `who`. accept false keeps the turning point as it is. */
+export const resolveLitTurn = (chatId: string, id: string, item: { kind: 'override'; by: string } | { kind: 'stance'; who: string }, accept: boolean) =>
+  post<LitChat>('/litopys/turns', { chatId, op: 'resolve', id, accept, ...item })
+export const isAlreadyMarked = (e: unknown) => e instanceof ApiError && e.status === 409 && e.message === 'already marked'
 
 export const editLitChapter = (chatId: string, id: string, fields: { label?: string; text?: string; views?: LitView[] }) => post<LitChat>('/litopys/chapters', { chatId, op: 'edit', id, ...fields })
 export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('/litopys/chapters', { chatId, op: 'rewrite', id })

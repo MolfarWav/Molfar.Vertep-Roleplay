@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Database, Eye, EyeSlash, Quotes, Scroll } from '@phosphor-icons/react'
+import { Database, Eye, EyeSlash, GitMerge, Quotes, Scroll } from '@phosphor-icons/react'
 import { Fold } from '@/components/ui/fold'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ import {
   type TracePerson,
   type TraceVerbatim,
   verbatimIn,
+  farIn,
+  farRange,
 } from '@/lib/memory-trace'
 import { semVerdict } from '@/lib/vectors'
 import type { MsgKey } from '@/lib/i18n'
@@ -155,6 +157,7 @@ export function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys
   const hidden = lit.n.hidden ?? sp.length
   const drop = lit.n.drop ?? bu.length
   const vb = verbatimIn(lit)
+  const far = farIn(lit)
   return (
     <>
       <Fold id="memtrace.in" title={t('memtrace.foldIn')} icon={Eye} tone="emerald" summary={String(lit.n.inF ?? inF.length)} defaultOpen>
@@ -172,6 +175,11 @@ export function LitopysFolds({ lit, t }: { lit: NonNullable<MemoryTrace['litopys
       <Fold id="memtrace.chapters" title={t('memtrace.foldChapters')} icon={Scroll} tone="violet" summary={t('memtrace.chapterCounts', { a: chIn.length, b: chOut.length })}>
         <Rows empty={t('memtrace.none')}>{[...chIn, ...chOut].map((c) => <ChapterRow key={`${c.state}:${c.id}`} c={c} t={t} />)}</Rows>
       </Fold>
+      {far && (
+        <Fold id="memtrace.far" title={t('memtrace.foldFar')} icon={GitMerge} tone="violet" summary={t('memtrace.farRange', { range: farRange(far) })}>
+          <p className="px-3 py-3 text-sm" data-testid="trace-far">{t('memtrace.farBody', { chats: far.chats, turns: far.turns, facts: far.facts, units: far.units, tokens: far.tokens })}</p>
+        </Fold>
+      )}
       {vb.length > 0 && (
         <Fold id="memtrace.verbatim" title={t('memtrace.foldVerbatim')} icon={Quotes} tone="sky" summary={String(vb.length)} defaultOpen>
           <Rows empty={t('memtrace.none')}>{vb.map((v, i) => <VerbatimRow key={`${v.chat}:${i}`} v={v} t={t} />)}</Rows>

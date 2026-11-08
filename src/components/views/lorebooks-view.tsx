@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { CircleNotch, FolderSimplePlus, Plus } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useApp } from '@/lib/store'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_DETAIL_EVENT } from '@/components/guide/events'
-import { SectionPage } from '@/components/shell/section-page'
+import { SectionPage, useSectionHost } from '@/components/shell/section-page'
 import { MasterDetail } from '@/components/shell/master-detail'
 import { useT } from '@/hooks/use-t'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -54,8 +54,12 @@ function saveOpen(bookId: string, open: string[]) {
   try { localStorage.setItem(openKey(bookId), JSON.stringify(open)) } catch { /* private window or blocked storage */ }
 }
 
+/** The element the entry panel is drawn into, so it can cover the book list too (a wide panel from the left). Null: draw it in the book pane. */
+const PanelHost = createContext<HTMLElement | null>(null)
+
 export function LorebooksView() {
   const t = useT()
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null)
   const lorebooks = useApp((s) => s.lorebooks)
   const characters = useApp((s) => s.characters)
   const updateLorebook = useApp((s) => s.updateLorebook)
@@ -153,7 +157,9 @@ export function LorebooksView() {
 
   return (
     <SectionPage section="lorebooks" count={lorebooks.length} hideOnPhone={detailOpen && !!book}>
-    <>
+    <PanelHost.Provider value={panelHost}>
+    {/* `relative`: the entry panel is drawn into this box (a portal), over the list and the book together */}
+    <div ref={setPanelHost} className="relative h-full min-h-0">
     <MasterDetail
       detailOpen={detailOpen && !!book}
       onBack={() => setDetailOpen(false)}
@@ -217,11 +223,12 @@ export function LorebooksView() {
         )
       }
     />
+    </div>
 
       <KeywordTest open={testOpen} onOpenChange={setTestOpen} book={book && !book.stub ? book : null} />
       <ActiveEntriesViewer open={activeViewerOpen} onOpenChange={setActiveViewerOpen} />
       {confirmDialog}
-    </>
+    </PanelHost.Provider>
     </SectionPage>
   )
 }
@@ -311,6 +318,17 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
   const active = book.entries.find((e) => e.id === activeId) ?? null
   // the panel belongs to the Entries screen: the other tabs have no entry on screen
   const panelOpen = !!active && tab === 'entries'
+  // an open entry is read and edited at length: on a desktop drawer the drawer takes the whole screen while it is open,
+  // and goes back to its own size afterwards
+  const panelHost = useContext(PanelHost)
+  const sectionHost = useSectionHost()
+  const isMobile = useIsMobile()
+  useEffect(() => {
+    if (!panelOpen || isMobile || sectionHost !== 'drawer') return
+    const was = useApp.getState().drawerFull
+    if (!was) useApp.getState().setDrawerFull(true)
+    return () => { if (!was) useApp.getState().setDrawerFull(false) }
+  }, [panelOpen, isMobile, sectionHost])
 
   /** Deleting an entry asks first; the panel closes with it. */
   const deleteEntry = (e: LoreEntry) => void confirm({
@@ -532,6 +550,7 @@ function BookEditor({ book, onUpdate, onDelete, onDuplicate, onTest }: {
         <EntryEditor
           key={active.id}
           entry={active}
+          host={panelHost}
           folders={folders}
           onChange={(patch) => { upEntry(active.id, patch); if (patch.folder) { openFolder(patch.folder); if (!listed.includes(patch.folder)) onUpdate({ folders: addToFolderList(listed, patch.folder) }) } }}
           onDelete={() => deleteEntry(active)}

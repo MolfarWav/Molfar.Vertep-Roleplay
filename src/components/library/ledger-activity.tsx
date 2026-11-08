@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Eye, Trophy } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Eye, Trophy } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useT, useRelativeTime } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
-import type { LitActivity, LitActivityKind } from './litopys-api'
+import type { LitActivity, LitActivityKind, LitChat } from './litopys-api'
+import { removeLitTurn } from './litopys-api'
+import { canUndoFoundTurn } from './turns-util'
 import type { TabProps } from './ledger-facts'
 import { UndoAuto, canUndo } from './ledger-proposals'
 import type { MsgKey } from '@/lib/i18n'
@@ -48,6 +52,15 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'fact.retire': return t('lit.act.factRetire', { text })
     case 'fact.restore': return t('lit.act.factRestore', { text })
     case 'fact.delete': return t('lit.act.factDelete', { text })
+    case 'turn.add':
+      // the server writes one kind for all three: the worker found it, the user marked a chapter, the user wrote it
+      return a.by === 'worker' ? t('lit.act.turnFound', { text }) : a.text.startsWith('Marked') ? t('lit.act.turnMark', { text }) : t('lit.act.turnAdd', { text })
+    case 'turn.edit': return t('lit.act.turnEdit', { text })
+    case 'turn.remove': return t('lit.act.turnRemove', { text })
+    case 'turn.undo': return a.text.startsWith('Put back') ? t('lit.act.turnPutBack', { text }) : t('lit.act.turnUndo', { text })
+    case 'turn.stance': return t('lit.act.turnStance', { who: typeof d.who === 'string' ? d.who : '', line: typeof d.line === 'string' ? d.line : '' })
+    case 'turn.accept': return t('lit.act.turnAccept', { text })
+    case 'turn.dismiss': return t('lit.act.turnDismiss', { text })
     case 'chapter.edit': return t('lit.act.chapterEdit', { label })
     case 'chapter.rewrite': return t('lit.act.chapterRewrite', { label })
     case 'chapter.delete': return keepGone ? t('lit.act.chapterDeleteKept', { label }) : t('lit.act.chapterDelete', { label })
@@ -84,6 +97,30 @@ function activityText(a: LitActivity, t: (key: MsgKey, vars?: Record<string, str
     case 'consolidate.fail': return t('lit.act.consolidateFail', { error })
     default: return a.text
   }
+}
+
+/** Undo for a turning point the worker found: it is taken out again, and whatever it undid is active again. */
+function UndoFoundTurn({ chat, turnId, onChat, onRefresh }: { chat: LitChat; turnId: string; onChat: (c: LitChat) => void; onRefresh: () => void }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      onChat(await removeLitTurn(chat.chatId, turnId))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      onRefresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button size="sm" variant="outline" className="min-h-10 md:min-h-8" disabled={busy} onClick={() => void run()} data-testid="turn-undo-found">
+      <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
+      {t('lit.undo')}
+    </Button>
+  )
 }
 
 /** A small icon for the rows about habits (the other rows have none): a glance tells a habit seen from a habit earned. */
@@ -157,6 +194,10 @@ export function ActivityTab({ chat, onChat, onRefresh }: TabProps) {
                 {a.kind === 'proposal.auto' && (() => {
                   const p = chat.proposals.find((x) => x.id === a.ids[0])
                   return canUndo(p) ? <span className="ml-auto"><UndoAuto chat={chat} proposal={p} onChat={onChat} onRefresh={onRefresh} /></span> : null
+                })()}
+                {a.kind === 'turn.add' && a.by === 'worker' && (() => {
+                  const turn = (chat.turns ?? []).find((x) => x.id === a.ids[0])
+                  return canUndoFoundTurn(turn) ? <span className="ml-auto"><UndoFoundTurn chat={chat} turnId={turn.id} onChat={onChat} onRefresh={onRefresh} /></span> : null
                 })()}
               </div>
             </li>

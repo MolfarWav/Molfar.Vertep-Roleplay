@@ -6,7 +6,7 @@ Pick a board with the **Board** switch at the top: **Chat links**, **Prompt**, *
 
 ## Chat links
 
-A map of your chats. Each chat is a card. A line from one chat to another means "this chat continues that one": the earlier chat's story rides along as backstory in the later chat's replies, within the backstory budget set in the Library. A solid line is a continuation. A dashed line is a branch forked from a message.
+A map of your chats. Each chat is a card. A line from one chat to another means "this chat continues that one": the earlier chat's story rides along as backstory in the later chat's replies, within the backstory budget set in the Library. The nearest three earlier chats are read in full and older ones condensed ([[long-chats]]). A solid line is a continuation. A dashed line is a branch forked from a message.
 
 - Chats you have not put on the board wait in the list on the left (**Chats**). Drag one onto the board, or use **Put on the board** (with **its linked chats** to bring the whole chain). Drag a card back to the list, or use **Remove**, to take it off the board. The chat itself stays in the Library.
 - Switch **Edit** on to connect or disconnect cards. A link that would make a loop, join a chat to itself or repeat an existing one is refused, and the board says why. **Undo** and **Redo** are there. **Fit** frames the whole graph.

@@ -7,7 +7,9 @@ export interface CarriesAnswer {
   /** The chat's meta.promptBoard.off keys. */
   off: string[]
   litopys: { tokens: number; facts: number; chapters: number }
-  backstory: { from: string; title: string; tokens: number; facts: number; chapters: number; text: string } | null
+  backstory: { from: string; title: string; tokens: number; facts: number; chapters: number; turns?: number; text: string } | null
+  /** #288: the chats older than the three the backstory reads whole, condensed into one part (chat 1 is the oldest). */
+  backstoryFar?: { chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number; text: string } | null
   /** #113: the chat continues an earlier one but opens with the card's greeting (the first message is that greeting). */
   opening?: { messageId: string; title: string } | null
   cardMemory: { cardId: string; name: string; tokens: number; dupes: number; sources: string[]; text: string } | null
@@ -37,9 +39,9 @@ export interface DashCarries {
 }
 
 /** 'world' is the World DM; the saved world's memory is 'worldmem' and the persona's is 'personamem'. */
-export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
+export type CarryKind = 'memory' | 'habits' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'backstoryFar' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
-export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'recollections', 'backstory', 'litopys', 'dashboard', 'said', 'world', 'note']
+export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'personamem', 'worldmem', 'recollections', 'backstory', 'backstoryFar', 'litopys', 'dashboard', 'said', 'world', 'note']
 export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:journal' | 'plugin:world'
 
 export interface CarryPart {
@@ -67,6 +69,8 @@ export interface CarriesLabels {
   /** "3 characters" */
   characters: (n: number) => string
   backstory: (title: string) => string
+  /** "chats 1-2" */
+  backstoryFar: (range: string) => string
   litopys: string
   dashboard: string
   said: string
@@ -119,11 +123,14 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
     parts.push({ key: 'recollections', kind: 'recollections', label: labels.recollections(names), tokens: rc.tokens, off: isOff('plugin:recollections'), switchKey: 'plugin:recollections' })
   }
 
+  const bf = carries?.backstoryFar
+  if (bf) parts.push({ key: 'backstoryFar', kind: 'backstoryFar', label: labels.backstoryFar(bf.first === bf.last ? String(bf.first) : `${bf.first}-${bf.last}`), tokens: bf.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })
+
   const bs = carries?.backstory
   if (bs) parts.push({ key: 'backstory', kind: 'backstory', label: labels.backstory(bs.title), tokens: bs.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })
 
   const lit = carries?.litopys
-  if (lit && (lit.tokens > 0 || (isOff('plugin:litopys') && !bs))) {
+  if (lit && (lit.tokens > 0 || (isOff('plugin:litopys') && !bs && !bf))) {
     parts.push({ key: 'litopys', kind: 'litopys', label: labels.litopys, tokens: lit.tokens, off: isOff('plugin:litopys'), switchKey: 'plugin:litopys' })
   }
 

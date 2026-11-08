@@ -41,6 +41,9 @@ export interface TraceChapter {
 /** One word-for-word passage of an earlier chat that was put into the newest reply (#184): the chat's title, how many rare words it shares with what was being said, and the excerpt shown (about 240 characters, may start or end with "…"). */
 export interface TraceVerbatim { chat: string; title: string; words: number; text: string }
 
+/** The far part of a long backstory the newest reply carried (#288): chats `first` to `last` of the story, condensed. */
+export interface TraceFar { chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number }
+
 export interface LitopysTrace {
   at: number
   op: string
@@ -60,6 +63,8 @@ export interface LitopysTrace {
   chapters: TraceChapter[]
   /** the passages of the newest reply only; empty or absent for an older reply, an older plugin, or when the setting is off */
   verbatim?: TraceVerbatim[]
+  /** the newest reply only; null or absent when the story is short, or for an older plugin */
+  far?: TraceFar | null
 }
 
 export interface DatabankTrace {
@@ -137,6 +142,8 @@ export function chaptersIn(tr: LitopysTrace): TraceChapter[] {
 export function chaptersOut(tr: LitopysTrace): TraceChapter[] {
   return tr.chapters.filter((c) => c.state === 'out')
 }
+export const farIn = (tr: LitopysTrace): TraceFar | null => (tr.far && tr.far.chats > 0 ? tr.far : null)
+export const farRange = (f: Pick<TraceFar, 'first' | 'last'>): string => (f.first === f.last ? String(f.first) : `${f.first}-${f.last}`)
 export function verbatimIn(tr: LitopysTrace): TraceVerbatim[] {
   return Array.isArray(tr.verbatim) ? tr.verbatim : []
 }
@@ -220,6 +227,8 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
       `- ${c.id}${c.arc ? ' (arc)' : ''} [${c.state}, ${whyEn(String(c.why))}${c.rank ? `, rank ${c.rank}` : ''}]${c.cast.length ? ` (cast: ${c.cast.map(personLabel).join(', ')})` : ''} ${c.gone ? '(removed since)' : cut(`${c.label ? c.label + ': ' : ''}${c.text}`, 140)}`
     out.push('', `Chapters in (${chaptersIn(lit).length}):`, ...(chaptersIn(lit).length ? chaptersIn(lit).map(chap) : ['- none']))
     out.push('', `Chapters kept out (${chaptersOut(lit).length}${(n.unseen ?? 0) ? `, ${n.unseen} not witnessed by the speaker` : ''}):`, ...(chaptersOut(lit).length ? chaptersOut(lit).map(chap) : ['- none']))
+    const far = farIn(lit)
+    if (far) out.push('', `Far backstory: chats ${farRange(far)} of the story, condensed (~${far.tokens} tok.): ${far.turns} turning point(s), ${far.facts} fact(s), ${far.units} arc line(s)`)
     const vb = verbatimIn(lit)
     if (vb.length) out.push('', `Earlier, word for word (${vb.length}):`, ...vb.map((v) => `- "${v.title || v.chat}" shares ${v.words} rare word${v.words === 1 ? '' : 's'}: ${cut(v.text.replace(/\s+/g, ' '), 260)}`))
   }

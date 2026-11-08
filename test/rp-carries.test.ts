@@ -9,6 +9,7 @@ const labels = {
   recollections: (n: string) => `Recollections: ${n}`,
   characters: (n: number) => `${n} characters`,
   backstory: (t: string) => `Backstory “${t}”`,
+  backstoryFar: (r: string) => `Far chats ${r}`,
   litopys: "Litopys",
   dashboard: "Dashboard",
   said: "Said",
