@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Chat lunghe e costo dei token
 
 Una chat che va avanti per settimane cresce, e ogni risposta invia al modello una parte sempre maggiore di essa. Questa pagina è per chi si ritrova con risposte lente o costose, oppure con un modello che dimentica l'inizio della storia.
@@ -35,11 +35,17 @@ In un punto naturale di pausa, una chat nuova che continua quella vecchia parte 
 
 1. Nella chat, apri "More" e scegli **Continue in a new chat**, oppure premi Yes nel popup.
 2. La chat nuova viene creata subito e si apre. Mantiene il preset e le sue scelte, la persona, il modello, l'insieme di agenti, l'ordine dei turni di un gruppo e il mondo del World DM.
-3. Riceve la vecchia storia come retroscena: capitoli e fatti, fino a tre chat indietro, entro il "Backstory budget". I vecchi messaggi non vengono inviati.
+3. Riceve la vecchia storia come retroscena, entro il "Backstory budget". Le tre chat precedenti più vicine vengono lette per intero: capitoli, fatti e punti di svolta. Le chat più vecchie di una catena lunga non vengono scartate: entrano in un'unica parte condensata (vedi sotto). I vecchi messaggi non vengono inviati.
 
 La chat precedente passa poi da sola all'Archivio (sezione successiva). Il collegamento è quello che disegna il Canvas, e il Canvas può cambiarlo in seguito: vedi [[canvas]]. Per scegliere un'altra chat precedente, avvia una chat dal personaggio e usa il menu **Continues** nel passo "New chat with".
 
 La chat nuova si apre con il primo saluto della scheda; "Edit the first message" ti permette di proseguire da dove la storia si era fermata.
+
+## Una storia di molte chat
+
+Una storia può andare avanti per molte chat. Le tre chat precedenti più vicine danno i loro capitoli, archi e fatti come prima. Ogni chat più vecchia finisce in un'unica parte **far**, collocata per prima: i suoi punti di svolta, i fatti fissati e quelli chiave, e una riga per ogni arco. La parte viene costruita da ciò che Litopys ha già scritto, senza chiamate extra al modello, e per impostazione predefinita occupa il 18% del Backstory budget (Library, Litopys settings, "In the prompt", **Share for the far chats**, da 5 a 40). **Turning points shown** nello stesso blocco stabilisce quanti ne entrano in una risposta lungo tutta la storia (12 per impostazione predefinita). Se il budget è corto, le chat più vecchie perdono per prime le loro righe, e i punti di svolta per ultimi. In **What this chat carries** ha una riga a sé, "Far backstory, chats 1-2", così vedi che le prime chat sono state conservate, non perse. Una catena corta non ha una parte far. Alza il Backstory budget se una storia lunga sembra povera.
+
+Una parte condensata lascia fuori i dettagli minuti (il colore di un mantello); i ricordi parola per parola qui sotto li riportano.
 
 ## Archiviare una storia finita
 
@@ -56,7 +62,7 @@ Perché conviene: la chat precedente non cambia più, quindi la sua memoria rest
 
 ## Dettagli che i capitoli hanno lasciato fuori
 
-Un capitolo è una riscrittura, quindi un piccolo dettaglio di una chat precedente può esserne sparito. Nella Library, Litopys settings, "In the prompt", l'interruttore **Word-for-word memories of earlier chats** permette a una chat che ne continua altre di riportare uno o due passaggi dei messaggi originali, quando ciò che si dice condivide parole rare con essi ([[litopys]]). Disattivato per impostazione predefinita.
+Un capitolo è una riscrittura, quindi un piccolo dettaglio di una chat precedente può esserne sparito. Nella Library, Litopys settings, "In the prompt", l'interruttore **Word-for-word memories of earlier chats** (attivo per impostazione predefinita) permette a una chat che ne continua altre di riportare uno o due passaggi dei messaggi originali, quando ciò che si dice condivide parole rare con essi ([[litopys]]). La chat precedente viene indicizzata quando passa all'Archivio. Lavora sulle parole, quindi un dettaglio raccontato con altre parole non viene trovato; l'interruttore sperimentale **Also find old chapters by meaning** (disattivato) riduce un po' questo divario quando usi gli embeddings: trova il capitolo per significato, ma un passaggio ha comunque bisogno di una parola rara tutta sua.
 
 ## Salvare una storia come libro
 

@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 Le World DM est un maître de jeu pour le monde d'une discussion. Après les réponses, il lit l'histoire et garde les personnes, lieux et choses qu'il rencontre dans le livre de connaissances propre à la discussion, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde semble vivant et cohérent.
@@ -29,6 +29,8 @@ Supprimez une réponse, ou balayez vers une autre, et le DM reprend ce qu'il ava
 Les enregistrements que vous avez modifiés à la main restent, sauf si le DM a changé le même enregistrement ensuite. Un enregistrement que vous avez supprimé reste supprimé. Supprimer d'anciens messages en tête, lire d'autres balayages d'une ancienne réponse et modifier le texte d'une réponse ne reprennent rien.
 
 ## Onglets de la section Monde
+
+L'engrenage à côté du titre de la liste World ouvre **World settings**, en blocs repliables comme les Litopys settings : le modèle de jeu (avec un interrupteur pour le remplacer pour ce Monde, la limite de réponses et un bouton de test), le modèle de construction, le modèle d'image, l'interrupteur des arrière-plans et si vous êtes prévenu des échecs. Un bloc replié affiche en une ligne ce qui y est réglé.
 
 Sur la discussion choisie : Overview (les mêmes commandes que la feuille), Places (un arbre des lieux, avec une image d'arrière-plan par lieu), World book (lire, écrire, retirer ou supprimer des entrées à la main), Runs (historique, jetons, erreurs), Start (ébauche d'entrées depuis les cartes ou un court entretien), Backgrounds (planifier et dessiner un ensemble d'images ; avec « Change the background by scene » activé, le Dashboard choisit celle qui convient ; avec « Draw places that have no picture » aussi activé (il est toujours listé là, grisé tant que le changement de scène et la génération d'images ne sont pas activés), un lieu vers lequel l'histoire se déplace et qui n'a pas d'image est dessiné sur-le-champ par le modèle d'image du Monde et rangé dans le dossier ; « Look of the pictures » y prend quelques mots en anglais (par exemple `medieval fantasy, candlelight`), ajoutés à chaque arrière-plan dessiné pour la discussion, lieu dessiné sur-le-champ ou ensemble ; la feuille Display de la discussion y mène par un lien). Aussi **Profiles** et **Worlds**.
 

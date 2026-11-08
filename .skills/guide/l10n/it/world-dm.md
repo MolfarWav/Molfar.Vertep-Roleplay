@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 Il World DM è un game master per il mondo di una chat. Dopo le risposte legge la storia e conserva le persone, i luoghi e le cose che incontra nel lorebook della chat, chiamato libro del mondo. Ai livelli più alti muove anche il mondo e manda eventi nella scena. Usalo quando vuoi che il mondo sembri vivo e coerente.
@@ -29,6 +29,8 @@ Elimina una risposta, oppure fai swipe verso un'altra, e il DM ritira ciò che a
 I record che hai cambiato a mano restano, a meno che il DM non abbia cambiato in seguito lo stesso record. Un record che hai eliminato resta eliminato. Eliminare messaggi vecchi dall'inizio, leggere altri swipe di una risposta più vecchia e modificare il testo di una risposta non ritirano nulla.
 
 ## Schede della sezione World
+
+L'ingranaggio accanto al titolo dell'elenco World apre **World settings**, in blocchi ripiegabili come le Litopys settings: il modello di gioco (con un interruttore per sostituirlo per questo World, il limite di risposta e un pulsante di prova), il modello di costruzione, il modello di immagini, l'interruttore degli sfondi e se ti vengono segnalati gli errori. Un blocco ripiegato mostra in una riga ciò che è impostato.
 
 Sulla chat scelta: Overview (gli stessi controlli del foglio), Places (un albero di luoghi, con un'immagine di sfondo per luogo), World book (leggi, scrivi, ritira o elimina voci a mano), Runs (cronologia, token, errori), Start (prepara voci dalle schede o da una breve intervista), Backgrounds (pianifica e disegna un insieme di immagini; con "Change the background by scene" attivo, la Dashboard sceglie quella adatta; con anche "Draw places that have no picture" attivo (è sempre elencato lì, grigio finché non sono accesi il cambio di scena e la generazione di immagini), un luogo in cui la storia si sposta e che non ha un'immagine viene disegnato sul momento dal modello di immagini del World e archiviato nella cartella; "Look of the pictures" accetta qualche parola in inglese (per esempio `medieval fantasy, candlelight`) che viene aggiunta a ogni sfondo disegnato per la chat, a un luogo disegnato sul momento o a un insieme; il foglio Display della chat ha un collegamento qui). Inoltre **Profiles** e **Worlds**.
 

@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Lange Chats und Token-Kosten
 
 Ein Chat, der wochenlang läuft, wird größer, und jede Antwort schickt mehr davon an das Modell. Diese Seite ist für alle, deren Antworten langsam oder teuer werden oder deren Modell den Anfang der Geschichte vergisst.
@@ -35,11 +35,17 @@ An einer natürlichen Pause startet ein neuer Chat, der den alten fortsetzt, mit
 
 1. Im Chat „More“ öffnen und **Continue in a new chat** wählen oder im Popup Yes drücken.
 2. Der neue Chat wird sofort erstellt und öffnet sich. Er behält das Preset und seine Auswahl, die Persona, das Modell, das Agent-Set, die Zugreihenfolge einer Gruppe und die Welt des World DM.
-3. Er bekommt die alte Geschichte als Hintergrund: Kapitel und Fakten, bis zu drei Chats zurück, innerhalb des „Backstory budget“. Die alten Nachrichten werden nicht gesendet.
+3. Er bekommt die alte Geschichte als Hintergrund, innerhalb des „Backstory budget“. Die drei nächsten früheren Chats werden vollständig gelesen: Kapitel, Fakten und Wendepunkte. Ältere Chats einer langen Kette fallen nicht weg: Sie reisen in einem verdichteten Teil mit (siehe unten). Die alten Nachrichten werden nicht gesendet.
 
 Der frühere Chat wandert danach selbst ins Archiv (nächster Abschnitt). Die Verknüpfung ist die, die das Canvas zeichnet, und das Canvas kann sie später ändern: siehe [[canvas]]. Um einen anderen früheren Chat zu wählen, starte einen Chat vom Charakter aus und nutze das Menü **Continues** im Schritt „New chat with“.
 
 Der neue Chat öffnet mit der ersten Begrüßung der Karte; „Edit the first message“ lässt dich dort weitermachen, wo die Geschichte aufhörte.
+
+## Eine Geschichte aus vielen Chats
+
+Eine Geschichte kann über viele Chats gehen. Die drei nächsten früheren Chats liefern wie bisher ihre Kapitel, Handlungsbögen und Fakten. Jeder ältere Chat geht in einen **far**-Teil, der zuerst gesetzt wird: seine Wendepunkte, die angehefteten und Key-Fakten und eine Zeile für jeden Handlungsbogen. Der Teil wird aus dem gebaut, was Litopys bereits geschrieben hat, ohne zusätzlichen Modellaufruf, und nimmt standardmäßig 18 % des Backstory-Budgets ein (Library, Litopys settings, „In the prompt“, **Share for the far chats**, 5 bis 40). **Turning points shown** im selben Block legt fest, wie viele über die ganze Geschichte in einer Antwort mitreisen (standardmäßig 12). Ist das Budget knapp, verlieren die ältesten Chats zuerst ihre Zeilen, die Wendepunkte zuletzt. Unter **What this chat carries** hat er eine eigene Zeile, „Far backstory, chats 1-2“, damit du siehst, dass die ersten Chats erhalten blieben und nicht verloren gingen. Eine kurze Kette hat keinen far-Teil. Erhöhe das Backstory-Budget, wenn eine lange Geschichte dünn wirkt.
+
+Ein verdichteter Teil lässt kleine Details weg (die Farbe eines Umhangs); die wortgetreuen Erinnerungen unten bringen sie zurück.
 
 ## Eine fertige Geschichte archivieren
 
@@ -56,7 +62,7 @@ Warum: Der frühere Chat ändert sich nicht mehr, damit seine Erinnerung stabil 
 
 ## Details, die die Kapitel verloren haben
 
-Ein Kapitel ist eine Nacherzählung, daher kann ein kleines Detail eines früheren Chats daraus verschwunden sein. In der Library, Litopys settings, „In the prompt“, bringt der Schalter **Word-for-word memories of earlier chats** in einem Chat, der andere fortsetzt, eine oder zwei Passagen der ursprünglichen Nachrichten zurück, wenn das Gesagte seltene Wörter mit ihnen teilt ([[litopys]]). Standardmäßig aus.
+Ein Kapitel ist eine Nacherzählung, daher kann ein kleines Detail eines früheren Chats daraus verschwunden sein. In der Library, Litopys settings, „In the prompt“ bringt der Schalter **Word-for-word memories of earlier chats** (standardmäßig an) in einem Chat, der andere fortsetzt, eine oder zwei Passagen der ursprünglichen Nachrichten zurück, wenn das Gesagte seltene Wörter mit ihnen teilt ([[litopys]]). Der frühere Chat wird indexiert, wenn er ins Archive geht. Die Suche passt auf Wörter, daher wird ein Detail, das mit anderen Worten erzählt wurde, nicht gefunden. Der experimentelle Schalter **Also find old chapters by meaning** (aus) verringert diese Lücke ein wenig, wenn du Embeddings nutzt: Er findet das Kapitel über den Sinn, doch eine Passage braucht trotzdem ein eigenes seltenes Wort.
 
 ## Eine Geschichte als Buch speichern
 

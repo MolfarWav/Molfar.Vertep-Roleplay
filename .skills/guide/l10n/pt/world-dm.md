@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -29,6 +29,8 @@ Apague uma resposta, ou faça swipe para outra, e o DM desfaz o que aprendeu com
 Registros que você mudou à mão permanecem, a menos que o DM tenha mudado o mesmo registro depois. Um registro que você apagou continua apagado. Apagar mensagens antigas do topo, ler outros swipes de uma resposta antiga e editar o texto de uma resposta não desfazem nada.
 
 ## Abas da seção World
+
+O ícone de engrenagem ao lado do título da lista World abre **World settings**, em blocos dobráveis como as configurações do Litopys: o modelo de jogo (com um interruptor para substituí-lo neste World, o limite de respostas e um botão de teste), o modelo de construção, o modelo de imagem, o interruptor de fundos e se você é avisado sobre falhas. Um bloco dobrado mostra o que está configurado em uma linha.
 
 No chat escolhido: Overview (os mesmos controles da folha), Places (uma árvore de lugares, com uma imagem de fundo por lugar), World book (ler, escrever, aposentar ou apagar registros à mão), Runs (histórico, tokens, erros), Start (rascunhar registros a partir de cartões ou de uma entrevista curta), Backgrounds (planejar e desenhar um conjunto de imagens; com "Change the background by scene" ligado, o Dashboard escolhe a adequada; com "Draw places that have no picture" também ligado (ele fica sempre listado ali, esmaecido até a troca de cena e a geração de imagens estarem ligadas), um lugar para o qual a história vai e que não tem imagem é desenhado na hora pelo modelo de imagem do World e arquivado na pasta; "Look of the pictures" ali aceita algumas palavras em inglês (por exemplo `medieval fantasy, candlelight`) que são acrescentadas a todo fundo desenhado para o chat, a um lugar desenhado na hora ou a um conjunto; a folha Display do chat tem um link aqui). Também **Profiles** e **Worlds**.
 

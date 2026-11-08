@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: links de chats, o prompt e os agentes
 
 O Canvas é a bancada técnica do Roleplay: uma tela com quadros, onde você vê e muda como os chats se conectam e o que cada chat envia ao modelo. Você não precisa dele para jogar. Abra-o quando uma história precisar de uma sequência, quando uma resposta tiver surpreendido você ou quando você for montar agentes.
@@ -7,7 +7,7 @@ Escolha um quadro com o interruptor **Board** no topo: **Chat links**, **Prompt*
 
 ## Chat links
 
-Um mapa dos seus chats. Cada chat é um cartão. Uma linha de um chat até outro significa "este chat continua aquele": a história do chat anterior vai junto como pano de fundo nas respostas do chat posterior, dentro do orçamento de pano de fundo definido na Library. Linha contínua é uma continuação. Linha tracejada é um ramo bifurcado a partir de uma mensagem.
+Um mapa dos seus chats. Cada chat é um cartão. Uma linha de um chat até outro significa "este chat continua aquele": a história do chat anterior vai junto como pano de fundo nas respostas do chat posterior, dentro do orçamento de pano de fundo definido na Library. Os três chats anteriores mais próximos são lidos por inteiro e os mais antigos são condensados ([[long-chats]]). Linha contínua é uma continuação. Linha tracejada é um ramo bifurcado a partir de uma mensagem.
 
 - Os chats que você não colocou no quadro ficam esperando na lista à esquerda (**Chats**). Arraste um para o quadro, ou use **Put on the board** (com **its linked chats** para trazer a cadeia inteira). Arraste um cartão de volta para a lista, ou use **Remove**, para tirá-lo do quadro. O chat em si continua na Library.
 - Ligue **Edit** para conectar ou desconectar cartões. Um link que criaria um laço, ligaria um chat a si mesmo ou repetiria um link existente é recusado, e o quadro diz o motivo. **Undo** e **Redo** estão disponíveis. **Fit** enquadra o grafo inteiro.

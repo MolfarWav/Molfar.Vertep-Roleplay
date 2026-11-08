@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: chatkoppelingen, de prompt en agents
 
 Canvas is de technische werkbank van Roleplay: één scherm met borden, waar je ziet en wijzigt hoe chats met elkaar zijn verbonden en wat elke chat naar het model stuurt. Je hebt het niet nodig om te spelen. Open het wanneer een verhaal een vervolg nodig heeft, wanneer een antwoord je verraste, of wanneer je agents bouwt.
@@ -7,7 +7,7 @@ Kies een bord met de schakelaar **Board** bovenaan: **Chat links**, **Prompt**, 
 
 ## Chat links
 
-Een kaart van je chats. Elke chat is een kaart. Een lijn van de ene chat naar de andere betekent "deze chat gaat verder op die": het verhaal van de eerdere chat reist mee als achtergrond in de antwoorden van de latere chat, binnen het achtergrondbudget dat in de Library is ingesteld. Een volle lijn is een vervolg. Een gestippelde lijn is een tak die uit een bericht is afgesplitst.
+Een kaart van je chats. Elke chat is een kaart. Een lijn van de ene chat naar de andere betekent "deze chat gaat verder op die": het verhaal van de eerdere chat reist mee als achtergrond in de antwoorden van de latere chat, binnen het achtergrondbudget dat in de Library is ingesteld. De drie dichtstbijzijnde eerdere chats worden volledig gelezen, oudere worden samengevat ([[long-chats]]). Een volle lijn is een vervolg. Een gestippelde lijn is een tak die uit een bericht is afgesplitst.
 
 - Chats die je nog niet op het bord hebt gezet, wachten in de lijst links (**Chats**). Sleep er één op het bord, of gebruik **Put on the board** (met **its linked chats** om de hele keten mee te halen). Sleep een kaart terug naar de lijst, of gebruik **Remove**, om hem van het bord te halen. De chat zelf blijft in de Library.
 - Zet **Edit** aan om kaarten te verbinden of te ontkoppelen. Een koppeling die een lus zou maken, een chat aan zichzelf koppelt of een bestaande herhaalt, wordt geweigerd, en het bord zegt waarom. **Undo** en **Redo** zijn er. **Fit** zet de hele graaf in beeld.

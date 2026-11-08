@@ -1,4 +1,4 @@
-<!-- source: 827aa22ed836 -->
+<!-- source: 0b3281e4764e -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -29,6 +29,8 @@ Bir yanıtı silerseniz ya da başka birine kaydırırsanız, DM eski yanıttan 
 Elle değiştirdiğiniz kayıtlar, DM aynı kaydı sonradan değiştirmediği sürece kalır. Sildiğiniz bir kayıt silinmiş kalır. Baştaki eski mesajları silmek, eski bir yanıtın başka kaydırmalarını okumak ve bir yanıtın metnini düzenlemek hiçbir şeyi geri almaz.
 
 ## World bölümü sekmeleri
+
+World listesinin başlığının yanındaki dişli, Litopys ayarları gibi katlanır bloklarda **World settings**'i açar: oyun modeli (bu World için geçersiz kılma anahtarı, yanıt sınırı ve bir test düğmesiyle), kurma modeli, görüntü modeli, arka plan anahtarı ve hatalardan haberdar edilip edilmeyeceğiniz. Katlanmış bir blok, ayarlanmış olanı tek satırda gösterir.
 
 Seçilen sohbette: Overview (sayfayla aynı kontroller), Places (her yer için bir arka plan resmiyle bir yer ağacı), World book (kayıtları elle okuma, yazma, emekliye ayırma ya da silme), Runs (geçmiş, token'lar, hatalar), Start (kartlardan ya da kısa bir görüşmeden kayıt taslakları), Backgrounds (bir resim seti planlama ve çizme; "Change the background by scene" açıkken Dashboard uygun olanı seçer; "Draw places that have no picture" da açıksa (orada her zaman listelenir, sahne değişimi ve görüntü üretimi açılana kadar soluk görünür), hikâyenin geçtiği, resmi olmayan bir yer World'ün görüntü modeliyle hemen çizilir ve klasöre kaydedilir; oradaki "Look of the pictures" sohbet için çizilen her arka plana, hemen çizilen bir yere ya da bir sete eklenen birkaç İngilizce sözcük alır (örneğin `medieval fantasy, candlelight`); sohbetin Display sayfasında buraya bir bağlantı vardır). Ayrıca **Profiles** ve **Worlds**.
 

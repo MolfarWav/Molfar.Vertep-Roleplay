@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Chats largos y costo en tokens
 
 Un chat que dura semanas crece, y cada respuesta envía más de él al modelo. Esta página es para quien ve sus respuestas lentas o caras, o cuyo modelo olvida el inicio de la historia.
@@ -35,11 +35,17 @@ En una pausa natural, un chat nuevo que continúa el anterior empieza con un pro
 
 1. En el chat, abre "More" y elige **Continue in a new chat**, o pulsa Yes en el aviso.
 2. El chat nuevo se crea al momento y se abre. Conserva el preset y sus elecciones, la persona, el modelo, el conjunto de agentes, el orden de turnos de un grupo y el mundo del World DM.
-3. Recibe la historia anterior como trasfondo: capítulos y hechos, hasta tres chats atrás, dentro del "Backstory budget". Los mensajes antiguos no se envían.
+3. Recibe la historia anterior como trasfondo, dentro del "Backstory budget". Los tres chats anteriores más cercanos se leen completos: capítulos, hechos y puntos de inflexión. Los chats más antiguos de una cadena larga no se descartan: viajan en una sola parte condensada (véase abajo). Los mensajes antiguos no se envían.
 
 El chat anterior pasa luego al Archive por sí solo (sección siguiente). El enlace es el que dibuja el Canvas, y el Canvas puede cambiarlo después: véase [[canvas]]. Para elegir otro chat anterior, inicia un chat desde el personaje y usa el menú **Continues** en el paso "New chat with".
 
 El chat nuevo se abre con el saludo inicial de la tarjeta; "Edit the first message" te deja seguir donde se detuvo la historia.
+
+## Una historia de muchos chats
+
+Una historia puede continuar en muchos chats. Los tres chats anteriores más cercanos aportan sus capítulos, arcos y hechos como antes. Cada chat más antiguo entra en una sola parte **far**, colocada primero: sus puntos de inflexión, los hechos fijados y clave, y una línea por cada arco. La parte se construye con lo que Litopys ya escribió, sin llamadas extra al modelo, y ocupa por defecto el 18% del Backstory budget (Library, Litopys settings, "In the prompt", **Share for the far chats**, de 5 a 40). **Turning points shown** en el mismo bloque fija cuántos viajan en una respuesta a lo largo de toda la historia (12 por defecto). Si el presupuesto es corto, los chats más antiguos pierden primero sus líneas, y los puntos de inflexión, al final. En **What this chat carries** tiene su propia fila, "Far backstory, chats 1-2", para que veas que los primeros chats se conservaron y no se perdieron. Una cadena corta no tiene parte far. Sube el Backstory budget si una historia larga se siente escasa.
+
+Una parte condensada descarta pequeños detalles (el color de una capa); los recuerdos palabra por palabra de más abajo los recuperan.
 
 ## Archivar una historia terminada
 
@@ -56,7 +62,7 @@ Para qué sirve: el chat anterior ya no cambia, así que su memoria se mantiene 
 
 ## Detalles que los capítulos dejaron fuera
 
-Un capítulo es una narración, así que un pequeño detalle de un chat anterior puede haber desaparecido. En la Library, Litopys settings, "In the prompt", el interruptor **Word-for-word memories of earlier chats** permite que un chat que continúa otros recupere uno o dos pasajes de los mensajes originales cuando lo que se dice comparte palabras poco comunes con ellos ([[litopys]]). Apagado por defecto.
+Un capítulo es una narración, así que un pequeño detalle de un chat anterior puede haber desaparecido. En la Library, Litopys settings, "In the prompt", el interruptor **Word-for-word memories of earlier chats** (activado por defecto) permite que un chat que continúa otros recupere uno o dos pasajes de los mensajes originales cuando lo que se dice comparte palabras poco comunes con ellos ([[litopys]]). El chat anterior se indexa cuando pasa al Archive. Coincide por palabras, así que un detalle contado con otras palabras no se encuentra; el interruptor experimental **Also find old chapters by meaning** (apagado) reduce un poco esa brecha cuando usas embeddings: encuentra el capítulo por significado, pero un pasaje sigue necesitando una palabra poco común propia.
 
 ## Guardar una historia como libro
 

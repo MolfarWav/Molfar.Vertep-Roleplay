@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Chats longos e custo de tokens
 
 Um chat que dura semanas cresce, e cada resposta envia mais dele ao modelo. Esta página é para quem tem respostas lentas ou caras, ou um modelo que esquece o começo da história.
@@ -35,11 +35,17 @@ Numa pausa natural, um chat novo que continua o antigo começa com um prompt peq
 
 1. No chat, abra "More" e escolha **Continue in a new chat**, ou pressione Yes no pop-up.
 2. O chat novo é criado na hora e se abre. Ele mantém o preset e as escolhas dele, a persona, o modelo, o conjunto de agentes, a ordem de turnos de um grupo e o mundo do World DM.
-3. Ele recebe a história antiga como pano de fundo: capítulos e fatos, até três chats para trás, dentro do "Backstory budget". As mensagens antigas não são enviadas.
+3. Ele recebe a história antiga como pano de fundo, dentro do "Backstory budget": os três chats anteriores mais próximos são lidos por inteiro, com capítulos, fatos e pontos de virada. Os chats mais antigos de uma cadeia longa não são descartados: eles entram em uma parte condensada (veja abaixo). As mensagens antigas não são enviadas.
 
 O chat anterior então vai para o Archive por conta própria (próxima seção). O vínculo é o que o Canvas desenha, e o Canvas pode mudá-lo depois: veja [[canvas]]. Para escolher outro chat anterior, comece um chat a partir do personagem e use o menu **Continues** na etapa "New chat with".
 
 O chat novo se abre com a saudação inicial do cartão; "Edit the first message" permite continuar de onde a história parou.
+
+## Uma história de muitos chats
+
+Uma história pode continuar por muitos chats. Os três chats anteriores mais próximos dão seus capítulos, arcos e fatos, como antes. Cada chat mais antigo entra em uma única parte **far**, colocada primeiro: seus pontos de virada, os fatos fixados e os key, e uma linha para cada arco. A parte é montada a partir do que o Litopys já escreveu, sem nenhuma chamada extra ao modelo, e ocupa por padrão 18% do Backstory budget (Library, Litopys settings, "In the prompt", **Share for the far chats**, de 5 a 40). **Turning points shown**, no mesmo bloco, define quantos deles entram em uma resposta em toda a história (12 por padrão). Se o orçamento for curto, os chats mais antigos perdem suas linhas primeiro, e os pontos de virada por último. Em **What this chat carries** ela aparece como uma linha própria, "Far backstory, chats 1-2", para você ver que os primeiros chats foram mantidos, não perdidos. Uma cadeia curta não tem parte far. Aumente o Backstory budget se uma história longa parecer fraca.
+
+Uma parte condensada deixa de fora pequenos detalhes (a cor de uma capa); as memórias palavra por palavra, abaixo, trazem esses detalhes de volta.
 
 ## Arquive uma história concluída
 
@@ -56,7 +62,7 @@ Por que se incomodar: o chat anterior não muda mais, então a memória dele fic
 
 ## Detalhes que os capítulos deixaram de fora
 
-Um capítulo é uma recontagem, então um pequeno detalhe de um chat anterior pode ter sumido dele. Na Library, Litopys settings, "In the prompt", o interruptor **Word-for-word memories of earlier chats** permite que um chat que continua outros traga de volta uma ou duas passagens das mensagens originais quando o que está sendo dito compartilha palavras raras com elas ([[litopys]]). Desligado por padrão.
+Um capítulo é uma recontagem, então um pequeno detalhe de um chat anterior pode ter sumido dele. Na Library, Litopys settings, "In the prompt", o interruptor **Word-for-word memories of earlier chats** (ligado por padrão) permite que um chat que continua outros traga de volta uma ou duas passagens das mensagens originais quando o que está sendo dito compartilha palavras raras com elas ([[litopys]]). O chat anterior é indexado quando vai para o Archive. Ele combina palavras, então um detalhe contado com outras palavras não é encontrado; o interruptor experimental **Also find old chapters by meaning** (desligado) diminui um pouco essa lacuna quando você usa embeddings: ele encontra o capítulo pelo sentido, mas uma passagem ainda precisa de uma palavra rara própria.
 
 ## Salve uma história como livro
 

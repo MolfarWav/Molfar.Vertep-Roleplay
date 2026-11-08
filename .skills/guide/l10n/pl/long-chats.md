@@ -1,4 +1,4 @@
-<!-- source: 9efd9a7576a4 -->
+<!-- source: 49838714a096 -->
 # Długie czaty i koszt tokenów
 
 Czat, który trwa tygodniami, rośnie, a każda odpowiedź wysyła modelowi coraz więcej. Ta strona jest dla każdego, czyje odpowiedzi zwalniają lub drożeją, albo czyj model zapomina początek historii.
@@ -35,11 +35,17 @@ W naturalnej przerwie nowy czat, który kontynuuje stary, zaczyna się małym pr
 
 1. W czacie otwórz „More” i wybierz **Continue in a new chat**, albo naciśnij Yes w oknie.
 2. Nowy czat powstaje od razu i się otwiera. Zachowuje preset i jego wybory, personę, model, zestaw agentów, kolejność tur grupy i świat World DM.
-3. Dostaje starą historię jako tło: rozdziały i fakty, do trzech czatów wstecz, w ramach „Backstory budget”. Stare wiadomości nie są wysyłane.
+3. Dostaje starą historię jako tło, w ramach „Backstory budget”. Trzy najbliższe wcześniejsze czaty są czytane w całości: rozdziały, fakty i punkty zwrotne. Starsze czaty długiego łańcucha nie znikają: jadą w jednej skondensowanej części (zobacz niżej). Stare wiadomości nie są wysyłane.
 
 Poprzedni czat przechodzi potem sam do **Archive** (następna sekcja). Połączenie to to, które rysuje Canvas, a Canvas może je później zmienić: zobacz [[canvas]]. Aby wybrać inny wcześniejszy czat, zacznij czat z postaci i użyj menu **Continues** w kroku „New chat with”.
 
 Nowy czat otwiera się z powitaniem z karty; „Edit the first message” pozwala ruszyć dalej tam, gdzie historia się zatrzymała.
+
+## Historia z wielu czatów
+
+Historia może trwać w wielu czatach. Trzy najbliższe wcześniejsze czaty dają, jak dotąd, swoje rozdziały, łuki i fakty. Każdy starszy czat trafia do jednej części **far**, umieszczonej na początku: jego punkty zwrotne, przypięte i kluczowe fakty oraz jedna linijka na każdy łuk. Część jest budowana z tego, co Litopys już zapisał, bez dodatkowego wywołania modelu, i domyślnie zajmuje 18% „Backstory budget” (Library, Litopys settings, „In the prompt”, **Share for the far chats**, od 5 do 40). **Turning points shown** w tym samym bloku ustawia, ile punktów zwrotnych jedzie w odpowiedzi przez całą historię (domyślnie 12). Gdy budżet jest za mały, najstarsze czaty tracą swoje linijki jako pierwsze, a punkty zwrotne na końcu. W **What this chat carries** jest na to osobny wiersz, „Far backstory, chats 1-2”, dzięki czemu widać, że pierwsze czaty zostały zachowane, a nie zgubione. Krótki łańcuch nie ma części far. Jeśli długa historia wydaje się uboga, podnieś Backstory budget.
+
+Skondensowana część gubi drobne szczegóły (kolor płaszcza); wspomnienia słowo w słowo, opisane poniżej, je przywracają.
 
 ## Archiwizuj skończoną historię
 
@@ -56,7 +62,7 @@ Po co to: wcześniejszy czat już się nie zmienia, więc jego pamięć jest sta
 
 ## Szczegóły, które odrzuciły rozdziały
 
-Rozdział to opowieść na nowo, więc drobny szczegół wcześniejszego czatu może z niego zniknąć. W Library, Litopys settings, „In the prompt” przełącznik **Word-for-word memories of earlier chats** pozwala czatowi, który kontynuuje inne, przywrócić jeden lub dwa fragmenty oryginalnych wiadomości, gdy to, co się mówi, dzieli z nimi rzadkie słowa ([[litopys]]). Domyślnie wyłączone.
+Rozdział to opowieść na nowo, więc drobny szczegół wcześniejszego czatu może z niego zniknąć. W Library, Litopys settings, „In the prompt” przełącznik **Word-for-word memories of earlier chats** (domyślnie włączony) pozwala czatowi, który kontynuuje inne, przywrócić jeden lub dwa fragmenty oryginalnych wiadomości, gdy to, co się mówi, dzieli z nimi rzadkie słowa ([[litopys]]). Wcześniejszy czat jest indeksowany, gdy przechodzi do Archive. Przeszukiwanie idzie po słowach, więc szczegół powiedziany innymi słowami nie zostanie znaleziony; eksperymentalny przełącznik **Also find old chapters by meaning** (wyłączony) nieco zmniejsza tę lukę, gdy używasz embeddings: znajduje rozdział po znaczeniu, ale fragment i tak potrzebuje jednego własnego rzadkiego słowa.
 
 ## Zapisz historię jako książkę
 

@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: połączenia czatów, prompt i agenci
 
 Canvas to techniczny warsztat Roleplay: jeden ekran z planszami, na którym widzisz i zmieniasz, jak połączone są czaty i co każdy czat wysyła do modelu. Do grania nie jest potrzebny. Otwórz go, gdy historia potrzebuje kontynuacji, gdy odpowiedź cię zaskoczyła albo gdy budujesz agentów.
@@ -7,7 +7,7 @@ Wybierz planszę przełącznikiem **Board** u góry: **Chat links**, **Prompt**,
 
 ## Chat links
 
-Mapa twoich czatów. Każdy czat to karta. Linia od jednego czatu do drugiego znaczy „ten czat kontynuuje tamten”: historia wcześniejszego czatu jedzie jako tło w odpowiedziach późniejszego, w ramach budżetu tła ustawionego w Library. Linia ciągła to kontynuacja. Linia przerywana to gałąź rozwidlona z wiadomości.
+Mapa twoich czatów. Każdy czat to karta. Linia od jednego czatu do drugiego znaczy „ten czat kontynuuje tamten”: historia wcześniejszego czatu jedzie jako tło w odpowiedziach późniejszego, w ramach budżetu tła ustawionego w Library. Najbliższe trzy wcześniejsze czaty są czytane w całości, a starsze są skondensowane ([[long-chats]]). Linia ciągła to kontynuacja. Linia przerywana to gałąź rozwidlona z wiadomości.
 
 - Czaty, których nie położyłeś na planszy, czekają na liście po lewej (**Chats**). Przeciągnij jeden na planszę albo użyj **Put on the board** (z **its linked chats**, aby przenieść cały łańcuch). Przeciągnij kartę z powrotem na listę albo użyj **Remove**, aby zdjąć ją z planszy. Sam czat zostaje w Library.
 - Włącz przełącznik **Edit**, aby łączyć lub rozłączać karty. Połączenie, które zrobiłoby pętlę, łączyłoby czat sam ze sobą albo powtarzało istniejące, jest odrzucane, a plansza mówi dlaczego. Są **Undo** i **Redo**. **Fit** dopasowuje widok do całego grafu.

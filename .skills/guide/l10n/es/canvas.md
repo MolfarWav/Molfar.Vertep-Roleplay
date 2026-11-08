@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: enlaces entre chats, el prompt y los agentes
 
 Canvas es la mesa de trabajo técnica de Roleplay: una sola pantalla con tableros, donde ves y cambias cómo se conectan los chats y qué envía cada chat al modelo. No lo necesitas para jugar. Ábrelo cuando una historia necesite una secuela, cuando una respuesta te sorprenda o cuando construyas agentes.
@@ -7,7 +7,7 @@ Elige un tablero con el interruptor **Board** de arriba: **Chat links**, **Promp
 
 ## Enlaces entre chats
 
-Un mapa de tus chats. Cada chat es una tarjeta. Una línea de un chat a otro significa "este chat continúa aquel": la historia del chat anterior viaja como trasfondo en las respuestas del chat posterior, dentro del presupuesto de trasfondo que fija la Library. Una línea continua es una continuación. Una línea discontinua es una rama bifurcada desde un mensaje.
+Un mapa de tus chats. Cada chat es una tarjeta. Una línea de un chat a otro significa "este chat continúa aquel": la historia del chat anterior viaja como trasfondo en las respuestas del chat posterior, dentro del presupuesto de trasfondo que fija la Library. Los tres chats anteriores más cercanos se leen completos y los más antiguos se condensan ([[long-chats]]). Una línea continua es una continuación. Una línea discontinua es una rama bifurcada desde un mensaje.
 
 - Los chats que no has puesto en el tablero esperan en la lista de la izquierda (**Chats**). Arrastra uno al tablero, o usa **Put on the board** (con **its linked chats** para traer toda la cadena). Arrastra una tarjeta de vuelta a la lista, o usa **Remove**, para quitarla del tablero. El chat en sí sigue en la Library.
 - Activa **Edit** para conectar o desconectar tarjetas. Un enlace que haría un bucle, uniría un chat consigo mismo o repetiría uno existente se rechaza, y el tablero dice por qué. Están **Undo** y **Redo**. **Fit** encuadra todo el grafo.

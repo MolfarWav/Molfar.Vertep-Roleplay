@@ -1,4 +1,4 @@
-<!-- source: 4243150676b0 -->
+<!-- source: 045cbad8d708 -->
 # Canvas: sohbet bağlantıları, istem ve ajanlar
 
 Canvas, Roleplay'in teknik çalışma tezgâhıdır: sohbetlerin nasıl bağlandığını ve her sohbetin modele ne gönderdiğini gördüğünüz ve değiştirdiğiniz, panolardan oluşan tek bir ekran. Oynamak için buna ihtiyacınız yoktur. Bir hikâyenin devamına ihtiyaç duyduğunuzda, bir yanıt sizi şaşırttığında ya da ajan kurduğunuzda açın.
@@ -7,7 +7,7 @@ Canvas, Roleplay'in teknik çalışma tezgâhıdır: sohbetlerin nasıl bağland
 
 ## Chat links
 
-Sohbetlerinizin bir haritası. Her sohbet bir karttır. Bir sohbetten diğerine giden çizgi, "bu sohbet şu sohbeti sürdürür" anlamına gelir: önceki sohbetin hikâyesi, Library'de ayarlanan arka plan öyküsü bütçesi dahilinde, sonraki sohbetin yanıtlarında arka plan olarak taşınır. Düz çizgi bir devamdır. Kesik çizgi, bir mesajdan çatallanan bir daldır.
+Sohbetlerinizin bir haritası. Her sohbet bir karttır. Bir sohbetten diğerine giden çizgi, "bu sohbet şu sohbeti sürdürür" anlamına gelir: önceki sohbetin hikâyesi, Library'de ayarlanan arka plan öyküsü bütçesi dahilinde, sonraki sohbetin yanıtlarında arka plan olarak taşınır. En yakın üç önceki sohbet tam olarak okunur, daha eskileri ise özetlenir ([[long-chats]]). Düz çizgi bir devamdır. Kesik çizgi, bir mesajdan çatallanan bir daldır.
 
 - Panoya koymadığınız sohbetler soldaki listede (**Chats**) bekler. Birini panoya sürükleyin ya da **Put on the board** düğmesini kullanın (**its linked chats** ile zincirin tamamını getirmek için). Bir kartı listeye geri sürükleyin ya da **Remove** ile panodan çıkarın. Sohbetin kendisi Library'de kalır.
 - Kartları bağlamak veya bağlantısını kesmek için **Edit** anahtarını açın. Döngü oluşturacak, bir sohbeti kendisine bağlayacak ya da mevcut bir bağlantıyı tekrarlayacak bağlantı reddedilir ve pano nedenini söyler. **Undo** ve **Redo** de oradadır. **Fit** tüm grafiği çerçeveye alır.
