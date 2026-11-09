@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { CaretRight, Plus, Trash } from '@phosphor-icons/react'
 import { SHOW_BY_KIND } from '@/canvas-kit/boards/agent'
+import { DASH_FIELDS, DICE_DIES, DICE_WHATS, diceType } from '@/canvas-kit/boards/agent-check.js'
 import type { CanvasNode, Graph } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
-import { DashReadRows, DashWriteForm } from './dash-fields'
+import { DashFieldSelect, DashReadRows, DashWriteForm, OfBox } from './dash-fields'
 import { INPUT_SOURCES, OUTPUT_KINDS, portsOf, setWire, wireChoices } from '@/lib/forge'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -121,7 +122,20 @@ const OPS: Record<string, string[]> = {
 const NO_RIGHT = new Set(['isSet', 'isMissing', 'isYes', 'isNo', 'isUnknown', 'changed'])
 const COOLDOWN_MAX = 50 // IF_COOLDOWN_MAX of the checker
 
-interface Row { left: { from: string; port: string }; op: string; right?: { value?: unknown; from?: string; port?: string } }
+type Operand = { from?: string; port?: string; field?: string; as?: string; of?: string; what?: string; die?: string; value?: unknown }
+interface Row { left: Operand; op: string; right?: Operand }
+
+/** What a rule's left side reads: a wire, a Dashboard field, the chat or one of the World DM's dice (#155). */
+const READS = ['wire', 'state', 'chat', 'dice'] as const
+const CHAT_WHATS = ['messageCount', 'lastSpeaker'] as const
+/** The type a rule's left side has, so the form offers only the conditions that work on it. */
+function typeOfLeft(o: Operand, typeOf: (port: string) => string): string {
+  if (o.from === 'wire') return typeOf(o.port ?? '')
+  if (o.from === 'state') return (DASH_FIELDS as Record<string, { as: string }>)[o.field ?? '']?.as ?? 'text'
+  if (o.from === 'chat') return o.what === 'messageCount' ? 'number' : 'text'
+  if (o.from === 'dice') return diceType(o)
+  return 'text'
+}
 
 function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Params) => void }) {
   const t = useT()
@@ -131,7 +145,7 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
   // the inputs are what the rules read: one per name, so they follow the rules
   const write = (next: Row[], match = params.match) => {
     const seen = new Map<string, string>()
-    for (const r of next) if (r.left?.from === 'wire') seen.set(r.left.port, typeOf(r.left.port))
+    for (const r of next) if (r.left?.from === 'wire' && r.left.port) seen.set(r.left.port, typeOf(r.left.port))
     for (const r of next) if (r.right?.from === 'wire' && r.right.port) seen.set(r.right.port, seen.get(r.right.port) ?? typeOf(r.right.port))
     onChange({ ...params, match, rows: next, inputs: [...seen].map(([id, type]) => ({ id, type })) })
   }
@@ -144,10 +158,13 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
     const inputsNext = inputs.some((x) => x.id === port) ? inputs.map((x) => (x.id === port ? { ...x, type } : x)) : [...inputs, { id: port, type }]
     onChange({ ...params, rows: nextRows, inputs: inputsNext })
   }
-  const fresh = () => {
-    let n = rows.length + 1
+  const uniquePort = (from: number) => {
+    let n = from + 1
     while (inputs.some((i) => i.id === `value${n}`)) n++
-    const id = `value${n}`
+    return `value${n}`
+  }
+  const fresh = () => {
+    const id = uniquePort(rows.length)
     onChange({ ...params, rows: [...rows, { left: { from: 'wire', port: id }, op: 'eq', right: { value: '' } }], inputs: [...inputs, { id, type: 'text' }] })
   }
   const parseRight = (type: string, op: string, raw: string): unknown => {
@@ -181,34 +198,90 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
         </NativeSelect>
       </Field>
       {rows.map((r, i) => {
-        const type = r.left?.from === 'wire' ? typeOf(r.left.port) : 'text'
-        const literal = r.left?.from === 'wire' && (!r.right || r.right.from === undefined)
+        const from = r.left?.from
+        const type = typeOfLeft(r.left ?? {}, typeOf)
+        const literal = READS.includes(from as (typeof READS)[number]) && (!r.right || r.right.from === undefined)
+        const remove = (
+          <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.if.removeRule')} onClick={() => write(rows.filter((_, k) => k !== i))}><Trash className="size-4" aria-hidden="true" /></Button>
+        )
         if (!literal) {
           return (
-            <div key={i} className="flex items-center gap-2 rounded-md border border-dashed border-border p-2 text-[11px] text-muted-foreground">
+            <div key={i} className="flex items-center gap-2 rounded-md border border-dashed border-border p-2 text-caption text-muted-foreground">
               <span className="min-w-0 flex-1">{t('fg.if.advancedRow')}</span>
-              <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.if.removeRule')} onClick={() => write(rows.filter((_, k) => k !== i))}><Trash className="size-4" aria-hidden="true" /></Button>
+              {remove}
             </div>
           )
         }
+        const start = (lt: string): Operand => ({ value: lt === 'number' ? 0 : '' })
+        // another thing to read: the rule starts over, with a condition that fits what it reads
+        const reads = (k: string) => {
+          if (k === from) return
+          let left: Operand = { from: 'wire', port: uniquePort(i) }
+          if (k === 'state') left = { from: 'state', field: '', as: 'text' }
+          else if (k === 'chat') left = { from: 'chat', what: 'messageCount' }
+          else if (k === 'dice') left = { from: 'dice', die: 'pace', what: 'outcome' }
+          const lt = typeOfLeft(left, typeOf)
+          write(rows.map((x, j) => (j === i ? { left, op: OPS[lt][0], right: start(lt) } : x)))
+        }
+        // the left side changed: keep the condition if it still works on the new type, else the first one that does
+        const setLeft = (left: Operand) => {
+          const lt = typeOfLeft(left, typeOf)
+          const op = OPS[lt].includes(r.op) ? r.op : OPS[lt][0]
+          write(rows.map((x, j) => (j === i ? (NO_RIGHT.has(op) ? { left, op } : { left, op, right: lt === type && x.right ? x.right : start(lt) }) : x)))
+        }
+        const ops = OPS[type] ?? OPS.text
         return (
           <div key={i} className="flex flex-col gap-1.5 rounded-md border border-border p-2">
             <div className="flex gap-1.5">
-              <Input defaultValue={r.left.port} aria-label={t('fg.if.name')} className="max-md:h-10" onBlur={(e) => {
-                const v = e.target.value.replace(/[^A-Za-z0-9_-]/g, '')
-                if (!v || v === r.left.port) { e.target.value = r.left.port; return }
-                const inputsNext = inputs.map((x) => (x.id === r.left.port ? { ...x, id: v } : x))
-                onChange({ ...params, rows: rows.map((x) => (x.left.port === r.left.port ? { ...x, left: { from: 'wire', port: v } } : x)), inputs: inputsNext })
-              }} />
-              <NativeSelect value={type} label={t('fg.if.kind')} onChange={(k) => setType(r.left.port, k)}>
-                <option value="text">{t('fg.shape.text')}</option>
-                <option value="number">{t('fg.shape.number')}</option>
-                <option value="flag">{t('fg.shape.bool')}</option>
+              <NativeSelect value={String(from)} label={t('fg.if.reads')} onChange={reads}>
+                {READS.map((k) => <option key={k} value={k}>{t(`fg.if.reads.${k}` as MsgKey)}</option>)}
               </NativeSelect>
-              <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" aria-label={t('fg.if.removeRule')} onClick={() => write(rows.filter((_, k) => k !== i))}><Trash className="size-4" aria-hidden="true" /></Button>
+              {from !== 'wire' && remove}
             </div>
+            {from === 'wire' && (
+              <div className="flex gap-1.5">
+                <Input defaultValue={r.left.port} aria-label={t('fg.if.name')} className="max-md:h-10" onBlur={(e) => {
+                  const v = e.target.value.replace(/[^A-Za-z0-9_-]/g, '')
+                  if (!v || v === r.left.port) { e.target.value = r.left.port ?? ''; return }
+                  const inputsNext = inputs.map((x) => (x.id === r.left.port ? { ...x, id: v } : x))
+                  onChange({ ...params, rows: rows.map((x) => (x.left.port === r.left.port ? { ...x, left: { from: 'wire', port: v } } : x)), inputs: inputsNext })
+                }} />
+                <NativeSelect value={type} label={t('fg.if.kind')} onChange={(k) => setType(r.left.port ?? '', k)}>
+                  <option value="text">{t('fg.shape.text')}</option>
+                  <option value="number">{t('fg.shape.number')}</option>
+                  <option value="flag">{t('fg.shape.bool')}</option>
+                </NativeSelect>
+                {remove}
+              </div>
+            )}
+            {from === 'state' && (
+              <>
+                <DashFieldSelect value={r.left.field ?? ''} list={DASH_FIELDS as never} label={t('fg.if.field')} onChange={(f) => {
+                  const spec = (DASH_FIELDS as Record<string, { as: string; char?: true }>)[f]
+                  setLeft({ from: 'state', field: f, as: spec?.as ?? 'text', ...(spec?.char && r.left.of ? { of: r.left.of } : {}) })
+                }} />
+                {(DASH_FIELDS as Record<string, { char?: true }>)[r.left.field ?? '']?.char && (
+                  <OfBox value={r.left.of} label={t('fg.dash.ofRead')} onChange={(of) => setLeft({ ...r.left, of: of.trim() ? of : undefined })} />
+                )}
+              </>
+            )}
+            {from === 'chat' && (
+              <NativeSelect value={String(r.left.what)} label={t('fg.if.chatWhat')} onChange={(what) => setLeft({ from: 'chat', what })}>
+                {CHAT_WHATS.map((w) => <option key={w} value={w}>{t(`fg.if.chat.${w}` as MsgKey)}</option>)}
+              </NativeSelect>
+            )}
+            {from === 'dice' && (
+              <div className="flex gap-1.5">
+                <NativeSelect value={String(r.left.die)} label={t('fg.if.die')} onChange={(die) => setLeft({ ...r.left, die })}>
+                  {DICE_DIES.map((d: string) => <option key={d} value={d}>{t(`fg.if.die.${d}` as MsgKey)}</option>)}
+                </NativeSelect>
+                <NativeSelect value={String(r.left.what)} label={t('fg.if.diceWhat')} onChange={(what) => setLeft({ ...r.left, what })}>
+                  {Object.keys(DICE_WHATS).map((w) => <option key={w} value={w}>{t(`fg.if.dice.${w}` as MsgKey)}</option>)}
+                </NativeSelect>
+              </div>
+            )}
             <NativeSelect value={r.op} label={t('fg.if.op')} onChange={(op) => write(rows.map((x, k) => (k === i ? (NO_RIGHT.has(op) ? { left: x.left, op } : { ...x, op, right: { value: op === 'between' ? [0, 1] : op === 'in' ? [] : type === 'number' ? 0 : '' } }) : x)))}>
-              {OPS[type].map((op) => <option key={op} value={op}>{t(`fg.op.${op}` as MsgKey)}</option>)}
+              {ops.map((op) => <option key={op} value={op}>{t(`fg.op.${op}` as MsgKey)}</option>)}
             </NativeSelect>
             {!NO_RIGHT.has(r.op) && (
               <Input

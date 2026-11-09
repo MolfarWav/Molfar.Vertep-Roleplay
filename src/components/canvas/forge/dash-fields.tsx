@@ -38,7 +38,7 @@ export function DashFieldSelect({ value, list, label, onChange }: { value: strin
 }
 
 /** The character box of a per-character field: empty means whoever wrote the last reply. */
-function OfBox({ value, label, onChange }: { value: unknown; label: string; onChange: (name: string) => void }) {
+export function OfBox({ value, label, onChange }: { value: unknown; label: string; onChange: (name: string) => void }) {
   const t = useT()
   return (
     <Field label={label} hint={t('fg.dash.ofHint')}>

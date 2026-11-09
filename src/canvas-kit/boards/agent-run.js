@@ -15,7 +15,7 @@
 // reads it answers Unknown. A card that needs a value and gets SKIP or missing data is skipped, and so is
 // everything that depends only on it; a skipped card costs nothing.
 
-import { AGENT_CARDS, dashKey, splitEnd } from './agent-check.js';
+import { AGENT_CARDS, dashKey, diceType, splitEnd } from './agent-check.js';
 
 const SKIP = { skip: true };
 const PENDING = { pending: true };
@@ -155,7 +155,7 @@ const N = 'no';
 const U = 'unknown';
 
 /** A rule's operand as the run log names it. */
-const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : 'value');
+const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : o.from === 'dice' ? o.die + ' die ' + o.what : 'value');
 const showVal = (v) => (typeof v === 'string' ? JSON.stringify(clip(v, 40)) : Array.isArray(v) ? JSON.stringify(v).slice(0, 60) : String(v));
 
 /** One rule of an If card: Y, N or U. Missing data is U (except isSet / isMissing, which are about exactly that). */
@@ -291,6 +291,7 @@ function runCards(file, ctx, answers, seen) {
   const inputs = (ctx && ctx.inputs) || {};
   const dash = (ctx && ctx.dash) || {};
   const chat = (ctx && ctx.chat) || {};
+  const dice = (ctx && ctx.dice) || {};
   const given = answers || {};
   const n = ctx && Number.isInteger(ctx.n) && ctx.n > 0 ? ctx.n : 1;
   const memo = isPlain(ctx && ctx.memo) ? JSON.parse(JSON.stringify(ctx.memo)) : {};
@@ -408,6 +409,7 @@ function runCards(file, ctx, answers, seen) {
           if (o.from === 'wire') { const v = ins[o.port]; return { value: v === ABSENT ? undefined : v, type: types[o.port] }; }
           if (o.from === 'state') return { value: dash[dashKey(o)], type: o.as };
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
+          if (o.from === 'dice') return { value: isPlain(dice[o.die]) ? dice[o.die][o.what] : undefined, type: diceType(o) };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
         const m = isPlain(memo[id]) ? memo[id] : {};

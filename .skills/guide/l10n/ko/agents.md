@@ -1,4 +1,4 @@
-<!-- source: 2e8e4f51b7cb -->
+<!-- source: ec7d17369d16 -->
 # 에이전트와 에이전트 제작소
 
 에이전트는 카드와 연결선으로 만드는 작은 도우미입니다. 채팅의 일부를 읽고(답장 전이나 후, 원하는 대로 고를 수 있습니다), 모델에게 짧은 질문을 하나 이상 할 수 있으며, 자체 메모를 보관하고, 무언가를 보여 줍니다: 답장 아래의 메모, 누를 수 있는 버튼, 수치 표시, 지도, 또는 다음 답장을 위한 힌트. 예: 추천 다음 행동 세 가지, 긴장도 표시, 방문한 장소 지도. 이 페이지는 그런 추가 기능을 원하는 분을 위한 것입니다. 도움말에는 편집기에 관한 문서가 세 편 있습니다: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
@@ -35,7 +35,7 @@
 
 ### If 카드의 옵션
 
-If 카드는 규칙에 따라 Yes, No 또는 Unknown으로 답하며, 규칙이 맞는 동안에는 그 자체로 매 실행마다 Yes라고 답합니다. 규칙 아래의 **When it answers Yes**가 이것을 바꿉니다: "Every time"(기본값), "Only when it turns Yes"(Yes가 아니던 상태에서 Yes로 바뀌는 순간에 발동하며, 답이 다시 돌아간 뒤에야 또 발동합니다), 또는 "Only once in this chat". **Pause after it fires (runs)**는 Yes 뒤에 에이전트의 실행을 그 횟수만큼 건너뜁니다(0~50). 실행은 에이전트의 한 턴이므로, 세 번째 답장마다 실행되는 에이전트에서 2의 일시 정지는 여섯 답장 동안 이어집니다. 규칙에서 "changed since the last run"을 쓸 수도 있습니다: 값이 마지막 실행 때와 다르면 Yes입니다. 보류되는 것은 Yes뿐입니다. No와 Unknown은 그대로 나옵니다. 에이전트는 이것을 채팅마다 기억하며, 에이전트의 "start over"를 누르면 잊습니다. Try 탭은 카드가 왜 그렇게 답했는지(규칙, 읽은 값, 결과)를 보여 주고, 보류된 Yes가 있을 때는 어떤 옵션이 보류했는지도 보여 줍니다. 답장 아래의 에이전트 로그에도 같은 줄이 남습니다.
+If 카드는 규칙에 따라 Yes, No 또는 Unknown으로 답하며, 규칙이 맞는 동안에는 그 자체로 매 실행마다 Yes라고 답합니다. 규칙 아래의 **When it answers Yes**가 이것을 바꿉니다: "Every time"(기본값), "Only when it turns Yes"(Yes가 아니던 상태에서 Yes로 바뀌는 순간에 발동하며, 답이 다시 돌아간 뒤에야 또 발동합니다), 또는 "Only once in this chat". **Pause after it fires (runs)**는 Yes 뒤에 에이전트의 실행을 그 횟수만큼 건너뜁니다(0~50). 실행은 에이전트의 한 턴이므로, 세 번째 답장마다 실행되는 에이전트에서 2의 일시 정지는 여섯 답장 동안 이어집니다. 규칙에서 "changed since the last run"을 쓸 수도 있습니다: 값이 마지막 실행 때와 다르면 Yes입니다. 양식에서 각 규칙은 **What the rule reads**를 고릅니다: 연결해 둔 값, Dashboard 값, 채팅(메시지 수, 마지막으로 말한 사람), 또는 World DM 주사위(Fate, Life 또는 Pacing: 이번 답장에 메모를 넣었는지, 그 결과가 무엇이었는지). 주사위를 읽으려면 권한 "Read what the World DM’s dice said for the last reply"가 필요하며, 답장 뒤에 실행되는 에이전트에서만 작동합니다. 보류되는 것은 Yes뿐입니다. No와 Unknown은 그대로 나옵니다. 에이전트는 이것을 채팅마다 기억하며, 에이전트의 "start over"를 누르면 잊습니다. Try 탭은 카드가 왜 그렇게 답했는지(규칙, 읽은 값, 결과)를 보여 주고, 보류된 Yes가 있을 때는 어떤 옵션이 보류했는지도 보여 줍니다. 답장 아래의 에이전트 로그에도 같은 줄이 남습니다.
 
 ## 시험 실행
 
