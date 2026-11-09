@@ -1078,6 +1078,29 @@ describe("places, things and carry", () => {
     expect(long.carry.A!.wearing.length).toBe(12);
   });
 
+  it("sensor source: the objects the sensor saw lying in the scene are everyone's nearby list, minus what has a record (#185)", () => {
+    const st = base();
+    st.settings.carrySource = "sensor";
+    const scene = {
+      place: "Living room",
+      present: ["Mei Saito"],
+      chars: { "Mei Saito": { outfit: "grey coat", holding: "cup" } },
+      objects: [{ item: "umbrella", where: "by the door" }, { item: "paper cup", where: "" }, { item: "Ceramic vase", where: "on the shelf" }],
+    };
+    const h = hereOf(st, scene, []);
+    expect(h.carry["Mei Saito"]!.nearby).toEqual(["umbrella (by the door)", "paper cup"]);
+    expect(h.carry["Mei Saito"]!.wearing).toEqual(["grey coat"]);
+    // the sensor's own lines (to compare) stay as they were
+    expect(h.sensor["Mei Saito"]!.nearby).toEqual([]);
+    // the reply note does not repeat them (the Dashboard's own block already carries the objects)
+    expect(hereInsert(h) ?? "").not.toContain("umbrella");
+    // nothing lying around: the list stays empty; the DM source keeps its own list
+    expect(hereOf(st, { ...scene, objects: [] }, []).carry["Mei Saito"]!.nearby).toEqual([]);
+    st.settings.carrySource = "dm";
+    st.carry = { "Mei Saito": { wearing: [], carried: [], nearby: ["lamp"], at: 1 } };
+    expect(hereOf(st, scene, []).carry["Mei Saito"]!.nearby).toEqual(["lamp"]);
+  });
+
   it("findPlace and hereOf: the scene's place, its parent, the things here and asleep, what people carry", () => {
     const st = base();
     st.carry = { "Mei Saito": { wearing: ["grey coat"], carried: [{ what: "leather bag", where: "left shoulder" }], nearby: ["umbrella"], at: 1 } };

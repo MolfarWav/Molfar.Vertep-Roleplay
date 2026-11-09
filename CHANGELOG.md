@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Changed: **the Dashboard's "Nearby" group is filled when the sensor keeps the lists (#185).** With the default source (the Dashboard sensor) the Outfit and things card showed only Wearing and In hands; Nearby stayed empty, because only the World DM wrote it. The sensor already reports the objects lying in the scene (since 4.79.1), so the card now lists them under Nearby, as "item (where)", for every character present. A thing that already has a record in the World book shows in its own group instead and is not listed twice. No new fields for the sensor, no extra model call, and the reply prompt is unchanged (it already carries the objects in the Dashboard's own block). Not done on purpose: a separate "Carried" group for the sensor (its `holding` covers hands and carried together; a split would grow the sensor's JSON on weak models).
+
 ## 4.105.0 (2026-11-09)
 
 - Added: **Roleplay's settings are listed in the shell's Settings (Molfar.Vertep#334).** Chat Behavior (spell check, autocorrect), Appearance, Streaming, Themes and the rest were only behind "Roleplay settings" on Home, and nothing in the shell's Settings pointed there. The manifest now names the page (`settingsView`), the shell lists the app under "App settings" and a click opens it on that page (`onShellView` in `src/lib/shell-bridge.ts`, listened to once the app is ready). It needs an engine with the call (after 1.13.2); an older engine simply shows no entry. The Settings tip and the guide page say so.
