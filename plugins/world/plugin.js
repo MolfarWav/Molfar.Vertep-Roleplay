@@ -2880,7 +2880,10 @@ export function hereOf(state, scene, extra, reg) {
   }
   const carry = {};
   const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
-  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c.ids ? { ...c, ids: c.ids.map(canon) } : c;
+  // sensor source: what the sensor saw lying in the scene is every present character's nearby list (#185); a thing that has a record (by id or by name)
+  // already shows in its own group
+  const lying = state.settings.carrySource === "dm" ? [] : arr(scene && scene.objects).filter((o) => !(o.id && shown.has(canon(o.id))) && !entities.some((e) => e.kind === "thing" && e.status === "active" && refersTo(e, o.item))).map((o) => (o.where ? o.item + " (" + o.where + ")" : o.item));
+  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = { ...(c.ids ? { ...c, ids: c.ids.map(canon) } : c), ...(lying.length ? { nearby: lying } : {}) };
   const spots = place ? places.filter((e) => e.size === "spot" && e.inside && placeNamed(e.inside) === place) : [];
   return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, link, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
@@ -2907,7 +2910,8 @@ export function hereInsert(h) {
     if (c && c.hands) bits.push("holds " + c.hands);
     const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).filter((t) => !(c && c.ids && h.link && h.link[t.id] && c.ids.includes(h.link[t.id]))).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
     if (has.length) bits.push("has " + has.slice(0, 8).join(", "));
-    if (c && c.nearby.length) bits.push("near them " + c.nearby.slice(0, 4).join(", "));
+    // the sensor source's nearby list is for the Dashboard only: the reply prompt already has the objects in the Dashboard's own block
+    if (c && c.nearby.length && h.carrySource !== "sensor") bits.push("near them " + c.nearby.slice(0, 4).join(", "));
     if (bits.length) out.push(name + " " + bits.join("; ") + ".");
   }
   if (!out.length) return null;
