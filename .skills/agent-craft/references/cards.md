@@ -30,7 +30,9 @@ Wire types: `text`, `number`, `flag` (yes or no), `signal` (fired or not; the `w
 `logic.if` rows: `left` and `right` are `{ "from": "wire", "port": "<input id>" }` or `{ "value": <literal> }`.
 Operators by the input's type: text `eq`, `neq`, `contains`, `notContains`, `in` (value a list), `isSet`, `isMissing`;
 number `lt`, `lte`, `eq`, `gte`, `gt`, `between` (value `[lo, hi]`), `isSet`, `isMissing`; flag `isYes`, `isNo`, `isUnknown`; every type also `changed` (Yes when the value differs from the last run, no right side).
-`edge` fires only when the answer turns Yes, `once` only the first time, `cooldown: N` waits N runs after it fires. Use them to count a moment once instead of every reply.
+`edge` fires only when the answer turns Yes, `once` only the first time, `cooldown: N` (0 to 50) waits N runs of the agent after it fires; all three may be set and all must allow the Yes. A held Yes fires none of the outputs; No and Unknown are never held. They are booleans and a whole number: anything else is `E_IF_FIRE`. Example, a card that raises a warning once when trust falls, and not again for 5 runs after it clears and falls again:
+`{ "id": "low", "type": "logic.if", "title": "Trust fell", "params": { "inputs": [{ "id": "trust", "type": "number" }], "match": "all", "rows": [{ "left": { "from": "wire", "port": "trust" }, "op": "lt", "right": { "value": 20 } }], "edge": true, "cooldown": 5 } }`.
+A rule with `"op": "changed"` is Yes when the wired value is not what the card saw on its last run (No on the first look, Unknown when the value is missing). Its trace line in the run log is `why=<input> (<value>) <op> <value> = yes|no|unknown`, and a held Yes adds `held=<option>: ...`.
 Missing data is `unknown`, never `no`. A rule with no right side (`isYes`, `isSet`) leaves `right` out.
 
 `agent.output` places (`show`): `state-patch` log, feed, top1, top2, float, toast; `note` note, log, feed, top1, float;

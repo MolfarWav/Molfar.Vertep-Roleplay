@@ -6,7 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 - Changed: **code clocks roll a d6 for every front (#155).** With the DM option "Who moves the clocks: Code", each tick used to move every active front by 1. Now code rolls a d6 per front: 1-2 nothing, 3-4 one step, 5-6 one step and the front is *stirred*: the next DM run is told news of it may reach the story, worded by its clock stage. A front moves about two ticks in three, so clocks run a little slower than before. The rolls are seeded by chat and run, so a rerun rolls the same.
 - Added: **the If card of an agent can remember (#155).** New options `edge` (fire only when the answer turns Yes), `once` and `cooldown` (runs to wait after it fires), set in the card's form under the rules ("When it answers Yes"), and a rule operator "changed since the last run". The agent's run log now says why an If answered (`comfort (15) lt 20 = yes`) and, for a held Yes, which option held it. The memory sits in the agent's state file (`memo`, `n`), follows a regenerated reply, and goes with "start over".
-- Docs: `docs/DATA-FORMATS.md` (If memory, `stirred`, code clocks), the agent-craft skill, the guide pages for Agents and the World DM.
+- Docs: `docs/DATA-FORMATS.md` (If memory, `stirred`, code clocks), the agent-craft skill (a rule on when to use `edge`, `once`, `cooldown` and `changed`, plus an example), the guide pages for Agents and the World DM, and the Help article "Agent editor: the cards".
 
 ## 4.105.0 (2026-11-09)
 

@@ -32,6 +32,10 @@ Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** i
 
 Edits are saved as a draft a moment after you stop. Three tabs: Card (the selected card), Agent (name, when it runs, its memory, panels) and Try. A check shows "Passes the check", the number of problems and warnings, and "N model calls per run". You cannot install with problems left. "Export as a file" saves one file you can share. The chat's "Install and manage agents..." sheet has "Install an agent file" for bringing one in.
 
+### The If card's options
+
+An If card answers Yes, No or Unknown by its rules, and on its own it says Yes on every run while the rules hold. Under the rules, **When it answers Yes** changes that: "Every time" (the default), "Only when it turns Yes" (it fires on the step from not Yes to Yes, and again only after the answer has gone back), or "Only once in this chat". **Pause after it fires (runs)** skips that many of the agent's runs after a Yes, 0 to 50. A run is one turn of the agent, so an agent that runs every third reply makes a pause of 2 last six replies. A rule can also use "changed since the last run": Yes when the value differs from the last run. Only a Yes is held back; No and Unknown still come out. The agent remembers this per chat, and "start over" on the agent forgets it. The Try tab shows why a card answered (the rule, the value it read, the result) and, when it held a Yes, which option held it; the agent log under a reply keeps the same lines.
+
 ## Trial run
 
 The Try tab runs one made-up turn without touching anything. You change the inputs, and the wires on the board show what moves; with no model, each "Ask the model" card uses an example answer you can edit. Under "A real chat" pick a chat and "Fill from this chat" to load what the agent would really get. "Run with the model" then asks the real model with the real question: up to N calls, real tokens, and nothing saved to the chat or the agent.
