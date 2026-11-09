@@ -639,12 +639,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4289-4289",
+          "lines": "4346-4346",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9369-9369",
+          "lines": "9483-9483",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
@@ -654,7 +654,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4381-4381",
+          "lines": "4438-4438",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -697,7 +697,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4934-4934",
+          "lines": "4991-4991",
           "quote": "chats keep their messages."
         },
         {
@@ -1086,7 +1086,7 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4191-4191",
+          "lines": "4248-4248",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
@@ -1148,17 +1148,17 @@
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "948-948",
+          "lines": "951-951",
           "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "497-497",
+          "lines": "500-500",
           "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "943-943",
+          "lines": "946-946",
           "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
         }
       ]
@@ -1512,7 +1512,7 @@
         },
         {
           "path": "plugins/world/plugin.js",
-          "lines": "4533-4533",
+          "lines": "4537-4537",
           "quote": "must not switch off a chat that is on by default"
         },
         {
@@ -1621,12 +1621,12 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "625-625",
+          "lines": "627-627",
           "quote": "state.draft` holds a Start in progress or waiting for the player"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "637-637",
+          "lines": "639-639",
           "quote": "world/library/w-<id>.json`: a saved world"
         }
       ]
@@ -1678,7 +1678,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "609-609",
+          "lines": "611-611",
           "quote": "Backgrounds of a world: a folder of the app's Backgrounds library"
         },
         {
@@ -2042,7 +2042,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4177-4177",
+          "lines": "4234-4234",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2069,7 +2069,7 @@
       },
       "where": {
         "en": "Top-right of the chat view; on a phone it is the Menu button.",
-        "uk": "Угорі праворуч перегляду чату; на телефоні — кнопка Menu."
+        "uk": "Угорі праворуч перегляду чату; на телефоні — кнопка «Меню»."
       },
       "details": {
         "en": "The menu splits into two sections. The first holds Convert to group, Branches, Bookmarks, and Display settings, plus Author's note, Fired, Record, and World (on desktop these sit in the header; on a phone they sit above the rest of this menu). The second holds Start new chat, Delete messages, and Manage chat files.\n\nOn desktop, the story tools are also shown as buttons in the header bar when there is enough width; the menu duplicates them for access on narrower screens. Delete messages opens a selection mode rather than removing anything immediately.",
@@ -2182,7 +2182,7 @@
         },
         {
           "path": "src/components/canvas/prompt-board.tsx",
-          "lines": "95-95",
+          "lines": "96-96",
           "quote": "A part the chat can switch: on or off now (a part the preset or a condition left out has no switch)."
         },
         {
@@ -2228,7 +2228,7 @@
         },
         {
           "path": "src/components/canvas/prompt-board.tsx",
-          "lines": "249-249",
+          "lines": "252-252",
           "quote": "if (h.lastN === 0 && h.only === 'all' && h.thinking) return t('canvas.prompt.history.summary.all')"
         },
         {
@@ -2468,7 +2468,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "654-654",
+          "lines": "656-656",
           "quote": "A preset is the prompt the model gets around the chat, plus sampler settings."
         },
         {
@@ -2585,7 +2585,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "777-777",
+          "lines": "779-779",
           "quote": "Global scripts run first, then preset, then character and chat."
         },
         {
@@ -3419,7 +3419,7 @@
       ],
       "title": {
         "en": "Generate an image in the chat",
-        "uk": "Картинка в чаті: Generate image"
+        "uk": "Картинка в чаті: Створити зображення"
       },
       "aliases": {
         "en": "image picture generate draw imagine scene character portrait me background describe prompt interactive preview",
@@ -3427,11 +3427,11 @@
       },
       "short": {
         "en": "Turn on Image Generation under Tools. Then the + menu gets Generate image, and /imagine draws the scene or the picture you describe.",
-        "uk": "Увімкніть Image Generation в «Інструментах». Тоді в меню «+» з’явиться Generate image, а /imagine малює сцену або ваш опис."
+        "uk": "Увімкніть Image Generation в «Інструментах». Тоді в меню «+» з’явиться «Створити зображення», а /imagine малює сцену або ваш опис."
       },
       "details": {
         "en": "Image Generation is off until you switch on Enable image generation on its tab under Tools. Only then does the + menu get a Generate image submenu.\n\nType /imagine with no words to draw the scene. Type a word after it, you, face, me or background, to draw that, or write your own description.\n\nWith interactive mode on, you preview and can edit the description before the picture is posted. With it off, /imagine posts the picture in one step.\n\nIn the preview window, Draw picks what to draw: “The scene”, “Character”, “Portrait”, “Me” or “Background”. “Read chat again” asks the model for a fresh description. Press “Draw” to make the picture; the button then reads “Redraw” and makes another one from the description as it stands. “Post to chat” puts the picture in the chat and stays off until a picture exists. “Cancel” posts nothing.",
-        "uk": "Спершу увімкніть Enable image generation на вкладці «Image Generation» в «Інструментах». Доки це вимкнено, пункту Generate image у меню «+» немає.\n\n/imagine без слів малює сцену. Після нього можна написати you, face, me або background, або власний опис.\n\nКоли інтерактивний режим увімкнено, ви бачите картинку та опис перед публікацією й можете редагувати опис. Вимкнено — /imagine публікує в один крок.\n\nУ вікні перегляду «Draw» обирає, що малювати: «The scene», «Character», «Portrait», «Me» або «Background». «Read chat again» просить у моделі новий опис. Натисніть «Draw» — з’явиться картинка, а кнопка стане «Redraw»: вона малює ще одну за поточним описом. «Post to chat» кладе картинку в чат; без картинки вона вимкнена. «Cancel» нічого не публікує."
+        "uk": "Спершу увімкніть Enable image generation на вкладці «Image Generation» в «Інструментах». Доки це вимкнено, пункту «Створити зображення» у меню «+» немає.\n\n/imagine без слів малює сцену. Після нього можна написати you, face, me або background, або власний опис.\n\nКоли інтерактивний режим увімкнено, ви бачите картинку та опис перед публікацією й можете редагувати опис. Вимкнено — /imagine публікує в один крок.\n\nУ вікні перегляду «Draw» обирає, що малювати: «The scene», «Character», «Portrait», «Me» або «Background». «Read chat again» просить у моделі новий опис. Натисніть «Draw» — з’явиться картинка, а кнопка стане «Redraw»: вона малює ще одну за поточним описом. «Post to chat» кладе картинку в чат; без картинки вона вимкнена. «Cancel» нічого не публікує."
       },
       "sources": [
         {
@@ -3472,7 +3472,7 @@
       ],
       "where": {
         "en": "The + menu by the message box, then Generate image.",
-        "uk": "Меню «+» біля поля повідомлення, далі Generate image."
+        "uk": "Меню «+» біля поля повідомлення, далі «Створити зображення»."
       }
     },
     {
@@ -3498,7 +3498,7 @@
       },
       "where": {
         "en": "The chat header pill (on a phone: Menu), then the Model tab.",
-        "uk": "Плашка в шапці чату (на телефоні: Menu), далі вкладка «Model»."
+        "uk": "Плашка в шапці чату (на телефоні: «Меню»), далі вкладка «Model»."
       },
       "details": {
         "en": "Star models in the main Settings, under Connections and models. Starred models show up in the Model tab as quick switches.\n\nPicking a model changes the model of this chat only. Other chats keep their own.",
@@ -3668,22 +3668,22 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4138-4138",
+          "lines": "4195-4195",
           "quote": "'pc.step.title': 'New chat with {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4139-4139",
+          "lines": "4196-4196",
           "quote": "Pick a preset for this chat: the set of instructions and settings the model gets."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4142-4142",
+          "lines": "4199-4199",
           "quote": "\"Don't ask again\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4143-4143",
+          "lines": "4200-4200",
           "quote": "You can turn this back on in Settings › Chat Behavior."
         },
         {
@@ -3693,7 +3693,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4517-4517",
+          "lines": "4574-4574",
           "quote": "'ag.new.trigger': 'Agents: {what}',"
         },
         {
@@ -3738,22 +3738,22 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4140-4140",
+          "lines": "4197-4197",
           "quote": "'pc.step.start': 'Start',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9221-9221",
+          "lines": "9335-9335",
           "quote": "Знову ввімкнути можна в Налаштуваннях › Chat Behavior."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9229-9229",
+          "lines": "9343-9343",
           "quote": "'pc.settings.ask': 'Питати про пресет на початку чату',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6781-6781",
+          "lines": "6838-6838",
           "quote": "'home.startChat': 'Почати чат',"
         }
       ]
@@ -4062,17 +4062,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7499-7499",
+          "lines": "7556-7556",
           "quote": "Закріплені"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7501-7501",
+          "lines": "7558-7558",
           "quote": "'chats.when.week': 'Цього тижня',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7560-7560",
+          "lines": "7617-7617",
           "quote": "'chats.panel.delete': 'Видалити',"
         }
       ]
@@ -4094,7 +4094,7 @@
       },
       "where": {
         "en": "The More menu of a chat, then Manage chat files. On a phone: the Menu button, then Manage chat files.",
-        "uk": "Меню «Ще» у чаті, потім Manage chat files. На телефоні: кнопка Menu, потім Manage chat files."
+        "uk": "Меню «Ще» у чаті, потім Manage chat files. На телефоні: кнопка «Меню», потім Manage chat files."
       },
       "details": {
         "en": "What it lists. A window titled \"Chat files\" with the character’s name and a count. It shows only this character’s chats; forks sit under the chat they came from. Each row gives the message count, the JSONL size and the last change.\n\nRow buttons. Hover a chat to see its icons; on a phone they always show. Their tooltips read \"Rename\", \"Export TXT\", \"Export JSONL\", \"Checkpoint (fork from last message)\" and \"Delete\".\n\nExport TXT saves a plain text file named after the chat. Each message starts with the speaker’s name and a colon; a blank line separates messages. It writes the version you are looking at.\n\nExport JSONL saves one line per message, after a first line with both names. Each line keeps the other versions and whether the message is hidden. \"Import chat\" takes this format.\n\nCheckpoint (fork from last message) copies the chat, up to its last message, into a new chat and opens the copy. The original stays as it was; the copy shows as a fork under it. An empty chat has nothing to copy.\n\nRename opens a box in the row. Enter or a click elsewhere saves; Escape cancels. An empty name changes nothing.\n\nDelete. With \"Confirm Deletions\" on (the default), a dialog asks first. It says how many messages and forks go, and that this cannot be undone. With it off, the chat is deleted at once.\n\nImport chat takes JSONL chat files and attaches them to this character. Restore backup imports a backup file (zip). Start new chat opens the new-chat step (see Starting a new chat).",
@@ -4298,7 +4298,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4417-4417",
+          "lines": "4474-4474",
           "quote": "What goes into the prompt besides the history. A switch applies to this chat only."
         },
         {
@@ -4308,7 +4308,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4418-4418",
+          "lines": "4475-4475",
           "quote": "'carries.total': 'About {n} tok',"
         },
         {
@@ -4328,7 +4328,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4412-4412",
+          "lines": "4469-4469",
           "quote": "'tools.carries': '~{n} tok',"
         },
         {
@@ -4343,27 +4343,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4507-4507",
+          "lines": "4564-4564",
           "quote": "\"Off in this chat until you turn it on\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4339-4339",
+          "lines": "4396-4396",
           "quote": "\"Habits of {name}\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4422-4422",
+          "lines": "4479-4479",
           "quote": "'carries.memory.show': 'Show lines',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4440-4440",
+          "lines": "4497-4497",
           "quote": "'carries.text': 'The text that goes into the prompt',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4385-4385",
+          "lines": "4442-4442",
           "quote": "'carries.stories.toggle': 'Stories in this chat',"
         },
         {
@@ -4373,17 +4373,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4386-4386",
+          "lines": "4443-4443",
           "quote": "It changes only this chat; the card stays as it is."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4392-4392",
+          "lines": "4449-4449",
           "quote": "'carries.stories.own': 'This chat already has it.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4393-4393",
+          "lines": "4450-4450",
           "quote": "'carries.stories.cardOff': 'Switched off on the card.',"
         },
         {
@@ -4393,7 +4393,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4437-4437",
+          "lines": "4494-4494",
           "quote": "\"Author's note and card\","
         },
         {
@@ -4403,87 +4403,87 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4424-4424",
+          "lines": "4481-4481",
           "quote": "'carries.memory.edit': 'Edit in the card',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4399-4399",
+          "lines": "4456-4456",
           "quote": "'carries.label.litopys': 'Litopys',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4400-4400",
+          "lines": "4457-4457",
           "quote": "'carries.label.dashboard': 'Dashboard',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4441-4441",
+          "lines": "4498-4498",
           "quote": "'carries.label.world': 'World DM · {level}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4396-4396",
+          "lines": "4453-4453",
           "quote": "'carries.label.memory': 'Memory of {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9494-9494",
+          "lines": "9608-9608",
           "quote": "'carries.title': 'Що несе цей чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9496-9496",
+          "lines": "9610-9610",
           "quote": "'carries.total': 'Близько {n} ток.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9585-9585",
+          "lines": "9699-9699",
           "quote": "У цьому чаті вимкнено, доки ви не ввімкнете"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9463-9463",
+          "lines": "9577-9577",
           "quote": "'carries.stories.toggle': 'Історії в цьому чаті',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9500-9500",
+          "lines": "9614-9614",
           "quote": "'carries.memory.show': 'Показати рядки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9502-9502",
+          "lines": "9616-9616",
           "quote": "'carries.memory.edit': 'Змінити в картці',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9528-9528",
+          "lines": "9642-9642",
           "quote": "\"Змінити в Бібліотеці\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9588-9588",
+          "lines": "9702-9702",
           "quote": "\"Змінити в персоні\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9589-9589",
+          "lines": "9703-9703",
           "quote": "\"Змінити у світі\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9508-9508",
+          "lines": "9622-9622",
           "quote": "'carries.backstory.open': 'Відкрити той чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9512-9512",
+          "lines": "9626-9626",
           "quote": "'carries.dashboard.open': 'Відкрити дашборд',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9517-9517",
+          "lines": "9631-9631",
           "quote": "'carries.note.open': 'Відкрити',"
         }
       ]
@@ -4497,19 +4497,19 @@
       },
       "aliases": {
         "en": "plus menu continue impersonate polish expand editor big editor send image attach picture generate regenerate compose shift tab ctrl enter",
-        "uk": "меню плюс продовжити імперсонація причесати великий редактор надіслати зображення прикріпити картинку генерувати перегенерувати написати shift tab ctrl enter"
+        "uk": "меню плюс продовжити імперсонація причесати великий редактор надіслати зображення прикріпити картинку генерувати перегенерувати написати shift tab ctrl enter продовжити написати за мене великий редактор надіслати зображення прикріпити файли генерація написання"
       },
       "short": {
         "en": "The + button by the message box holds Continue, Impersonate, Polish, Expand editor and Send image. Continue writes on from the last reply.",
-        "uk": "Кнопка «+» біля поля повідомлення має Continue, Impersonate, «Причесати», Expand editor і Send image. Continue дописує останню відповідь."
+        "uk": "Кнопка «+» біля поля повідомлення має «Продовжити», «Написати за мене», «Причесати», «Великий редактор» і «Надіслати зображення». «Продовжити» дописує останню відповідь."
       },
       "where": {
         "en": "The round + button by the message box. Its groups are Generate and Compose.",
-        "uk": "Кругла кнопка «+» біля поля повідомлення. Її групи: Generate і Compose."
+        "uk": "Кругла кнопка «+» біля поля повідомлення. Її групи: «Генерація» і «Написання»."
       },
       "details": {
         "en": "Generate. Continue, Impersonate and Regenerate sit here. Continue writes on from the last reply, into that same message. Impersonate has the model write your next message. Regenerate is here too; its hint version has its own article.\n\nContinue. It extends the last reply in place. It is greyed out while a reply is being written. When the draft wraps onto a second line, Continue also sits in the row under the box.\n\nImpersonate. The model writes your next message. The text goes into the message box and nothing is sent. If you typed something meanwhile, a notice offers it with a \"Put it in\" button instead. Impersonate is greyed out while a reply is being written.\n\nCompose. Polish is here too; its own article explains it. Expand editor opens a full-height writing area on the same draft. Shift+Tab in the box opens it, and Shift+Tab in it closes it. Ctrl+Enter sends when there is something to send.\n\nSend image. It opens a file picker for images, and you can pick several. Each one can be up to 2 MB, and a message takes up to 8 attachments. The pictures wait in the box until you send.\n\nGenerate image. It appears in this menu only when the image extension is on.",
-        "uk": "Generate. Тут Continue, Impersonate і Regenerate. Continue дописує останню відповідь у ту саму відповідь. Impersonate доручає моделі написати ваше наступне повідомлення. Regenerate теж тут; варіант з підказкою має окрему статтю.\n\nContinue. Продовжує останню відповідь на місці. Кнопка неактивна, поки модель пише відповідь. Коли чернетка переходить на другий рядок, Continue є також у ряді під полем.\n\nImpersonate. Модель пише ваше наступне повідомлення. Текст іде в поле, нічого не надсилається. Якщо ви встигли щось надрукувати, з’явиться повідомлення з кнопкою «Вставити». Кнопка неактивна, поки модель пише відповідь.\n\nCompose. «Причесати» — тут теж, але про нього окрема стаття. Expand editor відкриває повноекранне поле з тією самою чернеткою. Shift+Tab у полі відкриває його, а в ньому Shift+Tab закриває. Ctrl+Enter надсилає, коли є що надсилати.\n\nSend image. Відкриває вибір зображень; можна обрати кілька. Кожне може бути до 2 MB, а в одному повідомленні до 8 вкладень. Зображення чекають у полі, доки ви не надішлете повідомлення.\n\nGenerate image. З’являється в цьому меню, лише коли ввімкнено розширення зображень."
+        "uk": "Генерація. Тут «Продовжити», «Написати за мене» і «Перегенерувати». «Продовжити» дописує останню відповідь у ту саму відповідь. «Написати за мене» доручає моделі написати ваше наступне повідомлення. «Перегенерувати» теж тут; варіант з підказкою має окрему статтю.\n\nПродовжити. Продовжує останню відповідь на місці. Кнопка неактивна, поки модель пише відповідь. Коли чернетка переходить на другий рядок, «Продовжити» є також у ряді під полем.\n\nНаписати за мене. Модель пише ваше наступне повідомлення. Текст іде в поле, нічого не надсилається. Якщо ви встигли щось надрукувати, з’явиться повідомлення з кнопкою «Вставити». Кнопка неактивна, поки модель пише відповідь. Команда /impersonate робить те саме.\n\nНаписання. «Причесати» — тут теж, але про нього окрема стаття. «Великий редактор» відкриває повноекранне поле з тією самою чернеткою. Shift+Tab у полі відкриває його, а в ньому Shift+Tab закриває. Ctrl+Enter надсилає, коли є що надсилати.\n\nНадіслати зображення. Відкриває вибір зображень; можна обрати кілька. Кожне може бути до 2 MB, а в одному повідомленні до 8 вкладень. Зображення чекають у полі, доки ви не надішлете повідомлення.\n\nСтворити зображення. З’являється в цьому меню, лише коли ввімкнено розширення зображень."
       },
       "related": [
         "kb.polish",
@@ -4526,12 +4526,12 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "573-573",
-          "quote": "<DropdownMenuLabel>Generate</DropdownMenuLabel>"
+          "quote": "<DropdownMenuLabel>{t('composer.group.generate')}</DropdownMenuLabel>"
         },
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "575-575",
-          "quote": "<ArrowsClockwise className=\"size-4\" /> Regenerate"
+          "quote": "<ArrowsClockwise className=\"size-4\" /> {t('composer.regenerate')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
@@ -4541,7 +4541,7 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "581-581",
-          "quote": "<CaretDoubleRight className=\"size-4\" /> Continue"
+          "quote": "<CaretDoubleRight className=\"size-4\" /> {t('composer.continue')}"
         },
         {
           "path": "src/lib/store.ts",
@@ -4551,7 +4551,7 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "700-700",
-          "quote": "<span className=\"max-[380px]:sr-only\">Continue</span>"
+          "quote": "<span className=\"max-[380px]:sr-only\">{t('composer.continue')}</span>"
         },
         {
           "path": "src/components/chat/composer.tsx",
@@ -4561,7 +4561,7 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "584-584",
-          "quote": "<User className=\"size-4\" /> Impersonate"
+          "quote": "<User className=\"size-4\" /> {t('composer.impersonate')}"
         },
         {
           "path": "src/lib/store.ts",
@@ -4585,13 +4585,13 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9186-9186",
+          "lines": "9243-9243",
           "quote": "'composer.putIn': 'Вставити',"
         },
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "589-589",
-          "quote": "<DropdownMenuLabel>Compose</DropdownMenuLabel>"
+          "quote": "<DropdownMenuLabel>{t('composer.group.compose')}</DropdownMenuLabel>"
         },
         {
           "path": "src/components/chat/composer.tsx",
@@ -4600,13 +4600,13 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9187-9187",
+          "lines": "9244-9244",
           "quote": "'composer.polish': 'Причесати',"
         },
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "594-594",
-          "quote": "<ArrowsOut className=\"size-4\" /> Expand editor"
+          "quote": "<ArrowsOut className=\"size-4\" /> {t('composer.expandEditor')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
@@ -4631,7 +4631,7 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "598-598",
-          "quote": "<ImageIcon className=\"size-4\" /> Send image"
+          "quote": "<ImageIcon className=\"size-4\" /> {t('composer.sendImage')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
@@ -4867,67 +4867,67 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6774-6774",
+          "lines": "6831-6831",
           "quote": "'home.customize': 'Налаштувати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6776-6776",
+          "lines": "6833-6833",
           "quote": "'home.reset': 'Скинути до типового',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6775-6775",
+          "lines": "6832-6832",
           "quote": "'home.done': 'Готово',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6809-6809",
+          "lines": "6866-6866",
           "quote": "'home.edit.earlier': 'Посунути вище',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6810-6810",
+          "lines": "6867-6867",
           "quote": "'home.edit.later': 'Посунути нижче',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6811-6811",
+          "lines": "6868-6868",
           "quote": "'home.edit.size': 'Змінити розмір (зараз {size})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6812-6812",
+          "lines": "6869-6869",
           "quote": "'home.edit.sizeSm': 'Вузький',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6814-6814",
+          "lines": "6871-6871",
           "quote": "'home.edit.sizeLg': 'На всю ширину',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6815-6815",
+          "lines": "6872-6872",
           "quote": "'home.edit.hide': 'Сховати блок',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6816-6816",
+          "lines": "6873-6873",
           "quote": "'home.edit.hidden': 'Приховані блоки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6817-6817",
+          "lines": "6874-6874",
           "quote": "'home.edit.noHidden': 'Прихованих блоків немає.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6818-6818",
+          "lines": "6875-6875",
           "quote": "'home.edit.restore': 'Повернути',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6820-6820",
+          "lines": "6877-6877",
           "quote": "'home.suggestMarket': 'Підбірки з Маркетплейсу',"
         }
       ]
@@ -4978,12 +4978,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7426-7426",
+          "lines": "7483-7483",
           "quote": "'editor.tab.more': 'Ще',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7431-7431",
+          "lines": "7488-7488",
           "quote": "'editor.panel.sprites': 'Спрайти',"
         },
         {
@@ -5003,7 +5003,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8994-8994",
+          "lines": "9051-9051",
           "quote": "'sprites.addPack': 'Додати пак спрайтів',"
         },
         {
@@ -5013,7 +5013,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8991-8991",
+          "lines": "9048-9048",
           "quote": "'sprites.addSlot': 'Додати емоцію',"
         },
         {
@@ -5023,7 +5023,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8993-8993",
+          "lines": "9050-9050",
           "quote": "'sprites.addSlotBtn': 'Додати',"
         },
         {
@@ -5033,7 +5033,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9027-9027",
+          "lines": "9084-9084",
           "quote": "Нічого не зберігається, доки ви не натиснете «Додати»"
         },
         {
@@ -5053,7 +5053,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9009-9009",
+          "lines": "9066-9066",
           "quote": "'sprites.slotDefault': 'Зробити емоцією за замовчуванням',"
         },
         {
@@ -5063,7 +5063,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9014-9014",
+          "lines": "9071-9071",
           "quote": "'sprites.defBadge': 'за зам.',"
         },
         {
@@ -5078,7 +5078,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9012-9012",
+          "lines": "9069-9069",
           "quote": "'sprites.slotReplace': 'замінити',"
         },
         {
@@ -5093,7 +5093,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9003-9003",
+          "lines": "9060-9060",
           "quote": "'sprites.wear': 'Носити за замовчуванням',"
         },
         {
@@ -5108,7 +5108,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9004-9004",
+          "lines": "9061-9061",
           "quote": "'sprites.deleteOutfit': 'Видалити одяг',"
         },
         {
@@ -5118,7 +5118,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9006-9006",
+          "lines": "9063-9063",
           "quote": "Нічого не записується, поки ви не натиснете «Зберегти зміни»."
         },
         {
@@ -5128,7 +5128,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9066-9066",
+          "lines": "9123-9123",
           "quote": "'cd.save': 'Зберегти зміни',"
         },
         {
@@ -5836,7 +5836,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8068-8068",
+          "lines": "8125-8125",
           "quote": "Старіші розділи займають ~{tokens} ток., більше за дозволені {threshold}"
         },
         {
@@ -5861,7 +5861,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8070-8070",
+          "lines": "8127-8127",
           "quote": "'lit.arc.merge': 'Злити',"
         },
         {
@@ -5871,7 +5871,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8071-8071",
+          "lines": "8128-8128",
           "quote": "'lit.arc.notNow': 'Не зараз',"
         },
         {
@@ -5881,7 +5881,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8072-8072",
+          "lines": "8129-8129",
           "quote": "'lit.arc.always': 'Завжди зливати автоматично',"
         },
         {
@@ -5891,7 +5891,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8083-8083",
+          "lines": "8140-8140",
           "quote": "'lit.arc.menu': 'Меню арки',"
         },
         {
@@ -5901,7 +5901,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8084-8084",
+          "lines": "8141-8141",
           "quote": "'lit.arc.rewrite': 'Злити знову',"
         },
         {
@@ -5911,7 +5911,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8085-8085",
+          "lines": "8142-8142",
           "quote": "'lit.arc.delete': 'Видалити арку',"
         },
         {
@@ -5921,7 +5921,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8090-8090",
+          "lines": "8147-8147",
           "quote": "'lit.arc.chapters': 'Розділи ({n})',"
         },
         {
@@ -5931,7 +5931,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8075-8075",
+          "lines": "8132-8132",
           "quote": "'lit.arcsOffer.title': 'Арки тепер можуть зливатися самі',"
         },
         {
@@ -5941,7 +5941,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8077-8077",
+          "lines": "8134-8134",
           "quote": "'lit.arcsOffer.on': 'Зливати автоматично',"
         },
         {
@@ -5951,7 +5951,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8078-8078",
+          "lines": "8135-8135",
           "quote": "'lit.arcsOffer.keep': 'Питати й далі',"
         },
         {
@@ -5961,7 +5961,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8110-8110",
+          "lines": "8167-8167",
           "quote": "'lit.set.arcMode': 'Арки',"
         },
         {
@@ -5971,7 +5971,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8111-8111",
+          "lines": "8168-8168",
           "quote": "'lit.set.arcAsk': 'Спершу питати',"
         },
         {
@@ -5981,7 +5981,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8112-8112",
+          "lines": "8169-8169",
           "quote": "'lit.set.arcAuto': 'Зливати автоматично',"
         },
         {
@@ -5991,7 +5991,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8113-8113",
+          "lines": "8170-8170",
           "quote": "'lit.set.arcOff': 'Вимкнено',"
         },
         {
@@ -6001,7 +6001,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7899-7899",
+          "lines": "7956-7956",
           "quote": "'lit.settingsTitle': 'Запис історії (Літопис)',"
         },
         {
@@ -6011,7 +6011,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8052-8052",
+          "lines": "8109-8109",
           "quote": "'lit.settings.open': 'Налаштування Літопису',"
         },
         {
@@ -6213,7 +6213,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4573-4573",
+          "lines": "4630-4630",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
@@ -6273,7 +6273,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4532-4532",
+          "lines": "4589-4589",
           "quote": "'ag.drafts.install': 'Install'"
         },
         {
@@ -6813,7 +6813,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4573-4573",
+          "lines": "4630-4630",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
@@ -7056,7 +7056,7 @@
         {
           "path": "src/lib/i18n.ts",
           "quote": "'world.places.show': 'Show places',",
-          "lines": "4824-4824"
+          "lines": "4881-4881"
         },
         {
           "path": "src/lib/i18n.ts",
@@ -7386,12 +7386,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7919-7919",
+          "lines": "7976-7976",
           "quote": "'opening.edit': 'Редагувати перше повідомлення',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6484-6484",
+          "lines": "6541-6541",
           "quote": "'canvas.board.links': \"Зв'язки чатів\","
         }
       ]
@@ -7430,7 +7430,7 @@
         {
           "path": "src/components/chat/composer.tsx",
           "lines": "361-361",
-          "quote": "if (t === \"/gallery\") { setGalleryOpen(true); return true }"
+          "quote": "if (line === \"/gallery\") { setGalleryOpen(true); return true }"
         },
         {
           "path": "src/components/chat/composer.tsx",

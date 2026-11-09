@@ -572,7 +572,9 @@ player switches it on for that chat. It writes:
     sensor's own `outfit` (split into items at commas, `;`, "and", "і", "та", "и") and `holding` for each character in
     the scene; the DM is not asked for `carry` and its `carry` is ignored. `dm`: the DM's `carry` lists as below.
     Places and things (records) are always the DM's. `GET /world/here` gives `carrySource`, `carry` (from the chosen
-    source; sensor entries have `hands`, the text of `holding`) and `sensor` (always the sensor's lines, to compare).
+    source; sensor entries have `hands`, the text of `holding`, and `nearby`: the objects the sensor saw lying in the scene
+    (`layout.objects`, as "item (where)"), minus the things that have a record; the same list for every present
+    character, shown on the Dashboard only, never put into the reply prompt) and `sensor` (always the sensor's lines, to compare).
   - A place may also carry `background`: the id of a picture in the app's Backgrounds library. Only the player (the
     Places tab) or the app after a generated set sets it; the DM's replies cannot. With "Change the background by
     scene" on, a scene in that place shows the picture (a spot without one takes its place's);

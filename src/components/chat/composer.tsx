@@ -351,22 +351,22 @@ export function Composer({ chatId }: { chatId: ID }) {
   /** Runs a slash command, or sends plain text. Returns false for an
    *  unknown command so the caller can keep the typed text. */
   const executeSlashOrSend = (text: string): boolean => {
-    const t = text.trim()
-    if (t === "/continue") { void continueReply(chatId); return true }
-    if (t === "/impersonate") { void impersonate(chatId); return true }
-    if (t === "/regenerate" || t === "/regen") { void regenerate(chatId); return true }
-    if (t === "/swipe") { void addSwipe(chatId); return true }
+    const line = text.trim()
+    if (line === "/continue") { void continueReply(chatId); return true }
+    if (line === "/impersonate") { void impersonate(chatId); return true }
+    if (line === "/regenerate" || line === "/regen") { void regenerate(chatId); return true }
+    if (line === "/swipe") { void addSwipe(chatId); return true }
     // /help and /gallery open UI only — never sent to the model
-    if (t === "/help") { setHelpOpen(true); return true }
-    if (t === "/gallery") { setGalleryOpen(true); return true }
+    if (line === "/help") { setHelpOpen(true); return true }
+    if (line === "/gallery") { setGalleryOpen(true); return true }
     // `/imagine` reads the chat; `/imagine <words>` draws exactly those words
-    const imagine = t.match(/^\/(?:imagine|image|gen)\b\s*(.*)$/s)
+    const imagine = line.match(/^\/(?:imagine|image|gen)\b\s*(.*)$/s)
     if (imagine) { void startImageGen(imagine[1]); return true }
-    if (t.startsWith("/")) {
-      toast.error(`Unknown command: ${t.split(/\s/)[0]}`, { description: "/help lists every command." })
+    if (line.startsWith("/")) {
+      toast.error(t('composer.unknownCommand', { cmd: line.split(/\s/)[0] }), { description: t('composer.helpHint') })
       return false
     }
-    if (!isStreaming) sendMessage(chatId, t)
+    if (!isStreaming) sendMessage(chatId, line)
     return true
   }
 
@@ -537,7 +537,7 @@ export function Composer({ chatId }: { chatId: ID }) {
               <button
                 type="button"
                 onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
-                aria-label={`Remove attachment ${a.name}`}
+                aria-label={t('composer.removeAttachment', { name: a.name })}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="size-3" />
@@ -563,39 +563,39 @@ export function Composer({ chatId }: { chatId: ID }) {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button data-guide="composer.options" variant="ghost" size="icon" className="size-9 shrink-0" aria-label="Message options">
+              <Button data-guide="composer.options" variant="ghost" size="icon" className="size-9 shrink-0" aria-label={t('composer.options')}>
                 <Plus className="size-4.5" />
               </Button>
             }
           />
           <DropdownMenuContent align="start" side="top" className="w-56">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Generate</DropdownMenuLabel>
+              <DropdownMenuLabel>{t('composer.group.generate')}</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => regenerate(chatId)} disabled={isStreaming}>
-                <ArrowsClockwise className="size-4" /> Regenerate
+                <ArrowsClockwise className="size-4" /> {t('composer.regenerate')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setHintOpen(true)} disabled={isStreaming || !hasReply}>
                 <ChatTeardropText className="size-4" /> {t('regen.hint.menu')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => continueReply(chatId)} disabled={isStreaming}>
-                <CaretDoubleRight className="size-4" /> Continue
+                <CaretDoubleRight className="size-4" /> {t('composer.continue')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => impersonate(chatId)} disabled={isStreaming}>
-                <User className="size-4" /> Impersonate
+                <User className="size-4" /> {t('composer.impersonate')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-            <DropdownMenuLabel>Compose</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('composer.group.compose')}</DropdownMenuLabel>
             <DropdownMenuItem onClick={polish} disabled={isStreaming || !canPolish}>
               <Sparkle className="size-4" /> {t('composer.polish')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setExpandOpen(true)}>
-              <ArrowsOut className="size-4" /> Expand editor
+              <ArrowsOut className="size-4" /> {t('composer.expandEditor')}
               <span className="ml-auto text-[10px] text-muted-foreground">⇧Tab</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => imageRef.current?.click()}>
-              <ImageIcon className="size-4" /> Send image
+              <ImageIcon className="size-4" /> {t('composer.sendImage')}
             </DropdownMenuItem>
             {/* Only offered once the extension is switched on, so the menu does
                 not advertise a feature that would just error. */}
@@ -603,7 +603,7 @@ export function Composer({ chatId }: { chatId: ID }) {
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger disabled={imgBusy}>
                   {imgBusy ? <CircleNotch className="size-4 animate-spin" /> : <MagicWand className="size-4" />}
-                  Generate image
+                  {t('composer.generateImage')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-48">
                   {IMAGE_MODES.map((m) => (
@@ -616,10 +616,10 @@ export function Composer({ chatId }: { chatId: ID }) {
               </DropdownMenuSub>
             )}
             <DropdownMenuItem onClick={() => fileRef.current?.click()}>
-              <Paperclip className="size-4" /> Attach files
+              <Paperclip className="size-4" /> {t('composer.attachFiles')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setQrOpen((v) => !v)}>
-              <Lightning className="size-4" /> {qrOpen ? "Hide shortcuts" : "Shortcuts"}
+              <Lightning className="size-4" /> {qrOpen ? t('composer.hideShortcuts') : t('composer.shortcuts')}
             </DropdownMenuItem>
             {/* Dictate (STT) and draft translation need engine-side services
                 that don't exist yet — the menu doesn't offer them rather than
@@ -652,8 +652,8 @@ export function Composer({ chatId }: { chatId: ID }) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="Type a message…"
-            aria-label="Message input"
+            placeholder={t('composer.placeholder')}
+            aria-label={t('composer.inputLabel')}
             data-guide="composer.input"
             aria-keyshortcuts="Shift+Tab"
             // mobile keyboards compose/highlight the word being typed and
@@ -695,22 +695,22 @@ export function Composer({ chatId }: { chatId: ID }) {
             On a phone only Write for me and Polish (icon only; the big editor is in the "+" menu there, to leave room for Translate):
             Continue and Another stay in the "+" menu, so the composer keeps to two rows */}
         {wide && !isStreaming && (
-          <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Quick moves">
-            <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-primary/50 bg-primary/15 px-2.5 text-xs font-semibold text-primary hover:bg-primary/25 hover:text-primary" onClick={() => continueReply(chatId)} title="Continue the last reply">
-              <CaretDoubleRight className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Continue</span>
+          <div className="flex min-w-0 items-center gap-1" role="group" aria-label={t('composer.quickMoves')}>
+            <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-primary/50 bg-primary/15 px-2.5 text-xs font-semibold text-primary hover:bg-primary/25 hover:text-primary" onClick={() => continueReply(chatId)} title={t('composer.continueTitle')}>
+              <CaretDoubleRight className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">{t('composer.continue')}</span>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title="Write your next message for you (your draft can be brought back)">
-              <User className="hidden size-4 max-[380px]:block" aria-hidden="true" /><span className="max-[380px]:sr-only">Write for me</span>
+            <Button variant="outline" size="sm" className="h-9 gap-1 border-group/50 bg-group/15 px-2.5 text-xs font-semibold text-group hover:bg-group/25 hover:text-group" onClick={writeForMe} title={t('composer.writeForMeTitle')}>
+              <User className="hidden size-4 max-[380px]:block" aria-hidden="true" /><span className="max-[380px]:sr-only">{t('composer.writeForMe')}</span>
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-1 border-teal-500/50 bg-teal-500/15 px-2.5 text-xs font-semibold text-teal-700 hover:bg-teal-500/25 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-300" onClick={polish} disabled={!canPolish} title={t('composer.polishTitle')} aria-label={t('composer.polish')}>
               <Sparkle className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">{t('composer.polish')}</span>
             </Button>
             {hasReply && (
-              <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title="Another version of the last reply">
-                <ArrowsClockwise className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">Another</span>
+              <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:hidden border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-300" onClick={() => regenerate(chatId)} title={t('composer.anotherTitle')}>
+                <ArrowsClockwise className="size-4" aria-hidden="true" /><span className="max-[380px]:sr-only">{t('composer.another')}</span>
               </Button>
             )}
-            <Button variant="outline" size="icon" className="size-9 shrink-0 max-sm:hidden" onClick={() => setExpandOpen(true)} aria-label="Bigger editor (Shift+Tab)" title="Bigger editor (Shift+Tab)">
+            <Button variant="outline" size="icon" className="size-9 shrink-0 max-sm:hidden" onClick={() => setExpandOpen(true)} aria-label={t('composer.biggerEditor')} title={t('composer.biggerEditor')}>
               <ArrowsOut className="size-4" aria-hidden="true" />
             </Button>
           </div>
@@ -730,7 +730,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         <StoryNudgeButton chatId={chatId} isStreaming={isStreaming} />
 
         {isStreaming ? (
-          <Button variant="destructive" size="icon" className="size-9 shrink-0" onClick={stopStreaming} aria-label="Stop generating">
+          <Button variant="destructive" size="icon" className="size-9 shrink-0" onClick={stopStreaming} aria-label={t('composer.stop')}>
             <Square className="size-4" />
           </Button>
         ) : (
@@ -739,7 +739,7 @@ export function Composer({ chatId }: { chatId: ID }) {
             className="size-9 shrink-0"
             onClick={handleSend}
             disabled={!canSend}
-            aria-label="Send message"
+            aria-label={t('composer.send')}
             data-guide="composer.send"
           >
             <PaperPlaneRight className="size-4" />
@@ -755,7 +755,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         onChange={setValue}
         onSend={handleSend}
         canSend={canSend}
-        placeholder="Write as much as you like. Shift+Tab collapses, Ctrl+Enter sends."
+        placeholder={t('composer.expandedPlaceholder')}
       />
       <RegenerateHintDialog chatId={chatId} open={hintOpen} onOpenChange={setHintOpen} />
 
