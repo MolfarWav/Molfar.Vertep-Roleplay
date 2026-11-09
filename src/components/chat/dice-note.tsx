@@ -16,8 +16,8 @@ export function rollsFor(rolls: WorldDiceRoll[], messageId: string, index: numbe
     return false
   })
   // the newest of each kind: a retried reply rolled again
-  const pick = (life: boolean) => mine.filter((r) => (r.kind === 'life') === life).sort((a, b) => b.at - a.at)[0]
-  return [pick(false), pick(true)].filter((r): r is WorldDiceRoll => !!r)
+  const pick = (kind: WorldDiceRoll['kind']) => mine.filter((r) => r.kind === kind).sort((a, b) => b.at - a.at)[0]
+  return [pick(undefined), pick('life'), pick('pace')].filter((r): r is WorldDiceRoll => !!r)
 }
 
 export function DiceNote({ chatId, message, index }: { chatId: string; message: Message; index: number }) {
@@ -32,7 +32,7 @@ export function DiceNote({ chatId, message, index }: { chatId: string; message: 
     <div className="flex flex-col gap-0.5 px-4 py-1" data-testid="dice-note">
       {mine.map((r) => (
         <p key={r.at} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          {r.kind === 'life' ? <Globe className="size-3 shrink-0 text-primary" aria-hidden="true" /> : <DiceFive className="size-3 shrink-0 text-primary" aria-hidden="true" />}
+          {r.kind === 'life' || r.kind === 'pace' ? <Globe className="size-3 shrink-0 text-primary" aria-hidden="true" /> : <DiceFive className="size-3 shrink-0 text-primary" aria-hidden="true" />}
           <span>{rollLine(t, r)}</span>
         </p>
       ))}

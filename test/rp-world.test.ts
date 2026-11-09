@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, tickClocks, clockStep, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollPace, paceReadiness, paceBand, paceInsert, rollFateAuto, seededRandom, tickClocks, clockStep, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -77,7 +77,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -162,7 +162,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -517,6 +517,43 @@ describe("the dice (code rolls before the reply)", () => {
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", diceLife: -1 }).json.dice.life).toBe(100);
   });
 
+  it("the pacing die: readiness from comfort, trust and affection, 2d6 plus a twentieth of it, worded for closeness (#155)", () => {
+    expect(paceReadiness({ comfort: -100, trust: 100, affection: 100, attraction: 100 })).toBe(0);
+    expect(paceReadiness({ comfort: 20, trust: 60, affection: 0 })).toBe(25);
+    expect(paceReadiness({ comfort: 40 })).toBe(40);
+    expect(paceReadiness({})).toBe(null);
+    expect(paceReadiness(null)).toBe(null);
+    expect([null, -50, -10, 30, 70].map((r) => paceBand(r as any))).toEqual(["unknown", "closed", "guarded", "open", "warm"]);
+    expect(rollPace("s", 0, 10)).toEqual({ gated: false, gate: 0 });
+    expect(rollPace("s", 100, 40)).toEqual(rollPace("s", 100, 40));
+    // the same dice read better with a warm character than with a closed one, and the pace seed is not the fate seed
+    const warm = rollPace("s", 100, 100) as any;
+    const closed = rollPace("s", 100, -100) as any;
+    expect(warm.d1).toBe(closed.d1);
+    expect(warm.total - closed.total).toBe(10);
+    expect((rollFate("s", 100, 0) as any).d1 === warm.d1 && (rollFate("s", 100, 0) as any).d2 === warm.d2).toBe(false);
+    const text = paceInsert({ gated: true, outcome: "miss", total: 4 } as any, "strict", "Odarka", -60);
+    expect(text).toContain("[PACE");
+    expect(text).toContain("Odarka is closeness-wise closed (-60/100");
+    expect(text).toContain("not ready");
+    expect(text).toContain("This result binds");
+    expect(text).toContain("ignore this note");
+    expect(paceInsert({ gated: true, outcome: "full", total: 11 } as any, "flavour", "", null)).toContain("closeness-wise not known");
+    // through the hook: a Pace part in the Inspector, a "pace" row in the log, a chat's 0 means never
+    const m = withDice("flavour", {}, "living");
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", dicePace: 100 }).json.dice.pace).toBe(100);
+    const out = llmRequest(req(), m.host) as { promptSources: any };
+    expect(out.promptSources.parts.map((p: any) => p.label)).toContain("Pace");
+    const log = route(m.host, "GET", "/world/dice", {}, { chatId: "c1" }).json.rolls;
+    expect(log.some((r: any) => r.kind === "pace" && r.inserted === true && r.who === "Odarka")).toBe(true);
+    route(m.host, "PUT", "/world/profiles", { id: "living", options: { dice: "flavour", diceStat: "auto", diceChance: 100, dicePace: 100 } });
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", dicePace: 0 }).json.dice.pace).toBe(0);
+    expect((llmRequest(req(), m.host) as any).promptSources.parts.map((p: any) => p.label)).not.toContain("Pace");
+    expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", dicePace: -1 }).json.dice.pace).toBe(100);
+    // with the dice off, nothing is rolled
+    expect(llmRequest(req(), withDice("off", { dicePace: 100 }).host)).toBe(null);
+  });
+
   it("logs where each roll was made, and says whether the chat shows the marks", () => {
     const m = withDice("flavour", {}, "living");
     llmRequest(req(), m.host);
@@ -532,13 +569,13 @@ describe("the dice (code rolls before the reply)", () => {
     expect(llmRequest(req(), m.host)).toBe(null);
     const view = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "strict", diceStat: "comfort", diceChance: 100 }).json;
     expect(view.settings).toMatchObject({ dice: "strict", diceStat: "comfort", diceChance: 100 });
-    expect(view.dice).toEqual({ mode: "strict", stat: "comfort", chance: 100, tilt: "even", life: 0 });
+    expect(view.dice).toEqual({ mode: "strict", stat: "comfort", chance: 100, tilt: "even", life: 0, pace: 0 });
     const out = llmRequest(req(), m.host) as { promptSources: any };
     expect(out.promptSources.parts[0].text).toContain("(comfort of Odarka)");
     expect(out.promptSources.parts[0].text).toContain("This result binds");
     // "" hands the decision back to the profile
     const back = route(m.host, "PUT", "/world/settings", { chatId: "c1", dice: "", diceStat: "", diceChance: 0 }).json;
-    expect(back.dice).toEqual({ mode: "off", stat: "affection", chance: 100, tilt: "even", life: 0 });
+    expect(back.dice).toEqual({ mode: "off", stat: "affection", chance: 100, tilt: "even", life: 0, pace: 0 });
     expect(llmRequest(req(), m.host)).toBe(null);
   });
 
@@ -914,7 +951,7 @@ describe("P3 stage 2: profile options", () => {
     expect(after.fronts[0].clock).toBe(clockStep(d).by);
     expect(!!after.fronts[0].stirred).toBe(clockStep(d).stirred);
     expect(after.clockReplies).toBe(1);
-    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0 });
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0 });
   });
 });
 

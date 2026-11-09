@@ -1,4 +1,4 @@
-// The dice controls (mode with an explanation each, stat, luck, chance, life). Used on the profile's Options card and in
+// The dice controls (mode with an explanation each, stat, luck, chance, life, pace). Used on the profile's Options card and in
 // the chat's World DM panel. It draws no card of its own: the caller's card holds it, and it renders a fragment of rows.
 import type { ReactNode } from 'react'
 import { Switch } from '@/components/ui/switch'
@@ -15,16 +15,17 @@ const MODES = ['off', 'flavour', 'strict'] as const satisfies readonly WorldDice
 const SELECT = 'h-10 rounded-lg border border-input bg-transparent px-2.5 text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 md:h-8'
 
 /** The mode, its explanation, and (when on) the details fold; then `children` (the roll log), outside the fold: folds do not nest. */
-export function DiceFields({ mode, stat, chance, tilt, life, show, onShow, onChange, disabled = false, children }: {
+export function DiceFields({ mode, stat, chance, tilt, life, pace, show, onShow, onChange, disabled = false, children }: {
   mode: WorldDiceMode
   stat: WorldDiceStat
   chance: number
   tilt: WorldDiceTilt
   life: number
+  pace: number
   /** a mark under each reply that had a roll (the chat's own: the profile's card leaves it out) */
   show?: boolean
   onShow?: (v: boolean) => void
-  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt; diceLife?: number }) => void
+  onChange: (patch: { dice?: WorldDiceMode; diceStat?: WorldDiceStat; diceChance?: number; diceTilt?: WorldDiceTilt; diceLife?: number; dicePace?: number }) => void
   /** the DM is off: every control here is disabled (the caller dims the card) */
   disabled?: boolean
   children?: ReactNode
@@ -88,6 +89,9 @@ export function DiceFields({ mode, stat, chance, tilt, life, show, onShow, onCha
           )}
           <SettingRow label={t('world.opt.diceLife')} info={t('world.opt.diceLifeHint')}>
             <NumControl label={t('world.opt.diceLife')} value={life} min={0} max={100} disabled={disabled} onCommit={(n) => onChange({ diceLife: n })} />
+          </SettingRow>
+          <SettingRow label={t('world.opt.dicePace')} info={t('world.opt.dicePaceHint')}>
+            <NumControl label={t('world.opt.dicePace')} value={pace} min={0} max={100} disabled={disabled} onCommit={(n) => onChange({ dicePace: n })} />
           </SettingRow>
         </Fold>
       )}

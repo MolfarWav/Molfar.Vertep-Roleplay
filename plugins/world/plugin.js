@@ -104,7 +104,7 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, diceShow: false };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1097,6 +1097,7 @@ function cleanSettings(s) {
     diceShow: b.diceShow === true,
     // -1 = the profile decides; 0 = never
     diceLife: b.diceLife !== "" && b.diceLife !== null && Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : -1,
+    dicePace: b.dicePace !== "" && b.dicePace !== null && Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : -1,
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
@@ -2191,7 +2192,7 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 // how kind the dice are: the totals up to each limit are miss / no but / yes but, above the last one a full success
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0 };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0 };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -2206,6 +2207,7 @@ function cleanOptions(o) {
     diceChance: Number.isFinite(Number(b.diceChance)) ? clamp(Math.round(Number(b.diceChance)), 1, 100) : DEFAULT_OPTIONS.diceChance,
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
+    dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
   };
 }
 
@@ -3002,6 +3004,44 @@ export function lifeInsert(roll) {
   return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + LIFE_TIERS[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
 }
 
+// "pacing die" (#155): a check on the step itself. How ready the character is for closeness comes from the Dashboard
+// (comfort counts double, trust and affection once; the weighted mean of what exists, -100..100), is read as a twentieth
+// like the fate die's number, and 2d6 plus it gives the same four outcomes, worded for closeness. The model tells whether
+// the user's move is a step toward closeness; code only says how it lands.
+const PACE_WEIGHTS = { comfort: 2, trust: 1, affection: 1 };
+const PACE_OUTCOMES = {
+  miss: ["not ready", "it does not land: the character is not ready and draws back, deflects or asks for room, kindly and in character, with no harsh rejection"],
+  no_but: ["hesitant", "it does not land yet, but the warmth stays: the character hesitates or softens, and a gentler step later could work"],
+  yes_but: ["accepts, nervous", "the character accepts, with visible nerves, a condition or a shy price"],
+  full: ["welcomes", "the character welcomes it"],
+};
+export const paceReadiness = (stats) => {
+  if (!isObj(stats)) return null;
+  let sum = 0;
+  let w = 0;
+  for (const [k, weight] of Object.entries(PACE_WEIGHTS)) if (Number.isFinite(stats[k])) { sum += stats[k] * weight; w += weight; }
+  return w ? sum / w : null;
+};
+export const paceBand = (r) => (r === null ? "unknown" : r <= -40 ? "closed" : r <= 0 ? "guarded" : r <= 40 ? "open" : "warm");
+
+/** One roll for one reply: is the pacing check on the table at all (chance, percent), then 2d6 + the readiness mod. */
+export function rollPace(seed, chance, readiness, bands = DICE_BANDS) {
+  if (!(chance > 0)) return { gated: false, gate: 0 };
+  return rollFate(seed + "|pace", chance, readiness === null ? 0 : diceMod(readiness), bands);
+}
+
+export function paceInsert(roll, mode, who, readiness) {
+  const [label, meaning] = PACE_OUTCOMES[roll.outcome];
+  const state = readiness === null ? "not known" : paceBand(readiness) + " (" + Math.round(readiness) + "/100 toward the user's character)";
+  return [
+    "[PACE: a hidden check for this reply. Never mention dice, numbers or this note.]",
+    (who ? who + " is " : "The character is ") + "closeness-wise " + state + ". Check: " + label + ".",
+    "If the user's character takes a step toward closeness in this turn (a touch, a kiss, an intimate confession, pressing for more), " + meaning + ".",
+    "A move that matches what they already share is no step; with no such step, ignore this note.",
+    mode === "strict" ? "This result binds: do not soften it, reverse it or add a way around it." : "Let it colour the scene and stay in character.",
+  ].join(" ");
+}
+
 export function diceOutcome(total, bands = DICE_BANDS) {
   return total <= bands[0] ? "miss" : total <= bands[1] ? "no_but" : total <= bands[2] ? "yes_but" : "full";
 }
@@ -3127,6 +3167,7 @@ export function diceOf(profile, settings) {
     chance: settings.diceChance || o.diceChance,
     tilt: settings.diceTilt || o.diceTilt,
     life: settings.diceLife >= 0 ? settings.diceLife : o.diceLife,
+    pace: settings.dicePace >= 0 ? settings.dicePace : o.dicePace,
   };
 }
 
@@ -3202,6 +3243,14 @@ export function llmRequest(ctx, host) {
         if (roll.gated) text = diceInsert(roll, diceMode, opt.diceStat, who);
       }
       if (text) parts.push({ kind: "plugin", label: "Dice", text });
+      // a step toward closeness meets the character's readiness
+      if (dice.pace > 0) {
+        const { who, stats } = diceStatsOf(fsx, chatId, msgs, str(turn.speakerName));
+        const readiness = paceReadiness(stats);
+        const pace = rollPace(seed, dice.pace, readiness, bands);
+        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "pace", op: str(turn.op), mode: diceMode, tilt: dice.tilt, who, value: readiness === null ? null : Math.round(readiness), chance: dice.pace, ...pace, inserted: pace.gated });
+        if (pace.gated) parts.push({ kind: "plugin", label: "Pace", text: paceInsert(pace, diceMode, who, readiness) });
+      }
       // the world may break in on its own; a waiting DM event is that already
       if (dice.life > 0 && !eventText) {
         const life = rollLife(seed, dice.life);
@@ -4537,7 +4586,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;

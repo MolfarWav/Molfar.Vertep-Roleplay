@@ -47,9 +47,9 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; diceShow: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
-  dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number } | null
+  dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
   /** the profile in force: a level's id or an own profile's id; null when off */
   profile: string | null
@@ -210,7 +210,7 @@ export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'a
 /** 'auto' = the model takes the stat the attempted action leans on */
 export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
 export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number }
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -593,8 +593,8 @@ export async function nameBackgroundImage(image: { data: string; mimeType: strin
 /** One entry of the chat's roll log (`GET /world/dice`): a quiet roll has gated false and no dice. */
 export interface WorldDiceRoll {
   at: number
-  /** 'life' = the world-intervenes roll (tier says how big); otherwise the action's roll */
-  kind?: 'life'
+  /** 'life' = the world-intervenes roll (tier says how big); 'pace' = the pacing check (readiness in `value`); otherwise the action's roll */
+  kind?: 'life' | 'pace'
   tier?: 'minor' | 'notable' | 'major'
   /** where in the chat the roll was made: messages so far, the key of the last one (id#swipe) and its swipe count */
   n?: number
