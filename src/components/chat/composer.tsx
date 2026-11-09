@@ -64,6 +64,9 @@ export function Composer({ chatId }: { chatId: ID }) {
   const addSwipe = useApp((s) => s.addSwipe)
   const sendOnEnter = useApp((s) => s.settings.sendOnEnter)
   const upArrowEditLast = useApp((s) => s.settings.upArrowEditLast)
+  // Settings > Chat Behavior: the box is plain text unless the user switches these on
+  const spellCheck = useApp((s) => s.settings.spellCheck === true)
+  const autoCorrect = useApp((s) => s.settings.autoCorrect === true)
   const chatWidth = useApp((s) => s.settings.chatWidth)
   const pushInputHistory = useApp((s) => s.pushInputHistory)
   const inputHistory = useApp((s) => s.inputHistory)
@@ -654,10 +657,11 @@ export function Composer({ chatId }: { chatId: ID }) {
             data-guide="composer.input"
             aria-keyshortcuts="Shift+Tab"
             // mobile keyboards compose/highlight the word being typed and
-            // fight asterisks/quotes/macros — off keeps plain text entry plain
-            autoCorrect="off"
+            // fight asterisks/quotes/macros — off keeps plain text entry plain.
+            // Both are the user's call (Settings > Chat Behavior), off by default.
+            autoCorrect={autoCorrect ? "on" : "off"}
             autoCapitalize="sentences"
-            spellCheck={false}
+            spellCheck={spellCheck}
             // `block` is load-bearing: as an inline-block the textarea sits on
             // the text baseline, leaving ~6px of descender space beneath it in
             // the wrapper, which pushed the send button lower than the input
