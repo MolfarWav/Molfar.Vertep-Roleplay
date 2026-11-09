@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollFateAuto, seededRandom, tickClocks, clockStep, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -909,8 +909,10 @@ describe("P3 stage 2: profile options", () => {
     m.results.world = { text: JSON.stringify({ add: [], fronts: [{ op: "tick", id: "f1", by: 2 }], summary: "x" }) };
     route(m.host, "POST", "/world/update", { chatId: "c1" }, {}, { upTo: "m4#0" });
     const after = JSON.parse(m.files["world/state/c1.json"]!);
-    // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored
-    expect(after.fronts[0].clock).toBe(1);
+    // 3 replies read (m0, m2, m4): one tick, one reply carried over; the model's +2 ignored, the d6 decides (#155)
+    const d = Math.floor(seededRandom("c1|clock|m4#0|1|f1")() * 6) + 1;
+    expect(after.fronts[0].clock).toBe(clockStep(d).by);
+    expect(!!after.fronts[0].stirred).toBe(clockStep(d).stirred);
     expect(after.clockReplies).toBe(1);
     expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0 });
   });
@@ -1381,5 +1383,54 @@ describe("a saved world's records (#176)", () => {
     expect(m.files["lorebooks/world-c1.json"]).toBeUndefined();
     expect(route(m.host, "GET", "/world/peek", undefined, { worldId: "w-nope99" }).status).toBe(404);
     expect(route(m.host, "PUT", "/world/records", { op: "add", record: { name: "x", text: "y" } }).status).toBe(400);
+  });
+});
+
+describe("code clocks roll a d6 (#155)", () => {
+  const fronts = () => [
+    { id: "f1", name: "Toll war", goal: "", clock: 0, size: 6, status: "active" },
+    { id: "f2", name: "Plague", goal: "", clock: 5, size: 6, status: "active" },
+    { id: "f3", name: "Old feud", goal: "", clock: 1, size: 4, status: "past" },
+  ];
+  it("clockStep: 1-2 nothing, 3-4 one segment, 5-6 one segment and stirred", () => {
+    expect([1, 2, 3, 4, 5, 6].map(clockStep)).toEqual([
+      { by: 0, stirred: false }, { by: 0, stirred: false }, { by: 1, stirred: false }, { by: 1, stirred: false }, { by: 1, stirred: true }, { by: 1, stirred: true },
+    ]);
+  });
+  it("the same seed rolls the same, another seed rolls anew, a past front never moves", () => {
+    const run = (seed: string) => { const st: any = { fronts: fronts(), clockReplies: 0 }; tickClocks(st, 3, 1, 1, seed); return st.fronts.map((f: any) => [f.clock, !!f.stirred]); };
+    expect(run("a")).toEqual(run("a"));
+    expect(run("a")[2]).toEqual([1, false]);
+    const seen = new Set(Array.from({ length: 40 }, (_, i) => JSON.stringify(run("s" + i))));
+    expect(seen.size).toBeGreaterThan(3);
+  });
+  it("over many ticks a front moves about two ticks in three and a third of the moves are stirred", () => {
+    let moved = 0, stirred = 0;
+    const n = 600;
+    for (let i = 0; i < n; i++) {
+      const st: any = { fronts: [{ id: "f1", name: "x", goal: "", clock: 0, size: 8, status: "active" }], clockReplies: 0 };
+      tickClocks(st, 1, 1, 1, "k" + i);
+      moved += st.fronts[0].clock;
+      if (st.fronts[0].stirred) stirred++;
+    }
+    expect(moved / n).toBeGreaterThan(0.58);
+    expect(moved / n).toBeLessThan(0.75);
+    expect(stirred / moved).toBeGreaterThan(0.4);
+    expect(stirred / moved).toBeLessThan(0.6);
+  });
+  it("a clock stops at its size, and without a seed every front moves by 1 as before", () => {
+    const st: any = { fronts: fronts(), clockReplies: 0 };
+    expect(tickClocks(st, 2, 1, 1)).toBe(3);
+    expect(st.fronts.map((f: any) => f.clock)).toEqual([2, 6, 1]);
+    expect(st.fronts[0].stirred).toBeUndefined();
+  });
+  it("a stirred front is named in the next DM input and let go after the run that showed it", () => {
+    const f = { id: "f1", name: "Toll war", goal: "", clock: 4, size: 6, status: "active", stirred: true };
+    const input = dmInput({ cards: [], userName: "", entities: [], msgs: [], level: "living", fronts: [f], event: null, direction: null, threads: [], options: { clocks: "code", clockEvery: 2, eventByClock: false, deck: false } });
+    expect(input).toContain("Stirred since the last look");
+    expect(input).toContain("f1 Toll war: late");
+    const plain = dmInput({ cards: [], userName: "", entities: [], msgs: [], level: "living", fronts: [f], event: null, direction: null, threads: [], options: { clocks: "model", clockEvery: 2, eventByClock: false, deck: false } });
+    expect(plain).not.toContain("Stirred");
+    expect(normalizeState({ fronts: [f] }, "c1").fronts[0].stirred).toBe(true);
   });
 });

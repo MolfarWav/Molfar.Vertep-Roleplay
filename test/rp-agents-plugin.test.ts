@@ -987,3 +987,53 @@ describe("agents change Dashboard fields", () => {
     expect(snapOf().chars.Aria.mood).toBe("wary");
   });
 });
+
+describe("an If card's memory (#155)", () => {
+  const gate = (ifParams: Json): Json => ({
+    format: "vertep-canvas", version: 1, kind: "agent", title: "Gate",
+    agent: { formatVersion: 1, id: "gate", version: "1.0.0", name: "Gate", description: "x", author: "t", trigger: { when: "after", everyN: 1, keywords: [] }, models: {}, limits: { maxCalls: 0, concurrency: 1 }, state: { hits: { type: "number", min: 0, max: 100, start: 0 } } },
+    nodes: [
+      { id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [{ id: "msg", source: "lastUserMessage" }] } },
+      { id: "chk", type: "logic.if", x: 200, y: 0, title: "Check", params: { inputs: [], match: "all", rows: [{ left: { from: "chat", what: "messageCount" }, op: "gte", right: { value: 3 } }], ...ifParams } },
+      { id: "add", type: "state.add", x: 400, y: 0, title: "Count", params: { field: "hits", amount: 1 } },
+      { id: "out", type: "agent.output", x: 600, y: 0, title: "Out", params: { kind: "state-patch" } },
+    ],
+    edges: [{ id: "e2", from: "chk:yes", to: "add:when" }, { id: "e3", from: "add:done", to: "out:in" }],
+  });
+  const hits = () => disk("agents/state/c1/gate.json").own.hits;
+
+  it("edge: a new reply while the condition stays true is held, a rerun of the same reply is not", () => {
+    j("/agents/install", "PUT", { file: gate({ edge: true }), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("gate");
+    expect(runChat("c1").ran[0]).toMatchObject({ agent: "gate", status: "ok", writes: 1 });
+    expect(hits()).toBe(1);
+    expect(disk("agents/state/c1/gate.json")).toMatchObject({ n: 1, memo: { chk: { last: "yes", fired: 1, count: 1 } } });
+    // the reply swiped to another version: the run replays from the run before it, so the edge fires again but the count does not double
+    setMessages("c1", CHAT, { 2: 1 });
+    expect(runChat("c1").ran[0]).toMatchObject({ status: "ok", writes: 1 });
+    expect(hits()).toBe(1);
+    expect(disk("agents/state/c1/gate.json").n).toBe(1);
+    // a new reply: still true, so the edge holds it back
+    setMessages("c1", [...CHAT, ["user", "More."], ["char", "Yes."]]);
+    const held = runChat("c1");
+    expect(held.ran[0]).toMatchObject({ status: "ok", writes: 0 });
+    expect(hits()).toBe(1);
+    expect(disk("agents/state/c1/gate.json")).toMatchObject({ n: 2, memo: { chk: { last: "yes", fired: 1 } } });
+    const log = j("/agents/runs", "GET", undefined, { chatId: "c1" }).runs.at(-1);
+    expect(log.trace.find((t: Json) => t.node === "chk")).toMatchObject({ status: "skipped", out: { held: "edge: it was already true last time" } });
+  });
+
+  it("starting the agent over forgets the memory", () => {
+    j("/agents/install", "PUT", { file: gate({ once: true }), grant: true });
+    makeChat("c1", CHAT);
+    useAgent("gate");
+    runChat("c1");
+    expect(disk("agents/state/c1/gate.json").memo.chk.fired).toBe(1);
+    call("DELETE", "/agents/state", undefined, { chatId: "c1", agent: "gate" });
+    expect(exists("agents/state/c1/gate.json")).toBe(false);
+    setMessages("c1", [...CHAT, ["user", "More."], ["char", "Yes."]]);
+    expect(runChat("c1").ran[0]).toMatchObject({ writes: 1 });
+    expect(hits()).toBe(1);
+  });
+});
