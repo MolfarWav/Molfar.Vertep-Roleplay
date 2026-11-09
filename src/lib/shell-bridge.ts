@@ -117,3 +117,17 @@ export async function openSettingsTab(tab: 'api' | 'models' | 'memory' | 'backup
     throw shellRefusal(e, 'Settings')
   }
 }
+
+/** The shell's Settings lists apps under "App settings" and opens the one picked on the view its manifest names
+ *  (`settingsView`; engines with `onView`). `fn` gets that name, also one that came before it was registered.
+ *  Returns a function that stops listening; on an older engine nothing is ever delivered. */
+export function onShellView(fn: (view: string) => void): () => void {
+  const on = (window.chrysalisShell as { onView?: (cb: (view: string) => void) => () => void } | undefined)?.onView
+  if (typeof on !== 'function') return () => {}
+  try {
+    const off = on(fn)
+    return typeof off === 'function' ? off : () => {}
+  } catch {
+    return () => {}
+  }
+}

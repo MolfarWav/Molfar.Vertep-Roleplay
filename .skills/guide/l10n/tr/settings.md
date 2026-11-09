@@ -1,4 +1,4 @@
-<!-- source: 82d4a821463b -->
+<!-- source: 155df9c0d938 -->
 # Roleplay'in ayarları nerede
 
 Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikleri şeyin yanında durur ve ikisi ana Molfar Vertep Settings'tedir. Bu sayfa bir bulucudur.
@@ -6,7 +6,7 @@ Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikle
 ## İki Settings, karıştırılmamalı
 
 - **Ana Settings**, Molfar Vertep'in (tüm sayfanın dişlisi): modeller ve bağlantılar, tüm profilin yedekleri, güncellemeler. Modelleri orada seçin ve test edin; bkz. [[vertep:settings]] ve [[vertep:models]]. Orada yıldızlanan modeller bir sohbette hızlı anahtarlar olarak görünür.
-- **Roleplay settings**: Home başlığındaki "Roleplay settings" düğmesi (telefonda, menüde). Henüz ana Settings içinde listelenmez; bu yüzden onu Roleplay'in kendisinde arayın. On bölümü vardır: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data ve Guide. Üstteki arama kutusu onları filtreler.
+- **Roleplay settings**: Home başlığındaki "Roleplay settings" düğmesi (telefonda, menüde). Ana Settings bu uygulamayı da listeler: en üstteki "Uygulama ayarları" altında uygulamaya dokunun (orada adı "Vertep"tir) ve bu sayfada açılır. On bölümü vardır: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data ve Guide. Üstteki arama kutusu onları filtreler.
 
 Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişliği ve avatarlardır; Chat Behavior, Enter ile gönderme, silmeleri onaylama, "Spell check in the message box" ve "Autocorrect in the message box" gibi anahtarlara sahiptir (son ikisi varsayılan olarak kapalıdır: yazım denetimi yanlış yazılmış sözcüklerin altını çizer ve düzeltme önerir, bu da uydurma adlarda çok fazla kırmızı demektir; otomatik düzeltme klavyenin sözcükleri değiştirmesine izin verir, bu da telefonda yıldızlar, tırnak işaretleri ve makrolarla çakışabilir; mesaj kutusunda ve genişletilmiş düzenleyicide geçerlidir); Streaming, yanıtların yazıldıkça mı yoksa bitince mi gösterileceğini seçer; Card tasks, bir kartın kendine ait modeli yokken kart yardımcılarının ("Structure it", "Fill empty") kullandığı modeli seçer; Import, preset'leri, karakterleri, lorebook'ları, sohbetleri ve bir yedek zip'i getirir (bir SillyTavern preset'i seçim listeleriyle Choices olarak, yazarın açıklamalarıyla not olarak ve "dokunma" blokları kilitli olarak gelir; Roleplay'den dışa aktarılan bir preset tüm Choices'ıyla geri gelir); Data, Roleplay'in kendi verilerini zip olarak dışa aktarır ve geri yükler (tüm profil ana Settings'in Backup'ı ile kaydedilir); Guide, kısa turları ve "What's new"i gösterir veya gizler.
 

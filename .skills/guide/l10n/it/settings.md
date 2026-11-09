@@ -1,4 +1,4 @@
-<!-- source: 82d4a821463b -->
+<!-- source: 155df9c0d938 -->
 # Dove stanno le impostazioni di Roleplay
 
 Roleplay non ha un'unica pagina di impostazioni per tutto. Le impostazioni stanno vicino a ciò che cambiano, e due di esse sono nelle Impostazioni principali di Molfar Vertep. Questa pagina è un indice.
@@ -6,7 +6,7 @@ Roleplay non ha un'unica pagina di impostazioni per tutto. Le impostazioni stann
 ## Due Impostazioni, da non confondere
 
 - **The main Settings** di Molfar Vertep (l'ingranaggio dell'intera pagina): modelli e connessioni, backup dell'intero profilo, aggiornamenti. Scegli e prova i modelli lì; vedi [[vertep:settings]] e [[vertep:models]]. I modelli con stella lì compaiono come cambi rapidi in una chat.
-- **Roleplay settings**: il pulsante "Roleplay settings" nell'intestazione della Home (su un telefono, nel menu). Non è ancora elencato dentro le Impostazioni principali, quindi cercalo in Roleplay stesso. Ha dieci sezioni: Aspetto, Comportamento chat, Streaming, Temi, Colori della prosa, CSS personalizzato, Attività sulle schede, Importazione, Dati e Guida. Una casella di ricerca in alto le filtra.
+- **Roleplay settings**: il pulsante "Roleplay settings" nell'intestazione della Home (su un telefono, nel menu). Anche le Impostazioni principali elencano questa app: sotto "Impostazioni delle app", in alto, premi l'app (lì si chiama "Vertep") e si apre su questa pagina. Ha dieci sezioni: Aspetto, Comportamento chat, Streaming, Temi, Colori della prosa, CSS personalizzato, Attività sulle schede, Importazione, Dati e Guida. Una casella di ricerca in alto le filtra.
 
 Cosa fanno le sezioni, in breve: Aspetto è lingua, caratteri, larghezza della chat e avatar; Comportamento chat ha interruttori come invio con Invio, conferma delle eliminazioni e "Spell check in the message box" e "Autocorrect in the message box" (entrambi disattivati per impostazione predefinita: il controllo ortografico sottolinea le parole scritte male e propone correzioni, il che con i nomi inventati significa molto rosso; la correzione automatica lascia che la tastiera cambi le parole, cosa che su un telefono può scontrarsi con asterischi, virgolette e macro; si applicano alla casella del messaggio e all'editor espanso); Streaming sceglie se mostrare le risposte mentre vengono scritte o a conclusione; Attività sulle schede sceglie il modello usato dagli aiutanti delle schede ("Structure it", "Fill empty") quando una scheda non ha un suo modello; Importazione porta dentro preset, personaggi, lorebook, chat e uno zip di backup (un preset SillyTavern arriva con le sue liste di scelta come Scelte, le spiegazioni dell'autore come note e i suoi blocchi "non toccare" bloccati; un preset esportato da Roleplay torna con tutte le sue Scelte); Dati esporta e ripristina i dati propri di Roleplay come zip (l'intero profilo viene salvato dal Backup delle Impostazioni principali); Guida mostra o nasconde i brevi tour e le "What's new".
 

@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.104.0'
+export const APP_VERSION = '4.105.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -1129,8 +1129,8 @@ const HAND_TIPS: Tip[] = [
     help: 'setup',
     title: { en: 'Settings', uk: 'Налаштування' },
     body: {
-      en: 'Settings hold appearance (language, font, width, scale), chat behavior, streaming, themes, custom CSS, Import and your data. Import takes presets, characters, regex, lorebooks, chat JSONL and a backup zip. Models and connections are set up in the Settings of the shell around this app.',
-      uk: 'У налаштуваннях: вигляд (мова, шрифт, ширина, масштаб), поведінка чату, стрімінг, теми, власний CSS, Import і ваші дані. Import приймає пресети, персонажів, regex, лорбуки, чати у JSONL і zip-резервну копію. Моделі та підключення налаштовуються в «Налаштуваннях» оболонки навколо цього застосунку.',
+      en: 'Settings hold appearance (language, font, width, scale), chat behavior, streaming, themes, custom CSS, Import and your data. Import takes presets, characters, regex, lorebooks, chat JSONL and a backup zip. Models and connections are set up in the Settings of the shell around this app. The shell\'s Settings also list this app under App settings and open these settings.',
+      uk: 'У налаштуваннях: вигляд (мова, шрифт, ширина, масштаб), поведінка чату, стрімінг, теми, власний CSS, Import і ваші дані. Import приймає пресети, персонажів, regex, лорбуки, чати у JSONL і zip-резервну копію. Моделі та підключення налаштовуються в «Налаштуваннях» оболонки навколо цього застосунку. Налаштування оболонки також показують цей застосунок у групі «Налаштування застосунків» і відкривають ці налаштування.',
     },
     keywords: { en: 'theme font language dark light css import sillytavern api key model connection', uk: 'тема шрифт мова темна світла css імпорт api ключ модель підключення' },
   },

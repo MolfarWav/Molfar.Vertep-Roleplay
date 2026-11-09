@@ -1,4 +1,4 @@
-<!-- source: 82d4a821463b -->
+<!-- source: 155df9c0d938 -->
 # Gdzie są ustawienia Roleplay
 
 Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blisko tego, co zmieniają, a dwa z nich są w głównych Ustawieniach Molfar Vertep. Ta strona to wyszukiwarka.
@@ -6,7 +6,7 @@ Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blis
 ## Dwa Ustawienia, których nie wolno mylić
 
 - **Główne Ustawienia** Molfar Vertep (zębatka całej strony): modele i połączenia, kopie zapasowe całego profilu, aktualizacje. Tam wybieraj i testuj modele; zobacz [[vertep:settings]] i [[vertep:models]]. Oznaczone gwiazdką modele pojawiają się jako szybkie przełączniki w czacie.
-- **Ustawienia Roleplay**: przycisk „Roleplay settings” w nagłówku Home (na telefonie w menu). Nie jest jeszcze wymieniony w głównych Ustawieniach, więc szukaj go w samym Roleplay. Ma dziesięć sekcji: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data i Guide. Pole wyszukiwania na górze je filtruje.
+- **Ustawienia Roleplay**: przycisk „Roleplay settings” w nagłówku Home (na telefonie w menu). Główne Ustawienia wymieniają też tę aplikację: w sekcji „Ustawienia aplikacji” na górze naciśnij aplikację (tam nazywa się „Vertep”), a otworzy się ona na tej stronie. Ma dziesięć sekcji: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data i Guide. Pole wyszukiwania na górze je filtruje.
 
 Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu i awatary; Chat Behavior ma przełączniki takie jak wysyłanie Enterem, potwierdzanie usunięć oraz „Spell check in the message box” i „Autocorrect in the message box” (oba domyślnie wyłączone: sprawdzanie pisowni podkreśla błędnie napisane słowa i proponuje poprawki, co przy wymyślonych imionach oznacza dużo czerwieni; autokorekta pozwala klawiaturze zmieniać słowa, co na telefonie może kolidować z gwiazdkami, cudzysłowami i makrami; działają w polu wiadomości i w rozszerzonym edytorze); Streaming wybiera pokazywanie odpowiedzi w trakcie pisania lub po ukończeniu; Card tasks wybiera model używany przez pomocników kart („Structure it”, „Fill empty”), gdy karta nie ma własnego; Import wczytuje presety, postacie, księgi wiedzy, czaty i kopię zapasową zip (preset z SillyTavern przychodzi ze swoimi listami wyboru jako Choices, wyjaśnieniami autora jako notatkami i blokami „nie dotykać” zablokowanymi; preset wyeksportowany z Roleplay wraca ze wszystkimi swoimi Choices); Data eksportuje i przywraca własne dane Roleplay jako zip (cały profil zapisuje Kopia zapasowa głównych Ustawień); Guide pokazuje lub ukrywa krótkie wycieczki i „What's new”.
 
