@@ -212,7 +212,7 @@ const HAND_TIPS: Tip[] = [
     title: { en: 'Quick moves', uk: 'Швидкі дії' },
     body: {
       en: 'Once a draft wraps, Continue, Write for me and Another sit right under it, with a button for the big editor (on a phone only Write for me and the big editor). The same moves are always in this + menu (Continue, Impersonate, Regenerate).',
-      uk: 'Коли чернетка переноситься на новий рядок, під нею з’являються Continue, Write for me та Another і кнопка великого редактора (на телефоні лише Write for me і великий редактор). Ті самі дії завжди є в меню + (Continue, Impersonate, Regenerate).',
+      uk: 'Коли чернетка переноситься на новий рядок, під нею з’являються «Продовжити», «Написати за мене» та «Ще варіант» і кнопка великого редактора (на телефоні лише «Написати за мене» і великий редактор). Ті самі дії завжди є в меню + («Продовжити», «Написати за мене», «Перегенерувати»).',
     },
   },
   {
@@ -340,7 +340,7 @@ const HAND_TIPS: Tip[] = [
     title: { en: 'More moves', uk: 'Більше дій' },
     body: {
       en: 'Regenerate or continue the last reply, let the model write your message (Impersonate), open the big editor, send an image.',
-      uk: 'Перегенерувати чи продовжити останню відповідь, доручити моделі ваше повідомлення (Impersonate), відкрити великий редактор, надіслати зображення.',
+      uk: 'Перегенерувати чи продовжити останню відповідь, доручити моделі ваше повідомлення («Написати за мене»), відкрити великий редактор, надіслати зображення.',
     },
   },
   {
@@ -766,7 +766,7 @@ const HAND_TIPS: Tip[] = [
     title: { en: 'The chat menu', uk: 'Меню чату' },
     body: {
       en: 'The More button at the top of a chat (the Menu button on a phone) holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files. Author’s note, Fired, Record and World sit in the header next to it (on a phone, on top of the menu).',
-      uk: 'Кнопка «Ще» вгорі чату (кнопка Menu на телефоні): Convert to group, Branches, Bookmarks, Display settings, а нижче Start new chat, Delete messages і Manage chat files. «Нотатка», «Спрацювало», «Запис» і «Світ» — у шапці поруч (на телефоні — угорі меню).',
+      uk: 'Кнопка «Ще» вгорі чату (кнопка «Меню» на телефоні): Convert to group, Branches, Bookmarks, Display settings, а нижче Start new chat, Delete messages і Manage chat files. «Нотатка», «Спрацювало», «Запис» і «Світ» — у шапці поруч (на телефоні — угорі меню).',
     },
     keywords: { en: 'author note bookmarks branches background display convert group delete export import chat files', uk: 'нотатка автора закладки гілки фон відображення група видалити експорт імпорт файли чату' },
   },
@@ -778,7 +778,7 @@ const HAND_TIPS: Tip[] = [
     title: { en: 'Preset, persona and model of a chat', uk: 'Пресет, персона й модель чату' },
     body: {
       en: 'The pill at the top of a chat (inside the Menu on a phone) switches the preset, your persona and the model for this chat. A change applies from the next reply.',
-      uk: 'Плашка вгорі чату (на телефоні в меню Menu) перемикає пресет, вашу персону й модель для цього чату. Зміна діє з наступної відповіді.',
+      uk: 'Плашка вгорі чату (на телефоні в меню «Меню») перемикає пресет, вашу персону й модель для цього чату. Зміна діє з наступної відповіді.',
     },
     keywords: { en: 'model preset persona switch connection api', uk: 'модель пресет персона перемкнути підключення' },
   },

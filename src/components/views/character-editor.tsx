@@ -266,7 +266,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
       <Tabs value={tab} className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Back to characters">
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label={t('editor.backToCharacters')}>
           <ArrowLeft className="size-4" aria-hidden="true" />
         </Button>
         <img src={c.avatar || DEFAULT_AVATAR} alt="" className="size-8 rounded-md object-cover" />
@@ -274,39 +274,39 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         {!c.isGroup && <CardKindMenu c={character} />}
         {/* phone: the three counts are one line, the tools one row under it, so the header is three rows, not a pile of chips */}
         <div className="grid basis-full grid-cols-3 gap-2 md:hidden max-md:order-1" data-testid="card-facts">
-          <div className="flex min-w-0 flex-col rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5" title="Estimated size of the whole card">
-            <span className="truncate text-[11px] text-muted-foreground">tokens</span>
+          <div className="flex min-w-0 flex-col rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5" title={t('editor.chipTokensTitle')}>
+            <span className="truncate text-[11px] text-muted-foreground">{t('editor.chipTokens')}</span>
             <span className="text-sm font-semibold tabular-nums">{formatTokens(totalTokens)}</span>
           </div>
-          <div className="flex min-w-0 flex-col rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5" title="Description and personality: sent with every reply">
-            <span className="truncate text-[11px] text-muted-foreground">permanent</span>
+          <div className="flex min-w-0 flex-col rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5" title={t('editor.chipPermanentTitle')}>
+            <span className="truncate text-[11px] text-muted-foreground">{t('editor.chipPermanent')}</span>
             <span className="text-sm font-semibold tabular-nums">{formatTokens(permanentTokens)}</span>
           </div>
           <button
             type="button"
             disabled={chatCount === 0}
             onClick={() => openChatsFor(c.id)}
-            aria-label={`Show the chats of ${c.name} (${chatCount})`}
+            aria-label={t('editor.chipChatsAria', { name: c.name, n: chatCount })}
             className="flex min-h-10 min-w-0 items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60"
           >
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-[11px] text-muted-foreground">{chatCount === 1 ? 'chat' : 'chats'}</span>
+              <span className="truncate text-[11px] text-muted-foreground">{t(chatCount === 1 ? 'editor.chipChat' : 'editor.chipChats')}</span>
               <span className="text-sm font-semibold tabular-nums">{chatCount}</span>
             </span>
             {chatCount > 0 && <CaretRight className="size-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />}
           </button>
         </div>
-        <Badge variant="secondary" title="Estimated size of the whole card" className="max-md:hidden">{formatTokens(totalTokens)} tokens</Badge>
-        <Badge variant="outline" title="Description and personality: sent with every reply" className="max-md:hidden">{formatTokens(permanentTokens)} permanent tokens</Badge>
+        <Badge variant="secondary" title={t('editor.chipTokensTitle')} className="max-md:hidden">{t('editor.chipTokensCount', { n: formatTokens(totalTokens) })}</Badge>
+        <Badge variant="outline" title={t('editor.chipPermanentTitle')} className="max-md:hidden">{t('editor.chipPermanentTokens', { n: formatTokens(permanentTokens) })}</Badge>
         <button
           type="button"
           disabled={chatCount === 0}
           onClick={() => openChatsFor(c.id)}
-          title="Show the chats of this card"
-          aria-label={`Show the chats of ${c.name} (${chatCount})`}
+          title={t('editor.chipChatsTitle')}
+          aria-label={t('editor.chipChatsAria', { name: c.name, n: chatCount })}
           className="rounded-4xl outline-none focus-visible:ring-2 focus-visible:ring-ring/60 max-md:hidden"
         >
-          <Badge variant="outline" className="font-semibold hover:bg-muted">{chatCount} {chatCount === 1 ? 'chat' : 'chats'}</Badge>
+          <Badge variant="outline" className="font-semibold hover:bg-muted">{t('editor.chipChatsCount', { n: chatCount })}</Badge>
         </button>
         {/* the id is the card's folder: what to give Molfar so it edits this
             card and not one with a similar name */}
