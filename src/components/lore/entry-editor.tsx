@@ -14,7 +14,6 @@ import { EntryFolds } from '@/components/lore/entry-folds'
 import { MoveToFolderDialog } from '@/components/lore/folder-dialogs'
 import { KeyChips } from '@/components/lore/key-chips'
 import { useT } from '@/hooks/use-t'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { APPEARANCE_HINT_KEY, APPEARANCE_KEY, APPEARANCES, appearanceOf, statusOf, type Appearance } from '@/lib/lore-entry'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import type { LoreEntry } from '@/lib/types'
@@ -25,8 +24,10 @@ import { cn } from '@/lib/utils'
 /**
  * The entry panel: on desktop it opens from the left over the book list and the book together, almost the whole width
  * (owner, 2026-11-08: an entry is read, edited and marked up at length, so it needs room). Wide, the content takes the
- * left and the settings the right, each scrolling on its own; narrow, one column. On a phone it is a full page. Without a
- * `host` (a test, a view that gives none) it is drawn in place, over the book pane. The top has the title, the on switch,
+ * left and the settings the right, each scrolling on its own; narrow, one column. On a phone it is a full page: drawn into the
+ * same `host`, so it is as tall as the screen area and scrolls by itself (drawn in place it took the height of the whole
+ * book list, so its own scroll never ran and the page behind it moved instead). Without a `host` (a test, a view that
+ * gives none) it is drawn in place, over the book pane. The top has the title, the on switch,
  * a "more" menu (copy, duplicate, delete) and Close. Then the three things most people change (content, when it appears,
  * keys), then the five folds. Edits are saved as the person types, through `onChange`, as they always were. Escape closes it.
  */
@@ -43,7 +44,6 @@ export function EntryEditor({ entry: e, host, folders, onChange, onDelete, onDup
   onClose: () => void
 }) {
   const t = useT()
-  const isMobile = useIsMobile()
   const ids = useId()
   const panelRef = useRef<HTMLElement>(null)
   const appearance: Appearance = appearanceOf(e.status)
@@ -78,7 +78,7 @@ export function EntryEditor({ entry: e, host, folders, onChange, onDelete, onDup
       className={cn(
         'absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col bg-background outline-none @container motion-reduce:animate-none',
         // desktop: from the left, almost the whole width; the sliver at the right shows there is a page beneath
-        host && !isMobile
+        host
           ? 'md:inset-y-0 md:right-auto md:left-0 md:w-[calc(100%-2rem)] md:border-r md:border-border md:shadow-2xl md:animate-in md:slide-in-from-left md:duration-150'
           : 'md:inset-y-0 md:left-auto md:right-0 md:w-[min(460px,88%)] md:border-l md:border-border md:shadow-2xl md:animate-in md:slide-in-from-right md:duration-150',
       )}
@@ -201,6 +201,6 @@ export function EntryEditor({ entry: e, host, folders, onChange, onDelete, onDup
       />
     </aside>
   )
-  return host && !isMobile ? createPortal(panel, host) : panel
+  return host ? createPortal(panel, host) : panel
 }
 
