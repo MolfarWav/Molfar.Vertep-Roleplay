@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Added: **spell check and autocorrect in the message box, as two switches.** The message box and the expanded editor (Shift+Tab) always had both off, on purpose: invented names would be underlined all the time and a phone keyboard fights asterisks, quotes and macros. Settings > Chat Behavior now has "Spell check in the message box" and "Autocorrect in the message box", both off by default (nothing changes unless you switch them on). Reported on Discord.
+
 - Fixed: **a lorebook entry did not scroll on a phone.** In a book with many entries the entry panel took the height of the whole book list, so its own scroll never ran: the page behind it moved, the title row went off screen, and the lower fields were hard to reach. The panel is now as tall as the screen area, the title row stays on top and the panel scrolls by itself, above the bottom bar.
 
 ## 4.103.0 (2026-11-08)

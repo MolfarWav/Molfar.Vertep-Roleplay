@@ -83,6 +83,8 @@ const SECTIONS: SectionDef[] = [
     controls: [
       { kind: "switch", key: "sendOnEnter", label: "Send on Enter" },
       { kind: "switch", key: "upArrowEditLast", label: "Up Arrow Recalls Input History" },
+      { kind: "switch", key: "spellCheck", label: "Spell check in the message box", labelKey: "composer.spellcheck", hintKey: "composer.spellcheckHint" },
+      { kind: "switch", key: "autoCorrect", label: "Autocorrect in the message box", labelKey: "composer.autocorrect", hintKey: "composer.autocorrectHint" },
       { kind: "switch", key: "autoScroll", label: "Auto-scroll" },
       { kind: "switch", key: "confirmDeletions", label: "Confirm Deletions" },
       { kind: "switch", key: "askPresetOnNewChat", label: "Ask for the preset when a chat starts", labelKey: "pc.settings.ask", defaultOn: true },

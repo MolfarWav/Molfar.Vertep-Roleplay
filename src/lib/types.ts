@@ -887,6 +887,12 @@ export interface AppSettings {
   askPresetOnNewChat?: boolean
   /** #184 P8: the line under the newest reply that sums up what changed in the Dashboard (absent = on). */
   showChanges?: boolean
+  /** Spell check (red underlines and suggestions) in the message box and the expanded editor. Off unless true:
+   *  the box was always plain text, and invented names would be underlined all the time. */
+  spellCheck?: boolean
+  /** Keyboard autocorrect in the message box and the expanded editor. Off unless true: mobile keyboards
+   *  fight asterisks, quotes and macros. */
+  autoCorrect?: boolean
   /** 0.9.5: the user picked the language here; until then it follows the shell's (shell-bridge shellLocale). */
   languageChosen?: boolean
   /** 4.46: what the in-app guide has shown (lib/guide.ts). Absent = nothing yet. */

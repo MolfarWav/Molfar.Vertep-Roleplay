@@ -3,6 +3,7 @@ import { TextB, TextItalic, Code, Quotes, ArrowsIn, PaperPlaneRight, ArrowsOutLi
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useApp } from "@/lib/store"
 import { estimateTokens } from "@/lib/tokens"
 
 
@@ -30,6 +31,9 @@ export function ExpandedEditor({
   canSend: boolean
   placeholder?: string
 }) {
+  // the same two switches as the message box (Settings > Chat Behavior), off by default
+  const spellCheck = useApp((s) => s.settings.spellCheck === true)
+  const autoCorrect = useApp((s) => s.settings.autoCorrect === true)
   // full height or half: half keeps the chat above in view (remembered on this device)
   const [half, setHalf] = useState(() => {
     try { return localStorage.getItem(SIZE_KEY) === "half" } catch { return false }
@@ -140,9 +144,9 @@ export function ExpandedEditor({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           aria-label="Expanded message editor"
-          autoCorrect="off"
+          autoCorrect={autoCorrect ? "on" : "off"}
           autoCapitalize="sentences"
-          spellCheck={false}
+          spellCheck={spellCheck}
           className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
         />
 
