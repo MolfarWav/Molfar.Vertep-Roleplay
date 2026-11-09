@@ -271,7 +271,7 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
               </NativeSelect>
             )}
             {from === 'dice' && (
-              <div className="flex gap-1.5">
+              <div className="flex flex-col gap-1.5">
                 <NativeSelect value={String(r.left.die)} label={t('fg.if.die')} onChange={(die) => setLeft({ ...r.left, die })}>
                   {DICE_DIES.map((d: string) => <option key={d} value={d}>{t(`fg.if.die.${d}` as MsgKey)}</option>)}
                 </NativeSelect>
@@ -285,6 +285,7 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
             </NativeSelect>
             {!NO_RIGHT.has(r.op) && (
               <Input
+                key={`${i}-${from}-${r.op}-${r.left.field ?? r.left.what ?? r.left.die ?? r.left.port}`}
                 defaultValue={showRight(r)}
                 aria-label={t('fg.if.value')}
                 placeholder={r.op === 'between' ? t('fg.if.betweenEg') : r.op === 'in' ? t('fg.if.inEg') : ''}

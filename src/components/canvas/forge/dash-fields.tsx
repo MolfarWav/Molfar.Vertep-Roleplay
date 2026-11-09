@@ -42,7 +42,7 @@ export function OfBox({ value, label, onChange }: { value: unknown; label: strin
   const t = useT()
   return (
     <Field label={label} hint={t('fg.dash.ofHint')}>
-      <Input value={typeof value === 'string' ? value : ''} maxLength={60} placeholder={t('fg.dash.ofPlaceholder')} className="max-md:h-10" onChange={(e) => onChange(e.target.value)} />
+      <Input value={typeof value === 'string' ? value : ''} aria-label={label} maxLength={60} placeholder={t('fg.dash.ofPlaceholder')} className="max-md:h-10" onChange={(e) => onChange(e.target.value)} />
     </Field>
   )
 }
