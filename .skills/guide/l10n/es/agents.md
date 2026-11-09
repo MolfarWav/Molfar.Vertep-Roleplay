@@ -1,4 +1,4 @@
-<!-- source: 56891f4e013d -->
+<!-- source: 2e8e4f51b7cb -->
 # Agentes y la forja de agentes
 
 Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. Lee una parte del chat (antes o después de una respuesta, como prefieras), puede hacerle a un modelo una o varias preguntas breves, guarda sus propias notas y muestra algo: una nota bajo la respuesta, botones para tocar, un medidor, un mapa o una pista para la siguiente respuesta. Ejemplos: tres próximos movimientos sugeridos, un medidor de tensión, un mapa de los lugares visitados. Esta página es para quienes quieren esos extras. El Help tiene tres artículos sobre el editor: "Agent editor: how an agent works", "Agent editor: the cards" y "Agent editor: three ready agents".
@@ -9,7 +9,7 @@ Un agente son datos, no código. En el editor es un tablero de **tarjetas** unid
 
 - una tarjeta **Input** dice qué puede leer el agente (la última respuesta, el historial del chat, la tarjeta del personaje, la persona, la nota del autor, los hechos de Litopys, las entradas del lorebook);
 - las tarjetas **Ask the model** hacen una pregunta a un modelo y toman la respuesta como texto libre, sí o no, o unos pocos campos con nombre;
-- tarjetas de lógica y tarjetas que trabajan en código sin modelo: dados, elegir una línea, cortar o extraer texto;
+- tarjetas de lógica (una tarjeta If solo se dispara cuando su respuesta cambia a Yes, solo una vez, o con una pausa tras dispararse, y sus reglas pueden preguntar si un valor cambió desde la última ejecución; el registro de ejecución dice por qué respondió) y tarjetas que trabajan en código sin modelo: dados, elegir una línea, cortar o extraer texto;
 - una tarjeta **Script**: unas pocas líneas de JavaScript que escribes, con `(input, seed)` de entrada y un objeto simple de salida, con entradas y salidas tipadas. Corre en un entorno aislado del motor (sin reloj, sin internet, sin archivos, unos medio segundo y 16 MB) y necesita un motor de la versión 1.10.1 o posterior; un motor más antiguo hace fallar al agente con un mensaje simple;
 - tarjetas para la **memoria** propia del agente (números, texto, sí/no, listas), guardada por chat y aparte del Dashboard;
 - una tarjeta **Output** que muestra un resultado: "A note under the reply", "Buttons to tap", un valor de estado, o una pista colocada en el siguiente prompt.
@@ -32,6 +32,10 @@ Pulsa "New agent" en el tablero Agents del **Canvas** (el elemento **Agents** de
 ## El editor
 
 Los cambios se guardan como borrador un momento después de dejar de escribir. Tres pestañas: Card (la tarjeta seleccionada), Agent (nombre, cuándo se ejecuta, su memoria, paneles) y Try. Una comprobación muestra "Passes the check", el número de problemas y advertencias, y "N model calls per run". No puedes instalar con problemas pendientes. "Export as a file" guarda un archivo que puedes compartir. La hoja "Install and manage agents..." del chat tiene "Install an agent file" para traer uno.
+
+### Las opciones de la tarjeta If
+
+Una tarjeta If responde Yes, No o Unknown según sus reglas, y por sí sola dice Yes en cada ejecución mientras se cumplan las reglas. Bajo las reglas, **When it answers Yes** cambia eso: "Every time" (el predeterminado), "Only when it turns Yes" (se dispara en el paso de no Yes a Yes, y de nuevo solo después de que la respuesta haya vuelto atrás), u "Only once in this chat". **Pause after it fires (runs)** salta tantas ejecuciones del agente después de un Yes, de 0 a 50. Una ejecución es un turno del agente, así que un agente que corre cada tercera respuesta hace que una pausa de 2 dure seis respuestas. Una regla también puede usar "changed since the last run": Yes cuando el valor es distinto al de la última ejecución. Solo se retiene un Yes; No y Unknown siguen saliendo. El agente lo recuerda por chat, y "start over" en el agente lo olvida. La pestaña Try muestra por qué respondió una tarjeta (la regla, el valor que leyó, el resultado) y, cuando retuvo un Yes, qué opción lo retuvo; el registro del agente bajo una respuesta guarda las mismas líneas.
 
 ## Prueba
 

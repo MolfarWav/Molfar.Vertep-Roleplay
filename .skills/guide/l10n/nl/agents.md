@@ -1,4 +1,4 @@
-<!-- source: 56891f4e013d -->
+<!-- source: 2e8e4f51b7cb -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -9,7 +9,7 @@ Een agent is data, geen code. In de editor is het een bord met **kaarten** verbo
 
 - een **Input**-kaart zegt wat de agent mag lezen (het laatste antwoord, de chatgeschiedenis, de personagekaart, de persona, de auteursnotitie, Litopys-feiten, lorebook-vermeldingen);
 - **Ask the model**-kaarten stellen één vraag aan een model en nemen het antwoord als vrije tekst, ja of nee, of een paar benoemde velden;
-- logische kaarten, en kaarten die in code werken zonder model: dobbelstenen, een regel kiezen, tekst knippen of uitpakken;
+- logische kaarten (een If-kaart kan alleen afgaan wanneer zijn antwoord Yes wordt, alleen één keer, of met een pauze nadat hij afgaat, en zijn regels kunnen vragen of een waarde is veranderd sinds de vorige run; het runlog zegt waarom hij antwoordde), en kaarten die in code werken zonder model: dobbelstenen, een regel kiezen, tekst knippen of uitpakken;
 - een **Script**-kaart: een paar regels JavaScript die je zelf schrijft, `(input, seed)` erin en een gewoon object eruit, met getypte invoer en uitvoer. Hij draait in een zandbak van de engine (geen klok, geen internet, geen bestanden, ongeveer een halve seconde en 16 MB) en heeft een engine vanaf 1.10.1 nodig; een oudere engine laat de agent mislukken met een gewone melding;
 - kaarten voor het eigen **geheugen** van de agent (getallen, tekst, ja/nee, lijsten), per chat bewaard en apart van het Dashboard;
 - een **Output**-kaart die een resultaat toont: "A note under the reply", "Buttons to tap", een toestandswaarde, of een hint die in de volgende prompt wordt gezet.
@@ -32,6 +32,10 @@ Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item v
 ## De editor
 
 Bewerkingen worden kort nadat je stopt als concept opgeslagen. Drie tabbladen: Card (de geselecteerde kaart), Agent (naam, wanneer hij draait, zijn geheugen, panelen) en Try. Een controle toont "Passes the check", het aantal problemen en waarschuwingen, en "N model calls per run". Je kunt niet installeren zolang er problemen overblijven. "Export as a file" slaat één bestand op dat je kunt delen. De sheet "Install and manage agents..." van de chat heeft "Install an agent file" om er een binnen te halen.
+
+### De opties van de If-kaart
+
+Een If-kaart antwoordt Yes, No of Unknown volgens zijn regels, en op zichzelf zegt hij Yes bij elke run zolang de regels gelden. Onder de regels verandert **When it answers Yes** dat: "Every time" (de standaard), "Only when it turns Yes" (hij gaat af bij de stap van niet-Yes naar Yes, en pas weer nadat het antwoord is teruggegaan), of "Only once in this chat". **Pause after it fires (runs)** slaat zoveel runs van de agent over na een Yes, 0 tot 50. Een run is één beurt van de agent, dus een agent die elke derde antwoord draait maakt een pauze van 2 die zes antwoorden duurt. Een regel kan ook "changed since the last run" gebruiken: Yes wanneer de waarde verschilt van de vorige run. Alleen een Yes wordt tegengehouden; No en Unknown komen nog steeds door. De agent onthoudt dit per chat, en "start over" op de agent vergeet het. Het tabblad Try toont waarom een kaart antwoordde (de regel, de waarde die hij las, het resultaat) en, wanneer hij een Yes tegenhield, welke optie dat deed; het agentlogboek onder een antwoord houdt dezelfde regels bij.
 
 ## Proefrun
 

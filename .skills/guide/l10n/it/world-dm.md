@@ -1,4 +1,4 @@
-<!-- source: 0b3281e4764e -->
+<!-- source: 391865a01e80 -->
 # World DM
 
 Il World DM è un game master per il mondo di una chat. Dopo le risposte legge la storia e conserva le persone, i luoghi e le cose che incontra nel lorebook della chat, chiamato libro del mondo. Ai livelli più alti muove anche il mondo e manda eventi nella scena. Usalo quando vuoi che il mondo sembri vivo e coerente.
@@ -18,7 +18,7 @@ Per impostazione predefinita il DM è già attivo al livello Chronicler in una c
 
 ## Cosa fa a ogni turno
 
-Viene eseguito dopo le risposte, ogni N risposte ("Run after every N replies"), oppure subito con "World turn". Legge i nuovi messaggi e scrive o ritira voci nel libro del mondo: persone, luoghi, cose e chi le detiene. Puoi dare a un record di tipo Group o Place i **Members** (le persone che ne fanno parte) nella scheda World book; un fatto raccontato a quel gruppo in Litopys viene allora conosciuto da ciascuno di loro ([[litopys]]). Il DM non compila da sé Members. Da Living world in su muove anche fronti e orologi, e può preparare un evento che viene aggiunto alla risposta successiva. Dadi opzionali (foglio World, Dice, da Living world in su, disattivati per impostazione predefinita): prima di una risposta, il codice tira 2d6 e dice al modello come si risolve un'azione incerta, come Hint o Binding.
+Viene eseguito dopo le risposte, ogni N risposte ("Run after every N replies"), oppure subito con "World turn". Legge i nuovi messaggi e scrive o ritira voci nel libro del mondo: persone, luoghi, cose e chi le detiene. Puoi dare a un record di tipo Group o Place i **Members** (le persone che ne fanno parte) nella scheda World book; un fatto raccontato a quel gruppo in Litopys viene allora conosciuto da ciascuno di loro ([[litopys]]). Il DM non compila da sé Members. Da Living world in su muove anche fronti e orologi, e può preparare un evento che viene aggiunto alla risposta successiva. Con **Code** che muove gli orologi (World > Profiles > Options), ogni N risposte il codice tira un d6 per ogni fronte: 1-2 niente, 3-4 un passo, 5-6 un passo e al DM viene detto che notizie di quel fronte possono raggiungere la storia. Dadi opzionali (foglio World, Dice, da Living world in su, disattivati per impostazione predefinita): prima di una risposta, il codice tira 2d6 e dice al modello come si risolve un'azione incerta, come Hint o Binding.
 
 Costa una chiamata al modello in più ogni volta che è dovuta, sul "DM model (all chats)"; basta un modello piccolo ed economico. Un'esecuzione fallita viene mostrata nel foglio e nella Inbox, e il DM legge di nuovo gli stessi messaggi la volta successiva.
 

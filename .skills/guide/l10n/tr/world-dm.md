@@ -1,4 +1,4 @@
-<!-- source: 0b3281e4764e -->
+<!-- source: 391865a01e80 -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -18,7 +18,7 @@ Varsayılan olarak DM, bir hikâye sohbetinde ilk yanıtından itibaren Chronicl
 
 ## Her turda ne yapar
 
-Yanıtlardan sonra, her N. yanıtta ("Run after every N replies") veya hemen "World turn" ile çalışır. Yeni mesajları okur ve dünya kitabına kayıtlar yazar ya da emekliye ayırır: insanlar, yerler, şeyler ve onları kimin tuttuğu. Bir Group ya da Place kaydına World book sekmesinde **Members** (üyeler) verebilirsiniz; Litopys'te o gruba söylenen bir olgu, o zaman her birinin bildiği bir şey olur ([[litopys]]). DM Members listesini kendisi doldurmaz. Living world'den itibaren cepheleri ve saatleri de hareket ettirir ve sonraki yanıta eklenen bir olay hazırlayabilir. İsteğe bağlı zar (World sayfası, Dice, Living world'den itibaren, varsayılan kapalı): bir yanıttan önce kod 2d6 atar ve belirsiz bir eylemin nasıl sonuçlandığını modele Hint veya Binding olarak söyler.
+Yanıtlardan sonra, her N. yanıtta ("Run after every N replies") veya hemen "World turn" ile çalışır. Yeni mesajları okur ve dünya kitabına kayıtlar yazar ya da emekliye ayırır: insanlar, yerler, şeyler ve onları kimin tuttuğu. Bir Group ya da Place kaydına World book sekmesinde **Members** (üyeler) verebilirsiniz; Litopys'te o gruba söylenen bir olgu, o zaman her birinin bildiği bir şey olur ([[litopys]]). DM Members listesini kendisi doldurmaz. Living world'den itibaren cepheleri ve saatleri de hareket ettirir ve sonraki yanıta eklenen bir olay hazırlayabilir. **Code** saatleri hareket ettirirken (World > Profiles > Options), her N yanıtta kod her cephe için bir d6 atar: 1-2 hiçbir şey olmaz, 3-4 bir adım ilerler, 5-6 bir adım ilerler ve DM'e o cepheye ait haberin hikâyeye ulaşabileceği söylenir. İsteğe bağlı zar (World sayfası, Dice, Living world'den itibaren, varsayılan kapalı): bir yanıttan önce kod 2d6 atar ve belirsiz bir eylemin nasıl sonuçlandığını modele Hint veya Binding olarak söyler.
 
 Zamanı geldiğinde bir ekstra model çağrısına mal olur; "DM model (all chats)" üzerinde. Küçük, ucuz bir model yeterlidir. Başarısız bir çalıştırma sayfada ve Inbox'ta gösterilir ve DM bir dahaki sefere aynı mesajları yeniden okur.
 
