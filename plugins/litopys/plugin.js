@@ -1125,8 +1125,11 @@ export const DEFAULT_CONFIG = {
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
   recallScoring: "phrases",
   // #178: a new fact may name the earlier fact that caused it (fact.because); when the insert picks an effect and
-  // the budget has room, its cause (if active) rides right after it. No setting in the app: a hand-edited key to turn it off.
-  causes: true,
+  // the budget has room, its cause (if active) rides right after it. Off by default since 4.105.1: on real chats the worker
+  // wrote 0 causes in more than 100 facts, so the extra prompt rule only cost tokens. No setting in the app: a hand-edited
+  // key to turn it on. `loadConfig` turns it into `cfg.causes`; the old `causes` key is no longer read (a saved config
+  // carried `causes: true` from the old default).
+  causeLinks: false,
   // #288: the worker may report a turning point of the story (a betrayal, a death, a vow broken) and how characters feel about it. No setting in the app.
   turns: true,
   // #288: the far part's share of the backstory budget (percent) and how many active turning points ride across the whole chain
@@ -1455,7 +1458,7 @@ export function loadConfig(fsx) {
   cfg.verbatimMeaningZ = Number.isFinite(Number(cfg.verbatimMeaningZ)) ? Math.min(MEANING_Z_MAX, Math.max(MEANING_Z_MIN, Number(cfg.verbatimMeaningZ))) : MEANING_Z;
   cfg.searchWords = cfg.searchWords !== false;
   cfg.recallScoring = cfg.recallScoring === "words" ? "words" : "phrases";
-  cfg.causes = cfg.causes !== false;
+  cfg.causes = cfg.causeLinks === true;
   cfg.turns = cfg.turns !== false;
   cfg.farShare = clamp(intOf(cfg.farShare, FAR_SHARE_PCT), FAR_SHARE_MIN, FAR_SHARE_MAX);
   cfg.turnsShown = clamp(intOf(cfg.turnsShown, TURNS_SHOWN), TURNS_SHOWN_MIN, TURNS_SHOWN_MAX);
