@@ -26,6 +26,10 @@ export const DASH_FIELDS: Record<string, { as: 'text' | 'number'; char?: true }>
 /** The Dashboard fields an agent may change (#132): the readable ones except `present`. */
 export const DASH_WRITE_FIELDS: Record<string, { as: 'text' | 'number'; char?: true }>
 /** The key under which the host hands a Dashboard value to the executor (`ctx.dash`): `field`, or `field@name` with `of`. */
+/** The World DM dice an If rule may read (#155), and what of a die: `rolled` is a flag, `outcome` text. */
+export const DICE_DIES: string[]
+export const DICE_WHATS: Record<string, 'flag' | 'text'>
+export const diceType: (o: { what?: string } | null | undefined) => 'flag' | 'text'
 export const dashKey: (x: { field?: string; of?: string } | null | undefined) => string | undefined
 
 export interface AgentIssue { code: string; message: string; node?: string }

@@ -82,6 +82,21 @@ function checkDashRead(o, where, err, node) {
   else if (o.of !== undefined && (!isString(o.of) || !o.of.trim() || o.of.length > 60))
     err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, node);
 }
+/**
+ * What an If rule may read of the World DM's dice (#155): `die` is the fate die (the action's roll), the life die (the world
+ * intervenes) or the pacing die (a step toward closeness); `what` is "rolled" (did that die put a note into this reply: yes or
+ * no) or "outcome" (miss, no_but, yes_but or full; for the life die minor, notable or major; unknown when it did not roll).
+ */
+export const DICE_DIES = ['fate', 'life', 'pace'];
+export const DICE_WHATS = { rolled: 'flag', outcome: 'text' };
+/** The type of an If operand that reads a die. */
+export const diceType = (o) => DICE_WHATS[o?.what] ?? 'text';
+function checkDiceRead(o, where, err, node) {
+  if (!DICE_DIES.includes(o.die))
+    err('E_DICE_OPERAND', `${where}: "die" must be one of ${DICE_DIES.join(', ')}`, node);
+  if (!Object.prototype.hasOwnProperty.call(DICE_WHATS, o.what))
+    err('E_DICE_OPERAND', `${where}: "what" must be one of ${Object.keys(DICE_WHATS).join(', ')}`, node);
+}
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
 const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)].map((m) => m[1]))];
@@ -130,7 +145,10 @@ export const AGENT_CARDS = {
       ...(p.inputs ?? []).map((i) => ({ id: i.id, side: 'in', type: i.type })),
       ...['yes', 'no', 'unknown'].map((id) => ({ id, side: 'out', type: 'signal' })),
     ],
-    needs: (p) => (p.rows ?? []).flatMap((r) => [r.left, r.right]).filter((o) => o?.from === 'state').map((o) => `read:state.${o.field}`),
+    needs: (p) => {
+      const ops = (p.rows ?? []).flatMap((r) => [r.left, r.right]);
+      return [...ops.filter((o) => o?.from === 'state').map((o) => `read:state.${o.field}`), ...(ops.some((o) => o?.from === 'dice') ? ['read:dice'] : [])];
+    },
   },
   'logic.merge': {
     label: 'Merge', colorVar: '--k-logic', hint: 'Fires when any of its inputs fires.',
@@ -703,6 +721,7 @@ export function validateAgent(raw) {
       for (const r of p.rows ?? [])
         for (const o of [r.left, r.right])
           if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
+          else if (o?.from === 'dice') checkDiceRead(o, `A rule in "${n.title}"`, err, n.id);
     if (n.type === 'write.state')
       checkDashWrite(n, err);
     if (n.type.startsWith('state.'))
@@ -726,7 +745,8 @@ export function validateAgent(raw) {
         const t = r.left?.from === 'wire' ? inTypes[r.left.port]
           : r.left?.from === 'state' ? r.left.as
             : r.left?.from === 'chat' ? (r.left.what === 'messageCount' ? 'number' : 'text')
-              : typeof r.left?.value === 'number' ? 'number' : 'text';
+              : r.left?.from === 'dice' ? diceType(r.left)
+                : typeof r.left?.value === 'number' ? 'number' : 'text';
         if (!t)
           err('E_IF_OPERAND', `A rule in "${n.title}" reads a port that is not declared in inputs`, n.id);
         else if (!OPS[t]?.includes(r.op))

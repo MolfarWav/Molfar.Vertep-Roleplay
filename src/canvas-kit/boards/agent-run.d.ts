@@ -33,6 +33,8 @@ export interface RunContext {
   /** Dashboard values the host read, by `dashKey` (`comfort`, or `comfort@Anna` when the entry names a character) */
   dash?: Record<string, string | number | undefined>
   chat?: { messageCount?: number; lastSpeaker?: string }
+  /** what the World DM's dice said for the reply (#155): per die, rolled "yes" or "no" and the outcome */
+  dice?: Record<string, { rolled?: "yes" | "no"; outcome?: string }>
   /** the editor's trial run: also return `wires` */
   explain?: boolean
 }

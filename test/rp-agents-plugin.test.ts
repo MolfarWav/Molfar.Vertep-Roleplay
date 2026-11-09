@@ -837,6 +837,69 @@ describe("Dashboard fields for agents", () => {
     expect(asked).toContain("At the tavern Maren feels calm.");
   });
 
+  describe("the World DM's dice (#155)", () => {
+    const writeDice = (chatId: string, rolls: Json[]) => {
+      fs.mkdirSync(path.join(root, "world", "dice"), { recursive: true });
+      fs.writeFileSync(path.join(root, "world", "dice", chatId + ".json"), JSON.stringify({ v: 1, rolls }));
+    };
+    const read = (msgs = msgsOf()) => (plugin as any).diceFor(host().fs, { chatId: "c1", msgs }) as Json;
+    // the reply is message 2 (index): a send made when 2 messages existed
+    const roll = (more: Json) => ({ at: 100, n: 2, op: "send", inserted: true, ...more });
+
+    it("says nothing was rolled when there is no log", () => {
+      expect(read()).toEqual({ fate: { rolled: "no" }, life: { rolled: "no" }, pace: { rolled: "no" } });
+    });
+
+    it("reads the rolls made for the last reply, one per die", () => {
+      writeDice("c1", [
+        roll({ outcome: "yes_but" }),
+        roll({ kind: "pace", outcome: "miss" }),
+        roll({ kind: "life", tier: "notable" }),
+        { at: 50, n: 0, op: "send", inserted: true, outcome: "full" }, // an older reply's
+      ]);
+      expect(read()).toEqual({ fate: { rolled: "yes", outcome: "yes_but" }, life: { rolled: "yes", outcome: "notable" }, pace: { rolled: "yes", outcome: "miss" } });
+    });
+
+    it("a roll that put nothing into the prompt does not count", () => {
+      writeDice("c1", [roll({ kind: "pace", outcome: "full", inserted: false, gated: false })]);
+      expect(read().pace).toEqual({ rolled: "no" });
+    });
+
+    it("a swipe or a continue is read through the reply it rewrote; the newest roll wins", () => {
+      writeDice("c1", [
+        roll({ outcome: "miss", at: 10 }),
+        { at: 20, n: 3, op: "swipe", inserted: true, outcome: "full", last: "m2#0" },
+        { at: 30, n: 3, op: "swipe", inserted: true, outcome: "no_but", last: "m2#1" },
+        { at: 40, n: 3, op: "swipe", inserted: true, outcome: "full", last: "other#0" },
+      ]);
+      expect(read(msgsOf({ 2: 1 })).fate).toEqual({ rolled: "yes", outcome: "no_but" });
+    });
+
+    it("before the reply (the last message is the user's) nothing is rolled yet", () => {
+      writeDice("c1", [roll({ outcome: "full", n: 1 })]);
+      expect(read(msgsOf().slice(0, 2)).fate).toEqual({ rolled: "no" });
+    });
+
+    it("an If rule on a die asks for the read:dice permission", () => {
+      const file = dashAgent([], "x");
+      file.nodes.push({ id: "if", type: "logic.if", x: 0, y: 0, title: "If", params: { inputs: [], rows: [{ left: { from: "dice", die: "pace", what: "outcome" }, op: "in", right: { value: ["miss", "no_but"] } }] } });
+      const r = (compileAgent(file) as any).report;
+      expect(r.errors.map((e: Json) => e.code)).toEqual([]);
+      expect(r.derived.needs).toContain("read:dice");
+    });
+
+    it("the checker refuses an unknown die or reading", () => {
+      const codes = (left: Json) => {
+        const file = dashAgent([], "x");
+        file.nodes.push({ id: "if", type: "logic.if", x: 0, y: 0, title: "If", params: { inputs: [], rows: [{ left, op: "isYes" }] } });
+        return ((compileAgent(file) as any).report.errors as Json[]).map((e) => e.code);
+      };
+      expect(codes({ from: "dice", die: "luck", what: "rolled" })).toContain("E_DICE_OPERAND");
+      expect(codes({ from: "dice", die: "fate", what: "total" })).toContain("E_DICE_OPERAND");
+      expect(codes({ from: "dice", die: "fate", what: "rolled" })).not.toContain("E_DICE_OPERAND");
+    });
+  });
+
   it("a missing Dashboard value skips the question instead of asking with a hole", () => {
     const file = dashAgent([{ id: "place", source: "state", field: "place" }], "At {{place}}.");
     makeChat("c1", CHAT);

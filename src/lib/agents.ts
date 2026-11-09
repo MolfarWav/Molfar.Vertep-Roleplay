@@ -437,6 +437,7 @@ export function describeNeed(token: string, t: T): string {
   if (token === 'show:choices') return t('ag.need.choices')
   if (token === 'show:panel') return t('ag.need.panel')
   if (token === 'run:code') return t('ag.need.runCode')
+  if (token === 'read:dice') return t('ag.need.dice')
   const m = /^(read|write):(state|own)\.(.+)$/.exec(token)
   if (m) {
     const key: MsgKey = m[2] === 'own' ? (m[1] === 'read' ? 'ag.need.ownRead' : 'ag.need.ownWrite') : (m[1] === 'read' ? 'ag.need.dashRead' : 'ag.need.dashWrite')

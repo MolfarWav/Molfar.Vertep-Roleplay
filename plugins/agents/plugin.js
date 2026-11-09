@@ -84,6 +84,21 @@ function checkDashRead(o, where, err, node) {
   else if (o.of !== undefined && (!isString(o.of) || !o.of.trim() || o.of.length > 60))
     err('E_DASH_OF', `${where}: "of" is a character name of 1 to 60 characters`, node);
 }
+/**
+ * What an If rule may read of the World DM's dice (#155): `die` is the fate die (the action's roll), the life die (the world
+ * intervenes) or the pacing die (a step toward closeness); `what` is "rolled" (did that die put a note into this reply: yes or
+ * no) or "outcome" (miss, no_but, yes_but or full; for the life die minor, notable or major; unknown when it did not roll).
+ */
+const DICE_DIES = ['fate', 'life', 'pace'];
+const DICE_WHATS = { rolled: 'flag', outcome: 'text' };
+/** The type of an If operand that reads a die. */
+const diceType = (o) => DICE_WHATS[o?.what] ?? 'text';
+function checkDiceRead(o, where, err, node) {
+  if (!DICE_DIES.includes(o.die))
+    err('E_DICE_OPERAND', `${where}: "die" must be one of ${DICE_DIES.join(', ')}`, node);
+  if (!Object.prototype.hasOwnProperty.call(DICE_WHATS, o.what))
+    err('E_DICE_OPERAND', `${where}: "what" must be one of ${Object.keys(DICE_WHATS).join(', ')}`, node);
+}
 const shapeType = (spec) => (spec === 'number' ? 'number' : spec === 'bool' ? 'flag' : 'text'); // enum:a|b and text are text
 const PORT_ID = /^[A-Za-z0-9_-]+$/;
 const slotsOf = (s) => [...new Set([...String(s ?? '').matchAll(/\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g)].map((m) => m[1]))];
@@ -132,7 +147,10 @@ const AGENT_CARDS = {
       ...(p.inputs ?? []).map((i) => ({ id: i.id, side: 'in', type: i.type })),
       ...['yes', 'no', 'unknown'].map((id) => ({ id, side: 'out', type: 'signal' })),
     ],
-    needs: (p) => (p.rows ?? []).flatMap((r) => [r.left, r.right]).filter((o) => o?.from === 'state').map((o) => `read:state.${o.field}`),
+    needs: (p) => {
+      const ops = (p.rows ?? []).flatMap((r) => [r.left, r.right]);
+      return [...ops.filter((o) => o?.from === 'state').map((o) => `read:state.${o.field}`), ...(ops.some((o) => o?.from === 'dice') ? ['read:dice'] : [])];
+    },
   },
   'logic.merge': {
     label: 'Merge', colorVar: '--k-logic', hint: 'Fires when any of its inputs fires.',
@@ -705,6 +723,7 @@ function validateAgent(raw) {
       for (const r of p.rows ?? [])
         for (const o of [r.left, r.right])
           if (o?.from === 'state') checkDashRead(o, `A rule in "${n.title}"`, err, n.id);
+          else if (o?.from === 'dice') checkDiceRead(o, `A rule in "${n.title}"`, err, n.id);
     if (n.type === 'write.state')
       checkDashWrite(n, err);
     if (n.type.startsWith('state.'))
@@ -728,7 +747,8 @@ function validateAgent(raw) {
         const t = r.left?.from === 'wire' ? inTypes[r.left.port]
           : r.left?.from === 'state' ? r.left.as
             : r.left?.from === 'chat' ? (r.left.what === 'messageCount' ? 'number' : 'text')
-              : typeof r.left?.value === 'number' ? 'number' : 'text';
+              : r.left?.from === 'dice' ? diceType(r.left)
+                : typeof r.left?.value === 'number' ? 'number' : 'text';
         if (!t)
           err('E_IF_OPERAND', `A rule in "${n.title}" reads a port that is not declared in inputs`, n.id);
         else if (!OPS[t]?.includes(r.op))
@@ -1017,7 +1037,7 @@ const N = 'no';
 const U = 'unknown';
 
 /** A rule's operand as the run log names it. */
-const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : 'value');
+const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : o.from === 'dice' ? o.die + ' die ' + o.what : 'value');
 const showVal = (v) => (typeof v === 'string' ? JSON.stringify(clip(v, 40)) : Array.isArray(v) ? JSON.stringify(v).slice(0, 60) : String(v));
 
 /** One rule of an If card: Y, N or U. Missing data is U (except isSet / isMissing, which are about exactly that). */
@@ -1153,6 +1173,7 @@ function runCards(file, ctx, answers, seen) {
   const inputs = (ctx && ctx.inputs) || {};
   const dash = (ctx && ctx.dash) || {};
   const chat = (ctx && ctx.chat) || {};
+  const dice = (ctx && ctx.dice) || {};
   const given = answers || {};
   const n = ctx && Number.isInteger(ctx.n) && ctx.n > 0 ? ctx.n : 1;
   const memo = isPlain(ctx && ctx.memo) ? JSON.parse(JSON.stringify(ctx.memo)) : {};
@@ -1270,6 +1291,7 @@ function runCards(file, ctx, answers, seen) {
           if (o.from === 'wire') { const v = ins[o.port]; return { value: v === ABSENT ? undefined : v, type: types[o.port] }; }
           if (o.from === 'state') return { value: dash[dashKey(o)], type: o.as };
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
+          if (o.from === 'dice') return { value: isPlain(dice[o.die]) ? dice[o.die][o.what] : undefined, type: diceType(o) };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
         const m = isPlain(memo[id]) ? memo[id] : {};
@@ -1941,6 +1963,28 @@ function dashValue(d, view, field, of) {
   return typeof v === "string" && v.trim() ? clip(v.trim(), 600) : undefined;
 }
 
+/**
+ * `ctx.dice` for one agent (#155): what the World DM's dice said for the reply the run follows, per die:
+ * `{ fate|life|pace: { rolled: "yes"|"no", outcome?: text } }`. A roll belongs to the reply it was made for (the roll log keeps where:
+ * the messages so far, and for a swipe or a continue the reply itself); only a roll that put a note into the prompt counts. An agent that
+ * runs before the reply, or beside it, finds no roll yet: rolled is "no". After a swipe back to an older version, the newest roll is read.
+ */
+export function diceFor(fsx, view) {
+  const log = readJsonAt(fsx, "world/dice/" + view.chatId + ".json", null);
+  const rolls = isObj(log) && Array.isArray(log.rolls) ? log.rolls.filter((r) => isObj(r) && r.inserted === true) : [];
+  const at = view.msgs.length - 1;
+  const reply = at >= 0 ? view.msgs[at] : null;
+  const mine = reply && isReplyMsg(reply)
+    ? rolls.filter((r) => ((r.op === "send" || r.op === "next") && r.n === at) || ((r.op === "swipe" || r.op === "continue") && r.n === at + 1 && str(r.last).startsWith(String(reply.id) + "#")))
+    : [];
+  const out = {};
+  for (const die of ["fate", "life", "pace"]) {
+    const hit = mine.filter((r) => (die === "fate" ? r.kind === undefined : r.kind === die)).sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))[0];
+    out[die] = hit ? { rolled: "yes", outcome: die === "life" ? str(hit.tier) : str(hit.outcome) } : { rolled: "no" };
+  }
+  return out;
+}
+
 /** `ctx.dash` for one agent: only the fields its Input and If cards ask for, each under its `dashKey`. */
 export function dashFor(file, d, view) {
   const dash = {};
@@ -2136,7 +2180,7 @@ function stepRun(host, fsx, view, picks, last, stash) {
       inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
     }
     // dice and picks repeat within one reply (every pass of a run) and change with a new swipe: the key carries the swipe
-    const ctx = { inputs, own: base, memo, n: runN + 1, dash: dashFor(pick.agent.file, dashOf(pick), view), chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
+    const ctx = { inputs, own: base, memo, n: runN + 1, dash: dashFor(pick.agent.file, dashOf(pick), view), ...(needsOf(pick.agent.file).includes("read:dice") ? { dice: diceFor(fsx, view) } : {}), chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
     const answers = {};
     pick.agent.file.nodes.forEach((n, ni) => {
       const r = answersAll[`ag_${ai}_${ni}`];
@@ -2409,7 +2453,7 @@ function dryRoute(req, host) {
     const cap = capOf(fsx, agentId);
     if (cap && maxCalls > cap) return ok({ error: "Can make up to " + maxCalls + " model calls a run, over your limit of " + cap + " for this agent. Raise the limit for this agent, or try without the model." }, 400);
   }
-  const ctx = { inputs, own, memo: st.raw && isObj(st.raw.memo) ? st.raw.memo : {}, n: (st.raw && Number.isInteger(st.raw.n) ? st.raw.n : 0) + 1, dash, chat: { messageCount: msgs.length, lastSpeaker: str(last && last.name) }, explain: true, seed: str(b.seed) || chatId + "|" + agentId + "|dry" };
+  const ctx = { inputs, own, memo: st.raw && isObj(st.raw.memo) ? st.raw.memo : {}, n: (st.raw && Number.isInteger(st.raw.n) ? st.raw.n : 0) + 1, dash, ...(needsOf(file).includes("read:dice") ? { dice: diceFor(fsx, view) } : {}), chat: { messageCount: msgs.length, lastSpeaker: str(last && last.name) }, explain: true, seed: str(b.seed) || chatId + "|" + agentId + "|dry" };
   const replies = isObj(b.replies) ? b.replies : {};
   const byId = new Map(file.nodes.map((n) => [n.id, n]));
 

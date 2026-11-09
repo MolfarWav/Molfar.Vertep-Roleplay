@@ -1129,6 +1129,17 @@ differs from what the card saw on its last run, No on the first look or when it 
 The card's memory is `{ last, fired, count, seen }` per card id; the host keeps it in the agent's state file (below) and a card
 that is gone loses it. The run log's trace for an If has `out.why`: every rule with what it read (`comfort (15) lt 20 = yes`),
 and a held card shows `out.held` (`edge: it was already true last time`).
+**What an If rule reads (#155).** A rule's `left` (and `right`) is a literal `{ value }`, or one of `{ from: "wire", port }`, `{ from: "state", field, as, of? }`
+(a Dashboard field, #132), `{ from: "chat", what: "messageCount" | "lastSpeaker" }` and `{ from: "dice", die: "fate" | "life" | "pace",
+what: "rolled" | "outcome" }` (the World DM's dice; `E_DICE_OPERAND` otherwise). `rolled` is a flag (`yes` when that die put a note into
+the reply the run follows, else `no`), `outcome` is text: `miss`, `no_but`, `yes_but` or `full` for the fate and pacing dice, `minor`, `notable`
+or `major` for the life die; a die that did not roll has no outcome (the rule is Unknown). A card with a die operand needs the
+permission `read:dice`. The host fills `ctx.dice = { fate|life|pace: { rolled: "yes"|"no", outcome? } }` from the chat's roll log
+(`world/dice/<chatId>.json`, `diceFor` in the runner plugin): the rolls with `inserted: true` that belong to the last reply (a `send` or `next` roll
+made when the chat had as many messages as the reply's index; a `swipe` or `continue` roll that names the reply), the newest per die. An agent that
+runs before or beside the reply finds nothing rolled yet, so dice rules belong to agents that run after the reply. After a swipe back to an older
+version of a reply the newest roll is read, not the one of that version. A run reads the dice of the reply it follows; there is no cascade (a rule
+cannot trigger another run), so there is nothing to cap: the graph has no loops (`E_CYCLE`).
 
 ### Running an agent (`agent-run.js`)
 

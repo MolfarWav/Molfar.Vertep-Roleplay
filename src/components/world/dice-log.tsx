@@ -13,6 +13,7 @@ type T = ReturnType<typeof useT>
 /** One roll as a short line: the dice, the total and what it made. */
 export function rollLine(t: T, r: WorldDiceRoll): string {
   const outcome = (o: string | undefined) => (o ? t(`world.dice.out.${o}` as MsgKey) : '')
+  if (r.kind === 'pace') return r.gated ? t('world.dice.pace', { outcome: t(`world.dice.pace.out.${r.outcome}` as MsgKey) }) : t('world.dice.pace.quiet')
   if (r.kind === 'life') return r.gated ? t('world.dice.life', { tier: t(`world.dice.tier.${r.tier}` as MsgKey) }) : t('world.dice.life.quiet')
   if (!r.gated) return t('world.dice.quiet', { gate: r.gate, chance: r.chance })
   const dice = `${r.d1}+${r.d2}`
