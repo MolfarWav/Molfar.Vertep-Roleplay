@@ -1,4 +1,4 @@
-<!-- source: 82d4a821463b -->
+<!-- source: 155df9c0d938 -->
 # Onde ficam as configurações do Roleplay
 
 O Roleplay não tem uma única página de configurações para tudo. As configurações ficam perto do que mudam, e duas delas estão nas Configurações principais do Molfar Vertep. Esta página é um localizador.
@@ -6,7 +6,7 @@ O Roleplay não tem uma única página de configurações para tudo. As configur
 ## Duas Configurações, para não misturar
 
 - **As Configurações principais** do Molfar Vertep (a engrenagem da página inteira): modelos e conexões, backups de todo o perfil, atualizações. Escolha e teste modelos lá; veja [[vertep:settings]] e [[vertep:models]]. Modelos marcados lá aparecem como trocas rápidas em um chat.
-- **Configurações do Roleplay**: o botão "Roleplay settings" no cabeçalho da Home (no telefone, no menu). Ele ainda não está listado dentro das Configurações principais, então procure-o no próprio Roleplay. Tem dez seções: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data e Guide. Uma caixa de busca no topo as filtra.
+- **Configurações do Roleplay**: o botão "Roleplay settings" no cabeçalho da Home (no telefone, no menu). As Configurações principais também listam este app: em "Configurações dos apps", no topo, toque no app (lá o nome dele é "Vertep") e ele abre nesta página. Tem dez seções: Appearance, Chat Behavior, Streaming, Themes, Prose Colors, Custom CSS, Card tasks, Import, Data e Guide. Uma caixa de busca no topo as filtra.
 
 O que as seções fazem, em resumo: Appearance é idioma, fontes, largura do chat e avatares; Chat Behavior tem interruptores como enviar com Enter, confirmar exclusões e "Spell check in the message box" e "Autocorrect in the message box" (ambos desativados por padrão: o corretor ortográfico sublinha palavras escritas errado e oferece correções, o que com nomes inventados significa muito vermelho; a autocorreção deixa o teclado mudar palavras, o que em um telefone pode brigar com asteriscos, aspas e macros; valem para a caixa de mensagem e para o editor expandido); Streaming escolhe mostrar as respostas conforme são escritas ou quando terminadas; Card tasks escolhe o modelo usado pelos auxiliares de cartão ("Structure it", "Fill empty") quando um cartão não tem um próprio; Import traz predefinições, personagens, lorebooks, chats e um zip de backup (uma predefinição do SillyTavern chega com suas listas de escolha como Choices, as explicações do autor como notas e seus blocos de "não mexer" travados; uma predefinição exportada do Roleplay volta com todas as suas Choices); Data exporta e restaura os próprios dados do Roleplay como um zip (o perfil inteiro é salvo pelo Backup das Configurações principais); Guide mostra ou oculta os pequenos tours e "What's new".
 

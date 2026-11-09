@@ -1,4 +1,4 @@
-<!-- source: 82d4a821463b -->
+<!-- source: 155df9c0d938 -->
 # Roleplay の設定がある場所
 
 Roleplay には、すべてのための単一の設定ページはありません。設定は、それが変える対象の近くにあり、そのうち2つはメインの Molfar Vertep の設定にあります。このページは探し方の案内です。
@@ -6,7 +6,7 @@ Roleplay には、すべてのための単一の設定ページはありませ�
 ## 混同しないよう、2つの設定
 
 - **メインの設定**（ページ全体の歯車）Molfar Vertep の：モデルと接続、プロファイル全体のバックアップ、更新。そこでモデルを選んでテストします。[[vertep:settings]] と [[vertep:models]] を参照してください。そこでスターを付けたモデルは、チャットでのクイックスイッチとして表示されます。
-- **Roleplay の設定**：ホームのヘッダーにある "Roleplay settings" ボタン（電話ではメニュー内）。まだメインの設定の中には一覧されていないので、Roleplay の中で探してください。10のセクションがあります：Appearance、Chat Behavior、Streaming、Themes、Prose Colors、Custom CSS、Card tasks、Import、Data、Guide。上部の検索ボックスで絞り込めます。
+- **Roleplay の設定**：ホームのヘッダーにある "Roleplay settings" ボタン（電話ではメニュー内）。メインの設定にもこのアプリが一覧されます。上部の「アプリの設定」の下でアプリ（そこでの名前は "Vertep"）を押すと、このページが開きます。10のセクションがあります：Appearance、Chat Behavior、Streaming、Themes、Prose Colors、Custom CSS、Card tasks、Import、Data、Guide。上部の検索ボックスで絞り込めます。
 
 各セクションの役割を簡単に示すと、Appearance は言語、フォント、チャットの幅、アバターです。Chat Behavior には、Enter で送信する、削除前に確認する、"Spell check in the message box" と "Autocorrect in the message box" などのスイッチがあります（後の2つは初期状態ではオフです。スペルチェックはつづりの誤った単語に下線を引いて修正候補を示しますが、作り出した名前では赤線だらけになります。自動修正はキーボードに単語を書き換えさせるもので、電話ではアスタリスク、引用符、マクロとぶつかることがあります。どちらもメッセージ欄と拡大エディターに適用されます）。Streaming は、返信を書いている途中から表示するか、書き終わってから表示するかを選びます。Card tasks は、カードにそれ専用のモデルがないときに、カードのヘルパー（"Structure it"、"Fill empty"）が使うモデルを選びます。Import は、プリセット、キャラクター、ロアブック、チャット、バックアップの zip を取り込みます（SillyTavern のプリセットは、その選択肢リストが Choices として、作者の説明が notes として、"do not touch" のブロックがロックされた状態で届きます。Roleplay からエクスポートしたプリセットは、すべての Choices を持って戻ります）。Data は、Roleplay 自身のデータを zip として書き出し、復元します（プロファイル全体は、メインの設定の Backup で保存されます）。Guide は、短いツアーと "What's new" を表示したり隠したりします。
 
