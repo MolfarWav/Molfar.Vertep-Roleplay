@@ -279,6 +279,19 @@ does not fold it into the scene before, it counts as closed even at the end of t
 `marked: true` and the chapter worker is told it is a turning point. `POST /litopys/scenes { chatId, op: "mark", from, to }`
 or `{ chatId, op: "unmark", id }`; chapters over the same messages (not ones the user edited: those refuse the call) are marked
 stale and rewritten for the new layout. Overlapping marks and marks whose messages are gone are ignored.
+A mark may carry `title` (at most 80 characters, from a suggested scene); the record shows it until the chapter has a label.
+`{ chatId, op: "mark-many", ranges: [{ from, to, title? }] }` saves several at once, all or none (one overlap refuses the lot).
+
+**Suggested scenes.** `litopys/chats/<chatId>.json`, key `sceneSuggest` (a job the reader starts; it is not part of the
+story): `{ state: "working" | "done" | "failed", at, runs: [{ from, to }], run, pos, n, scenes: [{ from, to, title, why }], error? }`.
+`POST /litopys/scenes { chatId, op: "suggest" }` reads the messages that no scene holds (a hand mark, a chapter that is not stale,
+a scene the reader kept out), in runs of at most 40 messages, one request per run on the worker's next pass (the text of a message
+is cut to 320 characters); the model answers `{ "scenes": [{ "from": 12, "to": 19, "title", "why" }] }` by message number, from 1,
+and the parser drops out-of-range, overlapping and one-message entries. A run longer than 40 messages goes on from the message after
+the last scene found. Nothing becomes a scene until `mark-many` saves it (which also clears the job); `op: "suggest-cancel"` stops
+a running job and `op: "suggest-clear"` drops a finished one. `GET /litopys/chat` answers `sceneSuggest: { free, state, scenes, error, at }`
+(`free` = messages in no scene; `scenes` only when done, as `{ id, from, to, fromNo, toNo, title, why }`, and a scene that a mark
+saved since then covers is left out). Reading code: `takenIdx`, `freeRuns`, `suggestStep`, `parseSuggestReply`, `markManyRoute`.
 
 **Settings for one chat (#122).** `litopys/chats/<chatId>.json`, key `config`, optional: only what the chat sets for itself,
 laid over `litopys/config.json` wherever the plugin works on that chat (the worker's tick, the insert, the chat's view, a

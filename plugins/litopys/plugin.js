@@ -1655,7 +1655,7 @@ export function markRanges(line, marks) {
     const fromIdx = line.findIndex((x) => x.id === m.from);
     const toIdx = line.findIndex((x) => x.id === m.to);
     if (fromIdx < 0 || toIdx < fromIdx) continue;
-    out.push({ id: m.id, fromIdx, toIdx });
+    out.push({ id: m.id, fromIdx, toIdx, title: str(m.title) });
   }
   out.sort((a, b) => a.fromIdx - b.fromIdx);
   return out.filter((r, i) => i === 0 || r.fromIdx > out[i - 1].toIdx);
@@ -5485,6 +5485,8 @@ export function onTick(_ctx, host) {
         if (!work && consolidateStep(fsx, host, chatId, st, chatCfg, meta, now, line, dash)) return;
         // #113: a story summary for a card's memory, after the chapters it is written from
         if (!work && summaryStep(fsx, host, chatId, st, chatCfg, meta, now)) return;
+        // scenes the reader asked the model to propose (messages in no scene yet)
+        if (!work && suggestStep(fsx, host, chatId, st, chatCfg, meta, now, line)) return;
         if (!work && st.arcFlight) {
           delete st.arcFlight;
           changed = true;
@@ -7863,6 +7865,8 @@ export function chapterRoute(fsx, body) {
 export function sceneRoute(fsx, body) {
   const b = isObj(body) ? body : {};
   const op = str(b.op);
+  if (op === "mark-many") return markManyRoute(fsx, b);
+  if (op === "suggest" || op === "suggest-cancel" || op === "suggest-clear") return suggestRoute(fsx, b, op);
   if (op !== "mark" && op !== "unmark") return bad("unknown op");
   const chatId = str(b.chatId);
   let woke = false;
@@ -7899,6 +7903,256 @@ export function sceneRoute(fsx, body) {
       addActivity(st, "user", "scene.unmark", "Took the mark off a scene", [], now);
     }
     for (const ch of over) ch.stale = true;
+    woke = true;
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
+// ---------- suggest scenes ----------
+// A chat whose characters never move has no place or time change for the record to close a scene on. The reader asks
+// the model to read the messages that are in no scene yet and propose where the story turns. The answer waits as a
+// list (st.sceneSuggest.scenes); nothing becomes a scene until the reader saves it (then it is an ordinary mark).
+// st.sceneSuggest = { state: "working" | "done" | "failed", at, runs: [{ from, to }] (message ids of the free runs),
+//   run, pos (id where the next request starts, null = the run's start), n (requests answered), scenes: [{ from, to, title, why }], error? }
+
+/** Messages one request reads. */
+export const SUGGEST_BATCH = 40;
+/** Characters of one message the model sees (the start and end are kept). */
+const SUGGEST_MSG_CHARS = 320;
+/** Most scenes a job keeps. */
+const SUGGEST_KEEP = 24;
+
+const SUGGEST_PROMPT = [
+  "You split a roleplay chat into scenes for its story record. A scene is a run of messages that belong to one piece of the story: one event, one goal, one conversation.",
+  "A new scene starts when the situation turns: a different goal or problem, a time skip, another place or other people, a decisive moment (a fight ends, a secret comes out, a decision is made). The characters staying in the same place does not make it one scene: split by what happens.",
+  "A typical scene is 3 to 15 messages and never fewer than 2. Leave out messages that belong to no clear scene. If the last scene is still going when the text ends, leave it out.",
+  "Numbers are the message numbers shown (#12). Scenes go in order and never overlap. Give each scene a short title (3 to 8 words) and one sentence saying why it ends there, in the language the messages are written in.",
+].join("\n");
+const SUGGEST_SHAPE = '{"scenes":[{"from":12,"to":19,"title":"3-8 words","why":"one sentence: what changes after message 19"}]}';
+
+/** The line's indices a scene already holds: a hand-marked one, a chapter that is not stale, a scene the reader kept out. */
+export function takenIdx(st, line) {
+  const taken = new Set();
+  const add = (r) => {
+    for (let i = r.fromIdx; i <= r.toIdx; i++) taken.add(i);
+  };
+  for (const r of markRanges(line, st && st.marks)) add(r);
+  for (const ch of arr(st && st.chapters)) {
+    if (ch.stale === true) continue;
+    const r = rangeOf(ch, line);
+    if (!r.orphan && !r.partial) add(r);
+  }
+  for (const r of skipRanges(st || {}, line)) add(r);
+  return taken;
+}
+
+/** The runs of the line that no scene holds: [{ fromIdx, toIdx }]. */
+export function freeRuns(st, line) {
+  const taken = takenIdx(st, line);
+  const runs = [];
+  let start = -1;
+  for (let i = 0; i <= line.length; i++) {
+    const free = i < line.length && !taken.has(i);
+    if (free && start < 0) start = i;
+    if (!free && start >= 0) {
+      runs.push({ fromIdx: start, toIdx: i - 1 });
+      start = -1;
+    }
+  }
+  return runs;
+}
+
+/** msgs: [{ no, name, text }] (no = the message's number in the line, from 1). */
+export function buildSuggestRequest(msgs, cfg, meta, who = {}) {
+  const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const lines = msgs.map((m) => "#" + m.no + " [" + m.name + "] " + cutMiddle(str(m.text).replace(/\s+/g, " ").trim(), SUGGEST_MSG_CHARS));
+  const req = {
+    systemPrompt: SUGGEST_PROMPT + "\n\nOutput shape (JSON only)\n" + SUGGEST_SHAPE,
+    messages: [{ role: "user", content: expandNames("Messages\n\n" + lines.join("\n"), who.user || str(meta && meta.userName), who.char) }],
+    presetParams: { temperature: 0.2, max_tokens: 1500 },
+  };
+  if (model) req.model = model;
+  // NEVER set a reasoning field (reasoning stays off)
+  return req;
+}
+
+/** The model's scenes for message numbers lo..hi: out-of-range, overlapping and one-message entries are dropped. null = no usable answer. */
+export function parseSuggestReply(text, lo, hi) {
+  if (!text) return null;
+  let s = String(text).trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(s);
+  if (fence) s = fence[1].trim();
+  const fo = firstObject(s);
+  const v = fo.body ? parseObj(fo.body) : null;
+  if (!v || !Array.isArray(v.scenes)) return null;
+  const found = [];
+  for (const o of v.scenes) {
+    if (!isObj(o)) continue;
+    const from = Math.round(Number(o.from));
+    const to = Math.round(Number(o.to));
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from < lo || to > hi || to - from < 1) continue;
+    found.push({ from, to, title: cut(str(o.title), 80), why: cut(str(o.why), 200) });
+  }
+  found.sort((a, b) => a.from - b.from);
+  const kept = [];
+  for (const x of found) if (!kept.length || x.from > kept[kept.length - 1].to) kept.push(x);
+  return kept;
+}
+
+/** Where the next request of a job reads: { fromIdx, toIdx, final } or null when the current run holds nothing more. */
+function suggestBatch(job, line) {
+  const run = arr(job.runs)[job.run];
+  if (!isObj(run)) return null;
+  const a = line.findIndex((m) => m.id === (job.pos || run.from));
+  const z = line.findIndex((m) => m.id === run.to);
+  if (a < 0 || z < a) return null;
+  const end = Math.min(z, a + SUGGEST_BATCH - 1);
+  return { fromIdx: a, toIdx: end, final: end === z };
+}
+
+const suggestKey = (chatId, job) => "lit_scn_" + chatId + "_" + job.at + "_" + job.n;
+
+/** One tick's step of "Suggest scenes": apply an answer, else send the next request. true = the tick is done. */
+function suggestStep(fsx, host, chatId, st, cfg, meta, now, line) {
+  const job = st.sceneSuggest;
+  if (!isObj(job) || job.state !== "working") return false;
+  let b = suggestBatch(job, line);
+  while (!b && job.run < arr(job.runs).length) {
+    job.run++;
+    job.pos = null;
+    b = suggestBatch(job, line);
+  }
+  if (!b) {
+    job.state = "done";
+    delete job.runs;
+    addActivity(st, "worker", "scene.suggest.done", arr(job.scenes).length ? "Suggested " + job.scenes.length + " scenes" : "Suggested no scenes", [], now, { scenes: arr(job.scenes).length });
+    if (saveChatFile(fsx, st)) wake(fsx, chatId, false);
+    return true;
+  }
+  const key = suggestKey(chatId, job);
+  const reply = host.llm && host.llm.results ? host.llm.results[key] : null;
+  if (reply) {
+    // re-read: the reader may have cancelled or saved scenes since the request went out
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = attempt ? loadChatFile(fsx, chatId) : st;
+      if (!cur || !isObj(cur.sceneSuggest) || cur.sceneSuggest.state !== "working" || suggestKey(chatId, cur.sceneSuggest) !== key) break;
+      const j = cur.sceneSuggest;
+      const found = reply.error ? null : parseSuggestReply(reply.text, b.fromIdx + 1, b.toIdx + 1);
+      if (!found) {
+        cur.sceneSuggest = { state: "failed", at: now, error: cut(str(reply.error) || "empty or invalid reply", 200), scenes: [] };
+        addActivity(cur, "worker", "scene.suggest.fail", "Suggesting scenes failed: " + str(reply.error || "empty or invalid reply"), [], now);
+      } else {
+        for (const f of found) {
+          if (arr(j.scenes).length >= SUGGEST_KEEP) break;
+          j.scenes.push({ from: line[f.from - 1].id, to: line[f.to - 1].id, title: f.title, why: f.why });
+        }
+        j.n = (Number(j.n) || 0) + 1;
+        if (b.final) {
+          j.run++;
+          j.pos = null;
+        } else {
+          // the next request starts after the last scene found here (the text after it may be a scene begun at the edge)
+          const last = found.length ? found[found.length - 1].to : b.toIdx + 1;
+          j.pos = line[Math.min(last, line.length - 1)].id;
+        }
+      }
+      if (saveChatFile(fsx, cur)) break;
+    }
+    beat(fsx, chatId, now);
+    return true;
+  }
+  const msgs = [];
+  for (let i = b.fromIdx; i <= b.toIdx; i++) {
+    const m = line[i];
+    msgs.push({ no: i + 1, name: m.role === "user" ? str(meta && meta.userName) || str(m.name) || "You" : str(m.name) || "Character", text: str(m.text) });
+  }
+  beat(fsx, chatId, now);
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildSuggestRequest(msgs, cfg, meta, helperNames(fsx, meta)));
+  return true;
+}
+
+/** What the reader sees: messages in no scene, and the job (or its list of scenes, as message numbers). */
+export function sceneSuggestView(st, line) {
+  const taken = st ? takenIdx(st, line) : new Set();
+  const job = st && isObj(st.sceneSuggest) ? st.sceneSuggest : null;
+  const scenes = [];
+  if (job && job.state === "done") {
+    arr(job.scenes).forEach((s, i) => {
+      const fromIdx = line.findIndex((m) => m.id === s.from);
+      const toIdx = line.findIndex((m) => m.id === s.to);
+      if (fromIdx < 0 || toIdx <= fromIdx) return;
+      for (let k = fromIdx; k <= toIdx; k++) if (taken.has(k)) return;
+      scenes.push({ id: "g" + (i + 1), from: s.from, to: s.to, fromNo: fromIdx + 1, toNo: toIdx + 1, title: str(s.title), why: str(s.why) });
+    });
+  }
+  return {
+    free: Math.max(0, line.length - taken.size),
+    state: job ? str(job.state) : "idle",
+    scenes,
+    error: job && job.state === "failed" ? str(job.error) : "",
+    at: job ? Number(job.at) || 0 : 0,
+  };
+}
+
+/** POST /litopys/scenes { chatId, op: "suggest" | "suggest-cancel" | "suggest-clear" } */
+function suggestRoute(fsx, b, op) {
+  const chatId = str(b.chatId);
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st, line) => {
+    const now = Date.now();
+    if (op !== "suggest") {
+      if (op === "suggest-cancel" && !(isObj(st.sceneSuggest) && st.sceneSuggest.state === "working")) return;
+      delete st.sceneSuggest;
+      return;
+    }
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    if (isObj(st.sceneSuggest) && st.sceneSuggest.state === "working") return { status: 409, json: { error: "already suggesting" } };
+    const runs = freeRuns(st, line).filter((r) => r.toIdx > r.fromIdx);
+    if (!runs.length) return { status: 409, json: { error: "every message is already in a scene" } };
+    st.sceneSuggest = { state: "working", at: now, runs: runs.map((r) => ({ from: line[r.fromIdx].id, to: line[r.toIdx].id })), run: 0, pos: null, n: 0, scenes: [] };
+    addActivity(st, "user", "scene.suggest", "Asked for scenes to close in " + runs.reduce((n, r) => n + r.toIdx - r.fromIdx + 1, 0) + " messages", [], now);
+    woke = true;
+  });
+  if (woke && res.status === 200) wake(fsx, chatId, true);
+  return res;
+}
+
+/**
+ * POST /litopys/scenes { chatId, op: "mark-many", ranges: [{ from, to }] }: several scenes at once (the suggested ones the
+ * reader kept). All or none: one bad range refuses the lot. The suggestion is cleared.
+ */
+function markManyRoute(fsx, b) {
+  const chatId = str(b.chatId);
+  const asked = arr(b.ranges).filter(isObj).slice(0, SUGGEST_KEEP);
+  if (!asked.length) return bad("no scenes to save");
+  let woke = false;
+  const res = mutateChat(fsx, chatId, (st, line) => {
+    const now = Date.now();
+    if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
+    st.marks = arr(st.marks).filter(isObj);
+    const have = markRanges(line, st.marks);
+    const ranges = [];
+    for (const a of asked) {
+      const fromIdx = line.findIndex((m) => m.id === str(a.from));
+      const toIdx = line.findIndex((m) => m.id === str(a.to));
+      if (fromIdx < 0 || toIdx < 0) return bad("message not found");
+      if (toIdx < fromIdx) return bad("the scene ends before it starts");
+      if (have.some((r) => r.fromIdx <= toIdx && r.toIdx >= fromIdx) || ranges.some((r) => r.fromIdx <= toIdx && r.toIdx >= fromIdx)) return { status: 409, json: { error: "overlaps a scene already marked" } };
+      ranges.push({ fromIdx, toIdx, from: str(a.from), to: str(a.to), title: cut(str(a.title), 80) });
+    }
+    const over = st.chapters.filter((ch) => {
+      const r = rangeOf(ch, line);
+      return !r.orphan && ranges.some((x) => r.fromIdx <= x.toIdx && r.toIdx >= x.fromIdx);
+    });
+    if (over.some((ch) => ch.edited === true)) return { status: 409, json: { error: "a chapter you edited covers these messages; delete it first" } };
+    let next = 1 + Math.max(0, ...st.marks.map((m) => Number(String(m.id).slice(1)) || 0));
+    for (const r of ranges) {
+      st.marks.push({ id: "s" + next++, from: r.from, to: r.to, at: now, ...(r.title ? { title: r.title } : {}) });
+      addActivity(st, "user", "scene.mark", "Marked messages " + (r.fromIdx + 1) + "-" + (r.toIdx + 1) + " as a scene of their own", [], now, { fromNo: r.fromIdx + 1, toNo: r.toIdx + 1 });
+    }
+    for (const ch of over) ch.stale = true;
+    delete st.sceneSuggest;
     woke = true;
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
@@ -8162,7 +8416,7 @@ export function chatView(fsx, chatId) {
     worker: workerView(st, line, next, beatAt(fsx), Date.now()),
     activity: st ? st.activity : [],
     // M4a: scenes the user deleted and kept out of the record, as message numbers
-    marks: st ? markRanges(line, st.marks).map((x) => ({ id: x.id, fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
+    marks: st ? markRanges(line, st.marks).map((x) => ({ id: x.id, fromNo: x.fromIdx + 1, toNo: x.toIdx + 1, ...(x.title ? { title: x.title } : {}) })) : [],
     skipped: st ? skipRanges(st, line).map((x) => ({ fromNo: x.fromIdx + 1, toNo: x.toIdx + 1 })) : [],
     pinLimit: cfg.pinLimit,
     // #122: what this chat sets for itself, and what the Library settings give every other chat (the panel shows the second as the placeholder)
@@ -8173,6 +8427,7 @@ export function chatView(fsx, chatId) {
     arcs: arcsView(st, line),
     arcState: arcStateView(st, line, cfg, Date.now()),
     consolidate: consolidateView(st),
+    sceneSuggest: sceneSuggestView(st, line),
     ...chatViewExtras(fsx, chatId, st, line),
   };
 }

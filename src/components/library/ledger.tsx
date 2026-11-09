@@ -13,6 +13,7 @@ import { WorkerLine } from './worker-line'
 import { MeaningCard } from '@/components/memory/meaning-card'
 import { BookDialog } from '@/components/memory/book-dialog'
 import { ArcNotice } from './arcs'
+import { ScenesCard } from './scenes-card'
 import { FactsTab } from './ledger-facts'
 import { TurnsTab } from './ledger-turns'
 import { activeTurnCount } from './turns-util'
@@ -183,6 +184,7 @@ export function LedgerChat({
         {/* with no record yet, an idle chronicler's "Up to date" would contradict the empty state below */}
         {(!empty || chat.rebuilding || (chat.worker && chat.worker.state !== 'idle')) && <WorkerLine worker={chat.worker} rebuilding={chat.rebuilding} rebuildScenes={chat.rebuildScenes} />}
         <ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />
+        <ScenesCard chat={chat} onRefresh={refresh} />
         {!empty && <MeaningCard chatId={chat.chatId} refreshKey={`${chat.chapters.length}:${activeFacts}`} />}
 
         {chat.cut.count > 0 && (
