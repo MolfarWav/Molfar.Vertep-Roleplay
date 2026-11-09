@@ -195,10 +195,12 @@ export const AGENT_CARDS = {
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
 const OPS = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing'],
-  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing'],
-  flag: ['isYes', 'isNo', 'isUnknown'],
+  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing', 'changed'],
+  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing', 'changed'],
+  flag: ['isYes', 'isNo', 'isUnknown', 'changed'],
 };
+/** Longest cooldown of an If card, in runs of the agent. */
+export const IF_COOLDOWN_MAX = 50;
 /** Where an Output of each kind may show its result. The first entry is the default place. */
 export const SHOW_BY_KIND = {
   'state-patch': ['log', 'feed', 'top1', 'top2', 'float', 'toast'],
@@ -715,6 +717,11 @@ export function validateAgent(raw) {
       const inTypes = Object.fromEntries((p.inputs ?? []).map((i) => [i.id, i.type]));
       if (!(p.rows ?? []).length)
         err('E_IF_EMPTY', `"${n.title}" has no rules`, n.id);
+      for (const k of ['edge', 'once'])
+        if (p[k] !== undefined && typeof p[k] !== 'boolean')
+          err('E_IF_FIRE', `"${n.title}": ${k} must be true or false`, n.id);
+      if (p.cooldown !== undefined && !(Number.isInteger(p.cooldown) && p.cooldown >= 0 && p.cooldown <= IF_COOLDOWN_MAX))
+        err('E_IF_FIRE', `"${n.title}": cooldown must be a whole number from 0 to ${IF_COOLDOWN_MAX}`, n.id);
       for (const r of p.rows ?? []) {
         const t = r.left?.from === 'wire' ? inTypes[r.left.port]
           : r.left?.from === 'state' ? r.left.as

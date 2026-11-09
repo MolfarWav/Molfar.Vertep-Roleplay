@@ -1,11 +1,11 @@
-<!-- source: 36f23a51ff05 -->
+<!-- source: 0383923e835d -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che segue la scena: chi è presente, cosa prova ogni personaggio verso di te, cosa indossa e cosa sa, le trame aperte della storia. È per chi vuole che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo della Guida *Scene dashboard* elenca i suoi campi.
 
 ## Cosa segue
 
-Aprila cliccando un ritratto nella chat e scegliendo Dashboard. Il pannello laterale ha quattro schede: **Person** (atteggiamento, umore e stato, abbigliamento e oggetti), **Here** (luogo, tempo, chi è presente), **Quests** (le trame aperte: principale, secondaria, quotidiana) e **Notes** (il taccuino: cosa sa un personaggio e se l'ha visto, sentito o intuito). La "Constellation" indica come un personaggio si pone verso di te, per esempio Amicizia o Romanzo. Un numero su una scheda conta i cambiamenti dalla tua ultima risposta (rosso quando qualcosa è caduto). La vista ampia ha anche un Diario con il pensiero e i ricordi di un personaggio. Su un telefono lo stesso contenuto si apre come foglio.
+Aprila cliccando un ritratto nella chat e scegliendo Dashboard. Il pannello laterale ha quattro schede: **Person** (atteggiamento, umore e stato, abbigliamento e oggetti: cosa indossa, tiene e porta con sé, e cosa si trova lì vicino), **Here** (luogo, tempo, chi è presente), **Quests** (le trame aperte: principale, secondaria, quotidiana) e **Notes** (il taccuino: cosa sa un personaggio e se l'ha visto, sentito o intuito). La "Constellation" indica come un personaggio si pone verso di te, per esempio Amicizia o Romanzo. Un numero su una scheda conta i cambiamenti dalla tua ultima risposta (rosso quando qualcosa è caduto). La vista ampia ha anche un Diario con il pensiero e i ricordi di un personaggio. Su un telefono lo stesso contenuto si apre come foglio.
 
 **Una persona elencata due volte.** Se la Dashboard mostra la stessa persona con due nomi (per esempio "Sina" e "Sina Rose"), aprine una e usa il piccolo pulsante persone nell'intestazione di **Person**, poi "Same person as..." e scegli l'altra. Prima ti viene chiesto: le note, la storia e gli oggetti passano alla persona scelta, i suoi numeri di relazione restano, il nome diventa un altro suo nome, e non si può annullare. La Dashboard suggerisce da sé anche i probabili duplicati: un riquadro in cima alla scheda **Person** (e un chip "Possible duplicate" in "Since your last reply") dice "X may be the same person as Y" con il motivo. "Merge into Y" fa lo stesso del menu; "Different people" li tiene separati e la Dashboard smette di suggerire quella coppia. Lo stesso menu ha "Remove from the Dashboard" per un nome semplicemente sbagliato.
 

@@ -1,11 +1,11 @@
-<!-- source: 36f23a51ff05 -->
+<!-- source: 0383923e835d -->
 # Pulpit sceny
 
 Pulpit to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać do ciebie czuje, co nosi i co wie, otwarte wątki historii. Jest dla tych, którzy chcą, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł Pomocy *Scene dashboard* opisuje jego pola.
 
 ## Co śledzi
 
-Otwórz go, klikając portret w czacie i wybierając Dashboard. Panel boczny ma cztery karty: **Person** (nastawienie, nastrój i stan, strój i rzeczy), **Here** (miejsce, pogoda, kto jest obecny), **Quests** (otwarte wątki: główny, poboczny, codzienny) i **Notes** (notatnik: co postać wie oraz czy to widziała, słyszała czy zgadła). „Constellation” nazywa, jak postać odnosi się do ciebie, na przykład Friendship lub Romance. Liczba na karcie zlicza zmiany od twojej ostatniej odpowiedzi (czerwona, gdy coś spadło). Szeroki widok ma też Dziennik z myślą postaci i wspomnieniami. Na telefonie ta sama treść otwiera się jako arkusz.
+Otwórz go, klikając portret w czacie i wybierając Dashboard. Panel boczny ma cztery karty: **Person** (nastawienie, nastrój i stan, strój i rzeczy: co nosi, trzyma i ma przy sobie oraz co leży w pobliżu), **Here** (miejsce, pogoda, kto jest obecny), **Quests** (otwarte wątki: główny, poboczny, codzienny) i **Notes** (notatnik: co postać wie oraz czy to widziała, słyszała czy zgadła). „Constellation” nazywa, jak postać odnosi się do ciebie, na przykład Friendship lub Romance. Liczba na karcie zlicza zmiany od twojej ostatniej odpowiedzi (czerwona, gdy coś spadło). Szeroki widok ma też Dziennik z myślą postaci i wspomnieniami. Na telefonie ta sama treść otwiera się jako arkusz.
 
 **Jedna osoba wymieniona dwa razy.** Jeśli Pulpit pokazuje tę samą osobę pod dwoma imionami (powiedzmy „Sina” i „Sina Rose”), otwórz jedno z nich i użyj małego przycisku z ludzikiem w nagłówku Person, a następnie „Same person as...” i wybierz drugie. Najpierw zostaniesz zapytany: notatki, historia i rzeczy przechodzą do osoby, którą wybrałeś, jej liczby relacji zostają, imię staje się kolejnym jej imieniem i nie można tego cofnąć. Pulpit sam też podpowiada prawdopodobne duplikaty: ramka u góry karty Person (oraz chip „Possible duplicate” w „Since your last reply”) mówi „X may be the same person as Y” z powodem. „Merge into Y” robi to samo co menu; „Different people” rozdziela ich i Pulpit przestaje podpowiadać tę parę. To samo menu ma „Remove from the Dashboard” dla imienia, które jest po prostu błędne.
 

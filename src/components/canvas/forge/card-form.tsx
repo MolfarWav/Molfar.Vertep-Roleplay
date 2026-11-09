@@ -114,11 +114,12 @@ export function ShapeEditor({ shape, onChange, kinds = ['text', 'number', 'bool'
 // ---------- the rules of an "If" card ----------
 
 const OPS: Record<string, string[]> = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing'],
-  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing'],
-  flag: ['isYes', 'isNo', 'isUnknown'],
+  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing', 'changed'],
+  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing', 'changed'],
+  flag: ['isYes', 'isNo', 'isUnknown', 'changed'],
 }
-const NO_RIGHT = new Set(['isSet', 'isMissing', 'isYes', 'isNo', 'isUnknown'])
+const NO_RIGHT = new Set(['isSet', 'isMissing', 'isYes', 'isNo', 'isUnknown', 'changed'])
+const COOLDOWN_MAX = 50 // IF_COOLDOWN_MAX of the checker
 
 interface Row { left: { from: string; port: string }; op: string; right?: { value?: unknown; from?: string; port?: string } }
 
@@ -153,6 +154,18 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
     if (op === 'between') return raw.split(',').map((x) => Number(x.trim())).slice(0, 2)
     if (op === 'in') return raw.split(',').map((x) => x.trim()).filter(Boolean)
     return type === 'number' ? Number(raw) : raw
+  }
+  // when it answers Yes: every time, only on the rise (edge), or once; and a pause after it fires (kept per chat by the runner)
+  const fire = params.once === true ? 'once' : params.edge === true ? 'edge' : 'every'
+  const setFire = (v: string) => {
+    const { edge: _e, once: _o, ...rest } = params
+    onChange({ ...rest, ...(v === 'edge' ? { edge: true } : v === 'once' ? { once: true } : {}) })
+  }
+  const cooldown = typeof params.cooldown === 'number' ? params.cooldown : 0
+  const setCooldown = (n: number) => {
+    const { cooldown: _c, ...rest } = params
+    const v = Math.min(COOLDOWN_MAX, Math.max(0, Math.round(n)))
+    onChange(v > 0 ? { ...rest, cooldown: v } : rest)
   }
   const showRight = (r: Row): string => {
     const v = r.right?.value
@@ -210,6 +223,19 @@ function RulesEditor({ params, onChange }: { params: Params; onChange: (p: Param
         )
       })}
       <Button variant="outline" size="sm" className="self-start max-md:h-10" onClick={fresh}><Plus className="size-3.5" aria-hidden="true" />{t('fg.if.add')}</Button>
+      <div className="flex flex-col gap-2 rounded-md border border-border p-2" data-testid="if-fire">
+        <Field label={t('fg.if.fire')}>
+          <NativeSelect value={fire} onChange={setFire}>
+            <option value="every">{t('fg.if.fire.every')}</option>
+            <option value="edge">{t('fg.if.fire.edge')}</option>
+            <option value="once">{t('fg.if.fire.once')}</option>
+          </NativeSelect>
+        </Field>
+        <Field label={t('fg.if.cooldown')}>
+          <IntBox value={cooldown} min={0} max={COOLDOWN_MAX} label={t('fg.if.cooldown')} className="w-28" onChange={setCooldown} />
+        </Field>
+        <p className="text-caption leading-snug text-muted-foreground">{t('fg.if.fireHint')}</p>
+      </div>
       <p className="text-[11px] leading-snug text-muted-foreground">{t('fg.if.hint')}</p>
     </div>
   )

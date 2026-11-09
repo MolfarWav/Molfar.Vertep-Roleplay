@@ -1,4 +1,4 @@
-<!-- source: 0b3281e4764e -->
+<!-- source: 391865a01e80 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -18,7 +18,7 @@ Domyślnie DM jest już włączony na poziomie Chronicler w czacie fabularnym, o
 
 ## Co robi w każdej turze
 
-Działa po odpowiedziach, co N-tą odpowiedź („Run after every N replies”) albo od razu przez „World turn”. Czyta nowe wiadomości i zapisuje lub wycofuje rekordy w księdze świata: osoby, miejsca, rzeczy i to, kto je trzyma. Rekordom typu Group lub Place możesz nadać **Members** (osoby, które do nich należą) w zakładce księgi świata; fakt przekazany tej grupie w Litopys jest wtedy znany każdemu z nich ([[litopys]]). DM sam nie wypełnia Members. Od Living world w górę porusza też fronty i zegary oraz może przygotować zdarzenie dodawane do następnej odpowiedzi. Opcjonalne kości (arkusz World, Dice, od Living world w górę, domyślnie wyłączone): przed odpowiedzią kod rzuca 2k6 i mówi modelowi, jak kończy się niepewna akcja, jako Hint lub Binding.
+Działa po odpowiedziach, co N-tą odpowiedź („Run after every N replies”) albo od razu przez „World turn”. Czyta nowe wiadomości i zapisuje lub wycofuje rekordy w księdze świata: osoby, miejsca, rzeczy i to, kto je trzyma. Rekordom typu Group lub Place możesz nadać **Members** (osoby, które do nich należą) w zakładce księgi świata; fakt przekazany tej grupie w Litopys jest wtedy znany każdemu z nich ([[litopys]]). DM sam nie wypełnia Members. Od Living world w górę porusza też fronty i zegary oraz może przygotować zdarzenie dodawane do następnej odpowiedzi. Gdy **Code** porusza zegarami (World > Profiles > Options), kod co N odpowiedzi rzuca k6 dla każdego frontu: 1-2 nic, 3-4 jeden krok, 5-6 jeden krok, a DM dostaje informację, że wieści o tym froncie mogą dotrzeć do historii. Opcjonalne kości (arkusz World, Dice, od Living world w górę, domyślnie wyłączone): przed odpowiedzią kod rzuca 2k6 i mówi modelowi, jak kończy się niepewna akcja, jako Hint lub Binding.
 
 Kosztuje jedno dodatkowe wywołanie modelu, gdy wypada jego kolej, na „DM model (all chats)”; wystarczy mały, tani model. Nieudany przebieg jest pokazany w arkuszu i w Skrzynce odbiorczej, a DM czyta te same wiadomości następnym razem.
 
