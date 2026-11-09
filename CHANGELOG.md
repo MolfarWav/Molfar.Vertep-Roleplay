@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.104.0 (2026-11-09)
 
 - Added: **spell check and autocorrect in the message box, as two switches.** The message box and the expanded editor (Shift+Tab) always had both off, on purpose: invented names would be underlined all the time and a phone keyboard fights asterisks, quotes and macros. Settings > Chat Behavior now has "Spell check in the message box" and "Autocorrect in the message box", both off by default (nothing changes unless you switch them on). Reported on Discord.
 

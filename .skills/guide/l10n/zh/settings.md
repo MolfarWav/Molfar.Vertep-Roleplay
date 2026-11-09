@@ -1,4 +1,4 @@
-<!-- source: ed62a0a9288a -->
+<!-- source: 82d4a821463b -->
 # Roleplay设置的位置
 
 Roleplay没有针对所有内容的单一设置页面。设置位于它们所更改内容的附近，其中两个位于Molfar Vertep的主Settings中。本页是一个查找指南。
@@ -8,7 +8,7 @@ Roleplay没有针对所有内容的单一设置页面。设置位于它们所更
 - **主Settings**，即Molfar Vertep的设置（整个页面的齿轮图标）：模型和连接、整个配置文件的备份、更新。在那里选择和测试模型；参见[[vertep:settings]]和[[vertep:models]]。在那里加星标的模型会在聊天中显示为快速切换项。
 - **Roleplay settings**：Home顶部的“Roleplay settings”按钮（在手机上则在菜单中）。它尚未列在主Settings中，因此请在Roleplay自身中查找。它有十个部分：Appearance、Chat Behavior、Streaming、Themes、Prose Colors、Custom CSS、Card tasks、Import、Data和Guide。顶部的搜索框可筛选这些部分。
 
-各部分的简要功能：Appearance是语言、字体、聊天宽度和头像；Chat Behavior包含诸如按Enter发送和确认删除等开关；Streaming选择回复是边写边显示还是完成后显示；Card tasks选择卡片助手（“Structure it”“Fill empty”）在卡片没有自带模型时使用的模型；Import导入预设、角色、设定集、聊天和备份zip（SillyTavern预设导入时，其选择列表成为Choices，作者的说明成为备注，其“请勿改动”部分被锁定；从Roleplay导出的预设会带着它所有的Choices返回）；Data将Roleplay自身的数据导出和恢复为zip（整个配置文件由主Settings的Backup保存）；Guide显示或隐藏简短导览和“What's new”。
+各部分的简要功能：Appearance是语言、字体、聊天宽度和头像；Chat Behavior包含诸如按Enter发送、确认删除，以及“Spell check in the message box”和“Autocorrect in the message box”等开关（后两个默认关闭：拼写检查会给拼错的词加下划线并给出修正建议，对于虚构的名字就是一大片红线；自动更正会让键盘改动词语，在手机上可能与星号、引号和宏冲突；它们作用于消息框和展开的编辑器）；Streaming选择回复是边写边显示还是完成后显示；Card tasks选择卡片助手（“Structure it”“Fill empty”）在卡片没有自带模型时使用的模型；Import导入预设、角色、设定集、聊天和备份zip（SillyTavern预设导入时，其选择列表成为Choices，作者的说明成为备注，其“请勿改动”部分被锁定；从Roleplay导出的预设会带着它所有的Choices返回）；Data将Roleplay自身的数据导出和恢复为zip（整个配置文件由主Settings的Backup保存）；Guide显示或隐藏简短导览和“What's new”。
 
 ## 位于Roleplay其他位置的设置
 
