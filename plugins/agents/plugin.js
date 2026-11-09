@@ -197,10 +197,12 @@ const AGENT_CARDS = {
   note: { label: 'Note', colorVar: '--k-data', hint: 'A note for people; never sent to a model.', ports: () => [], needs: () => [] },
 };
 const OPS = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing'],
-  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing'],
-  flag: ['isYes', 'isNo', 'isUnknown'],
+  text: ['eq', 'neq', 'contains', 'notContains', 'in', 'isSet', 'isMissing', 'changed'],
+  number: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'isSet', 'isMissing', 'changed'],
+  flag: ['isYes', 'isNo', 'isUnknown', 'changed'],
 };
+/** Longest cooldown of an If card, in runs of the agent. */
+const IF_COOLDOWN_MAX = 50;
 /** Where an Output of each kind may show its result. The first entry is the default place. */
 const SHOW_BY_KIND = {
   'state-patch': ['log', 'feed', 'top1', 'top2', 'float', 'toast'],
@@ -717,6 +719,11 @@ function validateAgent(raw) {
       const inTypes = Object.fromEntries((p.inputs ?? []).map((i) => [i.id, i.type]));
       if (!(p.rows ?? []).length)
         err('E_IF_EMPTY', `"${n.title}" has no rules`, n.id);
+      for (const k of ['edge', 'once'])
+        if (p[k] !== undefined && typeof p[k] !== 'boolean')
+          err('E_IF_FIRE', `"${n.title}": ${k} must be true or false`, n.id);
+      if (p.cooldown !== undefined && !(Number.isInteger(p.cooldown) && p.cooldown >= 0 && p.cooldown <= IF_COOLDOWN_MAX))
+        err('E_IF_FIRE', `"${n.title}": cooldown must be a whole number from 0 to ${IF_COOLDOWN_MAX}`, n.id);
       for (const r of p.rows ?? []) {
         const t = r.left?.from === 'wire' ? inTypes[r.left.port]
           : r.left?.from === 'state' ? r.left.as
@@ -1009,6 +1016,10 @@ const Y = 'yes';
 const N = 'no';
 const U = 'unknown';
 
+/** A rule's operand as the run log names it. */
+const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : 'value');
+const showVal = (v) => (typeof v === 'string' ? JSON.stringify(clip(v, 40)) : Array.isArray(v) ? JSON.stringify(v).slice(0, 60) : String(v));
+
 /** One rule of an If card: Y, N or U. Missing data is U (except isSet / isMissing, which are about exactly that). */
 function ruleResult(type, op, left, right) {
   const missing = left === undefined || left === null || left === '';
@@ -1116,6 +1127,9 @@ const short = (v) => (typeof v === 'string' ? clip(v, 200) : v);
  * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker }, seed }
  *   `seed` makes the dice and picks repeatable: the host gives the same text for the same reply, so every pass of a run rolls the same.
  *   `inputs` is what the host read for the agent's Input card; the executor trusts nothing else about the chat.
+ *   `memo` and `n` give an If card its memory (edge, once, cooldown, "changed"): `memo` is what the last run returned
+ *   (`{ "<card id>": { last, fired, count, seen } }`), `n` the number of this run of the agent in this chat (1, 2, ...).
+ *   A done run returns the new `memo`; the host keeps it only when the run is committed.
  * answers: { <model.ask card id>: { text } | { error } }
  * Returns { status: "need", requests, trace }, { status: "done", writes, outputs, calls, trace } or { status: "failed", reason, node, trace }.
  * With `ctx.explain` the result also has `wires`: what every output port carries, for the editor's trial run
@@ -1140,6 +1154,8 @@ function runCards(file, ctx, answers, seen) {
   const dash = (ctx && ctx.dash) || {};
   const chat = (ctx && ctx.chat) || {};
   const given = answers || {};
+  const n = ctx && Number.isInteger(ctx.n) && ctx.n > 0 ? ctx.n : 1;
+  const memo = isPlain(ctx && ctx.memo) ? JSON.parse(JSON.stringify(ctx.memo)) : {};
   const trace = [];
   const requests = [];
   const writes = [];
@@ -1256,14 +1272,47 @@ function runCards(file, ctx, answers, seen) {
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
-        const results = (p.rows || []).map((r) => {
+        const m = isPlain(memo[id]) ? memo[id] : {};
+        const seen = isPlain(m.seen) ? { ...m.seen } : {};
+        const why = [];
+        const results = (p.rows || []).map((r, i) => {
           const l = operand(r.left);
-          return ruleResult(l.type, r.op, l.value, operand(r.right).value);
+          const miss = l.value === undefined || l.value === null || l.value === '';
+          let res;
+          if (r.op === 'changed') {
+            const prev = seen['r' + i];
+            res = miss ? U : prev === undefined ? N : String(prev) !== String(l.value) ? Y : N;
+            if (!miss) seen['r' + i] = typeof l.value === 'number' ? l.value : clip(String(l.value), 200);
+          } else res = ruleResult(l.type, r.op, l.value, operand(r.right).value);
+          const rv = r.op === 'changed' || !isPlain(r.right) ? undefined : operand(r.right).value;
+          why.push(`${ruleName(r.left)} (${miss ? 'missing' : showVal(l.value)}) ${r.op}${rv === undefined ? '' : ' ' + showVal(rv)} = ${res}`);
+          return res;
         });
         const verdict = combineRules(p.match || 'all', results);
+        const cool = Number.isInteger(p.cooldown) && p.cooldown > 0 ? p.cooldown : 0;
+        const gated = p.edge === true || p.once === true || cool > 0;
+        // the reason chain: every rule with what it read, then what held the answer back, if anything
+        const reason = clip((results.length > 1 ? (p.match || 'all') + ': ' : '') + why.join('; '), 400);
+        let held = '';
+        if (verdict === Y) {
+          if (p.once === true && m.fired) held = `once: it fired in run ${m.fired}`;
+          else if (p.edge === true && m.last === Y) held = 'edge: it was already true last time';
+          else if (cool > 0 && m.fired && n - m.fired <= cool) held = `cooldown: it fired in run ${m.fired}, ${cool} runs must pass`;
+        }
+        if (gated || Object.keys(seen).length) {
+          const next = { ...m };
+          if (Object.keys(seen).length) next.seen = seen;
+          if (verdict !== U) next.last = verdict;
+          if (verdict === Y && !held) { next.fired = n; next.count = (Number.isInteger(m.count) ? m.count : 0) + 1; }
+          memo[id] = next;
+        }
         setAll(node, SKIP);
-        out(verdict, true);
-        ran({ verdict, rules: results.join(',') });
+        if (held) {
+          trace.push({ node: id, status: 'skipped', out: { verdict, held, why: reason } });
+        } else {
+          out(verdict, true);
+          ran({ verdict, rules: results.join(','), why: reason });
+        }
       }
     } else if (node.type === 'logic.merge') {
       const vals = ports.filter((x) => x.side === 'in').map((x) => ins[x.id]);
@@ -1370,7 +1419,8 @@ function runCards(file, ctx, answers, seen) {
   }
 
   if (requests.length) return { status: 'need', requests, trace };
-  return { status: 'done', writes, outputs, calls, trace };
+  const keep = Object.fromEntries(Object.entries(memo).filter(([k]) => byId.has(k)));
+  return { status: 'done', writes, outputs, calls, trace, memo: keep };
 }
 // ==== END GENERATED ====
 
@@ -2077,19 +2127,23 @@ function stepRun(host, fsx, view, picks, last, stash) {
     // a regenerated reply replaces the run of the same message instead of counting twice
     const before = st.raw && isObj(st.raw.before) && String(st.raw.before.id) === String(view.turnId) ? st.raw.before.own : null;
     const base = before ? { ...initialOwn(schema), ...before } : st.own;
+    // an If card's memory and the run count follow the same rule: a regenerated reply starts from the run before it
+    const prior = st.raw && isObj(st.raw.before) && String(st.raw.before.id) === String(view.turnId) ? st.raw.before : st.raw;
+    const memo = prior && isObj(prior.memo) ? prior.memo : {};
+    const runN = prior && Number.isInteger(prior.n) ? prior.n : 0;
     const inputs = {};
     for (const g of (pick.agent.file.nodes.find((n) => n.type === "agent.input") || { params: {} }).params.give || []) {
       inputs[g.id] = sourceValue(fsx, view, g, st.raw && typeof st.raw.last === "string" ? st.raw.last : "");
     }
     // dice and picks repeat within one reply (every pass of a run) and change with a new swipe: the key carries the swipe
-    const ctx = { inputs, own: base, dash: dashFor(pick.agent.file, dashOf(pick), view), chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
+    const ctx = { inputs, own: base, memo, n: runN + 1, dash: dashFor(pick.agent.file, dashOf(pick), view), chat: { messageCount: view.msgs.length, lastSpeaker: str(last ? last.name : lastMsg && lastMsg.name) }, seed: view.chatId + "|" + pick.item.agent + "|" + (view.turnKey || view.turnId) };
     const answers = {};
     pick.agent.file.nodes.forEach((n, ni) => {
       const r = answersAll[`ag_${ai}_${ni}`];
       if (!r) return;
       answers[n.id] = r.script ? (r.error ? { error: r.error } : { value: r.value }) : r.error || !r.text.trim() ? { error: r.error || "the model sent no answer" } : { text: r.text, model: r.model };
     });
-    return { ai, pick, schema, base, st, seed: ctx.seed, res: runAgent(pick.agent.file, ctx, answers), answers };
+    return { ai, pick, schema, base, st, memo, runN, seed: ctx.seed, res: runAgent(pick.agent.file, ctx, answers), answers };
   });
 
   // one pass for each model call in a row: past the limit an agent fails with a reason instead of vanishing when the engine drops the pass
@@ -2151,7 +2205,7 @@ function commitRun(fsx, chatId, view, results, turn, runs, started, phase) {
     const applied = applyWrites(r.schema, r.base, r.res.writes.filter((w) => !isDash(w)));
     const dash = applyDashWrites(fsx, chatId, view, id, r.res.writes);
     const outputs = r.res.outputs.map((o) => (o.show || r.pick.item.show ? { ...o, show: r.pick.item.show && (SHOW_BY_KIND[o.kind] || []).includes(r.pick.item.show) ? r.pick.item.show : o.show } : o));
-    writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), before: { id: turn.id, own: r.base } });
+    writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), memo: isObj(r.res.memo) ? r.res.memo : {}, n: r.runN + 1, before: { id: turn.id, own: r.base, memo: r.memo, n: r.runN } });
     items2 = items2.filter((x) => x.agent !== id).concat(outputs.filter((o) => o.kind === "prompt-insert" && o.text).map((o) => ({ agent: id, label: o.label, text: o.text, position: o.position, at: now })));
     runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: [...applied.refused, ...dash.refused], ...(dash.applied.length ? { dash: dash.applied } : {}), outputs });
     ranOut.push({ agent: id, status: "ok", calls: r.res.calls, writes: r.res.writes.length, outputs: outputs.length });
@@ -2355,7 +2409,7 @@ function dryRoute(req, host) {
     const cap = capOf(fsx, agentId);
     if (cap && maxCalls > cap) return ok({ error: "Can make up to " + maxCalls + " model calls a run, over your limit of " + cap + " for this agent. Raise the limit for this agent, or try without the model." }, 400);
   }
-  const ctx = { inputs, own, dash, chat: { messageCount: msgs.length, lastSpeaker: str(last && last.name) }, explain: true, seed: str(b.seed) || chatId + "|" + agentId + "|dry" };
+  const ctx = { inputs, own, memo: st.raw && isObj(st.raw.memo) ? st.raw.memo : {}, n: (st.raw && Number.isInteger(st.raw.n) ? st.raw.n : 0) + 1, dash, chat: { messageCount: msgs.length, lastSpeaker: str(last && last.name) }, explain: true, seed: str(b.seed) || chatId + "|" + agentId + "|dry" };
   const replies = isObj(b.replies) ? b.replies : {};
   const byId = new Map(file.nodes.map((n) => [n.id, n]));
 

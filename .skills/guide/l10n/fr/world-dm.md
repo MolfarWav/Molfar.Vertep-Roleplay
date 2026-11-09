@@ -1,4 +1,4 @@
-<!-- source: 0b3281e4764e -->
+<!-- source: 391865a01e80 -->
 # World DM
 
 Le World DM est un maître de jeu pour le monde d'une discussion. Après les réponses, il lit l'histoire et garde les personnes, lieux et choses qu'il rencontre dans le livre de connaissances propre à la discussion, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde semble vivant et cohérent.
@@ -18,7 +18,7 @@ Par défaut, le DM est déjà actif au niveau Chronicler dans une discussion d'h
 
 ## Ce qu'il fait à chaque tour
 
-Il s'exécute après les réponses, toutes les N réponses (« Run after every N replies »), ou tout de suite avec « World turn ». Il lit les nouveaux messages et écrit ou retire des entrées dans le livre du monde : personnes, lieux, choses et qui les détient. Vous pouvez donner à un enregistrement de type Group ou Place des **Members** (les personnes qui en font partie) dans l'onglet World book ; un fait raconté à ce groupe dans Litopys est alors connu de chacun d'eux ([[litopys]]). Le DM ne remplit pas Members lui-même. À partir de Living world, il fait aussi avancer les fronts et les horloges, et peut préparer un événement ajouté à la réponse suivante. Dés optionnels (feuille Monde, Dice, à partir de Living world, désactivés par défaut) : avant une réponse, le code lance 2d6 et dit au modèle comment une action incertaine se termine, comme Hint ou Binding.
+Il s'exécute après les réponses, toutes les N réponses (« Run after every N replies »), ou tout de suite avec « World turn ». Il lit les nouveaux messages et écrit ou retire des entrées dans le livre du monde : personnes, lieux, choses et qui les détient. Vous pouvez donner à un enregistrement de type Group ou Place des **Members** (les personnes qui en font partie) dans l'onglet World book ; un fait raconté à ce groupe dans Litopys est alors connu de chacun d'eux ([[litopys]]). Le DM ne remplit pas Members lui-même. À partir de Living world, il fait aussi avancer les fronts et les horloges, et peut préparer un événement ajouté à la réponse suivante. Avec **Code** qui fait avancer les horloges (World > Profiles > Options), toutes les N réponses le code lance un d6 pour chaque front : 1-2 rien, 3-4 un pas, 5-6 un pas, et le DM est informé que des nouvelles de ce front peuvent atteindre l'histoire. Dés optionnels (feuille Monde, Dice, à partir de Living world, désactivés par défaut) : avant une réponse, le code lance 2d6 et dit au modèle comment une action incertaine se termine, comme Hint ou Binding.
 
 Il coûte un appel de modèle supplémentaire à chaque échéance, sur le « DM model (all chats) » ; un petit modèle bon marché suffit. Un échec est montré dans la feuille et dans la Inbox, et le DM relit les mêmes messages la fois suivante.
 

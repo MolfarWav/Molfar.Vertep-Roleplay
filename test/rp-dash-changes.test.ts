@@ -110,16 +110,16 @@ describe("carry source", () => {
     expect(personChanges("Mei", char(), here({ carrySource: "dm" }))).toEqual([]);
   });
 
-  it("outfitOf: hands come from the carry or the sensor, held things are carried, nearby only with the DM as the source", () => {
+  it("outfitOf: hands come from the carry or the sensor, held things are carried, nearby is the carry's list (the DM's, or the objects the sensor saw lying in the scene)", () => {
     const sensorHere = here({
-      carry: { Mei: { wearing: ["grey coat"], carried: [], nearby: ["stray"], hands: "coffee cup", at: 0 } },
+      carry: { Mei: { wearing: ["grey coat"], carried: [], nearby: ["umbrella (by the door)"], hands: "coffee cup", at: 0 } },
       held: [{ ...rec("t1", "Spare key"), who: "mei" }, { ...rec("t2", "Coffee cup"), who: "Mei" }],
     });
     const o = outfitOf("Mei", char({ holding: "something else" }), sensorHere);
     expect(o.wearing).toEqual(["grey coat"]);
     expect(o.hands).toEqual(["coffee cup"]);
     expect(o.carried).toEqual([{ what: "Spare key" }]);
-    expect(o.nearby).toEqual([]);
+    expect(o.nearby).toEqual(["umbrella (by the door)"]);
     const dmHere = here({ carrySource: "dm", carry: { Mei: { wearing: ["coat"], carried: [{ what: "bag", where: "chair" }], nearby: ["umbrella"], at: 1 } } });
     const d = outfitOf("Mei", char({ holding: "cup" }), dmHere);
     expect(d.hands).toEqual(["cup"]);

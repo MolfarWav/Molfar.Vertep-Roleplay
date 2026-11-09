@@ -1,4 +1,4 @@
-<!-- source: 0b3281e4764e -->
+<!-- source: 391865a01e80 -->
 # World DM
 
 Der World DM ist ein Spielleiter für die Welt eines Chats. Nach Antworten liest er die Geschichte und hält die Personen, Orte und Dinge, die er trifft, im eigenen Lorebook des Chats fest, dem Weltbuch. Auf höheren Stufen bewegt er auch die Welt und sendet Ereignisse in die Szene. Nutze ihn, wenn die Welt lebendig und stimmig wirken soll.
@@ -18,7 +18,7 @@ Standardmäßig ist der DM in einem Story-Chat bereits ab der ersten Antwort auf
 
 ## Was er pro Zug tut
 
-Er läuft nach Antworten, bei jeder N-ten Antwort („Run after every N replies“) oder sofort mit „World turn“. Er liest die neuen Nachrichten und schreibt oder zieht Einträge im Weltbuch zurück: Personen, Orte, Dinge und wer sie hält. Du kannst einem Group- oder Place-Eintrag im Tab World book **Members** geben (die Personen, die dazugehören); ein Fakt, der dieser Gruppe in Litopys erzählt wird, ist dann jedem Mitglied bekannt ([[litopys]]). Der DM füllt Members nicht selbst aus. Ab Living world bewegt er außerdem Fronten und Uhren und kann ein Ereignis vorbereiten, das der nächsten Antwort hinzugefügt wird. Optionale Würfel (World-Sheet, Dice, ab Living world, standardmäßig aus): Vor einer Antwort würfelt Code 2W6 und sagt dem Modell, wie eine unsichere Handlung ausgeht, als Hint oder Binding.
+Er läuft nach Antworten, bei jeder N-ten Antwort („Run after every N replies“) oder sofort mit „World turn“. Er liest die neuen Nachrichten und schreibt oder zieht Einträge im Weltbuch zurück: Personen, Orte, Dinge und wer sie hält. Du kannst einem Group- oder Place-Eintrag im Tab World book **Members** geben (die Personen, die dazugehören); ein Fakt, der dieser Gruppe in Litopys erzählt wird, ist dann jedem Mitglied bekannt ([[litopys]]). Der DM füllt Members nicht selbst aus. Ab Living world bewegt er außerdem Fronten und Uhren und kann ein Ereignis vorbereiten, das der nächsten Antwort hinzugefügt wird. Mit **Code**, das die Uhren bewegt (World > Profiles > Options), würfelt Code alle N Antworten für jede Front einen W6: 1-2 nichts, 3-4 ein Schritt, 5-6 ein Schritt, und der DM erfährt, dass Neuigkeiten dieser Front die Geschichte erreichen können. Optionale Würfel (World-Sheet, Dice, ab Living world, standardmäßig aus): Vor einer Antwort würfelt Code 2W6 und sagt dem Modell, wie eine unsichere Handlung ausgeht, als Hint oder Binding.
 
 Er kostet einen zusätzlichen Modellaufruf, wann immer er fällig ist, auf dem „DM model (all chats)“; ein kleines, günstiges Modell genügt. Ein fehlgeschlagener Lauf wird im Sheet und in der Inbox gezeigt, und der DM liest dieselben Nachrichten beim nächsten Mal erneut.
 

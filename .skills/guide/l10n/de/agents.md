@@ -1,4 +1,4 @@
-<!-- source: 56891f4e013d -->
+<!-- source: 2e8e4f51b7cb -->
 # Agents und die Agenten-Schmiede
 
 Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
@@ -9,7 +9,7 @@ Ein Agent sind Daten, kein Code. Im Editor ist er ein Brett aus **Karten**, die 
 
 - eine **Input**-Karte legt fest, was der Agent lesen darf (die letzte Antwort, den Chatverlauf, die Charakterkarte, die Persona, die Autorennotiz, Litopys-Fakten, Lorebook-Einträge);
 - **Ask the model**-Karten stellen einem Modell eine Frage und nehmen die Antwort als freien Text, Ja oder Nein, oder ein paar benannte Felder;
-- Logik-Karten und Karten, die ohne Modell im Code arbeiten: Würfel, das Auswählen einer Zeile, das Schneiden oder Herausziehen von Text;
+- Logik-Karten (eine If-Karte kann nur auslösen, wenn ihre Antwort auf Ja umspringt, nur einmal oder mit einer Pause nach dem Auslösen, und ihre Regeln können fragen, ob sich ein Wert seit dem letzten Lauf geändert hat; das Lauf-Protokoll sagt, warum sie geantwortet hat) und Karten, die ohne Modell im Code arbeiten: Würfel, das Auswählen einer Zeile, das Schneiden oder Herausziehen von Text;
 - eine **Script**-Karte: ein paar Zeilen JavaScript, die du schreibst, `(input, seed)` hinein und ein einfaches Objekt heraus, mit typisierten Ein- und Ausgaben. Sie läuft in einer Sandbox der Engine (ohne Uhr, ohne Internet, ohne Dateien, etwa eine halbe Sekunde und 16 MB) und braucht eine Engine ab 1.10.1; eine ältere Engine lässt den Agenten mit einer einfachen Meldung scheitern;
 - Karten für den eigenen **Speicher** des Agenten (Zahlen, Text, Ja/Nein, Listen), pro Chat gehalten und getrennt vom Dashboard;
 - eine **Output**-Karte, die ein Ergebnis zeigt: „A note under the reply“, „Buttons to tap“, einen Zustandswert oder einen Hinweis, der in den nächsten Prompt gelegt wird.
@@ -32,6 +32,10 @@ Drücke „New agent“ im Agents-Brett des **Canvas** (der Rail-Punkt **Agents*
 ## Der Editor
 
 Bearbeitungen werden einen Moment nach dem Aufhören als Entwurf gespeichert. Drei Tabs: Card (die gewählte Karte), Agent (Name, wann er läuft, sein Speicher, Panels) und Try. Eine Prüfung zeigt „Passes the check“, die Zahl der Probleme und Warnungen und „N model calls per run“. Mit offenen Problemen kannst du nicht installieren. „Export as a file“ speichert eine Datei, die du teilen kannst. Das Blatt „Install and manage agents...“ im Chat hat „Install an agent file“, um eine einzubringen.
+
+### Die Optionen der If-Karte
+
+Eine If-Karte antwortet mit Ja, Nein oder Unbekannt nach ihren Regeln. Allein gesehen sagt sie bei jedem Lauf Ja, solange die Regeln zutreffen. Unter den Regeln ändert **When it answers Yes** das: „Every time“ (der Standard), „Only when it turns Yes“ (sie löst beim Schritt von nicht Ja zu Ja aus und erst wieder, nachdem die Antwort zurückgegangen ist) oder „Only once in this chat“. **Pause after it fires (runs)** überspringt nach einem Ja so viele Läufe des Agenten, 0 bis 50. Ein Lauf ist ein Zug des Agenten. Ein Agent, der jede dritte Antwort läuft, hält mit einer Pause von 2 also sechs Antworten lang still. Eine Regel kann auch „changed since the last run“ nutzen: Ja, wenn sich der Wert vom letzten Lauf unterscheidet. Nur ein Ja wird zurückgehalten; Nein und Unbekannt kommen trotzdem heraus. Der Agent merkt sich das pro Chat, und „start over“ am Agenten vergisst es. Der Try-Tab zeigt, warum eine Karte geantwortet hat (die Regel, den gelesenen Wert, das Ergebnis) und, wenn sie ein Ja zurückgehalten hat, welche Option es hielt; das Agent-Log unter einer Antwort zeigt dieselben Zeilen.
 
 ## Probelauf
 

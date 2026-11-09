@@ -226,7 +226,7 @@ follows one step only. `fact.because` is not used by the full record (everything
 `litopys/insert/<chatId>.json` records what it did: `causes { pulled, missed, together }` for the last reply (a cause added; an
 active cause that did not fit; cause and effect both there already) and `causeStats { replies, pulled, missed, together }` over the
 chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causeLinks` (`false`, default since
-Roleplay 4.105.1; the old key `causes` is no longer read): `true` asks the worker for causes, reads `because` in its replies and lets recall use it;
+Roleplay 4.106.0; the old key `causes` is no longer read): `true` asks the worker for causes, reads `because` in its replies and lets recall use it;
 no setting in the app, a hand-edited key. While it is off nothing new is written, but links already in a chat stay readable in the Library.
 
 **Beliefs (#184 P4, step 2).** A fact of `type: "belief"` is what one character was told in a lie and still takes as true. Fields
@@ -535,12 +535,16 @@ player switches it on for that chat. It writes:
 - the chat meta's `worldBookId`: names that book; the engine adds it to the chat's scope before every reply.
 - `world/state/<chatId>.json`: `{ v: 1, chatId, bookId, settings: { level, everyN, recordsEveryN, stagnation,
   onTransition, onPlace, insert, textMax, changesMax }, lastKey, levelKey?, lastPlace?, nextId, entities: [{ id, kind, name, aliases, text, status, uid, at? }], nextFront,
-  fronts: [{ id, name, goal, clock, size, status, at? }], event, direction?, transitionKey?, log: [{ at, key,
+  fronts: [{ id, name, goal, clock, size, status, stirred?, at? }], event, direction?, transitionKey?, log: [{ at, key,
   reason, changes, fronts, summary }], lastRunAt?, lastModel?, lastError? }`.
   - `regIds` (optional): `{ "n3": "p7" }`, the entity registry person (`registry/<chatId>.json`) of each NPC `person` record. A card
     character or the user (registry source `persona`, `card`, `soul`, `group`) is never recorded as an NPC, whatever the spelling; an NPC
     spelled two ways is one record (the second spelling joins its aliases). A thing's `holder` and the keys of `carry` are written
     as the person's name in the Dashboard (its `personIds`), else the registry name; the user's character is the key/holder `user`.
+  - `stirred` (a front, optional, #155): `true` after a code tick rolled 5-6 on a d6 for that front. The next full DM run names the front in its
+    input ("Stirred since the last look ...", worded by the clock stage) and then lets the flag go. Set only when the profile's `clocks` is `code`.
+  - Code clocks (profile option `clocks: "code"`): every `clockEvery` replies read, each active front rolls a d6 (`tickClocks`, seeded by chat and the run's
+    `upTo`, so a rerun rolls the same): 1-2 nothing, 3-4 +1 segment, 5-6 +1 segment and `stirred`. The model's own tick ops are ignored.
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
     `antagonist`, `chaos` (a hard event for the next reply).
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
@@ -569,7 +573,9 @@ player switches it on for that chat. It writes:
     sensor's own `outfit` (split into items at commas, `;`, "and", "і", "та", "и") and `holding` for each character in
     the scene; the DM is not asked for `carry` and its `carry` is ignored. `dm`: the DM's `carry` lists as below.
     Places and things (records) are always the DM's. `GET /world/here` gives `carrySource`, `carry` (from the chosen
-    source; sensor entries have `hands`, the text of `holding`) and `sensor` (always the sensor's lines, to compare).
+    source; sensor entries have `hands`, the text of `holding`, and `nearby`: the objects the sensor saw lying in the scene
+    (`layout.objects`, as "item (where)"), minus the things that have a record; the same list for every present
+    character, shown on the Dashboard only, never put into the reply prompt) and `sensor` (always the sensor's lines, to compare).
   - A place may also carry `background`: the id of a picture in the app's Backgrounds library. Only the player (the
     Places tab) or the app after a generated set sets it; the DM's replies cannot. With "Change the background by
     scene" on, a scene in that place shows the picture (a spot without one takes its place's);
@@ -961,7 +967,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
   `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
-  `unknown`; missing data is Unknown, never No), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),
+  `unknown`; missing data is Unknown, never No; optional `edge`, `once`, `cooldown`: below), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),
   `note`, and four cards for the agent's own state (below). A card of an unknown type is kept and warned about (`W_UNKNOWN_TYPE`); the agent will not run.
 - Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
   operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
@@ -1114,17 +1120,27 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `remove`, `toggle` (`on`), `phase`, `move` (`to`: position), `show` (`place`: a place or null), `also` (`on`: true = also in the block), `wait` (`wait`: false = the reply does
   not wait for this agent, true = it does); it answers what runs now,
   as does `GET /chats/<id>/agents`: `{ presetId, presetMissing, followsPreset, items: [ { agent, on, phase?, show, also? } ], silentNotes }` (`silentNotes`: the agents' notes are switched off, see the agents' settings below).
+**The If card's memory (#155).** `logic.if` may carry `edge` (boolean), `once` (boolean) and `cooldown` (a whole number, 0 to 50,
+in runs of the agent; `E_IF_FIRE` otherwise). They only hold back a Yes: `edge` lets it through when the card did not say Yes the
+last time it answered Yes or No (an Unknown does not count and does not reset it), `once` only the first time, `cooldown: N` not
+until N runs have passed since it last fired. A held Yes fires none of the three outputs (the card is skipped, so is what hangs on
+it); No and Unknown are never held. The rule operator `changed` (all three types; no right side) answers Yes when the value
+differs from what the card saw on its last run, No on the first look or when it did not change, Unknown when the value is missing.
+The card's memory is `{ last, fired, count, seen }` per card id; the host keeps it in the agent's state file (below) and a card
+that is gone loses it. The run log's trace for an If has `out.why`: every rule with what it read (`comfort (15) lt 20 = yes`),
+and a held card shows `out.held` (`edge: it was already true last time`).
+
 ### Running an agent (`agent-run.js`)
 
 `runAgent(file, ctx, answers)` in `src/canvas-kit/boards/agent-run.js` runs a checked file for one turn. It is pure: it never
 calls a model or touches a file, and it is called again with more `answers` until it is done, like the engine's two-phase
-generation. `ctx` = `{ inputs, own, dash, chat }`: `inputs` is what the host read for the Input card, by `give` id; `own` the
+generation. `ctx` = `{ inputs, own, dash, chat, memo, n }` (`memo` is the If cards' memory, `n` the number of this run of the agent in the chat): `inputs` is what the host read for the Input card, by `give` id; `own` the
 agent's own fields; `dash` the Dashboard fields (`state` sources and `state` operands read these); `chat` = `{ messageCount,
 lastSpeaker }`. `answers` = `{ <model.ask card id>: { text } | { error } }`. The result is one of:
 - `{ status: "need", requests }`: the `model.ask` calls that can run now (all independent ones at once), each `{ node, role,
   prompt, maxTokens }`. The prompt already carries the format the card expects (YES/NO on the first line, or JSON in the
   card's `shape`).
-- `{ status: "done", writes, outputs, calls, trace }`: `writes` are staged changes (`dash.set`, `own.set`, `own.add`,
+- `{ status: "done", writes, outputs, calls, trace, memo }`: `memo` is the If cards' memory after the run; `writes` are staged changes (`dash.set`, `own.set`, `own.add`,
   `list.add`, `list.update`, `list.remove`), applied by the host only after a successful run, with
   `applyWrites(schema, own, writes)`; `outputs` are what the Output cards produced (`state-patch`, `prompt-insert`, `note`,
   `choices`, each with its `show`); `trace` says for every card whether it ran, was skipped or waited.

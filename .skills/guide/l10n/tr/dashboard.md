@@ -1,11 +1,11 @@
-<!-- source: 36f23a51ff05 -->
+<!-- source: 0383923e835d -->
 # Sahne Dashboard'u
 
 Dashboard, sohbetin yanında sahneyi izleyen bir paneldir: kimin orada olduğu, her karakterin size karşı ne hissettiği, ne giydikleri ve ne bildikleri, açık hikâye izlekleri. Yanıtlar arasında hikâyenin ilişkileri ve ayrıntıları hatırlamasını isteyen herkes içindir. *Scene dashboard* Yardım makalesi alanlarını listeler.
 
 ## Neyi izler
 
-Sohbette bir portreye tıklayıp Dashboard'u seçerek açın. Yan panelde dört sekme vardır: **Person** (tutum, ruh hali ve durum, kıyafet ve eşyalar), **Here** (yer, hava, kimin orada olduğu), **Quests** (açık izlekler: ana, yan, gündelik) ve **Notes** (defter: bir karakterin ne bildiği ve onu görüp görmediği, duyup duymadığı veya tahmin edip etmediği). "Constellation", bir karakterin size karşı nasıl durduğunu adlandırır; örneğin Friendship veya Romance. Bir sekmedeki sayı, son yanıtınızdan bu yana değişiklikleri sayar (bir şey düştüğünde kırmızı). Geniş görünümde ayrıca bir karakterin düşüncesi ve anımsamalarıyla bir Journal bulunur. Telefonda aynı içerik bir sayfa olarak açılır.
+Sohbette bir portreye tıklayıp Dashboard'u seçerek açın. Yan panelde dört sekme vardır: **Person** (tutum, ruh hali ve durum, kıyafet ve eşyalar: üzerlerinde, ellerinde ve yanlarında olanlar ve yakında bulunanlar), **Here** (yer, hava, kimin orada olduğu), **Quests** (açık izlekler: ana, yan, gündelik) ve **Notes** (defter: bir karakterin ne bildiği ve onu görüp görmediği, duyup duymadığı veya tahmin edip etmediği). "Constellation", bir karakterin size karşı nasıl durduğunu adlandırır; örneğin Friendship veya Romance. Bir sekmedeki sayı, son yanıtınızdan bu yana değişiklikleri sayar (bir şey düştüğünde kırmızı). Geniş görünümde ayrıca bir karakterin düşüncesi ve anımsamalarıyla bir Journal bulunur. Telefonda aynı içerik bir sayfa olarak açılır.
 
 **Aynı kişi iki kez listelenmiş.** Dashboard aynı kişiyi iki ad altında gösteriyorsa (diyelim "Sina" ve "Sina Rose"), birini açın ve Person başlığındaki küçük insanlar düğmesini kullanın, ardından "Same person as..." deyin ve diğerini seçin. Önce size sorulur: notlar, geçmiş ve eşyalar seçtiğiniz kişiye taşınır, onların ilişki sayıları kalır, ad onların bir diğer adı olur ve bu geri alınamaz. Dashboard olası kopyaları kendisi de önerir: Person sekmesinin üstündeki bir kutu (ve "Since your last reply" içindeki "Possible duplicate" etiketi) "X may be the same person as Y" der ve nedenini gösterir. "Merge into Y" menüyle aynısını yapar; "Different people" onları ayrı tutar ve Dashboard o çifti önermeyi bırakır. Aynı menüde, yalnızca yanlış olan bir ad için "Remove from the Dashboard" bulunur.
 

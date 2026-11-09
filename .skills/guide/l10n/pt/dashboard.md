@@ -1,11 +1,11 @@
-<!-- source: 36f23a51ff05 -->
+<!-- source: 0383923e835d -->
 # O Dashboard de cena
 
 O Dashboard é um painel ao lado do chat que acompanha a cena: quem está presente, como cada personagem se sente a seu respeito, o que vestem e sabem, os fios abertos da história. É para quem quer que a história se lembre de relações e detalhes entre respostas. O artigo de Ajuda *Scene dashboard* lista seus campos.
 
 ## O que ele acompanha
 
-Abra-o clicando em um retrato no chat e escolhendo Dashboard. O painel lateral tem quatro abas: **Person** (atitude, humor e estado, roupa e coisas), **Here** (lugar, clima, quem está presente), **Quests** (os fios abertos: principais, secundários, cotidianos) e **Notes** (o caderno: o que um personagem sabe, e se viu, ouviu ou adivinhou). A "Constellation" nomeia como um personagem se posiciona em relação a você, por exemplo Friendship ou Romance. Um número em uma aba conta as mudanças desde sua última resposta (vermelho quando algo caiu). A visão ampla também tem um Journal com o pensamento e as lembranças de um personagem. No telefone, o mesmo conteúdo abre como uma folha.
+Abra-o clicando em um retrato no chat e escolhendo Dashboard. O painel lateral tem quatro abas: **Person** (atitude, mood e estado, roupa e coisas: o que vestem, seguram e carregam, e o que está por perto), **Here** (lugar, clima, quem está presente), **Quests** (os fios abertos: principais, secundários, cotidianos) e **Notes** (o caderno: o que um personagem sabe, e se viu, ouviu ou adivinhou). A "Constellation" nomeia como um personagem se posiciona em relação a você, por exemplo Friendship ou Romance. Um número em uma aba conta as mudanças desde sua última resposta (vermelho quando algo caiu). A visão ampla também tem um Journal com o pensamento e as lembranças de um personagem. No telefone, o mesmo conteúdo abre como uma folha.
 
 **Uma pessoa listada duas vezes.** Se o Dashboard mostrar a mesma pessoa sob dois nomes (digamos "Sina" e "Sina Rose"), abra um deles e use o botão pequeno de pessoas no cabeçalho de Person, depois "Same person as..." e escolha o outro. Você é perguntado antes: as notas, o histórico e as coisas passam para a pessoa que você escolheu, os números de relação dela ficam, o nome vira outro nome dela, e isso não pode ser desfeito. O próprio Dashboard também sugere prováveis duplicatas: uma caixa no topo da aba Person (e um selo "Possible duplicate" em "Since your last reply") diz "X may be the same person as Y", com o motivo. "Merge into Y" faz o mesmo que o menu; "Different people" as mantém separadas, e o Dashboard para de sugerir esse par. O mesmo menu tem "Remove from the Dashboard" para um nome que simplesmente está errado.
 

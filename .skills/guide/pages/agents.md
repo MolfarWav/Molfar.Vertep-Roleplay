@@ -8,7 +8,7 @@ An agent is data, not code. In the editor it is a board of **cards** joined by *
 
 - an **Input** card says what the agent may read (the last reply, the chat history, the character card, the persona, the author's note, Litopys facts, lorebook entries);
 - **Ask the model** cards put one question to a model and take the answer as free text, yes or no, or a few named fields;
-- logic cards, and cards that work in code with no model: dice, picking a line, cutting or extracting text;
+- logic cards (an If card can fire only when its answer turns Yes, only once, or with a pause after it fires, and its rules can ask whether a value changed since the last run; the run log says why it answered), and cards that work in code with no model: dice, picking a line, cutting or extracting text;
 - a **Script** card: a few lines of JavaScript you write, `(input, seed)` in and a plain object out, with typed inputs and outputs. It runs in a sandbox of the engine (no clock, no internet, no files, about half a second and 16 MB) and needs an engine from 1.10.1; an older engine fails the agent with a plain message;
 - cards for the agent's own **memory** (numbers, text, yes/no, lists), kept for each chat and apart from the Dashboard;
 - an **Output** card that shows a result: "A note under the reply", "Buttons to tap", a state value, or a hint put into the next prompt.
@@ -31,6 +31,10 @@ Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** i
 ## The editor
 
 Edits are saved as a draft a moment after you stop. Three tabs: Card (the selected card), Agent (name, when it runs, its memory, panels) and Try. A check shows "Passes the check", the number of problems and warnings, and "N model calls per run". You cannot install with problems left. "Export as a file" saves one file you can share. The chat's "Install and manage agents..." sheet has "Install an agent file" for bringing one in.
+
+### The If card's options
+
+An If card answers Yes, No or Unknown by its rules, and on its own it says Yes on every run while the rules hold. Under the rules, **When it answers Yes** changes that: "Every time" (the default), "Only when it turns Yes" (it fires on the step from not Yes to Yes, and again only after the answer has gone back), or "Only once in this chat". **Pause after it fires (runs)** skips that many of the agent's runs after a Yes, 0 to 50. A run is one turn of the agent, so an agent that runs every third reply makes a pause of 2 last six replies. A rule can also use "changed since the last run": Yes when the value differs from the last run. Only a Yes is held back; No and Unknown still come out. The agent remembers this per chat, and "start over" on the agent forgets it. The Try tab shows why a card answered (the rule, the value it read, the result) and, when it held a Yes, which option held it; the agent log under a reply keeps the same lines.
 
 ## Trial run
 

@@ -154,6 +154,10 @@ const Y = 'yes';
 const N = 'no';
 const U = 'unknown';
 
+/** A rule's operand as the run log names it. */
+const ruleName = (o) => (!isPlain(o) ? '?' : o.from === 'wire' ? o.port : o.from === 'state' ? o.field + (o.of ? '@' + o.of : '') : o.from === 'chat' ? o.what : 'value');
+const showVal = (v) => (typeof v === 'string' ? JSON.stringify(clip(v, 40)) : Array.isArray(v) ? JSON.stringify(v).slice(0, 60) : String(v));
+
 /** One rule of an If card: Y, N or U. Missing data is U (except isSet / isMissing, which are about exactly that). */
 export function ruleResult(type, op, left, right) {
   const missing = left === undefined || left === null || left === '';
@@ -261,6 +265,9 @@ const short = (v) => (typeof v === 'string' ? clip(v, 200) : v);
  * ctx: { inputs: { <give id>: text | number | undefined }, own: { <field>: value }, dash: { <field>: value }, chat: { messageCount, lastSpeaker }, seed }
  *   `seed` makes the dice and picks repeatable: the host gives the same text for the same reply, so every pass of a run rolls the same.
  *   `inputs` is what the host read for the agent's Input card; the executor trusts nothing else about the chat.
+ *   `memo` and `n` give an If card its memory (edge, once, cooldown, "changed"): `memo` is what the last run returned
+ *   (`{ "<card id>": { last, fired, count, seen } }`), `n` the number of this run of the agent in this chat (1, 2, ...).
+ *   A done run returns the new `memo`; the host keeps it only when the run is committed.
  * answers: { <model.ask card id>: { text } | { error } }
  * Returns { status: "need", requests, trace }, { status: "done", writes, outputs, calls, trace } or { status: "failed", reason, node, trace }.
  * With `ctx.explain` the result also has `wires`: what every output port carries, for the editor's trial run
@@ -285,6 +292,8 @@ function runCards(file, ctx, answers, seen) {
   const dash = (ctx && ctx.dash) || {};
   const chat = (ctx && ctx.chat) || {};
   const given = answers || {};
+  const n = ctx && Number.isInteger(ctx.n) && ctx.n > 0 ? ctx.n : 1;
+  const memo = isPlain(ctx && ctx.memo) ? JSON.parse(JSON.stringify(ctx.memo)) : {};
   const trace = [];
   const requests = [];
   const writes = [];
@@ -401,14 +410,47 @@ function runCards(file, ctx, answers, seen) {
           if (o.from === 'chat') return { value: chat[o.what], type: o.what === 'messageCount' ? 'number' : 'text' };
           return { value: o.value, type: typeof o.value === 'number' ? 'number' : 'text' };
         };
-        const results = (p.rows || []).map((r) => {
+        const m = isPlain(memo[id]) ? memo[id] : {};
+        const seen = isPlain(m.seen) ? { ...m.seen } : {};
+        const why = [];
+        const results = (p.rows || []).map((r, i) => {
           const l = operand(r.left);
-          return ruleResult(l.type, r.op, l.value, operand(r.right).value);
+          const miss = l.value === undefined || l.value === null || l.value === '';
+          let res;
+          if (r.op === 'changed') {
+            const prev = seen['r' + i];
+            res = miss ? U : prev === undefined ? N : String(prev) !== String(l.value) ? Y : N;
+            if (!miss) seen['r' + i] = typeof l.value === 'number' ? l.value : clip(String(l.value), 200);
+          } else res = ruleResult(l.type, r.op, l.value, operand(r.right).value);
+          const rv = r.op === 'changed' || !isPlain(r.right) ? undefined : operand(r.right).value;
+          why.push(`${ruleName(r.left)} (${miss ? 'missing' : showVal(l.value)}) ${r.op}${rv === undefined ? '' : ' ' + showVal(rv)} = ${res}`);
+          return res;
         });
         const verdict = combineRules(p.match || 'all', results);
+        const cool = Number.isInteger(p.cooldown) && p.cooldown > 0 ? p.cooldown : 0;
+        const gated = p.edge === true || p.once === true || cool > 0;
+        // the reason chain: every rule with what it read, then what held the answer back, if anything
+        const reason = clip((results.length > 1 ? (p.match || 'all') + ': ' : '') + why.join('; '), 400);
+        let held = '';
+        if (verdict === Y) {
+          if (p.once === true && m.fired) held = `once: it fired in run ${m.fired}`;
+          else if (p.edge === true && m.last === Y) held = 'edge: it was already true last time';
+          else if (cool > 0 && m.fired && n - m.fired <= cool) held = `cooldown: it fired in run ${m.fired}, ${cool} runs must pass`;
+        }
+        if (gated || Object.keys(seen).length) {
+          const next = { ...m };
+          if (Object.keys(seen).length) next.seen = seen;
+          if (verdict !== U) next.last = verdict;
+          if (verdict === Y && !held) { next.fired = n; next.count = (Number.isInteger(m.count) ? m.count : 0) + 1; }
+          memo[id] = next;
+        }
         setAll(node, SKIP);
-        out(verdict, true);
-        ran({ verdict, rules: results.join(',') });
+        if (held) {
+          trace.push({ node: id, status: 'skipped', out: { verdict, held, why: reason } });
+        } else {
+          out(verdict, true);
+          ran({ verdict, rules: results.join(','), why: reason });
+        }
       }
     } else if (node.type === 'logic.merge') {
       const vals = ports.filter((x) => x.side === 'in').map((x) => ins[x.id]);
@@ -515,5 +557,6 @@ function runCards(file, ctx, answers, seen) {
   }
 
   if (requests.length) return { status: 'need', requests, trace };
-  return { status: 'done', writes, outputs, calls, trace };
+  const keep = Object.fromEntries(Object.entries(memo).filter(([k]) => byId.has(k)));
+  return { status: 'done', writes, outputs, calls, trace, memo: keep };
 }

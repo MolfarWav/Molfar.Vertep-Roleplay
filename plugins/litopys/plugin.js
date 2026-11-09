@@ -1125,7 +1125,7 @@ export const DEFAULT_CONFIG = {
   // No setting in the app: a hand-edited key to go back if the new rule does worse for someone.
   recallScoring: "phrases",
   // #178: a new fact may name the earlier fact that caused it (fact.because); when the insert picks an effect and
-  // the budget has room, its cause (if active) rides right after it. Off by default since 4.105.1: on real chats the worker
+  // the budget has room, its cause (if active) rides right after it. Off by default since 4.106.0: on real chats the worker
   // wrote 0 causes in more than 100 facts, so the extra prompt rule only cost tokens. No setting in the app: a hand-edited
   // key to turn it on. `loadConfig` turns it into `cfg.causes`; the old `causes` key is no longer read (a saved config
   // carried `causes: true` from the old default).

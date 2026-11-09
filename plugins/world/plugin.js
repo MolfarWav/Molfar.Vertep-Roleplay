@@ -1111,7 +1111,7 @@ function cleanFront(f) {
   if (!name || !/^f\d{1,6}$/.test(id)) return null;
   const size = CLOCK_SIZES.includes(Number(f.size)) ? Number(f.size) : 6;
   const clock = Number.isFinite(Number(f.clock)) ? clamp(Math.round(Number(f.clock)), 0, size) : 0;
-  return { id, name, goal: cut(str(f.goal), TEXT_MAX), clock, size, status: f.status === "past" ? "past" : "active", ...(Number.isFinite(f.at) ? { at: f.at } : {}) };
+  return { id, name, goal: cut(str(f.goal), TEXT_MAX), clock, size, status: f.status === "past" ? "past" : "active", ...(f.stirred === true ? { stirred: true } : {}), ...(Number.isFinite(f.at) ? { at: f.at } : {}) };
 }
 
 /** The event waiting for a reply: text, hard or soft, sent (how many replies carried it), retried once. */
@@ -2362,6 +2362,8 @@ function levelInput({ fronts, event, direction, threads, options, deck }) {
     out.push("How news of each front reads now, by its clock:\n" + active.map((f) => f.id + " " + f.name + ": " + clockStage(f)).join("\n"));
     out.push("Off-screen effects arrive as news, threats or signs, never as harm already done to the user's character.");
   }
+  const stirred = o.clocks === "code" ? active.filter((f) => f.stirred) : [];
+  if (stirred.length) out.push("Stirred since the last look (their plans moved; let news of them reach the story in the next event, worded by the clock):\n" + stirred.map((f) => f.id + " " + f.name + ": " + clockStage(f)).join("\n"));
   if (Array.isArray(deck)) {
     out.push(deck.length
       ? 'Events deck: an event comes only from this deck. When one is due, pick the card that fits the scene best and send event {"deck":"<its id>"}; never invent one.\n' + deck.map((c) => c.id + " · " + c.text).join("\n")
@@ -2663,20 +2665,30 @@ export function applyCarry(state, list, { cards, userName, now, rc }) {
   return changed;
 }
 
+/** How one d6 moves a clock (#155): 1-2 nothing, 3-4 one segment, 5-6 one segment and the front is stirred (news of it may reach the story). */
+export const clockStep = (d) => (d <= 2 ? { by: 0, stirred: false } : d <= 4 ? { by: 1, stirred: false } : { by: 1, stirred: true });
+
 /**
- * Code ticks the clocks (profile option "code"): every `every` replies read, each active front moves by 1.
- * The count carries over between runs in state.clockReplies. Returns how many ticks were made.
+ * Code ticks the clocks (profile option "code"): every `every` replies read, each active front rolls a d6 (clockStep).
+ * The count carries over between runs in state.clockReplies. With a `seed` the rolls are repeatable (the same run
+ * rolls the same, a run on other messages rolls anew); without one every front moves by 1 each tick, as before.
+ * `stirred` marks a front for the next DM input; the caller lets it go once a full run has shown it. Returns how many segments moved.
  */
-export function tickClocks(state, replies, every, now) {
+export function tickClocks(state, replies, every, now, seed) {
   let count = (Number.isInteger(state.clockReplies) ? state.clockReplies : 0) + replies;
   let ticks = 0;
+  let round = 0;
   while (count >= every) {
     count -= every;
+    round++;
     for (const f of state.fronts) {
       if (f.status !== "active" || f.clock >= f.size) continue;
-      f.clock++;
+      const step = seed ? clockStep(Math.floor(seededRandom(seed + "|" + round + "|" + f.id)() * 6) + 1) : { by: 1, stirred: false };
+      if (!step.by && !step.stirred) continue;
+      f.clock += step.by;
+      if (step.stirred) f.stirred = true;
       f.at = now || Date.now();
-      ticks++;
+      ticks += step.by;
     }
   }
   state.clockReplies = count;
@@ -2880,7 +2892,10 @@ export function hereOf(state, scene, extra, reg) {
   }
   const carry = {};
   const source = state.settings.carrySource === "dm" ? state.carry || {} : sensorCarry(scene);
-  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = c.ids ? { ...c, ids: c.ids.map(canon) } : c;
+  // sensor source: what the sensor saw lying in the scene is every present character's nearby list (#185); a thing that has a record (by id or by name)
+  // already shows in its own group
+  const lying = state.settings.carrySource === "dm" ? [] : arr(scene && scene.objects).filter((o) => !(o.id && shown.has(canon(o.id))) && !entities.some((e) => e.kind === "thing" && e.status === "active" && refersTo(e, o.item))).map((o) => (o.where ? o.item + " (" + o.where + ")" : o.item));
+  for (const [who, c] of Object.entries(source)) if (inScene(asName(who))) carry[asName(who)] = { ...(c.ids ? { ...c, ids: c.ids.map(canon) } : c), ...(lying.length ? { nearby: lying } : {}) };
   const spots = place ? places.filter((e) => e.size === "spot" && e.inside && placeNamed(e.inside) === place) : [];
   return { scenePlace: scene ? scene.place : "", place, parent, spots, things, held, asleep, carry, link, present, carrySource: state.settings.carrySource === "dm" ? "dm" : "sensor", sensor: sensorCarry(scene) };
 }
@@ -2907,7 +2922,8 @@ export function hereInsert(h) {
     if (c && c.hands) bits.push("holds " + c.hands);
     const has = [...(c ? c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")) : []), ...arr(h.held[name]).filter((t) => !(c && c.ids && h.link && h.link[t.id] && c.ids.includes(h.link[t.id]))).map((t) => t.name)].filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
     if (has.length) bits.push("has " + has.slice(0, 8).join(", "));
-    if (c && c.nearby.length) bits.push("near them " + c.nearby.slice(0, 4).join(", "));
+    // the sensor source's nearby list is for the Dashboard only: the reply prompt already has the objects in the Dashboard's own block
+    if (c && c.nearby.length && h.carrySource !== "sensor") bits.push("near them " + c.nearby.slice(0, 4).join(", "));
     if (bits.length) out.push(name + " " + bits.join("; ") + ".");
   }
   if (!out.length) return null;
@@ -4713,8 +4729,10 @@ function updateRoute(req, host) {
   regFlush(fsx, rc);
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
+  // a full run showed the DM the fronts stirred by the last ticks; they are let go before the new ticks
+  if (!recordsOnly) for (const f of state.fronts) delete f.stirred;
   let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
-  if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now());
+  if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now(), chatId + "|clock|" + (str(stash.upTo) || upTo));
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
   markSwept(state, sweep);

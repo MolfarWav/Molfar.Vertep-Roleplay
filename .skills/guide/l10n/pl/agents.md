@@ -1,4 +1,4 @@
-<!-- source: 56891f4e013d -->
+<!-- source: 2e8e4f51b7cb -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -9,7 +9,7 @@ Agent to dane, nie kod. W edytorze to plansza z **kart** połączonych **przewod
 
 - karta **Input** mówi, co agent może czytać (ostatnią odpowiedź, historię czatu, kartę postaci, personę, notatkę autora, fakty z Litopysa, wpisy z ksiąg wiedzy);
 - karty **Ask the model** zadają modelowi jedno pytanie i biorą odpowiedź jako dowolny tekst, tak/nie lub kilka nazwanych pól;
-- karty logiczne oraz karty działające w kodzie bez modelu: kości, wybór linii, wycinanie lub wyciąganie tekstu;
+- karty logiczne (karta If może zadziałać tylko wtedy, gdy jej odpowiedź zmieni się na Yes, tylko raz albo z pauzą po zadziałaniu, a jej reguły mogą zapytać, czy wartość zmieniła się od ostatniego przebiegu; dziennik przebiegów mówi, dlaczego odpowiedziała Yes), oraz karty działające w kodzie bez modelu: kości, wybór linii, wycinanie lub wyciąganie tekstu;
 - karta **Script**: kilka linii JavaScriptu, który piszesz, `(input, seed)` na wejściu i zwykły obiekt na wyjściu, z typowanymi wejściami i wyjściami. Działa w piaskownicy silnika (bez zegara, bez internetu, bez plików, około pół sekundy i 16 MB) i wymaga silnika od wersji 1.10.1; starszy silnik kończy agenta prostym komunikatem;
 - karty **pamięci** agenta (liczby, tekst, tak/nie, listy), przechowywane dla każdego czatu osobno i poza Pulpitem;
 - karta **Output**, która pokazuje wynik: „A note under the reply”, „Buttons to tap”, wartość stanu lub podpowiedź wstawianą do następnego promptu.
@@ -32,6 +32,10 @@ Naciśnij „New agent” na planszy Agenci w **Canvas** (otwiera ją pozycja **
 ## Edytor
 
 Zmiany zapisują się jako szkic chwilę po tym, jak przestaniesz. Trzy karty: Card (wybrana karta), Agent (nazwa, kiedy działa, jego pamięć, panele) i Try. Znacznik pokazuje „Passes the check”, liczbę problemów i ostrzeżeń oraz „N model calls per run”. Nie możesz zainstalować, gdy zostały problemy. „Export as a file” zapisuje jeden plik, którym możesz się podzielić. Arkusz czatu „Install and manage agents...” ma opcję „Install an agent file”, aby go wczytać.
+
+### Opcje karty If
+
+Karta If odpowiada Yes, No albo Unknown według swoich reguł i sama z siebie mówi Yes przy każdym przebiegu, dopóki reguły są spełnione. Pod regułami **When it answers Yes** to zmienia: "Every time" (domyślnie), "Only when it turns Yes" (zadziała przy przejściu z innej odpowiedzi na Yes, a potem dopiero po powrocie do innej odpowiedzi) albo "Only once in this chat". **Pause after it fires (runs)** pomija tyle przebiegów agenta po Yes, ile wpiszesz: od 0 do 50. Przebieg to jedna tura agenta, więc pauza 2 przy agencie działającym co trzecią odpowiedź trwa sześć odpowiedzi. Reguła może też użyć "changed since the last run": Yes, gdy wartość różni się od tej z ostatniego przebiegu. Wstrzymywane jest tylko Yes; No i Unknown wychodzą dalej. Agent pamięta to osobno dla każdego czatu, a "start over" na agencie to zapomina. Karta Try pokazuje, dlaczego karta odpowiedziała (regułę, odczytaną wartość i wynik) oraz, gdy wstrzymała Yes, która opcja to zrobiła; dziennik agenta pod odpowiedzią zawiera te same wiersze.
 
 ## Próba
 
