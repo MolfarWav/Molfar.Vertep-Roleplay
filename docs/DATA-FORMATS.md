@@ -225,8 +225,9 @@ in the prompt gets the cause right after it, if the budget still has room; it ne
 follows one step only. `fact.because` is not used by the full record (everything is there anyway). The sidecar
 `litopys/insert/<chatId>.json` records what it did: `causes { pulled, missed, together }` for the last reply (a cause added; an
 active cause that did not fit; cause and effect both there already) and `causeStats { replies, pulled, missed, together }` over the
-chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causes` (`true`, default):
-`false` stops asking the worker for causes, ignores `because` in its replies and stops recall from using it; no setting in the app.
+chat, only once a link was in play; `GET /litopys/carries` repeats both under `litopys`. Config key `causeLinks` (`false`, default since
+Roleplay 4.106.0; the old key `causes` is no longer read): `true` asks the worker for causes, reads `because` in its replies and lets recall use it;
+no setting in the app, a hand-edited key. While it is off nothing new is written, but links already in a chat stay readable in the Library.
 
 **Beliefs (#184 P4, step 2).** A fact of `type: "belief"` is what one character was told in a lie and still takes as true. Fields
 beyond a normal fact: `holder` (the one who believes it, also `subject`, and the only name in `knownBy`, so the speaker filter gives

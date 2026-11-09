@@ -297,6 +297,7 @@ describe("the worker run end to end", () => {
       v: 2, chatId: "c1", migrated: true, chapters: [], facts: [{ ...fact(1, "The river thawed.", { subject: "Aria" }) }], proposals: [], scene: { openFrom: null },
       counters: { chapter: 0, fact: 1, proposal: 0, arc: 0 }, rev: 1,
     });
+    writeJson("litopys/config.json", { causeLinks: true });
     const m = mockHost();
     const reply = chapterReply("Thaw", "Jude lost the boat.", [
       { op: "add", text: "Jude lost his boat.", subject: "Jude", because: "f1" },
@@ -308,5 +309,37 @@ describe("the worker run end to end", () => {
     expect(st.chapters).toHaveLength(1);
     expect(st.facts.find((f: any) => f.text === "Jude lost his boat.").because).toBe("f1");
     expect("because" in st.facts.find((f: any) => f.text === "Jude is angry.")).toBe(false);
+  });
+});
+
+describe("the switch", () => {
+  it("is off by default, on with causeLinks, and the old causes key of a saved config does nothing", () => {
+    expect(L.loadConfig(mockHost().host.fs).causes).toBe(false);
+    writeJson("litopys/config.json", { causes: true, budget: 900 });
+    expect(L.loadConfig(mockHost().host.fs).causes).toBe(false);
+    writeJson("litopys/config.json", { causeLinks: true });
+    expect(L.loadConfig(mockHost().host.fs).causes).toBe(true);
+  });
+
+  it("a worker request carries no cause rule while it is off, and does with causeLinks", () => {
+    writeChat("c2", story(70), { updatedAt: Date.now() });
+    writeJson("litopys/chats/c2.json", {
+      v: 2, chatId: "c2", migrated: true, chapters: [], facts: [fact(1, "The river thawed.", { subject: "Aria" })], proposals: [], scene: { openFrom: null },
+      counters: { chapter: 0, fact: 1, proposal: 0, arc: 0 }, rev: 1,
+    });
+    const asked = () => {
+      const m = mockHost();
+      return tick(m, [chapterReply("Thaw", "Jude lost the boat.", [])]).requests[0];
+    };
+    const off = JSON.stringify(asked());
+    writeJson("litopys/config.json", { causeLinks: true });
+    writeJson("litopys/chats/c2.json", {
+      v: 2, chatId: "c2", migrated: true, chapters: [], facts: [fact(1, "The river thawed.", { subject: "Aria" })], proposals: [], scene: { openFrom: null },
+      counters: { chapter: 0, fact: 1, proposal: 0, arc: 0 }, rev: 1,
+    });
+    const on = JSON.stringify(asked());
+    expect(on.length).toBeGreaterThan(off.length);
+    expect(off.includes("because")).toBe(false);
+    expect(on.includes("because")).toBe(true);
   });
 });

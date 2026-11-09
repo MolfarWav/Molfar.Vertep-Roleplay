@@ -618,7 +618,7 @@ describe("Litopys 2.0 state", () => {
       expect(res).toBeDefined();
       expect(res.status).toBe(200);
       // a new install reviews only the risky changes (#184 P5); the stored default stays "ask" for installs that already had data
-      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, proposals: "risky", ...L.DEFAULT_PROMPTS, custom: [] });
+      expect(res.json).toEqual({ ...L.DEFAULT_CONFIG, causes: false, proposals: "risky", ...L.DEFAULT_PROMPTS, custom: [] });
     });
 
     it("restores one prompt or both, and says which differ", () => {
