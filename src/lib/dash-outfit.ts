@@ -32,11 +32,11 @@ export interface Outfit {
   hands: string[]
   /** the DM's carried list (DM source only) and the things the DM has recorded as held by the person */
   carried: { what: string; where?: string }[]
-  /** only when the World DM keeps the lists */
+  /** the DM's nearby list, or (sensor source) what the sensor saw lying in the scene, minus the things that have a record */
   nearby: string[]
 }
 
-/** Wearing (the carry's list, else the sensor's outfit), in hands, carried (DM list plus held things), nearby (DM source only). */
+/** Wearing (the carry's list, else the sensor's outfit), in hands, carried (DM list plus held things), nearby (the DM's list, or the objects the sensor saw lying in the scene). */
 export function outfitOf(name: string, char: DashChar | undefined, here: WorldHere | null): Outfit {
   const dm = here?.carrySource === 'dm'
   const carry = entryOf(here?.carry, name)
@@ -48,7 +48,7 @@ export function outfitOf(name: string, char: DashChar | undefined, here: WorldHe
     if (hands.some((h) => sameName(h, t.name)) || carried.some((c) => sameName(c.what, t.name))) continue
     carried.push({ what: t.name })
   }
-  return { wearing, hands, carried, nearby: dm && carry ? [...carry.nearby] : [] }
+  return { wearing, hands, carried, nearby: carry ? [...carry.nearby] : [] }
 }
 
 export const outfitEmpty = (o: Outfit): boolean => !o.wearing.length && !o.hands.length && !o.carried.length && !o.nearby.length
