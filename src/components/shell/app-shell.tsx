@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useApp, DRAWER_VIEWS, type ViewKey } from '@/lib/store'
 import { takeReloadReason } from '@/lib/engine'
+import { onShellView } from '@/lib/shell-bridge'
 import { useIsDesktop, useIsWideRail } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { SectionHostProvider } from '@/components/shell/section-page'
@@ -78,6 +79,14 @@ export function AppShell() {
     const first = setTimeout(() => { if (document.visibilityState === 'visible') void runLettersPass() }, PASS_FIRST_MS)
     const pass = setInterval(() => { if (document.visibilityState === 'visible') void runLettersPass() }, PASS_EVERY_MS)
     return () => { clearInterval(read); clearTimeout(first); clearInterval(pass) }
+  }, [boot])
+
+  // The shell's Settings lists Roleplay under "App settings" (manifest `settingsView`, Molfar.Vertep#334): a click
+  // opens this app on its settings page. Registered once the app is ready, so the shell's name for the view, which
+  // may already be waiting, is not lost to the start-up navigation.
+  useEffect(() => {
+    if (boot !== 'ready') return
+    return onShellView((v) => { if (v === 'settings') useApp.getState().navigate('settings') })
   }, [boot])
 
   // Desktop invariant: the page behind is always home/chats/chat. A persisted

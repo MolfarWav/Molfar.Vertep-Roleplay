@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.105.0 (2026-11-09)
+
+- Added: **Roleplay's settings are listed in the shell's Settings (Molfar.Vertep#334).** Chat Behavior (spell check, autocorrect), Appearance, Streaming, Themes and the rest were only behind "Roleplay settings" on Home, and nothing in the shell's Settings pointed there. The manifest now names the page (`settingsView`), the shell lists the app under "App settings" and a click opens it on that page (`onShellView` in `src/lib/shell-bridge.ts`, listened to once the app is ready). It needs an engine with the call (after 1.13.2); an older engine simply shows no entry. The Settings tip and the guide page say so.
+
 ## 4.104.0 (2026-11-09)
 
 - Added: **spell check and autocorrect in the message box, as two switches.** The message box and the expanded editor (Shift+Tab) always had both off, on purpose: invented names would be underlined all the time and a phone keyboard fights asterisks, quotes and macros. Settings > Chat Behavior now has "Spell check in the message box" and "Autocorrect in the message box", both off by default (nothing changes unless you switch them on). Reported on Discord.
