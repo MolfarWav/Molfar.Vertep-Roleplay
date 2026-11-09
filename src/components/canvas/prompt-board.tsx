@@ -25,6 +25,7 @@ import { MemoryTraceView } from '@/components/canvas/memory-trace'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
+import { boardName } from '@/lib/board-names'
 import { toast } from 'sonner'
 import {
   promptPreview,
@@ -190,6 +191,8 @@ function PartRow({ m, guide, highlighted, status, editable, onActivate, onToggle
   /** a part inside an unfolded group: indented under the group's row */
   nested?: boolean
 }) {
+  const t = useT()
+  const name = boardName(m.item, t)
   return (
     <div
       ref={registerRef}
@@ -212,10 +215,10 @@ function PartRow({ m, guide, highlighted, status, editable, onActivate, onToggle
         {iconFor(m.item.kind)}
       </span>
       {/* the name keeps room: a long status ("added when a reply is generated") gives way, not the name */}
-      <span className="min-w-[8rem] flex-1 truncate text-sm" title={m.item.label}>{m.item.label}</span>
+      <span className="min-w-[8rem] flex-1 truncate text-sm" title={name}>{name}</span>
       <span className="min-w-0 shrink truncate text-xs text-muted-foreground" title={typeof status === 'string' ? status : undefined}>{status}</span>
       {switchable(m.item) && (
-        <BoardSwitch checked={m.on} disabled={!editable} label={m.item.label} onFlip={onToggle} big={roomy} />
+        <BoardSwitch checked={m.on} disabled={!editable} label={name} onFlip={onToggle} big={roomy} />
       )}
     </div>
   )
@@ -527,11 +530,11 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
   const filteredItems = useMemo(() => {
     if (!query) return itemsWithMeta
     return itemsWithMeta.filter(m => {
-      if (m.item.label.toLowerCase().includes(query)) return true
+      if (m.item.label.toLowerCase().includes(query) || boardName(m.item, t).toLowerCase().includes(query)) return true
       if (m.item.kind.toLowerCase().includes(query)) return true
       return m.parts.some(p => (p.label ?? '').toLowerCase().includes(query))
     })
-  }, [itemsWithMeta, query])
+  }, [itemsWithMeta, query, t])
 
   const outputRows = useMemo(() => {
     return requestOrder(filteredItems.filter(m => m.on && (m.tokens > 0 || m.isLitopys)), sources?.parts, spans)
@@ -1060,7 +1063,7 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                             ref={el => { if (el) rowRefs.current.set(m.item.key, el) }}
                             role="button"
                             tabIndex={0}
-                            title={m.item.label}
+                            title={boardName(m.item, t)}
                             onClick={() => selectFromOutput(m.item.key)}
                             onKeyDown={e => { if (e.key === 'Enter') selectFromOutput(m.item.key) }}
                             onMouseEnter={() => setHoverKey(m.item.key)}
@@ -1071,8 +1074,8 @@ export function PromptBoard({ chatId, chats, onPickChat, editable, phoneList }: 
                             )}
                           >
                             <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-xs font-semibold">{i + 1}</span>
-                            <span className="flex-1 truncate">{m.item.label}</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="min-w-0 flex-1 break-words leading-tight">{boardName(m.item, t)}</span>
+                            <span className="max-w-[50%] shrink-0 text-right text-xs leading-tight text-muted-foreground">
                               {m.isLitopys ? t('canvas.prompt.atSend') : `${formatTokens(m.tokens)} ${t('canvas.prompt.tokens')}`}
                             </span>
                           </div>
@@ -1128,7 +1131,7 @@ function PhoneDetails({ item, t, showText, setShowText }: {
 }) {
   return (
     <div className="space-y-2 text-sm">
-      <div className="font-semibold">{item.item.label}</div>
+      <div className="font-semibold">{boardName(item.item, t)}</div>
       <div className="text-xs text-muted-foreground">{t(`canvas.prompt.kind.${item.item.kind}` as any)}</div>
       {item.on && item.parts.length > 0 && (
         <>
@@ -1176,7 +1179,7 @@ function DetailsPanel({ item, t, showText, setShowText, history, setHistory, edi
 
   return (
     <div className="space-y-3 p-3 text-sm">
-      <div className="font-semibold">{item.item.label}</div>
+      <div className="font-semibold">{boardName(item.item, t)}</div>
       <div className="text-xs text-muted-foreground">{t(`canvas.prompt.kind.${item.item.kind}` as any)}</div>
       <div className="text-xs text-muted-foreground">{stateWord}</div>
 

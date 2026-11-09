@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Fixed: **English left in the Ukrainian interface (Molfar.Vertep#135).** The chat composer (the + menu with its groups, "Write for me", "Continue", "Another", the bigger editor, send, stop, the message box label and placeholder, the unknown-command toast), the chat header's phone "Menu" button, and the card editor's header chips ("tokens", "permanent", "chat") now follow the interface language. The prompt board shows its fixed rows (Chat history, Data bank, Litopys, Character memory, Character habits and the rest) by name in Ukrainian, and its "Request to the model" list wraps a long name onto a second line instead of cutting it, so "Character memory" and "Character habits" can be told apart. Names the user chose (preset sections, lorebooks) are shown as written. English is unchanged. The Help article "The + menu by the message box" and two tips name the buttons as the screen now does.
+
 ## 4.105.0 (2026-11-09)
 
 - Added: **Roleplay's settings are listed in the shell's Settings (Molfar.Vertep#334).** Chat Behavior (spell check, autocorrect), Appearance, Streaming, Themes and the rest were only behind "Roleplay settings" on Home, and nothing in the shell's Settings pointed there. The manifest now names the page (`settingsView`), the shell lists the app under "App settings" and a click opens it on that page (`onShellView` in `src/lib/shell-bridge.ts`, listened to once the app is ready). It needs an engine with the call (after 1.13.2); an older engine simply shows no entry. The Settings tip and the guide page say so.

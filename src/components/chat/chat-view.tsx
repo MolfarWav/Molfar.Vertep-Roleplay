@@ -784,7 +784,7 @@ export function ChatView() {
           switcher are crucial chrome). `text-sm` & co are rem-based, so the
           log's fontScale doesn't resize them. */}
       <header ref={setHeaderEl} className="relative z-10 hidden h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:flex">
-          <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label="Back to chats">
+          <Button variant="ghost" size="icon-sm" onClick={closeChat} aria-label={t('chat.header.back')}>
             <ArrowLeft aria-hidden="true" />
           </Button>
           <AvatarMenu characterId={character.id} align="start" onViewPortrait={() => setPortraitOpen(true)}>
@@ -841,7 +841,7 @@ export function ChatView() {
               <DropdownMenu open={kebabOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d.event)) return; setKebabOpen(o) }}>
                 <DropdownMenuTrigger
                   render={
-                    <Button data-guide="chat.menu" variant="outline" size={toolMode === 'labelled' ? 'sm' : 'icon-sm'} aria-label="Chat tools">
+                    <Button data-guide="chat.menu" variant="outline" size={toolMode === 'labelled' ? 'sm' : 'icon-sm'} aria-label={t('chat.header.tools')}>
                       {toolMode === 'labelled' ? <DotsThree aria-hidden="true" /> : <DotsThreeVertical aria-hidden="true" />}
                       {toolMode === 'labelled' && t('tools.more')}
                     </Button>
@@ -859,8 +859,8 @@ export function ChatView() {
           labelled Menu. The preset, persona and model switch, the chat's
           tools and the other sections live in the menu (a sheet from the
           right). The portrait opens the card, the soul and the full picture. */}
-      <nav aria-label="Chat header" className="relative z-10 flex h-12 shrink-0 items-center gap-1 border-b border-border bg-card px-1 md:hidden">
-        <Button variant="ghost" size="icon" className="size-10 shrink-0" onClick={() => { closeDrawer(); closeChat() }} aria-label="Back to chats">
+      <nav aria-label={t('chat.header.nav')} className="relative z-10 flex h-12 shrink-0 items-center gap-1 border-b border-border bg-card px-1 md:hidden">
+        <Button variant="ghost" size="icon" className="size-10 shrink-0" onClick={() => { closeDrawer(); closeChat() }} aria-label={t('chat.header.back')}>
           <ArrowLeft aria-hidden="true" />
         </Button>
         <AvatarMenu characterId={character.id} align="start" onViewPortrait={() => setPortraitOpen(true)}>
@@ -895,7 +895,7 @@ export function ChatView() {
         {requestSize.level === 'over' && <RequestSizeButton rs={requestSize} compact />}
         <WorldStatusButton phone chatId={chat.id} onClick={() => { closeDrawer(); setWorldOpen(true) }} />
         <Button variant="outline" className="h-10 shrink-0 gap-1.5 px-3" onClick={() => { closeDrawer(); setMenuOpen(true) }} aria-haspopup="dialog">
-          <List className="size-4.5" aria-hidden="true" /> Menu
+          <List className="size-4.5" aria-hidden="true" /> {t('chat.header.menu')}
         </Button>
       </nav>
 
