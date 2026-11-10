@@ -1468,7 +1468,8 @@ export function loadConfig(fsx) {
 /**
  * #122 part 2: the settings a chat may keep for itself (st.config). Same shape as the global config, only the keys
  * the chat set; an absent key follows Library > Litopys settings. Anything else in the object is dropped.
- * { scene: { minMessages?, maxMessages? }, recentMessages?, pinLimit?, cutMode?, sceneKeep? }
+ * { scene: { minMessages?, maxMessages? }, recentMessages?, pinLimit?, cutMode?, sceneKeep?, autoScenes? }
+ * `autoScenes` (#354) has no global setting: it is a chat's own switch, off when absent.
  */
 export function cleanChatConfig(raw) {
   const out = {};
@@ -1482,6 +1483,7 @@ export function cleanChatConfig(raw) {
   if (raw.pinLimit !== undefined && raw.pinLimit !== null) out.pinLimit = clamp(intOf(raw.pinLimit, DEFAULT_CONFIG.pinLimit), 1, 20);
   if (raw.cutMode === "scenes" || raw.cutMode === "fit") out.cutMode = raw.cutMode;
   if (raw.sceneKeep !== undefined && raw.sceneKeep !== null) out.sceneKeep = clamp(intOf(raw.sceneKeep, DEFAULT_CONFIG.sceneKeep), 2, SCENE_KEEP_MAX);
+  if (raw.autoScenes === true) out.autoScenes = true;
   return out;
 }
 
@@ -5485,6 +5487,12 @@ export function onTick(_ctx, host) {
         if (!work && consolidateStep(fsx, host, chatId, st, chatCfg, meta, now, line, dash)) return;
         // #113: a story summary for a card's memory, after the chapters it is written from
         if (!work && summaryStep(fsx, host, chatId, st, chatCfg, meta, now)) return;
+        // #354: a chat with the switch on proposes scenes by itself once enough messages sit in no scene; the job is saved at once
+        // (the step below only sends the request), and its answer waits in the Scenes card for the reader
+        if (!work && autoSuggestStart(st, line, chatCfg, now)) {
+          changed = true;
+          saveChatFile(fsx, st);
+        }
         // scenes the reader asked the model to propose (messages in no scene yet)
         if (!work && suggestStep(fsx, host, chatId, st, chatCfg, meta, now, line)) return;
         if (!work && st.arcFlight) {
@@ -7947,6 +7955,43 @@ export function takenIdx(st, line) {
   return taken;
 }
 
+/** #354: free messages (in no scene) a chat with the switch `autoScenes` needs before the worker proposes scenes by itself, and how many more it waits for after each try. */
+export const AUTO_SUGGEST_FREE = 20;
+
+/**
+ * Is it time for the worker to ask for scenes by itself (#354): the chat's switch is on, no job is running, the last list
+ * has been dealt with (nothing of it is still on offer), enough messages are in no scene, and enough came since the last try.
+ */
+export function autoSuggestDue(st, line, cfg) {
+  if (!cfg || cfg.autoScenes !== true || !isObj(st) || isObj(st.rebuild)) return false;
+  const job = isObj(st.sceneSuggest) ? st.sceneSuggest : null;
+  if (job && job.state === "working") return false;
+  if (sceneSuggestView(st, line).scenes.length) return false;
+  const last = isObj(st.sceneAuto) ? st.sceneAuto : null;
+  if (last && line.length >= Number(last.len) && line.length - Number(last.len) < AUTO_SUGGEST_FREE) return false;
+  if (line.length - takenIdx(st, line).size < AUTO_SUGGEST_FREE) return false;
+  return freeRuns(st, line).some((r) => r.toIdx > r.fromIdx);
+}
+
+/** A new "Suggest scenes" job over the messages no scene holds, or null when there is no run of two. */
+function newSuggestJob(st, line, now) {
+  const runs = freeRuns(st, line).filter((r) => r.toIdx > r.fromIdx);
+  if (!runs.length) return null;
+  return { state: "working", at: now, runs: runs.map((r) => ({ from: line[r.fromIdx].id, to: line[r.toIdx].id })), run: 0, pos: null, n: 0, scenes: [] };
+}
+
+/** Starts the automatic job when it is due (mutates `st`); true when it did. The chat file is the caller's to save. */
+export function autoSuggestStart(st, line, cfg, now) {
+  if (!autoSuggestDue(st, line, cfg)) return false;
+  const job = newSuggestJob(st, line, now);
+  if (!job) return false;
+  job.auto = true;
+  st.sceneSuggest = job;
+  st.sceneAuto = { len: line.length, at: now };
+  addActivity(st, "worker", "scene.suggest.auto", "Looked for scenes by itself in " + job.runs.length + " stretches of messages", [], now);
+  return true;
+}
+
 /** The runs of the line that no scene holds: [{ fromIdx, toIdx }]. */
 export function freeRuns(st, line) {
   const taken = takenIdx(st, line);
@@ -8092,6 +8137,8 @@ export function sceneSuggestView(st, line) {
     scenes,
     error: job && job.state === "failed" ? str(job.error) : "",
     at: job ? Number(job.at) || 0 : 0,
+    // the worker asked by itself (the chat's switch), not the reader
+    auto: !!(job && job.auto === true),
   };
 }
 
@@ -8108,10 +8155,10 @@ function suggestRoute(fsx, b, op) {
     }
     if (isObj(st.rebuild)) return { status: 409, json: { error: "rebuilding" } };
     if (isObj(st.sceneSuggest) && st.sceneSuggest.state === "working") return { status: 409, json: { error: "already suggesting" } };
-    const runs = freeRuns(st, line).filter((r) => r.toIdx > r.fromIdx);
-    if (!runs.length) return { status: 409, json: { error: "every message is already in a scene" } };
-    st.sceneSuggest = { state: "working", at: now, runs: runs.map((r) => ({ from: line[r.fromIdx].id, to: line[r.toIdx].id })), run: 0, pos: null, n: 0, scenes: [] };
-    addActivity(st, "user", "scene.suggest", "Asked for scenes to close in " + runs.reduce((n, r) => n + r.toIdx - r.fromIdx + 1, 0) + " messages", [], now);
+    const job = newSuggestJob(st, line, now);
+    if (!job) return { status: 409, json: { error: "every message is already in a scene" } };
+    st.sceneSuggest = job;
+    addActivity(st, "user", "scene.suggest", "Asked for scenes to close in " + freeRuns(st, line).filter((r) => r.toIdx > r.fromIdx).reduce((n, r) => n + r.toIdx - r.fromIdx + 1, 0) + " messages", [], now);
     woke = true;
   });
   if (woke && res.status === 200) wake(fsx, chatId, true);
@@ -8171,7 +8218,7 @@ export function pickChatSettings(cfg) {
 }
 
 /**
- * POST /litopys/chat-config { chatId, config: { scene?: { minMessages?, maxMessages? }, recentMessages?, pinLimit?, cutMode?, sceneKeep? } | null }
+ * POST /litopys/chat-config { chatId, config: { scene?: { minMessages?, maxMessages? }, recentMessages?, pinLimit?, cutMode?, sceneKeep?, autoScenes? } | null }
  * #122 part 2: the chat keeps its own scene length, recent messages, pin limit and cut mode (st.config), laid over the
  * global ones. `config: null` (or an empty object) clears them all. A key that is missing follows the global setting.
  * Chapters already written stay as they are; the new layout counts for scenes that are not chaptered yet (Rebuild

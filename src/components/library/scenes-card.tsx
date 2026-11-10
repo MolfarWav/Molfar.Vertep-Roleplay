@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { SceneMarkDialog } from '@/components/chat/scene-mark-dialog'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
-import type { LitChat } from './litopys-api'
+import { Switch } from '@/components/ui/switch'
+import { setLitChatConfig, type LitChat } from './litopys-api'
 
 /**
  * The top of a chat's record: how many messages are in no scene yet, and the two ways to close scenes
@@ -34,11 +35,25 @@ export function ScenesCard({ chat, onRefresh }: { chat: LitChat; onRefresh: () =
     }
   }
 
+  const setAuto = async (on: boolean) => {
+    setBusy(true)
+    try {
+      const { autoScenes: _drop, ...rest } = chat.chatConfig ?? {}
+      const next = on ? { ...rest, autoScenes: true } : rest
+      await setLitChatConfig(chat.chatId, Object.keys(next).length ? next : null)
+      onRefresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const status =
     sug.state === 'working'
       ? t('scene.card.working')
       : sug.state === 'done' && sug.scenes.length > 0
-        ? t('scene.card.ready', { n: sug.scenes.length })
+        ? t(sug.auto ? 'scene.card.readyAuto' : 'scene.card.ready', { n: sug.scenes.length })
         : sug.state === 'failed'
           ? t('scene.card.failed')
           : sug.free === 0
@@ -80,6 +95,21 @@ export function ScenesCard({ chat, onRefresh }: { chat: LitChat; onRefresh: () =
         </div>
       </div>
       <p className="text-xs text-muted-foreground">{t('scene.card.hint')}</p>
+      {/* the switch lives here too: a chat with an empty record has no Settings tab, and this is the chat that needs it (#354) */}
+      <label className="flex items-start gap-3 text-xs text-muted-foreground">
+        <Switch
+          data-testid="scenes-auto"
+          checked={chat.chatConfig?.autoScenes === true}
+          disabled={busy}
+          aria-label={t('lit.chatSet.autoScenes')}
+          onCheckedChange={(on) => void setAuto(on)}
+          className="mt-0.5 max-md:mt-2 max-md:after:-inset-y-4"
+        />
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm font-medium text-foreground">{t('lit.chatSet.autoScenes')}</span>
+          {t('lit.chatSet.autoScenesHint', { n: 20 })}
+        </span>
+      </label>
       {dialog && stored && <SceneMarkDialog chat={stored} tab={dialog} onClose={() => { setDialog(null); onRefresh() }} />}
     </div>
   )

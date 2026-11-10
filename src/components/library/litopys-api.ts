@@ -334,6 +334,8 @@ export interface LitSceneSuggest {
   scenes: LitSuggestedScene[]
   error: string
   at: number
+  /** the worker asked by itself (the chat's switch), not the reader; absent from a plugin before #354 */
+  auto?: boolean
 }
 
 /** #51 Consolidate facts: batches is the run's size, next the batch being read (0-based). */
@@ -358,6 +360,8 @@ export interface LitChatConfig {
   pinLimit?: number
   cutMode?: 'fit' | 'scenes'
   sceneKeep?: number
+  /** #354: the worker proposes scenes by itself (they wait in the Scenes card); off when absent */
+  autoScenes?: boolean
 }
 
 export interface LitConfig {

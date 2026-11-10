@@ -163,3 +163,81 @@ describe("mark-many", () => {
     expect(route(m.host, { chatId: "c10", op: "mark-many", ranges: [{ from: "m1", to: "m9" }] }).status).toBe(409);
   });
 });
+
+// ---------- #354: the worker proposes scenes by itself ----------
+
+const setConfig = (host: any, chatId: string, config: any) => L.handleRoute({ method: "POST", path: "/litopys/chat-config", body: { chatId, config } }, host);
+
+describe("automatic scenes (#354)", () => {
+  it("keeps the switch only when it is on, and the route round-trips it", () => {
+    expect(L.cleanChatConfig({ autoScenes: true })).toEqual({ autoScenes: true });
+    expect(L.cleanChatConfig({ autoScenes: false })).toEqual({});
+    expect(L.cleanChatConfig({ autoScenes: "yes" })).toEqual({});
+    record("a1", 32);
+    const m = mockHost();
+    expect(setConfig(m.host, "a1", { autoScenes: true }).json.chatConfig).toEqual({ autoScenes: true });
+    expect(setConfig(m.host, "a1", {}).json.chatConfig).toEqual({});
+  });
+
+  it("does nothing by itself while the switch is off (the default)", () => {
+    L.DEFAULT_CONFIG.scene.maxMessages = 200;
+    record("a2", 32);
+    const m = mockHost();
+    expect(tick(m).requests).toHaveLength(0);
+    expect(view(m.host, "a2").sceneSuggest).toMatchObject({ state: "idle", auto: false });
+    L.DEFAULT_CONFIG.scene.maxMessages = 40;
+  });
+
+  it("asks once enough messages are in no scene, leaves the list for the reader and does not ask again while it waits", () => {
+    L.DEFAULT_CONFIG.scene.maxMessages = 200;
+    record("a3", 32);
+    const m = mockHost();
+    setConfig(m.host, "a3", { autoScenes: true });
+    const first = tick(m, [scenesReply([{ from: 1, to: 9, title: "The deck" }, { from: 10, to: 18, title: "The cocoon" }])]);
+    expect(first.requests.map((r) => r.key)).toHaveLength(1);
+    expect(first.requests[0].key).toMatch(/^lit_scn_a3_/);
+    tick(m);
+    const v = view(m.host, "a3").sceneSuggest;
+    expect(v).toMatchObject({ state: "done", auto: true });
+    expect(v.scenes.map((s: any) => [s.fromNo, s.toNo])).toEqual([[1, 9], [10, 18]]);
+    // nothing became a scene by itself, and the list is not asked for again while it waits
+    expect(view(m.host, "a3").marks ?? []).toHaveLength(0);
+    expect(tick(m).requests).toHaveLength(0);
+    // the reader saves it: the saved messages are out, the rest is under the size, so still nothing is asked
+    route(m.host, { chatId: "a3", op: "mark-many", ranges: v.scenes.map((s: any) => ({ from: s.from, to: s.to, title: s.title })) });
+    expect(L.autoSuggestDue(readJson("litopys/chats/a3.json"), line(story(32)), { autoScenes: true })).toBe(false);
+    L.DEFAULT_CONFIG.scene.maxMessages = 40;
+  });
+
+  it("waits for twenty more messages after an answer with no scene, then asks again; a chat under twenty free messages is left alone", () => {
+    L.DEFAULT_CONFIG.scene.maxMessages = 200;
+    record("a4", 15);
+    const m = mockHost();
+    setConfig(m.host, "a4", { autoScenes: true });
+    expect(tick(m).requests).toHaveLength(0); // 15 free messages are too few
+    writeChat("a4", story(30), { updatedAt: Date.now() });
+    const a = tick(m, [scenesReply([])]);
+    expect(a.requests).toHaveLength(1);
+    tick(m);
+    expect(view(m.host, "a4").sceneSuggest).toMatchObject({ state: "done", auto: true, scenes: [] });
+    writeChat("a4", story(45), { updatedAt: Date.now() });
+    expect(tick(m).requests).toHaveLength(0); // only fifteen new
+    writeChat("a4", story(52), { updatedAt: Date.now() });
+    // 52 messages are two requests of the job
+    expect(tick(m, [scenesReply([{ from: 3, to: 12 }]), scenesReply([])]).requests.length).toBeGreaterThan(0);
+    tick(m);
+    tick(m);
+    expect(view(m.host, "a4").sceneSuggest.scenes).toHaveLength(1);
+    L.DEFAULT_CONFIG.scene.maxMessages = 40;
+  });
+
+  it("a manual run still works with the switch on and is not marked as automatic", () => {
+    L.DEFAULT_CONFIG.scene.maxMessages = 200;
+    record("a5", 12);
+    const m = mockHost();
+    setConfig(m.host, "a5", { autoScenes: true });
+    route(m.host, { chatId: "a5", op: "suggest" });
+    expect(view(m.host, "a5").sceneSuggest).toMatchObject({ state: "working", auto: false });
+    L.DEFAULT_CONFIG.scene.maxMessages = 40;
+  });
+});
