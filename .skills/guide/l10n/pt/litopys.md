@@ -1,4 +1,4 @@
-<!-- source: 5d3190ee4774 -->
+<!-- source: eedc3444d0b5 -->
 # Litopys: o registro da história
 
 O Litopys (a crônica) é a memória longa de um chat. Ele lê a história em segundo plano e escreve um capítulo para cada cena concluída, além dos fatos que a história já estabeleceu. Quando um chat cresce demais para a janela do modelo, o registro leva a história adiante. Use-o em histórias longas; você não precisa iniciá-lo.
@@ -35,7 +35,7 @@ A memória encontra fatos e capítulos pelas palavras. Com um modelo de embeddin
 
 ## Configurações de um chat
 
-A aba **Settings** do registro de um chat (no painel lateral Record e na Library, ao lado de Activity) define o Litopys só para este chat: a cena mais curta e a mais longa, quantas mensagens recentes ficam palavra por palavra (ou quantas mensagens diretas ficam depois das cenas, quando as mensagens mais antigas saem com "By scenes"), a forma como as mensagens antigas saem do prompt, e quantos fatos um personagem pode ter fixados. Um campo deixado vazio segue o "Litopys settings" da engrenagem e mostra esse valor como "Library: N". Um valor é salvo quando você sai do campo. "Use the Library settings" limpa todos. Um chat com mudanças de cena frequentes funciona bem com uma cena mais curta baixa, por exemplo 3: uma cena curta então ganha seu próprio capítulo. Capítulos já escritos continuam como estão; use Rebuild para reescrevê-los com os novos tamanhos.
+A aba **Settings** do registro de um chat (no painel lateral Record e na Library, ao lado de Activity) define o Litopys só para este chat: a cena mais curta e a mais longa, quantas mensagens recentes ficam palavra por palavra (ou quantas mensagens diretas ficam depois das cenas, quando as mensagens mais antigas saem com "By scenes"), a forma como as mensagens antigas saem do prompt, e quantos fatos um personagem pode ter fixados. Um campo deixado vazio segue o "Litopys settings" da engrenagem e mostra esse valor como "Library: N". Um valor é salvo quando você sai do campo. "Use the Library settings" limpa todos. **Look for scenes by itself** (um interruptor no cartão **Scenes** e nesta aba; desligado por padrão, só para este chat) faz o worker fazer o que **Suggest scenes** faz, sem que você peça: quando 20 ou mais mensagens estão em nenhuma cena, ele as lê, uma requisição a cada 40, e deixa as cenas propostas no cartão **Scenes** ("Scenes found by itself: N") para você revisar. Ele nunca salva uma cena sozinho, espera você resolver a lista e só pergunta de novo depois de mais 20 mensagens. Um chat com mudanças de cena frequentes funciona bem com uma cena mais curta baixa, por exemplo 3: uma cena curta então ganha seu próprio capítulo. Capítulos já escritos continuam como estão; use Rebuild para reescrevê-los com os novos tamanhos.
 
 ## Sugestões e organização
 

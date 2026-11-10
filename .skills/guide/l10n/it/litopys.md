@@ -1,4 +1,4 @@
-<!-- source: 5d3190ee4774 -->
+<!-- source: eedc3444d0b5 -->
 # Litopys: il registro della storia
 
 Litopys (la cronaca) è la memoria lunga di una chat. Legge la storia in background e scrive un capitolo per ogni scena conclusa, più i fatti che la storia ha stabilito. Quando una chat diventa troppo lunga per la finestra del modello, il registro porta avanti la storia. Usalo per le storie lunghe; non devi avviarlo.
@@ -34,7 +34,7 @@ La memoria trova fatti e capitoli per parole. Con un modello di embeddings li tr
 
 ## Impostazioni per una sola chat
 
-La scheda **Settings** del registro di una chat (nel pannello laterale Record e nella Library, accanto ad Activity) imposta Litopys per questa chat soltanto: la scena più corta e la più lunga, quanti messaggi recenti restano parola per parola (oppure quanti messaggi diretti restano dopo le scene, quando i messaggi più vecchi escono "By scenes"), il modo in cui i messaggi più vecchi escono dal prompt, e quanti fatti può avere fissati un personaggio. Un campo lasciato vuoto segue le "Litopys settings" dell'ingranaggio e mostra quel valore come "Library: N". Un valore viene salvato quando esci dal campo. "Use the Library settings" li cancella tutti. Una chat con cambi di scena frequenti si trova bene con una scena più corta bassa, per esempio 3: una scena breve riceve così un proprio capitolo. I capitoli già scritti restano come sono; usa Rebuild per riscriverli con le nuove lunghezze.
+La scheda **Settings** del registro di una chat (nel pannello laterale Record e nella Library, accanto ad Activity) imposta Litopys per questa chat soltanto: la scena più corta e la più lunga, quanti messaggi recenti restano parola per parola (oppure quanti messaggi diretti restano dopo le scene, quando i messaggi più vecchi escono "By scenes"), il modo in cui i messaggi più vecchi escono dal prompt, e quanti fatti può avere fissati un personaggio. Un campo lasciato vuoto segue le "Litopys settings" dell'ingranaggio e mostra quel valore come "Library: N". Un valore viene salvato quando esci dal campo. "Use the Library settings" li cancella tutti. **Look for scenes by itself** (un interruttore nella scheda **Scenes** e in questa scheda; spento per impostazione predefinita, solo per questa chat) fa fare al worker ciò che fa **Suggest scenes** senza che tu glielo chieda: quando 20 o più messaggi non sono in nessuna scena, li legge, una richiesta ogni 40, e lascia le scene proposte nella scheda **Scenes** ("Scenes found by itself: N") perché tu le riveda. Non salva mai una scena da solo, aspetta che tu abbia sistemato l'elenco e chiede di nuovo solo dopo altri 20 messaggi. Una chat con cambi di scena frequenti si trova bene con una scena più corta bassa, per esempio 3: una scena breve riceve così un proprio capitolo. I capitoli già scritti restano come sono; usa Rebuild per riscriverli con le nuove lunghezze.
 
 ## Suggerimenti e pulizia
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/setting-row'
+import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import { setLitChatConfig, type LitChatConfig } from './litopys-api'
 import type { TabProps } from './ledger-facts'
@@ -34,7 +35,7 @@ function draftOf(c: LitChatConfig | undefined): Record<NumKey, string> {
 }
 
 /** The config the fields describe, or null when every field is empty. */
-function configOf(draft: Record<NumKey, string>, mode: Mode): LitChatConfig | null {
+function configOf(draft: Record<NumKey, string>, mode: Mode, auto: boolean): LitChatConfig | null {
   const num = (k: NumKey) => {
     const raw = draft[k].trim()
     if (raw === '' || Number.isNaN(Number(raw))) return undefined
@@ -51,6 +52,7 @@ function configOf(draft: Record<NumKey, string>, mode: Mode): LitChatConfig | nu
   const pin = num('pinLimit')
   if (pin !== undefined) out.pinLimit = pin
   if (mode !== 'global') out.cutMode = mode
+  if (auto) out.autoScenes = true
   return Object.keys(out).length ? out : null
 }
 
@@ -66,7 +68,8 @@ export function chatConfigCount(c: LitChatConfig | undefined, globalCutMode: 'fi
     (c.scene?.maxMessages !== undefined ? 1 : 0) +
     (scenes ? (c.sceneKeep !== undefined ? 1 : 0) : c.recentMessages !== undefined ? 1 : 0) +
     (c.pinLimit !== undefined ? 1 : 0) +
-    (c.cutMode ? 1 : 0)
+    (c.cutMode ? 1 : 0) +
+    (c.autoScenes ? 1 : 0)
   )
 }
 
@@ -80,6 +83,7 @@ export function SettingsTab({ chat, onChat }: TabProps) {
   const global = chat.globalConfig
   const [draft, setDraft] = useState(() => draftOf(own))
   const [mode, setMode] = useState<Mode>(own?.cutMode ?? 'global')
+  const [auto, setAuto] = useState(own?.autoScenes === true)
   const [busy, setBusy] = useState(false)
 
   // the poll brings the saved values back: fields not being edited follow them
@@ -87,6 +91,7 @@ export function SettingsTab({ chat, onChat }: TabProps) {
   useEffect(() => {
     setDraft(draftOf(own))
     setMode(own?.cutMode ?? 'global')
+    setAuto(own?.autoScenes === true)
     // own is read through its JSON
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved])
@@ -95,8 +100,8 @@ export function SettingsTab({ chat, onChat }: TabProps) {
     return <p className="text-sm text-muted-foreground" data-testid="chat-settings-old">{t('lit.chatSet.old')}</p>
   }
 
-  const save = async (nextDraft: Record<NumKey, string>, nextMode: Mode) => {
-    const config = configOf(nextDraft, nextMode)
+  const save = async (nextDraft: Record<NumKey, string>, nextMode: Mode, nextAuto: boolean) => {
+    const config = configOf(nextDraft, nextMode, nextAuto)
     if (JSON.stringify(config ?? {}) === JSON.stringify(own ?? {})) return
     setBusy(true)
     try {
@@ -134,7 +139,7 @@ export function SettingsTab({ chat, onChat }: TabProps) {
           const v = raw === '' || Number.isNaN(Number(raw)) ? '' : String(clamp(Math.round(Number(raw)), LIMITS[key][0], LIMITS[key][1]))
           const next = { ...draft, [key]: v }
           setDraft(next)
-          void save(next, mode)
+          void save(next, mode, auto)
         }}
         className="w-40 max-md:h-10"
       />
@@ -158,6 +163,23 @@ export function SettingsTab({ chat, onChat }: TabProps) {
           {field('maxMessages', t('lit.set.sceneMax'))}
         </div>
         <p className="text-xs text-muted-foreground">{t('lit.chatSet.scenesHint')}</p>
+        <div className="flex items-start gap-3">
+          <Switch
+            id="chat-set-auto-scenes"
+            data-testid="chat-set-auto-scenes"
+            checked={auto}
+            disabled={busy}
+            onCheckedChange={(v) => {
+              setAuto(v)
+              void save(draft, mode, v)
+            }}
+            className="mt-1 max-md:mt-3 max-md:after:-inset-y-4"
+          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <FieldLabel htmlFor="chat-set-auto-scenes" className="font-medium">{t('lit.chatSet.autoScenes')}</FieldLabel>
+            <p className="text-xs text-muted-foreground">{t('lit.chatSet.autoScenesHint', { n: 20 })}</p>
+          </div>
+        </div>
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border border-border p-3" aria-label={t('lit.chatSet.prompt')}>
@@ -169,7 +191,7 @@ export function SettingsTab({ chat, onChat }: TabProps) {
             value={mode}
             onChange={(v) => {
               setMode(v)
-              void save(draft, v)
+              void save(draft, v, auto)
             }}
             className="max-sm:w-full max-sm:flex-col"
             options={[
@@ -199,7 +221,8 @@ export function SettingsTab({ chat, onChat }: TabProps) {
           onClick={() => {
             setDraft(draftOf(undefined))
             setMode('global')
-            void save(draftOf(undefined), 'global')
+            setAuto(false)
+            void save(draftOf(undefined), 'global', false)
           }}
           data-testid="chat-set-reset"
         >

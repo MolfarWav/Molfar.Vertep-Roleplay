@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## 4.108.0 (2026-11-10)
+
+- Added: **Litopys can look for scenes by itself (Molfar.Vertep#354).** A chat whose characters never move closes no scene on its own; **Suggest scenes** covered that by hand. The Scenes card (and the chat record's Settings tab) now has **Look for scenes by itself** (off by default, per chat). With it on, the worker does the same thing without a click once 20 or more messages are in no scene: one request for every 40 messages, the proposed scenes wait in the Scenes card ("Scenes found by itself: N") and nothing becomes a scene until you review and save them (the cautious of the two options in the issue). It waits while a list is on offer and asks again only after 20 more messages. A hand run still works with the switch on. See `docs/DATA-FORMATS.md` (`autoScenes`, `sceneAuto`, `sceneSuggest.auto`); the guide page for Litopys says how. Not checked with a real model: how often a small free model's answer is dropped by the parser.
+
 ## 4.107.0 (2026-11-10)
 
 - Fixed: **the Characters column of a chat's record was cut off at its right edge (Molfar.Vertep#353).** On a wide Library (two columns), a character's fact cards ran past the column and lost the end of every line and of the "Known by" chips, because a fact with a long list of names made the grid's one automatic column as wide as that list. The grid now has an explicit one-column track (`grid-cols-1`), the card may shrink (`min-w-0`), and the "Known by", subject, merged-into and replaces badges wrap their text instead of staying on one line. Measured at 390, 990 and 1500 px: every card is as wide as its column, no sideways scroll. `test/rp-lit-cast-width.test.ts` keeps the two causes from coming back.
