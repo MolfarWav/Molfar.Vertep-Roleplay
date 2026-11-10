@@ -1,4 +1,4 @@
-<!-- source: 5d3190ee4774 -->
+<!-- source: eedc3444d0b5 -->
 # Litopys: hikâye kaydı
 
 Litopys (vakayiname), tek bir sohbetin uzun belleğidir. Hikâyeyi arka planda okur ve biten her sahne için bir bölüm, ayrıca hikâyenin yerleştirdiği olguları yazar. Bir sohbet modelin penceresi için çok uzadığında, kayıt hikâyeyi ileri taşır. Uzun hikâyeler için kullanın; başlatmanız gerekmez.
@@ -35,7 +35,7 @@ Bellek olguları ve bölümleri kelimelerle bulur. Bir gömme modeliyle anlamla 
 
 ## Bu sohbet için ayarlar
 
-Bir sohbetin kaydının **Settings** sekmesi (Record yan panelinde ve Library'de, Activity'nin yanında) Litopys'i yalnızca bu sohbet için ayarlar: en kısa ve en uzun sahne, kaç son mesajın kelimesi kelimesine kalacağı (ya da eski mesajlar "By scenes" ile çıkarken sahnelerden sonra kaç doğrudan mesajın kalacağı), eski mesajların istemden çıkış biçimi ve bir karakterin sabitleyebileceği olgu sayısı. Boş bıraktığınız bir alan dişlideki "Litopys settings"i izler ve o değeri "Library: N" olarak gösterir. Bir değer alandan çıkınca kaydedilir. "Use the Library settings" hepsini temizler. Sahne değişiklikleri sık olan bir sohbet, en kısa sahneyi düşük (örneğin 3) tutarak iyi çalışır: kısa bir sahne kendi bölümünü alır. Önceden yazılmış bölümler olduğu gibi kalır; yeni uzunluklarla yeniden yazmak için Rebuild kullanın.
+Bir sohbetin kaydının **Settings** sekmesi (Record yan panelinde ve Library'de, Activity'nin yanında) Litopys'i yalnızca bu sohbet için ayarlar: en kısa ve en uzun sahne, kaç son mesajın kelimesi kelimesine kalacağı (ya da eski mesajlar "By scenes" ile çıkarken sahnelerden sonra kaç doğrudan mesajın kalacağı), eski mesajların istemden çıkış biçimi ve bir karakterin sabitleyebileceği olgu sayısı. Boş bıraktığınız bir alan dişlideki "Litopys settings"i izler ve o değeri "Library: N" olarak gösterir. Bir değer alandan çıkınca kaydedilir. "Use the Library settings" hepsini temizler. **Look for scenes by itself** (**Scenes** kartında ve bu sekmede bir anahtar; varsayılan olarak kapalı, yalnızca bu sohbet için) çalışanın, siz istemeden **Suggest scenes**'in yaptığını yapmasını sağlar: 20 veya daha fazla mesaj hiçbir sahnede olmadığında onları okur, 40'ta bir istekle, ve önerilen sahneleri gözden geçirmeniz için **Scenes** kartında ("Scenes found by itself: N") bırakır. Bir sahneyi asla kendisi kaydetmez, listeyle ilgilenene kadar bekler ve ancak 20 mesaj daha geldikten sonra yeniden sorar. Sahne değişiklikleri sık olan bir sohbet, en kısa sahneyi düşük (örneğin 3) tutarak iyi çalışır: kısa bir sahne kendi bölümünü alır. Önceden yazılmış bölümler olduğu gibi kalır; yeni uzunluklarla yeniden yazmak için Rebuild kullanın.
 
 ## Öneriler ve toparlama
 

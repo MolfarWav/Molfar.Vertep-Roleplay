@@ -1,4 +1,4 @@
-<!-- source: 5d3190ee4774 -->
+<!-- source: eedc3444d0b5 -->
 # Litopys: het verhaalarchief
 
 Litopys (de kroniek) is het lange geheugen van één chat. Het leest het verhaal op de achtergrond en schrijft een hoofdstuk voor elke afgeronde scène, plus de feiten die het verhaal heeft vastgesteld. Wanneer een chat te lang wordt voor het venster van het model, draagt het archief het verhaal verder. Gebruik het voor lange verhalen; je hoeft het niet te starten.
@@ -35,7 +35,7 @@ Het geheugen vindt feiten en hoofdstukken op woorden. Met een embeddings-model v
 
 ## Instellingen voor één chat
 
-Het tabblad **Settings** van het archief van een chat (in het zijpaneel Record en in de Library, naast Activity) stelt Litopys in voor die chat alleen: de kortste en langste scène, hoeveel recente berichten woord voor woord blijven (of hoeveel directe berichten na de scènes blijven, wanneer oudere berichten "By scenes" verlaten), de manier waarop oudere berichten de prompt verlaten, en hoeveel feiten één personage vastgezet mag hebben. Een veld dat je leeg laat volgt het tandwiel "Litopys settings" en toont die waarde als "Library: N". Een waarde wordt opgeslagen wanneer je het veld verlaat. "Use the Library settings" wist ze allemaal. Een chat met veel scènewisselingen doet het goed met een lage kortste scène, bijvoorbeeld 3: een korte scène krijgt dan zijn eigen hoofdstuk. Hoofdstukken die al geschreven zijn blijven zoals ze zijn; gebruik Rebuild om ze met de nieuwe lengtes te herschrijven.
+Het tabblad **Settings** van het archief van een chat (in het zijpaneel Record en in de Library, naast Activity) stelt Litopys in voor die chat alleen: de kortste en langste scène, hoeveel recente berichten woord voor woord blijven (of hoeveel directe berichten na de scènes blijven, wanneer oudere berichten "By scenes" verlaten), de manier waarop oudere berichten de prompt verlaten, en hoeveel feiten één personage vastgezet mag hebben. Een veld dat je leeg laat volgt het tandwiel "Litopys settings" en toont die waarde als "Library: N". Een waarde wordt opgeslagen wanneer je het veld verlaat. "Use the Library settings" wist ze allemaal. **Look for scenes by itself** (een schakelaar in de kaart **Scenes** en in dit tabblad; standaard uit, alleen voor deze chat) laat de worker doen wat **Suggest scenes** doet, zonder dat je erom vraagt: zodra 20 of meer berichten in geen enkele scène zitten, leest hij ze, één verzoek per 40, en laat de voorgestelde scènes in de kaart **Scenes** staan ("Scenes found by itself: N") zodat jij ze kunt bekijken. Hij slaat zelf nooit een scène op, wacht tot je de lijst hebt afgehandeld en vraagt pas opnieuw na 20 nieuwe berichten. Een chat met veel scènewisselingen doet het goed met een lage kortste scène, bijvoorbeeld 3: een korte scène krijgt dan zijn eigen hoofdstuk. Hoofdstukken die al geschreven zijn blijven zoals ze zijn; gebruik Rebuild om ze met de nieuwe lengtes te herschrijven.
 
 ## Suggesties en opruimen
 

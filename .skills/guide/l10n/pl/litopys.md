@@ -1,4 +1,4 @@
-<!-- source: 5d3190ee4774 -->
+<!-- source: eedc3444d0b5 -->
 # Litopys: zapis historii
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta historię w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które historia ustaliła. Gdy czat robi się za długi na okno modelu, zapis niesie historię dalej. Używaj go do długich historii; nie musisz go włączać.
@@ -34,7 +34,7 @@ Pamięć znajduje fakty i rozdziały po słowach. Z modelem embeddings znajduje 
 
 ## Ustawienia dla jednego czatu
 
-Zakładka **Settings** zapisu czatu (w panelu bocznym Record i w Library, obok Activity) ustawia Litopys tylko dla tego czatu: najkrótszą i najdłuższą scenę, ile ostatnich wiadomości zostaje słowo w słowo (albo ile bezpośrednich wiadomości zostaje po scenach, gdy starsze wiadomości opuszczają prompt „By scenes”), sposób, w jaki starsze wiadomości opuszczają prompt, oraz ile faktów jedna postać może mieć przypiętych. Pole zostawione puste idzie za „Litopys settings” z zębatki i pokazuje tę wartość jako „Library: N”. Wartość zapisuje się, gdy opuścisz pole. „Use the Library settings” czyści je wszystkie. Czat z częstą zmianą scen dobrze znosi niską najkrótszą scenę, powiedzmy 3: krótka scena dostaje wtedy własny rozdział. Rozdziały już napisane zostają takie, jakie są; użyj Rebuild, aby przepisać je z nowymi długościami.
+Zakładka **Settings** zapisu czatu (w panelu bocznym Record i w Library, obok Activity) ustawia Litopys tylko dla tego czatu: najkrótszą i najdłuższą scenę, ile ostatnich wiadomości zostaje słowo w słowo (albo ile bezpośrednich wiadomości zostaje po scenach, gdy starsze wiadomości opuszczają prompt „By scenes”), sposób, w jaki starsze wiadomości opuszczają prompt, oraz ile faktów jedna postać może mieć przypiętych. Pole zostawione puste idzie za „Litopys settings” z zębatki i pokazuje tę wartość jako „Library: N”. Wartość zapisuje się, gdy opuścisz pole. „Use the Library settings” czyści je wszystkie. **Look for scenes by itself** (przełącznik w karcie **Scenes** i w tej zakładce; domyślnie wyłączony, tylko dla tego czatu) każe workerowi robić to, co **Suggest scenes**, bez proszenia: gdy 20 lub więcej wiadomości nie należy do żadnej sceny, czyta je, jedno zapytanie na 40, i zostawia zaproponowane sceny w karcie **Scenes** („Scenes found by itself: N”), abyś je przejrzał. Sam nigdy nie zapisuje sceny, czeka, aż uporasz się z listą, i pyta ponownie dopiero po kolejnych 20 wiadomościach. Czat z częstą zmianą scen dobrze znosi niską najkrótszą scenę, powiedzmy 3: krótka scena dostaje wtedy własny rozdział. Rozdziały już napisane zostają takie, jakie są; użyj Rebuild, aby przepisać je z nowymi długościami.
 
 ## Sugestie i porządki
 

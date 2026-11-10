@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.107.0'
+export const APP_VERSION = '4.108.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.auto-scenes',
+    since: '4.108.0',
+    help: 'story',
+    keywords: { en: 'look for scenes by itself automatic scenes suggest worker switch chat settings litopys record scenes card', uk: 'шукати сцени самому автоматично сцени запропонувати воркер перемикач налаштування чату літопис запис картка сцени' },
+    title: { en: 'Let Litopys look for scenes by itself', uk: 'Нехай Літопис сам шукає сцени' },
+    body: {
+      en: 'In a chat where the characters never move, turn on "Look for scenes by itself" in the Scenes card of the chat\'s record. Once 20 messages sit in no scene, the worker asks the model where the story turns and leaves the list in the card for you to review. Nothing is saved until you do it. Off by default.',
+      uk: 'У чаті, де герої не рухаються, увімкніть «Шукати сцени самому» в картці «Сцени» запису чату. Коли поза сценами 20 повідомлень, воркер сам питає модель, де історія повертає, і лишає список у картці, щоб ви його переглянули. Нічого не зберігається, поки ви цього не зробите. За замовчуванням вимкнено.',
+    },
+  },
   {
     id: 'new.suggest-scenes',
     since: '4.107.0',
