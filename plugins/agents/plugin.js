@@ -2881,6 +2881,35 @@ function withLastUser(messages, text) {
 }
 
 /** The prompt inserts of the agents this chat still uses are added to the reply request, after the history, with the agent's label. */
+/**
+ * insertCeiling (Molfar.Vertep#220): what the chat's agents wrote for the next reply is already on disk, so this one is
+ * exact: the inserts waiting in agents/inserts/<chatId>.json, counted the way the engine counts a prompt (ASCII 3.5 characters
+ * a token, other letters 2, CJK and the rest 1), each with its label and a few tokens of framing. The row id is the one
+ * plugins/engine `hookInsertBreakdown` keeps as its fallback.
+ */
+export function insertCeiling(ctx, host) {
+  const fsx = host && host.fs ? host.fs : null;
+  const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
+  if (!fsx || !/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) return { ceilings: [] };
+  const f = readJsonAt(fsx, insertsPath(chatId), null);
+  if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(0);
+  const tokens = (text) => {
+    const s = String(text == null ? "" : text);
+    let ascii = 0, alpha = 0, other = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      if (c < 0x80) ascii++;
+      else if (c < 0x2e80) alpha++;
+      else other++;
+    }
+    return Math.ceil(ascii / 3.5 + alpha / 2 + other);
+  };
+  const total = f.items.reduce((t, it) => t + (it && typeof it.text === "string" ? tokens(it.text) + tokens(String(it.label || it.agent || "")) + 4 : 0), 0);
+  return ceilingAnswer(total);
+}
+/** A zero row says "asked, nothing to reserve": an answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table). */
+const ceilingAnswer = (total) => ({ ceilings: [{ id: "agents", tokens: Math.max(0, Math.round(total)) }] });
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply") return null;
   const req = ctx.request || {};

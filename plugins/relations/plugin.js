@@ -7246,6 +7246,40 @@ function withTailInsert(messages, text) {
   return [...messages.slice(0, last), { role: "system", content: text }, ...messages.slice(last)];
 }
 
+/**
+ * insertCeiling (Molfar.Vertep#220): the most prompt tokens the Dashboard may add to the next request of this chat: the
+ * notebook and focus blocks, the "said" block and the character journal, from its own config and defaults. The engine plugin
+ * reserves room for them before it trims the history; the rows and ids are the ones plugins/engine `hookInsertBreakdown` keeps
+ * as its fallback (an older engine, a plugin that does not answer): change them together.
+ * A group, and a narrator card, can focus FULL_FOCUS characters (maxTokens each); a card chat focuses one, or up to three when
+ * the card is out of the scene, so it is reserved at two.
+ */
+export function insertCeiling(ctx, host) {
+  const fsx = host && host.fs ? host.fs : null;
+  const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
+  if (!fsx || !CHAT_ID.test(chatId)) return { ceilings: [] };
+  const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  const meta = isObj(m) ? m : {};
+  const offList = isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off.map(String) : [];
+  const off = (key) => offList.includes(key);
+  const cfg = loadConfig(fsx);
+  const rows = [];
+  if (cfg.injection.enabled === false || off("plugin:relations")) return ceilingAnswer(rows);
+  const group = !!meta.groupId;
+  const card = !group && CHAT_ID.test(str(meta.characterId)) ? readJson(fsx, "characters/" + meta.characterId + "/card.json", null) : null;
+  const wide = group || (isObj(card) && REG_NARR.test(str(card.name)));
+  const maxTokens = clamp(Math.round(num(cfg.injection.maxTokens)) || 300, 50, 2000);
+  // the rest (the scene line, threads, layout, ties and the closing lines) comes on top of the blocks: 200, as before
+  rows.push({ id: "dashboard", tokens: maxTokens * (wide ? FULL_FOCUS : 2) + 200 });
+  // the said block is its own part with its own fixed room
+  if (!(isObj(cfg.said) && cfg.said.inject === false) && !off("plugin:said")) rows.push({ id: "dashboard said", tokens: SAID_TOKENS });
+  // the character journal: one block per focused character, at most journal.maxTokens each
+  if (journalOnOf(cfg) && journalInjectOf(cfg) && !off("plugin:journal")) rows.push({ id: "dashboard journal", tokens: journalTokensOf(cfg) * FULL_FOCUS });
+  return ceilingAnswer(rows);
+}
+/** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
+const ceilingAnswer = (rows) => ({ ceilings: rows.length ? rows : [{ id: "dashboard", tokens: 0 }] });
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply") return null;
   const req = ctx.request || {};

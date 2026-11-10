@@ -3179,6 +3179,31 @@ function diceRoute(req, host) {
   return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true });
 }
 
+/**
+ * insertCeiling (Molfar.Vertep#220): the most prompt tokens the World DM may add to the next request of this chat: the "here"
+ * note (at most HERE_MAX characters), the event (EVENT_MAX) and the dice line, when the chat has a world state. The rows and ids
+ * are the ones plugins/engine `hookInsertBreakdown` keeps as its fallback: change them together.
+ */
+export function insertCeiling(ctx, host) {
+  const fsx = host && host.fs ? host.fs : null;
+  const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
+  if (!fsx || !CHAT_ID.test(chatId)) return { ceilings: [] };
+  const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  const offList = isObj(m) && isObj(m.promptBoard) && Array.isArray(m.promptBoard.off) ? m.promptBoard.off.map(String) : [];
+  if (offList.includes("plugin:world")) return ceilingAnswer([]);
+  const w = readJson(fsx, STATE_DIR + chatId + ".json", null);
+  if (!isObj(w)) return ceilingAnswer([]);
+  const set = isObj(w.settings) ? w.settings : {};
+  const rows = [{ id: "world here", tokens: Math.ceil(HERE_MAX / 3.5) }];
+  if (set.insert !== false && set.level !== "off" && set.level !== "chronicler") {
+    rows.push({ id: "world event", tokens: Math.ceil(EVENT_MAX / 3.5) });
+    if (set.dice) rows.push({ id: "world dice", tokens: 60 });
+  }
+  return ceilingAnswer(rows);
+}
+/** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
+const ceilingAnswer = (rows) => ({ ceilings: rows.length ? rows : [{ id: "world", tokens: 0 }] });
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply") return null;
   const req = ctx.request || {};

@@ -142,10 +142,13 @@ function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (v
   const [rows, setRows] = useState<ViewRow[]>(() => views.map((v, i) => ({ ...v, key: i, fresh: false })))
   const [next, setNext] = useState(views.length)
   const [busy, setBusy] = useState(false)
-  const [viewMax, setViewMax] = useState(VIEW_MAX_DEFAULT)
+  // null until the setting arrives: the box shows no limit rather than the default 300 for a moment, then the real one (#235)
+  const [viewMax, setViewMax] = useState<number | null>(null)
   useEffect(() => {
     let live = true
-    fetchLitConfig().then((c) => { if (live && typeof c.recollectChars === 'number') setViewMax(c.recollectChars) }).catch(() => undefined)
+    fetchLitConfig()
+      .then((c) => { if (live) setViewMax(typeof c.recollectChars === 'number' ? c.recollectChars : VIEW_MAX_DEFAULT) })
+      .catch(() => { if (live) setViewMax(VIEW_MAX_DEFAULT) })
     return () => { live = false }
   }, [])
   const clean = rows.filter((r) => r.who.trim() && r.text.trim()).map((r) => ({ who: r.who.trim(), text: r.text.trim() }))
@@ -184,8 +187,8 @@ function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (v
           </div>
           <Textarea
             value={r.text}
-            onChange={(e) => patch(r.key, { text: e.target.value.slice(0, viewMax) })}
-            maxLength={viewMax}
+            onChange={(e) => patch(r.key, { text: viewMax === null ? e.target.value : e.target.value.slice(0, viewMax) })}
+            maxLength={viewMax ?? undefined}
             rows={3}
             placeholder={t('lit.views.textPh')}
             aria-label={t('lit.views.text', { who: r.who || t('lit.views.who') })}
@@ -195,7 +198,7 @@ function ViewsEditor({ views, onSave, onCancel }: { views: LitView[]; onSave: (v
               if (e.key === 'Escape') onCancel()
             }}
           />
-          <span className="self-end text-[11px] text-muted-foreground">{r.text.length}/{viewMax}</span>
+          <span className="self-end text-[11px] text-muted-foreground">{viewMax === null ? r.text.length : `${r.text.length}/${viewMax}`}</span>
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-2">

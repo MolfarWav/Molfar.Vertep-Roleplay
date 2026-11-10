@@ -3116,6 +3116,80 @@ function withTailInsert(messages, text) {
 }
 
 /** M3b item 3: read files, build the insert, insert the block, write st.lastInsert. */
+/**
+ * insertCeiling (Molfar.Vertep#220): the most prompt tokens Litopys may add to the next request of this chat, one row per
+ * block, from its own config and defaults. The engine plugin reserves room for them before it trims the history. The row ids
+ * and the rules are the ones plugins/engine `hookInsertBreakdown` keeps as its fallback (an older engine, a plugin that
+ * does not answer): change them together. A block the chat cannot have, or a switch that is off, counts as 0.
+ */
+export function insertCeiling(ctx, host) {
+  const fsx = host && host.fs ? host.fs : null;
+  const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
+  if (!fsx || !SAFE_CHAT_ID.test(chatId)) return { ceilings: [] };
+  const m = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  const meta = isObj(m) ? m : {};
+  const offList = isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off.map(String) : [];
+  const off = (key) => offList.includes(key);
+  const rows = [];
+  const add = (id, tokens) => {
+    if (tokens > 0) rows.push({ id, tokens: Math.round(tokens) });
+  };
+  const cfg = loadConfig(fsx);
+  const grouped = !!(meta.groupId && SAFE_ID.test(String(meta.groupId)));
+  const members = grouped ? arr((readJson(fsx, "groups/" + meta.groupId + ".json", null) || {}).memberIds).map(String) : [];
+  const links = readJson(fsx, LINKS_FILE, null);
+  const linked = !!(isObj(links) && isObj(links.links) && links.links[chatId]);
+  if (cfg.enabled === false || cfg.insert === false) return ceilingAnswer(rows);
+
+  if (!off("plugin:litopys")) {
+    // the fixed size, or "auto": a share of the model's window (the engine says it with ?window=)
+    const auto = budgetModeOf(storedConfig(fsx)) === "auto" ? autoBudget(ctx && ctx.windowTokens) : null;
+    add("litopys", (auto ?? clamp(intOf(cfg.budget, 800), 200, BUDGET_MAX)) + 100);
+    // a chat that continues an earlier one also gets its backstory block (linkBudget)
+    if (linked && cfg.linkBudget > 0) add("litopys backstory", cfg.linkBudget + 100);
+  }
+  // the card's long memory and its habits: only the speaker's, so the biggest of the cards in the chat
+  let mem = 0;
+  let habits = 0;
+  for (const id of new Set([meta.characterId, ...members].map((x) => str(x)).filter((x) => SAFE_ID.test(x)))) {
+    const f = loadMemory(fsx, id, "card");
+    if (!f.inject.enabled) continue;
+    if (f.sources.some((s) => s.on !== false)) mem = Math.max(mem, f.inject.maxTokens);
+    if (f.habits.length) habits = Math.max(habits, f.inject.habitsMaxTokens);
+  }
+  if (!off("plugin:cardmemory")) add("litopys card memory", mem);
+  if (!off("plugin:cardhabits") && !off("plugin:cardskills")) add("litopys habits", habits);
+  // a persona's and a world's memory are the chat's own opt-in (meta.memory.persona / .world)
+  const taken = isObj(meta.memory) ? meta.memory : {};
+  if (taken.persona === true && !off("plugin:personamemory")) {
+    const pid = str(meta.personaId) || str((readJson(fsx, "settings.json", null) || {}).personaId);
+    const f = SAFE_ID.test(pid) ? loadMemory(fsx, pid, "persona") : null;
+    if (f && f.sources.length) add("litopys persona memory", f.inject.maxTokens);
+  }
+  if (taken.world === true && !off("plugin:worldmemory")) {
+    const wid = worldIdOf(fsx, chatId);
+    const f = SAFE_ID.test(wid) ? loadMemory(fsx, wid, "world") : null;
+    if (f && f.sources.length) add("litopys world memory", f.inject.maxTokens);
+  }
+  // what the characters remember of old scenes: a group has casts, and a chat whose last insert had some
+  const ins = readJson(fsx, INSERT_DIR + chatId + ".json", null);
+  if (cfg.recollections !== false && !off("plugin:recollections") && (grouped || (isObj(ins) && ins.recollections))) add("litopys recollections", cfg.recollectBudget);
+  // word-for-word passages of the earlier chats of the chain: only a chat that continues another
+  if (cfg.verbatim !== false && !off("plugin:verbatim") && linked) add("litopys verbatim", cfg.verbatimBudget);
+  // who knows what, and the optional hidden plan: only a reply that voices several characters (a group, a card with
+  // several names). A chat with no card is not reserved.
+  const severalVoices = grouped || cardNamesOf(cardOf(fsx, str(meta.characterId))).size > 1;
+  if (severalVoices && cfg.castKnowledge !== false && !off("plugin:litopys")) {
+    add("litopys who knows what", CAST_TOKENS);
+    if (cfg.hiddenPlan === true) add("litopys hidden plan", HIDDEN_PLAN_RESERVE);
+  }
+  return ceilingAnswer(rows);
+}
+/** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
+const ceilingAnswer = (rows) => ({ ceilings: rows.length ? rows : [{ id: "litopys", tokens: 0 }] });
+/** The most the hidden plan's instruction and the lines the model writes under it may take. */
+const HIDDEN_PLAN_RESERVE = 130;
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply" || !ctx.turn) return null;
   if (ctx.turn.op === "impersonate") return null;

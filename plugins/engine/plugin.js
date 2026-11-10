@@ -1662,7 +1662,7 @@ export function wholeWordIn(scan, lk) {
   }
   return false;
 }
-function keyMatch(scan, key, entry, rawScan) {
+function keyMatchDirect(scan, key, entry, rawScan) {
   const k = String(key || "").trim();
   if (!k) return false;
   // case-sensitive books/entries match against the RAW text (the shared scan
@@ -1751,6 +1751,111 @@ function phraseMatch(idx, key) {
   }
   return false;
 }
+// ---------- names across scripts: "Каел" in the chat finds the key "Kael", and the other way round (#254) ----------
+// A key that is a name (some word of 4+ letters written with a capital) is compared with the capitalised words of the
+// scan in the other script by their phonetic spelling, the one the entity registry uses to tell Kaede from Каеде.
+// Narrow on purpose, measured on real books and chats: a plain lowercase key ("power", "campus") never crosses, since the
+// spelling folds many ordinary words together (chose = коже, tattoo = тато); a scan word must be capitalised too;
+// the two spellings may differ by one letter at most (Каэль / Kael); no prefixes ("Каелен" is not "Kael"; "Кейл"
+// sounds different). It follows the Cyrillic word-forms switch (a book setting, on by default).
+// The spelling matches regTranslit in src/lib/entity-registry.js (a test compares them): change them together.
+const XS_CYR = {
+  "а": "a", "б": "b", "в": "v", "г": "g", "ґ": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh", "з": "z", "и": "i", "й": "i",
+  "і": "i", "ї": "i", "ы": "i", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t",
+  "у": "u", "ў": "u", "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "shch", "ъ": "", "ь": "", "э": "e",
+  "ю": "iu", "я": "ia", "є": "ie",
+};
+const xsMemo = new Map();
+/** The phonetic key of one folded word: Cyrillic to Latin, then one spelling for sounds that have several. */
+function xsTranslit(w) {
+  let r = xsMemo.get(w);
+  if (r !== undefined) return r;
+  r = w.replace(/[Ѐ-ӿ]/g, (ch) => (ch in XS_CYR ? XS_CYR[ch] : ch))
+    .replace(/ch/g, "k").replace(/kh/g, "h").replace(/ph/g, "f").replace(/ck/g, "k")
+    .replace(/([bcdfgjklmnpqrstvwxz])h/g, "$1").replace(/c(?=[eiy])/g, "s").replace(/[cq]/g, "k")
+    .replace(/x/g, "ks").replace(/[yj]/g, "i").replace(/z/g, "s").replace(/w/g, "v")
+    .replace(/([a-z0-9])\1+/g, "$1").replace(/([aeou])i(?=[aeiou])/g, "$1").replace(/([a-z0-9])\1+/g, "$1")
+    .trim();
+  if (xsMemo.size > 6000) xsMemo.clear();
+  xsMemo.set(w, r);
+  return r;
+}
+const XS_LAT = /^[a-z0-9]+$/;
+const WI_APOS_ANY = /['’ʼ‘`´ʹ′]/g;
+/** What one word can stand for, as [phonetic key, letters it was spelled with]: a Cyrillic word also without its ending,
+ *  a Latin one without a final vowel ("Kaede" is "Каеде" and, in "Каеди", "Каед"). */
+function xsForms(w, cyr) {
+  const forms = [[xsTranslit(w), w.length]];
+  if (cyr) {
+    const s = stem(w);
+    if (s !== w) forms.push([xsTranslit(s), s.length]);
+  } else if (w.length >= 5 && /[aeiouy]$/.test(w)) {
+    forms.push([xsTranslit(w.slice(0, -1)), w.length - 1]);
+  }
+  return forms;
+}
+/** The words of a text as wiWords splits them, in their own case. */
+function xsRawWords(s) {
+  return String(s).normalize("NFD").replace(/́/g, "").normalize("NFC").replace(/ё/g, "е").replace(/Ё/g, "Е")
+    .split(/[^\p{L}\p{N}']+/u).map((t) => t.replace(/^'+|'+$/g, "")).filter(Boolean);
+}
+const xsCapital = (w) => w !== w.toLowerCase() && w[0] !== w[0].toLowerCase();
+/** The capitalised words of the scan in the other script than the key's, by phonetic key. Built once per scan text and
+ *  side, so a chat and a key in the same script cost nothing. `caps` says which scan words are capitalised (all, if
+ *  the raw text does not line up with the lowercase one). */
+function xsSide(idx, rawAll, cyr) {
+  const name = cyr ? "xsCyr" : "xsLat";
+  if (idx[name]) return idx[name];
+  if (!idx.caps) {
+    const raw = xsRawWords(rawAll);
+    idx.caps = raw.length === idx.toks.length ? raw.map(xsCapital) : null;
+  }
+  const m = new Map();
+  const add = (f, i, len) => { const a = m.get(f); if (a) a.push([i, len]); else m.set(f, [[i, len]]); };
+  idx.toks.forEach((t, i) => {
+    if (idx.caps && !idx.caps[i]) return;
+    if (cyr) {
+      if (WI_CYR.test(t)) for (const [f, len] of xsForms(t, true)) add(f, i, len);
+      return;
+    }
+    const w = t.replace(/['’ʼ‘`´ʹ′]s$/, "").replace(WI_APOS_ANY, "");
+    if (XS_LAT.test(w)) add(xsTranslit(w), i, w.length);
+  });
+  return (idx[name] = m);
+}
+/** Every word of the key in the other script, side by side and in order (see the note above). */
+function crossScriptMatch(idx, key, rawAll) {
+  const kw = xsRawWords(key).map((w) => w.replace(WI_APOS_ANY, ""));
+  if (!kw.some((w) => w.length >= 4 && xsCapital(w))) return false;
+  const sets = [];
+  for (const raw of kw) {
+    const w = raw.toLowerCase();
+    const isCyr = WI_CYR.test(w);
+    if (isCyr ? /[a-z]/.test(w) : !XS_LAT.test(w)) return false; // mixed script, digits, other scripts: no
+    const side = xsSide(idx, rawAll, !isCyr);
+    const pos = new Set();
+    for (const [f, len] of xsForms(w, isCyr)) for (const [i, l] of side.get(f) || []) if (Math.abs(l - len) <= 1) pos.add(i);
+    if (!pos.size) return false;
+    sets.push(pos);
+  }
+  for (const p of sets[0]) {
+    let j = 1;
+    while (j < sets.length && sets[j].has(p + j)) j++;
+    if (j === sets.length) return true;
+  }
+  return false;
+}
+/** A key that found nothing as written: the same name in the other script (plain word keys only). */
+function crossScriptKey(scan, key, entry, rawAll) {
+  if (entry && (entry.wordForms === false || entry.keysRegex === true || wiCaseSensitive(entry))) return false;
+  const k = String(key || "").trim();
+  if (k.length < 4 || k.charCodeAt(0) === 47 || !WI_KEY_WORDS.test(k)) return false;
+  return crossScriptMatch(wordIndex(scan), k, rawAll);
+}
+/** One key against a scan text: as written, then the same name in the other script (#254). */
+function keyMatch(scan, key, entry, rawScan, rawAll) {
+  return keyMatchDirect(scan, key, entry, rawScan) || crossScriptKey(scan, key, entry, rawAll);
+}
 /** Constant-ness: the `status` field is the source of truth; the `constant`
  *  boolean is a legacy mirror kept for old files. When both are present they
  *  must agree — reading status first keeps injection and the UI in lockstep
@@ -1769,11 +1874,11 @@ function wiEntryMatch(entry, scanText, rawText, countAll, skipPrimary) {
   const caseBlind = !(entry && wiCaseSensitive(entry));
   const raw = caseBlind ? null : rawText;
   // skipPrimary: a vector let the entry in, only the secondary keys are tested
-  const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw));
+  const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw, rawText));
   if (key == null) return null;
-  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw));
+  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw, rawText));
   // group scoring ranks members by how many of their keys hit
-  const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw)).length + hits.length : 0;
+  const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw, rawText)).length + hits.length : 0;
   if (secondary.length) {
     const n = hits.length;
     const bad = (logic === 0 && n < 1) || (logic === 3 && n < secondary.length) || (logic === 2 && n > 0) || (logic === 1 && n === secondary.length);
@@ -1904,7 +2009,7 @@ const SAFE_RESERVE_ID = /^[A-Za-z0-9_-]{1,128}$/;
  * injection.maxTokens, the said block and the journal; world: the "here" note, the event and the dice; agents: the inserts the chat holds).
  * #184 / MEMORY-INJECTION 13.1: before this only the dashboard, the Litopys insert and the backstory link were counted.
  */
-export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
+function hookInsertTable(fsx, chatId, meta, windowTokens) {
   const rows = [];
   const add = (id, tokens) => {
     if (tokens > 0) rows.push({ id, tokens: Math.round(tokens) });
@@ -1921,7 +2026,8 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   const dcfg = jsonAt(fsx, "dashboard/config.json") || {};
   const inj = dcfg.injection && typeof dcfg.injection === "object" ? dcfg.injection : {};
   if (inj.enabled !== false && !off("plugin:relations")) {
-    add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * 2 + 200);
+    // a group focuses up to DASHBOARD_FOCUS characters, a card chat one (two is the allowance for a narrator card or one out of the scene)
+    add("dashboard", clampInt(inj.maxTokens, 50, 2000, 300) * (grouped ? DASHBOARD_FOCUS : 2) + 200);
     // the said block is its own part with its own fixed room (SAID_TOKENS in the dashboard plugin)
     if (!(dcfg.said && dcfg.said.inject === false) && !off("plugin:said")) add("dashboard said", 120);
     // the character journal: one block per focused character, at most journal.maxTokens each (40..400, default 120)
@@ -2030,9 +2136,40 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens) {
   return rows;
 }
 
+/** The plugin that owns a row of the table above (a row id begins with its plugin's block: dashboard..., litopys..., world..., agents). */
+function ceilingOwner(id) {
+  if (id.startsWith("dashboard")) return "relations";
+  if (id.startsWith("litopys")) return "litopys";
+  if (id.startsWith("world")) return "world";
+  if (id === "agents") return "agents";
+  return null;
+}
+/** What the sibling plugins answered to `?insertceilings=<chat>&window=<tokens>` (the engine fills host.insertCeilings): { window, rows }, or
+ *  null when the call did not ask (an older client), the engine is older than 1.9.7, or no plugin answered. */
+export function ceilingsOf(host, req) {
+  const rows = host && Array.isArray(host.insertCeilings) ? host.insertCeilings.filter((r) => r && typeof r.id === "string" && Number.isFinite(r.tokens)) : [];
+  const window = Number(req && req.query && req.query.window);
+  return rows.length && Number.isInteger(window) && window > 0 ? { window, rows } : null;
+}
+/**
+ * Tokens the sibling plugins' hooks may add to the request after assembly, one row per block: { id, tokens }.
+ * A plugin that exports insertCeiling answers for itself (#220, from its own config and defaults, per chat), and its rows replace
+ * the table's rows for that plugin; for a plugin that did not answer, the table above stays. The answers count only when they were
+ * asked for this very window (the client says it with ?window=), since a plugin's "auto" sizes follow it; any other window, or none,
+ * and the table alone decides, as before.
+ */
+export function hookInsertBreakdown(fsx, chatId, meta, windowTokens, ceilings) {
+  const table = hookInsertTable(fsx, chatId, meta, windowTokens);
+  if (!ceilings || !Array.isArray(ceilings.rows) || !(Number(windowTokens) > 0) || ceilings.window !== Number(windowTokens)) return table;
+  const answered = new Set(ceilings.rows.map((r) => r.plugin).filter(Boolean));
+  const rows = table.filter((r) => !answered.has(ceilingOwner(r.id)));
+  for (const r of ceilings.rows) if (r.tokens > 0) rows.push({ id: String(r.id), tokens: Math.round(r.tokens) });
+  return rows;
+}
+
 /** The sum of hookInsertBreakdown: what the history budget leaves free for the sibling plugins' inserts. */
-function hookInsertReserve(fsx, chatId, meta, windowTokens) {
-  return hookInsertBreakdown(fsx, chatId, meta, windowTokens).reduce((t, r) => t + r.tokens, 0);
+function hookInsertReserve(fsx, chatId, meta, windowTokens, ceilings) {
+  return hookInsertBreakdown(fsx, chatId, meta, windowTokens, ceilings).reduce((t, r) => t + r.tokens, 0);
 }
 // ---------- the Litopys cut: a copy of litopys/plugin.js coveredCount/cutCount (plugins cannot import each other) ----------
 /** The messages Litopys counts: user and character turns with an id, not hidden (its activeLine). */
@@ -3904,7 +4041,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // the room the history has: a token estimate against the window, minus the room the reply needs
   // and what the sibling plugins' hooks add later
   const replyReserve = preset && typeof preset.openai_max_tokens === "number" && preset.openai_max_tokens > 0 ? preset.openai_max_tokens : 1024;
-  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id, meta, presetMaxCtx(preset)) - 64;
+  const budget = presetMaxCtx(preset) - replyReserve - hookInsertReserve(fsx, meta.id, meta, presetMaxCtx(preset), opts && opts.ceilings) - 64;
   const msgTokens = (m) => estimateTokens(m.content) + 4;
   const fixedTokens = () => before.concat(extras, after).reduce((a, m) => a + msgTokens(m), 0);
   // Litopys's cut is a ceiling: only as many covered messages leave as the window needs
@@ -5327,7 +5464,7 @@ export function handleRoute(req, host) {
       || members[0] || null;
     const scanInfoPeek = host.llm.embedInfo && host.llm.embedInfo.scan;
     const scanModelPeek = scanInfoPeek && typeof scanInfoPeek.model === "string" ? scanInfoPeek.model : "";
-    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), dryRun: true, scanVec: scanVecPeek, scanModel: scanModelPeek, gen: "preview" });
+    const a = assemble(fsx, chat.meta, msgs, peekSpeaker, null, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), dryRun: true, scanVec: scanVecPeek, scanModel: scanModelPeek, gen: "preview" });
     // tool defs ride the peek exactly as a send would (the wantsTools sibling
     // set) when the caller asks for them — host.siblingTools is absent on
     // engine builds without that contract
@@ -6335,7 +6472,7 @@ const toolX = (r) => ({
         // embed the scan window (+ uncached entries) first — one extra pass
         const sp = semanticPrep(host, fsx, meta, staged, text, req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, staged, speaker, text, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "send" });
+        const a = assemble(fsx, meta, staged, speaker, text, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "send" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6419,7 +6556,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "next" });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "next" });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6500,7 +6637,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, before, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "swipe", guidance: body().guidance });
+        const a = assemble(fsx, meta, before, speaker, null, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "swipe", guidance: body().guidance });
         host.llm.request("reply", {
           sessionId: id,
           messages: a.messages,
@@ -6617,7 +6754,7 @@ const toolX = (r) => ({
       if (!reply) {
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) { markGenerating(); return sp.pending; }
-        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "continue" });
+        const a = assemble(fsx, meta, chat.msgs, speaker, null, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "continue" });
         // continue nudge: preset utility prompt (blank = plain continue, no
         // nudge appended — no hidden default text)
         const preset = readJson("presets/" + (meta.presetId || "default") + ".json", null);
@@ -6749,7 +6886,7 @@ const toolX = (r) => ({
         // not marked generating: an impersonation never writes the transcript
         const sp = semanticPrep(host, fsx, meta, chat.msgs, "", req);
         if (sp.pending) return sp.pending;
-        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { limits: limitsOf(body()), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "impersonate" });
+        const a = assemble(fsx, meta, chat.msgs, members[0] || null, null, { limits: limitsOf(body()), ceilings: ceilingsOf(host, req), scanVec: sp.scanVec, scanModel: sp.scanModel, gen: "impersonate" });
         const un = chatUserName(fsx, meta);
         // impersonation prompt: preset utility prompt, macros expanded
         // (blank = impersonate from history alone — no hidden default text)
