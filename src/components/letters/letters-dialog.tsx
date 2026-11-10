@@ -14,7 +14,7 @@ import { useT } from '@/hooks/use-t'
 
 export function LettersDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useT()
-  const { config, muted, model, source, available } = useLetters()
+  const { config, muted, model, source, available, failing } = useLetters()
   const characters = useApp((s) => s.characters)
   useEffect(() => { if (open) void loadLetters() }, [open])
   const nameOf = (id: string) => characters.find((c) => c.id === id)?.name ?? id
@@ -30,6 +30,11 @@ export function LettersDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <p className="text-body text-muted-foreground">{t('letters.noPlugin')}</p>
         ) : (
           <div className="flex flex-col gap-3">
+            {failing && (
+              <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-body text-destructive" data-testid="letters-failing">
+                {t('letters.failing', { n: failing.n, why: failing.code === 'no-model' ? t('letters.noModel') : failing.message || t('letters.failEmpty') })}
+              </p>
+            )}
             <Card variant="rows">
               <SettingRow label={t('letters.enable')} info={t('letters.enableInfo')}>
                 <Switch checked={config.enabled} onCheckedChange={(on) => void saveLettersConfig({ enabled: on })} aria-label={t('letters.enable')} />

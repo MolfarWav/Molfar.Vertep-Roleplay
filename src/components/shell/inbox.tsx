@@ -3,6 +3,7 @@ import { BellSimple, BellSlash, CaretRight, Check, EnvelopeSimple, Scroll, Spark
 import { toast } from 'sonner'
 import { dismissInboxRows as dismissStoreRows, useApp } from '@/lib/store'
 import { dismissLetters, muteCard, useLetters } from '@/lib/letters'
+import { openLettersDialog } from '@/lib/letters-dialog'
 import { useAttention, useInbox, inboxClosesOn, inboxRows, workerName, type InboxFilter, type InboxRow } from '@/lib/attention'
 import { APP_VERSION, TIPS } from '@/lib/guide-tips'
 import { tipText } from '@/lib/guide'
@@ -87,7 +88,10 @@ function openRow(row: InboxRow) {
     if (f.worker === 'world') app.focusWorldChat(f.ref)
     else if (f.worker === 'litopys') app.focusLibraryChat(f.ref)
     else if (f.worker === 'soul') app.openCharacterOnTab(f.ref, 'soul')
-    else {
+    else if (f.worker === 'letters') {
+      app.setView('characters')
+      openLettersDialog()
+    } else {
       app.openChat(f.ref)
       app.openDashboard()
     }

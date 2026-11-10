@@ -2,8 +2,8 @@
  * Letters from cards (#72, src/lib/letters-core.ts): who is due, in what order, and what the inbox does with a letter.
  */
 import { describe, expect, it } from 'bun:test'
-import { candidatesFor, lettersOf, showLettersOffer, type Letter } from '../src/lib/letters-core'
-import { inboxRows } from '../src/lib/attention-core'
+import { candidatesFor, FAIL_AFTER, isFailing, lettersOf, nextStreak, NO_STREAK, showLettersOffer, type FailStreak, type Letter } from '../src/lib/letters-core'
+import { failReason, inboxRows, type FailedItem } from '../src/lib/attention-core'
 
 const DAY = 86_400_000
 const now = 1_000 * DAY
@@ -94,5 +94,36 @@ describe('the offer card', () => {
     expect(showLettersOffer({ available: true, enabled: true, dismissed: false })).toBe(false)
     expect(showLettersOffer({ available: true, enabled: false, dismissed: true })).toBe(false)
     expect(showLettersOffer({ available: false, enabled: false, dismissed: false })).toBe(false)
+  })
+})
+
+describe('the failure streak (#198)', () => {
+  const fail = { written: false, failure: { code: 'error', message: '429 rate limit' } }
+  const run = (steps: Parameters<typeof nextStreak>[1][]): FailStreak => steps.reduce((s, p, i) => nextStreak(s, p, 1000 + i), NO_STREAK)
+  it('one or two bad passes stay quiet; the third in a row shows', () => {
+    expect(isFailing(run([fail, fail]))).toBe(false)
+    const three = run([fail, fail, fail])
+    expect(FAIL_AFTER).toBe(3)
+    expect(isFailing(three)).toBe(true)
+    expect(three).toMatchObject({ n: 3, since: 1002, code: 'error', message: '429 rate limit' })
+  })
+  it('`since` is when the streak reached three, not the latest try: a dismissed row stays dismissed', () => {
+    const more = run([fail, fail, fail, fail, fail])
+    expect(more.n).toBe(5)
+    expect(more.since).toBe(1002)
+  })
+  it('a letter clears the streak; a pass that asked nobody, or was refused only about cards, leaves it', () => {
+    const two = run([fail, fail])
+    expect(nextStreak(two, { written: true, failure: null }, 5000)).toEqual(NO_STREAK)
+    expect(nextStreak(two, { written: false, failure: null }, 5000)).toEqual(two)
+  })
+  it('shows as a failure row that names the letters, in plain words', () => {
+    const item = (code: string, message: string): FailedItem => ({ worker: 'letters', ref: 'letters', title: '', code, message, at: 1 })
+    expect(failReason(item('no-model', ''), 'en')).toContain('No model')
+    expect(failReason(item('bad-reply', ''), 'en')).toContain('nothing')
+    expect(failReason(item('error', '429 Too Many Requests'), 'en')).toContain('busy')
+    const r = inboxRows({ settings: undefined, litopys: {}, soul: [], chatName: () => '', cardName: () => '', failed: [item('error', 'x')], dismissed: new Set(), letters: [] } as any)
+    expect(r.failures).toBe(1)
+    expect(r.rows[0]).toMatchObject({ kind: 'failed' })
   })
 })

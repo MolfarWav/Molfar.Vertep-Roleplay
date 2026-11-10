@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Added: **a broken letters model no longer fails in silence (Molfar.Vertep#198).** Letters from cards are written in the background, so a model that kept failing (an expired key, no model set, an empty reply) just meant no letters. After three checks in a row that wanted a letter and failed on the model, the inbox shows a red **Letters** failure with the reason (the badge turns red like for any failed job), and Open goes to Characters, More, Letters from cards, where the dialog repeats it. A letter that arrives, a different writing model or switching letters off clears it; one or two bad checks stay quiet. What's new tip and the Characters guide page describe it.
+
 ## 4.108.0 (2026-11-10)
 
 - Added: **Litopys can look for scenes by itself (Molfar.Vertep#354).** A chat whose characters never move closes no scene on its own; **Suggest scenes** covered that by hand. The Scenes card (and the chat record's Settings tab) now has **Look for scenes by itself** (off by default, per chat). With it on, the worker does the same thing without a click once 20 or more messages are in no scene: one request for every 40 messages, the proposed scenes wait in the Scenes card ("Scenes found by itself: N") and nothing becomes a scene until you review and save them (the cautious of the two options in the issue). It waits while a list is on offer and asks again only after 20 more messages. A hand run still works with the switch on. See `docs/DATA-FORMATS.md` (`autoScenes`, `sceneAuto`, `sceneSuggest.auto`); the guide page for Litopys says how. Not checked with a real model: how often a small free model's answer is dropped by the parser.

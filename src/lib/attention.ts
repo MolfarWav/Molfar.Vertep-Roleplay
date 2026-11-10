@@ -35,7 +35,7 @@ interface AttentionState {
   /** cards with souls proposed or a failed rating, newest first */
   soul: SoulWaiting[]
   /** background failures by source (soul failures ride in `soul`) */
-  failedBy: Partial<Record<'world' | 'litopys' | 'dashboard', FailedItem[]>>
+  failedBy: Partial<Record<'world' | 'litopys' | 'dashboard' | 'letters', FailedItem[]>>
   /** all of them, dismissed ones left out */
   failed: FailedItem[]
   /** failure keys the player dismissed */
@@ -50,7 +50,7 @@ const mergeFailed = (by: AttentionState['failedBy'], dismissed: Set<string>) =>
   Object.values(by).flat().filter((f) => !dismissed.has(failKey(f)))
 
 /** One source reports its failures (an empty list clears them). */
-export function setFailed(worker: 'world' | 'litopys' | 'dashboard', items: FailedItem[]) {
+export function setFailed(worker: 'world' | 'litopys' | 'dashboard' | 'letters', items: FailedItem[]) {
   const st = useAttention.getState()
   const failedBy = { ...st.failedBy, [worker]: items }
   useAttention.setState({ failedBy, failed: mergeFailed(failedBy, st.dismissed) })

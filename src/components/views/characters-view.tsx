@@ -38,6 +38,7 @@ import { CardKindBadge } from '@/components/dashboard/card-kind'
 import { cardTypeOf } from '@/lib/soul'
 import { useT } from '@/hooks/use-t'
 import { LettersDialog } from '@/components/letters/letters-dialog'
+import { useLettersDialog } from '@/lib/letters-dialog'
 import { LettersOffer } from '@/components/letters/letters-offer'
 import { folderCounts, folderTags, inFolder, moveToFolder, noFolder, removeFromFolder, resolveFolder } from '@/lib/character-folders'
 import { ownBookOnlyFor } from '@/lib/lore-usage'
@@ -109,6 +110,13 @@ export function CharactersView({ mode }: { mode: 'characters' | 'groups' }) {
   const updateTag = useApp((s) => s.updateTag)
   const [urlOpen, setUrlOpen] = useState(false)
   const [lettersOpen, setLettersOpen] = useState(false)
+  // a failure row in the inbox asks for this dialog
+  const wantLetters = useLettersDialog((s) => s.want)
+  useEffect(() => {
+    if (!wantLetters) return
+    setLettersOpen(true)
+    useLettersDialog.setState({ want: false })
+  }, [wantLetters])
   // "Draw missing portraits": solo cards with no picture of their own (a portrait the list merely left out, avatarLazy, exists and is never redrawn)
   const [portraitsOpen, setPortraitsOpen] = useState(false)
   const portraitTargets = useMemo(() => (mode === 'characters' ? missingPortraits(characters) : []), [mode, characters])

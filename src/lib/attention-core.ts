@@ -118,7 +118,7 @@ export function soulWaitingOf(body: unknown): SoulWaiting[] {
 // ---------- background failures ----------
 
 /** Which background job failed. */
-export type FailWorker = 'world' | 'litopys' | 'dashboard' | 'soul'
+export type FailWorker = 'world' | 'litopys' | 'dashboard' | 'soul' | 'letters'
 
 /** One failed background job, for one chat (a card for the soul rating). */
 export interface FailedItem {
@@ -153,6 +153,8 @@ export function failReason(f: FailedItem, lang: Lang): string {
     return t('world.err.other', lang, { message: f.message || f.code })
   }
   if (f.worker === 'soul') return t('inbox.soulFailed', lang)
+  if (f.worker === 'letters' && f.code === 'no-model') return t('letters.noModel', lang)
+  if (f.worker === 'letters' && !f.message) return t('letters.failEmpty', lang)
   const raw = f.message.replace(/\s+/g, ' ').trim()
   // other workers report in English; the common causes get the app's own wording
   const known = KNOWN_CAUSES.find(([re]) => re.test(raw))
@@ -160,7 +162,7 @@ export function failReason(f: FailedItem, lang: Lang): string {
   return raw.length > 140 ? `${raw.slice(0, 139)}…` : raw || t('inbox.failedUnknown', lang)
 }
 
-const WORKER_KEYS = { world: 'inbox.worker.world', litopys: 'inbox.worker.litopys', dashboard: 'inbox.worker.dashboard', soul: 'inbox.worker.soul' } as const
+const WORKER_KEYS = { world: 'inbox.worker.world', litopys: 'inbox.worker.litopys', dashboard: 'inbox.worker.dashboard', soul: 'inbox.worker.soul', letters: 'inbox.worker.letters' } as const
 export const workerName = (w: FailWorker, lang: Lang) => t(WORKER_KEYS[w], lang)
 
 /** The World DM rows of GET /world/chats that carry an error. */
@@ -240,7 +242,7 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
       .filter((f) => !input.dismissed?.has(failKey(f)))
       .sort((a, b) => b.at - a.at)
     for (const f of all) {
-      const name = f.worker === 'soul' ? input.cardName(f.ref) : input.chatName(f.ref) || f.title
+      const name = f.worker === 'soul' ? input.cardName(f.ref) : f.worker === 'letters' ? t('letters.failChat', lang) : input.chatName(f.ref) || f.title
       rows.push({ kind: 'failed', key: `failed:${failKey(f)}`, item: f, name, reason: failReason(f, lang) })
     }
   }
