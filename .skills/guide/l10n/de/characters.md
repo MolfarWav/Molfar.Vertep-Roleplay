@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Charaktere, Personas und Gruppen
 
 Alles, womit du spielst, lebt in vier Bereichen: Characters, Groups, Personas und Marketplace. Diese Seite sagt, wofür jeder gedacht ist; die Hilfeartikel *Your characters*, *The card editor tabs* und *Groups of characters* enthalten die Einzelheiten.
@@ -22,7 +22,7 @@ Eine Karte kann mehrere Charaktere gleichzeitig spielen (ein Erzähler oder Spie
 
 Eine Karte, die du eine Weile nicht gespielt hast, kann dir in ihrer eigenen Stimme eine kurze Nachricht schreiben. Die Nachricht landet in der Inbox (Homes „Waiting on you“, der Inbox-Button in der Rail) als grüner Brief; wenn du ihn öffnest, gehst du zum alten Chat, oder es startet ein Chat für eine Karte, die du nie gespielt hast. Ein Brief schreibt nie in einen Chat und erfindet nie Ereignisse.
 
-Er ist **aus, bis du ihn einschaltest**. Solange er aus ist, steht oben im Bereich Characters und in Homes „Waiting on you“ eine grüne Karte „Let your characters write to you“: **Turn on** schaltet ihn sofort ein, **Not now** blendet die Karte endgültig aus. Die Zahlen (Leerlauftage, Briefe pro Tag, Tage zwischen Briefen einer Karte, das schreibende Modell) und die Karten, die du beendet hast, stehen in Characters, More, „Letters from cards“. Briefe werden alle paar Stunden geprüft, solange die App offen ist: ein Chat, der 14 Tage ruht, eine Karte, die du 14 Tage nicht gespielt hast, und eine gespielte Karte ohne Soul (einmal).
+Er ist **aus, bis du ihn einschaltest**. Solange er aus ist, steht oben im Bereich Characters und in Homes „Waiting on you“ eine grüne Karte „Let your characters write to you“: **Turn on** schaltet ihn sofort ein, **Not now** blendet die Karte endgültig aus. Die Zahlen (Leerlauftage, Briefe pro Tag, Tage zwischen Briefen einer Karte, das schreibende Modell) und die Karten, die du beendet hast, stehen in Characters, More, „Letters from cards“. Briefe werden alle paar Stunden geprüft, solange die App offen ist: ein Chat, der 14 Tage ruht, eine Karte, die du 14 Tage nicht gespielt hast, und eine gespielte Karte ohne Soul (einmal). Schlägt das schreibende Modell dreimal in Folge fehl (oder ist keines gesetzt), zeigt die Inbox einen roten Fehler „Letters“ mit dem Grund, und **Open** führt dich zu den Einstellungen für Briefe; ein eintreffender Brief, ein anderes Modell oder das Ausschalten der Briefe räumt ihn weg.
 
 ## Personas
 

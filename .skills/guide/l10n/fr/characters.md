@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez vit dans quatre sections : Personnages, Groupes, Personas et Marché. Cette page dit à quoi sert chacune ; les articles d'aide *Vos personnages*, *Les onglets de l'éditeur de carte* et *Groupes de personnages* donnent les détails.
@@ -37,7 +37,7 @@ Un groupe réunit plusieurs personnages dans une seule discussion. « New group 
 
 Une carte que vous n'avez pas jouée depuis un moment peut vous écrire un court message dans sa propre voix. La lettre arrive dans la boîte de réception (« Waiting on you » de Home, le bouton de boîte dans le rail) sous forme de Lettre verte ; l'ouvrir vous mène à l'ancienne discussion, ou démarre une discussion pour une carte que vous n'avez jamais jouée. Une lettre n'écrit jamais dans une discussion et n'invente jamais d'événements.
 
-Elle est **désactivée tant que vous ne l'activez pas**. Tant qu'elle est désactivée, une carte verte « Let your characters write to you » se trouve en haut de la section Personnages et dans « Waiting on you » de Home : **Turn on** l'active immédiatement, **Not now** masque la carte pour de bon. Les réglages (jours d'inactivité, lettres par jour, jours entre deux lettres d'une même carte, le modèle d'écriture) et les cartes que vous avez arrêtées se trouvent dans Personnages, Plus, Lettres des cartes. Les lettres sont vérifiées toutes les quelques heures tant que l'application est ouverte : une discussion inactive depuis 14 jours, une carte jamais jouée depuis 14 jours, et une carte jouée sans Âme (une seule fois).
+Elle est **désactivée tant que vous ne l'activez pas**. Tant qu'elle est désactivée, une carte verte « Let your characters write to you » se trouve en haut de la section Personnages et dans « Waiting on you » de Home : **Turn on** l'active immédiatement, **Not now** masque la carte pour de bon. Les réglages (jours d'inactivité, lettres par jour, jours entre deux lettres d'une même carte, le modèle d'écriture) et les cartes que vous avez arrêtées se trouvent dans Personnages, Plus, Lettres des cartes. Les lettres sont vérifiées toutes les quelques heures tant que l'application est ouverte : une discussion inactive depuis 14 jours, une carte jamais jouée depuis 14 jours, et une carte jouée sans Âme (une seule fois). Si le modèle d'écriture échoue trois vérifications de suite (ou si aucun n'est défini), la boîte de réception affiche un échec rouge « Letters » avec la raison, et **Open** vous mène aux réglages des Lettres ; une lettre qui arrive, un autre modèle ou la désactivation des lettres l'efface.
 
 ## Portraits pour les cartes sans image
 

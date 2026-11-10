@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.108.0'
+export const APP_VERSION = '4.109.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -485,6 +485,20 @@ const HAND_TIPS: Tip[] = [
     body: {
       en: 'When the World DM, the Library, the scene state or a soul rating fails, a red notice says where, and the Inbox count turns red. The Inbox is now a drawer with filters; Dismiss clears a failure.',
       uk: 'Коли майстер світу, Бібліотека, стан сцени чи оцінка душ не вдається, червоне сповіщення каже де, а цифра на «Вхідних» червоніє. Вхідні тепер висувна панель із фільтрами; «Закрити» прибирає збій.',
+    },
+  },
+  // ── What's new: letters from cards (and their failures)
+  {
+    id: 'new.letters',
+    since: '4.109.0',
+    target: 'nav.inbox',
+    open: { view: 'home' },
+    help: 'characters',
+    keywords: { en: 'letters cards write note inbox green idle forgotten model failed failure broken', uk: 'листи картки написати нотатка вхідні зелений забуті модель збій зламана' },
+    title: { en: 'Cards can write you a letter', uk: 'Картки можуть написати вам листа' },
+    body: {
+      en: 'A card or chat you have not touched for two weeks can leave a short in-character note in the Inbox, as a green Letter. It is off until you turn it on (Characters, More, Letters from cards). If the model fails three tries in a row, the Inbox shows a red Letters failure instead of staying silent; Open takes you to the settings.',
+      uk: 'Картка чи чат, яких ви не торкалися два тижні, можуть залишити у «Вхідних» коротку нотатку від імені персонажа: зелений «Лист». Він вимкнений, доки ви його не ввімкнете (Characters, More, Letters from cards). Якщо модель підряд тричі не відповідає, у «Вхідних» з’являється червоний збій «Листи», а не тиша; «Відкрити» веде до налаштувань.',
     },
   },
   // ── What's new: the inbox

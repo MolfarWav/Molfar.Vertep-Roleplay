@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # 角色、人格与群组
 
 你所玩的一切都存放在四个部分中：Characters、Groups、Personas和Marketplace。本页说明每个部分的用途；帮助文章*Your characters*、*The card editor tabs*和*Groups of characters*包含详细信息。
@@ -37,7 +37,7 @@
 
 一张很久没玩的卡片会以它自己的口吻给你写一封短信。信件会以绿色的Letter形式进入收件箱（Home上的“Waiting on you”，以及侧边栏的收件箱按钮）；打开它会带你进入那个旧聊天，若是从未玩过的卡片，则会开始一个新聊天。信件绝不会写入聊天，也从不编造事件。
 
-它**默认关闭，直到你打开它**。关闭期间，Characters部分顶部以及Home的“Waiting on you”中会出现一张绿色卡片“Let your characters write to you”：**Turn on**立即打开它，**Not now**则永久隐藏该卡片。闲置天数、每天的信件数、同一张卡片两封信之间的天数、撰写信件的模型，以及你已停止接收信件的卡片，都在Characters的More中的“Letters from cards”里设置。应用打开期间，每隔几小时会检查一次信件：闲置14天的聊天、14天未玩过的卡片，以及一张已玩过但没有Soul的卡片（仅一次）。
+它**默认关闭，直到你打开它**。关闭期间，Characters部分顶部以及Home的“Waiting on you”中会出现一张绿色卡片“Let your characters write to you”：**Turn on**立即打开它，**Not now**则永久隐藏该卡片。闲置天数、每天的信件数、同一张卡片两封信之间的天数、撰写信件的模型，以及你已停止接收信件的卡片，都在Characters的More中的“Letters from cards”里设置。应用打开期间，每隔几小时会检查一次信件：闲置14天的聊天、14天未玩过的卡片，以及一张已玩过但没有Soul的卡片（仅一次）。 如果撰写信件的模型连续三次检查失败（或未设置模型），收件箱会显示带原因的红色“Letters”故障提示，点击**Open**会进入信件设置；收到一封信、换用其他模型或关闭信件后，该提示就会消失。
 
 ## 没有图片的卡片的立绘
 

@@ -52,6 +52,7 @@ import { uniquePresetName, type ImportReport } from './preset-report'
 import { migrateLook } from './migrate-look'
 import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDashFailure, setSoulWaiting, soulWaitingOf, useInbox, type AttentionDeps, type FailedItem } from './attention'
 import { rowDismissKey, type InboxRow } from './attention-core'
+import { openLettersDialog } from './letters-dialog'
 import { keepShownTranscript } from './chat-snapshot'
 
 export type ViewKey =
@@ -490,7 +491,10 @@ function openFailure(f: FailedItem) {
   if (f.worker === 'world') app.focusWorldChat(f.ref)
   else if (f.worker === 'litopys') app.focusLibraryChat(f.ref)
   else if (f.worker === 'soul') app.openCharacterOnTab(f.ref, 'soul')
-  else {
+  else if (f.worker === 'letters') {
+    app.setView('characters')
+    openLettersDialog()
+  } else {
     app.openChat(f.ref)
     app.openDashboard()
   }
@@ -507,6 +511,7 @@ function isLookingAt(f: FailedItem): boolean {
 function failureName(f: FailedItem): string {
   const st = useApp.getState()
   if (f.worker === 'soul') return st.characters.find((c) => c.id === f.ref)?.name ?? ''
+  if (f.worker === 'letters') return t('letters.failChat', resolveLanguage(st.settings.language))
   const chat = st.chats.find((c) => c.id === f.ref)
   return chat?.title || f.title || st.characters.find((c) => c.id === chat?.characterId)?.name || ''
 }

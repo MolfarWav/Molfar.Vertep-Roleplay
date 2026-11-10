@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina zegt waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* hebben de details.
@@ -37,7 +37,7 @@ Een groep zet meerdere personages in één chat. "New group" laat je leden kieze
 
 Een kaart die je een tijdje niet hebt gespeeld, kan je een korte brief in zijn eigen stem schrijven. De brief komt in de inbox terecht ("Waiting on you" op Home, de inbox-knop in de rail) als een groene Letter; als je hem opent, ga je naar de oude chat, of start je een chat voor een kaart die je nooit hebt gespeeld. Een brief schrijft nooit in een chat en verzint nooit gebeurtenissen.
 
-Hij staat **uit tot je hem aanzet**. Zolang hij uit staat, staat er bovenaan de sectie Personages en in "Waiting on you" op Home een groene kaart "Let your characters write to you": **Turn on** zet hem meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen van inactiviteit, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt gestopt staan in Personages, More, Letters from cards. Brieven worden om de paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen stilligt, een kaart die je 14 dagen nooit hebt gespeeld, en een gespeelde kaart zonder Soul (één keer).
+Hij staat **uit tot je hem aanzet**. Zolang hij uit staat, staat er bovenaan de sectie Personages en in "Waiting on you" op Home een groene kaart "Let your characters write to you": **Turn on** zet hem meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen van inactiviteit, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt gestopt staan in Personages, More, Letters from cards. Brieven worden om de paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen stilligt, een kaart die je 14 dagen nooit hebt gespeeld, en een gespeelde kaart zonder Soul (één keer). Als het schrijfmodel drie controles achter elkaar faalt (of er geen is ingesteld), toont de inbox een rode melding "Letters" met de reden, en **Open** brengt je naar de instellingen voor brieven; een brief die aankomt, een ander model of het uitzetten van brieven haalt de melding weg.
 
 ## Portretten voor kaarten zonder portret
 

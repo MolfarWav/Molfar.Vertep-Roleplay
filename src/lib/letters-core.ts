@@ -108,6 +108,39 @@ export const STOPS_PASS = new Set(['off', 'daily', 'no-model', 'error'])
 /** A refusal about the card itself: it is not asked again for a day (the plugin said no for a fact that will not change soon). */
 export const CARD_REFUSALS = new Set(['muted', 'cooldown', 'waiting', 'no-card', 'has-soul', 'no-chat', 'bad-reply'])
 
+/** Refusals that mean the model could not write (not a fact about one card): they feed the failure streak. */
+export const MODEL_FAILURES = new Set(['error', 'no-model', 'bad-reply'])
+
+/** Passes in a row that failed before the inbox says so. One bad pass is noise (a free model has bad hours). */
+export const FAIL_AFTER = 3
+
+/** The failure streak, kept between passes (and between sessions: a pass runs every 2.5 h). */
+export interface FailStreak {
+  /** passes in a row that wanted a letter and got none because of the model */
+  n: number
+  /** when the streak reached FAIL_AFTER (0 before): the failure's identity, so a dismissed row stays dismissed */
+  since: number
+  /** the last reason code (error, no-model, bad-reply) and the model's own words, when it gave any */
+  code: string
+  message: string
+}
+
+export const NO_STREAK: FailStreak = { n: 0, since: 0, code: '', message: '' }
+
+/**
+ * What one pass does to the streak. `written`: a letter arrived (clears it). `failure`: the last model refusal of
+ * the pass, null when the pass asked nobody or was only refused for reasons about cards (the streak stays as it was).
+ */
+export function nextStreak(prev: FailStreak, pass: { written: boolean; failure: { code: string; message: string } | null }, now: number): FailStreak {
+  if (pass.written) return NO_STREAK
+  if (!pass.failure) return prev
+  const n = prev.n + 1
+  return { n, since: n >= FAIL_AFTER ? (prev.since || now) : 0, code: pass.failure.code, message: pass.failure.message }
+}
+
+/** True when the streak is long enough to show in the inbox. */
+export const isFailing = (s: FailStreak) => s.n >= FAIL_AFTER
+
 /** The number of ms between two passes while the app is open, and the delay of the first after start. */
 export const PASS_EVERY_MS = 2.5 * 60 * 60 * 1000
 export const PASS_FIRST_MS = 20_000

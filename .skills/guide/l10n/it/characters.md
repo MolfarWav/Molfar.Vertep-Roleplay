@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Personaggi, Gruppi, Persone e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* hanno i dettagli.
@@ -37,7 +37,7 @@ Un gruppo mette più personaggi in una chat. "New group" ti consente di sceglier
 
 Una scheda che non giochi da un po' può scriverti una breve nota con la propria voce. La nota arriva nella posta (la sezione "Waiting on you" della Home e il pulsante della posta nella barra laterale) come Lettera verde; aprirla ti porta alla vecchia chat, oppure avvia una chat per una scheda che non hai mai giocato. Una lettera non scrive mai dentro una chat e non inventa eventi.
 
-È **disattivata finché non la accendi**. Finché è spenta, una scheda verde "Let your characters write to you" sta in cima alla sezione Personaggi e in "Waiting on you" della Home: **Turn on** la accende subito, **Not now** nasconde la scheda per sempre. I numeri (giorni di inattività, lettere al giorno, giorni tra due lettere della stessa scheda, il modello che scrive) e le schede che hai fermato si trovano in Personaggi, More, "Letters from cards". Le lettere vengono controllate ogni poche ore mentre l'app è aperta: una chat inattiva da 14 giorni, una scheda che non hai mai giocato da 14 giorni, e una scheda giocata senza Anima (una sola volta).
+È **disattivata finché non la accendi**. Finché è spenta, una scheda verde "Let your characters write to you" sta in cima alla sezione Personaggi e in "Waiting on you" della Home: **Turn on** la accende subito, **Not now** nasconde la scheda per sempre. I numeri (giorni di inattività, lettere al giorno, giorni tra due lettere della stessa scheda, il modello che scrive) e le schede che hai fermato si trovano in Personaggi, More, "Letters from cards". Le lettere vengono controllate ogni poche ore mentre l'app è aperta: una chat inattiva da 14 giorni, una scheda che non hai mai giocato da 14 giorni, e una scheda giocata senza Anima (una sola volta). Se il modello di scrittura fallisce tre controlli di fila (o non ne è impostato nessuno), la posta mostra un errore rosso "Letters" con il motivo, e **Open** ti porta alle impostazioni delle Lettere; una lettera che arriva, un altro modello o lo spegnimento delle lettere lo cancella.
 
 ## Ritratti per le schede senza
 
