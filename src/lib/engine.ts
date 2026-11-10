@@ -17,6 +17,7 @@ import { beginImport } from './import-progress'
 import { t } from './i18n'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
 import { DEFAULT_AVATAR, storedMediaUrl } from './utils'
+import { ceilingQuery } from './ceiling-query'
 import { saveFile } from './export'
 import { markedExport } from './profile'
 import { markProfileSections } from './export-prefs'
@@ -1188,7 +1189,7 @@ export async function promptPreview(chatId: string, opts?: { userText?: string; 
   const limits = await limitsOfChat(chatId)
   // ?siblingtools=1: the engine attaches the exact tool set a send's
   // wantsTools request would carry
-  return j('/prompt/preview?siblingtools=1', {
+  return j(`/prompt/preview?siblingtools=1${ceilingQuery(chatId, limits.contextWindow, '&')}`, {
     method: 'POST',
     body: JSON.stringify({ chatId, ...(userText?.trim() ? { userText } : {}), ...(messageId ? { messageId } : {}), ...limits }),
   })

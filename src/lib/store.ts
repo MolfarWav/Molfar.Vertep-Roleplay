@@ -26,6 +26,7 @@ import {
   seedThemes, defaultSettings, withBuiltinThemes,
   buildDefaultPreset, DEFAULT_MAIN_PROMPT, DEFAULT_UTILITY_PROMPTS,
 } from './seed'
+import { ceilingQuery } from './ceiling-query'
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
 import { adoptMarkedSections, compileIfWrittenElsewhere } from './profile'
@@ -2957,10 +2958,11 @@ async function runStream(
     // commits the reply): a watcher that sees the commit ends the wait
     const inner = new AbortController()
     ctrl.signal.addEventListener('abort', () => inner.abort(), { once: true })
-    const post = j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}`, {
+    const limits = modelLimits(model, get().models, get().modelParams)
+    const post = j<Record<string, unknown>>(`/chats/${encodeURIComponent(chatId)}/${op}${ceilingQuery(chatId, limits.contextWindow)}`, {
       method: 'POST',
       // the model's context window and max output budget the prompt (engine plugin limitsOf)
-      body: JSON.stringify({ ...body, ...(model ? { model } : {}), ...modelLimits(model, get().models, get().modelParams) }),
+      body: JSON.stringify({ ...body, ...(model ? { model } : {}), ...limits }),
       signal: inner.signal,
     })
     let stopWatch = () => {}
