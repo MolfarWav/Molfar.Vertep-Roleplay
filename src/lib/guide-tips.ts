@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.106.0'
+export const APP_VERSION = '4.107.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.suggest-scenes',
+    since: '4.107.0',
+    help: 'story',
+    keywords: { en: 'suggest scenes close scene chapter litopys library record scenes card manual pick messages story turns characters stay', uk: 'запропонувати сцени закрити сцену розділ літопис бібліотека запис картка сцени вручну вибір повідомлень історія повертає герої' },
+    title: { en: 'Close scenes: let the model suggest them', uk: 'Закривайте сцени: нехай модель запропонує' },
+    body: {
+      en: 'If your characters stay in one place, the record sees no scene to close. Open the chat\'s record in the Library: the new Scenes card says how many messages are in no scene, and Suggest scenes asks the model where the story turns. Tick the ones to keep and save them; each becomes a chapter. Pick by hand is now a list of messages: tap the first and the last.',
+      uk: 'Якщо герої лишаються на одному місці, запис не бачить сцени, яку можна закрити. Відкрийте запис чату в Бібліотеці: нова картка «Сцени» каже, скільки повідомлень поза сценами, а «Запропонувати сцени» питає модель, де історія повертає. Позначте потрібні й збережіть: кожна стане розділом. Ручний вибір тепер список повідомлень: торкніться першого й останнього.',
+    },
+  },
   {
     id: 'new.deep-memory',
     since: '4.101.0',
