@@ -19,7 +19,7 @@ export function OverviewBody({ chat, onChat, onRefresh }: TabProps) {
   return (
     <div className="@container" data-testid="overview">
       {ctl.dialogs}
-      <div className="grid gap-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+      <div className="grid grid-cols-1 gap-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
         {pending > 0 && (
           <section className="flex flex-col gap-3 @2xl:hidden">
             <Heading>{t('lit.ov.proposals', { n: pending })}</Heading>
