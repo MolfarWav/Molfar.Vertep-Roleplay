@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne işe yaradığını söyler; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makaleleri ayrıntıları içerir.
@@ -37,7 +37,7 @@ Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üye seçmenizi sa
 
 Uzun süredir oynamadığınız bir kart, kendi sesiyle size kısa bir not yazabilir. Not, gelen kutusuna (Home'daki "Waiting on you" ve rayın gelen kutusu düğmesi) yeşil bir Letter olarak düşer; onu açmak sizi eski sohbete götürür ya da hiç oynamadığınız bir kart için yeni bir sohbet başlatır. Bir mektup asla bir sohbete yazmaz ve olay uydurmaz.
 
-Mektup, siz açana kadar **kapalıdır**. Kapalıyken Characters bölümünün en üstünde ve Home'daki "Waiting on you" içinde yeşil bir "Let your characters write to you" kartı durur: **Turn on** bunu hemen açar, **Not now** kartı kalıcı olarak gizler. Sayılar (boşta geçen gün sayısı, günde mektup, bir karttan mektuplar arasındaki gün sayısı ve yazma modeli) ile durdurduğunuz kartlar Characters, More, Letters from cards içindedir. Uygulama açıkken mektuplar birkaç saatte bir kontrol edilir: 14 gün boşta kalmış bir sohbet, 14 gündür hiç oynanmamış bir kart ve Soul'u olmayan oynanmış bir kart (bir kez).
+Mektup, siz açana kadar **kapalıdır**. Kapalıyken Characters bölümünün en üstünde ve Home'daki "Waiting on you" içinde yeşil bir "Let your characters write to you" kartı durur: **Turn on** bunu hemen açar, **Not now** kartı kalıcı olarak gizler. Sayılar (boşta geçen gün sayısı, günde mektup, bir karttan mektuplar arasındaki gün sayısı ve yazma modeli) ile durdurduğunuz kartlar Characters, More, Letters from cards içindedir. Uygulama açıkken mektuplar birkaç saatte bir kontrol edilir: 14 gün boşta kalmış bir sohbet, 14 gündür hiç oynanmamış bir kart ve Soul'u olmayan oynanmış bir kart (bir kez). Yazan model art arda üç kontrolde başarısız olursa (ya da hiç model seçilmemişse) gelen kutusunda nedeniyle birlikte kırmızı bir "Letters" hatası görünür ve **Open** sizi mektup ayarlarına götürür; gelen bir mektup, farklı bir model ya da mektupların kapatılması bu hatayı temizler.
 
 ## Kartı olmayanlar için portreler
 

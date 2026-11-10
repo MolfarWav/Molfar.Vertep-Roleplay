@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Personajes, personas y grupos
 
 Todo con lo que juegas vive en cuatro secciones: Characters, Groups, Personas y Marketplace. Esta página dice para qué sirve cada una; los artículos de Help *Your characters*, *The card editor tabs* y *Groups of characters* tienen los detalles.
@@ -37,7 +37,7 @@ Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir m
 
 Una tarjeta que no has jugado durante un tiempo puede escribirte una nota corta con su propia voz. La nota llega a la bandeja (la sección "Waiting on you" de Home, el botón de la bandeja en el riel) como una Carta verde; al abrirla te lleva al chat antiguo, o inicia un chat para una tarjeta que nunca jugaste. Una carta nunca escribe en un chat ni inventa sucesos.
 
-Está **apagado hasta que lo enciendas**. Mientras esté apagado, una tarjeta verde "Let your characters write to you" aparece arriba de la sección Characters y en "Waiting on you" de Home: **Turn on** lo enciende al momento, **Not now** oculta la tarjeta para siempre. Los números (días de inactividad, cartas al día, días entre cartas de una misma tarjeta, el modelo de escritura) y las tarjetas que dejaste de usar están en Characters, More, Cartas de las tarjetas. Las cartas se revisan cada pocas horas mientras la app está abierta: un chat inactivo 14 días, una tarjeta que nunca jugaste durante 14 días, y una tarjeta jugada sin Soul (una vez).
+Está **apagado hasta que lo enciendas**. Mientras esté apagado, una tarjeta verde "Let your characters write to you" aparece arriba de la sección Characters y en "Waiting on you" de Home: **Turn on** lo enciende al momento, **Not now** oculta la tarjeta para siempre. Los números (días de inactividad, cartas al día, días entre cartas de una misma tarjeta, el modelo de escritura) y las tarjetas que dejaste de usar están en Characters, More, Cartas de las tarjetas. Las cartas se revisan cada pocas horas mientras la app está abierta: un chat inactivo 14 días, una tarjeta que nunca jugaste durante 14 días, y una tarjeta jugada sin Soul (una vez). Si el modelo de escritura falla tres comprobaciones seguidas (o no hay ninguno configurado), la bandeja muestra un fallo rojo "Letters" con el motivo, y **Open** te lleva a los ajustes de Cartas; una carta que llega, otro modelo o apagar las cartas lo quita.
 
 ## Retratos para tarjetas sin imagen
 

@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.108.0'
+export const APP_VERSION = '4.109.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -490,7 +490,7 @@ const HAND_TIPS: Tip[] = [
   // ── What's new: letters from cards (and their failures)
   {
     id: 'new.letters',
-    since: '4.108.0',
+    since: '4.109.0',
     target: 'nav.inbox',
     open: { view: 'home' },
     help: 'characters',

@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, żyje w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego każda służy; szczegóły są w artykułach Pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -37,7 +37,7 @@ Grupa umieszcza kilka postaci w jednym czacie. „New group” pozwala wybrać c
 
 Karta, której od jakiegoś czasu nie grałeś, może napisać do ciebie krótki list we własnym głosie. List trafia do skrzynki (Home, „Waiting on you”, oraz przycisk skrzynki na pasku) jako zielony Letter; otwarcie go przenosi cię do starego czatu albo zaczyna czat z kartą, z którą nigdy nie grałeś. List nigdy nie pisze do czatu i nigdy nie wymyśla zdarzeń.
 
-Jest **wyłączone, dopóki go nie włączysz**. Dopóki jest wyłączone, na górze sekcji Characters i w „Waiting on you” na Home wisi zielona karta „Let your characters write to you”: **Turn on** włącza go od razu, **Not now** chowa kartę na dobre. Liczby (dni bezczynności, listy dziennie, dni między listami z jednej karty, model piszący) oraz karty, które wyłączyłeś, są w Characters, More, Letters from cards. Listy są sprawdzane co kilka godzin, gdy aplikacja jest otwarta: czat bezczynny przez 14 dni, karta, której nigdy nie grałeś, przez 14 dni, oraz zagrana karta bez Soul (raz).
+Jest **wyłączone, dopóki go nie włączysz**. Dopóki jest wyłączone, na górze sekcji Characters i w „Waiting on you” na Home wisi zielona karta „Let your characters write to you”: **Turn on** włącza go od razu, **Not now** chowa kartę na dobre. Liczby (dni bezczynności, listy dziennie, dni między listami z jednej karty, model piszący) oraz karty, które wyłączyłeś, są w Characters, More, Letters from cards. Listy są sprawdzane co kilka godzin, gdy aplikacja jest otwarta: czat bezczynny przez 14 dni, karta, której nigdy nie grałeś, przez 14 dni, oraz zagrana karta bez Soul (raz). Jeśli model piszący zawiedzie w trzech kolejnych sprawdzeniach (albo żaden nie jest ustawiony), skrzynka pokazuje czerwony błąd „Letters” z powodem, a **Open** prowadzi do ustawień listów; błąd znika, gdy przyjdzie list, gdy wybierzesz inny model albo wyłączysz listy.
 
 ## Portrety kart bez obrazka
 

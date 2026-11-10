@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.109.0 (2026-11-10)
 
 - Added: **a broken letters model no longer fails in silence (Molfar.Vertep#198).** Letters from cards are written in the background, so a model that kept failing (an expired key, no model set, an empty reply) just meant no letters. After three checks in a row that wanted a letter and failed on the model, the inbox shows a red **Letters** failure with the reason (the badge turns red like for any failed job), and Open goes to Characters, More, Letters from cards, where the dialog repeats it. A letter that arrives, a different writing model or switching letters off clears it; one or two bad checks stay quiet. What's new tip and the Characters guide page describe it.
 

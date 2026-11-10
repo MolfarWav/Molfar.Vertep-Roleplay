@@ -1,4 +1,4 @@
-<!-- source: a93fd36e3690 -->
+<!-- source: fdd649d68f3c -->
 # Personagens, personas e grupos
 
 Tudo com que você joga vive em quatro seções: Characters, Groups, Personas e Marketplace. Esta página diz para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
@@ -37,7 +37,7 @@ Um grupo coloca vários personagens em um chat. "New group" permite escolher os 
 
 Um cartão que você não joga há algum tempo pode lhe escrever um bilhete curto com a própria voz. O bilhete cai na Inbox (o "Waiting on you" da Home, o botão da Inbox na barra lateral) como uma Letter verde; ao abri-lo você vai para o chat antigo, ou começa um chat com um cartão com o qual você nunca jogou. Uma carta nunca escreve dentro de um chat e nunca inventa eventos.
 
-Ela fica **desligada até você ligá-la**. Enquanto estiver desligada, um cartão verde "Let your characters write to you" fica no topo da seção Characters e em "Waiting on you" da Home: **Turn on** a liga na hora, **Not now** esconde o cartão de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um mesmo cartão, o modelo de escrita) e os cartões que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat parado há 14 dias, um cartão que você nunca jogou há 14 dias, e um cartão jogado sem Soul (uma vez).
+Ela fica **desligada até você ligá-la**. Enquanto estiver desligada, um cartão verde "Let your characters write to you" fica no topo da seção Characters e em "Waiting on you" da Home: **Turn on** a liga na hora, **Not now** esconde o cartão de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um mesmo cartão, o modelo de escrita) e os cartões que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat parado há 14 dias, um cartão que você nunca jogou há 14 dias, e um cartão jogado sem Soul (uma vez). Se o modelo de escrita falhar três verificações seguidas (ou nenhum estiver definido), a Inbox mostra uma falha vermelha "Letters" com o motivo, e **Open** leva você às configurações de cartas; uma carta que chega, outro modelo ou desligar as cartas a limpa.
 
 ## Retratos para cartões sem um
 
