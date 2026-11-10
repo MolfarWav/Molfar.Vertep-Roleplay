@@ -93,7 +93,8 @@ export function CastCards({ chat, onChat, ctl }: CastProps) {
 
   return (
     <div className="@container">
-      <div className="grid gap-3 @xl:grid-cols-2">
+      {/* grid-cols-1 is minmax(0, 1fr): a bare grid has one `auto` column, which grows to the widest unbreakable badge and pushes the cards past the column (#353) */}
+      <div className="grid grid-cols-1 gap-3 @xl:grid-cols-2">
         {groups.map((group) => (
           <CastCard
             key={group.name}
@@ -142,7 +143,7 @@ function CastCard({
     <div
       data-testid="cast-card"
       className={cn(
-        'rounded-lg border border-border border-t-4 border-t-primary/60 bg-card p-3 shadow-sm',
+        'min-w-0 rounded-lg border border-border border-t-4 border-t-primary/60 bg-card p-3 shadow-sm',
         isWorld && '@xl:col-span-2'
       )}
     >

@@ -602,13 +602,14 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
           )}
           <div className="flex flex-wrap items-center gap-1.5">
             {!compact && (
-              <Badge variant="outline" className={cn('text-[10px]', fact.subject === 'world' ? TYPE_TONE.world : TONE.subject)}>
+              <Badge variant="outline" className={cn('h-auto min-w-0 max-w-full whitespace-normal text-left leading-4 [overflow-wrap:anywhere] text-[10px]', fact.subject === 'world' ? TYPE_TONE.world : TONE.subject)}>
                 {fact.subject === 'world' ? t('lit.type.world') : t('lit.subject', { name: fact.subject })}
               </Badge>
             )}
-            <Badge variant="outline" className={cn('gap-1 text-[10px]', TONE.knownBy)}>
-              <Eye className="size-3" aria-hidden="true" />
-              {fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: knownNames(fact.knownBy, t) })}
+            {/* a long list of names wraps inside the badge instead of widening the card (#353) */}
+            <Badge variant="outline" className={cn('h-auto min-w-0 max-w-full gap-1 whitespace-normal text-left text-[10px] leading-4 [overflow-wrap:anywhere]', TONE.knownBy)}>
+              <Eye className="size-3 shrink-0" aria-hidden="true" />
+              <span className="min-w-0">{fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: knownNames(fact.knownBy, t) })}</span>
             </Badge>
             <Badge variant="outline" className={cn('text-[10px]', TYPE_TONE[fact.type])}>{t(typeKey(fact.type))}</Badge>
             <Badge variant="outline" className={cn('text-[10px]', WEIGHT_TONE[fact.weight])}>
@@ -629,8 +630,8 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
             {fact.edited && <Badge variant="outline" className={cn('text-[10px]', TONE.edited)}>{t('lit.edited')}</Badge>}
             {originKey(fact.origin) && <Badge variant="outline" className={cn('text-[10px]', fact.origin === 'merge' ? TONE.merged : TONE.yours)}>{t(originKey(fact.origin)!)}</Badge>}
             {fact.status !== 'active' && <Badge variant="outline" className={cn('text-[10px]', TONE.gone)}>{t(statusKey(fact.status))}</Badge>}
-            {fact.mergedInto && <Badge variant="outline" className={cn('text-[10px]', TONE.merged)}>{t('lit.mergedInto', { id: textOf(fact.mergedInto) })}</Badge>}
-            {fact.supersedes && <Badge variant="outline" className={cn('text-[10px]', TONE.kind)}>{t('lit.supersedes', { id: textOf(fact.supersedes) })}</Badge>}
+            {fact.mergedInto && <Badge variant="outline" className={cn('h-auto min-w-0 max-w-full whitespace-normal text-left leading-4 [overflow-wrap:anywhere] text-[10px]', TONE.merged)}>{t('lit.mergedInto', { id: textOf(fact.mergedInto) })}</Badge>}
+            {fact.supersedes && <Badge variant="outline" className={cn('h-auto min-w-0 max-w-full whitespace-normal text-left leading-4 [overflow-wrap:anywhere] text-[10px]', TONE.kind)}>{t('lit.supersedes', { id: textOf(fact.supersedes) })}</Badge>}
             {effects.length > 0 && (
               <button
                 type="button"

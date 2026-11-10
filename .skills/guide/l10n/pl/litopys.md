@@ -1,11 +1,11 @@
-<!-- source: 336d96105b8e -->
+<!-- source: 5d3190ee4774 -->
 # Litopys: zapis historii
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta historię w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które historia ustaliła. Gdy czat robi się za długi na okno modelu, zapis niesie historię dalej. Używaj go do długich historii; nie musisz go włączać.
 
 ## Rozdziały i fakty
 
-- **Rozdział** mówi, co zmieniło się w scenie, a nie opowiada jej na nowo. Powstaje, gdy zaczyna się następna scena, więc najnowsza scena może jeszcze go nie mieć. Nowe miejsce albo skok w czasie zamyka scenę; możesz też sam oznaczyć ciąg wiadomości jako scenę z menu „More” wiadomości, w części Story.
+- **Rozdział** mówi, co zmieniło się w scenie, a nie opowiada jej na nowo. Powstaje, gdy zaczyna się następna scena, więc najnowsza scena może jeszcze go nie mieć. Nowe miejsce albo skok w czasie zamyka scenę. Jeśli postacie zostają w jednym miejscu, a historia skręca bez żadnej przeprowadzki, zapis nie widzi granicy. Wtedy możesz zamykać sceny sam: otwórz zapis czatu w Library, znajdź u góry kartę **Scenes** (mówi, ile wiadomości nie należy jeszcze do żadnej sceny) i naciśnij **Suggest scenes**. Model czyta wiadomości, których nie obejmuje żadna scena, jedno zapytanie na 40, i proponuje, gdzie historia skręca, każdą z tytułem i powodem. To trwa minutę lub dwie i możesz zamknąć okno. Zaznacz sceny, które chcesz zachować, i naciśnij **Save scenes**; **Adjust** otwiera jedną z nich w wyborze ręcznym. **Pick by hand** (albo menu „More” wiadomości, Story, „Save as a scene…”) wyświetla listę wiadomości: dotknij pierwszej wiadomości sceny, potem ostatniej, i zapisz. Zapisane sceny pokazują się jako jeden zwinięty wiersz z **Take the mark off**. Każda zapisana scena staje się osobnym rozdziałem, nawet krótka, i nigdy nie jest łączona z poprzednią sceną.
 - **Fakt** to jedno krótkie zdanie, które pozostaje prawdziwe: „Medli ukrywa swoje skrzydła na targu.” Fakty mają typ, wagę (Everyday, Important, Key) i to, kto je zna. Fakty możesz dodawać, edytować, przypinać lub wycofywać ręcznie.
 
 **Fakt może być znany całej grupie**, na przykład gildii: w polu "Known to" wpisz `group: Guild of Ravens`, a każdy członek, który jest w scenie, zna go; reszta nie. Grupa istnieje, gdy karta ma tag `group: Guild of Ravens` lub `faction: Guild of Ravens` (inne tagi nie tworzą grup), albo gdy rekord World DM rodzaju Group lub Place wymienia Members ([[world-dm]]). Gdy członek jest w scenie, model piszący rozdziały dostaje informację o grupie i może jej użyć dla wieści, których cała grupa się dowiedziała. Książka-migawka kopiuje imiona członków w chwili zapisu.

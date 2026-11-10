@@ -301,7 +301,7 @@ export interface LitChat {
   activity: LitActivity[]
   skipped: LitSkipped[]
   /** scenes the reader set apart by hand (1-based message numbers); missing from an engine before #118 */
-  marks?: { id: string; fromNo: number; toNo: number }[]
+  marks?: { id: string; fromNo: number; toNo: number; title?: string }[]
   /** #122: what this chat sets for itself and what the Library settings give every other chat; missing from an engine before it */
   chatConfig?: LitChatConfig
   globalConfig?: Required<Pick<LitChatConfig, 'recentMessages' | 'pinLimit' | 'cutMode' | 'sceneKeep'>> & { scene: { minMessages: number; maxMessages: number } }
@@ -312,6 +312,28 @@ export interface LitChat {
   arcState: LitArcState
   /** #51; missing from an engine before it */
   consolidate?: LitConsolidate
+  /** Suggest scenes: the messages in no scene, and the model's proposed scenes; missing from a plugin before it */
+  sceneSuggest?: LitSceneSuggest
+}
+
+/** One scene the model proposed, by message number (from 1) and id. */
+export interface LitSuggestedScene {
+  id: string
+  from: string
+  to: string
+  fromNo: number
+  toNo: number
+  title: string
+  why: string
+}
+
+/** Suggest scenes: `free` counts messages no scene or chapter holds; `scenes` is filled when state is done. */
+export interface LitSceneSuggest {
+  free: number
+  state: 'idle' | 'working' | 'done' | 'failed'
+  scenes: LitSuggestedScene[]
+  error: string
+  at: number
 }
 
 /** #51 Consolidate facts: batches is the run's size, next the batch being read (0-based). */
@@ -473,6 +495,11 @@ export const rewriteLitChapter = (chatId: string, id: string) => post<LitChat>('
 export const markLitScene = (chatId: string, from: string, to: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'mark', from, to })
 /** Set this chat's own settings, or `null` to go back to the Library's. */
 export const setLitChatConfig = (chatId: string, config: LitChatConfig | null) => post<LitChat>('/litopys/chat-config', { chatId, config })
+/** Save several scenes at once (the suggested ones the reader kept): all or none. */
+export const markLitScenes = (chatId: string, ranges: { from: string; to: string; title?: string }[]) => post<LitChat>('/litopys/scenes', { chatId, op: 'mark-many', ranges })
+export const suggestLitScenes = (chatId: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'suggest' })
+export const cancelSuggestLitScenes = (chatId: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'suggest-cancel' })
+export const clearSuggestLitScenes = (chatId: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'suggest-clear' })
 export const unmarkLitScene = (chatId: string, id: string) => post<LitChat>('/litopys/scenes', { chatId, op: 'unmark', id })
 export const deleteLitChapter = (chatId: string, id: string, keepGone: boolean) => post<LitChat>('/litopys/chapters', { chatId, op: 'delete', id, keepGone })
 

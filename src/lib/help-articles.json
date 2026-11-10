@@ -1205,7 +1205,7 @@
         },
         {
           "path": "src/components/chat/scene-mark-dialog.tsx",
-          "lines": "12-12",
+          "lines": "21-21",
           "quote": "/** Set a run of messages apart as a scene of its own: the story record never folds it into a longer one and is told it matters. */"
         }
       ]
