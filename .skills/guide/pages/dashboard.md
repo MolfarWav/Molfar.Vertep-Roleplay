@@ -8,6 +8,8 @@ Open it by clicking a portrait in the chat and choosing Dashboard. The side pane
 
 **One person listed twice.** If the Dashboard shows the same person under two names (say "Sina" and "Sina Rose"), open one of them and use the small people button in the Person header, then "Same person as..." and pick the other. You are asked first: the notes, history and things move to the person you picked, their relationship numbers stay, the name becomes another name of theirs, and it cannot be undone. The Dashboard also suggests likely duplicates itself: a box at the top of the Person tab (and a chip "Possible duplicate" in "Since your last reply") says "X may be the same person as Y" with the reason. "Merge into Y" does the same as the menu; "Different people" keeps them apart and the Dashboard stops suggesting that pair. The same menu has "Remove from the Dashboard" for a name that is simply wrong.
 
+A character who is in touch from elsewhere (a text, a letter, a call, a video) is marked so in the scene line, with one more short sentence about what reaches them: by text or letter only the words sent; by call only the voice and the sounds near the phone; by video only what is in the camera and what is heard near it. A silent action, such as putting the kettle on, is not known to them.
+
 The numbers (trust, comfort, attraction, respect, affection, and more) are worked out by code from events a model reports, and tilted by each character's [[soul]]. The state is kept per message, so a swipe or a deleted message never leaves stale numbers.
 
 The "Story, move" button next to Send arms a one-time nudge for the next reply; its arrow picks an open quest or a twist.

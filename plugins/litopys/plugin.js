@@ -1056,6 +1056,9 @@ export const DEFAULT_CONFIG = {
   enabled: true,
   model: "",
   recentMessages: 100,
+  // #283: the direct tail by size: when above 0, the newest messages that fit this many tokens (at least 2, at most 200) stay
+  // in the prompt instead of `recentMessages` of them. 0 = count messages. The engine plugin reads it too (litopysCut).
+  recentTokens: 0,
   // "fit": the model's window decides how much of what chapters cover leaves the prompt; "scenes": a scene
   // leaves whole as soon as its chapter exists, and sceneKeep (2 and up, no upper limit in practice) direct messages stay after the last one
   cutMode: "fit",
@@ -1111,6 +1114,10 @@ export const DEFAULT_CONFIG = {
   recollectChars: 300,
   // #184 P1d: a short "who knows what" brief for a reply that voices several characters (on by default since the leak bench: fewer narrator leaks on small models)
   castKnowledge: true,
+  // #289: the recent messages a speaking character was not present for (the Dashboard's `present`) leave that character's
+  // prompt, a run of them as one line "[Bram was not here: 6 messages]". "groups" (default): only a group's replies;
+  // "all": a card chat too; "off". The chat's own switch is the Prompt board item `plugin:presence`.
+  presenceCut: "groups",
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
   // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
   hiddenPlan: false,
@@ -1432,6 +1439,7 @@ export function loadConfig(fsx) {
   };
   if (cfg.scene.maxMessages < cfg.scene.minMessages) cfg.scene.maxMessages = cfg.scene.minMessages;
   cfg.recentMessages = clamp(cfg.recentMessages, 6, 200);
+  cfg.recentTokens = Number(cfg.recentTokens) > 0 ? clamp(intOf(cfg.recentTokens, 0), RECENT_TOKENS_MIN, RECENT_TOKENS_MAX) : 0;
   cfg.cutMode = cfg.cutMode === "scenes" ? "scenes" : "fit";
   cfg.sceneKeep = clamp(cfg.sceneKeep, 2, SCENE_KEEP_MAX);
   cfg.promptAlert = cfg.promptAlert === "tokens" || cfg.promptAlert === "off" ? cfg.promptAlert : "auto";
@@ -1458,6 +1466,7 @@ export function loadConfig(fsx) {
   cfg.recollectBudget = clamp(intOf(cfg.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
+  cfg.presenceCut = PRESENCE_MODES.includes(cfg.presenceCut) ? cfg.presenceCut : "groups";
   cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.verbatim = cfg.verbatim !== false;
   cfg.verbatimBudget = clamp(intOf(cfg.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
@@ -1528,6 +1537,7 @@ export function patchConfig(fsx, body) {
   if (b.enabled !== undefined) next.enabled = b.enabled !== false && b.enabled !== "off";
   if (b.model !== undefined) next.model = typeof b.model === "string" ? b.model.trim().slice(0, 160) : "";
   if (b.recentMessages !== undefined) next.recentMessages = clamp(intOf(b.recentMessages, 100), 6, 200);
+  if (b.recentTokens !== undefined) next.recentTokens = Number(b.recentTokens) > 0 ? clamp(intOf(b.recentTokens, 0), RECENT_TOKENS_MIN, RECENT_TOKENS_MAX) : 0;
   if (b.cutMode !== undefined) next.cutMode = b.cutMode === "scenes" ? "scenes" : "fit";
   if (b.sceneKeep !== undefined) next.sceneKeep = clamp(intOf(b.sceneKeep, 2), 2, SCENE_KEEP_MAX);
   if (b.promptAlert !== undefined) next.promptAlert = b.promptAlert === "tokens" || b.promptAlert === "off" ? b.promptAlert : "auto";
@@ -1558,6 +1568,7 @@ export function patchConfig(fsx, body) {
   if (b.recollectBudget !== undefined) next.recollectBudget = clamp(intOf(b.recollectBudget, RECOLLECT_TOKENS), RECOLLECT_MIN, RECOLLECT_MAX);
   if (b.recollectChars !== undefined) next.recollectChars = clamp(intOf(b.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
+  if (b.presenceCut !== undefined) next.presenceCut = PRESENCE_MODES.includes(b.presenceCut) ? b.presenceCut : "groups";
   if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   if (b.verbatim !== undefined) next.verbatim = b.verbatim === true || b.verbatim === "on";
@@ -1882,6 +1893,28 @@ export function sceneEnds(st, line) {
   return [...ends].sort((a, b) => a - b);
 }
 
+/** The most and the least `recentTokens` may be set to (0 = off). */
+const RECENT_TOKENS_MIN = 500;
+const RECENT_TOKENS_MAX = 400000;
+/**
+ * How many of the newest messages stay in the prompt as the direct tail (#283): `recentMessages`, or, when `recentTokens` is
+ * set, as many of the newest as fit that many tokens (at least 2, at most 200), so a long turn and a one-liner no longer weigh
+ * the same. A copy of the rule is in plugins/engine (`litopysRecent`); change both.
+ */
+export function recentCount(line, cfg) {
+  const fixed = (cfg && cfg.recentMessages) || DEFAULT_CONFIG.recentMessages;
+  const budget = Number(cfg && cfg.recentTokens);
+  if (!(budget > 0)) return fixed;
+  let used = 0;
+  let n = 0;
+  for (let i = line.length - 1; i >= 0 && n < 200; i--) {
+    used += estimateTokens(str(line[i] && line[i].text)) + 4;
+    if (used > budget && n >= 2) break;
+    n++;
+  }
+  return Math.max(2, n);
+}
+
 /**
  * M3b item 2: the cut count = covered, at most line.length - recentMessages. In cutMode "scenes" it is
  * the end of the last whole scene that leaves sceneKeep messages after it (a scene goes whole or not at all).
@@ -1893,7 +1926,7 @@ export function cutCount(st, line, cfg) {
     return ends.length ? ends[ends.length - 1] : 0;
   }
   const covered = coveredCount(st, line);
-  const recent = (cfg && cfg.recentMessages) || DEFAULT_CONFIG.recentMessages;
+  const recent = recentCount(line, cfg);
   const limit = Math.max(0, line.length - recent);
   return Math.max(0, Math.min(covered, limit));
 }
@@ -2164,7 +2197,7 @@ export function sceneCast(scene, line, dash, meta, notCast = [], canon) {
 
 /** item 6: returns the request object for host.llm.request. */
 /** {{user}} and {{char}} (case-insensitive, spaces inside the braces allowed) in text that goes to a helper model as
- *  input. An empty name leaves its macro raw. Other macros stay raw. Copied from plugins/relations, world, letters,
+ *  input. An empty name leaves its macro raw. Comments, variable reads and writes, {{newline}}, {{trim}} and {{random}} are settled (#283); other macros stay raw. Copied from plugins/relations, world, letters,
  *  agents (#156); test/rp-helper-names.test.ts keeps the copies equal. */
 export function expandNames(text, userName, charName) {
   if (typeof text !== "string" || text.indexOf("{{") < 0) return text;
@@ -2173,6 +2206,16 @@ export function expandNames(text, userName, charName) {
   let out = text;
   if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
   if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  // macros with nothing for a helper to read (#283): comments, variable writes and reads (their values live in the preset, which
+  // a helper call does not carry), line breaks and random picks (the first choice) are settled here, so the helper does not read
+  // `{{getvar::mood}}` as story text. {{if}} blocks and the other macros stay raw.
+  out = out
+    .replace(/\{\{\s*\/\/[\s\S]*?\}\}/g, "")
+    .replace(/\{\{\s*(?:setvar|setglobalvar|addvar|addglobalvar|incvar|decvar|getvar|getglobalvar)\s*::[^{}]*\}\}/gi, "")
+    .replace(/\{\{\s*(?:trim|noop)\s*\}\}/gi, "")
+    .replace(/\{\{\s*newline\s*\}\}/gi, "\n")
+    .replace(/\{\{\s*(?:random|pick)\s*::([^{}]*)\}\}/gi, (_m, a) => a.split("::")[0].trim())
+    .replace(/\{\{\s*(?:random|pick)\s*:([^:{}][^{}]*)\}\}/gi, (_m, a) => a.split(",")[0].trim());
   return out;
 }
 
@@ -2858,12 +2901,13 @@ export function factLineOf(f, solo, groups) {
 
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
-  // the engine says where the last prompt's history started (null: it did not say). In "fit" mode the
-  // window may have dropped more than the recent window allows: what lies before is carried here. In
-  // "scenes" mode the engine's cut is the cut: a scene still in the prompt is not carried twice.
+  // the engine says where the last prompt's history started (null: it did not say). That is the cut, in both modes: the window
+  // may have dropped more than the recent window allows (what lies before is carried here), and a message the prompt still
+  // carries is not carried a second time as a chapter (#283: in "fit" mode `max(own, told)` did that when the window had room).
+  // Without the engine's word the cut is what the chapters and the recent window allow.
   const told = Number.isInteger(promptCut) && promptCut >= 0 ? Math.min(line.length, promptCut) : null;
   const own = cutCount(st, line, cfg);
-  const cut = told === null ? own : cfg && cfg.cutMode === "scenes" ? told : Math.max(own, told);
+  const cut = told === null ? own : told;
   const { present, userName } = presentNames({ line, dash, meta, speakerName });
   // names are compared through the entity registry (canon): "Seraphina" in knownBy counts for "Queen Seraphina" here
   const key = keyOf(canon);
@@ -2877,7 +2921,12 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // a fact told to a whole group is known to each member who is speaking or here (#184 P7)
   const groups = canon && canon.groups ? canon.groups : null;
   const knowsAs = groups ? new Set([...knowers, ...groups.tokensFor(knowers)]) : knowers;
-  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowsAs.has(key(k))));
+  // A fact with no `knownBy` at all (an old file, a hand edit, an import) records no audience: it counts as known to the people
+  // in the scene, not to everyone and not to no one (#283; with 20 characters "everyone" would be a leak, "no one" a lost fact).
+  // A reply by one voice gets it when that voice is in the scene (or the Dashboard has no scene to say), a narrator's always.
+  const noAudience = (f) => f.knownBy === undefined || f.knownBy === null;
+  const inScene = !(voices instanceof Set && voices.size) || here.size === 0 || [...voices].some((v) => here.has(v));
+  const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowsAs.has(key(k)))) || (noAudience(f) && inScene);
   const live = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text));
   const active = live.filter(known);
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
@@ -3179,13 +3228,17 @@ export function insertCeiling(ctx, host) {
     if (f && f.sources.length) add("litopys world memory", f.inject.maxTokens);
   }
   // what the characters remember of old scenes: a group has casts, and a chat whose last insert had some
+  // (#283: also a chat whose record already holds a view for a chapter, so the first reply with a new recollection has its room)
   const ins = readJson(fsx, INSERT_DIR + chatId + ".json", null);
-  if (cfg.recollections !== false && !off("plugin:recollections") && (grouped || (isObj(ins) && ins.recollections))) add("litopys recollections", cfg.recollectBudget);
+  const recRecord = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
+  const hasViews = isObj(recRecord) && arr(recRecord.chapters).some((ch) => isObj(ch) && arr(ch.views).length > 0);
+  if (cfg.recollections !== false && !off("plugin:recollections") && (grouped || hasViews || (isObj(ins) && ins.recollections))) add("litopys recollections", cfg.recollectBudget);
   // word-for-word passages of the earlier chats of the chain: only a chat that continues another
   if (cfg.verbatim !== false && !off("plugin:verbatim") && linked) add("litopys verbatim", cfg.verbatimBudget);
   // who knows what, and the optional hidden plan: only a reply that voices several characters (a group, a card with
   // several names). A chat with no card is not reserved.
-  const severalVoices = grouped || cardNamesOf(cardOf(fsx, str(meta.characterId))).size > 1;
+  // A chat with no card (or one whose card is missing) has no sole voice either, and Litopys runs its brief for it (#283)
+  const severalVoices = grouped || cardNamesOf(cardOf(fsx, str(meta.characterId))).size !== 1;
   if (severalVoices && cfg.castKnowledge !== false && !off("plugin:litopys")) {
     add("litopys who knows what", CAST_TOKENS);
     if (cfg.hiddenPlan === true) add("litopys hidden plan", HIDDEN_PLAN_RESERVE);
@@ -3196,6 +3249,134 @@ export function insertCeiling(ctx, host) {
 const ceilingAnswer = (rows) => ({ ceilings: rows.length ? rows : [{ id: "litopys", tokens: 0 }] });
 /** The most the hidden plan's instruction and the lines the model writes under it may take. */
 const HIDDEN_PLAN_RESERVE = 130;
+
+// ---------- the presence cut (#289) ----------
+const PRESENCE_MODES = ["groups", "all", "off"];
+/** A short hash of one prompt message (role and text): FNV-1a over the UTF-16 units. A copy lives in plugins/engine (it writes
+ *  the hashes of the history it sent, `litopys/prompt-cut/<chat>.json` `hist`); change both. */
+export function promptHash(role, content) {
+  const t = String(role) + "\n" + String(content);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) {
+    h ^= t.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36) + "." + t.length;
+}
+
+/**
+ * The recent messages of the raw history that the speaking character was not present for (#289, like the Presence extension for
+ * SillyTavern). Who was there comes from the Dashboard: a message's snapshot `present` (the state at the end of the new
+ * messages), and for a player's message the snapshot of the reply that answers it. A run of such messages becomes one system
+ * line, so the model knows time passed and does not stitch the neighbours together:
+ *   `[Bram was not here: 6 messages]`, or, when the scene did not change place after Bram was last in it, that he was within
+ *   earshot and heard voices and noise but not the words.
+ * Kept always: the speaker's own messages, the newest message, a message with no snapshot (unknown is visible), a message the
+ * hashes cannot find in the request. Nothing is cut when the speaker is on no snapshot at all (a name the Dashboard does not
+ * match): that would hide a whole story. The messages are the request's own; `hist` is what the engine wrote for the prompt
+ * (`prompt-cut` `hist`: `[{ id, h }]`). Returns `{ messages, cut, runs: [{ n, near }] }`, or `{ reason }` when it did nothing.
+ */
+export function presenceCutFor({ messages, hist, line, dash, speakerName, voices, canon }) {
+  if (!Array.isArray(messages) || !Array.isArray(hist) || !hist.length) return { reason: "no prompt record" };
+  if (!Array.isArray(line) || !line.length || !isObj(dash) || !isObj(dash.snapshots)) return { reason: "no snapshots" };
+  if (!(voices instanceof Set) || !voices.size) return { reason: "not one voice" };
+  const key = keyOf(canon);
+  const mine = new Set([...voices].map(key));
+  if (str(speakerName)) mine.add(key(speakerName));
+  const presentOf = (snap) => {
+    if (!isObj(snap) || !Array.isArray(snap.present)) return null;
+    const s = new Set();
+    for (const p of snap.present) if (typeof p === "string" && p.trim()) s.add(key(p));
+    return s.size ? s : null;
+  };
+  const hasMine = (s) => !!s && [...mine].some((k) => s.has(k));
+  // who was there for each message of the line: a reply by its own snapshot, a player's message by the next reply's
+  const presAt = new Array(line.length).fill(null);
+  const placeAt = new Array(line.length).fill("");
+  let nextPres = null;
+  let nextPlace = "";
+  for (let i = line.length - 1; i >= 0; i--) {
+    if (line[i].role === "char") {
+      const s = snapOf(dash, line[i]);
+      nextPres = presentOf(s);
+      nextPlace = placeOf(s);
+      presAt[i] = nextPres;
+      placeAt[i] = nextPlace;
+    } else {
+      presAt[i] = nextPres;
+      placeAt[i] = nextPlace;
+    }
+  }
+  if (!presAt.some(hasMine)) return { reason: "the speaker is on no Dashboard snapshot" };
+  // which request message is which history turn: by the hash of role and text
+  const hashes = messages.map((m) => (m && typeof m.content === "string" ? promptHash(m.role, m.content) : null));
+  const found = [];
+  let from = 0;
+  for (const e of hist) {
+    let at = -1;
+    if (isObj(e) && typeof e.h === "string") {
+      for (let j = from; j < messages.length; j++) {
+        if (hashes[j] === e.h) {
+          at = j;
+          break;
+        }
+      }
+    }
+    if (at >= 0) from = at + 1;
+    found.push(at);
+  }
+  const lineAt = new Map(line.map((m, i) => [m.id, i]));
+  const absent = hist.map((e, k) => {
+    if (found[k] < 0 || k === hist.length - 1) return false;
+    const li = lineAt.get(e && e.id);
+    if (li === undefined) return false;
+    const m = line[li];
+    if (m.role === "char" && mine.has(key(m.name))) return false;
+    const pr = presAt[li];
+    return !!pr && !hasMine(pr);
+  });
+  const name = str(speakerName) || "This character";
+  const drop = new Set();
+  const at = new Map();
+  const runs = [];
+  for (let k = 0; k < hist.length; k++) {
+    if (!absent[k]) continue;
+    let b = k;
+    while (b + 1 < hist.length && absent[b + 1]) b++;
+    const n = b - k + 1;
+    // within earshot: the speaker was in the scene just before, and the scene's place did not change over the run
+    const first = lineAt.get(hist[k].id);
+    let prevPres = null;
+    let prevPlace = "";
+    for (let i = first - 1; i >= 0; i--) {
+      if (presAt[i]) {
+        prevPres = presAt[i];
+        prevPlace = placeAt[i];
+        break;
+      }
+    }
+    let near = hasMine(prevPres) && !!prevPlace;
+    for (let x = k; near && x <= b; x++) {
+      const li = lineAt.get(hist[x].id);
+      if (!placeAt[li] || !samePlace(placeAt[li], prevPlace)) near = false;
+    }
+    const plural = n === 1 ? "message" : "messages";
+    const text = near
+      ? "[" + name + " was out of the room, within earshot, for " + n + " " + plural + ": " + name + " heard voices and noise, not the words]"
+      : "[" + name + " was not here: " + n + " " + plural + "]";
+    at.set(found[k], text);
+    for (let x = k; x <= b; x++) drop.add(found[x]);
+    runs.push({ n, near, text });
+    k = b;
+  }
+  if (!runs.length) return { messages, cut: 0, runs: [], lines: [] };
+  const out = [];
+  messages.forEach((m, j) => {
+    if (at.has(j)) out.push({ role: "system", content: at.get(j) });
+    if (!drop.has(j)) out.push(m);
+  });
+  return { messages: out, cut: runs.reduce((t, r) => t + r.n, 0), runs, lines: runs.map((r) => ({ n: r.n, text: r.text })) };
+}
 
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply" || !ctx.turn) return null;
@@ -3351,7 +3532,28 @@ export function llmRequest(ctx, host) {
     // the hidden plan: only beside the brief, only on a new reply
     let plan = null;
     if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim) return null;
+    // #289: the recent messages this speaker was not present for leave the history (a group's replies by default)
+    let presence = null;
+    if (cfg.presenceCut !== "off" && (cfg.presenceCut === "all" || str(rc.meta.groupId)) && !offForChat(fsx, chatId, "plugin:presence")) {
+      try {
+        const sole = soleVoice(fsx, rc.meta, speakerName);
+        const rec = readJson(fsx, "litopys/prompt-cut/" + chatId + ".json", null);
+        presence = presenceCutFor({
+          messages: req.messages,
+          hist: isObj(rec) ? rec.hist : null,
+          line,
+          dash: readDash(fsx, chatId),
+          speakerName,
+          voices: sole,
+          canon: litCanon(fsx, chatId, rc.meta),
+        });
+      } catch (e) {
+        try {
+          host.log("litopys presence: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim && !(presence && presence.cut > 0)) return null;
     // #184 P6: the trace of the reply before this one moves into a short ring (the newest stays in the insert file)
     try {
       if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
@@ -3378,6 +3580,7 @@ export function llmRequest(ctx, host) {
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
           ...(recall ? { recollections: { tokens: recall.tokens, scenes: recall.scenes, who: recall.who } } : {}),
           ...(verbatim ? { verbatim: { tokens: verbatim.tokens, chunks: verbatim.chunks, chats: verbatim.chats, rows: verbatim.rows } } : {}),
+          ...(presence && presence.cut > 0 ? { presence: { cut: presence.cut, runs: presence.runs.length, near: presence.runs.filter((r) => r.near).length, speaker: str(speakerName) } } : {}),
         }),
       );
     } catch {}
@@ -3388,8 +3591,11 @@ export function llmRequest(ctx, host) {
       if ((insert && insert.trace) || farUsed || verbUsed) recordLitFired(fsx, chatId, str(ctx.turn.op), insert && insert.trace ? insert.trace.rows : [], farUsed, verbUsed);
     } catch {}
     // the backstory first (it is the older story), then the chat's own record
-    let messages = req.messages;
+    let messages = presence && presence.cut > 0 ? presence.messages : req.messages;
     const promptSources = { parts: [] };
+    if (presence && presence.cut > 0) {
+      for (const line of presence.lines || []) promptSources.parts.push({ kind: "memory", label: "Presence · " + line.n + (line.n === 1 ? " message" : " messages") + " left out", text: line.text });
+    }
     // the language note rides once, on whichever block comes first
     let langLeft = true;
     const said = (text) => {

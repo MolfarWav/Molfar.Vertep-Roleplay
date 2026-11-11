@@ -18,6 +18,7 @@ const NAME_KEYS: Record<string, MsgKey> = {
   'plugin:cardhabits': 'canvas.prompt.name.cardhabits',
   'plugin:recollections': 'canvas.prompt.name.recollections',
   'plugin:verbatim': 'canvas.prompt.name.verbatim',
+  'plugin:presence': 'canvas.prompt.name.presence',
   'plugin:personamemory': 'canvas.prompt.name.personamemory',
   'plugin:worldmemory': 'canvas.prompt.name.worldmemory',
   'plugin:world': 'canvas.prompt.name.world',

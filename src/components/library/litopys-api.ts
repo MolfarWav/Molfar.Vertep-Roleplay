@@ -368,6 +368,8 @@ export interface LitConfig {
   enabled: boolean
   model: string
   recentMessages: number
+  /** #283: when above 0, the direct tail is the newest messages that fit this many tokens instead of `recentMessages` of them; missing from an older plugin */
+  recentTokens?: number
   /** 'fit' (default): the model's window decides what leaves the prompt; 'scenes': whole scenes leave once a chapter holds them */
   cutMode?: 'fit' | 'scenes'
   /** direct messages kept after the cut scenes in 'scenes' mode, from 2 */
@@ -422,6 +424,8 @@ export interface LitConfig {
   autoEmbed?: boolean
   /** #184: a "who knows what" brief for a reply that voices several characters (default on); missing from an older plugin */
   castKnowledge?: boolean
+  /** #289: the recent messages a speaking character was not present for leave their prompt (default `groups`: a group's replies only); missing from an older plugin */
+  presenceCut?: 'groups' | 'all' | 'off'
   /** #184: the chapter worker also writes search words (`also`) for new facts and chapters (default on); missing from an older plugin */
   searchWords?: boolean
   /** #184: on top of the brief, the narrator writes a hidden plan first (default off); missing from an older plugin */

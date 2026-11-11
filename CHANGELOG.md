@@ -2,6 +2,15 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Added: **a reply spoken by one character leaves out the recent messages that character was not present for (Molfar.Vertep#289).** The Dashboard says who was in each scene; a run of such messages becomes one line, `[Bram was not here: 6 messages]` (or, when the scene's place did not change, that Bram was within earshot and heard voices, not the words). The speaker's own messages, the newest message and anything the Dashboard has no data for stay; nothing is cut when the speaker is on no snapshot. Groups by default; Library > Litopys settings "Leave out what a speaker was not present for" (Groups only / Every chat / Off) and a Prompt board switch per chat.
+- Added: **a character in touch by text, letter, call or video is told what reaches them (Molfar.Vertep#289):** the Dashboard's scene line gets one sentence per kind (only the words sent; only the voice and the sounds near the phone; only what is in the camera).
+- Added: **import a chat kept as plain text (Molfar.Vertep#291, chat-log path).** "Paste a chat log" and "Import chat" in a character's Chat files take `Name: text` logs; the dialog shows messages and speakers found, who you are, and the memory cost (about one model call per scene of up to 40 messages) before anything starts. A document-to-lorebook path is not built.
+- Added: **Litopys "Direct messages, by size" (`recentTokens`, Molfar.Vertep#283):** keep the newest messages that fit a number of tokens instead of a fixed count.
+- Changed: **a chapter is no longer inserted beside messages the prompt still carries** in `fit` mode (#283), the "recollections" row of the history reserve no longer lags a reply, and a chat with no card reserves the "who knows what" brief it runs. A fact with no `knownBy` counts as known to the people in the scene. Helper input settles comments, `{{getvar}}`/`{{setvar}}`, `{{newline}}`, `{{trim}}` and `{{random}}` instead of sending them raw.
+- Docs: guide pages Litopys, Long chats, Dashboard and Memory; `docs/DATA-FORMATS.md`, `ARCHITECTURE.md`, `COUPLINGS.md`.
+
 ## 4.112.0 (2026-11-11)
 
 - Changed: **FRANKENX and Molfar now say what the app's notes in square brackets are.** Vertep Lite already had a "Notes from Vertep" block that tells the model what Litopys, the Dashboard, the World DM and the directions put into the prompt; the two older presets did not (Molfar had a shorter paragraph without the World DM, the end-of-reply tag and "Vertep is the app, not a place in the story"; FRANKENX had nothing). FRANKENX gets a "Notes from Vertep" section before the chat history (its Priority Ladder tier 2 points to it), Molfar's "App notes" paragraph is now the full list. Both name `[Story record (Litopys)]`, `[Backstory (Litopys)]`, `[Background, the scene]`, `[How ... is right now]`, `[Open threads]`, `[World news]`, `[WORLD EVENT]`, `[Direction for this reply only]`, `[For this reply only]`, `[Write the next reply only as]`, `[Stage directions]` and the end-of-reply tag. A built-in (read-only) copy takes the new text on update; a copy you made yourself keeps its own.

@@ -325,9 +325,12 @@ rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatCo
   100) and only as many leave as the model's window has no room for; a chat that fits is sent in full. `scenes`: a
   scene leaves whole as soon as a chapter (or an arc over chapters) holds it, never in part, and the last `sceneKeep`
   messages (2 and up, no upper limit that matters) always stay after it; the window still trims the rest. After a real
-  generation the engine writes `litopys/prompt-cut/<chatId>.json` (`{ count, upTo }`: where the prompt's word-for-word
-  history began, `count` 0 = the whole chat); the Litopys insert carries a chapter for every message before it, and in
-  `scenes` mode exactly those. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
+  generation the engine writes `litopys/prompt-cut/<chatId>.json` (`{ count, upTo, hist }`: where the prompt's word-for-word
+  history began, `count` 0 = the whole chat; `hist` is `[{ id, h }]`, the message id and a hash of role and text of each history
+  message as sent, at most 400, for the presence cut); the Litopys insert carries a chapter for every message before it, and in
+  both modes exactly those (#283: `fit` used to take the larger of its own cut and the engine's, which put a chapter beside
+  messages the prompt still carried). `litopys/config.json` `recentTokens` (#283, 0 = off, else 500 to 400000): the direct tail is
+  the newest messages that fit that many tokens (at least 2, at most 200) instead of `recentMessages` of them; global only. `GET /chats/:id` returns that as `meta.promptCut` and the ceiling (or, in `scenes`, the
   cut) as `meta.litopysCut`.
 - `promptAlert` (`auto`, default, `tokens` or `off`) and `promptAlertTokens` (1000 to 5000000, default 30000; `litopys/config.json`, #261):
   when the chat's popup offers a continuation chat. The size is what the model was sent for the newest reply (`usage.input` plus cached input

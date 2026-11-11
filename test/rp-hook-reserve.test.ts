@@ -25,11 +25,11 @@ const seedCards = () => {
 };
 
 describe("hook reserve: the blocks that were counted before", () => {
-  it("defaults: the dashboard (max*2+200) and its said block, the Litopys insert (budget+100)", () => {
-    expect(byId(rows())).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900 });
+  it("defaults: the dashboard (max*2+200) and its said block, the Litopys insert (budget+100); a chat with no card also has the brief (#283)", () => {
+    expect(byId(rows())).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900, "litopys who knows what": 250 });
     writeJson("dashboard/config.json", { injection: { enabled: true, maxTokens: 1000 }, said: { inject: false } });
     writeJson("litopys/config.json", { budget: 2000 });
-    expect(byId(rows())).toEqual({ dashboard: 2200, "dashboard journal": 360, litopys: 2100 });
+    expect(byId(rows())).toEqual({ dashboard: 2200, "dashboard journal": 360, litopys: 2100, "litopys who knows what": 250 });
     writeJson("dashboard/config.json", { injection: { enabled: false } });
     writeJson("litopys/config.json", { insert: false });
     expect(rows()).toEqual([]);
@@ -59,7 +59,7 @@ describe("hook reserve: the blocks that were counted before", () => {
     const fsx = mockHost().host.fs;
     fsx.write("dashboard/config.json", "{not json");
     fsx.write("litopys/config.json", "{not json");
-    expect(byId(E.hookInsertBreakdown(fsx, "c1", { id: "c1" }))).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900 });
+    expect(byId(E.hookInsertBreakdown(fsx, "c1", { id: "c1" }))).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900, "litopys who knows what": 250 });
   });
 });
 
@@ -171,12 +171,13 @@ describe("hook reserve: persona and world memory, recollections, who knows what,
   });
   it("who knows what (250) and the hidden plan (130) only for a group, and the plan only when switched on", () => {
     seedCards();
-    expect(byId(rows())["litopys who knows what"]).toBeUndefined();
+    // no card at all: Litopys has no sole voice and runs the brief, so it is reserved (#283)
+    expect(byId(rows())["litopys who knows what"]).toBe(250);
     expect(byId(rows({ groupId: "g1" }))["litopys who knows what"]).toBe(250);
     expect(byId(rows({ groupId: "g1" }))["litopys hidden plan"]).toBeUndefined();
     writeJson("litopys/config.json", { hiddenPlan: true });
     expect(byId(rows({ groupId: "g1" }))["litopys hidden plan"]).toBe(130);
-    expect(byId(rows())["litopys hidden plan"]).toBeUndefined();
+    expect(byId(rows())["litopys hidden plan"]).toBe(130);
     writeJson("litopys/config.json", { hiddenPlan: true, castKnowledge: false });
     expect(byId(rows({ groupId: "g1" }))["litopys who knows what"]).toBeUndefined();
     expect(byId(rows({ groupId: "g1" }))["litopys hidden plan"]).toBeUndefined();
@@ -197,8 +198,8 @@ describe("hook reserve: persona and world memory, recollections, who knows what,
     expect(byId(rows({ characterId: "nora" }))["litopys who knows what"]).toBeUndefined();
     writeJson("litopys/config.json", { hiddenPlan: true });
     expect(byId(rows({ characterId: "nora", promptBoard: { off: ["plugin:litopys"] } }))["litopys who knows what"]).toBeUndefined();
-    // a card with no file counts as one voice (no row), as Litopys finds no card
-    expect(byId(rows({ characterId: "ghost" }))["litopys who knows what"]).toBeUndefined();
+    // a card with no file has no sole voice either: Litopys runs the brief, so the row is there (#283)
+    expect(byId(rows({ characterId: "ghost" }))["litopys who knows what"]).toBe(250);
   });
   it("the ceilings hold the real blocks: the plan note and the brief, measured with the engine's script-aware estimate", () => {
     // the engine counts ASCII at 3.5 characters a token; the note is plain English

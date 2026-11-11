@@ -93,7 +93,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
       {o.hint && <p className="text-xs text-muted-foreground">{o.hint}</p>}
     </Field>
   )
-  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'sceneKeep' | 'promptAlertTokens' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter' | 'recollectBudget' | 'recollectChars' | 'verbatimBudget' | 'farShare' | 'turnsShown', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
+  const keyField = (key: 'budget' | 'linkBudget' | 'recentMessages' | 'recentTokens' | 'sceneKeep' | 'promptAlertTokens' | 'pinLimit' | 'arcKeep' | 'arcThreshold' | 'arcSizeMin' | 'arcSizeMax' | 'arcWords' | 'habitsEarnAfter' | 'recollectBudget' | 'recollectChars' | 'verbatimBudget' | 'farShare' | 'turnsShown', o: { id: string; label: string; hint?: string; unit?: string; min: number; max: number; fallback?: number }) =>
     numField({ ...o, value: cfg[key], setLocal: (v) => setCfg({ ...cfg, [key]: v }), commit: (v) => save({ [key]: v }) })
   const sizeField = () => {
     const mode: 'compact' | 'auto' | 'custom' = cfg.budgetMode === 'auto' ? 'auto' : sizeMode ?? (cfg.budget === COMPACT_SIZE ? 'compact' : 'custom')
@@ -225,6 +225,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           {cfg.cutMode === 'scenes'
             ? keyField('sceneKeep', { id: 'lit-scene-keep', label: t('lit.set.sceneKeep'), hint: t('lit.set.sceneKeepHint'), min: 2, max: 100000, fallback: 2 })
             : keyField('recentMessages', { id: 'lit-recent', label: t('lit.set.recent'), hint: t('lit.set.recentHint'), min: 6, max: 200 })}
+          {cfg.cutMode !== 'scenes' && keyField('recentTokens', { id: 'lit-recent-tokens', label: t('lit.set.recentTokens'), hint: t('lit.set.recentTokensHint'), unit: t('lit.unit.tokens'), min: 0, max: 400000, fallback: 0 })}
         </div>
       </SettingsBlock>
 
@@ -315,6 +316,24 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {cfg.recollections !== false && keyField('recollectChars', { id: 'lit-recollect-chars', label: t('lit.set.recollectChars'), hint: t('lit.set.recollectCharsHint'), unit: t('lit.unit.chars'), min: 150, max: 1000, fallback: 300 })}
         {switchRow('lit-cast-knowledge', t('lit.set.castKnowledge'), t('lit.set.castKnowledgeHint'), cfg.castKnowledge !== false, (v) => save({ castKnowledge: v }))}
         {cfg.castKnowledge !== false && switchRow('lit-hidden-plan', t('lit.set.hiddenPlan'), t('lit.set.hiddenPlanHint'), cfg.hiddenPlan === true, (v) => save({ hiddenPlan: v }))}
+        <Field>
+          <FieldLabel htmlFor="lit-presence-cut" className="font-medium">{t('lit.set.presenceCut')}</FieldLabel>
+          <select
+            id="lit-presence-cut"
+            value={cfg.presenceCut ?? 'groups'}
+            onChange={(e) => {
+              const v = e.target.value as 'groups' | 'all' | 'off'
+              setCfg({ ...cfg, presenceCut: v })
+              save({ presenceCut: v })
+            }}
+            className="min-h-10 w-56 rounded-md border border-border bg-background px-2 py-1.5 text-sm md:min-h-8"
+          >
+            <option value="groups">{t('lit.set.presenceGroups')}</option>
+            <option value="all">{t('lit.set.presenceAll')}</option>
+            <option value="off">{t('lit.set.presenceOff')}</option>
+          </select>
+          <p className="text-xs text-muted-foreground">{t('lit.set.presenceCutHint')}</p>
+        </Field>
       </SettingsBlock>
 
       <SettingsBlock tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
