@@ -4,7 +4,7 @@ Roleplay has several things that "remember". They differ in who keeps them, what
 
 ## The kinds
 
-**Chat history.** The messages themselves. The model sees as many recent ones as its window allows.
+**Chat history.** The messages themselves. The model sees as many recent ones as its window allows, except that a reply spoken by one character can leave out the scenes that character was not in ([[litopys]]).
 
 **Dashboard** ([[dashboard]]). Per chat, the *current* state of the scene: who is present, feelings, outfits, open quests, what each character knows. It changes with every reply.
 

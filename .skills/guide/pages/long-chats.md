@@ -25,6 +25,8 @@ In the same block, "Older messages leave the prompt" has two choices:
 
 "By scenes" costs some detail: a chapter is a retelling, so a weak model may lose a small thing. Pin a fact that must never be lost ([[litopys]]). Other cuts:
 
+- Library, Litopys settings, **Direct messages, by size**: keep the newest messages that fit a number of tokens (at least 2 messages) instead of a fixed count. 0 counts messages ([[litopys]]).
+- Library, Litopys settings, **Leave out what a speaker was not present for** ("Groups only" by default): a reply spoken by one character does not get the recent messages from scenes that character was not in ([[litopys]]).
 - Canvas Prompt board, history card, Details: send only the last N messages (desktop, that chat alone).
 - Lower "Memory size" to Compact, or switch "Chapters and facts" off.
 

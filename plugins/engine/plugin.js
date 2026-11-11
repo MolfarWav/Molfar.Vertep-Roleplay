@@ -2149,15 +2149,18 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
     }
     // what the characters remember of old scenes (litopys recollectBudget, 100 to 1500, default 300): a group has casts, and a chat whose last insert had some
     const ins = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/insert/" + chatId + ".json") : null;
-    if (lit.recollections !== false && !off("plugin:recollections") && (grouped || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
+    // (#283: also a chat whose record already holds a view for a chapter, so the first reply with a new recollection has its room)
+    const recRecord = chatId && SAFE_RESERVE_ID.test(chatId) ? jsonAt(fsx, "litopys/chats/" + chatId + ".json") : null;
+    const hasViews = !!(recRecord && Array.isArray(recRecord.chapters) && recRecord.chapters.some((ch) => ch && Array.isArray(ch.views) && ch.views.length > 0));
+    if (lit.recollections !== false && !off("plugin:recollections") && (grouped || hasViews || (ins && ins.recollections))) add("litopys recollections", clampInt(lit.recollectBudget, 100, 1500, 300));
     // word-for-word passages of the earlier chats of the chain (litopys verbatim, on unless switched off; verbatimBudget 150 to 1200, default 400): only a chat that continues another
     if (lit.verbatim !== false && !off("plugin:verbatim") && chatId) {
       const vlinks = jsonAt(fsx, "litopys/links.json");
       if (vlinks && vlinks.links && vlinks.links[chatId]) add("litopys verbatim", clampInt(lit.verbatimBudget, 150, 1200, 400));
     }
     // who knows what, and the optional hidden plan: only a reply that voices several characters. A group does, and so
-    // does a chat whose card answers to several names. Litopys also runs castKnowledge for a chat with no card (its
-    // soleVoice is null then too); that case is not reserved here. Mirrors Litopys cardNamesOf (the card's name,
+    // does a chat whose card answers to several names, and a chat with no card (its soleVoice is null too, #283).
+    // Mirrors Litopys cardNamesOf (the card's name,
     // data.name and molfar_soul.characters keys, trimmed, lower case) and soleVoice; change both.
     const cardNames = (id) => {
       const names = new Set();
@@ -2174,7 +2177,7 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
       for (const k of Object.keys(chars && typeof chars === "object" ? chars : {})) add(k);
       return names;
     };
-    const severalVoices = grouped || cardNames(m.characterId).size > 1;
+    const severalVoices = grouped || cardNames(m.characterId).size !== 1;
     if (severalVoices && lit.castKnowledge !== false && !off("plugin:litopys")) {
       add("litopys who knows what", 250);
       if (lit.hiddenPlan === true) add("litopys hidden plan", 130);
@@ -2239,6 +2242,16 @@ export function hookInsertBreakdown(fsx, chatId, meta, windowTokens, ceilings) {
 function hookInsertReserve(fsx, chatId, meta, windowTokens, ceilings) {
   return hookInsertBreakdown(fsx, chatId, meta, windowTokens, ceilings).reduce((t, r) => t + r.tokens, 0);
 }
+/** A short hash of one prompt message (role and text): FNV-1a over the UTF-16 units. A copy lives in plugins/litopys (presence cut, #289); change both. */
+function promptHash(role, content) {
+  const t = String(role) + "\n" + String(content);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) {
+    h ^= t.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36) + "." + t.length;
+}
 // ---------- the Litopys cut: a copy of litopys/plugin.js coveredCount/cutCount (plugins cannot import each other) ----------
 /** The messages Litopys counts: user and character turns with an id, not hidden (its activeLine). */
 function litopysLine(msgs) {
@@ -2286,6 +2299,7 @@ function litopysCutConfig(fsx) {
     off: cfg.enabled === false || cfg.insert === false,
     scenes: cfg.cutMode === "scenes",
     recent: Number.isFinite(n) ? Math.min(200, Math.max(6, Math.round(n))) : 100,
+    recentTokens: Number(cfg.recentTokens) > 0 ? Math.min(400000, Math.max(500, Math.round(Number(cfg.recentTokens)))) : 0,
     keep: Number.isFinite(k) ? Math.min(100000, Math.max(2, Math.round(k))) : 2,
   };
 }
@@ -2303,7 +2317,20 @@ function litopysCut(fsx, chatId, line) {
     const ends = litSceneEnds(st, line).filter((e) => e <= limit);
     return ends.length ? ends[ends.length - 1] : 0;
   }
-  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - c.recent));
+  return Math.max(0, Math.min(litCoveredCount(st, line), line.length - litopysRecent(line, c)));
+}
+/** How many of the newest messages stay as the direct tail: `recent`, or the newest that fit `recentTokens` (at least 2, at most 200).
+ *  A copy of plugins/litopys `recentCount`; change both. */
+function litopysRecent(line, c) {
+  if (!(c.recentTokens > 0)) return c.recent;
+  let used = 0;
+  let n = 0;
+  for (let i = line.length - 1; i >= 0 && n < 200; i--) {
+    used += estimateTokens(line[i] && line[i].text) + 4;
+    if (used > c.recentTokens && n >= 2) break;
+    n++;
+  }
+  return Math.max(2, n);
 }
 /** How many of the first `maxCut` line messages must leave the prompt for the rest to fit: the
  *  Litopys cut is a ceiling (what chapters cover, outside the recent stretch), the window decides
@@ -3190,7 +3217,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "stageDirections","plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "stageDirections","plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:presence", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -4197,6 +4224,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:verbatim")) {
     omit("memory", "Earlier, word for word", "off for this chat", undefined, "plugin:verbatim");
   }
+  if (isOff("plugin:presence")) {
+    omit("memory", "Messages a speaker was not present for", "off for this chat", undefined, "plugin:presence");
+  }
   const memoryTaken = (k) => !!(meta.memory && typeof meta.memory === "object" && meta.memory[k] === true);
   if (memoryTaken("persona") && isOff("plugin:personamemory")) {
     omit("memory", "Persona memory", "off for this chat", undefined, "plugin:personamemory");
@@ -4258,7 +4288,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         const first = visibleHist[trimmed];
         const at = first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
         const count = at < 0 ? 0 : at;
-        fsx.write("litopys/prompt-cut/" + meta.id + ".json", JSON.stringify({ count, upTo: count > 0 ? litLine[count - 1].id : null }));
+        // `hist`: the id and a hash of each history message as it stands in the prompt, so the Litopys hook can tell which
+        // of the request's messages are which turns of the chat (the presence cut, #289); a message it cannot find stays
+        const hist = history.slice(0, 400).map((h, i) => ({ id: visibleHist[trimmed + i] ? visibleHist[trimmed + i].id : null, h: promptHash(h.role, h.content) }));
+        fsx.write("litopys/prompt-cut/" + meta.id + ".json", JSON.stringify({ count, upTo: count > 0 ? litLine[count - 1].id : null, hist }));
       }
     } catch { /* the insert then uses the recent window alone */ }
   }
@@ -4410,6 +4443,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // the word-for-word passages are on by default: their switch shows unless the Library setting is off
   try {
     if ((readJsonFile(fsx, "litopys/config.json") || {}).verbatim !== false) board.push({ key: "plugin:verbatim", label: "Earlier, word for word", kind: "memory", state: isOff("plugin:verbatim") ? "off" : "on" });
+  } catch {}
+  // the presence cut (#289): a group's replies by default, a card chat only when the Library setting says "all"
+  try {
+    const mode = (readJsonFile(fsx, "litopys/config.json") || {}).presenceCut;
+    if (mode !== "off" && (mode === "all" || meta.groupId)) board.push({ key: "plugin:presence", label: "Messages a speaker was not present for", kind: "memory", state: isOff("plugin:presence") ? "off" : "on" });
   } catch {}
   // persona and world memory reach a chat only when the chat took them in (meta.memory.persona / .world): the rows
   // show once it did, and their switch then only mutes them

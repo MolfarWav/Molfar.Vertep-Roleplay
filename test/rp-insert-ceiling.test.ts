@@ -67,7 +67,8 @@ function agree(meta: Record<string, unknown>, windowTokens?: number, except: str
 describe("each plugin's ceiling is the table's row for the same chat", () => {
   it("defaults: the Dashboard rows, the Litopys insert, nothing else", () => {
     agree({});
-    expect(byId(askAll("c1"))).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900 });
+    // a chat with no card has no sole voice, so the "who knows what" brief is reserved too (#283)
+    expect(byId(askAll("c1"))).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 900, "litopys who knows what": 250 });
   });
   it("the Dashboard config: size, said, journal, switched off", () => {
     writeJson("dashboard/config.json", { injection: { enabled: true, maxTokens: 1000 }, said: { inject: false }, journal: { maxTokens: 200 } });
@@ -175,10 +176,10 @@ describe("the engine plugin reserves from the answers, with its table as the fal
     seedCards();
     const w = 32000;
     const t = table(meta, "c1", w);
-    expect(byId(t)).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 4800 + 100 });
+    expect(byId(t)).toEqual({ dashboard: 800, "dashboard said": 120, "dashboard journal": 360, litopys: 4800 + 100, "litopys who knows what": 250 });
     // the Dashboard says 1000, and Litopys is silent: its row comes from the table
     const rows = E.hookInsertBreakdown(mockHost().host.fs, "c1", { id: "c1" }, w, { window: w, rows: [{ plugin: "relations", id: "dashboard", tokens: 1000 }] });
-    expect(byId(rows)).toEqual({ dashboard: 1000, litopys: 4900 });
+    expect(byId(rows)).toEqual({ dashboard: 1000, litopys: 4900, "litopys who knows what": 250 });
     // a zero row from a plugin means "nothing to reserve": its table rows go too
     const none = E.hookInsertBreakdown(mockHost().host.fs, "c1", { id: "c1" }, w, { window: w, rows: [{ plugin: "relations", id: "dashboard", tokens: 0 }, { plugin: "litopys", id: "litopys", tokens: 0 }] });
     expect(none.reduce((s, r) => s + r.tokens, 0)).toBe(0);

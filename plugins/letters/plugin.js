@@ -156,6 +156,16 @@ export function expandNames(text, userName, charName) {
   let out = text;
   if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
   if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  // macros with nothing for a helper to read (#283): comments, variable writes and reads (their values live in the preset, which
+  // a helper call does not carry), line breaks and random picks (the first choice) are settled here, so the helper does not read
+  // `{{getvar::mood}}` as story text. {{if}} blocks and the other macros stay raw.
+  out = out
+    .replace(/\{\{\s*\/\/[\s\S]*?\}\}/g, "")
+    .replace(/\{\{\s*(?:setvar|setglobalvar|addvar|addglobalvar|incvar|decvar|getvar|getglobalvar)\s*::[^{}]*\}\}/gi, "")
+    .replace(/\{\{\s*(?:trim|noop)\s*\}\}/gi, "")
+    .replace(/\{\{\s*newline\s*\}\}/gi, "\n")
+    .replace(/\{\{\s*(?:random|pick)\s*::([^{}]*)\}\}/gi, (_m, a) => a.split("::")[0].trim())
+    .replace(/\{\{\s*(?:random|pick)\s*:([^:{}][^{}]*)\}\}/gi, (_m, a) => a.split(",")[0].trim());
   return out;
 }
 

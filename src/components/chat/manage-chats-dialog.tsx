@@ -3,7 +3,7 @@ import { beginImport, forEachImport } from "@/lib/import-progress"
 import { t as tNow } from "@/lib/i18n"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { cleanPreview } from '@/lib/preview'
-import { Check, Flag, GitBranch, ChatCenteredText, PencilSimple, Trash, ArrowElbowDownRight, BookmarkSimple, FileText, FileCode, UploadSimple, BoxArrowUp } from '@phosphor-icons/react'
+import { Check, Flag, GitBranch, ChatCenteredText, PencilSimple, Trash, ArrowElbowDownRight, BookmarkSimple, FileText, FileCode, UploadSimple, BoxArrowUp, ClipboardText } from '@phosphor-icons/react'
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge"
 import { useApp } from "@/lib/store"
 import { saveFile } from "@/lib/export"
 import { j } from "@/lib/engine"
+import { ChatLogImportDialog } from "@/components/chat/chat-log-import-dialog"
+import { parseChatLog } from "@/lib/chat-log-text"
 import { backupFileForImport } from "@/lib/backup-assets"
 import type { Chat, ID } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -299,6 +301,9 @@ export function ManageChatsDialog({
   const hydrate = useApp((s) => s.hydrate)
   const chatFileRef = useRef<HTMLInputElement>(null)
   const backupFileRef = useRef<HTMLInputElement>(null)
+  // a chat kept as plain text (#291): chosen as a file here or pasted in the dialog
+  const [logOpen, setLogOpen] = useState(false)
+  const [logInitial, setLogInitial] = useState<{ text: string; name: string } | null>(null)
 
   const character = characters.find((c) => c.id === characterId)
 
@@ -317,6 +322,19 @@ export function ManageChatsDialog({
   // JSONL transcripts attach to THIS character (the importer links by name)
   const importChats = async (files: FileList | null) => {
     if (!files || !character) return
+    // one file that is no JSONL but reads as "Name: text" lines is a text chat log: it goes to its own dialog (what was found, who is you, the memory cost)
+    const only = files.length === 1 ? files[0] : null
+    if (only && !/\.jsonl$/i.test(only.name)) {
+      const txt = await only.text()
+      const firstLine = txt.split(/\r?\n/).find((l) => l.trim()) ?? ""
+      let isJson = false
+      try { isJson = !!firstLine && typeof JSON.parse(firstLine) === "object" } catch { /* not JSON */ }
+      if (!isJson && parseChatLog(txt).messages.length) {
+        setLogInitial({ text: txt, name: only.name })
+        setLogOpen(true)
+        return
+      }
+    }
     await forEachImport(tNow("imp.title.chats"), Array.from(files), (f) => f.name, async (file, run) => {
       try {
         const lines = (await file.text())
@@ -435,6 +453,9 @@ export function ManageChatsDialog({
           <Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => chatFileRef.current?.click()}>
             <UploadSimple className="size-4" /> Import chat
           </Button>
+          <Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => { setLogInitial(null); setLogOpen(true) }}>
+            <ClipboardText className="size-4" /> Paste a chat log
+          </Button>
           <input
             ref={backupFileRef}
             type="file"
@@ -461,6 +482,7 @@ export function ManageChatsDialog({
           </div>
         </ScrollArea>
       </DialogContent>
+      {character && <ChatLogImportDialog open={logOpen} onOpenChange={setLogOpen} characterName={character.name} initial={logInitial} />}
     </Dialog>
   )
 }

@@ -2433,6 +2433,16 @@ export function expandNames(text, userName, charName) {
   let out = text;
   if (u) out = out.replace(/\{\{\s*user\s*\}\}/gi, () => u);
   if (c) out = out.replace(/\{\{\s*char\s*\}\}/gi, () => c);
+  // macros with nothing for a helper to read (#283): comments, variable writes and reads (their values live in the preset, which
+  // a helper call does not carry), line breaks and random picks (the first choice) are settled here, so the helper does not read
+  // `{{getvar::mood}}` as story text. {{if}} blocks and the other macros stay raw.
+  out = out
+    .replace(/\{\{\s*\/\/[\s\S]*?\}\}/g, "")
+    .replace(/\{\{\s*(?:setvar|setglobalvar|addvar|addglobalvar|incvar|decvar|getvar|getglobalvar)\s*::[^{}]*\}\}/gi, "")
+    .replace(/\{\{\s*(?:trim|noop)\s*\}\}/gi, "")
+    .replace(/\{\{\s*newline\s*\}\}/gi, "\n")
+    .replace(/\{\{\s*(?:random|pick)\s*::([^{}]*)\}\}/gi, (_m, a) => a.split("::")[0].trim())
+    .replace(/\{\{\s*(?:random|pick)\s*:([^:{}][^{}]*)\}\}/gi, (_m, a) => a.split(",")[0].trim());
   return out;
 }
 
@@ -4338,6 +4348,21 @@ export function contactOf(v) {
   return null;
 }
 const CONTACT_WORDS = { text: "by text messages", call: "on a call", video: "on a video call", letter: "by letters" };
+/**
+ * What someone in touch from elsewhere can perceive of the user's character (Molfar.Vertep#289): a channel passes only its
+ * own kind. Without it the model reads a message whole, action and sent text together, and the far character "knows" the
+ * kettle was put on. `names` is a list; `user` is the player's character. About 25 tokens, inside the Dashboard row's
+ * 200 for the scene line and the rest (`insertCeiling`).
+ */
+export function remoteSenses(kind, names, user) {
+  const list = arr(names).filter(Boolean);
+  if (!list.length || !CONTACT_WORDS[kind]) return "";
+  const who = list.join(", ");
+  const one = list.length === 1;
+  if (kind === "call") return who + (one ? " only hears " : " only hear ") + user + ": the voice and the sounds near the phone, nothing done in silence.";
+  if (kind === "video") return who + (one ? " sees " : " see ") + "only what is in " + user + "'s camera and " + (one ? "hears" : "hear") + " what is near it.";
+  return who + (one ? " knows " : " know ") + "only the words " + user + " sends; what " + user + " does meanwhile, " + who + (one ? " does" : " do") + " not know.";
+}
 const BAND_WORDS = ["dawn", "morning", "late morning", "day", "evening", "night"];
 
 function bandOfHour(h) {
@@ -6869,7 +6894,19 @@ function sceneLine(snap, user, cal) {
   const here = arr(snap.present).filter((n) => !away(n));
   const far = arr(snap.present).filter(away).map((n) => n + " " + away(n));
   // a texting scene used to send nothing at all, and the model forgot the talk was remote (#16)
-  const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." : "";
+  // and what reaches them: one short sentence per kind of contact (#289), so a silent action is not taken as known
+  const senses = [];
+  for (const kind of ["text", "letter", "call", "video"]) {
+    const names = arr(snap.present).filter((n) => snap.chars && snap.chars[n] && snap.chars[n].contact === kind);
+    if (names.length) senses.push({ kind: kind === "letter" ? "text" : kind, names });
+  }
+  const merged = [];
+  for (const s of senses) {
+    const hit = merged.find((x) => x.kind === s.kind);
+    if (hit) hit.names.push(...s.names);
+    else merged.push({ kind: s.kind, names: [...s.names] });
+  }
+  const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." + merged.map((s) => " " + remoteSenses(s.kind, s.names, user)).join("") : "";
   return "[Background, the scene: " + dayWords(snap.clock, cal) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
