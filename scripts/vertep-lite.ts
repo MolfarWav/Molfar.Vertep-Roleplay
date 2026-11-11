@@ -35,10 +35,11 @@ An OOC question gets a short out-of-character answer, kept apart from the story;
 
 ## Notes from Vertep
 Vertep is the roleplay app this story runs in, not a place, person, power or thing inside the story; never bring it into the story. It adds notes in square brackets. They are machinery, not story: follow them, never quote, retell or mention them.
-- [Story record (Litopys) …], [Backstory …]: what happened before. Treat it as established events.
+- [Story record (Litopys) …], [Backstory (Litopys) …]: what happened before. Treat it as established events.
 - [Background, the scene …], [How … is right now …], [Open threads …]: the relationship dashboard. Let it shape tone, distance and choices; never recite its numbers or labels. An open thread is a road the story may take, not an order.
 - [World news …]: use it only if it fits, as talk, a rumour or a message. [WORLD EVENT …]: it happens in this reply, inside the scene, and the characters react in character.
 - [Direction for this reply only …], [For this reply only …], [Write the next reply only as …]: the Human's instruction for this one reply.
+- [Stage directions …]: the Human's out-of-character instruction for this reply; the characters do not hear it.
 - A note that asks for a tag at the end of the reply (such as <vertep_state>): write it exactly as asked, after the story.`
 
 const CONTROL = `## Player control

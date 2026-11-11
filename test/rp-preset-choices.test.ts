@@ -630,3 +630,39 @@ describe("built-in Vertep Lite", () => {
     expect(eng.onAppUpdate({ from: "4.65.0", to: "4.66.0" }, h()).upgraded).not.toContain("presets/vertep-lite.json");
   });
 });
+
+describe("built-in presets name every note the app adds to the prompt", () => {
+  const NOTES = [
+    "[Direction for this reply only",
+    "[For this reply only",
+    "[Write the next reply only as",
+    "[Stage directions",
+    "[Story record (Litopys)",
+    "[Backstory (Litopys)",
+    "[Background, the scene",
+    "[How ... is right now",
+    "[Open threads",
+    "[World news",
+    "[WORLD EVENT",
+    "<vertep_state>",
+  ];
+  const textOf = (id: string) => {
+    const p = JSON.parse(fs.readFileSync(new URL(`../data/presets/${id}.json`, import.meta.url), "utf8"));
+    return p.studio.sections.map((s: { content?: string }) => s.content ?? "").join("\n").replace(/\[How … is right now/g, "[How ... is right now");
+  };
+  for (const id of ["_vertep-lite", "_molfar", "_frankenx"]) {
+    it(`${id} lists them and says Vertep is the app, not part of the story`, () => {
+      const text = textOf(id);
+      for (const n of NOTES) expect(text, n).toContain(n);
+      expect(text).toContain("Vertep is the roleplay app this story runs in");
+    });
+  }
+  it("FRANKENX has the notes block before the chat history, in the order and the sections", () => {
+    const p = JSON.parse(fs.readFileSync(new URL("../data/presets/_frankenx.json", import.meta.url), "utf8"));
+    const ids = p.studio.sections.map((s: { id: string }) => s.id);
+    expect(ids.indexOf("sec_vertepnotes")).toBe(ids.indexOf("chatHistory") - 1);
+    const order = p.prompt_order[0].order.map((o: { identifier: string }) => o.identifier);
+    expect(order.indexOf("sec_vertepnotes")).toBe(order.indexOf("chatHistory") - 1);
+    expect(p.prompts.some((x: { identifier: string }) => x.identifier === "sec_vertepnotes")).toBe(true);
+  });
+});
