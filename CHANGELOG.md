@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Added: **Continue from someone's view.** The chat's "+" menu has a submenu that lists the characters (the Dashboard's people, the ones in the scene first, then the chat's card or group members) and sends a stage direction alone, "Continue the story from <name>'s point of view": the next reply follows that character once the persona and the others have split up. "Someone else..." types the direction into the box. Nothing is said in the story and no turn of yours is added.
+
 ## 4.113.0 (2026-11-11)
 
 - Added: **a reply spoken by one character leaves out the recent messages that character was not present for (Molfar.Vertep#289).** The Dashboard says who was in each scene; a run of such messages becomes one line, `[Bram was not here: 6 messages]` (or, when the scene's place did not change, that Bram was within earshot and heard voices, not the words). The speaker's own messages, the newest message and anything the Dashboard has no data for stay; nothing is cut when the speaker is on no snapshot. Groups by default; Library > Litopys settings "Leave out what a speaker was not present for" (Groups only / Every chat / Off) and a Prompt board switch per chat.
