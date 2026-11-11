@@ -2,6 +2,11 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Changed: **World DM: a deck that came back short is flagged.** "New deck" asks the model for 8 to 12 events and keeps whatever comes back; a reply with fewer now shows a warning ("the deck came back short") with the count, so you can build it again. No retry and no extra model call. A reply with no events says the deck is unchanged.
+- Docs: `docs/ENTITY-REGISTRY.md` says `holder` and `inside` are names on purpose (ids are planned, not built); `docs/COUPLINGS.md` has "Two kinds of dice"; `docs/DATA-FORMATS.md` (a chat-scoped file reaches 40 links back along a chain; the Forge `before` and `parallel` triggers run); the references to the deleted `docs/JOURNAL-HANDOFF.md` point at `docs/DATA-FORMATS.md`; the guide page for the World DM.
+
 ## 4.113.0 (2026-11-11)
 
 - Added: **a reply spoken by one character leaves out the recent messages that character was not present for (Molfar.Vertep#289).** The Dashboard says who was in each scene; a run of such messages becomes one line, `[Bram was not here: 6 messages]` (or, when the scene's place did not change, that Bram was within earshot and heard voices, not the words). The speaker's own messages, the newest message and anything the Dashboard has no data for stay; nothing is cut when the speaker is on no snapshot. Groups by default; Library > Litopys settings "Leave out what a speaker was not present for" (Groups only / Every chat / Off) and a Prompt board switch per chat.

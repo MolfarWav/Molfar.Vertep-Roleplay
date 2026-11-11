@@ -624,7 +624,7 @@ const LAYOUT_RULE_18 =
 const LAYOUT_RULE_17 =
   "- at: where a present character is in the place, a few words (\"by the fireplace\", \"on the sofa\"), only when the new text places or moves them. userAt: the same for the user's character. objects: things in the scene that matter or that a character used, as { \"add\": [ { \"item\": \"text\", \"where\": \"text\" } ], \"remove\": [\"item\"] }. A worn or held thing that is put down goes to remove in outfit or holding and to objects add with where it lies (\"on the sofa\"); a thing picked up leaves objects. A body or a fallen thing is an object too.";
 
-// The character journal (Dashboard, docs/JOURNAL-HANDOFF.md): what a character thinks now, and how it sees the people it knows.
+// The character journal (Dashboard; docs/DATA-FORMATS.md, "The character journal"): what a character thinks now, and how it sees the people it knows.
 // The journal text is in the story's language, an exception to the Language rule of the sensor prompt; one constant to switch.
 export const JOURNAL_LANGUAGE = "in the language the story is written in (an exception to the Language rule above)";
 export const JOURNAL_THOUGHT_RULE =
@@ -3551,7 +3551,7 @@ const objectText = (o) => o.item + (o.where ? " (" + o.where + ")" : "");
 
 /**
  * The people lines of the Previous state: each present character's view of the player and of the others present.
- * Never a thought: the sensor must not see the last one, or it would copy it (docs/JOURNAL-HANDOFF.md).
+ * Never a thought: the sensor must not see the last one, or it would copy it (docs/DATA-FORMATS.md, "The character journal").
  */
 function journalPreviousLines(ctx, B) {
   const gone = arr(ctx.drop);
