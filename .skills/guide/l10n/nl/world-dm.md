@@ -1,4 +1,4 @@
-<!-- source: 603b92152f83 -->
+<!-- source: f156e3f1ac93 -->
 # World DM
 
 De World DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en bewaart hij de mensen, plaatsen en dingen die hij tegenkomt in het eigen lorebook van de chat, het wereldboek genoemd. Op hogere niveaus beweegt hij ook de wereld en stuurt hij gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levendig en consistent aanvoelt.
@@ -21,6 +21,8 @@ Standaard staat de DM in een verhaalchat al aan op het niveau Chronicler, vanaf 
 Hij draait na antwoorden, elke N-de antwoord ("Run after every N replies"), of meteen met "World turn". Hij leest de nieuwe berichten en schrijft of beëindigt records in het wereldboek: mensen, plaatsen, dingen en wie ze vasthoudt. Je kunt een record van soort Group of Place **Members** geven (de mensen die erbij horen) in het tabblad World book; een feit dat in Litopys aan die groep wordt verteld, is dan bekend bij elk van hen ([[litopys]]). De DM vult Members zelf niet in. Vanaf Living world beweegt hij ook fronten en klokken, en kan hij een gebeurtenis voorbereiden die aan het volgende antwoord wordt toegevoegd. Met **Code** die de klokken laat bewegen (World > Profiles > Options), gooit code elke N antwoorden een d6 voor elk front: 1-2 niets, 3-4 één stap, 5-6 één stap en de DM krijgt te horen dat nieuws van dat front het verhaal kan bereiken. Optionele dobbelstenen (World-blad, Dice, vanaf Living world, standaard uit): vóór een antwoord gooit code 2d6 en vertelt het model hoe een onzekere actie afloopt, als Hint of Binding. De optie **Pacing check, %** (Dice details, standaard uit) voegt een tweede, verborgen worp toe voor de momenten dat het personage van de gebruiker een stap naar nabijheid zet. Hoe goed die stap aankomt, hangt af van de comfort, het vertrouwen en de genegenheid van het personage uit het Dashboard. Het model speelt het dan als nog niet klaar, aarzelend, accepterend met zenuwen, of hartelijk welkom. Het blokkeert nooit een antwoord en noemt de dobbelstenen nooit.
 
 Het kost één extra modelaanroep wanneer het aan de beurt is, op het "DM model (all chats)"; een klein, goedkoop model is genoeg. Een mislukte run wordt getoond in het blad en in de Inbox, en de DM leest dezelfde berichten de volgende keer opnieuw.
+
+Een profiel dat speelt vanuit een gebeurtenissenstapel toont "New deck" wanneer de stapel op is. Het model wordt om 8 tot 12 gebeurtenissen gevraagd; komen er minder terug, dan blijft de stapel zoals hij kwam en waarschuwt een melding dat hij te kort terugkwam, zodat je hem opnieuw kunt opbouwen.
 
 ## Een antwoord verwijderen of swipen
 

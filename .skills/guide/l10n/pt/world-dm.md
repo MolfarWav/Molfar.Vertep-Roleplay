@@ -1,4 +1,4 @@
-<!-- source: 603b92152f83 -->
+<!-- source: f156e3f1ac93 -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -21,6 +21,8 @@ Por padrão, o DM já está ligado no nível Chronicler em um chat de história,
 Ele executa após as respostas, a cada N respostas ("Run after every N replies"), ou imediatamente com "World turn". Ele lê as novas mensagens e escreve ou aposenta registros no livro de mundo: pessoas, lugares, coisas e quem as possui. Você pode dar a um registro de Group ou Place **Members** (as pessoas que pertencem) na aba World book; um fato contado a esse grupo no Litopys passa então a ser conhecido por cada um deles ([[litopys]]). O DM não preenche Members sozinho. De Living world para cima, ele também move frentes e relógios, e pode preparar um evento que é adicionado à próxima resposta. Com **Code** movendo os relógios (World > Profiles > Options), a cada N respostas o código rola um d6 para cada frente: 1-2 nada, 3-4 um passo, 5-6 um passo e o DM é avisado de que notícias dessa frente podem chegar à história. Dados opcionais (folha World, Dice, de Living world para cima, desligados por padrão): antes de uma resposta, o código rola 2d6 e diz ao modelo como uma ação incerta termina, como Hint ou Binding. A opção **Pacing check, %** (Dice details, desligada por padrão) acrescenta uma segunda rolagem oculta nos momentos em que o personagem do usuário dá um passo rumo à proximidade: o quão bem isso cai depende do conforto, da confiança e da afeição do personagem, vistos no Dashboard, e o modelo o interpreta como não pronto, hesitante, aceitando com nervosismo ou acolhedor. Ela nunca bloqueia uma resposta e nunca menciona os dados.
 
 Ele custa uma chamada extra de modelo sempre que é devido, no "DM model (all chats)"; um modelo pequeno e barato é suficiente. Uma execução com falha aparece na folha e na Inbox, e o DM lê as mesmas mensagens de novo na próxima vez.
+
+Um perfil que joga a partir de um baralho de eventos mostra "New deck" quando o baralho se esgota. O modelo é solicitado a gerar de 8 a 12 eventos; se voltarem menos, o baralho é mantido como veio e um aviso diz que ele voltou curto, para que você possa montá-lo de novo.
 
 ## Ao apagar ou fazer swipe em uma resposta
 
