@@ -1,5 +1,5 @@
 /**
- * The character journal, data and sensor side (docs/JOURNAL-HANDOFF.md, "Data" and "Sensor"): a thought per present
+ * The character journal, data and sensor side (docs/DATA-FORMATS.md, "The character journal": the snapshot fields `thought` and `journal`, and the sensor): a thought per present
  * character in the snapshot, the people lines in their own bag, the prompt rules and versions, and the switches.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";

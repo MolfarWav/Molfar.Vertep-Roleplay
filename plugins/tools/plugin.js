@@ -11,6 +11,8 @@
  *
  * Built-ins: dice, a picture tool (the app draws what the model describes
  * after the reply lands), and toy control.
+ * The dice here are the model's own (roll_dice, any dice, Math.random). The World DM rolls a separate,
+ * seeded check in code: see docs/COUPLINGS.md, "Two kinds of dice".
  *
  * Routes (relative to /v1/apps/roleplay):
  *   GET    /tools        list (seeds built-ins when the dir is empty)
