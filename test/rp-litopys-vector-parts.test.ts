@@ -30,7 +30,7 @@ function chat(chatId: string, m: ReturnType<typeof mockHost>, facts: number) {
   return st;
 }
 const bigVec = (seed: number, dim = 3072) => Array.from({ length: dim }, (_, i) => Math.sin(seed * 12.9898 + i * 0.37) * 0.0321);
-const files = (chatId: string) => fs.readdirSync(path.join(env.root, "litopys/vectors")).filter((f) => f === chatId + ".json" || f.startsWith(chatId + ".p")).sort();
+const files = (chatId: string) => fs.readdirSync(path.join(env.root, ".cache/litopys/vectors")).filter((f) => f === chatId + ".json" || f.startsWith(chatId + ".p")).sort();
 
 describe("vectors of a long chat", () => {
   it("120 vectors of 3072 numbers go on in extra files, each under the limit, and read back whole", () => {
@@ -43,8 +43,8 @@ describe("vectors of a long chat", () => {
     const names = files("long1");
     expect(names.length).toBeGreaterThan(1);
     expect(names[0]).toBe("long1.json");
-    for (const n of names) expect(fs.statSync(path.join(env.root, "litopys/vectors", n)).size).toBeLessThan(LIMIT);
-    expect(readJson("litopys/vectors/long1.json")._more).toBe(names.length - 1);
+    for (const n of names) expect(fs.statSync(path.join(env.root, ".cache/litopys/vectors", n)).size).toBeLessThan(LIMIT);
+    expect(readJson(".cache/litopys/vectors/long1.json")._more).toBe(names.length - 1);
     // nothing is missing: every vector came back from the files
     expect(L.vectorGaps(m.host.fs, st, "text-embedding-3-large", 999)).toEqual([]);
   });
@@ -63,7 +63,7 @@ describe("vectors of a long chat", () => {
       write(rel, c);
     };
     L.finishEmbed(m.host.fs, st, all.slice(200), all.slice(200).map((_: unknown, i: number) => bigVec(200 + i)), "m");
-    expect(writes).toEqual(["litopys/vectors/long2.p3.json"]);
+    expect(writes).toEqual([".cache/litopys/vectors/long2.p3.json"]);
     expect(L.vectorGaps(m.host.fs, st, "m", 999)).toEqual([]);
   });
 
@@ -73,22 +73,22 @@ describe("vectors of a long chat", () => {
     const st = chat("old1", m, 80);
     const map: Record<string, unknown> = {};
     for (const f of st.facts) map[f.id] = { hash: L.fnv1a(f.text), vector: bigVec(Number(f.id.slice(1))), m: "m" };
-    writeJson("litopys/vectors/old1.json", map); // pretty printed by the helper
-    expect(fs.statSync(path.join(env.root, "litopys/vectors/old1.json")).size).toBeGreaterThan(LIMIT);
+    writeJson(".cache/litopys/vectors/old1.json", map); // pretty printed by the helper
+    expect(fs.statSync(path.join(env.root, ".cache/litopys/vectors/old1.json")).size).toBeGreaterThan(LIMIT);
     expect(L.vectorGaps(m.host.fs, st, "m", 999)).toEqual([]);
     // one more fact arrives: this save is the one that used to throw
     st.facts.push(fact("f80", "A new fact, with a new vector."));
     const need = [{ id: "f80", hash: L.fnv1a("A new fact, with a new vector.") }];
     expect(() => L.finishEmbed(m.host.fs, st, need, [bigVec(80)], "m")).not.toThrow();
     expect(L.vectorGaps(m.host.fs, st, "m", 999)).toEqual([]);
-    expect(fs.statSync(path.join(env.root, "litopys/vectors/old1.json")).size).toBeLessThan(LIMIT);
+    expect(fs.statSync(path.join(env.root, ".cache/litopys/vectors/old1.json")).size).toBeLessThan(LIMIT);
   });
 
   it("a save that fits in one file removes the extra files of an older, longer record", () => {
     const m = mockHost();
     const small = chat("shrink1", m, 3);
-    writeJson("litopys/vectors/shrink1.p2.json", {});
-    writeJson("litopys/vectors/shrink1.p9.json", {});
+    writeJson(".cache/litopys/vectors/shrink1.p2.json", {});
+    writeJson(".cache/litopys/vectors/shrink1.p9.json", {});
     const need = small.facts.map((f: any) => ({ id: f.id, hash: L.fnv1a(f.text) }));
     L.finishEmbed(m.host.fs, small, need, need.map((_: unknown, i: number) => bigVec(i, 8)), "m");
     expect(files("shrink1")).toEqual(["shrink1.json"]);
@@ -97,27 +97,27 @@ describe("vectors of a long chat", () => {
   it("the orphan sweep keeps the extra files of a live chat and removes those of a gone one", () => {
     const m = mockHost();
     chat("live1", m, 2);
-    writeJson("litopys/vectors/live1.json", { f0: { hash: "x", vector: [1, 0] }, _more: 1 });
-    writeJson("litopys/vectors/live1.p2.json", { f1: { hash: "y", vector: [0, 1] } });
-    writeJson("litopys/vectors/gone1.json", {});
-    writeJson("litopys/vectors/gone1.p2.json", {});
+    writeJson(".cache/litopys/vectors/live1.json", { f0: { hash: "x", vector: [1, 0] }, _more: 1 });
+    writeJson(".cache/litopys/vectors/live1.p2.json", { f1: { hash: "y", vector: [0, 1] } });
+    writeJson(".cache/litopys/vectors/gone1.json", {});
+    writeJson(".cache/litopys/vectors/gone1.p2.json", {});
     const store = { chats: {} };
     L.pruneOrphans(m.host.fs, store, ["live1.jsonl"]);
-    expect(exists("litopys/vectors/live1.p2.json")).toBe(true);
-    expect(exists("litopys/vectors/gone1.json")).toBe(false);
-    expect(exists("litopys/vectors/gone1.p2.json")).toBe(false);
+    expect(exists(".cache/litopys/vectors/live1.p2.json")).toBe(true);
+    expect(exists(".cache/litopys/vectors/gone1.json")).toBe(false);
+    expect(exists(".cache/litopys/vectors/gone1.p2.json")).toBe(false);
   });
 
   it("a missing extra file only makes its vectors gaps, and a damaged _more is harmless", () => {
     const m = mockHost();
     const st = chat("dmg1", m, 3);
     const hash = (i: number) => L.fnv1a(st.facts[i].text);
-    writeJson("litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: 4 });
-    writeJson("litopys/vectors/dmg1.p3.json", { f1: { hash: hash(1), vector: [0, 1], m: "m" } });
+    writeJson(".cache/litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: 4 });
+    writeJson(".cache/litopys/vectors/dmg1.p3.json", { f1: { hash: hash(1), vector: [0, 1], m: "m" } });
     expect(L.vectorGaps(m.host.fs, st, "m", 99).map((g: any) => g.id)).toEqual(["f2"]);
-    writeJson("litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: 1e9 });
+    writeJson(".cache/litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: 1e9 });
     expect(L.vectorGaps(m.host.fs, st, "m", 99).map((g: any) => g.id)).toEqual(["f2"]);
-    writeJson("litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: "x" });
+    writeJson(".cache/litopys/vectors/dmg1.json", { f0: { hash: hash(0), vector: [1, 0], m: "m" }, _more: "x" });
     expect(L.vectorGaps(m.host.fs, st, "m", 99).map((g: any) => g.id)).toEqual(["f1", "f2"]);
   });
 });
@@ -129,27 +129,27 @@ describe("the tick with a long chat", () => {
     const logged: string[] = [];
     m.host.log = (s: string) => logged.push(s);
     chat("tick1", m, 150);
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 3072 });
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 3072 });
     m.host.llm.embedInfo = { lit_emb_tick1: { model: "mock-embed", via: "Mock" } };
     writeJson("litopys/embed-want/tick1.json", { more: true, at: 0, batch: null, asked: Date.now() });
     for (let i = 0; i < 12; i++) tick(m);
     expect(logged.filter((l) => /too large/.test(l))).toEqual([]);
     expect(files("tick1").length).toBeGreaterThan(1);
     expect(exists("litopys/embed-want/tick1.json")).toBe(false);
-    expect(readJson("litopys/embed-status.json").ok).toBe(true);
+    expect(readJson(".cache/litopys/embed-status.json").ok).toBe(true);
   });
 
   it("a save that fails ends the request, says failing, asks for nothing more, and the chapters go on", () => {
     const m = mockHost({ embedder: (texts) => texts.map(() => [0.1, 0.5]) });
     const write = m.host.fs.write;
     m.host.fs.write = (rel: string, c: string) => {
-      if (rel.startsWith("litopys/vectors/")) throw new Error("fs.write content too large (4MB)");
+      if (rel.startsWith(".cache/litopys/vectors/")) throw new Error("fs.write content too large (4MB)");
       write(rel, c);
     };
     const logged: string[] = [];
     m.host.log = (s: string) => logged.push(s);
     chat("fail1", m, 3);
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 2 });
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 2 });
     m.host.llm.embedInfo = { lit_emb_fail1: { model: "mock-embed", via: "Mock" } };
     writeJson("litopys/embed-want/fail1.json", { more: true, at: 0, batch: null, asked: Date.now() });
     const sentEmbeds: number[] = [];
@@ -157,7 +157,7 @@ describe("the tick with a long chat", () => {
     expect(logged.some((l) => /embed save/.test(l))).toBe(true);
     expect(logged.some((l) => /^litopys onTick: /.test(l))).toBe(false);
     expect(exists("litopys/embed-want/fail1.json")).toBe(false);
-    expect(readJson("litopys/embed-status.json").ok).toBe(false);
+    expect(readJson(".cache/litopys/embed-status.json").ok).toBe(false);
     // one request, then none: the automatic filling waits for a call that works
     expect(sentEmbeds.reduce((a, b) => a + b, 0)).toBe(1);
   });

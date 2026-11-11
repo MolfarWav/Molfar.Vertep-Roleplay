@@ -175,8 +175,8 @@ describe("vectorized entries through the engine", () => {
     const id = await setup({}, m);
     const first = await preview(m, id, "harbor at night");
     expect(first).toContain("harbor district floods");
-    expect(readJson("lorebooks/.vectors.json")["vb#0"].m).toBe("embed-a");
-    expect(readJson("embed-status.json").model).toBe("embed-a");
+    expect(readJson(".cache/lorebooks/.vectors.json")["vb#0"].m).toBe("embed-a");
+    expect(readJson(".cache/embed-status.json").model).toBe("embed-a");
     m.embedRequests.length = 0;
     await preview(m, id, "harbor again");
     expect(m.embedRequests.at(-1)!.req.texts.length).toBe(1); // only the scan: the entry is cached
@@ -186,7 +186,7 @@ describe("vectorized entries through the engine", () => {
     await preview(m, id, "harbor once more"); // the scan embeds with b, the entry vector is from a: left out this turn
     await preview(m, id, "harbor yet again");
     expect(m.embedRequests.some((r) => r.req.texts.some((t) => t.includes("floods every spring")))).toBe(true);
-    expect(readJson("lorebooks/.vectors.json")["vb#0"].m).toBe("embed-b");
+    expect(readJson(".cache/lorebooks/.vectors.json")["vb#0"].m).toBe("embed-b");
   }, 30_000);
 
   it("the entry's title goes into its vector text", async () => {

@@ -100,7 +100,7 @@ describe("Litopys 2.0 state", () => {
     ]);
 
     const vectorFact = facts.find((f: any) => f.text === "The hidden key was under the board.");
-    const sidecar = readJson(`litopys/vectors/${chatId}.json`);
+    const sidecar = readJson(`.cache/litopys/vectors/${chatId}.json`);
     expect(Object.keys(sidecar)).toEqual([vectorFact.id]);
     expect(sidecar[vectorFact.id]).toEqual({
       hash: L.fnv1a(vectorFact.text),
@@ -302,7 +302,7 @@ describe("Litopys 2.0 state", () => {
         counters: { chapter: 3, fact: 5, proposal: 1 },
       });
 
-      writeJson(`litopys/vectors/${parentId}.json`, {
+      writeJson(`.cache/litopys/vectors/${parentId}.json`, {
         c1: { hash: L.fnv1a("Aria and You arrived at the old mill."), vector: [0.1] },
         c2: { hash: L.fnv1a("They found a hidden cellar."), vector: [0.2] },
         c3: { hash: L.fnv1a("They left before dawn."), vector: [0.3] },
@@ -331,7 +331,7 @@ describe("Litopys 2.0 state", () => {
       expect(child.counters).toEqual({ chapter: 3, fact: 5, proposal: 1, arc: 0, habit: 0, turn: 0 });
       expect(child.chapters.every((c: any) => !c.stale)).toBe(true);
 
-      const childVectors = readJson(`litopys/vectors/${childId}.json`);
+      const childVectors = readJson(`.cache/litopys/vectors/${childId}.json`);
       expect(Object.keys(childVectors).sort()).toEqual(["c1", "c2", "f1", "f2", "f4"]);
       expect(childVectors.c1).toEqual({ hash: L.fnv1a("Aria and You arrived at the old mill."), vector: [0.1] });
     });
@@ -350,7 +350,7 @@ describe("Litopys 2.0 state", () => {
       expect(child.facts.find((f: any) => f.id === "f2").status).toBe("superseded");
       expect(child.proposals).toHaveLength(0);
 
-      const childVectors = readJson(`litopys/vectors/${childId}.json`);
+      const childVectors = readJson(`.cache/litopys/vectors/${childId}.json`);
       expect(Object.keys(childVectors).sort()).toEqual(["c1", "c2", "c3", "f1", "f2", "f3", "f4"]);
     });
 
@@ -407,7 +407,7 @@ describe("Litopys 2.0 state", () => {
         ],
       });
       writeJson("litopys/chats/dead01.json", { v: 2, chatId: "dead01", migrated: true, chapters: [], facts: [], proposals: [], scene: {}, counters: { chapter: 0, fact: 0, proposal: 0 } });
-      writeJson("litopys/vectors/dead01.json", {});
+      writeJson(".cache/litopys/vectors/dead01.json", {});
 
       fs.mkdirSync(path.join(env.root, "vault-chats"), { recursive: true });
       fs.writeFileSync(path.join(env.root, "vault-chats", "summary-dead01.md"), "# dead");
@@ -417,7 +417,7 @@ describe("Litopys 2.0 state", () => {
 
       expect(exists("litopys/chats/live1.json")).toBe(true);
       expect(exists("litopys/chats/dead01.json")).toBe(false);
-      expect(exists("litopys/vectors/dead01.json")).toBe(false);
+      expect(exists(".cache/litopys/vectors/dead01.json")).toBe(false);
       expect(exists("vault-chats/summary-dead01.md")).toBe(false);
 
       const store = readJson("litopys/store.json");
@@ -471,7 +471,7 @@ describe("Litopys 2.0 state", () => {
       ];
       expect(embeds[0].texts).toEqual(expected);
 
-      const sidecar = readJson("litopys/vectors/vec1.json");
+      const sidecar = readJson(".cache/litopys/vectors/vec1.json");
       expect(Object.keys(sidecar).sort()).toEqual(["c1", "f1", "f2"]);
       for (const [id, text] of [["c1", expected[0]], ["f1", expected[1]], ["f2", expected[2]]]) {
         expect(sidecar[id]).toEqual({ hash: L.fnv1a(text), vector: [expect.any(Number), expect.any(Number)] });
@@ -495,7 +495,7 @@ describe("Litopys 2.0 state", () => {
 
       const reply1 = chapterReply("The mill", "They reached the old mill.", [{ op: "add", text: "The door was open.", subject: "world", type: "world", weight: "everyday" }]);
       tick(m, [reply1]);
-      expect(readJson("litopys/embed-status.json").ok).toBe(false);
+      expect(readJson(".cache/litopys/embed-status.json").ok).toBe(false);
 
       m.embedder = (texts: string[]) => texts.map((_, i) => [0.1 * (i + 1), 0.5]);
       const reply2 = chapterReply("The cellar", "They entered the cellar.", [{ op: "add", text: "A draft blew upward.", subject: "world", type: "world", weight: "everyday" }]);
@@ -503,9 +503,9 @@ describe("Litopys 2.0 state", () => {
       expect(r2).toHaveLength(1);
       expect(e2).toHaveLength(0);
 
-      const status = readJson("litopys/embed-status.json");
+      const status = readJson(".cache/litopys/embed-status.json");
       status.checkedAt = Date.now() - 2 * 3600 * 1000;
-      writeJson("litopys/embed-status.json", status);
+      writeJson(".cache/litopys/embed-status.json", status);
 
       writeChat("vec3", story(70));
       const reply3 = chapterReply("The road", "They left the mill.", [{ op: "add", text: "Rain began to fall.", subject: "world", type: "world", weight: "everyday" }]);
@@ -533,7 +533,7 @@ describe("Litopys 2.0 state", () => {
       ]);
 
       tick(m, [reply]);
-      const sidecar = readJson("litopys/vectors/vec5.json");
+      const sidecar = readJson(".cache/litopys/vectors/vec5.json");
       expect(Object.keys(sidecar).sort()).toEqual(["c1", "f2"]);
     });
 
@@ -558,7 +558,7 @@ describe("Litopys 2.0 state", () => {
         updatedAt: 1,
       });
       L.saveChatFile(m.host.fs, st);
-      writeJson("litopys/vectors/vec6.json", { f1: { hash: L.fnv1a("Original text."), vector: [0.1, 0.2] } });
+      writeJson(".cache/litopys/vectors/vec6.json", { f1: { hash: L.fnv1a("Original text."), vector: [0.1, 0.2] } });
 
       const before = L.needVectors(m.host.fs, L.loadChatFile(m.host.fs, chatId));
       expect(before).toHaveLength(0);

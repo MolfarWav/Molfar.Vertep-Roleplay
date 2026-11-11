@@ -1,4 +1,4 @@
-<!-- source: eedc3444d0b5 -->
+<!-- source: 82bf7d190c30 -->
 # Litopys：故事记录
 
 Litopys（编年史）是一个聊天的长期记忆。它在后台阅读故事，为每个已结束的场景撰写一个章节，并记录故事已经确立的事实。当聊天太长、超出模型的窗口时，记录会承载故事继续向前。它用于长故事；你无需手动启动。
@@ -31,7 +31,7 @@ Litopys（编年史）是一个聊天的长期记忆。它在后台阅读故事�
 
 ## 按含义匹配
 
-记忆最初按词查找事实和章节。配置嵌入模型后，它还能按含义查找：用其他说法提出的问题，也能找到对应的事实。卡片**Matching by meaning**（位于聊天记录的顶部，以及Canvas > Prompt > Memory中）会显示当前状态：off（关闭）、failing（失败）、no vectors yet（尚无向量）、partly done（部分完成）、done（完成）或made by another model（由其他模型生成）。在Settings > Memory中设置一次模型即可：默认情况下，应用先使用你自己电脑上的模型（LM Studio或Ollama），其次是带密钥的API连接，最后是OpenRouter。嵌入模型的一次调用成功后（按下卡片上的按钮，或完成一次回复），引擎会每隔几分钟检查一次，并自行为每个聊天和Data Bank文件补齐缺失的向量；超过300,000 token的内容则需要按按钮才会处理。设置中的开关**Make vectors by itself**（位于Settings > Memory）可以将其关闭。按钮**Embed N items**会先说明有多少条目、约需多少token，然后立即执行。无论是否开启该开关，新场景都会为新条目生成嵌入。如果更换了嵌入模型，旧向量在你按下**Embed again**之前不会被使用。Data Bank有自己的卡片**Data Bank by meaning**，位于Settings > Data Bank的顶部：它对文件段落和快照书籍的处理方式相同，部分覆盖的文件会显示“7 of 12 by meaning”。
+记忆最初按词查找事实和章节。配置嵌入模型后，它还能按含义查找：用其他说法提出的问题，也能找到对应的事实。卡片**Matching by meaning**（位于聊天记录的顶部，以及Canvas > Prompt > Memory中）会显示当前状态：off（关闭）、failing（失败）、no vectors yet（尚无向量）、partly done（部分完成）、done（完成）或made by another model（由其他模型生成）。向量会留在生成它们的设备上，不会同步（章节、事实及其他所有内容则会同步），因此电脑和手机可以使用不同的模型；尚未拥有向量的设备会自行生成，或自动进行，或通过按钮进行。在Settings > Memory中设置一次模型即可：默认情况下，应用先使用你自己电脑上的模型（LM Studio或Ollama），其次是带密钥的API连接，最后是OpenRouter。嵌入模型的一次调用成功后（按下卡片上的按钮，或完成一次回复），引擎会每隔几分钟检查一次，并自行为每个聊天和Data Bank文件补齐缺失的向量；超过300,000 token的内容则需要按按钮才会处理。设置中的开关**Make vectors by itself**（位于Settings > Memory）可以将其关闭。按钮**Embed N items**会先说明有多少条目、约需多少token，然后立即执行。无论是否开启该开关，新场景都会为新条目生成嵌入。如果更换了嵌入模型，旧向量在你按下**Embed again**之前不会被使用。Data Bank有自己的卡片**Data Bank by meaning**，位于Settings > Data Bank的顶部：它对文件段落和快照书籍的处理方式相同，部分覆盖的文件会显示“7 of 12 by meaning”。
 
 ## 单个聊天的设置
 

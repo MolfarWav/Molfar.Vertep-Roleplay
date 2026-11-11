@@ -1902,7 +1902,7 @@ describe("rp studio import", () => {
     let sys = (peek.json.messages as { content: string }[]).map((x) => x.content).join("\n");
     expect(sys).toContain("harbor district floods"); // fired by cosine, not keys
     // the sidecar cached the entry vector
-    const sidecar = JSON.parse(fs.readFileSync(path.join(root, "lorebooks", ".vectors.json"), "utf8")) as Record<string, { vector: number[] }>;
+    const sidecar = JSON.parse(fs.readFileSync(path.join(root, ".cache", "lorebooks", ".vectors.json"), "utf8")) as Record<string, { vector: number[] }>;
     expect(sidecar["vecbook#0"]!.vector).toEqual([1, 0]);
     // second peek: entry now cached, only the scan embeds
     const peek2 = await drive(engineUrl, { method: "POST", path: "/prompt/preview", body: { chatId: id, userText: "harbor again" } }, m);

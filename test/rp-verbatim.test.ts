@@ -252,7 +252,7 @@ describe("verbatim recall: door B, an old chapter opened by meaning (#264)", () 
     writeJson("litopys/chats/first.json", { ...L.emptyChat("first"), migrated: true, chapters });
     const vectors: Record<string, unknown> = {};
     chapters.forEach((c, k) => (vectors[c.id] = { hash: L.fnv1a(c.text), vector: unit(vecIdx[k]!), m: "model-a" }));
-    writeJson("litopys/vectors/first.json", vectors);
+    writeJson(".cache/litopys/vectors/first.json", vectors);
     writeJson("litopys/config.json", { verbatim: true, ...extraCfg });
     return chainOf(["first", "now"]);
   }

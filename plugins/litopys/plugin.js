@@ -11,9 +11,10 @@
  * Files (under data/litopys/):
  *   chats/<chatId>.json      chapters, facts, proposals, the scene in progress,
  *                            counters and the worker's last run
- *   vectors/<chatId>.json    { id: { hash, vector } } for chapters and facts
+ *   (.cache/litopys/vectors/<chatId>.json   { id: { hash, vector } } for chapters and facts: the local cache,
+ *                            not synced, every device makes its own, #374)
  *   config.json              the user's changes to the defaults
- *   embed-status.json        { ok, checkedAt }: a failed embed pauses for 1 hour
+ *   (.cache/litopys/embed-status.json   { ok, checkedAt }: a failed embed pauses for 1 hour; local, not synced)
  *   store.json, proposals.json   Litopys 1.x, kept as a backup; read by the
  *                            migration, trimmed for deleted chats
  *
@@ -31,11 +32,17 @@ const LITOPYS_DIR = "litopys";
 const CHAT_DIR = "litopys/chats/";
 /** One small digest of a finished chat for the far tier of a long chain (#288): rebuilt only when that chat's record is saved. */
 const FAR_DIR = "litopys/far/";
-const VECTOR_DIR = "litopys/vectors/";
+/** Vectors and the embeddings status are derived data and tagged with the model that made them: two devices on two models
+ *  that shared the files rewrote each other's after every sync (#374). They live in the local cache (not in git, backups or
+ *  sync); files an older version kept in the synced `litopys/` folder are moved over the first time they are read. */
+const VECTOR_DIR = ".cache/litopys/vectors/";
+const LEGACY_VECTOR_DIR = "litopys/vectors/";
 const CONFIG_FILE = "litopys/config.json";
 const STORE_FILE = "litopys/store.json";
 const PROPOSALS_FILE = "litopys/proposals.json";
-const EMBED_STATUS_FILE = "litopys/embed-status.json";
+const EMBED_STATUS_FILE = ".cache/litopys/embed-status.json";
+const LEGACY_EMBED_STATUS_FILE = "litopys/embed-status.json";
+const ENGINE_EMBED_STATUS_FILE = ".cache/embed-status.json";
 const VAULT_DIR = "vault-chats";
 const RETRY_MS = 600000;
 /** The most tokens the prompt insert may be given (wave 1 of the memory work; it was 4000). */
@@ -4336,12 +4343,42 @@ function splitWrite(fsx, dir, name, raw, field, prep) {
   }
 }
 
-/** A chat's vectors: `litopys/vectors/<chatId>.json` = `{ id: { hash, vector, m? } }`. */
-function loadVectors(fsx, chatId) {
-  return splitRead(fsx, VECTOR_DIR, chatId, "") || {};
+/** Move one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it moved. */
+function adoptLegacy(fsx, legacyDir, dir, name) {
+  let main = null;
+  try {
+    main = fsx.read(legacyDir + name + ".json");
+  } catch {
+    return false;
+  }
+  const isPart = (f) => f.startsWith(name + ".p") && f.endsWith(".json") && /^[0-9]+$/.test(f.slice(name.length + 2, -5));
+  let names = [];
+  try {
+    names = fsx.list(legacyDir.replace(/[/]$/, ""));
+  } catch {}
+  const parts = names.filter(isPart);
+  try {
+    for (const f of parts) fsx.write(dir + f, fsx.read(legacyDir + f));
+    fsx.write(dir + name + ".json", main); // the main file last: with it there, the move is whole
+  } catch {
+    return false;
+  }
+  for (const f of [name + ".json", ...parts]) {
+    try {
+      fsx.remove(legacyDir + f);
+    } catch {}
+  }
+  return true;
 }
 
-function saveVectors(fsx, chatId, map) {
+/** A chat's vectors: `.cache/litopys/vectors/<chatId>.json` = `{ id: { hash, vector, m? } }`. */
+export function loadVectors(fsx, chatId) {
+  const got = splitRead(fsx, VECTOR_DIR, chatId, "");
+  if (got) return got;
+  return (adoptLegacy(fsx, LEGACY_VECTOR_DIR, VECTOR_DIR, chatId) ? splitRead(fsx, VECTOR_DIR, chatId, "") : null) || {};
+}
+
+export function saveVectors(fsx, chatId, map) {
   // numbers rounded to 4 decimals, as the Data Bank vectors are: no visible change to a cosine, and a third less to write
   splitWrite(fsx, VECTOR_DIR, chatId, map, "", (e) => (isObj(e) && Array.isArray(e.vector) ? { ...e, vector: e.vector.map((n) => Math.round(n * 1e4) / 1e4) } : e));
 }
@@ -4608,6 +4645,9 @@ export function setEmbedStatus(fsx, ok, info) {
   const via = ok && isObj(info) && info.via ? str(info.via) : str(prev.via);
   const dim = ok && isObj(info) && Number(info.dim) > 0 ? Number(info.dim) : Number(prev.dim) || 0;
   fsx.write(EMBED_STATUS_FILE, JSON.stringify({ ok: !!ok, checkedAt: Date.now(), ...(model ? { model } : {}), ...(via ? { via } : {}), ...(dim ? { dim } : {}) }, null, 2));
+  try {
+    fsx.remove(LEGACY_EMBED_STATUS_FILE); // an older version kept it in the synced folder
+  } catch {}
 }
 
 // ---------- housekeeping ----------
@@ -4655,7 +4695,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR, FAR_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, LEGACY_VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR, FAR_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -4665,7 +4705,7 @@ export function pruneOrphans(fsx, store, files) {
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
       // a long chat's vectors go on in `<chatId>.p2.json`, ...: they live and die with the main file's chat
-      const id = dir === VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.(t|none)$/, "") : f.slice(0, -5);
+      const id = dir === VECTOR_DIR || dir === LEGACY_VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.(t|none)$/, "") : f.slice(0, -5);
       // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
       if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
       if (!live.has(id)) {
@@ -4774,7 +4814,7 @@ const AUTO_EMBED_MAX_WANTS = 25;
 function embedWorked(fsx) {
   const own = readJson(fsx, EMBED_STATUS_FILE, null);
   if (isObj(own) && own.ok === true && str(own.model)) return true;
-  const engine = readJson(fsx, "embed-status.json", null);
+  const engine = readJson(fsx, ENGINE_EMBED_STATUS_FILE, null);
   return isObj(engine) && engine.ok === true;
 }
 
@@ -4878,8 +4918,13 @@ function semOf(fsx, chatId, sem, model, dim) {
   if (!out.scan) {
     let hasFile = false;
     try {
-      hasFile = fsx.list(VECTOR_DIR).includes(chatId + ".json");
+      hasFile = fsx.list(VECTOR_DIR.replace(/[/]$/, "")).includes(chatId + ".json");
     } catch {}
+    if (!hasFile) {
+      try {
+        hasFile = fsx.list(LEGACY_VECTOR_DIR.replace(/[/]$/, "")).includes(chatId + ".json");
+      } catch {}
+    }
     const status = readJson(fsx, EMBED_STATUS_FILE, null);
     out.why = !hasFile ? "novec" : isObj(status) && status.ok === false ? "failing" : "noscan";
   }
@@ -9903,7 +9948,8 @@ function vectorsRoute(req, fsx) {
 }
 
 // ---------- shelf vectors (#184 DB-vec): the passages of the Data Bank files, embedded on the user's click ----------
-const SHELF_VEC_DIR = "databank-vectors/";
+const SHELF_VEC_DIR = ".cache/databank-vectors/";
+const LEGACY_SHELF_VEC_DIR = "databank-vectors/";
 const SHELF_WANT = "db_";
 const SHELF_KEY = "lit_db_";
 
@@ -9925,9 +9971,10 @@ function shelfFiles(fsx) {
   return out;
 }
 
-/** `databank-vectors/<id>.json`: { v: 1, m: model, dim, chunks: { "<passage index>": [numbers] } }. One model per file; a long file goes on in `<id>.p2.json`, ... (see splitRead). */
+/** `.cache/databank-vectors/<id>.json` (local, #374): { v: 1, m: model, dim, chunks: { "<passage index>": [numbers] } }. One model per file; a long file goes on in `<id>.p2.json`, ... (see splitRead). */
 function loadShelfVectors(fsx, id) {
-  const raw = splitRead(fsx, SHELF_VEC_DIR, id, "chunks");
+  let raw = splitRead(fsx, SHELF_VEC_DIR, id, "chunks");
+  if (!raw && adoptLegacy(fsx, LEGACY_SHELF_VEC_DIR, SHELF_VEC_DIR, id)) raw = splitRead(fsx, SHELF_VEC_DIR, id, "chunks");
   return isObj(raw) && isObj(raw.chunks) ? raw : { v: 1, m: "", dim: 0, chunks: {} };
 }
 

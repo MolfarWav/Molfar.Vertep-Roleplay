@@ -1,6 +1,6 @@
 /**
  * #184 DB-vec: the Data Bank shelf matched by meaning. Litopys embeds the passages of every file on a click
- * (`databank-vectors/<id>.json`, one model per file); the engine ranks with them the passages the words already let in,
+ * (`.cache/databank-vectors/<id>.json`, one model per file); the engine ranks with them the passages the words already let in,
  * and forgets a vector when its passage changes.
  */
 import { describe, expect, it } from "bun:test";
@@ -64,7 +64,7 @@ describe("filling the shelf: GET/POST /litopys/shelf", () => {
     // one file a tick: the engine answers one embed at a time
     for (let i = 0; i < 4; i++) tick(m);
     for (const id of [a, b]) {
-      const vf = readJson(`databank-vectors/${id}.json`);
+      const vf = readJson(`.cache/databank-vectors/${id}.json`);
       expect(vf.m).toBe("mock-embed");
       expect(Object.keys(vf.chunks).sort()).toEqual(chunksOf(id).map((c) => String(c.i)).sort());
     }
@@ -79,8 +79,8 @@ describe("filling the shelf: GET/POST /litopys/shelf", () => {
     click(m, b);
     m.host.llm.embedInfo = { [`lit_db_${b}`]: { model: "mock-embed", via: "Mock" } };
     tick(m);
-    expect(exists(`databank-vectors/${b}.json`)).toBe(true);
-    expect(exists(`databank-vectors/${a}.json`)).toBe(false);
+    expect(exists(`.cache/databank-vectors/${b}.json`)).toBe(true);
+    expect(exists(`.cache/databank-vectors/${a}.json`)).toBe(false);
     expect(shelf(m).json.state).toBe("partial");
   });
 
@@ -112,13 +112,13 @@ describe("filling the shelf: GET/POST /litopys/shelf", () => {
     const m = mk();
     const id = upload(m, "Lore", TEXTS);
     const idx = chunksOf(id).map((c) => c.i);
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", via: "Local", dim: 2 });
-    writeJson(`databank-vectors/${id}.json`, { v: 1, m: "old-model", dim: 2, chunks: Object.fromEntries(idx.map((i) => [String(i), [0.1, 0.2]])) });
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", via: "Local", dim: 2 });
+    writeJson(`.cache/databank-vectors/${id}.json`, { v: 1, m: "old-model", dim: 2, chunks: Object.fromEntries(idx.map((i) => [String(i), [0.1, 0.2]])) });
     expect(shelf(m).json).toMatchObject({ state: "other", other: idx.length });
     click(m);
     m.host.llm.embedInfo = { [`lit_db_${id}`]: { model: "new-model", via: "Local" } };
     tick(m);
-    expect(readJson(`databank-vectors/${id}.json`).m).toBe("new-model");
+    expect(readJson(`.cache/databank-vectors/${id}.json`).m).toBe("new-model");
     expect(shelf(m).json.state).toBe("all");
   });
 
@@ -138,7 +138,7 @@ describe("ranking by meaning: searchDatabank", () => {
     writeJson(`databank/${id}.json`, f);
     // unit vectors on a circle: passage k at angle k * 70 degrees; the scan window sits on passage 2
     const at = (deg: number) => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)];
-    writeJson(`databank-vectors/${id}.json`, { v: 1, m: model, dim: 2, chunks: Object.fromEntries(TEXTS.map((_, i) => [String(i), at(i * 70)])) });
+    writeJson(`.cache/databank-vectors/${id}.json`, { v: 1, m: model, dim: 2, chunks: Object.fromEntries(TEXTS.map((_, i) => [String(i), at(i * 70)])) });
     return { m, id, scan: at(2 * 70) };
   };
   const fsx = (m: ReturnType<typeof mk>) => m.host.fs;
@@ -169,9 +169,9 @@ describe("ranking by meaning: searchDatabank", () => {
     const f = readJson(`databank/${id}.json`);
     f.chunks.push({ i: 5, text: "The weather over the western sea was calm." });
     writeJson(`databank/${id}.json`, f);
-    const vf = readJson(`databank-vectors/${id}.json`);
+    const vf = readJson(`.cache/databank-vectors/${id}.json`);
     vf.chunks["5"] = scan; // a perfect match by meaning, no word in common with the query
-    writeJson(`databank-vectors/${id}.json`, vf);
+    writeJson(`.cache/databank-vectors/${id}.json`, vf);
     const hits = engine.searchDatabank(fsx(m), "Aria", 10, { chatId: "c", scanVec: scan, scanModel: "mock-embed" });
     expect(hits.map((h: any) => h.chunkIndex)).not.toContain(5);
   });
@@ -204,27 +204,27 @@ describe("a changed passage forgets its vector", () => {
       id, name: "Book", scope: "chat", scopeTargetId: "c1", scopeChatIds: ["c1"], enabled: true, addedAt: 1, size: 20, kind: "snapshot",
       chunks: [{ i: 0, text: "First passage.", kind: "fact", ref: "f1" }, { i: 1, text: "Second passage.", kind: "fact", ref: "f2" }],
     });
-    writeJson(`databank-vectors/${id}.json`, { v: 1, m: "mock-embed", dim: 2, chunks: { "0": [1, 0], "1": [0, 1] } });
+    writeJson(`.cache/databank-vectors/${id}.json`, { v: 1, m: "mock-embed", dim: 2, chunks: { "0": [1, 0], "1": [0, 1] } });
     return { m, id };
   };
 
   it("editing the text drops that vector only; the next fill makes a new one", () => {
     const { m, id } = seedBook();
     expect(call(m, "PATCH", `/databank/${id}`, { chunk: { i: 1, text: "Second passage, rewritten." } }).status).toBe(200);
-    expect(Object.keys(readJson(`databank-vectors/${id}.json`).chunks)).toEqual(["0"]);
+    expect(Object.keys(readJson(`.cache/databank-vectors/${id}.json`).chunks)).toEqual(["0"]);
     expect(shelf(m).json).toMatchObject({ state: "partial", have: 1, missing: 1 });
   });
 
   it("dropping a passage drops its vector", () => {
     const { m, id } = seedBook();
     call(m, "PATCH", `/databank/${id}`, { chunk: { i: 0, drop: true } });
-    expect(Object.keys(readJson(`databank-vectors/${id}.json`).chunks)).toEqual(["1"]);
+    expect(Object.keys(readJson(`.cache/databank-vectors/${id}.json`).chunks)).toEqual(["1"]);
   });
 
   it("deleting the file deletes its vectors", () => {
     const { m, id } = seedBook();
     call(m, "DELETE", `/databank/${id}`);
-    expect(exists(`databank-vectors/${id}.json`)).toBe(false);
+    expect(exists(`.cache/databank-vectors/${id}.json`)).toBe(false);
   });
 });
 
@@ -233,7 +233,7 @@ describe("a reply embeds its scan window when the shelf has vectors", () => {
     const m = mk();
     const meta = { id: "chatx" };
     expect(engine.semanticEmbedWork(m.host.fs, meta, [], "hello there")).toBeNull();
-    writeJson("databank-vectors/f1.json", { v: 1, m: "mock-embed", dim: 2, chunks: {} });
+    writeJson(".cache/databank-vectors/f1.json", { v: 1, m: "mock-embed", dim: 2, chunks: {} });
     expect(engine.semanticEmbedWork(m.host.fs, meta, [], "hello there")).toMatchObject({ wantScan: true });
     expect(engine.semanticEmbedWork(m.host.fs, meta, [], "  ")).toBeNull();
   });

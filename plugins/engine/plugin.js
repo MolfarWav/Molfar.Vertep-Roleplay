@@ -1276,7 +1276,37 @@ function splitRemove(fsx, dir, name) {
   for (const f of names) if (isPart(f)) { try { fsx.remove(dir + f); } catch {} }
 }
 
-/** The vectors Litopys keeps for one Data Bank file (`databank-vectors/<id>.json`, #184 DB-vec), when they were made by the
+/** Matching by meaning keeps its vectors and its "does embedding work here" status in the local cache (not in git,
+ *  backups or sync: every device builds its own, #374). Vectors are tagged with the model that made them and a vector
+ *  of another model is made again, so two devices on two models, sharing the files, rewrote each other's after every
+ *  sync. Files an older version kept in the synced folders are moved over the first time they are read. */
+const LOCAL_WI_VEC_DIR = ".cache/lorebooks/";
+const LOCAL_SHELF_VEC_DIR = ".cache/databank-vectors/";
+const LOCAL_LIT_VEC_DIR = ".cache/litopys/vectors/";
+const LOCAL_EMBED_STATUS = ".cache/embed-status.json";
+/** Move one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it moved. */
+function adoptLegacy(fsx, legacyDir, dir, name) {
+  let main = null;
+  try { main = fsx.read(legacyDir + name + ".json"); } catch { return false; }
+  const isPart = (f) => f.startsWith(name + ".p") && f.endsWith(".json") && /^[0-9]+$/.test(f.slice(name.length + 2, -5));
+  let names = [];
+  try { names = fsx.list(legacyDir.replace(/[/]$/, "")); } catch {}
+  const parts = names.filter(isPart);
+  try {
+    for (const f of parts) fsx.write(dir + f, fsx.read(legacyDir + f));
+    fsx.write(dir + name + ".json", main); // the main file last: with it there, the move is whole
+  } catch { return false; }
+  for (const f of [name + ".json", ...parts]) { try { fsx.remove(legacyDir + f); } catch {} }
+  return true;
+}
+/** splitRead of a local-cache record; one never moved yet is moved from its old place first. */
+function splitReadLocal(fsx, legacyDir, dir, name, field) {
+  const got = splitRead(fsx, dir, name, field);
+  if (got) return got;
+  return adoptLegacy(fsx, legacyDir, dir, name) ? splitRead(fsx, dir, name, field) : null;
+}
+
+/** The vectors Litopys keeps for one Data Bank file (`.cache/databank-vectors/<id>.json`, #184 DB-vec), when they were made by the
  *  model that embedded the scan window; a file embedded by another model does not compare, so it counts as none. */
 const DB_SEM_MIN_POOL = 4;
 const DB_SEM_Z_CAP = 3;
@@ -1285,7 +1315,7 @@ const DB_SEM_BOOST = 1.5;
 function shelfVectorsFor(fsx, id, model) {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return null;
   try {
-    const vf = splitRead(fsx, "databank-vectors/", id, "chunks");
+    const vf = splitReadLocal(fsx, "databank-vectors/", LOCAL_SHELF_VEC_DIR, id, "chunks");
     if (!vf || typeof vf !== "object" || !vf.chunks || typeof vf.chunks !== "object") return null;
     if (model && vf.m && vf.m !== model) return null;
     return vf;
@@ -1296,10 +1326,11 @@ function dropShelfVector(fsx, id, chunkNo) {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(String(id || ""))) return;
   // the passage's vector is in the main file or in one of the extra ones: rewrite only the file that has it
   try {
-    const main = JSON.parse(fsx.read("databank-vectors/" + id + ".json"));
+    adoptLegacy(fsx, "databank-vectors/", LOCAL_SHELF_VEC_DIR, id);
+    const main = JSON.parse(fsx.read(LOCAL_SHELF_VEC_DIR + id + ".json"));
     const more = Number(main && main._more);
-    const files = ["databank-vectors/" + id + ".json"];
-    if (Number.isInteger(more) && more > 0) for (let k = 2; k <= Math.min(more, SPLIT_PARTS_MAX) + 1; k++) files.push(splitPath("databank-vectors/", id, k));
+    const files = [LOCAL_SHELF_VEC_DIR + id + ".json"];
+    if (Number.isInteger(more) && more > 0) for (let k = 2; k <= Math.min(more, SPLIT_PARTS_MAX) + 1; k++) files.push(splitPath(LOCAL_SHELF_VEC_DIR, id, k));
     for (const path of files) {
       let vf = null;
       try { vf = path === files[0] ? main : JSON.parse(fsx.read(path)); } catch { continue; }
@@ -1313,7 +1344,8 @@ function dropShelfVector(fsx, id, chunkNo) {
 }
 /** Does the shelf keep any vectors? (then a reply embeds its scan window too, even when no Litopys vectors or vectorized entries exist) */
 function databankHasVectors(fsx) {
-  try { return fsx.list("databank-vectors").some((f) => f.endsWith(".json")); } catch { return false; }
+  const any = (d) => { try { return fsx.list(d).some((f) => f.endsWith(".json")); } catch { return false; } };
+  return any(LOCAL_SHELF_VEC_DIR.replace(/[/]$/, "")) || any("databank-vectors");
 }
 
 // ---------- translation providers (on the two-phase net bridge) ----------
@@ -1352,7 +1384,7 @@ function cosine(a, b) {
  *  stop paying the extra pass on every send. Re-probes hourly. */
 function embedCap(fsx) {
   try {
-    const st = JSON.parse(fsx.read("embed-status.json"));
+    const st = JSON.parse(fsx.read(LOCAL_EMBED_STATUS));
     if (st && st.ok === false && Date.now() - (st.checkedAt || 0) < 3600e3) return false;
     return true;
   } catch { return true; }
@@ -1361,24 +1393,24 @@ function setEmbedCap(fsx, ok, model) {
   try {
     // the model of the last working call stays (a failed call does not forget it)
     let prev = "";
-    try { const st = JSON.parse(fsx.read("embed-status.json")); if (st && typeof st.model === "string") prev = st.model; } catch {}
+    try { const st = JSON.parse(fsx.read(LOCAL_EMBED_STATUS)); if (st && typeof st.model === "string") prev = st.model; } catch {}
     const m = typeof model === "string" && model ? model : prev;
-    fsx.write("embed-status.json", JSON.stringify({ ok: ok === true, checkedAt: Date.now(), ...(m ? { model: m } : {}) }, null, 2));
+    fsx.write(LOCAL_EMBED_STATUS, JSON.stringify({ ok: ok === true, checkedAt: Date.now(), ...(m ? { model: m } : {}) }, null, 2));
+    try { fsx.remove("embed-status.json"); } catch {} // an older version kept it in the synced folder
   } catch {}
 }
 /** The model that made the last working embeddings call ("" when unknown). */
 function embedModelOf(fsx) {
-  try { const st = JSON.parse(fsx.read("embed-status.json")); return st && typeof st.model === "string" ? st.model : ""; } catch { return ""; }
+  try { const st = JSON.parse(fsx.read(LOCAL_EMBED_STATUS)); return st && typeof st.model === "string" ? st.model : ""; } catch { return ""; }
 }
 /** Vectorized world-info entries keep their embeddings in a sidecar cache
  *  keyed book#uid, invalidated by content hash. */
 export function loadWiVectors(fsx) {
-  const m = splitRead(fsx, "lorebooks/", ".vectors", "");
+  const m = splitReadLocal(fsx, "lorebooks/", LOCAL_WI_VEC_DIR, ".vectors", "");
   return m || {};
 }
-/** Compact, rounded to 4 decimals, and in as many files as it needs (`lorebooks/.vectors.p2.json`, ...: a dot name is
- *  never listed as a book). A failed write is not a failed reply, but it is not silent either: the entries would be embedded
- *  again on every send, so the failure is kept in `lorebooks/.vectors-error.json` (cleared by the next good save) and returned
+/** Compact, rounded to 4 decimals, and in as many files as it needs (`.cache/lorebooks/.vectors.p2.json`, ...). A failed write is not a failed reply, but it is not silent either: the entries would be embedded
+ *  again on every send, so the failure is kept in `.cache/lorebooks/.vectors-error.json` (cleared by the next good save) and returned
  *  as text for the caller to log. Returns "" when saved. */
 export function saveWiVectors(fsx, map) {
   try {
@@ -1387,12 +1419,12 @@ export function saveWiVectors(fsx, map) {
       const e = map[key];
       out[key] = e && Array.isArray(e.vector) ? { ...e, vector: e.vector.map((n) => Math.round(n * 1e4) / 1e4) } : e;
     }
-    splitWrite(fsx, "lorebooks/", ".vectors", out, "");
-    try { fsx.remove("lorebooks/.vectors-error.json"); } catch {}
+    splitWrite(fsx, LOCAL_WI_VEC_DIR, ".vectors", out, "");
+    try { fsx.remove(LOCAL_WI_VEC_DIR + ".vectors-error.json"); } catch {}
     return "";
   } catch (e) {
     const why = String((e && e.message) || e).slice(0, 200);
-    try { fsx.write("lorebooks/.vectors-error.json", JSON.stringify({ at: Date.now(), error: why })); } catch {}
+    try { fsx.write(LOCAL_WI_VEC_DIR + ".vectors-error.json", JSON.stringify({ at: Date.now(), error: why })); } catch {}
     return why;
   }
 }
@@ -1453,7 +1485,8 @@ function litopysHasVectors(fsx, meta) {
       const cfg = JSON.parse(fsx.read("litopys/config.json"));
       if (cfg && (cfg.enabled === false || cfg.insert === false)) return false;
     } catch {}
-    return fsx.list("litopys/vectors").includes(id + ".json");
+    const has = (d) => { try { return fsx.list(d).includes(id + ".json"); } catch { return false; } };
+    return has(LOCAL_LIT_VEC_DIR.replace(/[/]$/, "")) || has("litopys/vectors");
   } catch { return false; }
 }
 
@@ -6080,7 +6113,7 @@ export function handleRoute(req, host) {
       }
       if (req.method === "DELETE" && id) {
         try { fsx.remove("databank/" + id + ".json"); } catch { return err(404, "no such file"); }
-        splitRemove(fsx, "databank-vectors/", id); // none may have been made
+        splitRemove(fsx, LOCAL_SHELF_VEC_DIR, id); splitRemove(fsx, "databank-vectors/", id); // none may have been made
         return ok({ ok: true });
       }
     }

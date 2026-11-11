@@ -39,9 +39,9 @@ describe("coverage view: GET /litopys/vectors", () => {
 
   it("is partial with some vectors, all with every one", () => {
     const m = seed("cov2");
-    writeJson("litopys/vectors/cov2.json", { c1: stored("The mill burned down."), f1: stored("The mill wheel is broken.") });
+    writeJson(".cache/litopys/vectors/cov2.json", { c1: stored("The mill burned down."), f1: stored("The mill wheel is broken.") });
     expect(view("cov2", m).json).toMatchObject({ state: "partial", have: 2, missing: 3 });
-    writeJson("litopys/vectors/cov2.json", {
+    writeJson(".cache/litopys/vectors/cov2.json", {
       c1: stored("The mill burned down."), c2: stored("A duke arrived at dusk."), f1: stored("The mill wheel is broken."),
       f2: stored("Aria distrusts strangers."), f3: stored("Bram owes a debt."),
     });
@@ -50,14 +50,14 @@ describe("coverage view: GET /litopys/vectors", () => {
 
   it("a text edited since is missing again", () => {
     const m = seed("cov3");
-    writeJson("litopys/vectors/cov3.json", { f1: stored("The old text.") });
+    writeJson(".cache/litopys/vectors/cov3.json", { f1: stored("The old text.") });
     expect(view("cov3", m).json).toMatchObject({ have: 0, missing: 5 });
   });
 
   it("vectors of another model count as 'other', not as missing, and say so", () => {
     const m = seed("cov4");
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", via: "Local", dim: 2 });
-    writeJson("litopys/vectors/cov4.json", {
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", via: "Local", dim: 2 });
+    writeJson(".cache/litopys/vectors/cov4.json", {
       c1: stored("The mill burned down.", "old-model"), c2: stored("A duke arrived at dusk.", "new-model"),
       f1: stored("The mill wheel is broken.", "old-model"),
     });
@@ -68,21 +68,21 @@ describe("coverage view: GET /litopys/vectors", () => {
 
   it("an old vector with no model counts for any model, unless its length differs from what the engine makes now", () => {
     const m = seed("cov5");
-    writeJson("litopys/vectors/cov5.json", { c1: stored("The mill burned down.", undefined, [1, 2, 3]), c2: stored("A duke arrived at dusk.", undefined, [1, 2]) });
+    writeJson(".cache/litopys/vectors/cov5.json", { c1: stored("The mill burned down.", undefined, [1, 2, 3]), c2: stored("A duke arrived at dusk.", undefined, [1, 2]) });
     expect(view("cov5", m).json).toMatchObject({ have: 2, other: 0 });
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "m", dim: 2 });
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "m", dim: 2 });
     expect(view("cov5", m).json).toMatchObject({ have: 1, other: 1 });
   });
 
   it("a failed call within the hour reads as failing, with the minutes left", () => {
     const m = seed("cov6");
     const at = Date.now() - 10 * 60000;
-    writeJson("litopys/embed-status.json", { ok: false, checkedAt: at });
+    writeJson(".cache/litopys/embed-status.json", { ok: false, checkedAt: at });
     const r = view("cov6", m).json;
     expect(r.state).toBe("failing");
     expect(retryMinutes(r, at + 10 * 60000)).toBe(50);
     // an hour on, it is a normal gap again
-    writeJson("litopys/embed-status.json", { ok: false, checkedAt: Date.now() - 61 * 60000 });
+    writeJson(".cache/litopys/embed-status.json", { ok: false, checkedAt: Date.now() - 61 * 60000 });
     expect(view("cov6", m).json.state).toBe("none");
   });
 
@@ -110,7 +110,7 @@ describe("the click: POST /litopys/vectors", () => {
     expect(post("emb2", m).json.state).toBe("working");
     m.host.llm.embedInfo = { lit_emb_emb2: { model: "mock-embed", via: "Mock" } };
     tick(m);
-    const v = readJson("litopys/vectors/emb2.json");
+    const v = readJson(".cache/litopys/vectors/emb2.json");
     expect(Object.keys(v).sort()).toEqual(["c1", "c2", "f1", "f2", "f3"]);
     expect(Object.values(v).every((e: any) => e.m === "mock-embed")).toBe(true);
     expect(view("emb2", m).json).toMatchObject({ state: "all", have: 5, model: "mock-embed", via: "Mock" });
@@ -140,12 +140,12 @@ describe("the click: POST /litopys/vectors", () => {
 
   it("with another model's vectors, 'embed again' replaces only those", () => {
     const m = seed("emb5");
-    writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", dim: 2 });
-    writeJson("litopys/vectors/emb5.json", { c1: stored("The mill burned down.", "old-model"), c2: stored("A duke arrived at dusk.", "new-model", [9, 9]) });
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "new-model", dim: 2 });
+    writeJson(".cache/litopys/vectors/emb5.json", { c1: stored("The mill burned down.", "old-model"), c2: stored("A duke arrived at dusk.", "new-model", [9, 9]) });
     post("emb5", m);
     m.host.llm.embedInfo = { lit_emb_emb5: { model: "new-model", via: "Local" } };
     tick(m);
-    const v = readJson("litopys/vectors/emb5.json");
+    const v = readJson(".cache/litopys/vectors/emb5.json");
     expect(v.c2.vector).toEqual([9, 9]);
     expect(v.c1.m).toBe("new-model");
     expect(view("emb5", m).json.state).toBe("all");
@@ -153,7 +153,7 @@ describe("the click: POST /litopys/vectors", () => {
 
   it("nothing to embed starts nothing; a second click while working changes nothing", () => {
     const m = seed("emb6");
-    writeJson("litopys/vectors/emb6.json", {
+    writeJson(".cache/litopys/vectors/emb6.json", {
       c1: stored("The mill burned down."), c2: stored("A duke arrived at dusk."), f1: stored("The mill wheel is broken."),
       f2: stored("Aria distrusts strangers."), f3: stored("Bram owes a debt."),
     });
@@ -212,17 +212,17 @@ describe("the trace says whether the reply was ranked by meaning", () => {
 
   it("a vectors file but no scan vector: noscan, or failing when the last call failed", () => {
     const m = setup("tr2");
-    writeJson("litopys/vectors/tr2.json", {});
+    writeJson(".cache/litopys/vectors/tr2.json", {});
     ask(m, "tr2", {});
     expect(trace(m, "tr2").sem).toMatchObject({ scan: false, why: "noscan" });
-    writeJson("litopys/embed-status.json", { ok: false, checkedAt: Date.now() });
+    writeJson(".cache/litopys/embed-status.json", { ok: false, checkedAt: Date.now() });
     ask(m, "tr2", {});
     expect(trace(m, "tr2").sem).toMatchObject({ scan: false, why: "failing" });
   });
 
   it("a scan vector: used, with the model and how many candidates had a vector", () => {
     const m = setup("tr3");
-    writeJson("litopys/vectors/tr3.json", { f1: stored("The mill wheel is broken.", "mock-embed", [1, 0]) });
+    writeJson(".cache/litopys/vectors/tr3.json", { f1: stored("The mill wheel is broken.", "mock-embed", [1, 0]) });
     ask(m, "tr3", { scanVec: [1, 0], scanModel: "mock-embed" });
     const sem = trace(m, "tr3").sem;
     expect(sem).toMatchObject({ scan: true, model: "mock-embed" });
