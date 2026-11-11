@@ -4286,7 +4286,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     try {
       if (!compactOn && !isOff("plugin:litopys") && litLine.length) {
         const first = visibleHist[trimmed];
-        const at = first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
+        // nothing trimmed by the window: the history starts where Litopys's own cut left it. Leading messages that are no turn of
+        // the story (a [[direction]] alone, a hidden one) are not "forgotten", so the chat shows no out-of-context divider for them
+        const at = trimmed === 0 ? Math.min(litCut > 0 ? litCut : 0, litLine.length) : first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
         const count = at < 0 ? 0 : at;
         // `hist`: the id and a hash of each history message as it stands in the prompt, so the Litopys hook can tell which
         // of the request's messages are which turns of the chat (the presence cut, #289); a message it cannot find stays
