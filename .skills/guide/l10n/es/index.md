@@ -1,4 +1,4 @@
-<!-- source: 016e8644f058 -->
+<!-- source: 4f0535fcd80d -->
 # Roleplay: el panorama
 
 Roleplay es la app de historias de Molfar Vertep: guardas tarjetas de personajes, juegas chats con ellas y dejas que la app siga la escena, recuerde la historia y mueva el mundo a tu alrededor. Esta página es un mapa. El **Help** propio de la app (en el riel) tiene un artículo corto para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí sino en los Settings principales: véase [[vertep:models]].
@@ -18,7 +18,7 @@ Los ajustes propios de Roleplay no tienen elemento en el riel. Ábrelos con el b
 
 ## Dentro de un chat
 
-El encabezado del chat tiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, véase [[memory]]), **Record** y **World**. La píldora junto a ellas abre pestañas de Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto a la caja de mensaje contiene Polish, Regenerate with a hint, la generación de imágenes y más.
+El encabezado del chat tiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, véase [[memory]]), **Record** y **World**. La píldora junto a ellas abre pestañas de Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto a la caja de mensaje contiene Polish, Regenerate with a hint, Stage direction, la generación de imágenes y más.
 
 Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que conviene conocerlos:
 

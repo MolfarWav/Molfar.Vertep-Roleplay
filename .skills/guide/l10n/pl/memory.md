@@ -1,4 +1,4 @@
-<!-- source: c5f5d7226ed0 -->
+<!-- source: f9f786fd67a3 -->
 # Która pamięć do czego
 
 Roleplay ma kilka rzeczy, które „pamiętają”. Różnią się tym, kto je trzyma, co zawierają i jak długo trwają. Jeśli postać o czymś zapomina, ta strona podpowie, po którą sięgnąć.
@@ -21,6 +21,8 @@ Roleplay ma kilka rzeczy, które „pamiętają”. Różnią się tym, kto je t
 
 **Notatka autora** (nagłówek czatu, „Note”). Tekst, który piszesz tylko dla tego czatu, umieszczany na głębokości i w roli, które wybierasz. Używaj jej do sterowania: podpowiedź stylu, pchnięcie fabuły.
 
+**Didaskalia** (pole wiadomości, „Stage directions”). Tekst, który wpisujesz w `[[podwójnych nawiasach]]` we własnej wiadomości, zostaje wycięty z twoich słów i wysłany do modelu jako instrukcja poza rolą, o wysokim priorytecie, tylko dla odpowiedzi na tę wiadomość (oraz jej swipe'ów i regeneracji); nic jej nie zapamiętuje. Pod twoją wiadomością pokazuje się przygaszony chip z krzyżykiem, który ją usuwa (przy pisaniu odpowiedzi nie ma krzyżyka). Menu „+” > **Stage direction** wpisuje nawiasy za ciebie, a linia pod polem liczy didaskalie w twoim szkicu. Wiadomość zawierająca same didaskalie nie dodaje twojej tury do historii: model dostaje instrukcję po ostatniej odpowiedzi i pisze następną. Z zapytaniem idą tylko didaskalie najnowszej wiadomości; starsza się nie powtarza. Domyślnie instrukcja trafia na koniec zapytania jako wiadomość systemowa; **Stage directions role** w ustawieniach presetu (Presets > Shaping) może zrobić z niej wiadomość użytkownika dla modeli, które ignorują wiadomości systemowe, a plansza promptu czatu (Canvas > Prompt, wiersz **Stage directions**) wyłącza ją dla tego czatu. Pojedyncze nawiasy `[jak tu]` nie są didaskaliami.
+
 **Dusza** ([[soul]]). Nie pamięć zdarzeń, lecz to, jak postać reaguje; podczas gry nigdy się nie zmienia.
 
 ## Czego użyć
@@ -28,7 +30,7 @@ Roleplay ma kilka rzeczy, które „pamiętają”. Różnią się tym, kto je t
 - „Powinna pamiętać wczorajszą kłótnię”: krótkoterminowo zajmuje się tym Dashboard, długoterminowo trzyma to Litopys. Dodaj przypięty fakt, jeśli nie może się nigdy zgubić.
 - „Powinna pamiętać poprzednią historię w nowym czacie”: pamięć karty albo połącz czaty na Canvas, aby wcześniejszy czat wnosił swoją historię jako tło ([[canvas]], [[long-chats]]).
 - „Świat ma regułę albo miejsce”: księga wiedzy.
-- „Chcę, żeby kolejne odpowiedzi szły w tę stronę”: notatka autora albo przycisk „Story, move”.
+- „Chcę, żeby kolejne odpowiedzi szły w tę stronę”: notatka autora albo przycisk „Story, move”. „Tylko ta jedna odpowiedź, i to nie ja mówię”: didaskalia w `[[podwójnych nawiasach]]`.
 - „Mam długi dokument”: Data Bank.
 
 ## Skąd ona to wiedziała?

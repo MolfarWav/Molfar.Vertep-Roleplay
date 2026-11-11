@@ -1,16 +1,16 @@
-<!-- source: f7c0805c5597 -->
+<!-- source: 45efabb467af -->
 # Deine erste Geschichte
 
-Das ist der kürzeste Weg von einem leeren Roleplay zu einer laufenden Geschichte und eine Liste dessen, was von selbst passiert, damit dich nichts überrascht. Du brauchst zuerst eine Modellverbindung: siehe [[vertep:models]].
+Das ist der kürzeste Weg von einem leeren Roleplay zu einer laufenden Geschichte, dazu eine Liste dessen, was von selbst passiert, damit dich nichts überrascht. Du brauchst zuerst eine Modellverbindung: siehe [[vertep:models]].
 
 ## Schritte
 
 1. **Hol eine Karte.** Drücke auf Home „New character“ und schreibe eine, oder „Import card“, um eine PNG- oder JSON-Karte aus einer Datei zu holen. Du kannst auch den Bereich Marketplace durchsuchen oder „With Molfar“ drücken, damit Molfar eine Karte aus deiner Idee entwirft. Siehe [[characters]].
 2. **Speichere sie.** Der Karteneditor hält Änderungen in einem Entwurf, bis du „Save changes“ drückst.
 3. **Wähle eine Persona** (wen du spielst) im Bereich Personas oder behalte die Standard-Persona. „Use this persona“ macht sie zu deiner Standard-Persona.
-4. **Starte einen Chat.** Drücke „New chat“ auf der Karte. Der Chat öffnet mit der ersten Nachricht der Karte.
+4. **Starte einen Chat.** Drücke „New chat“ auf der Karte. Der Chat öffnet sich mit der ersten Nachricht der Karte.
 5. **Prüfe das Modell.** Die Pille in der Chat-Kopfzeile hat einen Model-Tab; dort ein Modell zu wählen ändert nur diesen Chat.
-6. **Schreibe.** Unter jeder Antwort kannst du andere Versionen durchblättern (Swipes); der rechte Pfeil auf der letzten Version verlangt eine neue. Um eine Antwort mit Richtung neu zu machen, nutze „Regenerate with a hint“ im „+“-Menü. Der Button „More“ an einer Nachricht bietet Bearbeiten, Fork, Prompt-Vorschau und mehr.
+6. **Schreibe.** Unter jeder Antwort kannst du durch andere Versionen blättern (Swipes); der rechte Pfeil auf der letzten Version verlangt eine neue. Um eine Antwort mit einer Richtung neu zu erzeugen, nutze „Regenerate with a hint“ im „+“-Menü. Um die Antwort auf die Nachricht zu lenken, die du schreibst, setze die Anweisung in doppelte Klammern darin, zum Beispiel `Ich trete ein. [[Aria verbirgt ein Geheimnis.]]`: Das Modell liest es als Regieanweisung, nicht als etwas, das du gesagt hast („Stage direction“ im „+“-Menü tippt die Klammern für dich). Der Button „More“ an einer Nachricht bietet Bearbeiten, Fork, Prompt-Vorschau und mehr.
 
 ## Was von selbst läuft
 
@@ -19,13 +19,13 @@ Sobald der Chat Antworten hat, arbeiten Hintergrundhelfer, jeder mit eigenen Mod
 - Das Dashboard liest nach jeder Antwort die Szene ([[dashboard]]).
 - Litopys schreibt ein Kapitel, wenn eine Szene endet ([[litopys]]).
 - Der World DM zeichnet auf seiner niedrigsten aktiven Stufe (Chronicler) Personen und Orte in ein Buch für diesen Chat auf ([[world-dm]]).
-- Eine Karte ohne Soul bekommt automatisch eine vorgeschlagene ([[soul]]).
+- Eine Karte ohne Soul bekommt automatisch eine vorgeschlagen ([[soul]]).
 
 Fehlschläge dieser Aufgaben werden in der Inbox aufgelistet.
 
 ## Wenn das Modell klein, langsam oder pro Aufruf bezahlt ist
 
-Die günstigsten Ersparnisse, der Reihe nach:
+Die günstigsten Einsparungen, der Reihe nach:
 
 1. Setze in den Dashboard-„Settings“ den Modus auf „Manual“ (dann aktualisiert es nur, wenn du Refresh drückst), oder wähle ein kleines Modell als „Sensor model“.
 2. Senke in den „Litopys settings“ der Library die „Memory size“ oder schalte „Chapters and facts“ aus.

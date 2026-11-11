@@ -1,4 +1,4 @@
-<!-- source: 016e8644f058 -->
+<!-- source: 4f0535fcd80d -->
 # Roleplay: przegląd
 
 Roleplay to aplikacja fabularna Molfar Vertep: prowadzisz karty postaci, grasz z nimi w czatach i pozwalasz aplikacji śledzić scenę, pamiętać historię i prowadzić świat wokół ciebie. Ta strona jest mapą. Własna **Help** aplikacji (w pasku bocznym) ma krótki artykuł prawie do każdego ekranu; ten przewodnik wyjaśnia, jak części do siebie pasują. Modele i połączenia ustawia się nie tutaj, lecz w głównych Ustawieniach: zobacz [[vertep:models]].
@@ -18,7 +18,7 @@ Własne ustawienia Roleplay nie mają pozycji na pasku. Otwórz je przyciskiem �
 
 ## W czacie
 
-Nagłówek czatu trzyma narzędzia historii: **Note** (notatka autora), **Fired** (co trafiło do promptu, zobacz [[memory]]), **Record** i **World**. Pigułka obok otwiera karty Preset, Persona, Model i Agents tego czatu. Przycisk „More” na każdej wiadomości otwiera jej akcje, a menu „+” obok pola wiadomości zawiera Polish, Regenerate with a hint, generowanie obrazów i więcej.
+Nagłówek czatu trzyma narzędzia historii: **Note** (notatka autora), **Fired** (co trafiło do promptu, zobacz [[memory]]), **Record** i **World**. Pigułka obok otwiera karty Preset, Persona, Model i Agents tego czatu. Przycisk „More” na każdej wiadomości otwiera jej akcje, a menu „+” obok pola wiadomości zawiera Polish, Regenerate with a hint, Stage direction, generowanie obrazów i więcej.
 
 Trzej pomocnicy obserwują historię i kosztują dodatkowe wywołania modelu, warto więc ich znać:
 

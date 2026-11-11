@@ -1,23 +1,23 @@
-<!-- source: f7c0805c5597 -->
+<!-- source: 45efabb467af -->
 # Votre première histoire
 
 Voici le chemin le plus court d'un Roleplay vide à une histoire qui tourne, et une liste de ce qui se passe tout seul pour que rien ne vous surprenne. Il vous faut d'abord une connexion à un modèle : voir [[vertep:models]].
 
 ## Étapes
 
-1. **Obtenez une carte.** Sur Home, appuyez sur « New character » et écrivez-en un, ou « Import card » pour importer un fichier PNG ou JSON depuis un fichier. Vous pouvez aussi chercher dans la section Marché, ou appuyer sur « With Molfar » pour que Molfar rédige une carte à partir de votre idée. Voir [[characters]].
+1. **Obtenez une carte.** Sur Home, appuyez sur « New character » et écrivez-en une, ou « Import card » pour importer une carte PNG ou JSON depuis un fichier. Vous pouvez aussi chercher dans la section Marché, ou appuyer sur « With Molfar » pour que Molfar rédige une carte à partir de votre idée. Voir [[characters]].
 2. **Enregistrez-la.** L'éditeur de carte garde les modifications dans un brouillon jusqu'à ce que vous appuyiez sur « Save changes ».
-3. **Choisissez un persona** (qui vous jouez) dans la section Personas, ou gardez celui par défaut. « Use this persona » en fait votre persona par défaut.
+3. **Choisissez un persona** (celui que vous incarnez) dans la section Personas, ou gardez celui par défaut. « Use this persona » en fait votre persona par défaut.
 4. **Commencez une discussion.** Appuyez sur « New chat » sur la carte. La discussion s'ouvre avec le premier message de la carte.
 5. **Vérifiez le modèle.** La pastille dans l'en-tête de la discussion a un onglet Model ; y choisir un modèle ne change que cette discussion.
-6. **Écrivez.** Sous chaque réponse, vous pouvez feuilleter d'autres versions (balayages) ; la flèche droite sur la dernière version en demande une nouvelle. Pour refaire une réponse avec une direction, utilisez « Regenerate with a hint » dans le menu « + ». Le bouton « More » d'un message propose modifier, bifurquer, aperçu de requête et plus.
+6. **Écrivez.** Sous chaque réponse, vous pouvez feuilleter d'autres versions (balayages) ; la flèche droite sur la dernière version en demande une nouvelle. Pour refaire une réponse avec une direction, utilisez « Regenerate with a hint » dans le menu « + ». Pour orienter la réponse vers le message que vous écrivez, mettez l'instruction entre doubles crochets dedans, par exemple `J'entre. [[Aria cache un secret.]]` : le modèle la lit comme une indication de scène, et non comme quelque chose que vous avez dit (le menu « + » propose « Stage direction » pour taper les crochets à votre place). Le bouton « More » d'un message propose modifier, bifurquer, aperçu de requête et plus.
 
 ## Ce qui s'exécute tout seul
 
-Une fois que la discussion a des réponses, des assistants en arrière-plan travaillent, chacun avec ses propres appels de modèle :
+Une fois que la discussion a des réponses, des assistants en arrière-plan travaillent, chacun avec ses propres appels au modèle :
 
 - Le Dashboard lit la scène après chaque réponse ([[dashboard]]).
-- Litopys écrit un chapitre quand une scène se ferme ([[litopys]]).
+- Litopys écrit un chapitre quand une scène se termine ([[litopys]]).
 - Le World DM, à son niveau actif le plus bas (Chroniqueur), consigne les personnes et les lieux dans un livre pour cette discussion ([[world-dm]]).
 - Une carte sans âme en reçoit une proposée automatiquement ([[soul]]).
 

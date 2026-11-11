@@ -1,4 +1,4 @@
-<!-- source: c5f5d7226ed0 -->
+<!-- source: f9f786fd67a3 -->
 # Qué memoria para qué
 
 Roleplay tiene varias cosas que "recuerdan". Se diferencian en quién las guarda, qué contienen y cuánto duran. Si un personaje olvida algo, esta página te dice cuál usar.
@@ -21,6 +21,8 @@ Roleplay tiene varias cosas que "recuerdan". Se diferencian en quién las guarda
 
 **Nota del autor** (encabezado del chat, "Note"). Texto que escribes solo para este chat, colocado a la profundidad y con el rol que elijas. Úsalo para dirigir: una pista de estilo, un empujón de trama.
 
+**Acotaciones escénicas** (la caja de mensaje). El texto que pones entre `[[dobles corchetes]]` dentro de tu propio mensaje se separa de tus palabras y se envía al modelo como una instrucción fuera de personaje, con alta prioridad, solo para la respuesta a ese mensaje (y sus deslizamientos y regeneraciones); nada lo recuerda después. Bajo tu mensaje aparece como una pequeña píldora apagada con una x para quitarla (no hay x mientras se escribe una respuesta). El menú "+" con **Stage direction** escribe los corchetes por ti, y una línea bajo la caja cuenta las acotaciones de tu borrador. Un mensaje que solo contiene acotaciones no añade un turno tuyo a la historia: el modelo recibe la instrucción tras la última respuesta y escribe la siguiente. Solo las acotaciones del mensaje más reciente acompañan a una solicitud; un mensaje más antiguo no las repite. Por defecto la instrucción va al final de la solicitud como mensaje de sistema; el **Stage directions role** de un preset (Presets > Shaping) puede convertirla en mensaje de usuario para modelos que ignoran el mensaje de sistema allí, y el tablero Prompt del Canvas (Canvas > Prompt, fila **Stage directions**) la apaga para ese chat. Los corchetes simples `[así]` no son acotaciones.
+
 **Soul** ([[soul]]). No es memoria de sucesos sino la forma en que reacciona un personaje; nunca cambia durante el juego.
 
 ## Cuál usar
@@ -28,7 +30,7 @@ Roleplay tiene varias cosas que "recuerdan". Se diferencian en quién las guarda
 - "Ella debería recordar la pelea de anoche": el Dashboard lo lleva a corto plazo; Litopys lo guarda a largo plazo. Añade un hecho fijado si no debe perderse nunca.
 - "Ella debería recordar la historia anterior en un chat nuevo": memoria de la tarjeta, o vincula los chats en el Canvas para que el chat anterior aporte su historia como trasfondo ([[canvas]], [[long-chats]]).
 - "El mundo tiene una regla o un lugar": un lorebook.
-- "Quiero que las próximas respuestas vayan por este camino": nota del autor, o el botón "Story, move".
+- "Quiero que las próximas respuestas vayan por este camino": nota del autor, o el botón "Story, move". "Solo esta respuesta, y no soy yo hablando": una acotación escénica entre `[[dobles corchetes]]`.
 - "Tengo un documento largo": Data Bank.
 
 ## ¿Por qué lo sabía?
