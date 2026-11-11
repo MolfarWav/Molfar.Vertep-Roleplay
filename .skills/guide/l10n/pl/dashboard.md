@@ -1,51 +1,53 @@
-<!-- source: 0383923e835d -->
-# Pulpit sceny
+<!-- source: 96ce37dc065d -->
+# Panel sceny
 
-Pulpit to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać do ciebie czuje, co nosi i co wie, otwarte wątki historii. Jest dla tych, którzy chcą, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł Pomocy *Scene dashboard* opisuje jego pola.
+Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać o tobie myśli, co noszą i co wiedzą, jakie wątki fabularne są otwarte. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
 
 ## Co śledzi
 
-Otwórz go, klikając portret w czacie i wybierając Dashboard. Panel boczny ma cztery karty: **Person** (nastawienie, nastrój i stan, strój i rzeczy: co nosi, trzyma i ma przy sobie oraz co leży w pobliżu), **Here** (miejsce, pogoda, kto jest obecny), **Quests** (otwarte wątki: główny, poboczny, codzienny) i **Notes** (notatnik: co postać wie oraz czy to widziała, słyszała czy zgadła). „Constellation” nazywa, jak postać odnosi się do ciebie, na przykład Friendship lub Romance. Liczba na karcie zlicza zmiany od twojej ostatniej odpowiedzi (czerwona, gdy coś spadło). Szeroki widok ma też Dziennik z myślą postaci i wspomnieniami. Na telefonie ta sama treść otwiera się jako arkusz.
+Otwórz go, klikając portret na czacie i wybierając Panel. Panel boczny ma cztery zakładki: **Person** (nastawienie, nastrój i stan, strój i rzeczy: co noszą, trzymają i mają przy sobie oraz co leży w pobliżu), **Here** (miejsce, pogoda, kto jest obecny), **Quests** (otwarte wątki: główne, poboczne, codzienne) i **Notes** (notatnik: co postać wie i czy to widziała, usłyszała czy zgadła). „Constellation" nazywa, jak postać stoi wobec ciebie, na przykład Friendship albo Romance. Liczba na zakładce zlicza zmiany od twojej ostatniej odpowiedzi (na czerwono, gdy coś spadło). Widok szeroki ma też Dziennik z myślą i wspomnieniami postaci. Na telefonie ta sama treść otwiera się jako arkusz.
 
-**Jedna osoba wymieniona dwa razy.** Jeśli Pulpit pokazuje tę samą osobę pod dwoma imionami (powiedzmy „Sina” i „Sina Rose”), otwórz jedno z nich i użyj małego przycisku z ludzikiem w nagłówku Person, a następnie „Same person as...” i wybierz drugie. Najpierw zostaniesz zapytany: notatki, historia i rzeczy przechodzą do osoby, którą wybrałeś, jej liczby relacji zostają, imię staje się kolejnym jej imieniem i nie można tego cofnąć. Pulpit sam też podpowiada prawdopodobne duplikaty: ramka u góry karty Person (oraz chip „Possible duplicate” w „Since your last reply”) mówi „X may be the same person as Y” z powodem. „Merge into Y” robi to samo co menu; „Different people” rozdziela ich i Pulpit przestaje podpowiadać tę parę. To samo menu ma „Remove from the Dashboard” dla imienia, które jest po prostu błędne.
+**Jedna osoba wymieniona dwa razy.** Jeśli Panel pokazuje tę samą osobę pod dwoma imionami (powiedzmy „Sina" i „Sina Rose"), otwórz jedno z nich i użyj małego przycisku osób w nagłówku Person, potem „Same person as..." i wybierz drugie. Najpierw jesteś pytany: notatki, historia i rzeczy przechodzą do osoby, którą wybrałeś, jej liczby relacji zostają, imię staje się jej kolejnym imieniem i nie można tego cofnąć. Panel sam też sugeruje prawdopodobne duplikaty: ramka na górze zakładki Person (oraz chip „Possible duplicate" w „Since your last reply") mówi „X może być tą samą osobą co Y" wraz z powodem. „Merge into Y" robi to samo co menu; „Different people" rozdziela je i Panel przestaje sugerować tę parę. To samo menu ma „Remove from the Dashboard" dla imienia, które jest po prostu błędne.
 
-Liczby (zaufanie, komfort, pociąg, szacunek, sympatia i więcej) są wyliczane przez kod ze zdarzeń, które zgłasza model, i nachylane przez [[soul]] każdej postaci. Stan jest trzymany dla każdej wiadomości, więc przeciągnięcie lub usunięta wiadomość nigdy nie zostawia nieaktualnych liczb.
+Postać, która kontaktuje się z innego miejsca (wiadomość tekstowa, list, rozmowa, wideo), jest tak oznaczona w linii sceny, z jednym krótkim zdaniem o tym, co do niej dociera: przez wiadomość lub list tylko wysłane słowa; przez rozmowę tylko głos i dźwięki w pobliżu telefonu; przez wideo tylko to, co jest w kamerze i co słychać w pobliżu. Cicha czynność, taka jak nastawienie czajnika, nie jest im znana.
 
-Przycisk „Story, move” obok Wyślij uzbraja jednorazową podpowiedź do następnej odpowiedzi; jego strzałka wybiera otwarty wątek lub zwrot akcji.
+Liczby (zaufanie, komfort, pociąg, szacunek, czułość i inne) są wyliczane przez kod ze zdarzeń, które zgłasza model, i przechylane przez [[soul]] każdej postaci. Stan jest przechowywany dla każdej wiadomości, więc przesunięcie palcem ani usunięta wiadomość nigdy nie zostawiają nieaktualnych liczb.
 
-## Co się zmieniło w czacie
+Przycisk „Story, move" obok Send uzbraja jednorazowe popchnięcie dla następnej odpowiedzi; jego strzałka wybiera otwarty wątek albo zwrot akcji.
 
-Pod najnowszą odpowiedzią stonowany wiersz mówi, co Pulpit zapisał przy niej: „Changed: Ada · trust fell, mood calm → tense, +2”. Dotknij go, aby rozwinąć te same chipy, co wiersz „Since your last reply” Pulpitu; chip otwiera pasującą kartę Pulpitu (na telefonie jej dolny arkusz). Starsze odpowiedzi nic nie pokazują, a wiersz czeka, gdy odpowiedź jest pisana albo Pulpit wciąż się aktualizuje. Aby go ukryć, wyłącz „Show what changed under the newest reply” w Settings > Chat Behavior.
+## Co się zmieniło, na czacie
 
-## Powiązania między postaciami
+Pod najnowszą odpowiedzią wyciszona linia mówi, co Panel dla niej zarejestrował: „Changed: Ada · trust fell, mood calm → tense, +2". Dotknij jej, aby rozwinąć te same chipy co rząd „Since your last reply" w Panelu; chip otwiera pasującą zakładkę Panelu (na telefonie jego dolny arkusz). Starsze odpowiedzi nie pokazują nic, a linia czeka, gdy odpowiedź jest pisana albo Panel wciąż się aktualizuje. Aby ją ukryć, wyłącz „Show what changed under the newest reply" w Settings > Chat Behavior.
 
-Sensor zapisuje, jak względem siebie stoją dwie postacie, które nie są tobą: jako jedną rolę i jedno słowo o cieple („rival, cold”). Prompt odpowiedzi niesie do czterech takich wpisów jako jedną krótką linię, tylko dla osób w scenie. Odpowiedź postaci dostaje tylko te powiązania, w których ta postać uczestniczy; narrator najpierw dostaje powiązania osób, których dotyczy tura.
+## Więzi między postaciami
 
-## Co powiedziała postać i kłamstwa
+Sensor odnotowuje, jak dwoje postaci, które nie są tobą, stoi wobec siebie, jako jednosłowną rolę i jednosłowne ciepło („rival, cold"). Podpowiedź odpowiedzi niesie do czterech takich więzi jako jedną krótką linię, tylko dla osób obecnych w scenie. Własna odpowiedź postaci dostaje tylko te więzi, których ta postać jest częścią; narrator dostaje najpierw więzi osób, których dotyczy tura.
 
-Pod notatnikiem osoby lista **Said** przechowuje mocne rzeczy, które powiedziała i których się trzyma: przysięgę, groźbę, wyznanie, rozkaz. Kłamstwo jest tam także przechowywane, zakryte, dopóki nie wybierzesz „Show hidden”.
+## Co postać powiedziała, i kłamstwa
 
-Gdy postać kłamie przy innych, inni biorą to za prawdę. Ich kolejne odpowiedzi traktują to jako coś, co im powiedziano, i nie mają powodu w to wątpić, dopóki historia nie pokaże inaczej. Oszukani są tylko ci, którzy byli w scenie, i tylko w swoich własnych odpowiedziach: ktoś inny, mówiąc, nie powtarza kłamstwa.
+Pod notatnikiem osoby lista **Said** przechowuje mocne rzeczy, które powiedzieli i które ich wiążą: przysięgę, groźbę, wyznanie, rozkaz. Kłamstwo też jest tam trzymane, zakryte, dopóki nie wybierzesz „Show hidden".
 
-Otwórz kłamstwo, a zobaczysz **Believe it:** z przyciskiem dla każdej osoby, która wciąż w nie wierzy. Naciśnij imię, gdy ta osoba się dowiedziała. Menu wiersza ma też **This was a lie** dla stwierdzenia, którego sensor nie uznał za kłamstwo (wtedy wierzą w nie osoby w scenie), oraz **Not a lie**, gdy sensor się pomylił. Sensor sam kończy wiarę, gdy odpowiedź pokazuje wychodzącą na jaw prawdę. Usunięcie kłamstwa z listy usuwa wraz z nim każdą wiarę.
+Gdy postać kłamie przed innymi, inni biorą to za prawdę. Ich następne odpowiedzi traktują to jako coś, co im powiedziano i w co nie mają powodu wątpić, dopóki historia nie pokaże inaczej. Tylko osoby obecne w scenie dają się oszukać i tylko we własnych odpowiedziach: ktoś inny mówiąc, nie powtarza kłamstwa.
 
-> Narrator wypowiada wszystkich w jednej odpowiedzi, więc zawsze zna prawdę. To tylko powstrzymuje jedną postać przed działaniem na podstawie tego, co wie inna postać.
+Otwórz kłamstwo i zobaczysz **Believe it:** z przyciskiem dla każdej osoby, która wciąż w nie wierzy. Naciśnij imię, gdy ta osoba się dowiedziała. Menu tego rzędu ma też **This was a lie** dla stwierdzenia, którego sensor nie nazwał kłamstwem (osoby w scenie wtedy w nie wierzą) oraz **Not a lie**, gdy sensor się pomylił. Sensor sam kończy wiarę, gdy odpowiedź pokazuje, że prawda wychodzi na jaw. Usunięcie kłamstwa z listy usuwa wraz z nim każdą wiarę.
+
+> Narrator wypowiada wszystkich w jednej odpowiedzi, więc zawsze zna prawdę. To tylko powstrzymuje jedną postać przed działaniem na tym, co wie inna postać.
 
 ## Kiedy się aktualizuje
 
-Przycisk „Settings” w Pulpicie otwiera jego ustawienia; karta Sensor ma tryb:
+Przycisk „Settings" wewnątrz Panelu otwiera jego ustawienia; zakładka Sensor ma tryb:
 
-- **Sensor** (domyślny): po każdej odpowiedzi model czyta nowe wiadomości i zgłasza, co się stało.
-- **Fast: inside the story reply**: dla silnych modeli. Model historii sam pisze raport na końcu swojej odpowiedzi, bez osobnego wywołania, dodając trochę tokenów do każdej odpowiedzi. Jeśli pominie raport, działa zwykły sensor.
-- **Manual**: aktualizuje się tylko po naciśnięciu „Refresh”.
+- **Sensor** (domyślnie): po każdej odpowiedzi model czyta nowe wiadomości i zgłasza, co się stało.
+- **Fast: inside the story reply**: dla mocnych modeli. Model opowieści sam pisze raport na końcu swojej odpowiedzi, bez osobnego wywołania, dodając trochę tokenów do każdej odpowiedzi. Jeśli pominie raport, uruchamia się zwykły sensor.
+- **Manual**: aktualizuje się tylko, gdy naciśniesz „Refresh".
 
 ## Ile to kosztuje
 
-W trybie Sensor jedno dodatkowe wywołanie modelu na odpowiedź, na „Sensor model” (model czatu, jeśli zostawisz puste). Wystarczy tani, mały model. Czyta nowe wiadomości w całości (łącznie do około 12000 znaków; dłuższa odpowiedź traci tylko środek), a kod najpierw zaznacza zdania, które wyglądają na ubranie, ubieranie lub pocałunek, i wskazuje je modelowi, więc spódnica nazwana raz w środku długiej odpowiedzi i tak trafia do stroju. Jeśli karta postaci ma wiersz „Attire:”, sensor dostaje go też jako punkt odniesienia dla dokładnego brzmienia ubioru, o którym mówi tekst (nigdy nie dodaje ubioru, którego tekst nie pokazuje). To, co postać nosi i trzyma, jest trzymane jako lista rzeczy; ubranie, które się podrze lub ubrudzi, zostaje jedną rzeczą. Każda rzecz zachowuje jedną tożsamość, gdziekolwiek trafi: noszona, zdjęta przy drzwiach, podana komuś innemu. Rzeczy zostawione w jakimś miejscu tam zostają: gdy historia wraca do kawiarni, filiżanka wciąż stoi na stole. Gdy historia przez około sześć tur nie pokazuje, co ktoś nosi, model piszący jest proszony, aby krótko o tym wspomniał. Aby dodać słowa dla języka, którego skan nie zna, wypisz je w `data/dashboard/lexicon.json` (`{"wear": ["..."], "touch": ["..."]}`); `{"off": true}` wyłącza skan. Pulpit dodaje też krótki „Prompt insert” do tego, co czyta model historii, aby postacie wiedziały, na czym stoją: możesz go wyłączyć i ustawić „Tokens per character”. „What the model sees” w ustawieniach pokazuje wstawkę.
+W trybie Sensor jedno dodatkowe wywołanie modelu na odpowiedź, na „Sensor model" (model czatu, jeśli zostawisz puste). Tani, mały model wystarczy. Czyta nowe wiadomości w całości (razem do około 12000 znaków; dłuższa odpowiedź traci tylko środek), a kod najpierw oznacza zdania, które wyglądają na ubranie, ubieranie się lub pocałunek, i wskazuje je modelowi, więc spódnica nazwana raz w środku długiej odpowiedzi i tak trafia do stroju. Jeśli karta postaci ma linię „Attire:", sensorowi pokazuje się ją też jako odniesienie dla dokładnego brzmienia sztuki ubrania, o której wspomina tekst (nigdy nie dodaje ubrania, którego tekst nie pokazuje). To, co postać nosi i trzyma, jest przechowywane jako lista przedmiotów; ubranie, które się podrze lub zabrudzi, zostaje jednym przedmiotem. Każda rzecz zachowuje jedną tożsamość, gdziekolwiek trafi: noszona, zdjęta przy drzwiach, podana komuś innemu. Rzeczy zostawione w miejscu tam zostają: gdy historia wraca do kawiarni, kubek wciąż jest na stole. Gdy historia nie pokazała przez około sześć tur, co ktoś nosi, model piszący jest proszony, by wspomnieć o tym krótko. Aby dodać słowa dla języka, którego skan nie zna, wypisz je w `data/dashboard/lexicon.json` (`{"wear": ["..."], "touch": ["..."]}`); `{"off": true}` wyłącza skan. Panel dodaje też krótki „Prompt insert" do tego, co czyta model opowieści, aby postacie wiedziały, na czym stoją: możesz to wyłączyć i ustawić „Tokens per character". „What the model sees" w ustawieniach pokazuje ten wstawiony tekst.
 
 ## Jak to wyłączyć
 
-W ekranach opisanych tutaj nie ma osobnego wyłącznika. Ustaw tryb na „Manual”, a nigdy sam nie wywoła modelu. Aby usunąć go całkowicie, wyłącz wtyczkę Dashboard w przycisku Plugins w Molfar Vertep; Tools > Plugins w Roleplay tylko pokazuje, co działa. Wyłącz „Prompt insert”, jeśli ma nie trafiać do zapytania.
+Nie ma osobnego wyłącznika na wymienionych tu ekranach. Ustaw tryb na „Manual", a nigdy sam nie wywoła modelu. Aby usunąć go całkowicie, wyłącz wtyczkę Dashboard w przycisku Plugins w Molfar Vertep; Tools > Plugins w Roleplay wymienia tylko to, co działa. Wyłącz „Prompt insert", jeśli chcesz, aby nie trafiał do żądania.
 
 ## Powiązane
 
