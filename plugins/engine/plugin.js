@@ -36,6 +36,41 @@ const slug = (s) =>
   String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "item";
 const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// ---------- stage directions: [[...]] in a user message (Molfar.Vertep#368) ----------
+// Text in double brackets is cut out of what the player sends and kept on the message as `directions`, so
+// every reader of the chat (lorebook scan, Litopys, export) sees the clean text. The prompt carries the
+// directions of the newest user message only, as an instruction that is not the player's speech. Keep
+// this in step with src/lib/stage-directions.ts (a test compares the two).
+const DIRECTION_RE = /\[\[([^[\]]+)\]\](?!\()/g;
+const DIRECTIONS_MAX = 8;
+const DIRECTION_MAX_CHARS = 2000;
+export function splitDirections(text) {
+  const directions = [];
+  const clean = String(text == null ? "" : text)
+    .replace(DIRECTION_RE, (_all, inner) => {
+      const d = String(inner).trim();
+      if (d && directions.length < DIRECTIONS_MAX) directions.push(d.slice(0, DIRECTION_MAX_CHARS));
+      return " ";
+    })
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  return { text: directions.length ? clean : String(text == null ? "" : text), directions };
+}
+/** What a stored message says: its directions, cleaned (older chats and foreign writers may leave junk). */
+function messageDirections(m) {
+  if (!m || !Array.isArray(m.directions)) return [];
+  return m.directions.filter((d) => typeof d === "string" && d.trim()).map((d) => d.trim().slice(0, DIRECTION_MAX_CHARS)).slice(0, DIRECTIONS_MAX);
+}
+/** How the directions reach the prompt. `role` is the preset's choice: "system" (default) or "user". */
+export function stageDirectionsBlock(directions, role) {
+  const body = directions.map((d) => "- " + d.replace(/\n+/g, " ")).join("\n");
+  if (role === "user") {
+    return "[Stage directions, an out-of-character instruction for how to write this reply. The characters do not hear them and they are not part of the story. Follow them.\n" + body + "]";
+  }
+  return "Stage directions for this reply (out of character: nobody in the story hears them and the player did not say them in the story; follow them):\n" + body;
+}
+
 // ---------- dashboard fast mode: the state tag at the end of a story reply ----------
 // In fast mode the dashboard asks the story model to end its reply with
 // <vertep_state>{json}</vertep_state>. The tag never reaches a saved message:
@@ -3122,7 +3157,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "stageDirections","plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -4057,7 +4092,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     const gone = new Set(litLine.slice(0, litCut).map((m) => m.id));
     histMsgs = msgs.filter((m) => !gone.has(m.id));
   }
-  let visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true);
+  // a user message that held only [[directions]] has no words of its own: it is no turn of the story
+  let visibleHist = histMsgs.filter((m) => (m.role === "user" || m.role === "char") && m.hidden !== true
+    && !(m.role === "user" && !String(m.text || "").trim() && Array.isArray(m.directions) && m.directions.length));
   const boardHistory = (cleanPromptBoard(meta.promptBoard) || {}).history || null;
   if (boardHistory) {
     const rules = [];
@@ -4215,6 +4252,22 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     depthInj.push({ depth: 0, role: "system", content: nudgeContent });
     addPart("group", "Group nudge", nudgeContent);
   }
+  // Stage directions: the [[...]] the player wrote in the newest message, for the reply to it (and its swipes).
+  // Pushed before the hint, so a hint typed at a regenerate is still read last. A player's impersonation is not a reply.
+  if (!opts || opts.gen !== "impersonate") {
+    const lastUserMsg = [...msgs].reverse().find((m) => m.role === "user" && m.hidden !== true);
+    const sdirs = lastUserMsg ? messageDirections(lastUserMsg) : [];
+    if (sdirs.length) {
+      if (isOff("stageDirections")) {
+        omit("utility", "Stage directions", "off for this chat", undefined, "stageDirections");
+      } else {
+        const sdRole = preset && preset.studio && preset.studio.stageDirectionsRole === "user" ? "user" : "system";
+        const sdContent = stageDirectionsBlock(sdirs, sdRole);
+        depthInj.push({ depth: 0, role: sdRole, content: sdContent });
+        addPart("utility", "Stage directions", sdContent, sdRole === "user" ? "as a user message" : undefined, "stageDirections");
+      }
+    }
+  }
   // Regenerate with a hint: a direction for this one reply, read last, never saved
   const hint = opts && typeof opts.guidance === "string" ? opts.guidance.trim().slice(0, 2000) : "";
   if (hint) {
@@ -4310,6 +4363,10 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const anHas = !!(meta.authorNoteObject || (meta.authorNote && String(meta.authorNote).trim()));
   board.push({ key: "databank", label: "Data bank", kind: "databank", state: isOff("databank") ? "off" : "on" });
   board.push({ key: "authorNote", label: "Author's note", kind: "note", state: isOff("authorNote") ? "off" : anHas ? "on" : "empty" });
+  {
+    const lastU = [...msgs].reverse().find((m) => m.role === "user" && m.hidden !== true);
+    board.push({ key: "stageDirections", label: "Stage directions", kind: "note", state: isOff("stageDirections") ? "off" : lastU && messageDirections(lastU).length ? "on" : "empty" });
+  }
   board.push({ key: "plugin:litopys", label: "Litopys", kind: "memory", state: isOff("plugin:litopys") ? "off" : "on" });
   board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
@@ -5424,7 +5481,8 @@ export function handleRoute(req, host) {
       msgs = chat.msgs.slice(0, chat.msgs[idx].role === "user" ? idx + 1 : idx);
     }
     if (b.userText && String(b.userText).trim()) {
-      msgs = msgs.concat([{ id: "peek", name: chatUserName(fsx, chat.meta), charId: null, role: "user", text: String(b.userText), swipes: [String(b.userText)], swipe: 0 }]);
+      const pk = splitDirections(String(b.userText));
+      msgs = msgs.concat([{ id: "peek", name: chatUserName(fsx, chat.meta), charId: null, role: "user", text: pk.text, swipes: [pk.text], swipe: 0, ...(pk.directions.length ? { directions: pk.directions } : {}) }]);
     }
     // semantic prep mirrors the send path (dry run): one extra pass when
     // vectors are in play, so the peek shows the true request
@@ -6437,12 +6495,15 @@ const toolX = (r) => ({
       const b = body();
       const typed = String(b.text || "").trim();
       if (!typed && b.allowEmpty !== true) return err(400, "text required");
-      const text = typed ? onSave(typed, "user_input", members[0] || null).trim() : "";
+      // [[stage directions]] leave the words and ride on the message (a message of directions alone has no words)
+      const sd = splitDirections(typed);
+      const text = sd.text ? onSave(sd.text, "user_input", members[0] || null).trim() : "";
       const reply = host.llm.results.reply;
-      const userMsg = text ? {
+      const userMsg = text || sd.directions.length ? {
         id: uid(), name: chatUserName(fsx, meta), charId: null, role: "user",
         ...(chatPersona(fsx, meta).personaId ? { personaId: chatPersona(fsx, meta).personaId } : {}),
         text, at: Date.now(), swipes: [text], swipe: 0,
+        ...(sd.directions.length ? { directions: sd.directions } : {}),
         // attachments (data-URL images/files) ride on the stored message
         ...(Array.isArray(body().attachments) && body().attachments.length ? { attachments: body().attachments } : {}),
       } : null;
@@ -6716,12 +6777,14 @@ const toolX = (r) => ({
           const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
           if (known >= 0 && chat.msgs.slice(known + 1).some((m) => m.role === "user" || m.role === "char")) return err(409, "a generation already committed");
         }
-        const userText = typeof b.userText === "string" ? onSave(b.userText.trim(), "user_input", members[0] || null).trim() : "";
-        if (userText) {
+        const sdCut = splitDirections(typeof b.userText === "string" ? b.userText.trim() : "");
+        const userText = sdCut.text ? onSave(sdCut.text, "user_input", members[0] || null).trim() : "";
+        if (userText || sdCut.directions.length) {
           chat.msgs.push({
             id: uid(), name: chatUserName(fsx, meta), charId: null, role: "user",
             ...(chatPersona(fsx, meta).personaId ? { personaId: chatPersona(fsx, meta).personaId } : {}),
             text: userText, at: Date.now(), swipes: [userText], swipe: 0,
+            ...(sdCut.directions.length ? { directions: sdCut.directions } : {}),
             ...(Array.isArray(b.attachments) && b.attachments.length ? { attachments: b.attachments } : {}),
           });
         }
@@ -6933,7 +6996,19 @@ const toolX = (r) => ({
       const b = body();
       const msg = chat.msgs[idx];
       let next = { ...msg };
-      if (typeof b.text === "string" && b.text.trim()) {
+      // stage directions: a user message keeps them beside its words; an edit may type new [[...]] (added to the
+      // kept ones) and the page may send the list it wants kept (a chip taken off)
+      let sdEdit = null;
+      if (msg.role === "user") {
+        let kept = messageDirections(msg);
+        if (Array.isArray(b.directions)) kept = messageDirections({ directions: b.directions });
+        if (typeof b.text === "string" && b.text.trim()) {
+          const cut = splitDirections(b.text);
+          if (cut.directions.length) { b.text = cut.text; kept = kept.concat(cut.directions).slice(0, DIRECTIONS_MAX); }
+        }
+        sdEdit = kept;
+      }
+      if (typeof b.text === "string" && (b.text.trim() || (sdEdit && sdEdit.length))) {
         // scripts opted into edit-time rewriting clean the stored text itself
         // (the edit is an explicit user action — destructive by nature)
         const speaker = members.find((x) => x.id === msg.charId) || members[0] || null;
@@ -6944,6 +7019,11 @@ const toolX = (r) => ({
         const swipes = msg.swipes && msg.swipes.length ? msg.swipes.slice() : [msg.text];
         swipes[msg.swipe || 0] = text;
         next = { ...next, text, swipes, edited: true, translation: undefined };
+      }
+      if (sdEdit && (Array.isArray(b.directions) || sdEdit.length !== messageDirections(msg).length)) {
+        if (sdEdit.length) next.directions = sdEdit;
+        else delete next.directions;
+        next.edited = true;
       }
       // a message's translation dies with its text: every route that swaps
       // the displayed text (edit, swipe switch/append, continue, cancel

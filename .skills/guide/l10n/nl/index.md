@@ -1,7 +1,7 @@
-<!-- source: 016e8644f058 -->
+<!-- source: 4f0535fcd80d -->
 # Roleplay: het overzicht
 
-Roleplay is de verhalenapp van Molfar Vertep: je bewaart personagekaarten, speelt er chats mee, en de app houdt de scène bij, onthoudt het verhaal en laat de wereld om je heen draaien. Deze pagina is een kaart. De eigen **Help** van de app (in de rail) heeft voor bijna elk scherm een kort artikel; deze gids legt uit hoe de delen samenhangen. Modellen en verbindingen stel je hier niet in maar in de hoofdinstellingen: zie [[vertep:models]].
+Roleplay is de verhalenapp van Molfar Vertep: je bewaart personagekaarten, speelt er chats mee, en de app houdt de scène bij, onthoudt het verhaal en laat de wereld om je heen draaien. Deze pagina is een kaart. De eigen **Help** van de app (in de rail) heeft voor bijna elk scherm een kort artikel; deze gids legt uit hoe de onderdelen samenhangen. Modellen en verbindingen stel je hier niet in, maar in de hoofdinstellingen: zie [[vertep:models]].
 
 ## Waar dingen zijn
 
@@ -18,7 +18,7 @@ De eigen instellingen van Roleplay hebben geen item in de rail. Open ze met de k
 
 ## Binnen een chat
 
-De chatkop bevat de verhaaltools: **Note** (auteursnotitie), **Fired** (wat in de prompt is gegaan, zie [[memory]]), **Record** en **World**. De pil ernaast opent tabbladen voor Preset, Persona, Model en Agents van deze chat. De knop "More" op elk bericht opent de acties ervan, en het "+"-menu naast het invoerveld bevat Polish, Regenerate with a hint, beeldgeneratie en meer.
+De chatkop bevat de verhaaltools: **Note** (auteursnotitie), **Fired** (wat er in de prompt is gegaan, zie [[memory]]), **Record** en **World**. De pil ernaast opent tabbladen voor Preset, Persona, Model en Agents van deze chat. De knop "More" op elk bericht opent de acties ervan, en het "+"-menu naast het invoerveld bevat Polish, Regenerate with a hint, Stage direction, beeldgeneratie en meer.
 
 Drie helpers bewaken het verhaal en kosten extra modelaanroepen, dus het is handig ze te kennen:
 

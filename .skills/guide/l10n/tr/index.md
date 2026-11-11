@@ -1,4 +1,4 @@
-<!-- source: 016e8644f058 -->
+<!-- source: 4f0535fcd80d -->
 # Roleplay: genel bakış
 
 Roleplay, Molfar Vertep'in hikâye uygulamasıdır: karakter kartlarını tutarsınız, onlarla sohbetler oynarsınız ve uygulamanın sahneyi izlemesine, hikâyeyi hatırlamasına ve çevrenizdeki dünyayı yürütmesine izin verirsiniz. Bu sayfa bir haritadır. Uygulamanın kendi **Help**i (rayda) hemen her ekran için kısa bir makale içerir; bu kılavuz parçaların nasıl birleştiğini açıklar. Modeller ve bağlantılar burada değil, ana Settings'te kurulur: bkz. [[vertep:models]].
@@ -7,18 +7,18 @@ Roleplay, Molfar Vertep'in hikâye uygulamasıdır: karakter kartlarını tutars
 
 Soldaki ray (telefonda alttaki sekme çubuğu) bölümleri gruplar:
 
-- **Home** ve **Chats**: kaldığınız yerden devam edin veya herhangi bir sohbeti açın.
+- **Home** ve **Chats**: kaldığınız yerden devam edin ya da herhangi bir sohbeti açın.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: insanlar. Bkz. [[characters]].
 - **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: hikâyenin belleği ve makineleri. Bkz. [[memory]], [[litopys]], [[canvas]], [[world-dm]] ve [[agents]].
 - **Presets**: modele giden isteğin nasıl kurulduğu.
 - **Shortcuts** ve **Tools**: hızlı yanıtlar, regex, çeviri, resimler, ses, Data Bank ve daha fazlası. Bkz. [[settings]].
-- Altta **Inbox** ve **Help**. Inbox sizi bekleyenleri listeler: başarısız arka plan işleri, Library önerileri ve önerilen soul'lar.
+- Altta **Inbox** ve **Help**. Inbox, sizi bekleyenleri listeler: başarısız arka plan işleri, Library önerileri ve önerilen soul'lar.
 
-Roleplay'in kendi ayarlarının ray öğesi yoktur. Bunları Home başlığındaki "Roleplay settings" düğmesiyle açın (telefonda, menüde).
+Roleplay'in kendi ayarlarının ray öğesi yoktur. Bunları Home başlığındaki "Roleplay settings" düğmesiyle açın (telefonda menüde).
 
 ## Bir sohbetin içinde
 
-Sohbet başlığı hikâye araçlarını tutar: **Note** (yazarın notu), **Fired** (istemeye ne girdiğini, bkz. [[memory]]), **Record** ve **World**. Yanındaki hap, bu sohbetin Preset, Persona, Model ve Agents sekmelerini açar. Her mesajdaki "More" düğmesi o mesajın eylemlerini açar; mesaj kutusunun yanındaki "+" menüsü ise Polish, Regenerate with a hint, görüntü üretimi ve daha fazlasını barındırır.
+Sohbet başlığı hikâye araçlarını tutar: **Note** (yazarın notu), **Fired** (istemeye ne girdiğini gösterir, bkz. [[memory]]), **Record** ve **World**. Yanındaki hap, bu sohbetin Preset, Persona, Model ve Agents sekmelerini açar. Her mesajdaki "More" düğmesi o mesajın eylemlerini açar; mesaj kutusunun yanındaki "+" menüsü ise Polish, Regenerate with a hint, Stage direction, görüntü üretimi ve daha fazlasını barındırır.
 
 Hikâyeyi izleyen ve ekstra model çağrılarına mal olan üç yardımcı vardır; bunları bilmek işe yarar:
 
@@ -33,7 +33,7 @@ Hikâyeyi izleyen ve ekstra model çağrılarına mal olan üç yardımcı vard�
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: hikâyenin makineleri.
 - [[memory]]: hangi iş için hangi bellek türünü kullanmalısınız.
 - [[canvas]]: sohbet bağlantıları, istem panosu ve ajan atölyesi.
-- [[long-chats]]: uzun bir sohbetin neden yavaşladığı ya da pahalılaştığı, neyin kestiği ve bir hikâyeyi yeni bir sohbete nasıl taşıyacağınız.
+- [[long-chats]]: uzun bir sohbetin neden yavaşladığı ya da pahalılaştığı, neyin onu kısalttığı ve bir hikâyeyi yeni bir sohbete nasıl taşıyacağınız.
 - [[settings]]: her ayarın nerede olduğu.
 
 Molfar Vertep'in kendisinde yeni misiniz? [[vertep:first-steps]] ve [[vertep:glossary]] ile başlayın.

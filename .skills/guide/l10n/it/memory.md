@@ -1,4 +1,4 @@
-<!-- source: c5f5d7226ed0 -->
+<!-- source: f9f786fd67a3 -->
 # Quale memoria per cosa
 
 Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, cosa contengono e quanto durano. Se un personaggio dimentica qualcosa, questa pagina ti dice quale usare.
@@ -21,6 +21,8 @@ Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, 
 
 **Author's note** (intestazione della chat, "Note"). Testo che scrivi solo per questa chat, collocato alla profondità e con il ruolo che scegli. Usalo per guidare la storia: un suggerimento di stile, una spinta alla trama.
 
+**Stage directions** (la casella dei messaggi). Il testo che scrivi tra `[[doppie parentesi]]` dentro il tuo messaggio viene ritagliato dalle tue parole e inviato al modello come istruzione fuori dal personaggio, con priorità alta, solo per la risposta a quel messaggio (e per i suoi swipe e le sue rigenerazioni); nessuna memoria lo conserva. Sotto il tuo messaggio appare come un chip smorzato con una x per toglierlo (nessuna x mentre una risposta viene scritta). La voce **Stage direction** del menu "+" scrive le parentesi per te, e una riga sotto la casella conta le indicazioni nella tua bozza. Un messaggio che contiene solo indicazioni non aggiunge un tuo turno alla storia: il modello riceve l'istruzione dopo l'ultima risposta e scrive quella successiva. Con una richiesta vanno solo le indicazioni del messaggio più recente; uno più vecchio non si ripete. Per impostazione predefinita l'istruzione va alla fine della richiesta come messaggio di sistema; il **Stage directions role** di un preset (Presets > Shaping) può renderla un messaggio utente per i modelli che ignorano lì i messaggi di sistema, e la bacheca Prompt della chat (Canvas > Prompt, riga **Stage directions**) la disattiva per quella chat. Le singole parentesi `[così]` non sono indicazioni.
+
 **Soul** ([[soul]]). Non è una memoria di eventi ma il modo in cui un personaggio reagisce; non cambia mai durante il gioco.
 
 ## Quale usare
@@ -28,7 +30,7 @@ Roleplay ha diverse cose che "ricordano". Si differenziano per chi le conserva, 
 - "She should remember last night's fight": la Dashboard se ne occupa nel breve termine; Litopys la conserva nel lungo termine. Aggiungi un fatto fissato se non deve mai andare perso.
 - "She should remember the previous story in a new chat": memoria della scheda, oppure collega le chat nel Canvas, così la chat precedente porta la sua storia come retroscena ([[canvas]], [[long-chats]]).
 - "The world has a rule or a place": un lorebook.
-- "I want the next replies to go this way": nota dell'autore, oppure il pulsante "Story, move".
+- "I want the next replies to go this way": nota dell'autore, oppure il pulsante "Story, move". "Solo questa risposta, e non sono io che parlo": un'indicazione di scena in `[[doppie parentesi]]`.
 - "I have a long document": Data Bank.
 
 ## Perché lei lo sapeva?

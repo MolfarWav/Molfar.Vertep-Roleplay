@@ -1,4 +1,4 @@
-<!-- source: f7c0805c5597 -->
+<!-- source: 45efabb467af -->
 # Twoja pierwsza historia
 
 To najkrótsza droga od pustego Roleplay do działającej historii oraz lista tego, co dzieje się samo, aby nic cię nie zaskoczyło. Najpierw potrzebujesz połączenia z modelem: zobacz [[vertep:models]].
@@ -10,7 +10,7 @@ To najkrótsza droga od pustego Roleplay do działającej historii oraz lista te
 3. **Wybierz personę** (kim grasz) w sekcji Personas albo zostaw domyślną. „Use this persona” czyni ją twoją domyślną.
 4. **Zacznij czat.** Naciśnij „New chat” na karcie. Czat otwiera się z pierwszą wiadomością karty.
 5. **Sprawdź model.** Pigułka w nagłówku czatu ma kartę Model; wybór modelu tam zmienia tylko ten czat.
-6. **Pisz.** Pod każdą odpowiedzią możesz przeglądać inne wersje (swipe'y); prawa strzałka na ostatniej wersji prosi o nową. Aby powtórzyć odpowiedź z kierunkiem, użyj „Regenerate with a hint” w menu „+”. Przycisk „More” na wiadomości oferuje edycję, rozwidlenie, podgląd promptu i więcej.
+6. **Pisz.** Pod każdą odpowiedzią możesz przeglądać inne wersje (swipe'y); prawa strzałka na ostatniej wersji prosi o nową. Aby powtórzyć odpowiedź z kierunkiem, użyj „Regenerate with a hint” w menu „+”. Aby ukierunkować odpowiedź na wiadomość, którą piszesz, wpisz instrukcję w podwójnych nawiasach, na przykład `I walk in. [[Aria is hiding a secret.]]`: model czyta ją jako didaskalię, a nie jako coś, co powiedziałeś (menu „+” ma „Stage direction”, które wpisze nawiasy za ciebie). Przycisk „More” na wiadomości oferuje edycję, rozwidlenie, podgląd promptu i więcej.
 
 ## Co działa samo
 

@@ -218,6 +218,9 @@ export interface Message {
   /** Legacy flag kept so old localStorage payloads and imports still parse. */
   isOOC?: boolean
   attachments?: { id: ID; name: string; type: string; url?: string }[]
+  /** Stage directions the player wrote in [[double brackets]] (Molfar.Vertep#368): cut out of the words,
+   *  sent to the model as an out-of-character instruction for the reply to this message only. */
+  directions?: string[]
   showTranslation?: boolean
   /** A generated picture posted into the chat: its attachment name is the
    *  prompt that drew it, and it stays out of the model's prompt. */
@@ -500,6 +503,9 @@ export interface Preset {
   /** Compact system messages: squash consecutive system parts into one
    *  message at assembly (fewer, denser system blocks). */
   squashSystemMessages: boolean
+  /** Role of the "Stage directions" instruction ([[...]] in the player's message) in the request: "system"
+   *  (default) at the end, or "user" for models that ignore system messages near the end. */
+  stageDirectionsRole: 'system' | 'user'
   /**
    * Compact chat history: the whole visible chat is sent as ONE message of
    * the chosen role instead of alternating turns. Each turn is wrapped in a

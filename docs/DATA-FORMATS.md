@@ -466,7 +466,7 @@ last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = foll
 ### Per-chat prompt switches
 A chat's meta can have a `promptBoard` object, `{ v: 1, off?: string[], history? }`, listing prompt parts this
 chat leaves out. Absent = everything on (today's behaviour). Keys in `off` are `section:<id>` (a preset section),
-`book:<lorebookId>`, `databank`, `authorNote`, `plugin:litopys`, `plugin:relations`. `plugin:litopys` also stops
+`book:<lorebookId>`, `databank`, `authorNote`, `stageDirections`, `plugin:litopys`, `plugin:relations`. `plugin:litopys` also stops
 the Litopys background worker (chapters, arcs, summaries, embeddings) for the chat, not only its insert. `section:chatHistory` is
 never allowed. `history` filters the chat history sent with every request, `{ lastN, only, thinking }`
 (defaults `{ lastN: 0, only: "all", thinking: true }`, stored only when it differs): `only` keeps the
@@ -478,6 +478,21 @@ copies the whole meta). Plugins honour their own key. Set with `PATCH /chats/<id
 the ordered list of switchable things (`{ key, label, kind, state }`, state `on`, `off`, `preset-off`,
 `condition`, `not-this-generation` or `empty`), and every part and omitted row carries the `key` it
 belongs to.
+
+### Stage directions: `directions` on a player's message (Molfar.Vertep#368)
+Text in `[[double brackets]]` in a message the player sends (or edits) is cut out of the words and kept beside
+them: a user line of `chats/<id>.jsonl` can have `directions: string[]` (at most 8, each at most 2000
+characters, trimmed), and its `text` (and `swipes[0]`) is the clean text. A message of directions alone is
+stored with `text: ""`. `POST /chats/<id>/send` and the cancelled-commit route take the raw typed text and split
+it themselves; `PATCH /chats/<id>/messages/<mid>` takes `{ directions: string[] }` (the list to keep; `[]`
+clears it) and adds any `[[...]]` typed in an edited `text`. `[[x]](url)` is a markdown link, not a direction.
+Single brackets are never directions. Every other reader (the lorebook scan, Litopys, the Dashboard sensor,
+export) sees the clean `text`. The prompt carries the directions of the NEWEST player message only, as one part
+labelled "Stage directions" (key `stageDirections`) at the end of the request, before a regenerate hint: role
+`system` by default, or `user` when the preset says `studio.stageDirectionsRole: "user"`. A chat can leave it
+out with `promptBoard.off` containing `stageDirections`. It is not added to an impersonation. A player message
+with no words and only directions is no turn of the story in the history (note: the engine sends only a leading system run as the system prompt, so a `system` direction part at the end reaches the model with role `user` on the wire, like the author's note at a depth; the two choices then differ in wording, not in role); the reply to it is written as to a
+message that is not there (an empty send).
 
 ### Archived chats: `archived` in the chat meta (#263)
 `chats/<id>.meta.json` may carry `archived: true` (`PATCH /chats/<id> { archived: true | false }`; absent = not archived). It is a status, not a move: the chat file stays in `chats/`, so everything keyed by the chat id (links in `litopys/links.json`, snapshot books, the Canvas) keeps working. The engine plugin refuses, with `409 { error: "archived" }`, every route that changes the transcript of an archived chat: `send`, `next`, `swipe`, `continue`, `impersonate`, `reset`, `preset` (POST), `messages` (POST, PATCH, DELETE, with `/swipe`, `/swipes`, `/move`). Reading, `PATCH` of the meta (rename, pin, `archived: false`), `fork`, export and `DELETE` of the chat stay open. The page hides an archived chat from the Chats list (the amber Archive row opens them) and Home, shows a banner and puts "Continue in a new chat" where the composer was, and takes the editing controls off its messages. A fork of an archived chat is a normal chat (the fork does not copy `archived`).
@@ -689,6 +704,7 @@ something risky, copy the preset to a new id first.
 | `openai_max_context` | Not used (since 4.72.0). A preset carries no context window: the window is the model's (the catalog, the provider's model list, or the override in Settings, Models). A file or an import that still has the field is read and ignored; an unknown window is budgeted as 32768 tokens, and the chat says so. |
 | `reasoning`, `reasoningTags`, `thinkingBudget` | Reasoning effort (`low`, `medium`, `high`), the tags of inline thinking, its token budget. |
 | `utilityPrompts` | Prompts of app features (summary, impersonate, empty send, polish…), lifted from `studio` for the engine. `polish` (#15) is the instruction for Polish in the composer: the chat's model corrects and enriches the player's draft. Blank or missing = the built-in prompt (`plugins/polish/plugin.js`). `impersonation`, `continueNudge` and `polish` expand the preset's macros like its sections (#237): the chat's picks, `{{#if}}`, the variables the sections set, `vertep.*` (Polish runs in its own plugin and reads picks and chat variables, not the flags). |
+| `studio.stageDirectionsRole` | `"system"` (default) or `"user"`: the wording of the "Stage directions" instruction built from the `[[...]]` of the player's newest message (Presets, Shaping): a plain note, or (`"user"`) a bracketed one. Both reach the model with role `user` on the wire (see the note under Stage directions above); the field keeps the role the engine builds the part with. |
 | `studio` | The editor's full copy of the preset: `sections` (with `injectionTriggers`, `groupId`, `condition`, `locked`, `note`), `groups`, `variables` (see Variables), `description`, `samplers` (`{ value, enabled }` pairs; the engine reads only `seed`, `stopStrings`, `logitBias` and `assistantPrefill` from here), `worldInfo` settings, `utilityPrompts`. |
 | other numbers (`top_a`, `typical_p`, `dry_*`, `xtc_*`, `dynatemp_*`, `mirostat_*` …) | Extra samplers from imported presets; sent when set. |
 

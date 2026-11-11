@@ -27,6 +27,7 @@ import {
   buildDefaultPreset, DEFAULT_MAIN_PROMPT, DEFAULT_UTILITY_PROMPTS,
 } from './seed'
 import { ceilingQuery } from './ceiling-query'
+import { DIRECTIONS_MAX, splitDirections, withDirections } from './stage-directions'
 import { uid } from './tokens'
 import { DEFAULT_AVATAR } from './utils'
 import { adoptMarkedSections, compileIfWrittenElsewhere } from './profile'
@@ -40,7 +41,7 @@ import {
   engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
-  lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI,
+  lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI, updateMessageDirections,
 } from './engine'
 import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
 import { listAgentSets, triggerAgentsRun, triggerParallelAgents } from './agents'
@@ -279,6 +280,8 @@ interface AppState {
   setDeleteMode: (on: boolean) => void
   toggleHidden: (chatId: ID, messageId: ID) => void
   setMessageTranslation: (chatId: ID, messageId: ID, translation: string | null) => void
+  /** Replace the stage directions kept on a user message ([] takes them all off); they ride on that message's reply only */
+  setMessageDirections: (chatId: ID, messageId: ID, directions: string[]) => void
   toggleBookmark: (chatId: ID, messageId: ID, label?: string) => void
   moveMessage: (chatId: ID, messageId: ID, dir: -1 | 1) => void
   impersonate: (chatId: ID) => void
@@ -1373,16 +1376,19 @@ export const useApp = create<AppState>()(
         const outMode = get().settings.translation.autoMode
         let sendText = effective
         let typedOriginal: string | null = null
-        if ((outMode === 'inputs' || outMode === 'both') && effective.trim()) {
+        // [[stage directions]] are not the player's words: only the words are translated, and the directions
+        // are put back in their brackets so the engine can still cut them out (Molfar.Vertep#368)
+        const typedParts = splitDirections(effective)
+        if ((outMode === 'inputs' || outMode === 'both') && typedParts.text.trim()) {
           const tr = get().settings.translation
           try {
             const r = await j<{ text: string }>('/translate', {
               method: 'POST',
-              body: JSON.stringify({ text: effective, target: tr.internalLanguage, provider: tr.provider, deeplKey: tr.deeplKey }),
+              body: JSON.stringify({ text: typedParts.text, target: tr.internalLanguage, provider: tr.provider, deeplKey: tr.deeplKey }),
             })
-            if (r.text.trim() && r.text.trim() !== effective.trim()) {
-              typedOriginal = effective
-              sendText = r.text.trim()
+            if (r.text.trim() && r.text.trim() !== typedParts.text.trim()) {
+              typedOriginal = typedParts.text
+              sendText = withDirections(r.text.trim(), typedParts.directions)
             }
           } catch { /* provider failed — send exactly what was typed */ }
         }
@@ -1407,7 +1413,7 @@ export const useApp = create<AppState>()(
         if (stoppedRuns.delete(chatId)) return 'stopped'
         // the run failed: the transcript is refreshed by now; the turn either landed or it did not
         const landed = get().chats.find((c) => c.id === chatId)?.messages.some((m) =>
-          m.role === 'user' && !before.has(m.id) && !m.id.startsWith('pending-') && m.swipes[m.activeSwipe]?.content === sendText)
+          m.role === 'user' && !before.has(m.id) && !m.id.startsWith('pending-') && m.swipes[m.activeSwipe]?.content === splitDirections(sendText).text)
         return landed ? 'sent' : 'not-sent'
       },
       stopStreaming: () => {
@@ -1449,7 +1455,8 @@ export const useApp = create<AppState>()(
                 ...(frozen.isStaged
                   ? {
                       ...(afterMessageId ? { afterMessageId } : {}),
-                      ...(stagedUser?.swipes[0]?.content ? { userText: stagedUser.swipes[0].content } : {}),
+                      ...(stagedUser && (stagedUser.swipes[0]?.content || stagedUser.directions?.length)
+                        ? { userText: withDirections(stagedUser.swipes[0]?.content ?? '', stagedUser.directions ?? []) } : {}),
                       ...(stagedUser?.attachments?.length ? { attachments: stagedUser.attachments } : {}),
                     }
                   : { targetMessageId: st.messageId, ...(frozen.expectedSwipes != null ? { expectedSwipes: frozen.expectedSwipes } : {}) }),
@@ -1577,11 +1584,18 @@ export const useApp = create<AppState>()(
       },
       editMessage: (chatId, messageId, content) => {
         bumpMutate()
-        // optimistic edit, then commit
+        // optimistic edit, then commit; a [[direction]] typed into an edit of a player's message
+        // leaves the words and joins the kept ones, as the engine does
         set((s) => ({ chats: s.chats.map((c) => c.id !== chatId ? c : {
-          ...c, messages: c.messages.map((m) => m.id === messageId
-            ? { ...m, edited: true, swipes: m.swipes.map((sw, i) => (i === m.activeSwipe ? { ...sw, content } : sw)) }
-            : m),
+          ...c, messages: c.messages.map((m) => {
+            if (m.id !== messageId) return m
+            const cut = m.role === 'user' ? splitDirections(content) : { text: content, directions: [] as string[] }
+            return {
+              ...m, edited: true,
+              swipes: m.swipes.map((sw, i) => (i === m.activeSwipe ? { ...sw, content: cut.text } : sw)),
+              ...(cut.directions.length ? { directions: [...(m.directions ?? []), ...cut.directions].slice(0, DIRECTIONS_MAX) } : {}),
+            }
+          }),
         }) }))
         void (async () => {
           try {
@@ -1656,6 +1670,21 @@ export const useApp = create<AppState>()(
         void j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`, {
           method: 'PATCH', body: JSON.stringify({ translation }),
         }).catch(() => undefined) // translation is cosmetic — no error toast
+      },
+      setMessageDirections: (chatId, messageId, directions) => {
+        bumpMutate()
+        const kept = directions.map((d) => d.trim()).filter(Boolean)
+        set((s) => ({ chats: s.chats.map((c) => c.id !== chatId ? c : {
+          ...c, messages: c.messages.map((m) => {
+            if (m.id !== messageId) return m
+            const { directions: _gone, ...rest } = m
+            return kept.length ? { ...rest, edited: true, directions: kept } : { ...rest, edited: true }
+          }),
+        }) }))
+        void updateMessageDirections(chatId, messageId, kept).catch((e) => {
+          toast.error(String((e as Error).message ?? e))
+          void refreshChat(set, get, chatId)
+        })
       },
       toggleBookmark: (chatId, messageId, label) => {
         const chat = get().chats.find((c) => c.id === chatId)
@@ -2779,9 +2808,12 @@ async function runGeneration(
     return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
   }
   const pendingId = `pending-${uid('reply')}`
+  // the staged bubble already reads the way the engine will store it: the words, with [[directions]] cut out
+  const staged = splitDirections(opts?.userText ?? '')
   const stageUser = opts?.userText?.trim()
     ? { id: `pending-${uid('user')}`, role: 'user' as const, characterId: null,
-        swipes: [{ id: uid('sw'), content: opts.userText, model: 'user', genTimeMs: 0, timestamp: Date.now() }],
+        swipes: [{ id: uid('sw'), content: staged.text, model: 'user', genTimeMs: 0, timestamp: Date.now() }],
+        ...(staged.directions.length ? { directions: staged.directions } : {}),
         activeSwipe: 0, timestamp: Date.now(), edited: false, hidden: false, bookmarked: false,
         // staged under the persona active at send time (matches the engine commit)
         authorName: get().personas.find((p) => p.id === chat.personaId)?.name
@@ -2809,7 +2841,7 @@ async function runGeneration(
     } : c)),
   }))
   // the agents set to run beside the reply start with it, on what the user wrote
-  if (op === 'send' && opts?.userText?.trim()) void triggerParallelAgents(chatId, opts.userText.trim())
+  if (op === 'send' && staged.text.trim()) void triggerParallelAgents(chatId, staged.text.trim())
   return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
 }
 

@@ -20,6 +20,8 @@ Roleplay has several things that "remember". They differ in who keeps them, what
 
 **Author's note** (chat header, "Note"). Text you write for this chat only, placed at a depth and role you choose. Use it to steer: a style hint, a plot push.
 
+**Stage directions** (the message box). Text you put in `[[double brackets]]` inside your own message is cut out of your words and sent to the model as an out-of-character instruction, high in priority, for the reply to that message only (and its swipes and regenerations); it is not remembered by anything. Under your message it shows as a muted chip with an x to take it off (no x while a reply is being written). The "+" menu's **Stage direction** types the brackets for you, and a line under the box counts the directions in your draft. A message that holds only directions adds no turn of yours to the story: the model gets the instruction after the last reply and writes the next one. Only the newest message's directions go with a request; an older one does not repeat. By default the instruction goes at the end of the request as a system message; a preset's **Stage directions role** (Presets > Shaping) can make it a user message for models that ignore system messages there, and the chat's prompt board (Canvas > Prompt, row **Stage directions**) switches it off for that chat. Single brackets `[like this]` are not directions.
+
 **Soul** ([[soul]]). Not a memory of events but how a character reacts; it never changes during play.
 
 ## Which to use
@@ -27,7 +29,7 @@ Roleplay has several things that "remember". They differ in who keeps them, what
 - "She should remember last night's fight": Dashboard handles it short-term; Litopys keeps it long-term. Add a pinned fact if it must never be lost.
 - "She should remember the previous story in a new chat": card memory, or link the chats on the Canvas so the earlier chat brings its story as backstory ([[canvas]], [[long-chats]]).
 - "The world has a rule or a place": a lorebook.
-- "I want the next replies to go this way": author's note, or the "Story, move" button.
+- "I want the next replies to go this way": author's note, or the "Story, move" button. "Only this one reply, and it is not me speaking": a stage direction in `[[double brackets]]`.
 - "I have a long document": Data Bank.
 
 ## Why did she know that?

@@ -7,6 +7,7 @@ import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { useApp } from '@/lib/store'
+import { useT } from '@/hooks/use-t'
 import type { Preset } from '@/lib/types'
 import { PromptFormatSection } from './prompt-format-section'
 
@@ -18,6 +19,7 @@ import { PromptFormatSection } from './prompt-format-section'
 export function ShapingPanel({ preset }: { preset: Preset }) {
   const updatePreset = useApp((s) => s.updatePreset)
   const ro = preset.readOnly
+  const t = useT()
   const up = (patch: Partial<Preset>) => updatePreset(preset.id, patch)
   const upPP = (patch: Partial<Preset['promptPostProcessing']>) =>
     updatePreset(preset.id, { promptPostProcessing: { ...preset.promptPostProcessing, ...patch } })
@@ -105,6 +107,25 @@ export function ShapingPanel({ preset }: { preset: Preset }) {
             aria-label="Compact system messages"
           />
         </label>
+      </section>
+
+      {/* ── Stage directions: the role of the [[...]] instruction (Molfar.Vertep#368) ── */}
+      <section className="flex flex-col gap-1.5 border-t border-border pt-4">
+        <Label className="text-xs">{t('sd.role')}</Label>
+        <Select
+          value={preset.stageDirectionsRole}
+          onValueChange={(v) => v && up({ stageDirectionsRole: v as Preset['stageDirectionsRole'] })}
+          disabled={ro}
+        >
+          <SelectTrigger className="h-8 text-xs" aria-label={t('sd.role')}>
+            <SelectValue>{(v) => (v === 'user' ? t('sd.roleUser') : t('sd.roleSystem'))}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="system">{t('sd.roleSystem')}</SelectItem>
+            <SelectItem value="user">{t('sd.roleUser')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('sd.roleHint')}</p>
       </section>
 
       {/* ── Compact chat history ── */}

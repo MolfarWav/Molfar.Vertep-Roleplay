@@ -1,4 +1,4 @@
-<!-- source: f7c0805c5597 -->
+<!-- source: 45efabb467af -->
 # La tua prima storia
 
 Questo è il percorso più breve da un Roleplay vuoto a una storia in corso, e un elenco di ciò che avviene da solo affinché nulla ti sorprenda. Prima ti serve una connessione a un modello: vedi [[vertep:models]].
@@ -10,7 +10,7 @@ Questo è il percorso più breve da un Roleplay vuoto a una storia in corso, e u
 3. **Scegli una persona** (chi interpreti) nella sezione Persone, oppure mantieni quella predefinita. "Use this persona" la rende predefinita.
 4. **Avvia una chat.** Premi "New chat" sulla scheda. La chat si apre con il primo messaggio della scheda.
 5. **Controlla il modello.** La pillola nell'intestazione della chat ha una scheda Model; scegliere lì un modello cambia solo questa chat.
-6. **Scrivi.** Sotto ogni risposta puoi scorrere altre versioni (swipe); la freccia destra sull'ultima versione ne chiede una nuova. Per rifare una risposta con una direzione, usa "Regenerate with a hint" nel menu "+". Il pulsante "More" su un messaggio offre modifica, diramazione, anteprima del prompt e altro.
+6. **Scrivi.** Sotto ogni risposta puoi scorrere altre versioni (swipe); la freccia destra sull'ultima versione ne chiede una nuova. Per rifare una risposta con una direzione, usa "Regenerate with a hint" nel menu "+". Per indirizzare la risposta verso il messaggio che stai scrivendo, metti l'istruzione tra doppie parentesi al suo interno, per esempio `I walk in. [[Aria is hiding a secret.]]`: il modello la legge come indicazione di scena, non come qualcosa che hai detto (il menu "+" ha "Stage direction" per scrivere le parentesi al posto tuo). Il pulsante "More" su un messaggio offre modifica, diramazione, anteprima del prompt e altro.
 
 ## Cosa gira da solo
 

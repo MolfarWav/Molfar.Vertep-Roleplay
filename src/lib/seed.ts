@@ -128,6 +128,7 @@ export function buildDefaultPreset(): Preset {
     verbosity: 'auto',
     continuePrefill: true,
     squashSystemMessages: false,
+    stageDirectionsRole: 'system',
     compactHistory: { ...DEFAULT_COMPACT_HISTORY, enabled: false },
     promptPostProcessing: { enabled: false, mode: 'none' },
     promptFormat: { use: 'connection', custom: { ...EMPTY_PROMPT_FORMAT } },

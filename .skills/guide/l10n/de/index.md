@@ -1,7 +1,7 @@
-<!-- source: 016e8644f058 -->
+<!-- source: 4f0535fcd80d -->
 # Roleplay: die Übersicht
 
-Roleplay ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Karte. Die eigene **Help** der App (in der Rail) hat zu fast jedem Bildschirm einen kurzen Artikel; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden hier nicht eingerichtet, sondern in den Haupt-Einstellungen: siehe [[vertep:models]].
+Roleplay ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Landkarte. Die eigene **Help** der App (in der Rail) hat zu fast jedem Bildschirm einen kurzen Artikel; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden hier nicht eingerichtet, sondern in den Haupt-Einstellungen: siehe [[vertep:models]].
 
 ## Wo die Dinge sind
 
@@ -18,7 +18,7 @@ Die Einstellungen von Roleplay haben keinen Rail-Punkt. Öffne sie mit dem Butto
 
 ## Innerhalb eines Chats
 
-Die Chat-Kopfzeile enthält die Story-Werkzeuge: **Note** (Autorennotiz), **Fired** (was in den Prompt gegangen ist, siehe [[memory]]), **Record** und **World**. Die Pille daneben öffnet Tabs für Preset, Persona, Model und Agents dieses Chats. Der Button „More“ an jeder Nachricht öffnet deren Aktionen, und das „+“-Menü neben dem Nachrichtenfeld enthält Polish, Regenerate with a hint, Bilderzeugung und mehr.
+Die Chat-Kopfzeile enthält die Story-Werkzeuge: **Note** (Autorennotiz), **Fired** (was in den Prompt gegangen ist, siehe [[memory]]), **Record** und **World**. Die Pille daneben öffnet Tabs für Preset, Persona, Model und Agents dieses Chats. Der Button „More“ an jeder Nachricht öffnet deren Aktionen, und das „+“-Menü neben dem Nachrichtenfeld enthält Polish, Regenerate with a hint, Stage direction, Bilderzeugung und mehr.
 
 Drei Helfer beobachten die Geschichte und verursachen zusätzliche Modellaufrufe, deshalb lohnt es sich, sie zu kennen:
 
