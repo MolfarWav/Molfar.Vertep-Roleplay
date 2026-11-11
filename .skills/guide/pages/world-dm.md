@@ -21,6 +21,8 @@ It runs after replies, every Nth reply ("Run after every N replies"), or right a
 
 It costs one extra model call whenever it is due, on the "DM model (all chats)"; a small, cheap model is enough. A failed run is shown in the sheet and in the Inbox, and the DM reads the same messages again next time.
 
+A profile that plays from an events deck shows "New deck" when the deck is used up. The model is asked for 8 to 12 events; if fewer come back, the deck is kept as it came and a warning says it came back short, so you can build it again.
+
 ## Deleting or swiping a reply
 
 Delete a reply, or swipe to another one, and the DM takes back what it learned from the old one: records, clocks and a waiting event return to how they were, the world book is written again, and the DM reads the story again from there.

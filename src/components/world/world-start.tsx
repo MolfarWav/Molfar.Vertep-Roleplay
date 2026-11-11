@@ -54,7 +54,8 @@ export function DeckLine({ chatId, view, where = 'start' }: { chatId: string; vi
     setBusy(true)
     try {
       const r = await newWorldDeck(chatId, LANG_ENGLISH[lang])
-      if (r.ok) toast.success(t('world.deck.made', { n: r.deck ?? 0 }))
+      if (r.ok && r.short) toast.warning(t(r.deck ? 'world.deck.short' : 'world.deck.none', { n: r.deck ?? 0, min: r.min ?? 0 }))
+      else if (r.ok) toast.success(t('world.deck.made', { n: r.deck ?? 0 }))
       else toast.error(r.error || t('world.failed'))
     } catch (e) {
       toast.error(errText(e))
