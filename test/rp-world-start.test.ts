@@ -545,3 +545,33 @@ describe("world start: inventing from the cards (#95)", () => {
     expect(recipeOf(fsx, "b")!.mode).toBe("learn");
   });
 });
+
+describe("world deck: DECK_MIN is a request, not a limit", () => {
+  const cards = (n: number) => J({ deck: Array.from({ length: n }, (_, i) => ({ text: `Event ${i + 1}.` })) });
+  const build = (id: string, text: string) => {
+    for (const k of Object.keys(results)) delete results[k];
+    results.world_deck = { text, model: "b/build", genTimeMs: 10 };
+    return world("POST", "/world/deck", { chatId: id });
+  };
+  it("asks the model for 8 to 12 events", () => {
+    const id = newChat();
+    expect(world("POST", "/world/deck", { chatId: id }).__llmPending).toBe(true);
+    expect(requests[0]!.spec.messages[0].content).toContain("write 8 to 12 events");
+  });
+  it("a full deck carries no short flag", () => {
+    const id = newChat();
+    expect(build(id, cards(10))).toEqual({ ok: true, deck: 10 });
+    expect(world("GET", "/world/state", undefined, { chatId: id }).deck).toBe(10);
+  });
+  it("a reply with fewer cards than asked is kept, and flagged short", () => {
+    const id = newChat();
+    expect(build(id, cards(3))).toEqual({ ok: true, deck: 3, short: true, min: 8 });
+    expect(world("GET", "/world/state", undefined, { chatId: id }).deck).toBe(3);
+  });
+  it("more than the cap is cut to it; a reply with no cards leaves the old deck", () => {
+    const id = newChat();
+    expect(build(id, cards(20))).toEqual({ ok: true, deck: 12 });
+    expect(build(id, cards(0))).toEqual({ ok: true, deck: 0, short: true, min: 8 });
+    expect(world("GET", "/world/state", undefined, { chatId: id }).deck).toBe(12);
+  });
+});

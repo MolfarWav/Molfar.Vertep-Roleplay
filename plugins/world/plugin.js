@@ -16,6 +16,8 @@
  * (ignores genre and logic). Fronts: Blades in the Dark / Dungeon World.
  * An event rides ONE reply through the llmRequest hook, after the chat history;
  * the next run checks the prose, re-sends a missed event once, then drops it.
+ * The dice below are the DM's own seeded check (2d6, rolled by code); the Dice Roller tool is the model's, in
+ * plugins/tools: see docs/COUPLINGS.md, "Two kinds of dice".
  *
  * Scene direction comes from the Dashboard sensor (its snapshot's
  * scene.direction): explicit freezes the DM (no run, no event, chaos too),
@@ -3685,6 +3687,8 @@ export function startPlan(recipe, chunks, withFronts) {
 // ---------- start: the draft, the deck, the library, carry, the chat's own opening ----------
 // A start writes a draft (user, 2026-10-19: free models invent extras, so the player removes what they do
 // not want, then accepts). One route pass = one build call (two-phase); the app calls again until done.
+// DECK_MIN is a request to the model (the deck prompt says "write DECK_MIN to DECK_MAX events"), not a limit: a reply
+// with fewer cards is kept as it came. deckRoute tells the app (`short`) so it can say so; DECK_MAX is the real cap.
 const DECK_MIN = 8;
 const DECK_MAX = 12;
 const LIBRARY_DIR = "world/library/";
@@ -4039,7 +4043,8 @@ function deckRoute(req, host) {
   countBuild(state, built, "deck", cards.length);
   saveState(fsx, state);
   if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
-  return ok({ ok: true, deck: cards.length });
+  // fewer than the prompt asked for: kept as is (no retry, no second call), but flagged so the app can offer a rebuild
+  return ok({ ok: true, deck: cards.length, ...(cards.length < DECK_MIN ? { short: true, min: DECK_MIN } : {}) });
 }
 
 // ---------- the library of saved worlds ----------

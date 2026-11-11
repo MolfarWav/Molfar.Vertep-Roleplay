@@ -454,8 +454,8 @@ export async function finishWorldDraft(chatId: string, op: 'accept' | 'discard',
 }
 
 /** A new events deck for the chat (one build call). */
-export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok: boolean; deck?: number; error?: string; code?: WorldErrorCode }> {
-  const r = await j<{ ok: boolean; deck?: number; error?: string; code?: WorldErrorCode }>('/world/deck', { method: 'POST', body: JSON.stringify({ chatId, ...(lang ? { lang } : {}) }) })
+export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok: boolean; deck?: number; short?: boolean; min?: number; error?: string; code?: WorldErrorCode }> {
+  const r = await j<{ ok: boolean; deck?: number; short?: boolean; min?: number; error?: string; code?: WorldErrorCode }>('/world/deck', { method: 'POST', body: JSON.stringify({ chatId, ...(lang ? { lang } : {}) }) })
   void loadWorld(chatId).catch(() => {})
   return r
 }
