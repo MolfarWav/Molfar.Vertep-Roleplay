@@ -26,7 +26,7 @@
  *  PUT  /dashboard/config                  flat body or panel envelope
  *  DELETE /dashboard/config/prompts        back to the shipped prompts (?part=<block> or ?key=soul|nudge|fast|sensor: only that one)
  *  POST /dashboard/notes {chatId, op, ...}  the user's own notes and threads (add, edit, retire, restore, thread-add, thread-edit, proposal-accept, proposal-reject),
- *                                          remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
+ *                                          leave-scene {name} / enter-scene {name} (a name the sensor put in the scene by mistake: out of the present list, kept as a known character; the sensor does not bring it back unless it speaks), remove-character {name}, merge-character {from, into} (two Dashboard names, one person), apart-characters {a, b} (not one person)
  *  GET  /dashboard/voices?chatId=          the chat's voice colours: {mode, active, people: [{id, name, aliases, color, hand}]}
  *  POST /dashboard/voices {chatId, op, id?, color?, all?}  op: on | off | auto | set | unset | spread (colours for everyone not picked by hand)
  *  PUT    /dashboard/events {events}       the user's own event rows (changed, new, off)
@@ -2502,6 +2502,7 @@ function emptyState(chatId) {
     counters: { note: 0, thread: 0, said: 0, proposal: 0, journal: 0 },
     proposals: [],
     removed: [],
+    notHere: [],
     lastError: null,
     usage: { calls: 0, inTokens: 0, outTokens: 0, lastMs: 0 },
   };
@@ -2539,6 +2540,7 @@ function normalizeState(raw, chatId) {
   if (!isObj(st.personIds)) st.personIds = {};
   st.notPersons = arr(st.notPersons).filter((n) => typeof n === "string" && n);
   st.removed = arr(st.removed).filter((n) => typeof n === "string" && n);
+  st.notHere = arr(st.notHere).filter((n) => typeof n === "string" && n).slice(-50);
   return st;
 }
 
@@ -4834,6 +4836,11 @@ function aliasesShown(e, name) {
 const removedOf = (state) => arr(state.removed).filter((n) => typeof n === "string");
 const isRemoved = (state, n) => removedOf(state).some((r) => r.toLowerCase() === String(n).toLowerCase());
 
+/** The names the user said are not in the scene (a name the prose mentions and a weak sensor put in): the sensor does not
+ *  bring them back unless they speak, and the user can put them back. They stay known, with their notebook. */
+const notHereOf = (state) => arr(state.notHere).filter((n) => typeof n === "string");
+const isNotHere = (state, n) => notHereOf(state).some((r) => r.toLowerCase() === String(n).toLowerCase());
+
 /** The names in the list that are labels, not people (card titles, narrators): out of every view. */
 const notPersonsIn = (state, names) => names.filter((n) => isNotPerson(state, n));
 
@@ -4968,8 +4975,11 @@ function scenePresent(ctx, out, known) {
       if (nameCount(key, soul, text) >= NAMED_TO_JOIN) list.push(nm);
     }
   }
+  // a name the user took out of the scene stays out unless it speaks in the new messages
+  const spoke = (n) => ctx.newMsgs.some((m) => m.role !== "user" && str(m.name) && nameKey(str(m.name)) === nameKey(n));
+  const keep = (n) => !arr(ctx.notHere).some((r) => r.toLowerCase() === String(n).toLowerCase()) || spoke(n);
   // only characters this turn knows (a removed name or a label is not)
-  return unique(list).filter((n) => ctx.isKnown(n));
+  return unique(list).filter((n) => ctx.isKnown(n) && keep(n));
 }
 
 /** Present characters first named in this turn's events, then the old order. */
@@ -6063,7 +6073,10 @@ function applySensor(ctx, out, op, model, unknownIds) {
     return !!e && knownIds.has(e.id);
   };
   const known = [...ctx.idOf.keys()].filter((n) => ctx.isKnown(n));
+  ctx.notHere = notHereOf(state);
   const present = scenePresent(ctx, out, known);
+  // one who spoke is back in the scene: the user's mark is spent
+  if (ctx.notHere.length) state.notHere = ctx.notHere.filter((n) => !present.some((p) => p.toLowerCase() === n.toLowerCase()));
   // charEntry writes a thought only for a character present this turn
   ctx.presentNow = present;
   const events = readEvents(out.events, ctx, known, unknownIds);
@@ -8469,6 +8482,22 @@ function notesRoute(req, fsx) {
     for (const sn of snaps) {
       if (isObj(sn.chars)) delete sn.chars[name];
       sn.present = arr(sn.present).filter((n) => n !== name);
+    }
+    fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  } else if (op === "leave-scene" || op === "enter-scene") {
+    // a name in the scene by the sensor's mistake (the prose only mentions them): out of the newest snapshot's present
+    // list, and the sensor does not put them back unless they speak. They stay a known character with their notebook.
+    const name = str(b.name);
+    if (!existed || !name || !snap || !isObj(snap.chars)) return bad("name required");
+    const key = Object.keys(snap.chars).find((k) => k.toLowerCase() === name.toLowerCase());
+    if (!key) return bad("no such character in the scene state", 404);
+    if (op === "leave-scene") {
+      snap.present = arr(snap.present).filter((n) => str(n).toLowerCase() !== key.toLowerCase());
+      if (isObj(snap.chars[key])) snap.chars[key].compact = true;
+      if (!isNotHere(state, key)) state.notHere = [...notHereOf(state), key].slice(-50);
+    } else {
+      if (!arr(snap.present).some((n) => str(n).toLowerCase() === key.toLowerCase())) snap.present = [...arr(snap.present), key];
+      state.notHere = notHereOf(state).filter((n) => n.toLowerCase() !== key.toLowerCase());
     }
     fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
   } else if (op === "merge-character" || op === "apart-characters") {

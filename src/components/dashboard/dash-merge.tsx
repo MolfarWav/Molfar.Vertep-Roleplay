@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { CircleNotch, GitMerge, UserGear, UserMinus, UsersThree } from '@phosphor-icons/react'
+import { CircleNotch, DoorOpen, GitMerge, SignOut, UserGear, UserMinus, UsersThree } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import {
@@ -68,6 +68,16 @@ export function ManagePerson({ name, avatars }: { name: string; avatars?: Record
     if (!(await confirm({ title: t('dash.remove.title', { name }), description: t('dash.remove.body'), actionLabel: t('dash.remove.do') }))) return
     await dash.act({ op: 'remove-character', name })
   }
+  const inScene = view.present.includes(name)
+  // "Not in the scene" is for a name the prose only mentions and the sensor put in: they stay known, with their notebook
+  const sceneStep = async () => {
+    if (!(await dash.act({ op: inScene ? 'leave-scene' : 'enter-scene', name }))) return
+    if (inScene) {
+      toast.success(t('dash.scene.left', { name }), {
+        action: { label: t('dash.scene.undo'), onClick: () => void dash.act({ op: 'enter-scene', name }) },
+      })
+    } else toast.success(t('dash.scene.entered', { name }))
+  }
   const label = t('dash.manage', { name })
   return (
     <>
@@ -80,6 +90,10 @@ export function ManagePerson({ name, avatars }: { name: string; avatars?: Record
           </Button>
         } />
         <DropdownMenuContent align="end" className="w-auto min-w-56">
+          <DropdownMenuItem className="max-md:min-h-10" onClick={() => void sceneStep()} data-testid="dash-scene-step">
+            {inScene ? <SignOut aria-hidden="true" /> : <DoorOpen aria-hidden="true" />}
+            {inScene ? t('dash.manage.leave') : t('dash.manage.enter')}
+          </DropdownMenuItem>
           {others.length > 0 && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="max-md:min-h-10">
