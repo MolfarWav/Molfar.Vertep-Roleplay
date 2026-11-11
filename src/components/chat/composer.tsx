@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { QuickReplyBar } from "@/components/chat/qr-bar"
 import { StoryNudgeButton, StoryNudgeChip } from "@/components/chat/story-nudge"
+import { PovSubmenu } from "@/components/chat/pov-menu"
 import { useDashMaybe } from "@/components/dashboard/dash-context"
 import { ExpandedEditor } from "@/components/chat/expanded-editor"
 import { ImageGenDialog, type ImageGenStart } from "@/components/chat/image-gen-dialog"
@@ -389,6 +390,18 @@ export function Composer({ chatId }: { chatId: ID }) {
     }, 60)
   }
 
+  /** "Continue from someone's view > Someone else": the direction in the box, the caret where the name goes. */
+  const insertPovDirection = () => {
+    const open = '[[Continue the story from the point of view of '
+    const next = value.trim() ? `${value.trimEnd()} ${open}]]` : `${open}]]`
+    setValue(next)
+    setTimeout(() => {
+      const el = textareaRef.current
+      el?.focus()
+      el?.setSelectionRange(next.length - 2, next.length - 2)
+    }, 60)
+  }
+
   const insertAtCaret = (text: string) => {
     const el = textareaRef.current
     const pos = el?.selectionStart ?? value.length
@@ -609,6 +622,7 @@ export function Composer({ chatId }: { chatId: ID }) {
               <DropdownMenuItem onClick={() => impersonate(chatId)} disabled={isStreaming}>
                 <User className="size-4" /> {t('composer.impersonate')}
               </DropdownMenuItem>
+              <PovSubmenu chatId={chatId} disabled={isStreaming} onSomeoneElse={insertPovDirection} />
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
