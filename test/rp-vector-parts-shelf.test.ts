@@ -50,11 +50,11 @@ describe("Data Bank vectors of a long file", () => {
     const s = shelfFile(m, "long", 200);
     expect(s.chunks.length).toBe(200);
     expect(s.stored()).toBe(200);
-    const files = names("databank-vectors", s.id);
+    const files = names(".cache/databank-vectors", s.id);
     expect(files.length).toBeGreaterThan(1);
-    for (const f of files) expect(fs.statSync(path.join(env.root, "databank-vectors", f)).size).toBeLessThan(LIMIT);
-    expect(readJson(`databank-vectors/${s.id}.json`)._more).toBe(files.length - 1);
-    expect(readJson(`databank-vectors/${s.id}.json`).m).toBe("text-embedding-3-large");
+    for (const f of files) expect(fs.statSync(path.join(env.root, ".cache/databank-vectors", f)).size).toBeLessThan(LIMIT);
+    expect(readJson(`.cache/databank-vectors/${s.id}.json`)._more).toBe(files.length - 1);
+    expect(readJson(`.cache/databank-vectors/${s.id}.json`).m).toBe("text-embedding-3-large");
     expect(L.shelfGaps(m.host.fs, s.file, "text-embedding-3-large", 999)).toEqual([]);
   });
 
@@ -62,12 +62,12 @@ describe("Data Bank vectors of a long file", () => {
     const m = mk();
     const s = shelfFile(m, "long2", 200);
     s.stored();
-    const files = names("databank-vectors", s.id);
-    const last = readJson(`databank-vectors/${files[files.length - 1]}`);
+    const files = names(".cache/databank-vectors", s.id);
+    const last = readJson(`.cache/databank-vectors/${files[files.length - 1]}`);
     const inLast = Object.keys(last.chunks)[0];
-    const before = files.map((f) => read("databank-vectors", f));
+    const before = files.map((f) => read(".cache/databank-vectors", f));
     expect(call(m, "PATCH", `/databank/${s.id}`, { chunk: { i: Number(inLast), text: "Rewritten passage about Aria." } }).status).toBe(200);
-    const after = files.map((f) => read("databank-vectors", f));
+    const after = files.map((f) => read(".cache/databank-vectors", f));
     expect(after.filter((t, k) => t !== before[k]).length).toBe(1);
     const gaps = L.shelfGaps(m.host.fs, { id: s.id, chunks: readJson(`databank/${s.id}.json`).chunks }, "text-embedding-3-large", 999);
     expect(gaps.map((g: any) => g.i)).toEqual([Number(inLast)]);
@@ -77,9 +77,9 @@ describe("Data Bank vectors of a long file", () => {
     const m = mk();
     const s = shelfFile(m, "long3", 200);
     s.stored();
-    expect(names("databank-vectors", s.id).length).toBeGreaterThan(1);
+    expect(names(".cache/databank-vectors", s.id).length).toBeGreaterThan(1);
     expect(call(m, "DELETE", `/databank/${s.id}`).status).toBe(200);
-    expect(names("databank-vectors", s.id)).toEqual([]);
+    expect(names(".cache/databank-vectors", s.id)).toEqual([]);
   });
 
   it("another model replaces the file as a whole and leaves no extra file of the old one", () => {
@@ -88,15 +88,15 @@ describe("Data Bank vectors of a long file", () => {
     s.stored();
     const few = s.chunks.slice(0, 3);
     expect(L.finishShelf(m.host.fs, { id: s.id, chunks: few }, few.map((c) => ({ i: c.i })), few.map((_, k) => bigVec(k, 8)), "other-model", 8)).toBe(3);
-    expect(names("databank-vectors", s.id)).toEqual([`${s.id}.json`]);
+    expect(names(".cache/databank-vectors", s.id)).toEqual([`${s.id}.json`]);
   });
 
   it("a small file stays one file, as before", () => {
     const m = mk();
     const s = shelfFile(m, "small", 3);
     s.stored();
-    expect(names("databank-vectors", s.id)).toEqual([`${s.id}.json`]);
-    expect(readJson(`databank-vectors/${s.id}.json`)._more).toBeUndefined();
+    expect(names(".cache/databank-vectors", s.id)).toEqual([`${s.id}.json`]);
+    expect(readJson(`.cache/databank-vectors/${s.id}.json`)._more).toBeUndefined();
   });
 });
 
@@ -106,8 +106,8 @@ describe("the lorebook vector cache", () => {
   it("150 vectors of 3072 numbers are kept in extra files and read back; no error is left", () => {
     const m = mk();
     engine.saveWiVectors(m.host.fs, entries(150));
-    expect(names("lorebooks", ".vectors").length).toBeGreaterThan(1);
-    expect(exists("lorebooks/.vectors-error.json")).toBe(false);
+    expect(names(".cache/lorebooks", ".vectors").length).toBeGreaterThan(1);
+    expect(exists(".cache/lorebooks/.vectors-error.json")).toBe(false);
     const back = engine.loadWiVectors(m.host.fs);
     expect(Object.keys(back).length).toBe(150);
     expect(back["book#149"].vector.length).toBe(3072);
@@ -116,14 +116,14 @@ describe("the lorebook vector cache", () => {
 
   it("an old pretty-printed cache over 4 MB is read, and the next save splits it", () => {
     const m = mk();
-    fs.mkdirSync(path.join(env.root, "lorebooks"), { recursive: true });
-    fs.writeFileSync(path.join(env.root, "lorebooks/.vectors.json"), JSON.stringify(entries(110), null, 2));
-    expect(fs.statSync(path.join(env.root, "lorebooks/.vectors.json")).size).toBeGreaterThan(LIMIT);
+    fs.mkdirSync(path.join(env.root, ".cache/lorebooks"), { recursive: true });
+    fs.writeFileSync(path.join(env.root, ".cache/lorebooks/.vectors.json"), JSON.stringify(entries(110), null, 2));
+    expect(fs.statSync(path.join(env.root, ".cache/lorebooks/.vectors.json")).size).toBeGreaterThan(LIMIT);
     const map = engine.loadWiVectors(m.host.fs);
     expect(Object.keys(map).length).toBe(110);
     map["book#new"] = { hash: "n", vector: bigVec(999), m: "m" };
     engine.saveWiVectors(m.host.fs, map);
-    expect(fs.statSync(path.join(env.root, "lorebooks/.vectors.json")).size).toBeLessThan(LIMIT);
+    expect(fs.statSync(path.join(env.root, ".cache/lorebooks/.vectors.json")).size).toBeLessThan(LIMIT);
     expect(Object.keys(engine.loadWiVectors(m.host.fs)).length).toBe(111);
   });
 
@@ -131,14 +131,14 @@ describe("the lorebook vector cache", () => {
     const m = mk();
     const write = m.host.fs.write;
     m.host.fs.write = (rel: string, c: string) => {
-      if (rel.startsWith("lorebooks/.vectors.")) throw new Error("disk full");
+      if (rel.startsWith(".cache/lorebooks/.vectors.")) throw new Error("disk full");
       write(rel, c);
     };
     expect(() => engine.saveWiVectors(m.host.fs, entries(2))).not.toThrow();
-    expect(readJson("lorebooks/.vectors-error.json").error).toContain("disk full");
+    expect(readJson(".cache/lorebooks/.vectors-error.json").error).toContain("disk full");
     m.host.fs.write = write;
     engine.saveWiVectors(m.host.fs, entries(2));
-    expect(exists("lorebooks/.vectors-error.json")).toBe(false);
+    expect(exists(".cache/lorebooks/.vectors-error.json")).toBe(false);
   });
 
   it("the extra files are not listed as books", () => {

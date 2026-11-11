@@ -19,7 +19,7 @@ function chat(chatId: string, m: ReturnType<typeof mockHost>, facts = 3, size = 
 }
 const bankFile = (id: string, texts: string[]) =>
   writeJson(`databank/${id}.json`, { id, name: id, scope: "global", enabled: true, addedAt: 1, size: 1, chunks: texts.map((text, i) => ({ i, text })) });
-const primed = () => writeJson("litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 2 });
+const primed = () => writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "mock-embed", via: "Mock", dim: 2 });
 const cfg = (over: Record<string, unknown> = {}) => ({ ...L.DEFAULT_CONFIG, ...over });
 const wants = () => (exists("litopys/embed-want") ? fs.readdirSync(path.join(env.root, "litopys/embed-want")).sort() : []);
 
@@ -46,14 +46,14 @@ describe("autoEmbedScan", () => {
   it("the engine's own status (a reply embedded its scan window) counts as embedding working", () => {
     const m = mockHost();
     chat("a4", m);
-    writeJson("embed-status.json", { ok: true, checkedAt: Date.now() });
+    writeJson(".cache/embed-status.json", { ok: true, checkedAt: Date.now() });
     expect(L.autoEmbedScan(m.host.fs, m.host, cfg())).toBe(1);
   });
 
   it("not while the last call failed (for an hour), and not while a request is running", () => {
     const m = mockHost();
     chat("a5", m);
-    writeJson("litopys/embed-status.json", { ok: false, checkedAt: Date.now(), model: "mock-embed" });
+    writeJson(".cache/litopys/embed-status.json", { ok: false, checkedAt: Date.now(), model: "mock-embed" });
     expect(L.autoEmbedScan(m.host.fs, m.host, cfg())).toBe(0);
     primed();
     writeJson("litopys/embed-want/other.json", { more: true, at: Date.now(), batch: [] });
@@ -95,8 +95,8 @@ describe("autoEmbedScan", () => {
     primed();
     m.host.llm.embedInfo = { lit_emb_t1: { model: "mock-embed", via: "Mock" }, lit_db_lore: { model: "mock-embed", via: "Mock" } };
     for (let i = 0; i < 4; i++) tick(m);
-    expect(Object.keys(readJson("litopys/vectors/t1.json"))).toHaveLength(3);
-    expect(Object.keys(readJson("databank-vectors/lore.json").chunks)).toHaveLength(1);
+    expect(Object.keys(readJson(".cache/litopys/vectors/t1.json"))).toHaveLength(3);
+    expect(Object.keys(readJson(".cache/databank-vectors/lore.json").chunks)).toHaveLength(1);
     expect(L.autoEmbedScan(m.host.fs, m.host, cfg(), Date.now() + 6 * 60000)).toBe(0);
   });
 

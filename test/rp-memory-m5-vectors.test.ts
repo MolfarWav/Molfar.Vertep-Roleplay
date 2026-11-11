@@ -129,7 +129,7 @@ describe("llmRequest reads turn.scanVec", () => {
     st.migrated = true;
     st.facts = padded;
     writeJson(`litopys/chats/${chatId}.json`, st);
-    writeJson(`litopys/vectors/${chatId}.json`, vec(padded, { f1: [0, 1, 0], f2: [0.1, 0.9, 0], f3: [0, 0.2, 1], f4: [1, 0, 0.1], f5: [0.2, 0, 1] }));
+    writeJson(`.cache/litopys/vectors/${chatId}.json`, vec(padded, { f1: [0, 1, 0], f2: [0.1, 0.9, 0], f3: [0, 0.2, 1], f4: [1, 0, 0.1], f5: [0.2, 0, 1] }));
     writeJson("litopys/config.json", { enabled: true, insert: true, budget: 200, recentMessages: 6 });
     const m = mockHost();
     const ask = (turn: Record<string, unknown>) =>
@@ -149,7 +149,7 @@ describe("the engine plugin embeds the scan window for Litopys vectors", () => {
   const withRoot = (fn: (root: string, fsx: Record<string, Function>) => void) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "m5-"));
     try {
-      for (const d of ["lorebooks", "chats", "litopys/vectors"]) fs.mkdirSync(path.join(root, d), { recursive: true });
+      for (const d of ["lorebooks", "chats", "litopys", ".cache/lorebooks", ".cache/litopys/vectors"]) fs.mkdirSync(path.join(root, d), { recursive: true });
       const fsx = {
         read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
         write: (rel: string, c: string) => {
@@ -169,7 +169,7 @@ describe("the engine plugin embeds the scan window for Litopys vectors", () => {
     withRoot((root, fsx) => {
       const meta = { id: "chat1", lorebookIds: [] };
       expect(E.semanticEmbedWork(fsx, meta, [], "scan text")).toBeNull();
-      fs.writeFileSync(path.join(root, "litopys/vectors/chat1.json"), "{}");
+      fs.writeFileSync(path.join(root, ".cache/litopys/vectors/chat1.json"), "{}");
       expect(E.semanticEmbedWork(fsx, meta, [], "scan text")).toEqual({ needed: [], wantScan: true });
       // nothing to compare: an empty window is not embedded
       expect(E.semanticEmbedWork(fsx, meta, [], "  ")).toBeNull();
@@ -192,7 +192,7 @@ describe("the engine plugin embeds the scan window for Litopys vectors", () => {
       expect(first.needed).toHaveLength(1);
       expect(first.wantScan).toBe(true);
       // cache it the way cacheWiVectorBatch does, then ask again
-      fs.writeFileSync(path.join(root, "lorebooks/.vectors.json"), JSON.stringify({ [first.needed[0].key]: { hash: first.needed[0].hash, vector: [0.1, 0.2] } }));
+      fs.writeFileSync(path.join(root, ".cache/lorebooks/.vectors.json"), JSON.stringify({ [first.needed[0].key]: { hash: first.needed[0].hash, vector: [0.1, 0.2] } }));
       expect(E.semanticEmbedWork(fsx, meta, [], "scan text")).toEqual({ needed: [], wantScan: true });
     });
   });
@@ -200,7 +200,7 @@ describe("the engine plugin embeds the scan window for Litopys vectors", () => {
   it("semanticPrep embeds the scan, then hands the vector on for the turn labels", async () => {
     const E = (await import(engineUrl)) as { semanticPrep: Function };
     withRoot((root) => {
-      fs.writeFileSync(path.join(root, "litopys/vectors/chat1.json"), "{}");
+      fs.writeFileSync(path.join(root, ".cache/litopys/vectors/chat1.json"), "{}");
       const m = mockHost();
       Object.assign(m.host.fs, {
         read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
