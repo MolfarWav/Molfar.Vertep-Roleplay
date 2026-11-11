@@ -4286,7 +4286,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     try {
       if (!compactOn && !isOff("plugin:litopys") && litLine.length) {
         const first = visibleHist[trimmed];
-        const at = first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
+        // nothing trimmed by the window: the history starts where Litopys's own cut left it. Leading messages that are no turn of
+        // the story (a [[direction]] alone, a hidden one) are not "forgotten", so the chat shows no out-of-context divider for them
+        const at = trimmed === 0 ? Math.min(litCut > 0 ? litCut : 0, litLine.length) : first ? litLine.findIndex((m) => m.id === first.id) : litLine.length;
         const count = at < 0 ? 0 : at;
         // `hist`: the id and a hash of each history message as it stands in the prompt, so the Litopys hook can tell which
         // of the request's messages are which turns of the chat (the presence cut, #289); a message it cannot find stays
@@ -5088,6 +5090,21 @@ export function onAppUpdate(ctx, host) {
       done.push("presets/vertep-lite.json");
     }
   }
+  // 4.114.0: the built-in Vertep Medium preset and its three Braille regex scripts. Templates:
+  // _vertep-medium.json and _vertep-medium-regex.json; a copy the user already has stays.
+  if (olderThan(from, "4.114.0")) {
+    if (!readJsonFile(fsx, "presets/vertep-medium.json")) {
+      const tpl = readJsonFile(fsx, "presets/_vertep-medium.json");
+      if (tpl) { writeJsonFile(fsx, "presets/vertep-medium.json", tpl); done.push("presets/vertep-medium.json"); }
+    }
+    const bundle = readJsonFile(fsx, "_vertep-medium-regex.json");
+    for (const s of bundle && Array.isArray(bundle.scripts) ? bundle.scripts : []) {
+      if (!s || typeof s.id !== "string" || !/^mid-[a-z0-9-]+$/.test(s.id)) continue;
+      if (readJsonFile(fsx, "regex/" + s.id + ".json")) continue;
+      writeJsonFile(fsx, "regex/" + s.id + ".json", s);
+      done.push("regex/" + s.id + ".json");
+    }
+  }
   // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));
@@ -5116,7 +5133,7 @@ export function onAppUpdate(ctx, host) {
   // Every update: a built-in preset copy is read-only, so it takes the shipped template when they
   // differ and a change to the shipped preset reaches the user without a migration of its own. A copy
   // the user made editable (not read-only) keeps its text. The engine refreshes the templates first.
-  for (const pid of ["frankenx", "molfar", "vertep-lite"]) {
+  for (const pid of ["frankenx", "molfar", "vertep-lite", "vertep-medium"]) {
     const have = readJsonFile(fsx, "presets/" + pid + ".json");
     const tpl = readJsonFile(fsx, "presets/_" + pid + ".json");
     if (!have || !tpl || !have.studio || have.studio.readOnly !== true || !tpl.studio || tpl.studio.readOnly !== true) continue;
@@ -6844,13 +6861,22 @@ const toolX = (r) => ({
         // a fresh send: the client names the last message it knew before the send. When a turn landed after it, the
         // engine's own commit beat the abort, and writing the user's message and the partial reply again would
         // double the user's turn (#119). Without the field (an older page) nothing is checked.
-        if (typeof b.afterMessageId === "string" && b.afterMessageId) {
-          const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
-          if (known >= 0 && chat.msgs.slice(known + 1).some((m) => m.role === "user" || m.role === "char")) return err(409, "a generation already committed");
-        }
         const sdCut = splitDirections(typeof b.userText === "string" ? b.userText.trim() : "");
         const userText = sdCut.text ? onSave(sdCut.text, "user_input", members[0] || null).trim() : "";
-        if (userText || sdCut.directions.length) {
+        // the Stop can reach the send route first: its error path then stored the user's turn alone (no reply). That
+        // lone turn is ours, not a competing commit: the partial reply goes after it and the turn is not written twice
+        let userStored = false;
+        if (typeof b.afterMessageId === "string" && b.afterMessageId) {
+          const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
+          if (known >= 0) {
+            const tail = chat.msgs.slice(known + 1);
+            if (tail.some((m) => m.role === "char")) return err(409, "a generation already committed");
+            const users = tail.filter((m) => m.role === "user");
+            if (users.length === 1 && tail.length === 1 && userWrittenJustNow(users, { text: userText, at: Date.now() })) userStored = true;
+            else if (users.length) return err(409, "a generation already committed");
+          }
+        }
+        if (!userStored && (userText || sdCut.directions.length)) {
           chat.msgs.push({
             id: uid(), name: chatUserName(fsx, meta), charId: null, role: "user",
             ...(chatPersona(fsx, meta).personaId ? { personaId: chatPersona(fsx, meta).personaId } : {}),

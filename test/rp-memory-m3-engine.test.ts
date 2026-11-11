@@ -442,6 +442,16 @@ it("GET reports where the last prompt started, null before any, count 0 when the
   expect(await getCut()).toEqual({ count: 0, upTo: null });
 });
 
+it("a chat that holds only a [[direction]] message has nothing forgotten (no false out-of-context divider)", async () => {
+  const m = mockHost();
+  const id = await newChat(m);
+  await drive(engineUrl, { method: "POST", path: `/chats/${id}/send`, body: { text: "[[Continue the story from Kryll's point of view.]]", contextWindow: 200000, maxOutput: 1024 } }, m);
+  const rec = JSON.parse(fs.readFileSync(path.join(root, "litopys", "prompt-cut", `${id}.json`), "utf8")) as { count: number; upTo: string | null };
+  // the direction is no turn of the story, so it is not in the history: that is not a message the window cut
+  expect(rec.count).toBe(0);
+  expect(rec.upTo).toBeNull();
+});
+
 // the guard of the saved prompt cut: a record is taken only while the message at `count` is still `upTo`
 describe("prompt-cut guard (GET /chats/:id promptCut)", () => {
   const cutRec = (id: string) => path.join("litopys", "prompt-cut", `${id}.json`);

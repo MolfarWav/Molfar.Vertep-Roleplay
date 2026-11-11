@@ -666,3 +666,46 @@ describe("built-in presets name every note the app adds to the prompt", () => {
     expect(p.prompts.some((x: { identifier: string }) => x.identifier === "sec_vertepnotes")).toBe(true);
   });
 });
+
+describe("built-in Vertep Medium", () => {
+  const shipped = path.join(import.meta.dir, "..", "data");
+  const rd = (rel: string) => JSON.parse(fs.readFileSync(path.join(shipped, rel), "utf8"));
+
+  it("ships as a preset and as the update template, identical, read-only, with its three regex scripts scoped to it", () => {
+    const a = fs.readFileSync(path.join(shipped, "presets", "vertep-medium.json"), "utf8");
+    expect(fs.readFileSync(path.join(shipped, "presets", "_vertep-medium.json"), "utf8")).toBe(a);
+    const p = JSON.parse(a);
+    expect(p.id).toBe("vertep-medium");
+    expect(p.studio.id).toBe("vertep-medium");
+    expect(p.studio.readOnly).toBe(true);
+    // the Braille module stays exactly as the author wrote it
+    expect(p.prompts[0].identifier).toBe("mid_braille");
+    expect(p.prompts[0].content).toContain("⠀");
+    const bundle = rd("_vertep-medium-regex.json");
+    expect(bundle.scripts.map((s: { id: string }) => s.id).sort()).toEqual(["mid-braille-display-spaces", "mid-braille-reasoning-spaces", "mid-braille-send-spaces"]);
+    for (const s of bundle.scripts) {
+      expect(s.scope).toBe("preset");
+      expect(s.scopeTargetId).toBe("vertep-medium");
+      expect(rd(`regex/${s.id}.json`)).toEqual(s);
+    }
+  });
+
+  it("an update from before 4.114.0 adds the preset and the scripts when missing, and keeps what the user has", () => {
+    fs.mkdirSync(path.join(root, "regex"), { recursive: true });
+    fs.copyFileSync(path.join(shipped, "presets", "_vertep-medium.json"), path.join(root, "presets", "_vertep-medium.json"));
+    fs.copyFileSync(path.join(shipped, "_vertep-medium-regex.json"), path.join(root, "_vertep-medium-regex.json"));
+    const up = eng.onAppUpdate({ from: "4.113.0", to: "4.114.0" }, h()).upgraded as string[];
+    expect(up).toContain("presets/vertep-medium.json");
+    expect(up).toContain("regex/mid-braille-send-spaces.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "vertep-medium.json"), "utf8"))).toEqual(rd("presets/vertep-medium.json"));
+    // a script the user changed stays; a second update adds nothing
+    const mine = { ...rd("regex/mid-braille-send-spaces.json"), disabled: true };
+    fs.writeFileSync(path.join(root, "regex", "mid-braille-send-spaces.json"), JSON.stringify(mine));
+    const again = eng.onAppUpdate({ from: "4.113.0", to: "4.114.0" }, h()).upgraded as string[];
+    expect(again).not.toContain("regex/mid-braille-send-spaces.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "regex", "mid-braille-send-spaces.json"), "utf8"))).toEqual(mine);
+    // an update from 4.114.0 on does not bring a deleted preset back
+    fs.rmSync(path.join(root, "presets", "vertep-medium.json"));
+    expect(eng.onAppUpdate({ from: "4.114.0", to: "4.114.1" }, h()).upgraded as string[]).not.toContain("presets/vertep-medium.json");
+  });
+});

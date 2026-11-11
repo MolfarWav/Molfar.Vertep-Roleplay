@@ -292,6 +292,26 @@ describe("the tag in saved replies", () => {
     expect(lines(id).filter((l) => l.role === "user").map((l) => l.text)).toEqual(["hi", "something else"]);
   });
 
+  it("a stopped send, the other order: the error path stored the user's turn first, the partial reply is still kept", async () => {
+    setMode("fast");
+    const mock = mockHost();
+    const id = await newChat(mock);
+    const base = lines(id).at(-1).id;
+    mock.state.model = "error";
+    const failed = await drive(mock, { method: "POST", path: `/chats/${id}/send`, body: { text: "hi" } });
+    expect(failed.status).toBe(503);
+    expect(lines(id).filter((l) => l.role === "user").map((l) => l.text)).toEqual(["hi"]);
+    // the page froze "Half a sen" on screen and commits it: the turn is already there, so only the reply is added
+    const kept = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Half a sen", userText: "hi", afterMessageId: base } });
+    expect(kept.status).toBe(200);
+    const after = lines(id).slice(1);
+    expect(after.filter((l) => l.role === "user").map((l) => l.text)).toEqual(["hi"]);
+    expect(after.at(-1)).toMatchObject({ role: "char", text: "Half a sen" });
+    // a reply already committed after the turn is still a competing commit
+    const late = await drive(mock, { method: "POST", path: `/chats/${id}/cancelled`, body: { text: "Again", userText: "hi", afterMessageId: base } });
+    expect(late.status).toBe(409);
+  });
+
   it("next (a group member answers): the entry sits under the new message's key", async () => {
     setMode("fast");
     const mock = mockHost();

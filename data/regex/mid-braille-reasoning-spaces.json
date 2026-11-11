@@ -1,0 +1,21 @@
+{
+  "id": "mid-braille-reasoning-spaces",
+  "scriptName": "Vertep Medium — Braille spaces out of reasoning",
+  "findRegex": "\\u2800",
+  "replaceString": " ",
+  "placement": [
+    "reasoning"
+  ],
+  "markdownOnly": false,
+  "promptOnly": false,
+  "flags": "g",
+  "order": 2,
+  "scope": "preset",
+  "scopeTargetId": "vertep-medium",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null
+}

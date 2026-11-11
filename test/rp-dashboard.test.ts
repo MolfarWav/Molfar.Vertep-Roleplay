@@ -5227,6 +5227,58 @@ describe("removing a character from the Dashboard", () => {
   });
 });
 
+describe("a name the sensor put in the scene by mistake: not in the scene", () => {
+  const both = reply({ present: ["Aria", "Bram"], chars: { Aria: { mood: "calm" }, Bram: { mood: "tense" } } });
+  const msgs = (): Msg[] => [...three(), A("m4", "Aria thinks of Bram."), U("m5", "Hi.")];
+  const notes = (mock: ReturnType<typeof mockHost>, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "g", ...body } });
+
+  it("leaves the character known, takes them out of the scene, and the sensor does not bring them back", () => {
+    writeChat("g", msgs(), { characterId: undefined, groupId: "g1" });
+    const mock = mockHost([both]);
+    expect(update(mock, "g").json.ok).toBe(true);
+    expect(readStateFile("g").snapshots["m5#0"].present).toEqual(["Aria", "Bram"]);
+    const out = notes(mock, { op: "leave-scene", name: "bram" });
+    expect(out.json.ok).toBe(true);
+    const st = readStateFile("g");
+    expect(st.notHere).toEqual(["Bram"]);
+    expect(st.removed).toEqual([]);
+    expect(st.snapshots["m5#0"].present).toEqual(["Aria"]);
+    expect(Object.keys(st.snapshots["m5#0"].chars).sort()).toEqual(["Aria", "Bram"]);
+    expect(st.snapshots["m5#0"].chars.Bram.compact).toBe(true);
+    // the prose mentions him again and the sensor lists him again: he stays out
+    writeChat("g", [...msgs(), A("m6", "Aria said Bram would come."), U("m7", "Ok")], { characterId: undefined, groupId: "g1" });
+    mock.push(both);
+    expect(update(mock, "g").json.ok).toBe(true);
+    expect(readStateFile("g").snapshots["m7#0"].present).toEqual(["Aria"]);
+    expect(readStateFile("g").notHere).toEqual(["Bram"]);
+  });
+
+  it("a character who speaks is back, and the mark is spent; enter-scene puts one back by hand", () => {
+    writeChat("g", msgs(), { characterId: undefined, groupId: "g1" });
+    const mock = mockHost([both]);
+    update(mock, "g");
+    notes(mock, { op: "leave-scene", name: "Bram" });
+    writeChat("g", [...msgs(), { ...A("m6", "Here I am."), name: "Bram" }, U("m7", "Bram!")], { characterId: undefined, groupId: "g1" });
+    mock.push(both);
+    expect(update(mock, "g").json.ok).toBe(true);
+    expect(readStateFile("g").snapshots["m7#0"].present).toEqual(["Aria", "Bram"]);
+    expect(readStateFile("g").notHere).toEqual([]);
+    notes(mock, { op: "leave-scene", name: "Bram" });
+    expect(readStateFile("g").snapshots["m7#0"].present).toEqual(["Aria"]);
+    notes(mock, { op: "enter-scene", name: "Bram" });
+    expect(readStateFile("g").snapshots["m7#0"].present).toEqual(["Aria", "Bram"]);
+    expect(readStateFile("g").notHere).toEqual([]);
+  });
+
+  it("refuses a name the state does not have, or none", () => {
+    writeChat("g", msgs(), { characterId: undefined, groupId: "g1" });
+    const mock = mockHost([both]);
+    update(mock, "g");
+    expect(notes(mock, { op: "leave-scene", name: "Nobody" }).status).toBe(404);
+    expect(notes(mock, { op: "leave-scene", name: "" }).status).toBe(400);
+  });
+});
+
 describe("the budget of the new messages (#236)", () => {
   it("short messages keep all of their text and long ones share what is left, never below the floor", () => {
     expect(P.fairCap([500, 5500], 12000, 1500)).toBe(Infinity);
