@@ -9,7 +9,7 @@ This is the shortest path from an empty Roleplay to a running story, and a list 
 3. **Pick a persona** (who you play) in the Personas section, or keep the default. "Use this persona" makes it your default.
 4. **Start a chat.** Press "New chat" on the card. The chat opens with the card's first message.
 5. **Check the model.** The pill in the chat header has a Model tab; picking a model there changes this chat only.
-6. **Write.** Under each reply you can flip through other versions (swipes); the right arrow on the last version asks for a new one. To redo a reply with direction, use "Regenerate with a hint" in the "+" menu. The "More" button on a message offers edit, fork, prompt peek and more.
+6. **Write.** Under each reply you can flip through other versions (swipes); the right arrow on the last version asks for a new one. To redo a reply with direction, use "Regenerate with a hint" in the "+" menu. To steer the reply to the message you are writing, put the instruction in double brackets inside it, for example `I walk in. [[Aria is hiding a secret.]]`: the model reads it as a stage direction, not as something you said (the "+" menu has "Stage direction" to type the brackets for you). The "More" button on a message offers edit, fork, prompt peek and more.
 
 ## What runs by itself
 

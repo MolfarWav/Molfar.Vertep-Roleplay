@@ -71,6 +71,8 @@ export interface EngineMessage {
   bookmarkLabel?: string
   translation?: string
   attachments?: Message['attachments']
+  /** Stage directions ([[...]] the player wrote); the text is already clean of them */
+  directions?: string[]
   picture?: boolean
   personaId?: string
   extra?: { model?: string; usage?: Swipe['usage']; continued?: boolean; genMs?: number; params?: Record<string, unknown>; reasoning?: string; reasoningMs?: number; tools?: Swipe['tools']; parts?: Swipe['parts']; /** per-swipe generation facts, index-aligned with swipes (null = no data, e.g. client-cancelled commits) */ swipeMeta?: ({ model?: string; usage?: Swipe['usage']; genMs?: number } | null)[] }
@@ -1003,12 +1005,21 @@ export function engineMessageToUI(m: EngineMessage): Message {
     bookmarkLabel: m.bookmarkLabel,
     ...(typeof m.translation === 'string' ? { translation: m.translation } : {}),
     ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+    ...(m.role === 'user' && Array.isArray(m.directions) && m.directions.some((d) => typeof d === 'string' && d.trim())
+      ? { directions: m.directions.filter((d): d is string => typeof d === 'string' && !!d.trim()) } : {}),
     ...(m.picture === true ? { picture: true } : {}),
     ...(typeof m.personaId === 'string' && m.personaId ? { personaId: m.personaId } : {}),
   }
 }
 
 const DEFAULT_AUTHOR_NOTE: Chat['authorNote'] = { text: '', position: 'in-chat', depth: 4, role: 'system', frequency: 1, includeInWIScan: false }
+
+/** Replace the stage directions kept on a player's message ([] takes them all off). */
+export function updateMessageDirections(chatId: string, messageId: string, directions: string[]): Promise<unknown> {
+  return j(`/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`, {
+    method: 'PATCH', body: JSON.stringify({ directions }),
+  })
+}
 
 export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Chat {
   return {
@@ -1484,6 +1495,7 @@ export function enginePresetToUI(ep: EnginePreset, id: string): Preset {
     verbosity: bag?.verbosity ?? 'auto',
     continuePrefill: bag?.continuePrefill ?? true,
     squashSystemMessages: bag?.squashSystemMessages ?? false,
+    stageDirectionsRole: bag?.stageDirectionsRole === 'user' ? 'user' : 'system',
     compactHistory: { ...DEFAULT_COMPACT_HISTORY, ...bag?.compactHistory },
     promptPostProcessing: bag?.promptPostProcessing ?? { enabled: false, mode: 'none' },
     promptFormat: bag?.promptFormat ?? { use: 'connection', custom: { ...EMPTY_PROMPT_FORMAT } },

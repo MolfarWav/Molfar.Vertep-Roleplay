@@ -18,6 +18,7 @@ import { peopleVoices, useChatVoices } from '@/lib/chat-voices'
 import { cardQuoteColor, cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
 import { pickSprite } from '@/lib/sprite-pick'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
+import { DirectionChips } from '@/components/chat/direction-chips'
 import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
 import { SceneMarkDialog } from '@/components/chat/scene-mark-dialog'
 import { ModelMark } from '@/components/model-mark'
@@ -271,6 +272,9 @@ export const MessageRow = memo(function MessageRow({
   const setView = useApp((s) => s.setView)
   const presets = useApp((s) => s.presets)
   const setMessageTranslation = useApp((s) => s.setMessageTranslation)
+  const setMessageDirections = useApp((s) => s.setMessageDirections)
+  // a chip is taken off only while nothing is being written in this chat (the reply in flight already carries it)
+  const chatBusy = useApp((s) => s.streaming?.chatId === chat.id)
   const presetSamplers = (presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault) ?? presets[0])!.samplers
 
   /** The translation renders INLINE under the original text and
@@ -588,7 +592,8 @@ export const MessageRow = memo(function MessageRow({
     meta.push({ k: "model", node: <span className="inline-flex items-center gap-1" title={modelId}><ModelMark model={modelId} className="size-3.5" />{shortModel(modelId)}</span> })
   }
   if (settings.showGenTimer && !isUser && !isStreamingThis && swipe && swipe.genTimeMs > 0) meta.push({ k: "time", node: <span>{(swipe.genTimeMs / 1000).toFixed(1)}s</span> })
-  if (settings.showTokens && !isStreamingThis) meta.push({ k: "tokens", node: <span>{realUsage ? realUsage.output : tokens}t</span> })
+  // a player's message of directions alone has no words to count
+  if (settings.showTokens && !isStreamingThis && !(isUser && !rawContent && message.directions?.length)) meta.push({ k: "tokens", node: <span>{realUsage ? realUsage.output : tokens}t</span> })
   if (settings.showCost && !isStreamingThis && msgCost != null) meta.push({ k: "cost", node: <span>{formatCost(msgCost)}</span> })
   if (settings.showMessageIds) meta.push({ k: "id", node: <span>#{index}</span> })
 
@@ -929,7 +934,7 @@ export const MessageRow = memo(function MessageRow({
                       })
                     })()}
                   </div>
-                ) : message.picture && !content ? null : isStreamingThis && !content ? (
+                ) : message.picture && !content ? null : isUser && !content && message.directions?.length ? null : isStreamingThis && !content ? (
                   <PendingReply />
                 ) : (
                   <RichText
@@ -948,6 +953,17 @@ export const MessageRow = memo(function MessageRow({
               </VoiceLeadOnly.Provider>
               </DialogueVoices.Provider>
             </div>
+          )}
+
+          {/* Stage directions: the [[...]] the player wrote, sent to the model as an instruction for the reply to this message */}
+          {isUser && !editing && !!message.directions?.length && (
+            <DirectionChips
+              directions={message.directions}
+              touch={coarsePointer}
+              onRemove={readOnly || chatBusy || message.id.startsWith('pending-')
+                ? undefined
+                : (i) => setMessageDirections(chat.id, message.id, (message.directions ?? []).filter((_, k) => k !== i))}
+            />
           )}
 
           {/* Attachments */}

@@ -275,6 +275,14 @@ earlier ones by name.
   runs at assembly (history + world info). Preset text is never regexed.
   Scripts saved before the flags read via regexAxes(). Imported cards and
   presets bring their embedded scripts as character/preset-scoped scripts.
+- Stage directions (Molfar.Vertep#368): `[[...]]` in the player's message is cut out by the engine plugin's
+  `splitDirections` (send, cancel-commit and message PATCH; the page's copy is `lib/stage-directions.ts`, a test
+  keeps the two in step) and kept as `directions: string[]` beside the clean `text`. `assemble()` puts the
+  newest player message's directions into the request as the part "Stage directions" (key `stageDirections`),
+  role from `preset.studio.stageDirectionsRole` (system default | user), switched off per chat in the prompt
+  board. The composer's + menu item and a hint line teach it; the message row shows muted chips
+  (`components/chat/direction-chips.tsx`) with an x (`setMessageDirections`). With translate-inputs on, only the
+  words are translated and the directions are put back in brackets (`withDirections`).
 - Groups: groupTurnPlan() decides a turn. list = every unmuted member in
   order; natural = members named in the user's message, else one pick
   weighted by card talkativeness (never who just spoke). Send answers the

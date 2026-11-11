@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle, Translate } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle, Translate, FilmSlate } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -23,6 +23,7 @@ import { RegenerateHintDialog } from '@/components/chat/regenerate-hint-dialog'
 import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
+import { splitDirections } from "@/lib/stage-directions"
 import { fileToRawDataUrl, j, storeAttachmentAsset } from "@/lib/engine"
 import { COMPOSER_INSERT } from "@/lib/agents"
 import { cn } from "@/lib/utils"
@@ -370,6 +371,24 @@ export function Composer({ chatId }: { chatId: ID }) {
     return true
   }
 
+  // [[stage directions]] in the draft: how many complete ones there are, for the hint line
+  const directionCount = useMemo(() => splitDirections(value).directions.length, [value])
+  /** The + menu's "Stage direction": [[ ]] at the caret (around the selection), the caret between the brackets. */
+  const insertDirection = () => {
+    const el = textareaRef.current
+    const from = el?.selectionStart ?? value.length
+    const to = el?.selectionEnd ?? from
+    const lead = from > 0 && !/s/.test(value[from - 1] ?? "") ? " " : ""
+    const picked = value.slice(from, to)
+    const open = from + lead.length + 2
+    setValue(`${value.slice(0, from)}${lead}[[${picked}]]${value.slice(to)}`)
+    // after the menu has closed and handed the focus back, put it in the box
+    setTimeout(() => {
+      el?.focus()
+      el?.setSelectionRange(open, open + picked.length)
+    }, 60)
+  }
+
   const insertAtCaret = (text: string) => {
     const el = textareaRef.current
     const pos = el?.selectionStart ?? value.length
@@ -556,6 +575,13 @@ export function Composer({ chatId }: { chatId: ID }) {
         </div>
       )}
 
+      {directionCount > 0 && (
+        <p role="status" className="mb-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <FilmSlate className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">{t('sd.hint', { n: directionCount })}</span>
+        </p>
+      )}
+
       <StoryNudgeChip chatId={chatId} />
 
       {/* Menu · input · "Story, move" (only with the dashboard plugin) · send. */}
@@ -593,6 +619,10 @@ export function Composer({ chatId }: { chatId: ID }) {
             <DropdownMenuItem onClick={() => setExpandOpen(true)}>
               <ArrowsOut className="size-4" /> {t('composer.expandEditor')}
               <span className="ml-auto text-[10px] text-muted-foreground">⇧Tab</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={insertDirection}>
+              <FilmSlate className="size-4" /> {t('sd.menu')}
+              <span className="ml-auto font-mono text-xs text-muted-foreground" aria-hidden="true">[[ ]]</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => imageRef.current?.click()}>
               <ImageIcon className="size-4" /> {t('composer.sendImage')}

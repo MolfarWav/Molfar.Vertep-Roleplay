@@ -7,10 +7,23 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.110.0'
+export const APP_VERSION = '4.111.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.stage-directions',
+    since: '4.111.0',
+    target: 'composer.options',
+    open: { view: 'chat' },
+    help: 'chat',
+    keywords: { en: 'stage direction directions double brackets ooc out of character instruction note to the model this reply only', uk: 'ремарка ремарки подвійні дужки поза грою інструкція нотатка для моделі лише ця відповідь' },
+    title: { en: 'Stage directions: tell the model, not the character', uk: 'Ремарки: кажіть моделі, а не персонажу' },
+    body: {
+      en: 'Put text in [[double brackets]] inside your message and it goes to the model as an instruction for that one reply, not as something you said. The + menu has Stage direction to type the brackets for you. The direction shows as a chip under your message; the x takes it off.',
+      uk: 'Візьміть текст у [[подвійні дужки]] у своєму повідомленні, і він піде в модель як інструкція для цієї однієї відповіді, а не як ваші слова. У меню + є «Ремарка», яка сама ставить дужки. Під повідомленням ремарка видна плашкою; хрестик її прибирає.',
+    },
+  },
   {
     id: 'new.auto-scenes',
     since: '4.108.0',

@@ -9,6 +9,7 @@ const NAME_KEYS: Record<string, MsgKey> = {
   history: 'canvas.prompt.name.history',
   databank: 'canvas.prompt.name.databank',
   authorNote: 'canvas.prompt.name.authorNote',
+  stageDirections: 'canvas.prompt.name.stageDirections',
   'plugin:litopys': 'canvas.prompt.name.litopys',
   'plugin:relations': 'canvas.prompt.name.relations',
   'plugin:said': 'canvas.prompt.name.said',
