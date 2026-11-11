@@ -1,52 +1,54 @@
-<!-- source: 0383923e835d -->
-# Sahne Dashboard'u
+<!-- source: 96ce37dc065d -->
+# Sahne Panosu
 
-Dashboard, sohbetin yanında sahneyi izleyen bir paneldir: kimin orada olduğu, her karakterin size karşı ne hissettiği, ne giydikleri ve ne bildikleri, açık hikâye izlekleri. Yanıtlar arasında hikâyenin ilişkileri ve ayrıntıları hatırlamasını isteyen herkes içindir. *Scene dashboard* Yardım makalesi alanlarını listeler.
+Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimler burada, her karakter senin hakkında ne hissediyor, ne giyiyorlar ve ne biliyorlar, açık hikâye konuları neler. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes için. *Sahne panosu* başlıklı Yardım makalesi alanlarını listeler.
 
-## Neyi izler
+## Neyi takip eder
 
-Sohbette bir portreye tıklayıp Dashboard'u seçerek açın. Yan panelde dört sekme vardır: **Person** (tutum, ruh hali ve durum, kıyafet ve eşyalar: üzerlerinde, ellerinde ve yanlarında olanlar ve yakında bulunanlar), **Here** (yer, hava, kimin orada olduğu), **Quests** (açık izlekler: ana, yan, gündelik) ve **Notes** (defter: bir karakterin ne bildiği ve onu görüp görmediği, duyup duymadığı veya tahmin edip etmediği). "Constellation", bir karakterin size karşı nasıl durduğunu adlandırır; örneğin Friendship veya Romance. Bir sekmedeki sayı, son yanıtınızdan bu yana değişiklikleri sayar (bir şey düştüğünde kırmızı). Geniş görünümde ayrıca bir karakterin düşüncesi ve anımsamalarıyla bir Journal bulunur. Telefonda aynı içerik bir sayfa olarak açılır.
+Sohbette bir portreye tıklayıp Pano'yu seçerek aç. Yan panelin dört sekmesi var: **Kişi** (tutum, ruh hâli ve durum, kıyafet ve eşyalar: ne giydikleri, ne tuttukları ve taşıdıkları, ve yakınlarda ne olduğu), **Burada** (yer, hava durumu, kimler var), **Görevler** (açık konular: ana, yan, gündelik) ve **Notlar** (not defteri: bir karakter ne biliyor ve bunu gördü mü, duydu mu yoksa tahmin mi etti). "Takımyıldız" bir karakterin sana karşı nasıl durduğunu adlandırır, örneğin Dostluk veya Romantizm. Bir sekmedeki sayı, son yanıtından bu yana yapılan değişiklikleri sayar (bir şey düştüğünde kırmızı). Geniş görünümde ayrıca bir karakterin düşüncesini ve hatıralarını içeren bir Günlük var. Telefonda aynı içerik bir sayfa olarak açılır.
 
-**Aynı kişi iki kez listelenmiş.** Dashboard aynı kişiyi iki ad altında gösteriyorsa (diyelim "Sina" ve "Sina Rose"), birini açın ve Person başlığındaki küçük insanlar düğmesini kullanın, ardından "Same person as..." deyin ve diğerini seçin. Önce size sorulur: notlar, geçmiş ve eşyalar seçtiğiniz kişiye taşınır, onların ilişki sayıları kalır, ad onların bir diğer adı olur ve bu geri alınamaz. Dashboard olası kopyaları kendisi de önerir: Person sekmesinin üstündeki bir kutu (ve "Since your last reply" içindeki "Possible duplicate" etiketi) "X may be the same person as Y" der ve nedenini gösterir. "Merge into Y" menüyle aynısını yapar; "Different people" onları ayrı tutar ve Dashboard o çifti önermeyi bırakır. Aynı menüde, yalnızca yanlış olan bir ad için "Remove from the Dashboard" bulunur.
+**Aynı kişi iki kez listelenmiş.** Pano aynı kişiyi iki ad altında gösteriyorsa (diyelim "Sina" ve "Sina Rose"), birini aç ve Kişi başlığındaki küçük kişiler düğmesini kullan, ardından "Same person as..." seçeneğine bas ve diğerini seç. Önce sana sorulur: notlar, geçmiş ve eşyalar seçtiğin kişiye taşınır, ilişki sayıları kalır, ad onun bir diğer adı olur ve bu geri alınamaz. Pano ayrıca olası kopyaları kendisi önerir: Kişi sekmesinin üstündeki bir kutu (ve "Since your last reply" içinde bir "Possible duplicate" etiketi) "X, Y ile aynı kişi olabilir" der ve nedenini belirtir. "Merge into Y" menüyle aynı şeyi yapar; "Different people" onları ayrı tutar ve Pano o çifti önermeyi bırakır. Aynı menüde, yanlış olan bir ad için "Remove from the Dashboard" bulunur.
 
-Sayılar (güven, rahatlık, çekim, saygı, sevgi ve daha fazlası) bir modelin bildirdiği olaylardan kodla hesaplanır ve her karakterin [[soul]]'u tarafından eğilir. Durum mesaj başına tutulur; böylece bir kaydırma veya silinen bir mesaj asla bayat sayılar bırakmaz.
+Başka bir yerden iletişimde olan bir karakter (bir mesaj, bir mektup, bir arama, bir görüntülü konuşma) sahne satırında böyle işaretlenir, ona neyin ulaştığına dair bir kısa cümleyle birlikte: mesaj veya mektupla yalnızca gönderilen sözler; aramayla yalnızca ses ve telefonun yakınındaki sesler; görüntülü konuşmayla yalnızca kamerada olan ve kamera yakınında duyulan. Sessiz bir eylem, örneğin çaydanlığı ocağa koymak, onlar tarafından bilinmez.
 
-Send'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek seferlik bir dürtü kurar; oku açık bir görevi veya bir sürprizi seçer.
+Sayılar (güven, rahatlık, çekim, saygı, sevgi ve daha fazlası) bir modelin bildirdiği olaylardan kod tarafından hesaplanır ve her karakterin [[soul]] değerine göre eğilir. Durum her mesaj için ayrı tutulur, böylece bir kaydırma veya silinen bir mesaj asla eski sayılar bırakmaz.
 
-## Ne değişti, sohbette
+Gönder'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek seferlik bir dürtme hazırlar; oku bir açık görev veya bir beklenmedik gelişme seçer.
 
-En yeni yanıtın altında sessiz bir satır, Dashboard'un ona ne kaydettiğini söyler: "Changed: Ada · trust fell, mood calm → tense, +2". Açmak için dokunun; aynı çipler Dashboard'un "Since your last reply" satırındaki gibi açılır; bir çip eşleşen Dashboard sekmesini açar (telefonda alt sayfasını). Eski yanıtlar hiçbir şey göstermez ve satır, bir yanıt yazılırken ya da Dashboard hâlâ güncellenirken bekler. Gizlemek için Settings > Chat Behavior içinde "Show what changed under the newest reply" anahtarını kapatın.
+## Sohbette ne değişti
+
+En yeni yanıtın altında, soluk bir satır Pano'nun onun için ne kaydettiğini söyler: "Changed: Ada · trust fell, mood calm → tense, +2". Pano'nun "Since your last reply" satırındaki aynı etiketleri açmak için ona dokun; bir etiket ilgili Pano sekmesini açar (telefonda alt sayfasını). Eski yanıtlar hiçbir şey göstermez ve bir yanıt yazılırken veya Pano hâlâ güncellenirken satır bekler. Gizlemek için Ayarlar > Chat Behavior içinde "Show what changed under the newest reply" seçeneğini kapat.
 
 ## Karakterler arasındaki bağlar
 
-Sensör, sizin olmayan iki karakterin birbirine nasıl durduğunu, tek kelimelik bir rol ve tek kelimelik bir sıcaklık olarak not eder ("rival, cold"). Yanıtın istemi bunlardan en fazla dördünü, yalnızca sahnedeki kişiler için, tek kısa bir satır olarak taşır. Bir karakterin kendi yanıtı yalnızca o karakterin parçası olduğu bağları alır; bir anlatıcı ise tur hakkında olan kişilerin bağlarını önce alır.
+Sensör, sen olmayan iki karakterin birbirine nasıl durduğunu tek kelimelik bir rol ve tek kelimelik bir sıcaklık olarak not eder ("rival, cold"). Yanıtın istemi bunlardan en fazla dördünü tek kısa satır olarak taşır, yalnızca sahnedeki kişiler için. Bir karakterin kendi yanıtı yalnızca o karakterin parçası olduğu bağları alır; bir anlatıcı ise önce sıranın hakkında olduğu kişilerin bağlarını alır.
 
 ## Bir karakterin söyledikleri ve yalanlar
 
-Bir kişinin defterinin altındaki **Said** listesi, söyledikleri ve tutmak zorunda oldukları güçlü şeyleri saklar: bir yemin, bir tehdit, bir itiraf, bir emir. Bir yalan da orada tutulur; "Show hidden"ı seçene kadar gizlidir.
+Bir kişinin not defterinin altında **Said** listesi, söylediği ve kendisine bağlı kalınan güçlü şeyleri tutar: bir yemin, bir tehdit, bir itiraf, bir emir. Bir yalan da orada tutulur, sen "Show hidden" seçeneğini seçene kadar örtülü kalır.
 
-Bir karakter başkalarının önünde yalan söylediğinde, diğerleri bunu doğru kabul eder. Sonraki yanıtları bunu, kendilerine söylenmiş ve kuşkulanmaları için bir neden olmayan bir şey gibi ele alır; hikâye aksini gösterene kadar. Yalnızca sahnede olan insanlar kandırılır ve yalnızca kendi yanıtlarında: başka biri konuşurken yalanı tekrarlamaz.
+Bir karakter başkalarının önünde yalan söylediğinde, diğerleri onu doğru kabul eder. Sonraki yanıtları, hikâye aksini gösterene kadar, ona söylenmiş ve şüphe etmek için hiçbir sebebi olmadıkları bir şey olarak davranır. Yalnızca sahnede olan kişiler kandırılır ve yalnızca kendi yanıtlarında: başka biri konuştuğunda yalanı tekrarlamaz.
 
-Bir yalana açtığınızda **Believe it:** görürsünüz; bunun altında hâlâ inanan her kişi için bir düğme bulunur. Bu kişi gerçeği öğrendiğinde bir adına basın. Satırın menüsünde ayrıca, sensörün yalan olarak adlandırmadığı bir ifade için **This was a lie** (sahnedeki kişiler o zaman buna inanır) ve sensörün yanıldığı durumda **Not a lie** vardır. Bir yanıt gerçeğin ortaya çıktığını gösterdiğinde sensör inancı kendiliğinden bitirir. Yalanı listeden kaldırmak, onunla birlikte her inancı da kaldırır.
+Bir yalanı açtığında **Believe it:** görürsün, hâlâ ona inanan her kişi için bir düğmeyle. O kişi öğrendiğinde bir ada bas. Satırın menüsünde ayrıca sensörün yalan demediği bir ifade için **This was a lie** (sahnedeki kişiler o zaman ona inanır) ve sensör yanlış anladığında **Not a lie** bulunur. Sensör, bir yanıt gerçeğin ortaya çıktığını gösterdiğinde inancı kendisi sona erdirir. Yalanı listeden kaldırmak, her inancı da onunla birlikte kaldırır.
 
-> Anlatıcı tek bir yanıtta herkesi seslendirir, bu yüzden gerçeği her zaman bilir. Bu yalnızca bir karakterin, bir başkasının bildiğine dayanarak hareket etmesini engeller.
+> Anlatıcı tek bir yanıtta herkesi seslendirir, dolayısıyla gerçeği her zaman bilir. Bu yalnızca bir karakterin, başka bir karakterin bildiği bir şeye göre davranmasını engeller.
 
 ## Ne zaman güncellenir
 
-Dashboard içindeki "Settings" düğmesi ayarlarını açar; Sensor sekmesinde mod bulunur:
+Pano'nun içindeki "Settings" düğmesi ayarlarını açar; Sensor sekmesinde mod bulunur:
 
 - **Sensor** (varsayılan): her yanıttan sonra bir model yeni mesajları okur ve ne olduğunu bildirir.
-- **Fast: inside the story reply**: güçlü modeller için. Hikâye modeli raporu kendi yanıtının sonunda, ayrı bir çağrı olmadan yazar ve her yanıta birkaç token ekler. Raporu atlarsa normal sensör çalışır.
-- **Manual**: yalnızca "Refresh"e bastığınızda güncellenir.
+- **Fast: inside the story reply**: güçlü modeller için. Hikâye modeli raporu yanıtının sonunda kendisi yazar, ayrı bir çağrı olmadan, her yanıta birkaç token ekleyerek. Raporu atlarsa, olağan sensör çalışır.
+- **Manual**: yalnızca "Refresh" düğmesine bastığında güncellenir.
 
 ## Maliyeti nedir
 
-Sensor modunda, yanıt başına bir ekstra model çağrısı, "Sensor model" üzerinde (boş bırakırsanız sohbetin modeli). Ucuz, küçük bir model yeterlidir. Yeni mesajları bütün olarak okur (birlikte yaklaşık 12000 karaktere kadar; daha uzun bir yanıtta yalnızca ortası kaybolur) ve kod önce kıyafet, giyinme veya bir öpücük gibi görünen cümleleri işaretleyip modeli onlara yöneltir; böylece uzun bir yanıtın ortasında bir kez geçen bir etek yine de kıyafete ulaşır. Bir karakter kartında "Attire:" satırı varsa, metnin sözünü ettiği bir giysinin tam ifadesi için referans olarak sensöre de gösterilir (metnin göstermediği bir giysiyi asla eklemez). Bir karakterin giydiği ve tuttuğu şeyler bir eşya listesi olarak tutulur; yırtılan veya kirlenen bir giysi tek eşya olarak kalır. Her şey gittiği her yerde tek bir kimlik korur: giyilmiş, kapının yanında çıkarılmış, başka birine verilmiş. Bir yerde bırakılan şeyler orada kalır: hikâye kafeye geri döndüğünde fincan hâlâ masadadır. Hikâye yaklaşık altı tur boyunca birinin ne giydiğini göstermediğinde, yazma modelinden bundan kısaca söz etmesi istenir. Taramanın bilmediği bir dil için kelimeler eklemek isterseniz `data/dashboard/lexicon.json` içinde listeleyin (`{"wear": ["..."], "touch": ["..."]}`); `{"off": true}` taramayı kapatır. Dashboard ayrıca hikâye modelinin okuduğuna kısa bir "Prompt insert" ekler; böylece karakterler nerede durduklarını bilir: bunu kapatabilir ve "Tokens per character"ı ayarlayabilirsiniz. Ayarlardaki "What the model sees" eki gösterir.
+Sensor modunda, her yanıt için "Sensor model" üzerinde bir ek model çağrısı (boş bırakırsan sohbetin modeli). Ucuz, küçük bir model yeterlidir. Yeni mesajları bütün olarak okur (birlikte yaklaşık 12000 karaktere kadar; daha uzun bir yanıt yalnızca ortasını kaybeder) ve kod önce kıyafet, giyinme veya öpücük gibi görünen cümleleri işaretler ve modeli onlara yönlendirir, böylece uzun bir yanıtın ortasında bir kez anılan bir etek bile kıyafete ulaşır. Bir karakter kartında "Attire:" satırı varsa, sensör ona da metnin bahsettiği bir giysinin tam ifadesi için referans olarak gösterilir (metnin göstermediği bir giysiyi asla eklemez). Bir karakterin ne giydiği ve ne tuttuğu bir eşya listesi olarak tutulur; yırtılan veya kirlenen bir giysi tek bir eşya olarak kalır. Her şey nereye giderse gitsin tek bir kimliğini korur: giyilmiş, kapının yanında çıkarılmış, başkasına verilmiş. Bir yerde bırakılan şeyler orada kalır: hikâye kafeye geri döndüğünde, bardak hâlâ masadadır. Hikâye yaklaşık altı tur boyunca birinin ne giydiğini göstermediyse, yazı modelinden bundan kısaca bahsetmesi istenir. Taramanın bilmediği bir dil için kelime eklemek üzere bunları `data/dashboard/lexicon.json` içinde listele (`{"wear": ["..."], "touch": ["..."]}`); `{"off": true}` taramayı kapatır. Pano ayrıca hikâye modelinin okuduğuna kısa bir "Prompt insert" ekler, böylece karakterler nerede durduklarını bilir: bunu kapatabilir ve "Tokens per character" ayarını yapabilirsin. Ayarlardaki "What the model sees", eklenen metni gösterir.
 
 ## Nasıl kapatılır
 
-Burada listelenen ekranlarda ayrı bir kapatma anahtarı yoktur. Modu "Manual" yapın; böylece kendiliğinden asla model çağırmaz. Tamamen kaldırmak için Molfar Vertep'in Plugins düğmesinde Dashboard eklentisini devre dışı bırakın; Roleplay'de Tools > Plugins yalnızca neyin çalıştığını listeler. İstek dışında kalmasını istiyorsanız "Prompt insert"ü kapatın.
+Burada listelenen ekranlarda ayrı bir kapatma düğmesi yok. Modu "Manual" yap, o zaman kendi başına asla bir model çağırmaz. Tamamen kaldırmak için Molfar Vertep'in Plugins düğmesinden Dashboard eklentisini devre dışı bırak; Roleplay'deki Tools > Plugins yalnızca çalışanları listeler. İstekten uzak kalmasını istiyorsan "Prompt insert" seçeneğini kapat.
 
 ## İlgili
 
-[[soul]] onu besler; [[litopys]] notlarını kullanır; [[memory]] onu diğer bellek türleriyle karşılaştırır.
+[[soul]] onu besler; [[litopys]] notlarını kullanır; [[memory]] onu diğer hafıza türleriyle karşılaştırır.

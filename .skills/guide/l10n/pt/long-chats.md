@@ -1,73 +1,75 @@
-<!-- source: 49838714a096 -->
-# Chats longos e custo de tokens
+<!-- source: 67addd68fb05 -->
+# Conversas longas e custo de tokens
 
-Um chat que dura semanas cresce, e cada resposta envia mais dele ao modelo. Esta página é para quem tem respostas lentas ou caras, ou um modelo que esquece o começo da história.
+Uma conversa que dura semanas cresce, e cada resposta envia mais dela para o modelo. Esta página é para quem tem respostas lentas ou caras, ou cujo modelo esquece o começo da história.
 
-## O botão Request size
+## O botão "Request size"
 
-Por padrão, o chat inteiro é enviado enquanto a janela tem espaço. Numa janela grande o custo continua crescendo, então o cabeçalho do chat tem um botão **Request size** ao lado das ferramentas da história (no telefone: no Menu). Ele mostra quantos tokens a última solicitação enviou, o prompt inteiro como o provedor o contou, e qual modelo a recebeu. Pressione-o para ver o modelo, a janela dele e o seu limite. Ele fica verde-azulado abaixo de três quartos do limite, âmbar a partir daí, e vermelho com um sinal de aviso acima dele. O quadro Prompt do Canvas lista cada parte de uma solicitação ([[canvas]]).
+Por padrão, a conversa inteira é enviada enquanto houver espaço na janela. Em uma janela grande o custo continua crescendo, então o cabeçalho da conversa tem um botão **Request size** ao lado das ferramentas da história (no celular: no Menu). Ele mostra quantos tokens a última requisição enviou, o prompt inteiro como o provedor contou, e qual modelo recebeu. Toque nele para ver o modelo, sua janela e seu limite. Ele fica azul-petróleo abaixo de três quartos do limite, âmbar a partir daí, e vermelho com um sinal de aviso quando passa. O quadro Canvas Prompt lista cada parte de uma requisição ([[canvas]]).
 
-Quando uma resposta empurra a solicitação além do limite, abre-se um pop-up:
+Quando uma resposta empurra a requisição além do limite, um popup abre:
 
-- **Yes, continue in a new chat** cria o próximo chat na hora e o abre.
-- **Not now** esconde o pop-up para este chat até que a solicitação tenha crescido à metade. Fechá-lo conta como Not now.
+- **Yes, continue in a new chat** cria a próxima conversa na hora e a abre.
+- **Not now** esconde o popup para esta conversa até a requisição crescer pela metade. Fechá-lo conta como Not now.
 - **Send finished scenes as chapters instead** aparece quando o Litopys está ligado (próxima seção).
 
-O limite fica no fim do pop-up, e na Library, engrenagem "Litopys settings", bloco "In the prompt", "Warn me when a request gets big": 60% da janela do modelo (padrão), um tamanho que você digita (100k) ou escolhe (de 16k a 500k), ou nunca. Um chat que já passou do limite mostra o botão vermelho e nenhum pop-up até que uma nova resposta o faça crescer.
+O limite fica na parte de baixo do popup, e na Biblioteca, engrenagem "Litopys settings", bloco "In the prompt", "Warn me when a request gets big": 60% da janela do modelo (padrão), um tamanho que você digita (100k) ou escolhe (16k a 500k), ou nunca. Uma conversa que já passou do limite mostra o botão vermelho e nenhum popup até uma nova resposta fazê-la crescer.
 
-O registro tem tamanho próprio. No mesmo bloco, "Memory size" é Auto por padrão: 15% da janela do modelo, entre 800 e 16000 tokens. "Compact" o mantém em 800.
+O registro tem seu próprio tamanho. No mesmo bloco, "Memory size" é Auto por padrão: 15% da janela do modelo, entre 800 e 16000 tokens. "Compact" o mantém em 800.
 
 ## Os interruptores que cortam custo
 
 No mesmo bloco, "Older messages leave the prompt" tem duas opções:
 
 - **Only when the window is full** (padrão): toda mensagem é enviada enquanto couber.
-- **By scenes**: assim que um capítulo cobre uma cena, a cena é trocada pelo capítulo. Só as últimas mensagens ficam palavra por palavra ("Direct messages after the scenes", 2 ou mais). A cena mais nova ainda não tem capítulo, então é enviada por inteiro.
+- **By scenes**: assim que um capítulo contém uma cena, a cena é substituída pelo capítulo. Só as últimas mensagens ficam palavra por palavra ("Direct messages after the scenes", 2 ou mais). A cena mais nova ainda não tem capítulo, então é enviada por inteiro.
 
-"By scenes" custa um pouco de detalhe: um capítulo é uma recontagem, então um modelo fraco pode perder uma pequena coisa. Fixe um fato que nunca pode se perder ([[litopys]]). Outros cortes:
+"By scenes" custa um pouco de detalhe: um capítulo é um reconto, então um modelo fraco pode perder uma coisinha. Fixe um fato que nunca deve ser perdido ([[litopys]]). Outros cortes:
 
-- Quadro Prompt do Canvas, cartão history, Details: enviar só as últimas N mensagens (no computador, só esse chat).
-- Reduzir "Memory size" para Compact, ou desligar "Chapters and facts".
+- Biblioteca, Litopys settings, **Direct messages, by size**: mantém as mensagens mais novas que cabem em um número de tokens (pelo menos 2 mensagens) em vez de uma contagem fixa. 0 conta mensagens ([[litopys]]).
+- Biblioteca, Litopys settings, **Leave out what a speaker was not present for** ("Groups only" por padrão): uma resposta falada por um personagem não recebe as mensagens recentes de cenas em que aquele personagem não estava ([[litopys]]).
+- Quadro Canvas Prompt, cartão de histórico, Details: envia só as últimas N mensagens (desktop, só aquela conversa).
+- Baixe "Memory size" para Compact, ou desligue "Chapters and facts".
 
-## Comece um chat novo e mantenha a história
+## Comece uma conversa nova e mantenha a história
 
-Numa pausa natural, um chat novo que continua o antigo começa com um prompt pequeno e ainda sabe o que aconteceu.
+Em uma pausa natural, uma conversa nova que continua a antiga começa com um prompt pequeno e ainda sabe o que aconteceu.
 
-1. No chat, abra "More" e escolha **Continue in a new chat**, ou pressione Yes no pop-up.
-2. O chat novo é criado na hora e se abre. Ele mantém o preset e as escolhas dele, a persona, o modelo, o conjunto de agentes, a ordem de turnos de um grupo e o mundo do World DM.
-3. Ele recebe a história antiga como pano de fundo, dentro do "Backstory budget": os três chats anteriores mais próximos são lidos por inteiro, com capítulos, fatos e pontos de virada. Os chats mais antigos de uma cadeia longa não são descartados: eles entram em uma parte condensada (veja abaixo). As mensagens antigas não são enviadas.
+1. Na conversa, abra "More" e escolha **Continue in a new chat**, ou pressione Yes no popup.
+2. A conversa nova é criada na hora e abre. Ela mantém o preset e suas escolhas, a persona, o modelo, o conjunto de agentes, a ordem de turnos de um grupo e o mundo do World DM.
+3. Ela recebe a história antiga como backstory, dentro do "Backstory budget". As três conversas anteriores mais próximas são lidas por inteiro: capítulos, fatos e pontos de virada. Conversas mais antigas de uma cadeia longa não são descartadas: elas viajam em uma parte condensada (veja abaixo). As mensagens antigas não são enviadas.
 
-O chat anterior então vai para o Archive por conta própria (próxima seção). O vínculo é o que o Canvas desenha, e o Canvas pode mudá-lo depois: veja [[canvas]]. Para escolher outro chat anterior, comece um chat a partir do personagem e use o menu **Continues** na etapa "New chat with".
+A conversa anterior então vai para o Archive sozinha (próxima seção). O link é o que o Canvas desenha, e o Canvas pode mudá-lo depois: veja [[canvas]]. Para escolher outra conversa anterior, comece uma conversa a partir do personagem e use o menu **Continues** na etapa "New chat with".
 
-O chat novo se abre com a saudação inicial do cartão; "Edit the first message" permite continuar de onde a história parou.
+A conversa nova abre com a primeira saudação do cartão; "Edit the first message" permite continuar de onde a história parou.
 
-## Uma história de muitos chats
+## Uma história de muitas conversas
 
-Uma história pode continuar por muitos chats. Os três chats anteriores mais próximos dão seus capítulos, arcos e fatos, como antes. Cada chat mais antigo entra em uma única parte **far**, colocada primeiro: seus pontos de virada, os fatos fixados e os key, e uma linha para cada arco. A parte é montada a partir do que o Litopys já escreveu, sem nenhuma chamada extra ao modelo, e ocupa por padrão 18% do Backstory budget (Library, Litopys settings, "In the prompt", **Share for the far chats**, de 5 a 40). **Turning points shown**, no mesmo bloco, define quantos deles entram em uma resposta em toda a história (12 por padrão). Se o orçamento for curto, os chats mais antigos perdem suas linhas primeiro, e os pontos de virada por último. Em **What this chat carries** ela aparece como uma linha própria, "Far backstory, chats 1-2", para você ver que os primeiros chats foram mantidos, não perdidos. Uma cadeia curta não tem parte far. Aumente o Backstory budget se uma história longa parecer fraca.
+Uma história pode seguir por muitas conversas. As três conversas anteriores mais próximas dão seus capítulos, arcos e fatos como antes. Toda conversa mais antiga entra em uma parte **far**, colocada primeiro: seus pontos de virada, os fatos fixados e chave, e uma linha para cada arco. A parte é construída a partir do que o Litopys já escreveu, sem nenhuma chamada extra ao modelo, e ocupa 18% do Backstory budget por padrão (Biblioteca, Litopys settings, "In the prompt", **Share for the far chats**, 5 a 40). **Turning points shown** no mesmo bloco define quantos viajam em uma resposta ao longo da história inteira (12 por padrão). Se o orçamento for curto, as conversas mais antigas perdem suas linhas primeiro e os pontos de virada por último. Em **What this chat carries** é a linha própria dela, "Far backstory, chats 1-2", para você ver que as primeiras conversas foram mantidas, não perdidas. Uma cadeia curta não tem parte far. Aumente o Backstory budget se uma história longa parecer rasa.
 
-Uma parte condensada deixa de fora pequenos detalhes (a cor de uma capa); as memórias palavra por palavra, abaixo, trazem esses detalhes de volta.
+Uma parte condensada descarta pequenos detalhes (a cor de uma capa); as memórias palavra por palavra abaixo trazem esses detalhes de volta.
 
-## Arquive uma história concluída
+## Arquive uma história terminada
 
-Uma história que você já terminou pode ir para o **Archive**. É um status do chat, não uma mudança de lugar: o chat continua onde está, então sua memória, seus vínculos no Canvas e qualquer livro feito dele continuam funcionando.
+Uma história que você terminou pode ir para o **Archive**. É um status da conversa, não uma mudança de lugar: a conversa fica onde está, então sua memória, seus links no Canvas e qualquer livro feito a partir dela continuam funcionando.
 
-- Em Chats, escolha um chat e pressione **Archive** (o botão âmbar no painel dele), ou marque vários com Select. Dentro de um chat, ele está no menu sob "Manage chat".
-- Um chat arquivado sai da lista e da Home. A linha âmbar **Archive** sob os filtros os abre; **Back to chats** volta.
-- Ele se abre somente para leitura: você pode ler, copiar, criar uma ramificação a partir de uma mensagem, exportar e ver o Dashboard e a Library dele, mas não enviar, fazer swipe, editar ou apagar. Seu lugar no fim oferece **Continue in a new chat**. **Unarchive** (no painel ou no aviso) o torna normal de novo.
-- A confirmação oferece **Archive and continue** quando nenhum chat continua este ainda.
-- **Acontece sozinho** quando um chat se torna o chat anterior de outro: um vínculo no Canvas, Continue in a new chat, o pop-up acima, ou uma escolha em "Continues". Um aviso com Undo informa isso. Ramificações não são continuações e permanecem como estão. Desligue em Library, engrenagem "Litopys settings", "Archive the earlier chat when it is continued".
-- Um chat de 100 mensagens ou mais que ficou parado por uma semana recebe uma pequena etiqueta "Long chat · archive?" na lista e uma dica no painel. Nada é arquivado por você.
+- Em Chats, escolha uma conversa e pressione **Archive** (o botão âmbar no painel dela), ou marque várias com Select. Em uma conversa, fica no menu em "Manage chat".
+- Uma conversa arquivada sai da lista e da Home. A linha âmbar **Archive** sob os filtros as abre; **Back to chats** volta.
+- Ela abre somente para leitura: você pode ler, copiar, ramificar a partir de uma mensagem, exportar e ver o Dashboard e a Biblioteca dela, mas não enviar, deslizar, editar ou excluir. O lugar dela na parte de baixo oferece **Continue in a new chat**. **Unarchive** (no painel dela ou no banner) a torna normal de novo.
+- A confirmação oferece **Archive and continue** quando nenhuma conversa continua esta ainda.
+- **Acontece sozinho** quando uma conversa se torna a anterior de outra: um link no Canvas, Continue in a new chat, o popup acima, ou uma escolha em "Continues". Um toast com Undo avisa. Ramos não são continuações e ficam como estão. Desligue isso na Biblioteca, engrenagem "Litopys settings", "Archive the earlier chat when it is continued".
+- Uma conversa de 100 mensagens ou mais que está parada há uma semana ganha uma pequena etiqueta "Long chat · archive?" na lista e uma dica no painel dela. Nada é arquivado por você.
 
-Por que se incomodar: o chat anterior não muda mais, então a memória dele fica estável, e um chat novo que o continua o lê como uma história concluída ([[litopys]]).
+Por que se dar ao trabalho: a conversa anterior não muda mais, então a memória dela fica estável e uma conversa nova que a continua a lê como uma história terminada ([[litopys]]).
 
-## Detalhes que os capítulos deixaram de fora
+## Detalhes que os capítulos descartaram
 
-Um capítulo é uma recontagem, então um pequeno detalhe de um chat anterior pode ter sumido dele. Na Library, Litopys settings, "In the prompt", o interruptor **Word-for-word memories of earlier chats** (ligado por padrão) permite que um chat que continua outros traga de volta uma ou duas passagens das mensagens originais quando o que está sendo dito compartilha palavras raras com elas ([[litopys]]). O chat anterior é indexado quando vai para o Archive. Ele combina palavras, então um detalhe contado com outras palavras não é encontrado; o interruptor experimental **Also find old chapters by meaning** (desligado) diminui um pouco essa lacuna quando você usa embeddings: ele encontra o capítulo pelo sentido, mas uma passagem ainda precisa de uma palavra rara própria.
+Um capítulo é um reconto, então um pequeno detalhe de uma conversa anterior pode ter sumido dele. Na Biblioteca, Litopys settings, "In the prompt", o interruptor **Word-for-word memories of earlier chats** (ligado por padrão) permite que uma conversa que continua outras traga de volta uma ou duas passagens das mensagens originais quando o que está sendo dito compartilha palavras raras com elas ([[litopys]]). A conversa anterior é indexada quando vai para o Archive. Ele compara palavras, então um detalhe contado com outras palavras não é encontrado; o interruptor experimental **Also find old chapters by meaning** (desligado) reduz um pouco essa lacuna quando você usa embeddings: ele encontra o capítulo pelo significado, mas uma passagem ainda precisa de uma palavra rara própria.
 
 ## Salve uma história como livro
 
-Na Library, Litopys, "Save as a book" copia os capítulos, arcos e fatos de um chat para a estante do Data Bank, para os chats que você escolher: veja [[memory]].
+Na Biblioteca, Litopys, "Save as a book" copia os capítulos, arcos e fatos de uma conversa para a prateleira do Data Bank nas conversas que você escolher: veja [[memory]].
 
 ## Confira o que o modelo recebeu
 
-Se um personagem esquecer algo, abra Canvas > Prompt e troque de "Parts" para "Memory": ela mostra quais fatos entraram e quais ficaram de fora, e por quê. O botão **Fired** no cabeçalho do chat mostra isso para a última resposta e para o chat inteiro.
+Se um personagem esquece algo, abra Canvas > Prompt e mude de "Parts" para "Memory": ele mostra quais fatos entraram e quais ficaram de fora, e por quê. O botão **Fired** no cabeçalho da conversa mostra isso para a última resposta e para a conversa inteira.
