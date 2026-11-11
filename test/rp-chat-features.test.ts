@@ -133,7 +133,7 @@ describe("vertep.* in the preset", () => {
 });
 
 describe("utility prompts and Polish", () => {
-  const builtIns = ["_vertep-lite", "_molfar", "_frankenx"].map((f) => JSON.parse(fs.readFileSync(new URL(`../data/presets/${f}.json`, import.meta.url), "utf8")));
+  const builtIns = ["_vertep-lite", "_vertep-medium", "_molfar", "_frankenx"].map((f) => JSON.parse(fs.readFileSync(new URL(`../data/presets/${f}.json`, import.meta.url), "utf8")));
   it("the built-in presets' utility prompts send the same bytes as before", () => {
     for (const p of builtIns) {
       for (const key of ["impersonation", "continueNudge"]) {

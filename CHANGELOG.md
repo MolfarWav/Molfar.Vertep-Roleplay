@@ -6,6 +6,7 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 - Added: **Continue from someone's view.** The chat's "+" menu has a submenu that lists the characters (the Dashboard's people, the ones in the scene first, then the chat's card or group members) and sends a stage direction alone, "Continue the story from <name>'s point of view": the next reply follows that character once the persona and the others have split up. "Someone else..." types the direction into the box. Nothing is said in the story and no turn of yours is added.
 - Added: **Dashboard: "Not in the scene".** A character the prose only mentions can be put into the scene by a weak sensor model. The Manage menu in a person's header now has **Not in the scene**: they leave the present list of the newest state, stay known with their notebook, and the sensor does not put them back unless they speak in the new messages. Undo in the toast, and "Put back in the scene" in the same menu. "Remove from the Dashboard" is unchanged (it forgets the name in every saved state).
+- Added: **a new built-in preset, Vertep Medium** (owner's preset, tested by the owner): Vertep Middle with a Braille-spaces module at the top and its three regex scripts, which put Braille spaces back to normal on screen and out of reasoning, and into your own messages on send. Read-only like the other built-ins (duplicate it to edit). An update adds the preset and the scripts when they are missing (`onAppUpdate`, gated at 4.114.0: change the gate if the release number is another).
 
 ## 4.113.0 (2026-11-11)
 

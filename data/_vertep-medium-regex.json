@@ -1,0 +1,69 @@
+{
+  "_note": "Regex scripts of the built-in Vertep Medium preset (Braille spaces out on display and out of reasoning, into your own messages on send). The app update writes each one to regex/<id>.json when it is missing (onAppUpdate, 4.114.0).",
+  "scripts": [
+    {
+      "id": "mid-braille-display-spaces",
+      "scriptName": "Vertep Medium — Braille spaces back on display",
+      "findRegex": "\\u2800",
+      "replaceString": " ",
+      "placement": [
+        "ai_output",
+        "user_input"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "flags": "g",
+      "order": 1,
+      "scope": "preset",
+      "scopeTargetId": "vertep-medium",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null
+    },
+    {
+      "id": "mid-braille-send-spaces",
+      "scriptName": "Vertep Medium — Braille spaces on send (user)",
+      "findRegex": " ",
+      "replaceString": "⠀",
+      "placement": [
+        "user_input"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "flags": "g",
+      "order": 990,
+      "scope": "preset",
+      "scopeTargetId": "vertep-medium",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null
+    },
+    {
+      "id": "mid-braille-reasoning-spaces",
+      "scriptName": "Vertep Medium — Braille spaces out of reasoning",
+      "findRegex": "\\u2800",
+      "replaceString": " ",
+      "placement": [
+        "reasoning"
+      ],
+      "markdownOnly": false,
+      "promptOnly": false,
+      "flags": "g",
+      "order": 2,
+      "scope": "preset",
+      "scopeTargetId": "vertep-medium",
+      "trimStrings": [],
+      "runOnEdit": true,
+      "macroMode": "none",
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null
+    }
+  ]
+}

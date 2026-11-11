@@ -1,0 +1,22 @@
+{
+  "id": "mid-braille-display-spaces",
+  "scriptName": "Vertep Medium — Braille spaces back on display",
+  "findRegex": "\\u2800",
+  "replaceString": " ",
+  "placement": [
+    "ai_output",
+    "user_input"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "flags": "g",
+  "order": 1,
+  "scope": "preset",
+  "scopeTargetId": "vertep-medium",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null
+}

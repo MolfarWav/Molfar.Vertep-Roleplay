@@ -5088,6 +5088,21 @@ export function onAppUpdate(ctx, host) {
       done.push("presets/vertep-lite.json");
     }
   }
+  // 4.114.0: the built-in Vertep Medium preset and its three Braille regex scripts. Templates:
+  // _vertep-medium.json and _vertep-medium-regex.json; a copy the user already has stays.
+  if (olderThan(from, "4.114.0")) {
+    if (!readJsonFile(fsx, "presets/vertep-medium.json")) {
+      const tpl = readJsonFile(fsx, "presets/_vertep-medium.json");
+      if (tpl) { writeJsonFile(fsx, "presets/vertep-medium.json", tpl); done.push("presets/vertep-medium.json"); }
+    }
+    const bundle = readJsonFile(fsx, "_vertep-medium-regex.json");
+    for (const s of bundle && Array.isArray(bundle.scripts) ? bundle.scripts : []) {
+      if (!s || typeof s.id !== "string" || !/^mid-[a-z0-9-]+$/.test(s.id)) continue;
+      if (readJsonFile(fsx, "regex/" + s.id + ".json")) continue;
+      writeJsonFile(fsx, "regex/" + s.id + ".json", s);
+      done.push("regex/" + s.id + ".json");
+    }
+  }
   // 4.52.0 (#42): the built-in Molfar copy loses the "━" and "(PICK ONE)" of its section names
   if (olderThan(from, "4.52.0")) {
     const out = withPlainSectionNames(readJsonFile(fsx, "presets/molfar.json"));
@@ -5116,7 +5131,7 @@ export function onAppUpdate(ctx, host) {
   // Every update: a built-in preset copy is read-only, so it takes the shipped template when they
   // differ and a change to the shipped preset reaches the user without a migration of its own. A copy
   // the user made editable (not read-only) keeps its text. The engine refreshes the templates first.
-  for (const pid of ["frankenx", "molfar", "vertep-lite"]) {
+  for (const pid of ["frankenx", "molfar", "vertep-lite", "vertep-medium"]) {
     const have = readJsonFile(fsx, "presets/" + pid + ".json");
     const tpl = readJsonFile(fsx, "presets/_" + pid + ".json");
     if (!have || !tpl || !have.studio || have.studio.readOnly !== true || !tpl.studio || tpl.studio.readOnly !== true) continue;

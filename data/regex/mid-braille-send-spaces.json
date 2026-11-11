@@ -1,0 +1,21 @@
+{
+  "id": "mid-braille-send-spaces",
+  "scriptName": "Vertep Medium — Braille spaces on send (user)",
+  "findRegex": " ",
+  "replaceString": "⠀",
+  "placement": [
+    "user_input"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "flags": "g",
+  "order": 990,
+  "scope": "preset",
+  "scopeTargetId": "vertep-medium",
+  "trimStrings": [],
+  "runOnEdit": true,
+  "macroMode": "none",
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null
+}
