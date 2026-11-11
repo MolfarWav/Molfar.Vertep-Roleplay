@@ -6861,13 +6861,22 @@ const toolX = (r) => ({
         // a fresh send: the client names the last message it knew before the send. When a turn landed after it, the
         // engine's own commit beat the abort, and writing the user's message and the partial reply again would
         // double the user's turn (#119). Without the field (an older page) nothing is checked.
-        if (typeof b.afterMessageId === "string" && b.afterMessageId) {
-          const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
-          if (known >= 0 && chat.msgs.slice(known + 1).some((m) => m.role === "user" || m.role === "char")) return err(409, "a generation already committed");
-        }
         const sdCut = splitDirections(typeof b.userText === "string" ? b.userText.trim() : "");
         const userText = sdCut.text ? onSave(sdCut.text, "user_input", members[0] || null).trim() : "";
-        if (userText || sdCut.directions.length) {
+        // the Stop can reach the send route first: its error path then stored the user's turn alone (no reply). That
+        // lone turn is ours, not a competing commit: the partial reply goes after it and the turn is not written twice
+        let userStored = false;
+        if (typeof b.afterMessageId === "string" && b.afterMessageId) {
+          const known = chat.msgs.findIndex((m) => m.id === b.afterMessageId);
+          if (known >= 0) {
+            const tail = chat.msgs.slice(known + 1);
+            if (tail.some((m) => m.role === "char")) return err(409, "a generation already committed");
+            const users = tail.filter((m) => m.role === "user");
+            if (users.length === 1 && tail.length === 1 && userWrittenJustNow(users, { text: userText, at: Date.now() })) userStored = true;
+            else if (users.length) return err(409, "a generation already committed");
+          }
+        }
+        if (!userStored && (userText || sdCut.directions.length)) {
           chat.msgs.push({
             id: uid(), name: chatUserName(fsx, meta), charId: null, role: "user",
             ...(chatPersona(fsx, meta).personaId ? { personaId: chatPersona(fsx, meta).personaId } : {}),

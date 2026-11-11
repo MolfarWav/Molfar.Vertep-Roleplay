@@ -1427,6 +1427,7 @@ export const useApp = create<AppState>()(
           toast.info('Stopped waiting. The server is still writing this reply; it shows up when it is saved.')
           return
         }
+        userStoppedAt.set(st.chatId, Date.now())
         activeGens.get(st.chatId)?.abort()
         // cancel is CLIENT-AUTHORITATIVE: freeze NOW on the bytes on screen
         // (the fetch abort clears streaming moments later, so there is
@@ -2651,6 +2652,8 @@ export const useApp = create<AppState>()(
 // ── generation driver ────────────────────────────────────────────────────────
 /** Chats whose last run the user stopped (a stopped send is not "not sent": the turn may be stored). */
 const stoppedRuns = new Set<ID>()
+/** When the user last pressed Stop on a chat: a failure that arrives after it, for a run that started before it, is the cancel itself. */
+const userStoppedAt = new Map<ID, number>()
 type SetFn = (partial: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void
 type GetFn = () => AppState
 
@@ -2980,6 +2983,7 @@ async function runStream(
 ): Promise<boolean> {
   let committed = false
   let committedRes: Record<string, unknown> | null = null
+  const runStartedAt = Date.now()
   try {
     // keep the engine's chat meta in sync with the UI's lorebook bindings, an
     // empty scope too (a book unlinked from the card must stop firing); the
@@ -3036,6 +3040,12 @@ async function runStream(
     if ((e as Error).name === 'AbortError') {
       stoppedRuns.add(chatId)
       return false // stopped by the user
+    }
+    // the engine answers a cancelled run with a failure; the user pressed Stop, so that is not an error to report
+    if ((userStoppedAt.get(chatId) ?? 0) >= runStartedAt) {
+      stoppedRuns.add(chatId)
+      await refreshChat(set, get, chatId)
+      return false
     }
     toast.error(String((e as Error).message ?? e))
     // a model that refused (or never answered) a prompt that did not fit its window: explain why, next to the error
