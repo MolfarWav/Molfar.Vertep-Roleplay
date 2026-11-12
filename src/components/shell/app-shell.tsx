@@ -36,7 +36,7 @@ import { GuideHost } from '@/components/guide/guide-host'
 import { PresetImportReportHost } from '@/components/presets/import-report-dialog'
 import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
-import { SECTIONS, itemId, sectionGroups, type SectionItem } from '@/components/shell/sections'
+import { SECTIONS, itemId, sectionItemOf, sectionGroups, type SectionItem } from '@/components/shell/sections'
 import { RAIL_HUES, type RailHue } from '@/components/shell/rail-hues'
 import { useCanvasBoard, writeCanvasBoard } from '@/lib/canvas-board'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
@@ -240,7 +240,8 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   const setFull = useApp((s) => s.setDrawerFull)
   const wide = useRailWide()
   const t = useT()
-  const item = SECTIONS.find((i) => i.key === drawer)
+  const canvasBoard = useCanvasBoard()
+  const item = drawer ? sectionItemOf(drawer, canvasBoard) : undefined
   const label = item ? t(item.labelKey) : ''
   const railOffset = !isDesktop ? 'top-11' : wide ? 'left-[206px]' : 'left-12'
   return (

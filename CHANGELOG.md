@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **the Agents drawer is titled Agents, not Canvas.** Agents is a Canvas board and shared its section key, so the drawer (and a phone page) took the first match, Canvas.
+- Fixed: **a regex script over a text longer than 20,000 characters no longer drops the rest.** The pattern still sees only the first 20,000 characters, but the text after them is now kept as it was (before, the reply or prompt part was cut there).
 - Added: **Skip time.** The composer's "+" menu has **Skip time...**: a window with a number, a unit (minutes to years) and an optional note ("until the morning"). It sends one stage direction alone ("Time skip: 3 days. ..."), so the next reply jumps over the gap and continues from its end; nothing is written in the chat as your message and the Dashboard clock follows the reply. Guide page memory.
 
 ## 4.115.0 (2026-11-12)

@@ -831,10 +831,12 @@ export function literalHead(find) {
   }
   return out;
 }
+/** How much of a text one script looks at; what lies beyond is passed through unchanged. */
+const REGEX_SEE_CHARS = 20000;
 /** Per script, per pass: the compiled pattern and its literal head (kept off the script object). */
 const compiledRegex = new WeakMap();
 
-function applyRegexScript(s, input, mc) {
+export function applyRegexScript(s, input, mc) {
   let find = String(s.findRegex ?? "");
   if (!find || find.length > 500) return String(input);
   const plain = s.macroMode !== "raw" && s.macroMode !== "escaped";
@@ -867,7 +869,9 @@ function applyRegexScript(s, input, mc) {
   const trim = (v) => { let out = v; for (const t of trims) out = out.split(t).join(""); return out; };
   const replace = String(s.replaceString ?? "");
   try {
-    return String(input).slice(0, 20000).replace(re, (...args) => {
+    // the pattern sees the first REGEX_SEE_CHARS only (a runaway pattern on a huge text stays bounded); the rest is returned as it was
+    const whole = String(input);
+    return whole.slice(0, REGEX_SEE_CHARS).replace(re, (...args) => {
       // (match, p1..pn, offset, string[, named-groups object]) — a $n beyond
       // the capture count would read the offset and leak it; those vanish
       const last = args[args.length - 1];
@@ -882,7 +886,7 @@ function applyRegexScript(s, input, mc) {
       });
       out = out.split("\u0000").join(trim(String(args[0] ?? "")));
       return expandMacros(out, mc);
-    });
+    }) + whole.slice(REGEX_SEE_CHARS);
   } catch { return String(input); }
 }
 

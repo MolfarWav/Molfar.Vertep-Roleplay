@@ -181,6 +181,14 @@ Date: 2026-11-05.
 - **Fails in:** `test/rp-tools.test.ts` (roll_dice), `test/rp-world.test.ts` (seeded rolls, bands, the log).
 - **Trap:** a reader who sees "dice" in both plugins and merges them loses either the model's free choice of any die or the repeatability of the DM's check across a reload.
 
+### Lorebook budget and the regex cap (handbook findings 2)
+- **Touches:** `plugins/engine/plugin.js` the lorebook scan (the loop after `byPriority`, outputs `used`, `skipped` with reason `budget`) and `applyRegexScript` (`REGEX_SEE_CHARS`).
+- **Must stay true:** entries claim the lorebook budget in order-descending priority, and an entry's length is added to `used` whether or not it fits, so after the first normal entry that does not fit every later normal entry is skipped too, even a short one ("stop at the first overflow"). `ignoreBudget` entries are always in and still spend. A regex script looks at the first 20,000 characters of a text and returns the rest unchanged (a match that straddles the cut is not made).
+- **Enforced in:** the loop and `REGEX_SEE_CHARS`; nothing pins "short entries after an overflow are skipped" (it is the current behaviour, not a decided one).
+- **Fails in:** `test/rp-lore-scan.test.ts` ("delay and budget" pins only that an oversized entry is skipped); `test/rp-regex-long-text.test.ts` (the cap).
+- **Why / history:** handbook findings 2, items 3 and 4. Whether a short later entry may fill the room an oversized one left is an open question for the owner.
+- **Trap:** a reader who sees "skipped: budget" on a short entry next to a long one that did not fit may think the budget is not spent; it is.
+
 ### Card and lorebook formats
 - **Touches:** `docs/DATA-FORMATS.md` (sections "Characters", "Lorebooks", "Presets"); `.skills/edit-large-card/SKILL.md` (Roleplay); its engine copy `.fork/app-skills/roleplay/edit-large-card/SKILL.md`; the workspace task for the built-in agent (in the engine repo, `.fork/handoff/`); `src/lib/types.ts`; `src/lib/engine.ts` (`characterToCard`, `lorebookToEngine`).
 - **Must stay true:** every field the app writes to `data/characters/<id>/card.json` or `data/lorebooks/<id>.json` is named in `docs/DATA-FORMATS.md`. The card skill describes the same format as the code.

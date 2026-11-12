@@ -69,5 +69,10 @@ export const PHONE_TABS: SectionItem[] = SECTIONS.filter((s) => PHONE_TAB_KEYS.i
  *  it keeps the board links, so Agents (a Canvas board) is there as on the desktop rail. */
 export const PHONE_MORE_TILES: SectionItem[] = SECTIONS.filter((s) => !PHONE_TAB_KEYS.includes(s.key))
 
+/** The item whose title a section shows: Agents is a Canvas board, so while that board is open the Canvas drawer and page
+ *  carry the Agents item (its own name), not Canvas's. */
+export const sectionItemOf = (key: ViewKey, canvasBoard?: CanvasBoardKey): SectionItem | undefined =>
+  (canvasBoard ? SECTIONS.find((s) => s.key === key && s.board === canvasBoard) : undefined) ?? SECTIONS.find((s) => s.key === key)
+
 export const sectionsFor =(keys: ViewKey[]): SectionItem[] =>
   keys.flatMap((k) => SECTIONS.filter((s) => s.key === k && !s.board))
