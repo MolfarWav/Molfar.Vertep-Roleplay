@@ -4,6 +4,13 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.116.0 (2026-11-12)
+
+- Changed: **characters no longer know what only the Persona card says.** The persona text now goes into the prompt under one line (about 45 tokens) saying it is the player's character sheet, known to the narrator, and that other characters know of it only what the story showed them; one who has not met the persona knows none of it. The persona memory (earlier stories) rule says the same about a character who was not there. Models kept letting strangers mention what the sheet says (what the player's character made or did).
+- Fixed: **the Agents drawer is titled Agents, not Canvas.** Agents is a Canvas board and shared its section key, so the drawer (and a phone page) took the first match, Canvas.
+- Fixed: **a regex script over a text longer than 20,000 characters no longer drops the rest.** The pattern still sees only the first 20,000 characters, but the text after them is now kept as it was (before, the reply or prompt part was cut there).
+- Added: **Skip time.** The composer's "+" menu has **Skip time...**: a window with a number, a unit (minutes to years) and an optional note ("until the morning"). It sends one stage direction alone ("Time skip: 3 days. ..."), so the next reply jumps over the gap and continues from its end; nothing is written in the chat as your message and the Dashboard clock follows the reply. Guide page memory.
+
 ## 4.115.0 (2026-11-12)
 
 - Fixed: **an update no longer wipes the vectors of your other device (Molfar.Vertep#389).** 4.112.0 moved the vectors into the device's own cache and deleted the old synced files; that deletion travelled through the sync, so a device that had not updated yet lost its vectors and showed "Embedding: 0 of 65". The old files are now copied and left alone.

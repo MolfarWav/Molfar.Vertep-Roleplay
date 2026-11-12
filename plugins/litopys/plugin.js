@@ -8923,7 +8923,7 @@ function cardOf(fsx, cardId) {
 const MEMORY_KINDS = ["card", "persona", "world"];
 const OWNER_TOKENS = { card: CARD_MEMORY_TOKENS, persona: 300, world: 300 };
 const WORLD_LIB_ID = /^w-[a-z0-9]{4,40}$/;
-const PERSONA_MEMORY_RULE = "the characters recognise these when reminded or asked, and do not bring them up unprompted.";
+const PERSONA_MEMORY_RULE = "a character who was there recognises these when reminded or asked, and does not bring them up unprompted; a character who has not met them before this story knows none of it.";
 const WORLD_MEMORY_RULE = "this is the established history of the world; keep it true, and do not retell it unprompted.";
 const memoryFile = (kind, id) => (kind === "persona" ? "memory/personas/" + id + ".json" : kind === "world" ? "memory/worlds/" + id + ".json" : memoryPath(id));
 const docName = (doc) => str(isObj(doc) ? doc.name || (isObj(doc.data) ? doc.data.name : "") : "");

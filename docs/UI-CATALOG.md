@@ -1,7 +1,15 @@
 # UI catalog (draft, phase 1 of issue MolfarWav/Molfar.Vertep#191)
 
-Status: a proposal, not built. Nothing here is in the app yet. The owner picked variant C (2026-10-31) but building waits:
-another branch is working on the DM and the final layout may need to be adjusted to it. Mocks: `docs/ui-mocks/world-dm/index.html`. Numbers were counted on `main` at 4.79.0 (2026-10-31), `src/**`.
+Status (2026-11-12, checked against `main` at 4.115.0): **part built.** The shared pieces of section 2.3 exist in
+`src/components/ui/`: `fold.tsx` (`Fold`, 9 files use it: Canvas memory trace, the fired tabs, the Dashboard settings, the lorebook
+settings and entry folds, the memory trace parts, the dice fields and log, the World controls), `section.tsx` (12 files: Home blocks,
+the Dashboard settings, the lorebook header, settings and entry row head, the characters list, the World controls), `setting-row.tsx`
+(11 files: Request size, the Dashboard settings, Home edit, the Letters dialog, the Ledger settings, the lorebook settings and entry
+editor, the dice fields, the World controls and profiles), `tone.ts` (21 files, the hue per kind of content) and `toggle-chip.tsx`
+(2 files). The World DM panel was the first screen moved onto them; **most other screens still use their own folds, rows and boxes**,
+so the counts in section 1 (taken at 4.79.0, before the pieces existed) describe the rest of the app, not the World panel. The type
+scale of 2.1 and the spacing steps of 2.2 are not enforced anywhere. The owner picked variant C (2026-10-31). Mocks:
+`docs/ui-mocks/world-dm/index.html`. The audit numbers were counted on `main` at 4.79.0 (2026-10-31), `src/**`.
 
 The bar (ux-review): practical, native, designed, client-first. This file is the catalog the rule "reuse
 before inventing" was missing: what exists, what is duplicated, and the few shared pieces to build.

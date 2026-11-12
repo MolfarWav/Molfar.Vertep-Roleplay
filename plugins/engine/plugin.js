@@ -62,6 +62,17 @@ function messageDirections(m) {
   if (!m || !Array.isArray(m.directions)) return [];
   return m.directions.filter((d) => typeof d === "string" && d.trim()).map((d) => d.trim().slice(0, DIRECTION_MAX_CHARS)).slice(0, DIRECTIONS_MAX);
 }
+/**
+ * The persona text as the prompt carries it: the text is the player's character sheet, known to the narrator, and the other
+ * characters know of it only what the story has shown them. Without this line a model reads the sheet as common knowledge of
+ * the scene and has strangers mention what only the sheet says (what the player's character made, owns, did). ~45 tokens.
+ */
+export function personaFrame(name, text) {
+  const t = String(text == null ? "" : text);
+  if (!t.trim()) return t;
+  const who = String(name || "").trim();
+  return "[" + (who ? who + " is" : "This is") + " the player's character. This sheet is known to you, the narrator. The other characters know of it only what they have seen, heard or been told in the story; one who has not met " + (who || "them") + " knows none of it and does not guess it.]\n" + t;
+}
 /** How the directions reach the prompt. `role` is the preset's choice: "system" (default) or "user". */
 export function stageDirectionsBlock(directions, role) {
   const body = directions.map((d) => "- " + d.replace(/\n+/g, " ")).join("\n");
@@ -831,10 +842,12 @@ export function literalHead(find) {
   }
   return out;
 }
+/** How much of a text one script looks at; what lies beyond is passed through unchanged. */
+const REGEX_SEE_CHARS = 20000;
 /** Per script, per pass: the compiled pattern and its literal head (kept off the script object). */
 const compiledRegex = new WeakMap();
 
-function applyRegexScript(s, input, mc) {
+export function applyRegexScript(s, input, mc) {
   let find = String(s.findRegex ?? "");
   if (!find || find.length > 500) return String(input);
   const plain = s.macroMode !== "raw" && s.macroMode !== "escaped";
@@ -867,7 +880,9 @@ function applyRegexScript(s, input, mc) {
   const trim = (v) => { let out = v; for (const t of trims) out = out.split(t).join(""); return out; };
   const replace = String(s.replaceString ?? "");
   try {
-    return String(input).slice(0, 20000).replace(re, (...args) => {
+    // the pattern sees the first REGEX_SEE_CHARS only (a runaway pattern on a huge text stays bounded); the rest is returned as it was
+    const whole = String(input);
+    return whole.slice(0, REGEX_SEE_CHARS).replace(re, (...args) => {
       // (match, p1..pn, offset, string[, named-groups object]) — a $n beyond
       // the capture count would read the offset and leak it; those vanish
       const last = args[args.length - 1];
@@ -882,7 +897,7 @@ function applyRegexScript(s, input, mc) {
       });
       out = out.split("\u0000").join(trim(String(args[0] ?? "")));
       return expandMacros(out, mc);
-    });
+    }) + whole.slice(REGEX_SEE_CHARS);
   } catch { return String(input); }
 }
 
@@ -3805,7 +3820,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     charPersonality: rosterMembers.length ? joined((c) => c.personality) : (speakerCard && speakerCard.personality ? speakerCard.personality : ""),
     // a narrator without a shared scenario carries every member's own
     scenario: speakerCard && speakerCard.scenario ? speakerCard.scenario : narrating ? joined((c) => c.scenario) : "",
-    personaDescription: persona && persona.description ? persona.description : "",
+    personaDescription: persona && persona.description ? personaFrame(userName, persona.description) : "",
     worldInfoBefore: wi.before.length ? wi.before.join("\n") : "",
     worldInfoAfter: wi.after.length ? wi.after.join("\n") : "",
     // <START> separators become the example-chat marker line — a readable

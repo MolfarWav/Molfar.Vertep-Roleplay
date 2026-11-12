@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import type { ViewKey } from '@/lib/store'
-import { SECTIONS } from '@/components/shell/sections'
+import { sectionItemOf } from '@/components/shell/sections'
+import { useCanvasBoard } from '@/lib/canvas-board'
 
 /** Where a section view is mounted: as the page itself (from Home, Chats or
  *  another section, on phones) or as the drawer (desktop, or over a chat). */
@@ -17,7 +18,7 @@ export const useSectionHost = () => useContext(HostContext)
 /** The translated title of a section. */
 function useSectionTitle(section: ViewKey): string {
   const t = useT()
-  const item = SECTIONS.find((s) => s.key === section)
+  const item = sectionItemOf(section, useCanvasBoard())
   return item ? t(item.labelKey) : ''
 }
 
