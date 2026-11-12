@@ -55,13 +55,17 @@ async function callModel(system: string, user: string, model: string, maxTokens:
   const key = keyFor(base.env);
   if (!key) return { text: "", model: full, error: "no key " + base.env, input: 0, output: 0, ms: 0 };
   const body = { model: rest.join("/"), messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: maxTokens, temperature };
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // a rate limit (429) or a server error is retried with growing pauses (5, 10, 20, 40, 60 s): a lost turn spoils the
+  // comparison, because the Dashboard state carries on from it
+  const pauses = [5000, 10000, 20000, 40000, 60000];
+  for (let attempt = 0; attempt <= pauses.length; attempt++) {
     try {
       const r = await fetch(base.url + "/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + key }, body: JSON.stringify(body) });
-      const j: any = await r.json();
-      if (!r.ok) {
-        if (attempt < 2 && (r.status === 429 || r.status >= 500)) {
-          await new Promise((res) => setTimeout(res, 3000 * (attempt + 1)));
+      const j: any = await r.json().catch(() => ({}));
+      const limited = r.status === 429 || r.status >= 500 || /too many requests/i.test(String(j?.error?.message ?? ""));
+      if (!r.ok || limited) {
+        if (attempt < pauses.length && limited) {
+          await new Promise((res) => setTimeout(res, pauses[attempt]));
           continue;
         }
         return { text: "", model: full, error: String(j?.error?.message ?? r.status), input: 0, output: 0, ms: Date.now() - t0 };
@@ -97,7 +101,21 @@ const QUESTS_V2 = [
   "- When a limit is full, first resolve the threads that are done, failed or dropped; only then open a new one.",
   '- Give the id of every thread you close in "resolved". In "open", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.',
 ].join("\n");
-const questsV2 = flag("--quests") === "v2";
+// --quests v3: v2 under-tracked on the first bench (1-2 open where the key had 3-7): long goals closed with their scene
+// and new stakes were not opened. v3 keeps main goals open until done or failed and asks to open the stakes.
+const QUESTS_V3 = [
+  "Threads:",
+  "- Keep open threads, up to the open thread limits given in the input: goals and unanswered questions with stakes that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+  "- Open a thread whenever the new messages set up something that will matter beyond this moment: a goal a character commits to, a threat or a danger hanging over someone, a promise or a debt to keep, something a character must find out or hide, a meeting or a deadline.",
+  "- Kinds: main = a goal that spans scenes (to keep someone safe, to find out the truth, to hide a secret, to win someone over); side = a goal of one scene or one errand (to get through this lecture, to leave this room unseen); everyday = a small chore of the moment. Kept threads keep their kind.",
+  "- A concrete next step of a main thread is a new thread with parent set to that main thread's id. Only main threads have steps.",
+  '- Write a new thread\'s text as the goal, then " | done when: " and the condition that ends it, both short.',
+  "- Every turn, check every open thread against the new messages and resolve it when its done-when happened (done), when it can no longer happen (failed), or, for side and everyday threads only, when the scene it belonged to is over or nobody pursues it any more (dropped). A main thread does not end with a scene: it stays open until done or failed.",
+  "- When a limit is full, first resolve the threads that are done, failed or dropped; only then open a new one.",
+  '- Give the id of every thread you close in "resolved". In "open", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.',
+].join("\n");
+const questRules = flag("--quests") === "v3" ? QUESTS_V3 : flag("--quests") === "v2" ? QUESTS_V2 : null;
+const questsV2 = questRules !== null;
 const SB = bullets(PARTS.scene!);
 const KB = bullets(PARTS.knowledge!);
 const COMMON = (job: string) =>
@@ -209,7 +227,7 @@ const SPECS: Spec[] = [
       [
         COMMON("the open threads (quests) of the story"),
         "",
-        questsV2 ? QUESTS_V2 : PARTS.threads,
+        questRules ?? PARTS.threads,
         "",
         "Output shape",
         '{ "threads": { "open": [ { "id": "t1 or null", "text": "...", "kind": "main|side|everyday", "parent": "main thread id, only for a step" } ], "resolved": ["thread id"] } }',
@@ -278,6 +296,14 @@ export const SIGNALS: Record<string, string> = {
   secret_learned: "a character learned or revealed hidden information (a secret, a lie exposed, a hidden fact)",
   vow_said: "a binding statement: a promise, vow, threat, confession, ultimatum, a binding order, a lie told",
 };
+// --router v2: sharper wording where the first router missed most (bench round 1): lies were not taken as binding,
+// a call or a return was not taken as an entrance, and quest ends were judged only against the (stale) thread list
+if (flag("--router") === "v2") {
+  SIGNALS.quest_progress = "a goal or problem that drives the story moved: a concrete step toward it happened, or it got harder (whether or not it is in the Previous state's thread list)";
+  SIGNALS.quest_end = "a goal or problem that drove the story was settled in these messages: achieved, failed, or it stopped mattering (the danger passed, the errand is done, the meeting happened), whether or not it is in the Previous state's thread list";
+  SIGNALS.person_enter = "a character who was not in the scene at the end of the previous messages appears or comes back: in person, by phone, by message, or is first seen, even at the very end";
+  SIGNALS.vow_said = "a binding or story-changing statement: a promise, vow, threat, ultimatum, a binding order, a confession, or ANY lie a character tells (a lie counts even when casual)";
+}
 const ROUTER_SYSTEM = [
   "You watch an ongoing roleplay story for a tracker. Read the Previous state and the New messages (the player's last message and the reply). For each question below, answer true or false about what the New messages show. The Previous state is only background. When you are unsure, answer true.",
   "Reply with one JSON object with exactly these keys and true or false as values. No prose, no code fences.",
@@ -354,7 +380,31 @@ async function update(rec: any): Promise<void> {
           (results as any)[b.key] = { text: JSON.stringify(merged), model, usage: { input: 0, output: 0 }, genTimeMs: 0 };
           return;
         }
-        if (isSensor(b.req) && questsV2) b.req.systemPrompt = String(b.req.systemPrompt).replace(PARTS.threads!, QUESTS_V2);
+        if (isSensor(b.req) && mode === "hybrid") {
+          // hybrid: the one sensor without its Threads rules and key, plus the quests specialist on its own model
+          const t0 = Date.now();
+          const quests = SPECS.find((s) => s.id === "quests")!;
+          const bigSystem = String(b.req.systemPrompt)
+            .replace(PARTS.threads! + "\n\n", "")
+            .replace(/\n {2}"threads": \{[^\n]*\n/, "\n");
+          const input = String(b.req.messages?.[0]?.content ?? "");
+          const maxTokens = b.req.presetParams?.max_tokens ?? 4000;
+          const [big, q] = await Promise.all([
+            callModel(bigSystem, input, model, maxTokens, b.req.presetParams?.temperature ?? 0.2),
+            callModel(quests.system(""), blocksOf(input).filter((x) => quests.blocks.test(x)).join("\n\n"), flag("--quest-model") ?? model, maxTokens, b.req.presetParams?.temperature ?? 0.2),
+          ]);
+          const merged: any = big.error ? {} : (parse(big.text) ?? {});
+          delete merged.threads;
+          const qp = q.error ? null : parse(q.text);
+          if (qp?.threads) merged.threads = qp.threads;
+          rec.calls.push({ who: "sensor", ms: big.ms, input: big.input, output: big.output, error: big.error });
+          rec.calls.push({ who: "quests", ms: q.ms, input: q.input, output: q.output, error: q.error ?? (qp ? undefined : "unreadable") });
+          rec.sensorMs = Date.now() - t0;
+          rec.raw = merged;
+          (results as any)[b.key] = big.error ? { text: "", model: "error", error: big.error, usage: { input: 0, output: 0 } } : { text: JSON.stringify(merged), model, usage: { input: 0, output: 0 }, genTimeMs: 0 };
+          return;
+        }
+        if (isSensor(b.req) && questRules) b.req.systemPrompt = String(b.req.systemPrompt).replace(PARTS.threads!, questRules);
         const a = await callModel(String(b.req.systemPrompt ?? ""), String(b.req.messages?.map((m: any) => m.content).join("\n\n") ?? ""), model, b.req.presetParams?.max_tokens ?? 4000, b.req.presetParams?.temperature ?? 0);
         rec.calls.push({ who: isSensor(b.req) ? "sensor" : b.key, ms: a.ms, input: a.input, output: a.output, error: a.error });
         if (isSensor(b.req)) {
