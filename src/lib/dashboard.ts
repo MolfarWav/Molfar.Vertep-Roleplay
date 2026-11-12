@@ -25,7 +25,15 @@ export interface Clock {
   approx?: boolean
   /** "YYYY-MM-DD" from the chat's calendar; null when it is hidden or there is none yet (#113) */
   date?: string | null
+  /** the date as words under a world's own calendar ("3 Frostmoon 1204 AR"); then `date` is null (#272) */
+  dateText?: string | null
 }
+
+/** A world's own calendar: months with their lengths, optional weekday names and era (#272). */
+export interface CustomCalendar { months: { name: string; days: number }[]; weekdays?: string[]; era?: string }
+/** A date in it: year, month number from 1, day, and the index of its weekday (absent = the first). */
+export interface CustomDate { y: number; m: number; d: number; wd?: number }
+export const CUSTOM_CALENDAR_LIMITS = { months: 24, days: 100, name: 24, weekdays: 14, year: 1000000 }
 
 export interface DashEvent {
   id: string
@@ -201,9 +209,9 @@ export interface DashView {
   /** the pending "Story, move" nudge (threadId null = all open threads); absent on an older plugin */
   nudge?: Nudge | null
   /** where the story changed place along the active line: the message key ("<id>#<swipe>") and the new place, with the clock as it was then; absent on an older plugin */
-  scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null; approx?: boolean; date?: string | null }[]
+  scenes?: { key: string; place: string; day: number | null; time: string | null; band: string | null; approx?: boolean; date?: string | null; dateText?: string | null }[]
   /** where the date comes from (the story's text, today's date, the user) and whether it is hidden; absent on an older plugin, null before the first reading (#113) */
-  calendar?: { source: 'text' | 'today' | 'user'; off: boolean } | null
+  calendar?: { source: 'text' | 'today' | 'user'; off: boolean; custom?: CustomCalendar | null; today?: CustomDate | null } | null
   /** the journal's settings; absent on an older engine (see journalOf) */
   journal?: JournalSettings
   /** pairs of characters that may be one person (display names), and why; absent on an older plugin */

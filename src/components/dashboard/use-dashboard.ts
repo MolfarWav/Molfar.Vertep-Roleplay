@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import { onDashReload } from '@/lib/dash-live'
-import type { DashResponse, DashView } from '@/lib/dashboard'
+import type { CustomCalendar, CustomDate, DashResponse, DashView } from '@/lib/dashboard'
 import { loadWorldHere, useWorldLive, type WorldHere } from '@/lib/world'
 import { plainDashError } from './dash-common'
 
@@ -31,7 +31,7 @@ export interface UseDashboard {
   /** the World DM's view of where the scene is and what people wear and carry; null without the World plugin */
   here: WorldHere | null
   /** the story's date: set it ("YYYY-MM-DD"), back to automatic (null) or hide/show it (POST /dashboard/calendar) */
-  setCalendar: (body: { date?: string | null; off?: boolean }) => Promise<boolean>
+  setCalendar: (body: { date?: string | null; off?: boolean; custom?: CustomCalendar | null; present?: CustomDate }) => Promise<boolean>
   refreshing: boolean
   now: number
 }
@@ -131,7 +131,7 @@ export function useDashboard(chatId: string): UseDashboard {
     }
   }, [load])
 
-  const setCalendar = useCallback(async (body: { date?: string | null; off?: boolean }): Promise<boolean> => {
+  const setCalendar = useCallback(async (body: { date?: string | null; off?: boolean; custom?: CustomCalendar | null; present?: CustomDate }): Promise<boolean> => {
     const id = chatRef.current
     if (!id) return false
     try {

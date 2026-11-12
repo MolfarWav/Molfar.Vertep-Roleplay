@@ -1100,8 +1100,9 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   `A-Z a-z 0-9 _ -`. Numbers are kept by code, not by the model: the model reports events, `logic.if` checks, the
   state cards count, and a number stays inside its `min`/`max`.
 - State cards, each with the field in `params.field`: `state.read` (`as`; output `value`), `state.set` (`as`; input `value`),
-  `state.add` (number field only; a fixed `amount` or a wire into the optional `by`), `state.list` (`op` = `add`, `update`
-  or `remove`; `item` repeats the entry shape; `key` names the entry field that finds the entry for `update`/`remove`; the
+  `state.add` (number field only; a fixed `amount` or a wire into the optional `by`), `state.list` (`op` = `add`, `update`,
+  `upsert` or `remove`; `upsert` writes `list.upsert`: the entry whose `key` field equals the item's is changed, else a new one
+  is added (a full list refuses it), so a tile or place said again does not use up the list; `item` repeats the entry shape; `key` names the entry field that finds the entry for `update`/`upsert`/`remove`; the
   inputs are the entry fields, or just `key` for `remove`). The three writers take an optional `when` signal and give
   `done`. A card that names a missing field is `E_STATE_UNKNOWN`; a type that does not match the schema is `E_STATE_TYPE`.
 - Panels (`agent.panels`, at most 4): `{ "id", "title", "place": "float" | "top1" | "top2", "widgets": [ … ] }`, at most
@@ -1131,7 +1132,9 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - `grid` widget (a board of tiles: a map of territory, a dungeon floor): `{ "w": "grid", "label"?, "bind", "cols", "rows", "x", "y", "cell", "legend" }`.
   `bind` is a **list** field whose entries have two number fields and a text field; `x` and `y` (two different number
   fields) give the column and the row, `cell` (a text field) the tile's state; a wrong name is `E_BIND`. `cols` and
-  `rows` are whole numbers from 1 to 16 (`E_WIDGET`). `legend` is 1 to 8 states `{ "value", "label", "tone", "mark"? }`:
+  `rows` are whole numbers from 1 to 16 (`E_WIDGET`). Optional `send` (1 to 200 characters, only the slots `{{col}}`, `{{row}}`
+  and `{{state}}`; `E_WIDGET` otherwise) makes every tile, empty ones too, a button that puts that text in the message box
+  (`insertIntoComposer`, nothing is sent); without it a board is only to look at. `legend` is 1 to 8 states `{ "value", "label", "tone", "mark"? }`:
   `value` (1 to 40 characters, unique) is the text the entry holds in its `cell` field, `label` (1 to 30 characters) is
   what the person reads, `tone` is one of `ok` (green), `info` (blue), `warn` (amber), `bad` (red), `accent` (violet),
   `muted` (grey) and `mark` (one or two characters, default the first letter of the label) goes on the tile, so colour is
@@ -1140,10 +1143,10 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   saying the tile again (a list at its `max` takes no new entry, so ask for a new one only when a tile changed). A number
   is rounded to the nearest tile; an entry outside the board, or without numbers, is not drawn and the widget says how many
   were left out. A state that the legend does not name is drawn as a grey tile with a question mark. Tiles with no entry are
-  empty. Nothing on a board is a button. It shows in the floating window; a bar above the chat skips it. The app does this in
+  empty. Without `send` nothing on a board is a button. It shows in the floating window; a bar above the chat skips it. The app does this in
   `src/lib/agent-grid.ts` (`gridModel`) and `components/chat/agent-grid.tsx`; the editor has a form for it. Recipes that use
-  widgets: `recipe-map` (an `html` widget draws a free-field map from a list of `{ name, x, y }`) and `recipe-territory` (a
-  `grid`), both in `.skills/agent-craft/references`.
+  widgets: `recipe-map` (an `html` widget draws a free-field map from a list of `{ name, x, y }`, up to 50 places, and rings the place the story is in, 1.1.0) and `recipe-territory` (a
+  `grid` that writes its tiles with `upsert` on a `tile` text key and has `send`, 1.1.0), both in `.skills/agent-craft/references`.
 - Trial run (editor only): `runAgent(file, { …, explain: true }, answers)` also returns `wires`, `{ "<node>:<port>": { state: "value", value } | { state: "skip" | "wait" | "missing" } }` for every output port. The runner plugin never sets `explain`. `src/lib/agent-dry.ts` loops the executor, answering each model request from the person's text or an example.
 - Presets, `data/agents/presets/<id>.json` (written by the engine plugin, not yet by any screen):
   `{ "format": "vertep-agent-preset", "version": 1, "id", "name", "items": [ { "agent": "<agent id>", "on": true,
@@ -1231,6 +1234,9 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   the agent's own `byAgent[id].models[role]`, else the `models[role]` of `config.json`, else its `model`, else the Dashboard sensor's, else the chat's, else the app's. Skipped
   and why: not installed, off, waiting for permission, trigger (`everyN`, `keywords`) did not fire, already ran for this reply.
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
+  An agent whose last 3 runs in this chat all failed because a Script card was ended for taking too long (`scriptStuck`) is
+  skipped with "Paused: its script ran out of time ..." until it is run by hand and a run works; each such run costs the
+  script's whole 2.5 s of wall time (#273).
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
   `phase` (default `after`) is `after` or `parallel`: with `parallel` the call comes from the app when a send starts, carries
   `userText` (what the user wrote, not saved yet) and runs the agents set to run `parallel`, and those set to run `before` with

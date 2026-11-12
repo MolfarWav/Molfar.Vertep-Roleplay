@@ -220,6 +220,17 @@ describe("applyWrites", () => {
     expect(r.own.rooms).toEqual([{ name: "Pit", level: 3 }]);
     expect(r.refused.map((x: Json) => x.why)).toEqual(["list is full", "no such entry"]);
   });
+  it("upsert: the entry with the key is changed, a new key is added, a full list still refuses (#273)", () => {
+    const w: any[] = [
+      { op: "list.upsert", field: "rooms", key: "name", id: "Vault", item: { name: "Vault", level: 1 } },
+      { op: "list.upsert", field: "rooms", key: "name", id: "Vault", item: { name: "Vault", level: 4 } },
+      { op: "list.upsert", field: "rooms", key: "name", id: "Pit", item: { name: "Pit", level: 2 } },
+      { op: "list.upsert", field: "rooms", key: "name", id: "Third", item: { name: "Third", level: 1 } },
+    ];
+    const r = run.applyWrites(schema, {}, w);
+    expect(r.own.rooms).toEqual([{ name: "Vault", level: 4 }, { name: "Pit", level: 2 }]);
+    expect(r.refused.map((x: Json) => x.why)).toEqual(["list is full"]);
+  });
   it("does not change the state it was given", () => {
     const own = { mana: 10, rooms: [{ name: "A", level: 1 }] };
     const before = JSON.stringify(own);

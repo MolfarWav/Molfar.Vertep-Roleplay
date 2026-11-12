@@ -203,6 +203,80 @@ describe("the chat's calendar", () => {
   });
 });
 
+// a world's own calendar (#272): named months of any length, weekday names, an era, any year
+describe("a world's own calendar", () => {
+  const MOONS = { months: [{ name: "Frostmoon", days: 30 }, { name: "Thawmoon", days: 28 }, { name: "Greenmoon", days: 31 }], weekdays: ["Moonday", "Fireday", "Earthday"], era: "AR" };
+  const present = { y: 1204, m: 3, d: 30, wd: 1 };
+
+  it("cleanCustom keeps a sound calendar and refuses the rest", () => {
+    expect(P.cleanCustom(MOONS)).toEqual(MOONS);
+    expect(P.cleanCustom({ months: [{ name: "  Frost   moon ", days: 30 }] })).toEqual({ months: [{ name: "Frost moon", days: 30 }] });
+    for (const bad of [null, {}, { months: [] }, { months: [{ name: "", days: 30 }] }, { months: [{ name: "A", days: 0 }] }, { months: [{ name: "A", days: 101 }] },
+      { months: [{ name: "A", days: 1.5 }] }, { months: Array.from({ length: 25 }, (_, i) => ({ name: "M" + i, days: 30 })) },
+      { months: [{ name: "A", days: 30 }], weekdays: Array.from({ length: 15 }, (_, i) => "D" + i) }])
+      expect(P.cleanCustom(bad)).toBeNull();
+    // the start must exist in the calendar
+    expect(P.cleanCustomStart({ y: 1204, m: 2, d: 28 }, MOONS)).toEqual({ y: 1204, m: 2, d: 28 });
+    for (const bad of [{ y: 1204, m: 2, d: 29 }, { y: 1204, m: 4, d: 1 }, { y: 1204.5, m: 1, d: 1 }, { y: 1204, m: 1, d: 0 }, { y: 2e6, m: 1, d: 1 }]) expect(P.cleanCustomStart(bad, MOONS)).toBeNull();
+  });
+
+  it("days walk through the months, the year turns over, and the weekdays cycle", () => {
+    const cal = { custom: MOONS, cstart: { y: 1204, m: 1, d: 29 }, src: "user" };
+    expect(P.customDateOf(cal, 1)).toMatchObject({ y: 1204, m: 1, d: 29, text: "Moonday 29 Frostmoon 1204 AR" });
+    expect(P.customDateOf(cal, 3)).toMatchObject({ m: 2, d: 1, month: "Thawmoon", weekday: "Earthday" });
+    expect(P.customDateOf(cal, 4).weekday).toBe("Moonday");
+    // 30 + 28 + 31 = 89 days a year: day 62 is the last of Greenmoon... day 63 the first of the next year
+    expect(P.customDateOf({ ...cal, cstart: { y: 1204, m: 1, d: 1 } }, 89)).toMatchObject({ y: 1204, m: 3, d: 31 });
+    expect(P.customDateOf({ ...cal, cstart: { y: 1204, m: 1, d: 1 } }, 90)).toMatchObject({ y: 1205, m: 1, d: 1 });
+    // a year before zero is still a year, a hidden calendar says nothing, a broken one says nothing
+    expect(P.customDateOf({ ...cal, cstart: { y: -3, m: 3, d: 31 } }, 2)).toMatchObject({ y: -2, m: 1, d: 1 });
+    expect(P.customDateOf({ ...cal, off: true }, 1)).toBeNull();
+    expect(P.customDateOf({ custom: { months: [] }, cstart: { y: 1, m: 1, d: 1 } }, 1)).toBeNull();
+    expect(P.dateOf(cal, 1)).toBeNull();
+    expect(P.dateTextOf(cal, 1)).toBe("Moonday 29 Frostmoon 1204 AR");
+    expect(P.dateTextOf({ start: "2031-05-02", src: "user" }, 1)).toBe(P.dateWords("2031-05-02"));
+    expect(P.dateTextOf(null, 1)).toBeNull();
+  });
+
+  it("customStartFor puts day 1 so that today's story day has the date the user gave", () => {
+    const custom = P.cleanCustom(MOONS);
+    for (const day of [1, 2, 5, 40, 200]) {
+      const start = P.customStartFor(custom, present, day);
+      expect(P.customDateOf({ custom, cstart: start }, day)).toMatchObject({ y: 1204, m: 3, d: 30, weekday: "Fireday" });
+    }
+  });
+
+  it("the route sets it, the clock and the prompt carry it, the text does not move it, automatic puts the real calendar back", () => {
+    const mock = mockHost();
+    writeChat("c1", three());
+    run(mock, "c1", { time: "evening", minutes: 10 });
+    const call = (body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/calendar", body: { chatId: "c1", ...body } });
+    const set = call({ custom: MOONS, present });
+    expect(set.json).toMatchObject({ ok: true, date: null, dateText: "Fireday 30 Greenmoon 1204 AR", calendar: { source: "user", off: false, custom: MOONS } });
+    const v = view(mock, "c1").view;
+    expect(v.clock).toMatchObject({ day: 1, date: null, dateText: "Fireday 30 Greenmoon 1204 AR" });
+    expect(v.scenes.every((x: any) => x.dateText && x.date === null)).toBe(true);
+    // a Gregorian date in the text does not move it
+    writeChat("c1", [...three(), A("m4", "x"), U("m5", "y")]);
+    run(mock, "c1", { date: "1893-06-20", minutes: 5 });
+    expect(readStateFile("c1").calendar.custom).toEqual(MOONS);
+    expect(mock.requests.at(-1)!.req.messages[0].content as string).toContain("day 1 (Fireday 30 Greenmoon 1204 AR)");
+    // hidden and shown again, still its own
+    expect(call({ off: true }).json.calendar).toMatchObject({ off: true, custom: MOONS });
+    expect(view(mock, "c1").view.clock.dateText).toBeUndefined();
+    expect(call({ off: false }).json.dateText).toBe("Fireday 30 Greenmoon 1204 AR");
+    // refused: a bad calendar, a date that does not exist in it
+    expect(call({ custom: { months: [] }, present }).status).toBe(400);
+    expect(call({ custom: MOONS, present: { y: 1204, m: 2, d: 30 } }).status).toBe(400);
+    expect(call({ custom: MOONS }).status).toBe(400);
+    // a real date replaces it, and automatic goes back to today's
+    expect(call({ date: "2031-05-02" }).json).toMatchObject({ date: "2031-05-02", dateText: P.dateWords("2031-05-02") });
+    call({ custom: MOONS, present });
+    expect(call({ custom: null }).json).toMatchObject({ date: today, calendar: { source: "today" } });
+    expect(readStateFile("c1").calendar.custom).toBeUndefined();
+  });
+});
+
 describe("a chat that continues another", () => {
   it("goes on with the earlier calendar and day count, and Start clean drops them", () => {
     const mock = mockHost();

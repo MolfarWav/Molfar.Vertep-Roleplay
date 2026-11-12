@@ -166,7 +166,7 @@ const brief = (v: unknown): string => {
 export function describeWrite(w: DryWrite & Json): string {
   if (w.op === 'own.add') return `${w.field} ${Number(w.by) < 0 ? '−' : '+'}${Math.abs(Number(w.by))}`
   if (w.op === 'list.add') return `${w.field} + ${brief(w.item)}`
-  if (w.op === 'list.update') return `${w.field} ~ ${brief(w.id)}`
+  if (w.op === 'list.update' || w.op === 'list.upsert') return `${w.field} ~ ${brief(w.id)}`
   if (w.op === 'list.remove') return `${w.field} − ${brief(w.id)}`
   const of = w.op === 'dash.set' && typeof w.of === 'string' && w.of.trim() ? ` (${w.of.trim()})` : ''
   return `${w.field}${of} = ${brief(w.value)}`

@@ -3602,8 +3602,8 @@ function clockLine(c, cal) {
   // a time worked out from the part of the day is not shown as a fact: the sensor would copy it as "stated"
   const exact = c.time && c.approx !== true;
   const when = exact ? c.time + (c.band ? " (" + c.band + ")" : "") : c.band ? cap1(c.band) : "";
-  const date = dateOf(cal, c.day);
-  return (when ? when + ", day " : "Day ") + c.day + (date ? " (" + dateWords(date) + ")" : "") + ".";
+  const date = dateTextOf(cal, c.day);
+  return (when ? when + ", day " : "Day ") + c.day + (date ? " (" + date + ")" : "") + ".";
 }
 
 const objectText = (o) => o.item + (o.where ? " (" + o.where + ")" : "");
@@ -4490,7 +4490,10 @@ export function advanceClock(prevClock, out, op) {
 }
 
 // ---------- the calendar (#113): a date for the day counter ----------
-// state.calendar = { start: "YYYY-MM-DD" (the date of story day 1), src: "text" | "today" | "user", off?: true }.
+// state.calendar = { start: "YYYY-MM-DD" (the date of story day 1), src: "text" | "today" | "user", off?: true }, or, for a world with
+// its own calendar (#272), { custom: { months: [{ name, days }], weekdays?: [name], era?: text }, cstart: { y, m, d, wd? } (the date
+// of story day 1: year, month number from 1, day, index of its weekday), src: "user", off?: true }. A custom calendar has no `start`,
+// so dateOf() answers null for it and every ISO-date consumer simply sees no date; dateTextOf() is the date as words for either kind.
 // The sensor reports `date` only when the text states a whole date; else the date is today's, as of the chat's first
 // snapshot. The user can set it or hide it. Snapshots keep the day number; the date is worked out when read.
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -4534,6 +4537,83 @@ export function dateWords(ymd) {
   return WEEKDAY_NAMES[utcOf(y, m, d).getUTCDay()] + " " + d + " " + MONTH_NAMES[m - 1] + " " + y;
 }
 
+/** What a world's own calendar may hold (#272). */
+export const CUSTOM_LIMITS = { months: 24, days: 100, name: 24, weekdays: 14, era: 24, year: 1000000 };
+
+const oneLine = (v, max) => str(v).replace(/\s+/g, " ").slice(0, max).trim();
+
+/** A custom calendar as it is kept, or null when it is not one: 1 to 24 months of 1 to 100 days with names, up to 14 weekday names, an era text. */
+export function cleanCustom(raw) {
+  if (!isObj(raw) || !Array.isArray(raw.months) || !raw.months.length || raw.months.length > CUSTOM_LIMITS.months) return null;
+  const months = [];
+  for (const m of raw.months) {
+    const name = isObj(m) ? oneLine(m.name, CUSTOM_LIMITS.name) : "";
+    const days = isObj(m) ? Number(m.days) : NaN;
+    if (!name || !Number.isInteger(days) || days < 1 || days > CUSTOM_LIMITS.days) return null;
+    months.push({ name, days });
+  }
+  const weekdays = (Array.isArray(raw.weekdays) ? raw.weekdays : []).map((w) => oneLine(w, CUSTOM_LIMITS.name)).filter(Boolean);
+  if (weekdays.length > CUSTOM_LIMITS.weekdays) return null;
+  const era = oneLine(raw.era, CUSTOM_LIMITS.era);
+  return { months, ...(weekdays.length ? { weekdays } : {}), ...(era ? { era } : {}) };
+}
+
+/** The date of story day 1 in a custom calendar, as it is kept: { y, m, d, wd? }, or null when it does not fit the months. */
+export function cleanCustomStart(raw, custom) {
+  if (!isObj(raw) || !custom) return null;
+  const y = Number(raw.y);
+  const m = Number(raw.m);
+  const d = Number(raw.d);
+  if (!Number.isInteger(y) || Math.abs(y) > CUSTOM_LIMITS.year || !Number.isInteger(m) || m < 1 || m > custom.months.length) return null;
+  if (!Number.isInteger(d) || d < 1 || d > custom.months[m - 1].days) return null;
+  const wd = Number(raw.wd);
+  const weekdays = custom.weekdays ? custom.weekdays.length : 0;
+  return { y, m, d, ...(weekdays && Number.isInteger(wd) && wd >= 0 && wd < weekdays && wd !== 0 ? { wd } : {}) };
+}
+
+/** The date of story day 1 of a custom calendar when `present` ({ y, m, d, wd? }) is the date of story day `day`. */
+export function customStartFor(custom, present, day) {
+  const length = custom.months.reduce((n, m) => n + m.days, 0);
+  const steps = Math.max(1, Math.floor(Number(day) || 1)) - 1;
+  const at = custom.months.slice(0, present.m - 1).reduce((n, m) => n + m.days, 0) + (present.d - 1) - steps;
+  const y = present.y + Math.floor(at / length);
+  let rest = ((at % length) + length) % length;
+  let m = 0;
+  while (rest >= custom.months[m].days) rest -= custom.months[m++].days;
+  const n = custom.weekdays ? custom.weekdays.length : 0;
+  const wd = n ? (((present.wd || 0) - steps) % n + n) % n : 0;
+  return { y, m: m + 1, d: rest + 1, ...(wd ? { wd } : {}) };
+}
+
+/** The date of story day `day` in a custom calendar: { y, m, d, month, weekday, text }, or null (no custom calendar, or hidden). */
+export function customDateOf(cal, day) {
+  if (!isObj(cal) || cal.off === true || !isObj(cal.custom) || !isObj(cal.cstart)) return null;
+  const custom = cleanCustom(cal.custom);
+  const start = custom ? cleanCustomStart(cal.cstart, custom) : null;
+  if (!custom || !start) return null;
+  const length = custom.months.reduce((n, m) => n + m.days, 0);
+  const steps = Math.max(1, Math.floor(Number(day) || 1)) - 1;
+  const before = custom.months.slice(0, start.m - 1).reduce((n, m) => n + m.days, 0);
+  const total = before + (start.d - 1) + steps;
+  const y = start.y + Math.floor(total / length);
+  let rest = total % length;
+  let m = 0;
+  while (rest >= custom.months[m].days) rest -= custom.months[m++].days;
+  const wd = custom.weekdays ? ((start.wd || 0) + steps) % custom.weekdays.length : 0;
+  const weekday = custom.weekdays ? custom.weekdays[wd] : "";
+  const d = rest + 1;
+  const month = custom.months[m].name;
+  return { y, m: m + 1, d, wd, month, weekday, text: (weekday ? weekday + " " : "") + d + " " + month + " " + y + (custom.era ? " " + custom.era : "") };
+}
+
+/** The date of story day `day` as words, under either kind of calendar: "Saturday 26 October 2026" or "3 Frostmoon 1204 AR"; null with none, or hidden. */
+export function dateTextOf(cal, day) {
+  const own = customDateOf(cal, day);
+  if (own) return own.text;
+  const date = dateOf(cal, day);
+  return date ? dateWords(date) : null;
+}
+
 /** The machine's own date today, "YYYY-MM-DD". */
 export function localToday(now) {
   const t = now instanceof Date ? now : new Date();
@@ -4554,13 +4634,29 @@ export function noteCalendar(state, day, stated, today) {
 }
 
 /** What the Dashboard shows about the calendar: where it stands and whether it is hidden. null before the first reading. */
-export function calendarView(state) {
+export function calendarView(state, day) {
+  const own = isObj(state.calendar) && isObj(state.calendar.custom) && customStartOf(state.calendar) ? state.calendar : null;
+  if (own) {
+    // `today`: the date of the present story day in it, which is what the editor starts from
+    const now = customDateOf({ ...own, off: false }, day);
+    return { source: "user", off: own.off === true, custom: cleanCustom(own.custom), today: now ? { y: now.y, m: now.m, d: now.d, ...(now.wd ? { wd: now.wd } : {}) } : null };
+  }
   const c = isObj(state.calendar) && parseYmd(state.calendar.start) ? state.calendar : null;
   return c ? { source: c.src === "text" || c.src === "user" ? c.src : "today", off: c.off === true } : null;
 }
 
-/** A clock with its date, for views and prompts. */
-export const clockWithDate = (clock, cal) => (isObj(clock) ? { ...clock, date: dateOf(cal, clock.day) } : clock);
+/** True when a calendar object is a usable custom one. */
+const customStartOf = (cal) => {
+  const custom = cleanCustom(cal.custom);
+  return custom ? cleanCustomStart(cal.cstart, custom) : null;
+};
+
+/** A clock with its date, for views and prompts. A world's own calendar adds `dateText` (the date as words) and no ISO `date`. */
+export const clockWithDate = (clock, cal) => {
+  if (!isObj(clock)) return clock;
+  const own = customDateOf(cal, clock.day);
+  return own ? { ...clock, date: null, dateText: own.text } : { ...clock, date: dateOf(cal, clock.day) };
+};
 
 // ---------- one person, one name: the entity registry (docs/ENTITY-REGISTRY.md) ----------
 // Every name the sensor writes goes through personName(): "user", the Dashboard name of a person the chat already has, a new
@@ -6857,12 +6953,12 @@ export function estimateTokensScript(text) {
 
 function dayWords(clock, cal) {
   const day = Number(clock && clock.day) || 1;
-  const date = dateOf(cal, day);
+  const date = dateTextOf(cal, day);
   if (date) {
     // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
     // ("it is already noon" while the Dashboard said about 09:00, #207)
     const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
-    return dateWords(date) + hour + (clock && clock.band ? ", " + clock.band : "");
+    return date + hour + (clock && clock.band ? ", " + clock.band : "");
   }
   // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
@@ -7715,7 +7811,7 @@ function previewInsert(req, fsx) {
     speakers,
     checks: {
       // code writes no digits but the date of the scene; any others here come from story text the sensor reported
-      digits: (insert.text.replace(DATE_WORDS_RE, "").match(/\d+/g) || []).length,
+      digits: (insert.text.replace(DATE_WORDS_RE, "").replace(dateTextOf(state.calendar, (snap.clock || {}).day) || "", "").match(/\d+/g) || []).length,
       noBlindSpot: !blind.some((b) => insert.text.includes(b)),
       notebookOf: insert.notebookOf,
     },
@@ -8037,8 +8133,11 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     stale: idx !== keys.length - 1,
     clock: isObj(snap.clock) ? clockWithDate(snap.clock, state.calendar) : null,
     // where the date comes from (text, today, user) and whether it is shown: the Dashboard lets the user change it
-    calendar: calendarView(state),
-    scenes: scenesOf(state, keys).map((sc) => ({ ...sc, date: dateOf(state.calendar, sc.day) })),
+    calendar: calendarView(state, isObj(snap.clock) ? snap.clock.day : 1),
+    scenes: scenesOf(state, keys).map((sc) => {
+      const own = customDateOf(state.calendar, sc.day);
+      return own ? { ...sc, date: null, dateText: own.text } : { ...sc, date: dateOf(state.calendar, sc.day) };
+    }),
     present,
     order,
     events: arr(snap.events),
@@ -8145,7 +8244,9 @@ function inheritRoute(req, fsx) {
 }
 
 /**
- * POST /dashboard/calendar { chatId, date?, off? }: the user's say about the date. `date` "YYYY-MM-DD" = the date of the
+ * POST /dashboard/calendar { chatId, date?, custom?, present?, off? }: the user's say about the date. `custom` ({ months, weekdays?,
+ * era? }) with `present` ({ y, m, d, wd? }, the date of the story's present day in it) gives the world its own calendar (#272); the
+ * text never moves it, like a date the user set. `date` "YYYY-MM-DD" = the date of the
  * story's present day (the calendar is moved so that today's story day has it); `date` null = automatic again (today's
  * date, or the one the text states); `off` hides or shows the date. Answers the calendar and the clock with its date.
  */
@@ -8156,6 +8257,10 @@ function calendarRoute(req, fsx) {
   const chat = readChat(fsx, chatId);
   if (!chat) return ok({ error: "no such chat" }, 400);
   if ("date" in b && b.date !== null && !parseYmd(b.date)) return ok({ error: "date must be YYYY-MM-DD" }, 400);
+  const custom = "custom" in b && b.custom !== null ? cleanCustom(b.custom) : null;
+  const present = custom ? cleanCustomStart(b.present, custom) : null;
+  if ("custom" in b && b.custom !== null && !custom) return ok({ error: "custom needs 1 to " + CUSTOM_LIMITS.months + " months, each with a name and 1 to " + CUSTOM_LIMITS.days + " days (at most " + CUSTOM_LIMITS.weekdays + " weekday names)" }, 400);
+  if (custom && !present) return ok({ error: "present must be a year, a month number and a day that exists in the calendar" }, 400);
   const { state } = loadStateFor(fsx, chatId);
   const keys = activeLine(chat.msgs).map((l) => l.key);
   const i = nearestSnapshot(state, keys, keys.length);
@@ -8163,15 +8268,16 @@ function calendarRoute(req, fsx) {
   const day = Math.max(1, Math.floor(Number(snap && snap.clock && snap.clock.day) || 1));
   const was = isObj(state.calendar) ? state.calendar : null;
   const off = typeof b.off === "boolean" ? b.off : was ? was.off === true : false;
-  if (typeof b.date === "string") state.calendar = { start: addDays(parseYmd(b.date), -(day - 1)), src: "user" };
-  else if (b.date === null) state.calendar = { start: addDays(localToday(), -(day - 1)), src: "today" };
+  if (custom) state.calendar = { custom, cstart: customStartFor(custom, present, day), src: "user" };
+  else if (typeof b.date === "string") state.calendar = { start: addDays(parseYmd(b.date), -(day - 1)), src: "user" };
+  else if (b.date === null || b.custom === null) state.calendar = { start: addDays(localToday(), -(day - 1)), src: "today" };
   else if (!was) state.calendar = { start: addDays(localToday(), -(day - 1)), src: "today" };
   else state.calendar = { ...was };
   delete state.calendar.inherited;
   if (off) state.calendar.off = true;
   else delete state.calendar.off;
   fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
-  return ok({ ok: true, calendar: calendarView(state), date: dateOf(state.calendar, day), day });
+  return ok({ ok: true, calendar: calendarView(state, day), date: dateOf(state.calendar, day), dateText: dateTextOf(state.calendar, day), day });
 }
 
 function readState(req, fsx) {
