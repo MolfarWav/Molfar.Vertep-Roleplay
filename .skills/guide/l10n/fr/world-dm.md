@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 Le World DM est un maître de jeu pour le monde d'une discussion. Après les réponses, il lit l'histoire et garde les personnes, lieux et choses qu'il rencontre dans le livre de connaissances propre à la discussion, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde semble vivant et cohérent.
@@ -27,6 +27,8 @@ Un profil qui joue à partir d'une pioche d'événements affiche « New deck » 
 ## Suppression ou balayage d'une réponse
 
 Supprimez une réponse, ou balayez vers une autre, et le DM reprend ce qu'il avait appris de l'ancienne : enregistrements, horloges et événement en attente reviennent à leur état antérieur, le livre du monde est réécrit, et le DM relit l'histoire à partir de là.
+
+Un événement est à usage unique. Le DM vérifie si l'histoire l'a montré, en regardant tout ce qui suit la réponse qui le portait, y compris la partie qu'il a déjà lue. Sinon, l'événement est renvoyé une fois de plus avec la réponse suivante, sauf si l'histoire a entre-temps changé de lieu (un saut dans le temps, une nouvelle scène) : alors il est abandonné, pour qu'un vieil événement ne ramène pas l'histoire en arrière.
 
 Les enregistrements que vous avez modifiés à la main restent, sauf si le DM a changé le même enregistrement ensuite. Un enregistrement que vous avez supprimé reste supprimé. Supprimer d'anciens messages en tête, lire d'autres balayages d'une ancienne réponse et modifier le texte d'une réponse ne reprennent rien.
 

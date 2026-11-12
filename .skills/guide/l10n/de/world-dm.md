@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 Der World DM ist ein Spielleiter für die Welt eines Chats. Nach Antworten liest er die Geschichte und hält die Personen, Orte und Dinge, die er trifft, im eigenen Lorebook des Chats fest, dem Weltbuch. Auf höheren Stufen bewegt er auch die Welt und sendet Ereignisse in die Szene. Nutze ihn, wenn die Welt lebendig und stimmig wirken soll.
@@ -27,6 +27,8 @@ Ein Profil, das aus einem Ereignisstapel spielt, zeigt „New deck“, wenn der 
 ## Eine Antwort löschen oder swipen
 
 Lösche eine Antwort oder swipe zu einer anderen, und der DM nimmt zurück, was er aus der alten gelernt hat: Einträge, Uhren und ein wartendes Ereignis kehren in ihren früheren Zustand zurück, das Weltbuch wird neu geschrieben, und der DM liest die Geschichte von dort an erneut.
+
+Ein Ereignis ist einmalig. Der DM prüft, ob die Geschichte es gezeigt hat, und schaut sich alles nach der Antwort an, die es getragen hat, auch den Teil, den er schon gelesen hat. Wenn nicht, wird das Ereignis mit der nächsten Antwort noch einmal gesendet, es sei denn, die Geschichte ist inzwischen an einen anderen Ort gezogen (ein Zeitsprung, eine neue Szene): dann wird es losgelassen, damit ein altes Ereignis die Geschichte nicht zurückzieht.
 
 Von dir geänderte Einträge bleiben, außer der DM hat denselben Eintrag danach geändert. Ein von dir gelöschter Eintrag bleibt gelöscht. Das Löschen alter Nachrichten von oben, das Lesen anderer Swipes einer älteren Antwort und das Bearbeiten des Antworttexts nehmen nichts zurück.
 

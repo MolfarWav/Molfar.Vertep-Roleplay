@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Gli agenti e la fucina degli agenti
 
 Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -40,6 +40,8 @@ Una scheda If risponde Yes, No o Unknown secondo le sue regole e, da sola, dice 
 ## Prova
 
 La scheda Prova esegue un turno inventato senza toccare nulla. Cambi gli input e i fili sulla tavola mostrano cosa si muove; senza modello, ogni scheda "Ask the model" usa una risposta di esempio che puoi modificare. Sotto "A real chat" scegli una chat e "Fill from this chat" per caricare ciò che l'agente riceverebbe davvero. "Run with the model" pone poi al modello reale la domanda reale: fino a N chiamate, token reali e nulla viene salvato nella chat o nell'agente.
+
+Un agente con una scheda Script che esaurisce il tempo tre esecuzioni di fila in una chat viene lasciato in pace lì: la scheda Agenti dice che è in pausa (ogni esecuzione simile costerebbe i 2,5 secondi dello script). Sistema lo script, poi premi **Run again**; un'esecuzione che funziona mette fine alla pausa. Le tessere della tavola del territorio sono pulsanti: toccane una e il suo luogo finisce nella casella del messaggio (non viene inviato nulla). Una scheda elenco può anche essere impostata su "Change an entry, or add it if there is none", così qualcosa detto due volte non riempie l'elenco.
 
 ## Installa, consenti, attiva in una chat
 

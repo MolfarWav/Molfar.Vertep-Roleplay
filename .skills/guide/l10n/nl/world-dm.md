@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 De World DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en bewaart hij de mensen, plaatsen en dingen die hij tegenkomt in het eigen lorebook van de chat, het wereldboek genoemd. Op hogere niveaus beweegt hij ook de wereld en stuurt hij gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levendig en consistent aanvoelt.
@@ -27,6 +27,8 @@ Een profiel dat speelt vanuit een gebeurtenissenstapel toont "New deck" wanneer 
 ## Een antwoord verwijderen of swipen
 
 Verwijder een antwoord, of swipe naar een ander, en de DM neemt terug wat hij uit het oude heeft geleerd: records, klokken en een wachtende gebeurtenis gaan terug naar hoe ze waren, het wereldboek wordt opnieuw geschreven, en de DM leest het verhaal vanaf daar opnieuw.
+
+Een gebeurtenis is eenmalig. De DM kijkt of het verhaal hem heeft laten zien, naar alles na het antwoord dat hem droeg, ook het deel dat hij al las. Zo niet, dan wordt de gebeurtenis nog één keer met het volgende antwoord meegestuurd, tenzij het verhaal inmiddels naar een andere plaats is gegaan (een tijdsprong, een nieuwe scène): dan wordt hij losgelaten, zodat een oude gebeurtenis het verhaal niet terugtrekt.
 
 Records die je met de hand hebt gewijzigd blijven, tenzij de DM hetzelfde record daarna heeft gewijzigd. Een record dat je hebt verwijderd blijft verwijderd. Oude berichten van bovenaf verwijderen, andere swipes van een ouder antwoord lezen en de tekst van een antwoord bewerken nemen niets terug.
 

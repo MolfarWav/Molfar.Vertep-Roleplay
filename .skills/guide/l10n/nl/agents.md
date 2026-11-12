@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -40,6 +40,8 @@ Een If-kaart antwoordt Yes, No of Unknown volgens zijn regels, en op zichzelf ze
 ## Proefrun
 
 Het tabblad Try draait één verzonnen beurt zonder iets aan te raken. Je past de invoer aan, en de draden op het bord laten zien wat er beweegt; zonder model gebruikt elke "Ask the model"-kaart een voorbeeldantwoord dat je kunt bewerken. Kies onder "A real chat" een chat en "Fill from this chat" laadt wat de agent echt zou krijgen. "Run with the model" stelt dan de echte vraag aan het echte model: hoogstens N aanroepen, echte tokens, en niets wordt opgeslagen in de chat of in de agent.
+
+Een agent met een Script-kaart die in een chat drie runs op rij te laat klaar is, wordt daar met rust gelaten: het tabblad Agents zegt dat hij gepauzeerd is (elke zulke run zou de 2,5 seconden van het script kosten). Herstel het script en druk dan op **Run again**; één run die werkt beëindigt de pauze. De tegels van het territory board zijn knoppen: tik er een aan en zijn plek gaat in het berichtvak (er wordt niets verzonden). Een lijstkaart kan ook op "Change an entry, or add it if there is none" worden gezet, zodat iets dat twee keer wordt gezegd de lijst niet vult.
 
 ## Installeren, toestaan, inschakelen in een chat
 

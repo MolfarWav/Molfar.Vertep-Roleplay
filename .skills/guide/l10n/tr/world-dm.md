@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -27,6 +27,8 @@ Olay destesinden oynayan bir profil, deste tükendiğinde "New deck" gösterir. 
 ## Bir yanıtı silme ya da kaydırma
 
 Bir yanıtı silerseniz ya da başka birine kaydırırsanız, DM eski yanıttan öğrendiklerini geri alır: kayıtlar, saatler ve bekleyen bir olay eski haline döner, dünya kitabı yeniden yazılır ve DM hikâyeyi oradan yeniden okur.
+
+Bir olay tek seferliktir. DM hikâyenin onu gösterip göstermediğini kontrol eder; onu taşıyan yanıttan sonraki her şeye, zaten okuduğu kısma da bakar. Göstermediyse, olay bir sonraki yanıtla bir kez daha gönderilir; ancak o zamana kadar hikâye başka bir yere geçmişse (bir zaman atlaması, yeni bir sahne): o zaman olay bırakılır, böylece eski bir olay hikâyeyi geri çekmez.
 
 Elle değiştirdiğiniz kayıtlar, DM aynı kaydı sonradan değiştirmediği sürece kalır. Sildiğiniz bir kayıt silinmiş kalır. Baştaki eski mesajları silmek, eski bir yanıtın başka kaydırmalarını okumak ve bir yanıtın metnini düzenlemek hiçbir şeyi geri almaz.
 

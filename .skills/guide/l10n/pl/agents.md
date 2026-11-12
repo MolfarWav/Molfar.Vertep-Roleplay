@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -40,6 +40,8 @@ Karta If odpowiada Yes, No albo Unknown według swoich reguł i sama z siebie m�
 ## Próba
 
 Karta Try wykonuje jedną wymyśloną rundę, niczego nie zmieniając. Zmieniasz wejścia, a przewody na planszy pokazują, co się dzieje; bez modelu każda karta „Ask the model” używa przykładowej odpowiedzi, którą możesz edytować. Pod „A real chat” wybierz czat i „Fill from this chat”, aby wczytać to, co agent naprawdę by dostał. „Run with the model” pyta wtedy prawdziwy model prawdziwym pytaniem: do N wywołań, prawdziwe tokeny i nic nie zapisuje się do czatu ani do agenta.
+
+Agent z kartą Script, któremu w czacie trzy przebiegi z rzędu skończą się przekroczeniem czasu, jest tam zostawiany w spokoju: zakładka Agents mówi, że jest wstrzymany (każdy taki przebieg kosztowałby 2,5 sekundy skryptu). Napraw skrypt i naciśnij **Run again**; jeden udany przebieg kończy pauzę. Kafelki planszy terytorium to przyciski: naciśnij jeden, a jego miejsce trafi do pola wiadomości (nic nie zostaje wysłane). Kartę listy można też ustawić na "Change an entry, or add it if there is none", żeby coś powiedziane dwa razy nie zapełniało listy.
 
 ## Instalacja, zgoda, włączanie w czacie
 

@@ -1,4 +1,4 @@
-<!-- source: fb9a5c566739 -->
+<!-- source: 8d00981bad28 -->
 # Le tableau de bord de la scène
 
 Le tableau de bord est un panneau à côté du chat qui suit la scène : qui est présent, ce que chaque personnage ressent pour vous, ce qu'il porte et ce qu'il sait, les fils narratifs ouverts. Il s'adresse à quiconque veut que l'histoire se souvienne des relations et des détails entre les réponses. L'article d'aide *Tableau de bord de la scène* énumère ses champs.
@@ -14,6 +14,8 @@ Un personnage qui est en contact depuis ailleurs (un texto, une lettre, un appel
 Les chiffres (confiance, aise, attirance, respect, affection, et d'autres) sont calculés par le code à partir d'événements qu'un modèle rapporte, et orientés par le [[soul]] de chaque personnage. L'état est conservé par message, donc un swipe ou un message supprimé ne laisse jamais de chiffres périmés.
 
 À qui appartient le sentiment : chaque chiffre indique ce que ce personnage ressent envers *votre* personnage, jamais l'inverse. Les événements derrière eux sont ce que fait votre personnage : un baiser sur le front ou une étreinte réchauffe comfort et affection, seul un baiser romantique fait monter arousal. Quand un personnage fait du tort au vôtre (trompe, ment, part), c'est l'acte du personnage : il n'est pas inscrit au compte du vôtre, et le capteur reçoit pour consigne de ne pas baisser pour cela la confiance que le personnage vous accorde. Si un chiffre bouge encore à tort, signalez-le comme issue : le modèle du capteur est un modèle, et un petit peut mal lire une scène.
+
+**La date et un calendrier à vous.** L'horloge affiche une date sous l'heure. Touchez le crayon à côté pour régler la date, la masquer ou revenir au mode automatique. Pour un monde fantastique ou isekai dont les mois et les années ne sont pas les nôtres, choisissez **A world with its own calendar…** dans cette fenêtre : nommez les mois et donnez à chacun son nombre de jours (12 mois de 30 jours, c'est un seul appui), ajoutez des noms de jours de la semaine et une ère (« AR », « of the Third Age ») si vous le voulez, et indiquez la date du jour présent de l'histoire, en n'importe quelle année, même avant zéro. Ensuite, la date suit le compteur de jours (« 3 Frostmoon 1204 AR »), s'affiche sur l'horloge et dans les lignes de scène que lit le modèle, et le texte de l'histoire ne la déplace jamais. **Use the real calendar** dans la même fenêtre la remet en place.
 
 Le bouton « Story, move » à côté de Send arme une impulsion unique pour la réponse suivante ; sa flèche choisit une quête ouverte ou un rebondissement.
 

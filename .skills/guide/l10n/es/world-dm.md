@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 El World DM es un director de juego para el mundo de un chat. Después de las respuestas lee la historia y guarda las personas, lugares y cosas que encuentra en el propio lorebook del chat, llamado el libro de mundo. En niveles más altos también mueve el mundo y envía eventos a la escena. Úsalo cuando quieras que el mundo se sienta vivo y coherente.
@@ -27,6 +27,8 @@ Un perfil que juega desde un mazo de eventos muestra "New deck" cuando el mazo s
 ## Borrar o deslizar una respuesta
 
 Borra una respuesta, o desliza hacia otra, y el DM retira lo que aprendió de la antigua: registros, relojes y un evento en espera vuelven a como estaban, el libro de mundo se vuelve a escribir, y el DM relee la historia desde ahí.
+
+Un evento es de un solo uso. El DM comprueba si la historia lo mostró, mirando todo lo que vino después de la respuesta que lo llevaba, también la parte que ya había leído. Si no, el evento se envía una vez más con la siguiente respuesta, salvo que la historia se haya mudado a otro lugar para entonces (un salto en el tiempo, una escena nueva): entonces se deja ir, para que un evento viejo no arrastre la historia hacia atrás.
 
 Los registros que cambiaste a mano se conservan, salvo que el DM cambiara después el mismo registro. Un registro que borraste sigue borrado. Borrar mensajes antiguos desde arriba, leer otros deslizamientos de una respuesta anterior y editar el texto de una respuesta no retira nada.
 

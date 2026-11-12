@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Agents und die Agenten-Schmiede
 
 Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
@@ -40,6 +40,8 @@ Eine If-Karte antwortet mit Ja, Nein oder Unbekannt nach ihren Regeln. Allein ge
 ## Probelauf
 
 Der Try-Tab führt einen erfundenen Durchlauf aus, ohne irgendetwas anzufassen. Du änderst die Eingaben, und die Verbindungen auf dem Brett zeigen, was sich bewegt; ohne Modell nutzt jede „Ask the model“-Karte eine Beispielantwort, die du bearbeiten kannst. Unter „A real chat“ wählst du einen Chat und „Fill from this chat“, um zu laden, was der Agent wirklich bekäme. „Run with the model“ fragt dann das echte Modell mit der echten Frage: bis zu N Aufrufe, echte Tokens, und nichts wird im Chat oder im Agent gespeichert.
+
+Ein Agent mit einer Script-Karte, die in einem Chat dreimal hintereinander aus Zeitgründen abbricht, wird dort in Ruhe gelassen: der Agents-Tab sagt, dass er pausiert ist (jeder solche Lauf würde die 2,5 Sekunden des Skripts kosten). Repariere das Skript und drücke dann **Run again**; ein Lauf, der funktioniert, beendet die Pause. Die Kacheln des Territory board sind Schaltflächen: tippe eine an, und ihr Ort geht in das Nachrichtenfeld (nichts wird gesendet). Eine Listen-Karte kann auch auf „Change an entry, or add it if there is none“ gestellt werden, damit etwas zweimal Gesagtes die Liste nicht füllt.
 
 ## Installieren, erlauben, in einem Chat einschalten
 
