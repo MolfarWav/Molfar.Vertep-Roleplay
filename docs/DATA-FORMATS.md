@@ -635,9 +635,12 @@ player switches it on for that chat. It writes:
     `thing` or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in
     the world book.
   - A front: `id` f1.., a goal and a clock `clock`/`size` (`size` 4, 6 or 8; full = the goal comes true).
-  - `event`: `{ text, hard, sent, retried, at?, sentAt? }` or null: added after the chat history of the next reply
-    (`sent` counts the replies that carried it); the next run checks the story, sends a missed one once more, then
-    drops it.
+  - `event`: `{ text, hard, sent, retried, at?, sentAt?, after?, place?, placeId? }` or null: added after the chat history
+    of the next reply (`sent` counts the replies that carried it); the next run checks the story, sends a missed one
+    once more, then drops it. The check reads the messages after the carrier (`after` = the message the carrying reply
+    followed), also the ones a sweep already took (`eventSince`, the first 6, as "Already read in earlier runs");
+    `place`/`placeId` are where the story was when it was written: a missed event waiting for its second send is
+    dropped by the `llmRequest` hook when the Dashboard's place is another one (`retryStale`).
   - `direction`: the scene direction the DM named last (used when the Dashboard has none); `transitionKey`: the
     Dashboard snapshot of the last time skip it ran on.
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,

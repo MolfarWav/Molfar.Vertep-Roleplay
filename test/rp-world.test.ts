@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollPace, paceReadiness, paceBand, paceInsert, rollFateAuto, seededRandom, tickClocks, clockStep, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates } from "../plugins/world/plugin.js";
+import { DICE_MODES, CHRONICLER_SYSTEM, backgroundsInput, splitItems, sensorCarry, placeKey, applyCarry, findPlace, hereInsert, hereOf, applyLevel, applyReport, behindOf, defaultBlocks, diceInsert, diceInsertAuto, diceMod, diceOutcome, DICE_TILTS, lifeInsert, lifeTier, rollFate, rollLife, rollPace, paceReadiness, paceBand, paceInsert, rollFateAuto, seededRandom, tickClocks, clockStep, classifyError, dmInput, takeUnread, dueIn, dueReason, emptyState, eventInsert, handleRoute, llmRequest, normalizeState, parseReply, sceneOf, shortText, systemFor, unreadMessages, sweepCandidates, eventSince, retryStale } from "../plugins/world/plugin.js";
 
 // world.ts reaches engine.ts, which reads the frame URL at import time
 (globalThis as { location?: unknown }).location ??= { pathname: "/app/user/roleplay/", origin: "http://localhost", href: "http://localhost/app/user/roleplay/" };
@@ -1492,5 +1492,67 @@ describe("code clocks roll a d6 (#155)", () => {
     const plain = dmInput({ cards: [], userName: "", entities: [], msgs: [], level: "living", fronts: [f], event: null, direction: null, threads: [], options: { clocks: "model", clockEvery: 2, eventByClock: false, deck: false } });
     expect(plain).not.toContain("Stirred");
     expect(normalizeState({ fronts: [f] }, "c1").fronts[0].stirred).toBe(true);
+  });
+});
+
+// a pending event that outlives its scene (a pharmacy visit that was played out, then "Tuesday morning" opened with the same event again)
+describe("an event is judged by the story after it was sent, and is not sent again from another place", () => {
+  const SENT = { text: "Alice turns into the pharmacy and sees a figure in the window.", hard: true, sent: 1, retried: false, after: "m1#0", place: "path to the dorm" };
+  const stateWith = (event: Record<string, unknown> | null, extra: Record<string, unknown> = {}) => JSON.stringify({ ...emptyState("c1"), settings: { level: "director", everyN: 1, stagnation: 6, onTransition: true, insert: true }, event, ...extra });
+
+  it("eventSince: what earlier runs took after the carrier, up to what this run reads", () => {
+    expect(eventSince(SENT, STORY, "m4#0").map((m) => m.id)).toEqual(["m2", "m3"]);
+    // the carrier is the reply after the message the event followed; the first six messages are kept
+    const long = Array.from({ length: 12 }, (_, i) => msg(i, i % 2 ? "user" : "char", "line " + i));
+    expect(eventSince({ ...SENT, after: "m0#0" }, long, "m11#0").map((m) => m.id)).toEqual(["m1", "m2", "m3", "m4", "m5", "m6"]);
+    // nothing to add: not sent yet, the message it followed is gone, or this run starts right after it
+    expect(eventSince({ ...SENT, sent: 0 }, STORY, "m4#0")).toEqual([]);
+    expect(eventSince({ ...SENT, after: "gone#0" }, STORY, "m4#0")).toEqual([]);
+    expect(eventSince(SENT, STORY, "m2#0")).toEqual([]);
+  });
+
+  it("a run that asks 'did it happen?' also shows the part a sweep already read", () => {
+    const m = memHost({ ...seed(), "world/state/c1.json": stateWith(SENT, { lastKey: "m3#0" }) });
+    route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    const input = m.requests[0]!.spec.messages[0].content as string;
+    expect(input).toContain("Look at the part already read after it was sent, and at the new part.");
+    const earlier = input.slice(input.indexOf("Already read in earlier runs"), input.indexOf("New part of the story"));
+    expect(earlier).toContain("Old Maksym keeps the toll at the Red Tower");
+    expect(earlier).toContain("Then we go at night.");
+    expect(input.slice(input.indexOf("New part of the story"))).toContain("Odarka nods.");
+    // no event sent: nothing extra in the input
+    const none = memHost({ ...seed(), "world/state/c1.json": stateWith({ ...SENT, sent: 0 }, { lastKey: "m3#0" }) });
+    route(none.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    expect(none.requests[0]!.spec.messages[0].content).not.toContain("Already read in earlier runs");
+  });
+
+  it("a new event remembers where the story was", () => {
+    const st = emptyState("c1");
+    applyLevel(st, { event: { text: "A knock." } }, { level: "director", direction: null, now: 1, place: "Path to the Dorm!", placeId: "l7" });
+    expect(st.event).toMatchObject({ place: "path to the dorm", placeId: "l7", sent: 0, retried: false });
+  });
+
+  it("retryStale: only a missed event waiting for its second send, and only after the story moved", () => {
+    const retry = { ...SENT, sent: 0, retried: true };
+    expect(retryStale(retry, { place: "Path to the dorm" } as never)).toBe(false);
+    expect(retryStale(retry, { place: "Dormitory room 312" } as never)).toBe(true);
+    expect(retryStale({ ...retry, placeId: "l7" }, { place: "Room 312", placeId: "l7" } as never)).toBe(false);
+    expect(retryStale({ ...retry, placeId: "l7" }, { place: "Path to the dorm", placeId: "l9" } as never)).toBe(true);
+    // never for a first send, an event with no place (written before the field), or a scene with no place
+    expect(retryStale({ ...retry, retried: false }, { place: "Room 312" } as never)).toBe(false);
+    expect(retryStale({ ...retry, place: undefined }, { place: "Room 312" } as never)).toBe(false);
+    expect(retryStale(retry, { place: "" } as never)).toBe(false);
+    expect(retryStale(retry, null)).toBe(false);
+  });
+
+  it("the hook lets a missed event go once the story is somewhere else, and sends it while it is not", () => {
+    const retry = { ...SENT, sent: 0, retried: true, after: undefined };
+    const moved = memHost({ ...seed(), "dashboard/state/c1.json": dashState({ "m4#0": calm("domestic", { clock: { place: "Dormitory room 312" } }) }), "world/state/c1.json": stateWith(retry) });
+    const req = { key: "reply", request: { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "Tuesday morning came fast." }] }, turn: { op: "send" } };
+    expect(llmRequest(req, moved.host)).toBe(null);
+    expect(JSON.parse(moved.files["world/state/c1.json"]!).event).toBe(null);
+    const same = memHost({ ...seed(), "dashboard/state/c1.json": dashState({ "m4#0": calm("domestic", { clock: { place: "Path to the dorm" } }) }), "world/state/c1.json": stateWith(retry) });
+    const out = llmRequest(req, same.host) as { messages: { content: string }[] };
+    expect(out.messages[1]!.content).toContain("[WORLD EVENT: must happen in this reply]");
   });
 });

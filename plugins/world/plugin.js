@@ -118,6 +118,10 @@ const MSG_MAX = 6000;
 // below this share per message a run reads fewer messages (catch-up) instead of cutting each one thinner
 const MSG_MIN = 400;
 const LINE_EXTRA = 40;
+/** A pending event is judged by the messages after the reply that carried it, also the ones earlier runs took: how many of them, and their share of the input. */
+const SINCE_MSGS = 6;
+const SINCE_TEXT_MAX = 8000;
+const SINCE_MSG_MIN = 300;
 // a retry after a reply that was all thinking gets this many times the room, at most RETRY_MAX
 const RETRY_FACTOR = 3;
 const RETRY_MAX = 12000;
@@ -1129,6 +1133,9 @@ function cleanEvent(e) {
     ...(Number.isFinite(e.sentAt) ? { sentAt: e.sentAt } : {}),
     // the message the reply that carried it followed (a key), so a deleted or swiped reply can be told from a kept one (#75)
     ...(typeof e.after === "string" && e.after ? { after: cut(e.after, 80) } : {}),
+    // where the story was when the event was written (the place key, and the Dashboard's place id when it had one): a missed event is not sent again once the story has moved on
+    ...(typeof e.place === "string" && e.place ? { place: cut(e.place, NAME_MAX * 2) } : {}),
+    ...(REF_ID.test(str(e.placeId)) ? { placeId: str(e.placeId) } : {}),
   };
 }
 
@@ -1555,6 +1562,34 @@ function settle(fsx, state, chat, drop) {
 }
 
 const textLen = (m) => (str(m.text) ? String(m.text).trim().length : 0);
+
+/**
+ * The messages after the one the carrying reply followed (event.after) and before `firstKey` (what this run reads): the
+ * part of the story earlier runs already took. A sweep reads on without judging an event, so by the time a full run asks
+ * "did it happen?" the scene may sit in messages the run no longer sees, and the answer was a false "no" that sent the
+ * event again, in a later scene (a pharmacy visit played out, then Tuesday morning started with it). The oldest
+ * SINCE_MSGS are kept: the carrier is the likeliest place for it.
+ */
+export function eventSince(event, msgs, firstKey) {
+  if (!event || !(event.sent > 0) || !event.after || !arr(msgs).length) return [];
+  const id = String(event.after).split("#")[0];
+  const i = msgs.findIndex((m) => String(m.id) === id);
+  if (i < 0) return [];
+  const j = firstKey ? msgs.findIndex((m) => keyOf(m) === firstKey) : -1;
+  return msgs.slice(i + 1, j < 0 ? msgs.length : j).filter((m) => str(m.text)).slice(0, SINCE_MSGS);
+}
+
+/**
+ * A missed event is sent once more with the next reply, but only while the story is where it was written. After a move
+ * (a time skip, a new scene) it would drag the story back to a place it left. Events written before this field existed
+ * have no place and are not judged.
+ */
+export function retryStale(event, scene) {
+  if (!event || !event.retried || event.sent > 0 || !scene) return false;
+  if (event.placeId && scene.placeId) return event.placeId !== scene.placeId;
+  const now = placeKey(scene.place);
+  return !!event.place && !!now && event.place !== now;
+}
 
 /** The largest per-message size c with sum(min(len, c)) <= budget, at most MSG_MAX. */
 function fairCap(lens, budget) {
@@ -2338,7 +2373,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2346,6 +2381,9 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     .map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), cap || MSG_MAX));
   let story = lines.join("\n");
   if (story.length > NEW_TEXT_MAX) story = "…" + story.slice(-NEW_TEXT_MAX);
+  // what earlier runs already read after an event was sent: it may have happened there (see eventSince)
+  const earlier = arr(since).filter((m) => str(m.text));
+  const earlierCap = earlier.length ? Math.max(SINCE_MSG_MIN, fairCap(earlier.map(textLen), SINCE_TEXT_MAX - LINE_EXTRA * earlier.length)) : 0;
   return [
     "Characters with their own cards (do not record): " + (cards.length ? cards.join(", ") : "none") + ".",
     "The user's character (do not record): " + (userName || "the user") + ".",
@@ -2355,8 +2393,11 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(arr(tracked).length ? [trackedInput(tracked)] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0 }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
+    ...(earlier.length && level && LEVEL_RULES[level]
+      ? ["Already read in earlier runs, after the event was sent (the event may have happened here)\n" + earlier.map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), earlierCap)).join("\n")]
+      : []),
     "New part of the story\n" + story,
   ].join("\n\n");
 }
@@ -2367,7 +2408,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options, deck }) {
+function levelInput({ fronts, event, direction, threads, options, deck, earlier }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -2383,7 +2424,7 @@ function levelInput({ fronts, event, direction, threads, options, deck }) {
       ? 'Events deck: an event comes only from this deck. When one is due, pick the card that fits the scene best and send event {"deck":"<its id>"}; never invent one.\n' + deck.map((c) => c.id + " · " + c.text).join("\n")
       : "The events deck is used up: send no event (event null).");
   }
-  if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the new part of the story show it? Answer in delivered.");
+  if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the story show it? " + (earlier ? "Look at the part already read after it was sent, and at the new part. " : "") + "Answer in delivered.");
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
   if (arr(threads).length) out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
@@ -2715,7 +2756,7 @@ export function tickClocks(state, replies, every, now, seed) {
  * waits while the old one is pending. No event in an explicit scene, none in combat below
  * antagonist. Returns how many fronts changed.
  */
-export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks, useDeck }) {
+export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks, useDeck, place, placeId }) {
   const at = now || Date.now();
   let changes = 0;
   const said = DIRECTIONS.includes(str(out.direction).toLowerCase()) ? str(out.direction).toLowerCase() : null;
@@ -2759,7 +2800,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
   const text = useDeck ? (card ? card.text : "") : isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
   if (card && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) state.deck = state.deck.filter((c) => c !== card);
   if (text && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) {
-    state.event = { text, hard: HARD_LEVELS.includes(level), sent: 0, retried: false, at };
+    state.event = { text, hard: HARD_LEVELS.includes(level), sent: 0, retried: false, at, ...(placeKey(place) ? { place: placeKey(place) } : {}), ...(REF_ID.test(str(placeId)) ? { placeId: str(placeId) } : {}) };
   }
   return changes;
 }
@@ -3239,10 +3280,15 @@ export function llmRequest(ctx, host) {
     // events and dice need a level above the chronicler and the switch "insert"; the world here does not
     const events = state.settings.insert && lv !== "chronicler" && lv !== "off";
     const profile = events ? profileFor(fsx, state.settings) : null;
-    const eventDue = events && !!state.event && state.event.sent === 0;
     const dice = profile ? diceOf(profile, state.settings) : null;
     const diceMode = dice ? dice.mode : "off";
     const scene = chat ? sceneOf(fsx, chatId, chat.msgs) : null;
+    // a missed event waits for the next reply only while the story is still where it was written (a time skip or a new scene since: it is let go)
+    if (retryStale(state.event, scene)) {
+      state.event = null;
+      saveState(fsx, state);
+    }
+    const eventDue = events && !!state.event && state.event.sent === 0;
     const dir = directionOf(state, scene);
     if (dir === "explicit") return null;
     const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
@@ -4767,6 +4813,7 @@ function updateRoute(req, host) {
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
         cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
+        since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
       })) }],
@@ -4820,7 +4867,7 @@ function updateRoute(req, host) {
   const codeClocks = options.clocks === "code";
   // a full run showed the DM the fronts stirred by the last ticks; they are let go before the new ticks
   if (!recordsOnly) for (const f of state.fronts) delete f.stirred;
-  let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck }) : 0;
+  let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck, place: scene && scene.place, placeId: scene && scene.placeId }) : 0;
   if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now(), chatId + "|clock|" + (str(stash.upTo) || upTo));
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
