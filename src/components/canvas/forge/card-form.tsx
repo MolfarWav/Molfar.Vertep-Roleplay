@@ -716,6 +716,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
             <NativeSelect value={String(p.op ?? 'add')} onChange={(op) => set({ op })}>
               <option value="add">{t('fg.list.add')}</option>
               <option value="update">{t('fg.list.update')}</option>
+              <option value="upsert">{t('fg.list.upsert')}</option>
               <option value="remove">{t('fg.list.remove')}</option>
             </NativeSelect>
           </Field>

@@ -1,7 +1,7 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Agents et la forge d'agents
 
-Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Avant ou après une réponse (au choix), il lit une partie de la discussion, peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
+Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Il lit une partie de la discussion (avant ou après une réponse, au choix), peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
 
 ## De quoi un agent est-il fait
 
@@ -9,7 +9,7 @@ Un agent est une donnée, pas du code. Dans l'éditeur, c'est un tableau de **ca
 
 - une carte **Input** indique ce que l'agent peut lire (la dernière réponse, l'historique de la discussion, la carte du personnage, le persona, la note de l'auteur, les faits de Litopys, les entrées du livre de connaissances) ;
 - les cartes **Ask the model** posent une question au modèle et prennent la réponse en texte libre, en oui ou non, ou en quelques champs nommés ;
-- des cartes de logique et des cartes qui travaillent dans le code sans modèle : dés, choix d'une ligne, découpe ou extraction de texte ;
+- des cartes de logique (une carte If peut ne se déclencher que lorsque sa réponse passe à Oui, une seule fois, ou avec une pause après son déclenchement, et ses règles peuvent demander si une valeur a changé depuis la dernière exécution ; le journal d'exécution dit pourquoi elle a répondu), et des cartes qui travaillent dans le code sans modèle : dés, choix d'une ligne, découpe ou extraction de texte ;
 - une carte **Script** : quelques lignes de JavaScript que vous écrivez, `(input, seed)` en entrée et un objet simple en sortie, avec des entrées et sorties typées. Elle s'exécute dans un bac à sable du moteur (ni horloge, ni internet, ni fichiers, environ une demi-seconde et 16 Mo) et demande un moteur à partir de la version 1.10.1 ; un moteur plus ancien fait échouer l'agent avec un message simple ;
 - des cartes pour la **mémoire** propre de l'agent (nombres, texte, oui/non, listes), conservées pour chaque discussion et à l'écart du Dashboard ;
 - une carte **Output** qui montre un résultat : « A note under the reply », « Buttons to tap », une valeur d'état, ou un indice placé dans la prochaine requête.
@@ -40,6 +40,8 @@ Une carte If répond Oui, Non ou Inconnu selon ses règles, et seule elle dit Ou
 ## Essai
 
 L'onglet Essayer exécute un tour inventé sans rien toucher. Vous modifiez les entrées, et les fils du tableau montrent ce qui circule ; sans modèle, chaque carte « Ask the model » utilise une réponse d'exemple que vous pouvez modifier. Sous « A real chat », choisissez une discussion et « Fill from this chat » pour charger ce que l'agent recevrait réellement. « Run with the model » pose alors la vraie question au vrai modèle : jusqu'à N appels, de vrais jetons, et rien n'est enregistré dans la discussion ni dans l'agent.
+
+Un agent doté d'une carte Script qui manque de temps trois exécutions d'affilée dans une discussion est laissé tranquille : l'onglet Agents indique qu'il est en pause (chaque telle exécution coûterait les 2,5 secondes du script). Corrigez le script, puis appuyez sur **Run again** ; une exécution qui fonctionne met fin à la pause. Les tuiles du plateau de territoire sont des boutons : touchez-en une et sa place entre dans la zone de message (rien n'est envoyé). Une carte de liste peut aussi être réglée sur « Change an entry, or add it if there is none », pour qu'une chose dite deux fois ne remplisse pas la liste.
 
 ## Installer, autoriser, activer dans une discussion
 

@@ -92,20 +92,22 @@ describe("agent-craft recipes", () => {
       return { res, after: same(run.applyWrites(map.agent.state, own, res.writes ?? [])).own };
     };
     it("a place that is not on the map yet is added with its spot, and its name is remembered", () => {
-      const { after } = play("(none yet)", [], { place: "Harbor", x: 20, y: 70 });
+      const { after } = play("(none yet)", [], { place: "Harbor", x: 20, y: 70, spot: "20,70" });
       expect(after.places).toEqual([{ name: "Harbor", x: 20, y: 70 }]);
-      expect(after.known).toBe("(none yet); Harbor");
+      expect(after.known).toBe("(none yet); Harbor (20,70)");
       expect(after.here).toBe("Harbor");
+      // the ring sits where the model put the place now
+      expect([after.hx, after.hy]).toEqual([20, 70]);
     });
     it("a place already on the map is not added twice, whatever case the model writes", () => {
       const places = [{ name: "Harbor", x: 20, y: 70 }];
-      const { after } = play("(none yet); Harbor", places, { place: "harbor", x: 55, y: 10 });
+      const { after } = play("(none yet); Harbor (20,70)", places, { place: "harbor", x: 55, y: 10, spot: "55,10" });
       expect(after.places).toEqual(places);
       expect(after.here).toBe("harbor");
     });
     it("a spot outside the map is not drawn", () => {
-      expect(play("(none yet)", [], { place: "Moon", x: 400, y: 10 }).after.places).toEqual([]);
-      expect(play("(none yet)", [], { place: "Moon", x: 10, y: -5 }).after.places).toEqual([]);
+      expect(play("(none yet)", [], { place: "Moon", x: 400, y: 10, spot: "400,10" }).after.places).toEqual([]);
+      expect(play("(none yet)", [], { place: "Moon", x: 10, y: -5, spot: "10,-5" }).after.places).toEqual([]);
     });
     it("the map fits the template and the template draws every place, escaped", () => {
       const w = map.agent.panels[0].widgets[0];
@@ -115,13 +117,28 @@ describe("agent-craft recipes", () => {
       expect("html" in drawn && drawn.html).toContain("&lt;b&gt;Keep&lt;/b&gt;");
       expect("html" in drawn && drawn.html).toContain("Now: <b>Keep</b>");
     });
+    it("the place the story is in is ringed, and the list holds 50 places (the template draws 50)", () => {
+      const w = map.agent.panels[0].widgets[0];
+      const drawn = drawTemplate(w.template, map.agent.state, { places: [{ name: "Keep", x: 60, y: 30 }], here: "Keep", hx: 60, hy: 30 });
+      expect("html" in drawn && drawn.html).toContain('class="ring" cx="60" cy="30"');
+      expect("html" in drawn && drawTemplate(w.template, map.agent.state, { places: [], here: "", hx: -20, hy: -20 })).not.toMatchObject({ html: expect.stringContaining('class="ring"') });
+      expect(map.agent.state.places.max).toBe(50);
+    });
+    it("does not read the Dashboard: an Input that is missing makes the cards that need it skip, and the map must run without one", () => {
+      expect(map.nodes.find((n: Json) => n.id === "in").params.give).toEqual([{ id: "reply", source: "lastReply" }]);
+    });
   });
 
   describe("recipe-territory: a tile changes only when it is on the board", () => {
     const board = load("recipe-territory.vertep-agent.json");
-    const play = (answer: Json) => same(run.runAgent(board, { ...ctx, own: { tiles: [] } }, { ask: { text: JSON.stringify(answer) } })).writes ?? [];
+    const play = (answer: Json, tiles: Json[] = []) => same(run.runAgent(board, { ...ctx, own: { tiles } }, { ask: { text: JSON.stringify({ tile: `${answer.x},${answer.y}`, ...answer }) } })).writes ?? [];
     it("a tile on the board is written", () => {
-      expect(play({ kind: "claimed", x: 3, y: 4 })).toEqual([expect.objectContaining({ op: "list.add", field: "tiles", item: { x: 3, y: 4, kind: "claimed" } })]);
+      expect(play({ kind: "claimed", x: 3, y: 4 })).toEqual([expect.objectContaining({ op: "list.upsert", field: "tiles", key: "tile", id: "3,4", item: { tile: "3,4", x: 3, y: 4, kind: "claimed" } })]);
+    });
+    it("a tile said again changes its entry, it does not add one (#273)", () => {
+      const write = play({ kind: "danger", x: 3, y: 4 }, [{ tile: "3,4", x: 3, y: 4, kind: "claimed" }]);
+      const after = same(run.applyWrites(board.agent.state, { tiles: [{ tile: "3,4", x: 3, y: 4, kind: "claimed" }] }, write)).own.tiles;
+      expect(after).toEqual([{ tile: "3,4", x: 3, y: 4, kind: "danger" }]);
     });
     it("none, a column or a row off the board change nothing", () => {
       expect(play({ kind: "none", x: 3, y: 4 })).toEqual([]);

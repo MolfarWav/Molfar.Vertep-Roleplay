@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -27,6 +27,8 @@ Um perfil que joga a partir de um baralho de eventos mostra "New deck" quando o 
 ## Ao apagar ou fazer swipe em uma resposta
 
 Apague uma resposta, ou faça swipe para outra, e o DM desfaz o que aprendeu com a antiga: registros, relógios e um evento em espera voltam ao que eram, o livro de mundo é escrito de novo, e o DM relê a história a partir dali.
+
+Um evento é de uso único. O DM verifica se a história o mostrou, olhando tudo depois da resposta que o carregou, também a parte que ele já leu. Se não, o evento é enviado mais uma vez com a próxima resposta, a menos que a história já tenha se movido para outro lugar até então (um salto no tempo, uma nova cena): então ele é deixado de lado, para que um evento antigo não puxe a história de volta.
 
 Registros que você mudou à mão permanecem, a menos que o DM tenha mudado o mesmo registro depois. Um registro que você apagou continua apagado. Apagar mensagens antigas do topo, ler outros swipes de uma resposta antiga e editar o texto de uma resposta não desfazem nada.
 

@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Agentes e a forja de agentes
 
 Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -40,6 +40,8 @@ Um cartão If responde Yes, No ou Unknown conforme suas regras, e sozinho diz Ye
 ## Execução de teste
 
 A aba Try executa um turno fictício sem tocar em nada. Você muda as entradas, e os fios no quadro mostram o que se move; sem modelo, cada cartão "Ask the model" usa uma resposta de exemplo que você pode editar. Em "A real chat", escolha um chat e "Fill from this chat" para carregar o que o agente de fato receberia. "Run with the model" então pergunta ao modelo real com a pergunta real: até N chamadas, tokens reais, e nada é salvo no chat ou no agente.
+
+Um agente com um cartão Script que estoura o tempo três execuções seguidas em um chat fica em paz ali: a aba Agents diz que ele está pausado (cada execução dessas custaria os 2,5 segundos do script). Conserte o script e pressione **Run again**; uma execução que funciona encerra a pausa. As peças do quadro de território são botões: toque em uma e seu lugar vai para a caixa de mensagem (nada é enviado). Um cartão de lista também pode ser definido como "Change an entry, or add it if there is none", para que algo dito duas vezes não encha a lista.
 
 ## Instalar, permitir, ativar em um chat
 

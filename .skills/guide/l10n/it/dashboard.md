@@ -1,4 +1,4 @@
-<!-- source: fb9a5c566739 -->
+<!-- source: 8d00981bad28 -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che tiene traccia della scena: chi è presente, come ogni personaggio si sente nei tuoi confronti, cosa indossa e cosa sa, i fili narrativi aperti. È per chiunque voglia che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo di aiuto *Scene dashboard* elenca i suoi campi.
@@ -14,6 +14,8 @@ Un personaggio che è in contatto da altrove (un messaggio, una lettera, una chi
 I numeri (fiducia, comfort, attrazione, rispetto, affetto e altri) sono calcolati dal codice a partire dagli eventi che un modello segnala, e inclinati dal [[soul]] di ogni personaggio. Lo stato è mantenuto per messaggio, quindi uno swipe o un messaggio eliminato non lascia mai numeri obsoleti.
 
 Di chi è il sentimento: ogni numero è come quel personaggio sente nei confronti del *tuo* personaggio, mai il contrario. Gli eventi dietro di essi sono ciò che fa il tuo personaggio: un bacio sulla fronte o un abbraccio scaldano comfort e affection, solo un bacio romantico alza arousal. Quando un personaggio fa un torto al tuo (tradisce, mente, se ne va), è un'azione del personaggio: non viene registrata come del tuo personaggio, e al sensore viene detto di non abbassare per questo la fiducia del personaggio in te. Se un numero si muove ancora in modo sbagliato, segnalalo come issue: il modello del sensore è un modello, e uno piccolo può fraintendere una scena.
+
+**La data e un calendario tutto tuo.** L'orologio mostra una data sotto l'ora. Tocca la matita accanto per impostare la data, nasconderla o tornare a quella automatica. Per un mondo fantasy o isekai i cui mesi e anni non sono i nostri, scegli **A world with its own calendar…** in quel popover: dai un nome ai mesi e assegna a ciascuno i suoi giorni (12 mesi da 30 giorni è un tocco), aggiungi i nomi dei giorni della settimana e un'era ("AR", "of the Third Age") se vuoi, e indica la data del giorno presente della storia, in qualsiasi anno, anche prima dello zero. Da quel momento la data segue il contatore Day ("3 Frostmoon 1204 AR"), compare sull'orologio e nelle righe della scena che il modello legge, e il testo della storia non la sposta mai. **Use the real calendar** nella stessa finestra la riporta indietro.
 
 Il pulsante "Story, move" accanto a Send prepara una spinta una tantum per la prossima risposta; la sua freccia sceglie una quest aperta o un colpo di scena.
 

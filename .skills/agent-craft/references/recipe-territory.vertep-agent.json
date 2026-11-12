@@ -6,7 +6,7 @@
   "agent": {
     "formatVersion": 1,
     "id": "territory-board",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Territory board",
     "description": "Keeps a board of 8 by 6 tiles for a story that names its map squares: seen, taken, dangerous, a settlement. The board is in the floating window.",
     "author": "Molfar",
@@ -28,11 +28,12 @@
       "tiles": {
         "type": "list",
         "item": {
+          "tile": "text",
           "x": "number",
           "y": "number",
           "kind": "text"
         },
-        "max": 150
+        "max": 60
       }
     },
     "panels": [
@@ -75,7 +76,8 @@
                 "tone": "accent",
                 "mark": "⌂"
               }
-            ]
+            ],
+            "send": "We head for column {{col}}, row {{row}}."
           }
         ]
       }
@@ -105,13 +107,14 @@
       "title": "Which tile changed",
       "params": {
         "role": "fast",
-        "prompt": "The story plays on a map of 8 columns (1 to 8, from west to east) and 6 rows (1 to 6, from north to south). Did the scene below show or change one tile of that map? If yes, give its column x, its row y and its kind: explored (the heroes saw it), claimed (the heroes took it), danger (a threat sits there) or town (a settlement). Use the squares the story names. If no tile changed, kind is none. Answer with JSON only.\n\n{{reply}}",
+        "prompt": "The story plays on a map of 8 columns (1 to 8, from west to east) and 6 rows (1 to 6, from north to south). Did the scene below show or change one tile of that map? If yes, give its column x, its row y and its kind: explored (the heroes saw it), claimed (the heroes took it), danger (a threat sits there) or town (a settlement). Use the squares the story names. If no tile changed, kind is none. tile is its column and row again as text, like 3,4.\nAnswer with JSON only.\n\n{{reply}}",
         "answer": {
           "as": "json",
           "shape": {
             "kind": "enum:none|explored|claimed|danger|town",
             "x": "number",
-            "y": "number"
+            "y": "number",
+            "tile": "text"
           }
         },
         "maxTokens": 60,
@@ -185,11 +188,13 @@
       "type": "state.list",
       "x": 780,
       "y": 100,
-      "title": "Set the tile",
+      "title": "Set the tile (again, if it is there)",
       "params": {
         "field": "tiles",
-        "op": "add",
+        "op": "upsert",
+        "key": "tile",
         "item": {
+          "tile": "text",
           "x": "number",
           "y": "number",
           "kind": "text"
@@ -253,6 +258,11 @@
       "id": "e9",
       "from": "put:done",
       "to": "out:in"
+    },
+    {
+      "id": "e30",
+      "from": "ask:tile",
+      "to": "put:tile"
     }
   ]
 }

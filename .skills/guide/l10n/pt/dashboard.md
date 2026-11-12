@@ -1,4 +1,4 @@
-<!-- source: fb9a5c566739 -->
+<!-- source: 8d00981bad28 -->
 # O painel da cena
 
 O Dashboard é um painel ao lado do chat que acompanha a cena: quem está presente, como cada personagem se sente em relação a você, o que vestem e sabem, os fios da história em aberto. É para quem quer que a história lembre relacionamentos e detalhes entre respostas. O artigo de Ajuda *Scene dashboard* lista seus campos.
@@ -14,6 +14,8 @@ Um personagem que está em contato de outro lugar (uma mensagem, uma carta, uma 
 Os números (trust, comfort, attraction, respect, affection, e mais) são calculados por código a partir de eventos que um modelo relata, e ajustados pelo [[soul]] de cada personagem. O estado é mantido por mensagem, então um swipe ou uma mensagem apagada nunca deixa números desatualizados.
 
 De quem é o sentimento: cada número mostra como aquele personagem se sente em relação ao *seu* personagem, nunca o contrário. Os eventos por trás deles são o que o seu personagem faz: um beijo na testa ou um abraço aquece comfort e affection, só um beijo romântico eleva arousal. Quando um personagem faz mal ao seu (trai, mente, vai embora), esse é o ato do personagem: não é lançado como do seu personagem, e ao sensor é dito para não baixar por isso a confiança do personagem em você. Se um número ainda se move de forma errada, relate como issue: o modelo do sensor é um modelo, e um pequeno pode ler mal uma cena.
+
+**A data e um calendário só seu.** O relógio mostra uma data sob a hora. Toque no lápis ao lado dela para definir a data, escondê-la, ou voltar ao automático. Para um mundo de fantasia ou isekai cujos meses e anos não são os nossos, escolha **A world with its own calendar…** nesse popover: nomeie os meses e dê a cada um seus dias (12 meses de 30 dias é um toque), adicione nomes de dias da semana e uma era ("AR", "of the Third Age") se quiser, e diga a data do dia presente da história, em qualquer ano, também antes do zero. Depois disso a data segue o contador de dias ("3 Frostmoon 1204 AR"), aparece no relógio e nas linhas da cena que o modelo lê, e o texto da história nunca a move. **Use the real calendar** na mesma janela a traz de volta.
 
 O botão "Story, move" ao lado de Send arma um empurrão de uma vez só para a próxima resposta; sua seta escolhe uma quest em aberto ou uma reviravolta.
 

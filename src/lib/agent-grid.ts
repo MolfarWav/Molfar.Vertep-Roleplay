@@ -53,6 +53,10 @@ export function gridModel(spec: GridSpec, list: unknown): GridModel {
   return { cols, rows, tiles: [...at.entries()].sort((a, b) => a[0] - b[0]).map(([, t]) => t), legend, outside }
 }
 
+/** The text a tap on a tile puts in the message box: the widget's `send` with {{col}}, {{row}} and {{state}} filled in. */
+export const tapText = (send: string, col: number, row: number, state: string): string =>
+  send.replace(/\{\{\s*(col|row|state)\s*\}\}/g, (_, k: string) => (k === 'col' ? String(col) : k === 'row' ? String(row) : state))
+
 /** The tone classes of a tile: a soft fill and a border in one hue, readable in both themes. */
 export const TONE_CLASS: Record<string, string> = {
   ok: 'border-emerald-500/60 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',

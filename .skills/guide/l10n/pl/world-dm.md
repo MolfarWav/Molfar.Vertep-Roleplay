@@ -1,4 +1,4 @@
-<!-- source: f156e3f1ac93 -->
+<!-- source: 48bbc9815581 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -28,11 +28,13 @@ Profil, który gra z talii zdarzeń, pokazuje „New deck”, gdy talia się wyc
 
 Usuń odpowiedź albo przełącz się na inną, a DM cofa to, czego nauczył się ze starej: rekordy, zegary i czekające zdarzenie wracają do stanu sprzed niej, księga świata jest zapisywana od nowa, a DM czyta historię ponownie od tego miejsca.
 
+Zdarzenie jest jednorazowe. DM sprawdza, czy historia je pokazała, patrząc na wszystko po odpowiedzi, która je niosła, także na część, którą już przeczytał. Jeśli nie, zdarzenie jest wysyłane jeszcze raz z następną odpowiedzią, chyba że historia przeniosła się już w inne miejsce (przeskok w czasie, nowa scena): wtedy zostaje puszczone, żeby stare zdarzenie nie ciągnęło historii z powrotem.
+
 Rekordy, które zmieniłeś ręcznie, zostają, chyba że DM zmienił ten sam rekord później. Rekord, który usunąłeś, pozostaje usunięty. Usuwanie starych wiadomości od góry, czytanie innych swipe'ów starszej odpowiedzi i edycja tekstu odpowiedzi niczego nie cofają.
 
 ## Karty sekcji World
 
-Zębatka obok nagłówka listy World otwiera **World settings**, w składanych blokach jak Litopys settings: model gry (z przełącznikiem, który pozwala nadpisać go dla tego World), limit odpowiedzi i przycisk testu, model budowania, model obrazów, przełącznik teł i to, czy dostajesz informację o błędach. Złożony blok pokazuje w jednej linijce, co jest ustawione.
+Zębatka obok nagłówka listy World otwiera **World settings**, w składanych blokach jak Litopys settings: model gry (z przełącznikiem, który pozwala nadpisać go dla tego World, limit odpowiedzi i przycisk testu), model budowania, model obrazów, przełącznik teł i to, czy dostajesz informację o błędach. Złożony blok pokazuje w jednej linijce, co jest ustawione.
 
 Na wybranym czacie: Overview (te same ustawienia co arkusz), Places (drzewo miejsc, z obrazem tła dla każdego miejsca), World book (czytaj, zapisuj, wycofuj lub usuwaj rekordy ręcznie), Runs (historia, tokeny, błędy), Start (szkic rekordów z kart lub krótkiego wywiadu), Backgrounds (zaplanuj i narysuj zestaw obrazów; przy włączonym „Change the background by scene” Pulpit wybiera pasujący; przy włączonym także „Draw places that have no picture” (zawsze tam widoczne, wyszarzone, dopóki nie włączysz zmiany sceny i generowania obrazów) miejsce, do którego przenosi się historia i które nie ma obrazu, jest rysowane od razu przez model obrazów Świata i zapisywane w folderze; „Look of the pictures” w tym miejscu przyjmuje kilka angielskich słów (na przykład `medieval fantasy, candlelight`), które są dodawane do każdego tła narysowanego dla czatu, miejsca narysowanego od razu lub zestawu; arkusz Display czatu ma tu link). Także **Profiles** i **Worlds**.
 

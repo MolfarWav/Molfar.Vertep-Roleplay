@@ -150,6 +150,7 @@ const keeperCases: [string, (f: Json) => Json, string | null][] = [
   ["state field name with a space", (f) => { f.agent.state["bad name"] = { type: "flag" }; return f; }, "E_STATE_FIELD"],
   ["state.list that does not match the schema", (f) => { f.nodes.push(list({ item: { name: "text" } })); return f; }, "E_STATE_TYPE"],
   ["state.list with an unknown op", (f) => { f.nodes.push(list({ op: "wipe" })); return f; }, "E_STATE_OP"],
+  ["state.list upsert needs a key from the entry", (f) => { f.nodes.push(list({ op: "upsert", key: "nope" })); return f; }, "E_STATE_TYPE"],
   ["state.list update/remove needs a key from the entry", (f) => { f.nodes.push(list({ op: "remove", key: "nope" })); return f; }, "E_STATE_TYPE"],
   ["meter bound to a list", (f) => { panel(f).widgets[0].bind = "rooms"; return f; }, "E_BIND"],
   ["bind to a field that is not there", (f) => { panel(f).widgets[0].bind = "gold"; return f; }, "E_BIND"],

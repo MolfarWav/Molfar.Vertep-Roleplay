@@ -40,6 +40,8 @@ An If card answers Yes, No or Unknown by its rules, and on its own it says Yes o
 
 The Try tab runs one made-up turn without touching anything. You change the inputs, and the wires on the board show what moves; with no model, each "Ask the model" card uses an example answer you can edit. Under "A real chat" pick a chat and "Fill from this chat" to load what the agent would really get. "Run with the model" then asks the real model with the real question: up to N calls, real tokens, and nothing saved to the chat or the agent.
 
+An agent with a Script card that runs out of time three runs in a row in a chat is left alone there: the Agents tab says it is paused (each such run would cost the script's 2.5 seconds). Fix the script, then press **Run again**; one run that works ends the pause. The territory board's tiles are buttons: tap one and its place goes into the message box (nothing is sent). A list card can also be set to "Change an entry, or add it if there is none", so something said twice does not fill the list.
+
 ## Install, allow, switch on in a chat
 
 1. Press "Install" ("Update" for a changed copy of an installed agent; use "Edit a copy" to change one).

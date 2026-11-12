@@ -658,8 +658,8 @@ function checkStateCard(n, state, err) {
     err('E_STATE_TYPE', `"${n.title}" changes a list, but "${p.field}" is ${f.type}`, n.id);
     return;
   }
-  if (!['add', 'update', 'remove'].includes(p.op)) {
-    err('E_STATE_OP', `"${n.title}": op must be add, update or remove`, n.id);
+  if (!['add', 'update', 'upsert', 'remove'].includes(p.op)) {
+    err('E_STATE_OP', `"${n.title}": op must be add, update, upsert or remove`, n.id);
     return;
   }
   if (p.op !== 'add' && !(p.key in f.item))
@@ -1121,11 +1121,12 @@ function applyWrites(schema, own, writes) {
       if (f.type !== 'number' || !Number.isFinite(w.by)) { refused.push({ write: w, why: 'wrong type' }); continue; }
       const step = w.clamp && Number.isFinite(w.clamp.maxStep) ? Math.min(Math.abs(w.by), Math.abs(w.clamp.maxStep)) * Math.sign(w.by) : w.by;
       next[w.field] = clampTo(f, (Number.isFinite(next[w.field]) ? next[w.field] : 0) + step);
-    } else if (w.op === 'list.add' || w.op === 'list.update' || w.op === 'list.remove') {
+    } else if (w.op === 'list.add' || w.op === 'list.update' || w.op === 'list.upsert' || w.op === 'list.remove') {
       if (f.type !== 'list') { refused.push({ write: w, why: 'wrong type' }); continue; }
       const list = Array.isArray(next[w.field]) ? next[w.field] : [];
       const at = w.op === 'list.add' ? -1 : list.findIndex((e) => String(e[w.key]) === String(w.id));
-      if (w.op === 'list.add') {
+      // upsert: the entry with this key is changed, else a new one is added (a tile said again does not pile up)
+      if (w.op === 'list.add' || (w.op === 'list.upsert' && at < 0)) {
         if (list.length >= f.max) { refused.push({ write: w, why: 'list is full' }); continue; }
         list.push(w.item);
       } else if (at < 0) refused.push({ write: w, why: 'no such entry' });
@@ -1357,7 +1358,7 @@ function runCards(file, ctx, answers, seen) {
           const item = {};
           for (const k of Object.keys(f.item || {})) item[k] = f.item[k] === 'flag' ? ins[k] === 'yes' : ins[k];
           w = p.op === 'remove' ? { op: 'list.remove', field: p.field, key: p.key, id: ins.key }
-            : { op: p.op === 'update' ? 'list.update' : 'list.add', field: p.field, item, ...(p.op === 'update' ? { key: p.key, id: item[p.key] } : {}) };
+            : { op: p.op === 'update' ? 'list.update' : p.op === 'upsert' ? 'list.upsert' : 'list.add', field: p.field, item, ...(p.op === 'update' || p.op === 'upsert' ? { key: p.key, id: item[p.key] } : {}) };
         }
         if (!w || (w.op === 'own.set' && w.value === undefined)) skip();
         else { writes.push(w); out('done', true); ran({ [w.op]: w.field }); }
@@ -1850,6 +1851,20 @@ function stagedView(chat, userText) {
  * Which agents of the chat run in `phase`, and why the others do not. `manual` names one agent to run whatever its
  * trigger says. `view` is what the agents will read, `turn` the turn they belong to.
  */
+/** How many runs in a row must fail because a script was ended for taking too long before the agent is left alone (#273). */
+const SCRIPT_STUCK_RUNS = 3;
+const SCRIPT_ENDED = /did not stop in [\d.]+ s and was ended|used up their time/i;
+
+/**
+ * An agent whose last runs all failed because a Script card ran out of time: each run costs the 2.5 s the script is
+ * given and nothing would ever change, so the agent is skipped (a hand run, "Run again", goes ahead; one that works
+ * ends the streak). `runs` is the chat's run log, oldest first.
+ */
+export function scriptStuck(runs, agent) {
+  const mine = (Array.isArray(runs) ? runs : []).filter((r) => isObj(r) && r.agent === agent).slice(-SCRIPT_STUCK_RUNS);
+  return mine.length >= SCRIPT_STUCK_RUNS && mine.every((r) => r.status === "failed" && SCRIPT_ENDED.test(str(r.reason)));
+}
+
 function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, skipped) {
   const picks = [];
   const extra = phase === "after" ? 0 : 1;
@@ -1865,6 +1880,7 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
     else if (!everyNOk(withOwnEvery(agent.file.agent.trigger, ownFor(fsx, it.agent).everyN), chat.msgs, extra) || !keywordsOk(agent.file.agent.trigger, view.msgs)) { skipped.push({ agent: it.agent, why: "its trigger did not fire" }); continue; }
     const why = blocker(agent, grantedOf(fsx, it.agent), capOf(fsx, it.agent));
     if (why) { skipped.push({ agent: it.agent, why }); continue; }
+    if (!manual && scriptStuck(runs, it.agent)) { skipped.push({ agent: it.agent, why: "Paused: its script ran out of time in the last " + SCRIPT_STUCK_RUNS + " runs. Fix the script, then press Run again" }); continue; }
     if (!manual && runs.some((r) => r.agent === it.agent && r.key === turn.key && r.status !== "failed")) { skipped.push({ agent: it.agent, why: phase === "after" ? "already ran for this reply" : "already ran for this message" }); continue; }
     picks.push({ item: it, agent });
   }

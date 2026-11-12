@@ -1,4 +1,4 @@
-<!-- source: fb9a5c566739 -->
+<!-- source: 8d00981bad28 -->
 # Het scherm Dashboard
 
 Het Dashboard is een paneel naast de chat dat de scène bijhoudt: wie er aanwezig is, hoe elk personage jou vindt, wat ze dragen en weten, de open verhaallijnen. Het is voor iedereen die wil dat het verhaal relaties en details tussen antwoorden onthoudt. Het Help-artikel *Scene dashboard* somt de velden ervan op.
@@ -14,6 +14,8 @@ Een personage dat van elders contact heeft (een bericht, een brief, een telefoon
 De getallen (vertrouwen, comfort, aantrekking, respect, genegenheid, en meer) worden door code berekend uit gebeurtenissen die een model meldt, en bijgesteld door de [[soul]] van elk personage. De toestand wordt per bericht bewaard, zodat een swipe of een verwijderd bericht nooit verouderde getallen achterlaat.
 
 Wiens gevoel het is: elk getal is hoe dat personage over *jouw* personage denkt, nooit andersom. De gebeurtenissen erachter zijn wat jouw personage doet: een kus op het voorhoofd of een knuffel verwarmt comfort en affection, alleen een romantische kus verhoogt arousal. Wanneer een personage jouw personage iets aandoet (vreemdgaat, liegt, weggaat), is dat de daad van het personage: het wordt niet op de rekening van jouw personage geboekt, en de sensor krijgt de opdracht om het vertrouwen van het personage in jou er niet om te verlagen. Als een getal nog steeds verkeerd beweegt, meld het als issue: het sensormodel is een model, en een klein model kan een scène verkeerd lezen.
+
+**De datum en een eigen kalender.** De klok toont een datum onder de tijd. Tik op het potlood ernaast om de datum in te stellen, te verbergen of terug te gaan naar automatisch. Kies voor een fantasy- of isekaiwereld waarvan de maanden en jaren niet de onze zijn **A world with its own calendar…** in dat popover: noem de maanden en geef elke maand zijn dagen (12 maanden van 30 dagen is één tik), voeg namen van weekdagen en een era toe ("AR", "of the Third Age") als je wilt, en zeg de datum van de huidige dag van het verhaal, in welk jaar dan ook, ook voor nul. Daarna volgt de datum de Day-teller ("3 Frostmoon 1204 AR"), verschijnt op de klok en in de scèneregels die het model leest, en de verhaaltekst verzet hem nooit. **Use the real calendar** in hetzelfde venster zet het terug.
 
 De knop "Story, move" naast Send zet een eenmalig duwtje klaar voor het volgende antwoord; de pijl kiest een open quest of een twist.
 

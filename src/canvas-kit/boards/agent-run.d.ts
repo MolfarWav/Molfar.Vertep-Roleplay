@@ -17,6 +17,7 @@ export type Write =
   | { op: 'own.add'; field: string; by: number; clamp?: { maxStep?: number } }
   | { op: 'list.add'; field: string; item: Record<string, unknown> }
   | { op: 'list.update'; field: string; key: string; id: unknown; item: Record<string, unknown> }
+  | { op: 'list.upsert'; field: string; key: string; id: unknown; item: Record<string, unknown> }
   | { op: 'list.remove'; field: string; key: string; id: unknown }
 
 export type AgentOutput =

@@ -425,7 +425,7 @@ function checkScript(n, err) {
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' };
 /** The `grid` widget: a board of cols x rows tiles, each tile coloured by a state kept in a list (docs/DATA-FORMATS.md, "Agents"). */
 export const GRID_TONES = ['ok', 'info', 'warn', 'bad', 'accent', 'muted'];
-export const GRID_LIMITS = { size: 16, legend: 8 };
+export const GRID_LIMITS = { size: 16, legend: 8, send: 200 };
 export const PANEL_PLACES = ['top1', 'top2', 'float'];
 const TPL_TAGS = /<\s*(script|iframe|object|embed|link|meta|base|form|frame|frameset|applet|foreignobject)\b/i;
 const TPL_BAD = [
@@ -511,6 +511,15 @@ function checkGrid(w, field, where, err) {
     err('E_BIND', `${where}: grid needs x and y, two different number fields of the entries of "${w.bind}"`);
   if (!named('cell', 'text'))
     err('E_BIND', `${where}: grid needs cell, a text field of the entries of "${w.bind}" that holds the tile's state`);
+  // `send`: a tap on a tile puts this text in the message box (nothing is sent); slots {{col}}, {{row}} and {{state}} (#273)
+  if (w.send !== undefined) {
+    if (typeof w.send !== 'string' || !w.send.trim() || w.send.length > GRID_LIMITS.send)
+      err('E_WIDGET', `${where}: send is text of 1-${GRID_LIMITS.send} characters`);
+    else {
+      const bad = [...w.send.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)].map((m) => m[1]).filter((s) => !['col', 'row', 'state'].includes(s));
+      if (bad.length) err('E_WIDGET', `${where}: send may use only the slots {{col}}, {{row}} and {{state}}, not {{${bad[0]}}}`);
+    }
+  }
   const legend = w.legend;
   if (!Array.isArray(legend) || !legend.length || legend.length > GRID_LIMITS.legend) {
     err('E_WIDGET', `${where}: grid needs a legend of 1-${GRID_LIMITS.legend} states`);
@@ -656,8 +665,8 @@ function checkStateCard(n, state, err) {
     err('E_STATE_TYPE', `"${n.title}" changes a list, but "${p.field}" is ${f.type}`, n.id);
     return;
   }
-  if (!['add', 'update', 'remove'].includes(p.op)) {
-    err('E_STATE_OP', `"${n.title}": op must be add, update or remove`, n.id);
+  if (!['add', 'update', 'upsert', 'remove'].includes(p.op)) {
+    err('E_STATE_OP', `"${n.title}": op must be add, update, upsert or remove`, n.id);
     return;
   }
   if (p.op !== 'add' && !(p.key in f.item))

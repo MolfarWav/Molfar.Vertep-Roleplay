@@ -6,6 +6,7 @@ import { ageSeconds, formatStoryDate, type Clock, type DashChar, type DashView }
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
+import { CalendarDialog } from '@/components/dashboard/calendar-dialog'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useLang } from '@/components/dashboard/use-lang'
 import { useT } from '@/hooks/use-t'
@@ -80,7 +81,7 @@ export function SceneBlock({ clock, calendar, weatherSize = 52 }: { clock: Clock
   const lang = useLang()
   if (!clock) return null
   const band = clock.band ? tx('dash.band', clock.band) : null
-  const date = clock.date ? formatStoryDate(clock.date, lang) : null
+  const date = clock.dateText ? clock.dateText : clock.date ? formatStoryDate(clock.date, lang) : null
   const hasWeather = !!clock.weather?.trim()
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -122,18 +123,25 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
   const dash = useDashMaybe()
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  const [own, setOwn] = useState(false)
+  const [pop, setPop] = useState(false)
   if (!dash || !calendar) return null
   const hidden = calendar.off
-  const run = async (body: { date?: string | null; off?: boolean }) => {
+  const custom = calendar.custom ?? null
+  const run = async (body: Parameters<typeof dash.setCalendar>[0]): Promise<boolean> => {
     setBusy(true)
     try {
-      await dash.setCalendar(body)
+      return await dash.setCalendar(body)
     } finally {
       setBusy(false)
     }
   }
   return (
-    <Popover onOpenChange={(open) => { if (open) setDraft(clock.date ?? '') }}>
+    <>
+    <CalendarDialog open={own} onOpenChange={setOwn} current={custom} today={calendar.today ?? null} busy={busy}
+      onSave={(c, present) => void run({ custom: c, present }).then((done) => { if (done) setOwn(false) })}
+      onReal={() => void run({ custom: null }).then((done) => { if (done) setOwn(false) })} />
+    <Popover open={pop} onOpenChange={(open) => { setPop(open); if (open) setDraft(clock.date ?? '') }}>
       <PopoverTrigger
         render={
           <button
@@ -152,7 +160,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
           <p className="text-sm font-medium">{t('dash.date.title')}</p>
           <p className="text-muted-foreground">{t(`dash.date.from.${calendar.source}` as MsgKey)}</p>
         </div>
-        {!hidden && (
+        {!hidden && !custom && (
           <div className="flex flex-col gap-1.5">
             <label htmlFor="dash-date-input" className="font-medium">{t('dash.date.today')}</label>
             <div className="flex gap-2">
@@ -170,12 +178,17 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
             <p className="text-muted-foreground">{t('dash.date.hint')}</p>
           </div>
         )}
+        <button type="button" onClick={() => { setPop(false); setOwn(true) }} data-testid="dash-calendar-own"
+          className="flex min-h-10 w-full flex-col items-start gap-0.5 rounded-md border border-border px-2.5 py-1.5 text-left hover:bg-muted">
+          <span className="text-sm font-medium">{custom ? t('dash.cal.edit') : t('dash.cal.open')}</span>
+          <span className="text-muted-foreground">{custom ? t('dash.cal.summary', { n: custom.months.length, era: custom.era ?? '' }) : t('dash.cal.openHint')}</span>
+        </button>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className="flex items-center gap-2 font-medium max-md:min-h-10">
             <Switch checked={!hidden} onCheckedChange={(on) => void run({ off: !on })} disabled={busy} />
             {t('dash.date.show')}
           </label>
-          {calendar.source === 'user' && !hidden && (
+          {calendar.source === 'user' && !hidden && !custom && (
             <Button variant="ghost" size="sm" className="h-8 max-md:h-10" disabled={busy} onClick={() => void run({ date: null })}>
               {t('dash.date.auto')}
             </Button>
@@ -183,6 +196,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
         </div>
       </PopoverContent>
     </Popover>
+    </>
   )
 }
 

@@ -6,9 +6,9 @@
   "agent": {
     "formatVersion": 1,
     "id": "story-map",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "name": "Story map",
-    "description": "Draws a map of the places the story visits. A new place gets a spot on the map, and the map is in the floating window.",
+    "description": "Draws a map of the places the story visits. A new place gets a spot on the map, the place the story is in now is ringed, and the map is in the floating window.",
     "author": "Molfar",
     "trigger": {
       "when": "after",
@@ -32,7 +32,7 @@
           "x": "number",
           "y": "number"
         },
-        "max": 24
+        "max": 50
       },
       "known": {
         "type": "text",
@@ -40,6 +40,18 @@
       },
       "here": {
         "type": "text"
+      },
+      "hx": {
+        "type": "number",
+        "min": -20,
+        "max": 120,
+        "start": -20
+      },
+      "hy": {
+        "type": "number",
+        "min": -20,
+        "max": 120,
+        "start": -20
       }
     },
     "panels": [
@@ -51,7 +63,7 @@
           {
             "w": "html",
             "height": 340,
-            "template": "<style>\nsvg{display:block;width:100%;height:auto}\n.sea{fill:rgba(127,127,127,.14)}\n.grid{stroke:rgba(127,127,127,.38);stroke-width:.25;fill:none}\n.pin{fill:#8b5cf6;stroke:Canvas;stroke-width:.8}\n.name{font:5px system-ui,sans-serif;fill:CanvasText;text-anchor:middle;paint-order:stroke;stroke:Canvas;stroke-width:1.2px;stroke-linejoin:round}\n.dir{font:4.4px system-ui,sans-serif;fill:CanvasText;opacity:.6;text-anchor:middle}\n.now{margin:6px 0 0;font-size:12px}\n</style>\n<svg viewBox=\"-20 -9 140 122\" role=\"img\" aria-label=\"Map\">\n<rect class=\"sea\" x=\"0\" y=\"0\" width=\"100\" height=\"100\" rx=\"2\"/>\n<path class=\"grid\" d=\"M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100\"/>\n<text class=\"dir\" x=\"50\" y=\"-3\">N</text><text class=\"dir\" x=\"50\" y=\"107\">S</text>\n<text class=\"dir\" x=\"-9\" y=\"52\">W</text><text class=\"dir\" x=\"109\" y=\"52\">E</text>\n{{#each places}}<circle class=\"pin\" cx=\"{{x}}\" cy=\"{{y}}\" r=\"2\"/><text class=\"name\" x=\"{{x}}\" y=\"{{y}}\" dy=\"7.5\">{{name}}</text>{{/each}}\n</svg>\n<p class=\"now\">{{#if here}}Now: <b>{{here}}</b>{{/if}}</p>"
+            "template": "<style>\nsvg{display:block;width:100%;height:auto}\n.sea{fill:rgba(127,127,127,.14)}\n.grid{stroke:rgba(127,127,127,.38);stroke-width:.25;fill:none}\n.pin{fill:#8b5cf6;stroke:Canvas;stroke-width:.8}\n.name{font:5px system-ui,sans-serif;fill:CanvasText;text-anchor:middle;paint-order:stroke;stroke:Canvas;stroke-width:1.2px;stroke-linejoin:round}\n.dir{font:4.4px system-ui,sans-serif;fill:CanvasText;opacity:.6;text-anchor:middle}\n.ring{fill:none;stroke:#f59e0b;stroke-width:1.3}\n.now{margin:6px 0 0;font-size:12px}\n</style>\n<svg viewBox=\"-20 -9 140 122\" role=\"img\" aria-label=\"Map\">\n<rect class=\"sea\" x=\"0\" y=\"0\" width=\"100\" height=\"100\" rx=\"2\"/>\n<path class=\"grid\" d=\"M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100\"/>\n<text class=\"dir\" x=\"50\" y=\"-3\">N</text><text class=\"dir\" x=\"50\" y=\"107\">S</text>\n<text class=\"dir\" x=\"-9\" y=\"52\">W</text><text class=\"dir\" x=\"109\" y=\"52\">E</text>\n{{#each places}}<circle class=\"pin\" cx=\"{{x}}\" cy=\"{{y}}\" r=\"2\"/><text class=\"name\" x=\"{{x}}\" y=\"{{y}}\" dy=\"7.5\">{{name}}</text>{{/each}}\n{{#if here}}<circle class=\"ring\" cx=\"{{hx}}\" cy=\"{{hy}}\" r=\"4.6\"/>{{/if}}\n</svg>\n<p class=\"now\">{{#if here}}Now: <b>{{here}}</b>{{/if}}</p>"
           }
         ]
       }
@@ -92,13 +104,14 @@
       "title": "Where are we",
       "params": {
         "role": "fast",
-        "prompt": "You keep the map of a story. Places already on it: {{known}}.\nRead the scene below. Name the place where it happens now, in one to three words. If it is one of the places above, use the same name.\nThen say where that place lies on a map 100 wide and 100 tall: x runs from 0 in the west to 100 in the east, y from 0 in the north to 100 in the south. Put it near the places it connects to.\nAnswer with JSON only.\n\n{{reply}}",
+        "prompt": "You keep the map of a story. Places already on it, each with its spot: {{known}}.\nRead the scene below. Name the place where it happens now, in one to three words. If it is one of the places above, use the same name, and the same x and y as listed.\nThen say where that place lies on a map 100 wide and 100 tall: x runs from 0 in the west to 100 in the east, y from 0 in the north to 100 in the south. Put a new place near the places it connects to.\nspot is x and y again as text, like 20,70.\nAnswer with JSON only.\n\n{{reply}}",
         "answer": {
           "as": "json",
           "shape": {
             "place": "text",
             "x": "number",
-            "y": "number"
+            "y": "number",
+            "spot": "text"
           }
         },
         "maxTokens": 80,
@@ -202,7 +215,7 @@
       "y": 240,
       "title": "Places, with the new one",
       "params": {
-        "text": "{{known}}; {{place}}"
+        "text": "{{known}}; {{place}} ({{spot}})"
       }
     },
     {
@@ -230,12 +243,34 @@
     {
       "id": "out",
       "type": "agent.output",
-      "x": 1300,
+      "x": 1820,
       "y": 400,
       "title": "Output",
       "params": {
         "kind": "state-patch",
         "show": "float"
+      }
+    },
+    {
+      "id": "ringx",
+      "type": "state.set",
+      "x": 1300,
+      "y": 400,
+      "title": "Ring: column",
+      "params": {
+        "field": "hx",
+        "as": "number"
+      }
+    },
+    {
+      "id": "ringy",
+      "type": "state.set",
+      "x": 1560,
+      "y": 400,
+      "title": "Ring: row",
+      "params": {
+        "field": "hy",
+        "as": "number"
       }
     }
   ],
@@ -316,9 +351,34 @@
       "to": "now:value"
     },
     {
-      "id": "e16",
+      "id": "e19",
       "from": "now:done",
+      "to": "ringx:when"
+    },
+    {
+      "id": "e20",
+      "from": "ask:x",
+      "to": "ringx:value"
+    },
+    {
+      "id": "e21",
+      "from": "ringx:done",
+      "to": "ringy:when"
+    },
+    {
+      "id": "e22",
+      "from": "ask:y",
+      "to": "ringy:value"
+    },
+    {
+      "id": "e23",
+      "from": "ringy:done",
       "to": "out:in"
+    },
+    {
+      "id": "e30",
+      "from": "ask:spot",
+      "to": "names:spot"
     }
   ]
 }

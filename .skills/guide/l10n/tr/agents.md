@@ -1,4 +1,4 @@
-<!-- source: ec7d17369d16 -->
+<!-- source: 3036f6063dc6 -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -40,6 +40,8 @@ Bir If kartı, kurallarına göre Yes, No ya da Unknown yanıtı verir ve kendi 
 ## Deneme çalıştırması
 
 Try sekmesi hiçbir şeye dokunmadan uydurma bir tur çalıştırır. Girdileri değiştirirsiniz; panodaki teller neyin hareket ettiğini gösterir. Model yoksa her "Ask the model" kartı düzenleyebileceğiniz bir örnek yanıt kullanır. "A real chat" altında bir sohbet seçin ve ajanın gerçekten alacağı şeyi yüklemek için "Fill from this chat"e basın. "Run with the model" gerçek soruyu gerçek modele sorar: en fazla N çağrı, gerçek token; sohbete ya da ajana hiçbir şey kaydedilmez.
+
+Bir sohbette üst üste üç çalıştırmada zaman aşımına uğrayan bir Script kartı olan ajan o sohbette kendi hâline bırakılır: Agents sekmesi onun duraklatıldığını söyler (böyle her çalıştırma scriptin 2,5 saniyesine mal olur). Scripti düzeltin, sonra **Run again**e basın; çalışan tek bir çalıştırma duraklamayı bitirir. Territory board'un karoları düğmedir: birine dokunun, yeri mesaj kutusuna girer (hiçbir şey gönderilmez). Bir liste kartı ayrıca "Change an entry, or add it if there is none" olarak ayarlanabilir, böylece iki kez söylenen bir şey listeyi doldurmaz.
 
 ## Kurun, izin verin, bir sohbette açın
 

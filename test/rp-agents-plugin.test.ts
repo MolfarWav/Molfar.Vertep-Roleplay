@@ -89,6 +89,22 @@ beforeEach(() => {
 });
 afterEach(() => { try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* watcher races */ } });
 
+describe("a script that always runs out of time (#273)", () => {
+  const ended = { agent: "a", status: "failed", reason: 'The script of "Count" failed: the script did not stop in 2.5 s and was ended' };
+  const ok = { agent: "a", status: "ok" };
+  it("is left alone after three such runs in a row, and a run that works ends it", () => {
+    expect(plugin.scriptStuck([ended, ended, ended], "a")).toBe(true);
+    expect(plugin.scriptStuck([ended, ended], "a")).toBe(false);
+    expect(plugin.scriptStuck([ended, ended, ok, ended, ended], "a")).toBe(false);
+    expect(plugin.scriptStuck([ended, ended, ended, ok], "a")).toBe(false);
+    // other agents' runs do not count, nor do other failures
+    expect(plugin.scriptStuck([ended, { agent: "b", status: "ok" }, ended, ended], "a")).toBe(true);
+    expect(plugin.scriptStuck([ended, ended, { agent: "a", status: "failed", reason: "the model sent no answer" }], "a")).toBe(false);
+    expect(plugin.scriptStuck([{ ...ended, reason: "the scripts of this run used up their time" }, ended, ended], "a")).toBe(true);
+    expect(plugin.scriptStuck(undefined as never, "a")).toBe(false);
+  });
+});
+
 describe("install and permissions", () => {
   it("installs a checked file, keeps it compiled, and waits for the user to confirm the permissions", () => {
     const r = j("/agents/install", "PUT", { file: copy(keeper) });
