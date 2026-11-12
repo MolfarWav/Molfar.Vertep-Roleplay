@@ -226,3 +226,29 @@ describe("the engine and Litopys hash a prompt message the same way", () => {
     expect(engine).toContain("promptHash(h.role, h.content)");
   });
 });
+
+describe("the viewpoint character is the speaker (#392)", () => {
+  it("reads the name from the stage direction block of the newest turn", () => {
+    const sys = { role: "system", content: "[Stage directions, an out-of-character instruction.\n- Continue the story from Alice's point of view.]" };
+    expect(L.povNameOf([{ role: "user", content: "hi" }, sys])).toBe("Alice");
+    expect(L.povNameOf([{ role: "user", content: "text\n\nStage directions for this reply:\n- Continue the story from Влад's point of view." }])).toBe("Влад");
+    expect(L.povNameOf([{ role: "user", content: "hi" }])).toBe("");
+    expect(L.povNameOf([sys, ...Array.from({ length: 4 }, () => ({ role: "user", content: "later" }))])).toBe("");
+    expect(L.povNameOf(null)).toBe("");
+  });
+
+  it("a narrator chat with no sole voice still cuts a scene the viewpoint character missed", () => {
+    // every message is the narrator card's: no speaker name to cut for, only the viewpoint name
+    const msgs: Msg[] = [
+      U("m1", "Jude knocks."),
+      C("m2", "Narrator", "Bram is alone in the lab and hides the key in his bag."),
+      U("m3", "Jude goes to the hall."),
+      C("m4", "Narrator", "Aria waits in the hall."),
+      U("m5", "Continue."),
+    ];
+    const r = run("Aria", {}, msgs, { m2: ["Bram"], m4: ["Aria", "Jude"] });
+    expect(r.cut).toBeGreaterThan(0);
+    expect(JSON.stringify(r.messages)).not.toContain("hides the key");
+    expect(JSON.stringify(r.messages)).toContain("Aria was not here");
+  });
+});

@@ -178,10 +178,12 @@ const EVENT_ROWS = [
   ["power", "taught_her", "taught or showed them how to do something", { respect: 1, trust: 1 }],
   ["power", "acted_cowardly", "froze or fled when they needed help", { respect: -3, trust: -1 }],
   ["power", "stood_ground", "held their ground or set a calm boundary", { respect: 2 }],
-  ["body", "gentle_touch", "wanted, gentle touch", { comfort: 1, attraction: 1, arousal: 6 }],
+  ["body", "gentle_touch", "wanted, gentle touch", { comfort: 1, attraction: 1, arousal: 3 }],
   ["body", "unwanted_touch", "touch they did not want", { comfort: -4, trust: -2, hostility: 3 }],
   ["body", "flirt", "flirted with them", { attraction: 1, excitement: 6, arousal: 4 }],
-  ["body", "kiss", "kissed (welcome)", { attraction: 2, affection: 1, arousal: 12 }],
+  ["body", "kiss", "kissed on the lips or romantically (welcome)", { attraction: 2, affection: 1, arousal: 12 }],
+  ["body", "tender_kiss", "kissed forehead, cheek or hand (tender)", { affection: 2, comfort: 1 }],
+  ["body", "hug", "hugged or held them (not romantic)", { comfort: 2, affection: 1 }],
   ["body", "intimacy", "intimate moment (welcome)", { attraction: 2, comfort: 1, arousal: 20 }],
   ["body", "rejected_advance", "turned down their romantic or sexual advance", { comfort: -2, affection: -1 }],
   ["conflict", "raised_voice", "shouted, at them or near them", { comfort: -3 }],
@@ -632,6 +634,12 @@ export const JOURNAL_THOUGHT_RULE =
 export const JOURNAL_PEOPLE_RULE =
   "- people: when the new messages change how a present character sees someone (another character, or the user's character), one short line in first person, " + JOURNAL_LANGUAGE + ", on how they see that person now, with the reason the text shows. Only a real change; most turns have none; at most 2 per turn. It replaces their earlier line about that person. Written from the character's own values, not from what the user's character would like.";
 
+// What counts as an event (#394): only the user's character's deeds, and the kind of contact by what the text shows.
+const EVENT_DEEDS_RULE =
+  "- Events are only what the user's character does. When a character wrongs the user's character (cheats on them, lies to them, leaves them, betrays them), that is the character's deed: never report it as an event of the user's character, and the character's trust in the user must not fall for it. Show it in that character's mood, or use \"other\".";
+const EVENT_CONTACT_RULE =
+  "- Pick a contact event by what the text shows. A kiss on the forehead, cheek or hand, or a quick friendly one is \"tender_kiss\"; \"kiss\" is only a romantic kiss; a hug or being held is \"hug\". Never use a romantic or sexual event for tender or friendly contact.";
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -648,6 +656,8 @@ export const DEFAULT_PROMPTS = {
     "Events:",
     "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
     "- Between two other characters, name no event: describe it in \"edges\".",
+    EVENT_DEEDS_RULE,
+    EVENT_CONTACT_RULE,
     "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
     "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
     "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
@@ -714,8 +724,10 @@ export const DEFAULT_PROMPTS = {
   fast:
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
+// The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
+const SENSOR_PROMPT_20 = DEFAULT_PROMPTS.sensor.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
 // The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
-const SENSOR_PROMPT_19 = DEFAULT_PROMPTS.sensor.replace(LAYOUT_RULE, LAYOUT_RULE_19);
+const SENSOR_PROMPT_19 = SENSOR_PROMPT_20.replace(LAYOUT_RULE, LAYOUT_RULE_19);
 // The eighteenth sensor prompt (before things got registry ids that follow them between hands and the floor: i1 per character, objects as words).
 const SENSOR_PROMPT_18 = SENSOR_PROMPT_19.replace(OUTFIT_RULE, OUTFIT_RULE_18).replace(LAYOUT_RULE_19, LAYOUT_RULE_18);
 // The sixteenth sensor prompt (before the character journal: a thought per present character and the people lines, Dashboard).
@@ -785,7 +797,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)

@@ -58,7 +58,7 @@ export function ScenesCard({ chat, onRefresh }: { chat: LitChat; onRefresh: () =
           ? t('scene.card.failed')
           : sug.free === 0
             ? t('scene.card.allDone')
-            : t('scene.card.free', { n: sug.free, total: chat.messages })
+            : t('scene.card.free', { n: sug.free, done: Math.max(0, chat.messages - sug.free), total: chat.messages })
 
   return (
     <div data-testid="scenes-card" className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">

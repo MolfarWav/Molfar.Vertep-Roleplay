@@ -3276,6 +3276,25 @@ export function promptHash(role, content) {
  * match): that would hide a whole story. The messages are the request's own; `hist` is what the engine wrote for the prompt
  * (`prompt-cut` `hist`: `[{ id, h }]`). Returns `{ messages, cut, runs: [{ n, near }] }`, or `{ reason }` when it did nothing.
  */
+/**
+ * The character a reply is to be written from (#392): the name in "Continue the story from <name>'s point of view." (the
+ * composer's "Continue from someone's view", src/lib/pov.ts). The engine cuts the [[brackets]] out of the message and sends the
+ * direction as a block with the newest turn (a system message or inside the user's, by the preset), so the last few messages of
+ * the request are searched, newest first. "" when there is none. Only that sentence counts: a hand-written "OOC: Pov Alice" is
+ * the model's to read.
+ */
+export function povNameOf(messages) {
+  if (!Array.isArray(messages)) return "";
+  const tail = messages.slice(-4);
+  for (let i = tail.length - 1; i >= 0; i--) {
+    const m = tail[i];
+    if (!m || typeof m.content !== "string") continue;
+    const hit = /Continue the story from (.{1,60}?)'s point of view\./.exec(m.content);
+    if (hit) return hit[1].trim();
+  }
+  return "";
+}
+
 export function presenceCutFor({ messages, hist, line, dash, speakerName, voices, canon }) {
   if (!Array.isArray(messages) || !Array.isArray(hist) || !hist.length) return { reason: "no prompt record" };
   if (!Array.isArray(line) || !line.length || !isObj(dash) || !isObj(dash.snapshots)) return { reason: "no snapshots" };
@@ -3534,16 +3553,19 @@ export function llmRequest(ctx, host) {
     if (castKn && cfg.hiddenPlan === true && PLAN_OPS.includes(str(ctx.turn.op))) plan = hiddenPlanNote();
     // #289: the recent messages this speaker was not present for leave the history (a group's replies by default)
     let presence = null;
-    if (cfg.presenceCut !== "off" && (cfg.presenceCut === "all" || str(rc.meta.groupId)) && !offForChat(fsx, chatId, "plugin:presence")) {
+    // #392: "Continue from someone's view" names the character the reply is written from; that name is the speaker here
+    // (a narrator card has no sole voice, so the cut had nobody to work for), in any chat
+    const pov = povNameOf(req.messages);
+    if (cfg.presenceCut !== "off" && (pov || cfg.presenceCut === "all" || str(rc.meta.groupId)) && !offForChat(fsx, chatId, "plugin:presence")) {
       try {
-        const sole = soleVoice(fsx, rc.meta, speakerName);
+        const sole = pov ? new Set([pov]) : soleVoice(fsx, rc.meta, speakerName);
         const rec = readJson(fsx, "litopys/prompt-cut/" + chatId + ".json", null);
         presence = presenceCutFor({
           messages: req.messages,
           hist: isObj(rec) ? rec.hist : null,
           line,
           dash: readDash(fsx, chatId),
-          speakerName,
+          speakerName: pov || speakerName,
           voices: sole,
           canon: litCanon(fsx, chatId, rc.meta),
         });
@@ -4549,7 +4571,10 @@ function splitWrite(fsx, dir, name, raw, field, prep) {
   }
 }
 
-/** Move one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it moved. */
+/**
+ * Copy one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it was copied. The old files stay:
+ * a removal travels through the sync, and a device that had not updated yet lost its vectors that way and embedded everything again (#389).
+ */
 function adoptLegacy(fsx, legacyDir, dir, name) {
   let main = null;
   try {
@@ -4568,11 +4593,6 @@ function adoptLegacy(fsx, legacyDir, dir, name) {
     fsx.write(dir + name + ".json", main); // the main file last: with it there, the move is whole
   } catch {
     return false;
-  }
-  for (const f of [name + ".json", ...parts]) {
-    try {
-      fsx.remove(legacyDir + f);
-    } catch {}
   }
   return true;
 }

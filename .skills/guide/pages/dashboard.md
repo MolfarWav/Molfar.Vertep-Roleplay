@@ -12,6 +12,8 @@ A character who is in touch from elsewhere (a text, a letter, a call, a video) i
 
 The numbers (trust, comfort, attraction, respect, affection, and more) are worked out by code from events a model reports, and tilted by each character's [[soul]]. The state is kept per message, so a swipe or a deleted message never leaves stale numbers.
 
+Whose feeling is it: each number is how that character feels about *your* character, never the other way round. The events behind them are what your character does: a kiss on the forehead or a hug warms comfort and affection, only a romantic kiss raises arousal. When a character wrongs your character (cheats, lies, leaves), that is the character's deed: it is not booked as your character's, and the sensor is told not to lower the character's trust in you for it. If a number still moves wrongly, report it as an issue: the sensor model is a model, and a small one can misread a scene.
+
 The "Story, move" button next to Send arms a one-time nudge for the next reply; its arrow picks an open quest or a twist.
 
 ## What changed, in the chat

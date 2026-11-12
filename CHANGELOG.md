@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **an update no longer wipes the vectors of your other device (Molfar.Vertep#389).** 4.112.0 moved the vectors into the device's own cache and deleted the old synced files; that deletion travelled through the sync, so a device that had not updated yet lost its vectors and showed "Embedding: 0 of 65". The old files are now copied and left alone.
+- Fixed: **a reply written from someone's view no longer knows what a scene without them hid (Molfar.Vertep#392).** "Continue from someone's view" now also tells the memory plugin whose view it is, so the recent messages that character was not present for are replaced by a "was not here" line in any chat, a narrator card included (before, only a one-voice group reply was cut). A hand-written "OOC: Pov Alice" is not recognised; use the menu.
+- Changed: **Dashboard: kinds of kiss, and whose deed an event is (Molfar.Vertep#394).** New events `tender_kiss` (forehead, cheek, hand) and `hug` raise no arousal; `kiss` is romantic only; a gentle touch gives 3 arousal instead of 6. The sensor is told that events are only the user's character's deeds and that a character cheating on or lying to the user's character is not one of them. The guide's Dashboard page says whose feeling each number is. Not checked with a real model.
+- Changed: **the Scenes card says it the other way round (Molfar.Vertep#389 thread):** "58 of 59 messages are already in scenes (the chapters below); 1 not yet" instead of "1 of 59 messages are in no scene yet", which read as if nothing was in a scene.
+- Changed: **the engine plugin may take up to 30 s for a read** (`limits.executionMs` in its manifest, the engine's default is 10 s), so `GET /bootstrap` of a long chat in a big library does not time out on a slow phone (Molfar.Vertep#391). Needs an engine that knows the field; an older engine keeps 10 s.
+
 ## 4.114.0 (2026-11-12)
 
 - Added: **Continue from someone's view.** The chat's "+" menu has a submenu that lists the characters (the Dashboard's people, the ones in the scene first, then the chat's card or group members) and sends a stage direction alone, "Continue the story from <name>'s point of view": the next reply follows that character once the persona and the others have split up. "Someone else..." types the direction into the box. Nothing is said in the story and no turn of yours is added.
