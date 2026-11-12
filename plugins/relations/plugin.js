@@ -605,6 +605,28 @@ const QUEST_RULES = [
   "- Give each new thread a kind: main (what the story is about now), side (an optional line the story could drop) or everyday (a small errand or chore of the moment, gone in a few turns). Kept threads keep their kind.",
   "- A concrete next step of a main thread is a new thread with parent set to that main thread's id. Only main threads have steps.",
 ];
+// How quests close (#400): a quest carries a "done when", and every turn each open one is checked: done, failed, or
+// dropped (its scene is over, nobody pursues it). The rules before said "silence is not resolution", and a quest settled
+// in two turns stayed open for forty. Measured on three real chats with the turn director bench (#401, scripts/director-bench.ts,
+// "QUESTS_V2"): more quests close on the turn the story settles them, at no extra cost. Code keeps the "done when" apart
+// from the text (splitDone), so the Quests box shows the goal alone and the sensor reads both.
+const QUEST_RULES_2 = [
+  "- Keep open threads, up to the open thread limits given in the input: goals and unanswered questions with stakes that drive the story. A question, greeting or order with nothing at stake is not a thread.",
+  QUEST_RULES[1],
+  QUEST_RULES[2],
+  '- Write a new thread\'s text as the goal, then " | done when: " and the condition that ends it, both short ("Mira gets the stolen key back | done when: the key is in her hands or it is destroyed").',
+  "- Every turn, check every open thread against the new messages and resolve it when: its done-when happened (done); it can no longer happen (failed); or the story moved past it (dropped): the scene it belonged to is over, the people it needs left, or nobody pursues it any more. A thread tied to one scene ends with that scene.",
+  "- When a limit is full, first resolve the threads that are done, failed or dropped; only then open a new one.",
+  '- Give the id of every thread you close in "resolved". In "open", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.',
+];
+// the Threads block of the twenty-first sensor prompt and every one since quests (#117), before the closing rules of #400
+const THREADS_BLOCK_21 = [
+  "Threads:",
+  ...QUEST_RULES,
+  "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
+  "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
+  "- In \"open\", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.",
+].join("\n");
 // the wording before quests: one limit, no kinds
 const THREADS_RULE_14 = "- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.";
 
@@ -689,10 +711,7 @@ export const DEFAULT_PROMPTS = {
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
     "",
     "Threads:",
-    ...QUEST_RULES,
-    "- Never drop one to make room for a new one. Silence is not resolution: a thread nobody mentioned stays open.",
-    "- Resolve a thread only when the new text settles it. Give its id in \"resolved\".",
-    "- In \"open\", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.",
+    ...QUEST_RULES_2,
     "",
     "Keep the whole reply compact: short values, no filler.",
   ].join("\n"),
@@ -725,7 +744,9 @@ export const DEFAULT_PROMPTS = {
     "Dashboard note: never mention it in the story. After your reply, end the message with the story state of this turn: on its own last line write <vertep_state>, then one JSON object, then </vertep_state>. Write nothing after the closing tag. The tag is cut out before anyone reads the reply. The JSON reports what happened in this turn, that is the user's last message and your reply, in the shape under \"Output shape\" and by the rules below; where the rules say \"the new messages\", they mean those two. Name events only from \"Event vocabulary\". Write every text value in English, whatever language the story is written in. Keep ids, keys and enum values exactly as given, and every name exactly as the story spells it, in its own script. The story itself stays in its own language: only the JSON is in English. Write letters as they are, never as \\u escapes. No code fences. Keep the JSON compact: short values, no filler.",
 };
 // The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
-const SENSOR_PROMPT_20 = DEFAULT_PROMPTS.sensor.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
+// The twenty-first sensor prompt (before quests got a "done when" and closed when done, failed or dropped, #400).
+const SENSOR_PROMPT_21 = DEFAULT_PROMPTS.sensor.replace(["Threads:", ...QUEST_RULES_2].join("\n"), THREADS_BLOCK_21);
+const SENSOR_PROMPT_20 = SENSOR_PROMPT_21.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
 // The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
 const SENSOR_PROMPT_19 = SENSOR_PROMPT_20.replace(LAYOUT_RULE, LAYOUT_RULE_19);
 // The eighteenth sensor prompt (before things got registry ids that follow them between hands and the floor: i1 per character, objects as words).
@@ -797,7 +818,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -3150,6 +3171,7 @@ export function effectiveThreads(ov, base, turn) {
       fix({
         id: a.id,
         text: cut(str(a.text), 300),
+        ...(str(a.done) ? { done: cut(str(a.done), 200) } : {}),
         since: Number.isFinite(num(a.since)) ? num(a.since) : turn || 0,
         status: "open",
         ...(THREAD_KINDS.includes(a.kind) ? { kind: a.kind } : {}),
@@ -3233,10 +3255,23 @@ function limitsLine(cfg, threads) {
   return "Open thread limits: main " + c.main + "/" + maxMainOf(cfg) + ", side " + c.side + "/" + maxThreadsOf(cfg) + ", steps per main thread " + maxStepsOf(cfg) + " (everyday threads are not counted).";
 }
 
+/**
+ * A quest text the sensor wrote as "goal | done when: condition" (#400), split: the goal is the text the Quests box
+ * shows, the condition is kept as `done` and shown back to the sensor. A text without the marker is all goal.
+ */
+export function splitDone(raw) {
+  const s = str(raw);
+  const m = /^([\s\S]*?)\s*\|\s*done when\s*:\s*([\s\S]*)$/i.exec(s);
+  return m && str(m[1]) ? { text: cut(str(m[1]), 300), done: cut(str(m[2]), 200) } : { text: cut(s, 300), done: "" };
+}
+
+/** A quest's text as the sensor wrote it: the goal, and its "done when" when it has one. */
+const questText = (t) => t.text + (str(t.done) ? " | done when: " + str(t.done) : "");
+
 /** One thread as the sensor reads it. */
 function threadLabel(t) {
   const kind = t.parent ? "step of " + t.parent : questKind(t);
-  return t.id + " [" + kind + "] \"" + t.text + "\"";
+  return t.id + " [" + kind + "] \"" + questText(t) + "\"";
 }
 
 /** The newest active key that has a snapshot, searching keys[0..before). */
@@ -3362,6 +3397,16 @@ const promptKey = (s) => String(s || "").replace(/\s+/g, " ").trim();
 const isDefaultPrompt = (key, text) =>
   !promptKey(text) || [DEFAULT_PROMPTS[key], ...PAST_DEFAULT_PROMPTS[key]].some((d) => promptKey(d) === promptKey(text));
 
+// A part of the sensor prompt equal to the default of today or of any past version is not the user's own: it follows
+// the default. Without the past ones, a settings page left open across an update saved the old Threads part (#400)
+// and kept that user on the old quest rules for good.
+let PAST_SENSOR_PARTS = null;
+const isDefaultPart = (key, text) => {
+  if (promptKey(text) === promptKey(DEFAULT_SENSOR_PARTS[key])) return true;
+  if (!PAST_SENSOR_PARTS) PAST_SENSOR_PARTS = PAST_DEFAULT_PROMPTS.sensor.map(splitSensor);
+  return PAST_SENSOR_PARTS.some((p) => typeof p[key] === "string" && promptKey(p[key]) === promptKey(text));
+};
+
 /** config.json as stored, minus prompts that are a default (so they follow it). */
 function storedConfig(fsx) {
   const raw = readJson(fsx, CONFIG_FILE, null);
@@ -3372,7 +3417,7 @@ function storedConfig(fsx) {
   if (isObj(cfg.sensorParts)) {
     for (const part of SENSOR_PARTS) {
       const v = cfg.sensorParts[part.key];
-      if (typeof v === "string" && v.trim() && promptKey(v) !== promptKey(DEFAULT_SENSOR_PARTS[part.key])) parts[part.key] = v;
+      if (typeof v === "string" && v.trim() && !isDefaultPart(part.key, v)) parts[part.key] = v;
     }
   }
   if (Object.keys(parts).length) cfg.sensorParts = parts;
@@ -3464,7 +3509,7 @@ function nextConfig(stored, b) {
     for (const part of SENSOR_PARTS) {
       const v = b.sensorParts[part.key];
       if (typeof v !== "string") continue;
-      if (!v.trim() || promptKey(v) === promptKey(DEFAULT_SENSOR_PARTS[part.key])) delete sp[part.key];
+      if (!v.trim() || isDefaultPart(part.key, v)) delete sp[part.key];
       else sp[part.key] = v.slice(0, 4000);
     }
     put("sensorParts", sp, {});
@@ -4025,7 +4070,7 @@ function threadCheckText(ctx) {
   const old = threadsInCheck(ctx);
   if (!old.length) return null;
   return (
-    "Thread check\nOpen for " + threadCheckOf(ctx.cfg) + " turns or more: " + old.map(({ t, age }) => t.id + " \"" + t.text + "\" (" + age + " turns)").join("; ") + ".\n" +
+    "Thread check\nOpen for " + threadCheckOf(ctx.cfg) + " turns or more: " + old.map(({ t, age }) => t.id + " \"" + questText(t) + "\" (" + age + " turns)").join("; ") + ".\n" +
     "Has the story settled this, dropped it, or is it still open? Resolve settled or dropped ones."
   );
 }
@@ -5988,13 +6033,17 @@ function applyThreads(ctx, out, turn) {
     proposals.push({ id: "p" + state.counters.proposal, turn, ...p });
   };
   for (const item of arr(spec.open)) {
-    const text = cut(isObj(item) ? str(item.text) : str(item), 300);
+    const { text, done } = splitDone(isObj(item) ? item.text : item);
     if (!text) continue;
     // a settled thread listed under "open" too must not come back as a new one
     if (settled.some((s) => (isObj(item) && str(item.id) === s.id) || sameText(text) === s.text)) continue;
     const known = isObj(item) ? threads.find((t) => t.id === str(item.id) && t.status === "open") : null;
     // a kept thread keeps its kind and parent: the owner may have set them
-    if (known) { known.text = text; continue; }
+    if (known) {
+      known.text = text;
+      if (done) known.done = done;
+      continue;
+    }
     // a new one: its kind (a missing or odd one is a side quest), and a step only under an open main quest
     const asked = isObj(item) && THREAD_KINDS.includes(item.kind) ? item.kind : "side";
     const parentId = isObj(item) ? str(item.parent) : "";
@@ -6002,10 +6051,10 @@ function applyThreads(ctx, out, turn) {
     const kind = parent ? "side" : asked;
     if (questRoom(ctx.cfg, questCounts(threads), kind, parent)) {
       state.counters.thread += 1;
-      threads.push({ id: "t" + state.counters.thread, text, since: turn, status: "open", kind, ...(parent ? { parent } : {}) });
+      threads.push({ id: "t" + state.counters.thread, text, ...(done ? { done } : {}), since: turn, status: "open", kind, ...(parent ? { parent } : {}) });
     } else if (!threads.some((t) => t.status === "open" && sameText(t.text) === sameText(text)) && !proposals.some((p) => p.type === "open" && sameText(p.text) === sameText(text))) {
       // above the limit: not dropped in silence, it waits for the owner (#86)
-      propose({ type: "open", why: "limit", text, kind, ...(parent ? { parent } : {}) });
+      propose({ type: "open", why: "limit", text, ...(done ? { done } : {}), kind, ...(parent ? { parent } : {}) });
     }
   }
   // an everyday quest is small: it ends by itself, and no more than a few are open at once
@@ -8578,7 +8627,7 @@ function notesRoute(req, fsx) {
         ov.threads.edits[victim.id] = { ...editOfThread(victim.id), status: "resolved" };
       }
       ov.counter += 1;
-      ov.threads.added.push({ id: "ut" + ov.counter, text: p.text, at: Date.now(), since: at, kind: p.kind, ...(parent ? { parent } : {}), proposed: true });
+      ov.threads.added.push({ id: "ut" + ov.counter, text: p.text, ...(str(p.done) ? { done: str(p.done) } : {}), at: Date.now(), since: at, kind: p.kind, ...(parent ? { parent } : {}), proposed: true });
     }
     settle();
   } else {

@@ -43,6 +43,8 @@ function keyFor(env: string): string {
 }
 const BASES: Record<string, { url: string; env: string }> = {
   nanogpt: { url: "https://nano-gpt.com/api/subscription/v1", env: "NANOGPT_API_KEY" },
+  // models outside the subscription, paid from the NanoGPT balance (e.g. nanogpt-paid/gemini-2.5-flash-nothinking)
+  "nanogpt-paid": { url: "https://nano-gpt.com/api/v1", env: "NANOGPT_API_KEY" },
   openrouter: { url: "https://openrouter.ai/api/v1", env: "OPENROUTER_API_KEY" },
 };
 type Answer = { text: string; model: string; error?: string; input: number; output: number; ms: number };
@@ -72,7 +74,9 @@ async function callModel(system: string, user: string, model: string, maxTokens:
       }
       return { text: String(j.choices?.[0]?.message?.content ?? ""), model: full, input: j.usage?.prompt_tokens ?? 0, output: j.usage?.completion_tokens ?? 0, ms: Date.now() - t0 };
     } catch (e) {
-      if (attempt === 2) return { text: "", model: full, error: String(e), input: 0, output: 0, ms: Date.now() - t0 };
+      // a network failure (a lost socket, a DNS blip) waits and retries like a rate limit
+      if (attempt >= pauses.length) return { text: "", model: full, error: String(e), input: 0, output: 0, ms: Date.now() - t0 };
+      await new Promise((res) => setTimeout(res, pauses[attempt]));
     }
   }
   return { text: "", model: full, error: "retries", input: 0, output: 0, ms: Date.now() - t0 };
@@ -322,7 +326,9 @@ if (mode === "router") {
   for (const t of from.turns) {
     if (!t.input) continue;
     const user = blocksOf(t.input).filter((b) => /^(Previous state|New messages)/.test(b)).join("\n\n");
-    const a = await callModel(ROUTER_SYSTEM, user, model, 400, 0);
+    // 3000, not 400: a model that thinks before it answers (one "no thinking" variant still spent ~1000 tokens on it)
+    // was cut off and its answer read as partial
+    const a = await callModel(ROUTER_SYSTEM, user, model, 3000, 0);
     const parsed = a.error ? null : parse(a.text);
     out.turns.push({ k: t.k, ms: a.ms, calls: [{ who: "router", ms: a.ms, input: a.input, output: a.output, error: a.error }], signals: parsed });
     console.log(`turn ${t.k}: ${a.ms} ms ${a.error ?? ""} ${parsed ? Object.entries(parsed).filter(([, v]) => v === true).map(([k]) => k).join(",") : "unreadable"}`);

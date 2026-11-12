@@ -339,10 +339,10 @@ describe("what the sensor and the story model read", () => {
 
   it("the previous default sensor prompt still counts as the default", () => {
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-7)!;
+    const before = past.at(-8)!;
     expect(before).toContain("up to the open thread limit given in the input");
     expect(before).not.toContain("Give each new thread a kind");
-    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", P.DEFAULT_PROMPTS.sensor.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-6));
+    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", past.at(-1)!.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-7));
   });
 
   it("proposals ride the state file, not the snapshot, and a rebuilt state starts without them", () => {
@@ -488,5 +488,72 @@ describe("event ids the sensor makes up (#86)", () => {
     expect(rows.length).toBeLessThanOrEqual(30);
     expect(rows.some((r: any) => r.id.startsWith("__"))).toBe(false);
     expect(Object.getPrototypeOf(JSON.parse(fs.readFileSync(path.join(root, "dashboard/other-seen.json"), "utf8")).seen)).toBe(Object.prototype);
+  });
+});
+
+// #400: a quest settled in two turns stayed open for forty, because the rules said "silence is not resolution".
+describe("quests close when done, failed or dropped (#400)", () => {
+  it("the default rules ask for a done-when and every-turn checks; the old rules are the newest past default", () => {
+    const threads = P.DEFAULT_SENSOR_PARTS.threads as string;
+    expect(threads).toContain(" | done when: ");
+    expect(threads).toContain("Every turn, check every open thread");
+    expect(threads).toContain("A thread tied to one scene ends with that scene.");
+    expect(threads).not.toContain("Silence is not resolution");
+    const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
+    expect(past.at(-1)).toContain("Silence is not resolution: a thread nobody mentioned stays open.");
+    // the newest past default is the previous default as a whole, so a saved copy of it follows the update
+    expect(past.at(-1)!.replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, "")).toBe(
+      (P.DEFAULT_PROMPTS.sensor as string).replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, ""),
+    );
+  });
+
+  it("splitDone keeps the goal as the text and the condition apart; a plain text is all goal", () => {
+    expect(P.splitDone("Find the key | done when: the key is found or lost")).toEqual({ text: "Find the key", done: "the key is found or lost" });
+    expect(P.splitDone("Find the key|Done When:  found")).toEqual({ text: "Find the key", done: "found" });
+    expect(P.splitDone("Find the key")).toEqual({ text: "Find the key", done: "" });
+    expect(P.splitDone(" | done when: nothing before it")).toEqual({ text: "| done when: nothing before it", done: "" });
+    expect(P.splitDone(null)).toEqual({ text: "", done: "" });
+  });
+
+  it("a new quest stores its done-when apart; the box shows the goal, the sensor reads both", () => {
+    const mock = mockHost();
+    let v = play(mock, { open: [item("Find the key | done when: the key is in Aria's hands", "main")] });
+    expect(open(v).map((t: any) => [t.text, t.done])).toEqual([["Find the key", "the key is in Aria's hands"]]);
+    // the next turn's sensor input carries the condition back
+    play(mock, { open: [item("Find the key", "main", undefined, "t1")] });
+    const input = String(mock.requests.at(-1)!.req.messages[0].content);
+    expect(input).toContain('t1 [main] "Find the key | done when: the key is in Aria\'s hands"');
+    // a kept quest keeps its done-when when the report repeats the goal alone, and takes a new one when it is given
+    v = view(mock);
+    expect(open(v)[0].done).toBe("the key is in Aria's hands");
+    v = play(mock, { open: [item("Find the key | done when: the key is found", "main", undefined, "t1")] });
+    expect(open(v)[0]).toMatchObject({ text: "Find the key", done: "the key is found" });
+    // the reply model is not given the condition
+    expect(JSON.stringify(v.threads)).not.toContain("| done when");
+  });
+
+  it("a quest waiting above its limit keeps its done-when, and an accepted one carries it", () => {
+    setConfig({ maxThreads: 1 });
+    const mock = mockHost();
+    play(mock, { open: [item("Who is the stranger?")] });
+    let v = play(mock, { open: [item("Who is the stranger?", undefined, undefined, "t1"), item("Pay the debt | done when: the debt is paid")] });
+    const p = v.proposals.find((x: any) => x.type === "open");
+    expect(p).toMatchObject({ text: "Pay the debt", done: "the debt is paid" });
+    notes(mock, { op: "proposal-accept", id: p.id, replace: "t1" });
+    v = view(mock);
+    expect(open(v).find((t: any) => t.text === "Pay the debt").done).toBe("the debt is paid");
+  });
+
+  it("a saved Threads part equal to a past default follows the new default", () => {
+    const mock = mockHost();
+    const oldThreads = P.PAST_DEFAULT_PROMPTS.sensor.at(-1).match(/Threads:\n[\s\S]*?(?=\n\nKeep the whole reply compact)/)[0];
+    expect(oldThreads).toContain("Silence is not resolution");
+    // as a settings page left open across the update would save it
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensorParts: { threads: oldThreads, role: "Blocks." } }));
+    const cfg = drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(cfg.sensorParts.find((x: any) => x.key === "threads")).toMatchObject({ text: P.DEFAULT_SENSOR_PARTS.threads, custom: false });
+    expect(cfg.sensorParts.find((x: any) => x.key === "role")).toMatchObject({ text: "Blocks.", custom: true });
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensorParts: { threads: oldThreads } } });
+    expect(JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8")).sensorParts).toEqual({ role: "Blocks." });
   });
 });

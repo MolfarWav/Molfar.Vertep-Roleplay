@@ -908,8 +908,13 @@ character saw, heard or guessed), `names` and `history`:
   `data/dashboard/config.json`: `journal: { on: true, inject: true, thoughtTurns: 3 (1-10), maxTokens: 120 (40-400, per character) }`.
   The entries part of the journal is Litopys `views` (above), unchanged in storage.
 - `leaks` (#184 P3): `{ "<messageId>#<swipe>": { at, items: [ { who, factId, text, quote, status: "open" | "found" | "ignored", answeredAt? } ] } }`, replies that let a character act on a secret it does not know (a restricted Litopys fact, `knownBy` a list without that name). Code finds the candidates (the new messages share content words with the fact), the sensor's call confirms (key `leaks` in its reply, `[{ id: "L1", quote }]` naming the lines it was shown) or, in fast mode, a small call made only when there were candidates. Config `leakCheck` (default true) turns it off. An open item holds back what the character would learn from that reply: its notebook notes are not written, and the Litopys chapter worker does not make it a knower of a fact that says the same (and is told the reply is not canon). `POST /dashboard/leak { chatId, key, who, factId, op: "found" | "ignore" }` closes an item (the app first calls `POST /litopys/facts { op: "know", id, who }` for "found out", which adds the name to the fact's `knownBy`); `GET /dashboard/state?view=1` lists the open ones as `leaks`. A re-read of the reply, an edit or a swipe replaces its item.
-- Threads are quests (#117). A thread in a snapshot's `threads` is `{ id, text, since, status: open|resolved, kind?,
-  parent?, checked?, keptAt?, by?, resolvedAt? }`. `kind` is `main`, `side` or `everyday` (missing = `side`, so every
+- Threads are quests (#117). A thread in a snapshot's `threads` is `{ id, text, done?, since, status: open|resolved, kind?,
+  parent?, checked?, keptAt?, by?, resolvedAt? }`. `done` (#400, up to 200 characters) is the condition that ends the
+  quest: the sensor writes a new quest's text as `goal | done when: condition`, code keeps the goal as `text` (what the
+  Quests box shows) and the condition as `done`, and the next sensor input shows both again (`"goal | done when:
+  condition"`). The sensor checks every open quest each turn and resolves it when it is done, failed or dropped (its
+  scene is over, nobody pursues it). A kept quest keeps its `done` unless the report gives a new one; an `open` proposal
+  and a quest accepted from one carry it too (`threads.added[].done`). Older files have no `done`. `kind` is `main`, `side` or `everyday` (missing = `side`, so every
   older file reads as side quests); `parent` is the id of an open main quest and makes the thread a step of it (a step
   closes with its main quest while that is resolved and is open again if it is reopened; when the parent is gone or no
   longer main, the step stands alone). Limits (config): `maxMain` 1-2 (default 1), `maxThreads` 1-6 side quests
@@ -917,7 +922,7 @@ character saw, heard or guessed), `names` and `history`:
   is closed by code after `everydayTurns` (0-30, default 8; 0 = never). `checked` counts Thread checks the story left
   the thread unchanged; at `retireAfter` (0-10, default 3; 0 = never) a main or side quest gets a `close` proposal.
   `keptAt` is the turn the owner said "keep open".
-- `proposals`: `[ { id: "p1", type: "open"|"close", why: "limit"|"stale", turn, text, kind?, parent?, threadId? } ]`,
+- `proposals`: `[ { id: "p1", type: "open"|"close", why: "limit"|"stale", turn, text, done?, kind?, parent?, threadId? } ]`,
   at most 8, newest last; `proposalsDropped` counts unanswered ones pushed out. An `open` proposal is a new quest that
   did not fit its limit (it is kept, not lost); a `close` proposal is a quest the story left alone. The owner's
   answers live in the notes overlay `data/dashboard/notes/<chatId>.json` (`threads.dismissed` ids, `threads.queued`
