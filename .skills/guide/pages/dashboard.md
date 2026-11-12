@@ -14,6 +14,8 @@ The numbers (trust, comfort, attraction, respect, affection, and more) are worke
 
 Whose feeling is it: each number is how that character feels about *your* character, never the other way round. The events behind them are what your character does: a kiss on the forehead or a hug warms comfort and affection, only a romantic kiss raises arousal. When a character wrongs your character (cheats, lies, leaves), that is the character's deed: it is not booked as your character's, and the sensor is told not to lower the character's trust in you for it. If a number still moves wrongly, report it as an issue: the sensor model is a model, and a small one can misread a scene.
 
+**The date and a calendar of your own.** The clock shows a date under the time. Tap the pencil next to it to set the date, hide it, or go back to automatic. For a fantasy or isekai world whose months and years are not ours, choose **A world with its own calendar…** in that popover: name the months and give each its days (12 months of 30 days is one tap), add weekday names and an era ("AR", "of the Third Age") if you want, and say the date of the story's present day, in any year, also before zero. After that the date follows the Day counter ("3 Frostmoon 1204 AR"), shows on the clock and in the scene lines the model reads, and the story text never moves it. **Use the real calendar** in the same window takes it back.
+
 The "Story, move" button next to Send arms a one-time nudge for the next reply; its arrow picks an open quest or a twist.
 
 ## What changed, in the chat
