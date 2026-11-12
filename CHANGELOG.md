@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **the World DM no longer drags the story back with an event it already played.** A "hard" event (director level) was judged "did it happen?" only by the part of the story the run had not read yet; a sweep reads on without judging, so an event that was played out (an evening at the pharmacy) came back as "not shown", was armed for a second send and fired again in the next reply, even after a time skip to the next morning, and every regenerate carried it again. Now the judge also sees the first six messages after the reply that carried the event, also the ones a sweep already read, and a missed event waiting for its second send is let go when the Dashboard's place is not the one it was written in. Events already stored have no place and keep the old behaviour until the DM writes the next one.
+
 ## 4.116.0 (2026-11-12)
 
 - Changed: **characters no longer know what only the Persona card says.** The persona text now goes into the prompt under one line (about 45 tokens) saying it is the player's character sheet, known to the narrator, and that other characters know of it only what the story showed them; one who has not met the persona knows none of it. The persona memory (earlier stories) rule says the same about a character who was not there. Models kept letting strangers mention what the sheet says (what the player's character made or did).

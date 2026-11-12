@@ -27,6 +27,8 @@ A profile that plays from an events deck shows "New deck" when the deck is used 
 
 Delete a reply, or swipe to another one, and the DM takes back what it learned from the old one: records, clocks and a waiting event return to how they were, the world book is written again, and the DM reads the story again from there.
 
+An event is one shot. The DM checks whether the story showed it, looking at everything after the reply that carried it, also the part it already read. If not, the event is sent once more with the next reply, unless the story has moved to another place by then (a time skip, a new scene): then it is let go, so an old event does not pull the story back.
+
 Records you changed by hand stay, unless the DM changed the same record afterwards. A record you deleted stays deleted. Deleting old messages from the top, reading other swipes of an older reply and editing a reply's text take nothing back.
 
 ## World section tabs
