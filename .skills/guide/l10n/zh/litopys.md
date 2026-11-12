@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys：故事记录
 
 Litopys（编年史）是一个聊天室的长期记忆。它在后台阅读故事，为每个已完成的场景写一章，并记录故事已确立的事实。当聊天室变得太长、超出模型的上下文窗口时，记录会把故事延续下去。长篇故事用它；你不需要手动启动它。
@@ -33,6 +33,8 @@ Litopys（编年史）是一个聊天室的长期记忆。它在后台阅读故�
 ## 说话者不在场的内容
 
 当一个角色回答时，模型默认不会得到该角色不在的场景中的最近消息。Dashboard 说明谁在场（[[dashboard]]）；你的消息与回答它的回复一起计数。一段被排除的消息会变成一行，例如 `[Bram was not here: 6 messages]`。如果角色离开后地点没有改变，这一行会说他们在听觉范围内，听到了人声和噪音，而不是话语。始终保留：角色自己的消息、最新的消息、Dashboard 没有数据的消息，以及当 Dashboard 从未列出该角色时的所有内容，所以不会凭猜测隐藏任何东西。
+
+同样的裁剪适用于任何聊天，包括旁白者卡片：当你以某人的视角继续时（输入框的 + 菜单），你所选的角色就会作答，因此该角色不在场的场景会留在提示词之外，他们也无从知道那里发生了什么。它依据该菜单写入的方向起作用；手写的 "OOC: Pov Alice" 不会被识别。
 
 选择 **Leave out what a speaker was not present for**（Library，Litopys settings，"Recollections" 块）有三个选项："Groups only"（默认）、"Every chat" 和 "Off"。一个聊天室可以在 Canvas Prompt 面板中关掉它，项目为 "Messages a speaker was not present for"。它需要为该聊天室开启 Litopys 并开启 Dashboard，并且不适用于旁白回合、名单回合或 "write my line" 回合。Prompt 面板将每一行显示为名为 "Presence · N messages left out" 的部分。
 

@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # Le tableau de bord de la scène
 
 Le tableau de bord est un panneau à côté du chat qui suit la scène : qui est présent, ce que chaque personnage ressent pour vous, ce qu'il porte et ce qu'il sait, les fils narratifs ouverts. Il s'adresse à quiconque veut que l'histoire se souvienne des relations et des détails entre les réponses. L'article d'aide *Tableau de bord de la scène* énumère ses champs.
@@ -12,6 +12,8 @@ Ouvrez-le en cliquant sur un portrait dans le chat et en choisissant Dashboard. 
 Un personnage qui est en contact depuis ailleurs (un texto, une lettre, un appel, une vidéo) est signalé comme tel dans la ligne de scène, avec une phrase courte de plus sur ce qui lui parvient : par texto ou lettre, uniquement les mots envoyés ; par appel, uniquement la voix et les sons près du téléphone ; par vidéo, uniquement ce qui est dans le champ de la caméra et ce qui s'entend près d'elle. Une action silencieuse, comme mettre la bouilloire en route, ne lui est pas connue.
 
 Les chiffres (confiance, aise, attirance, respect, affection, et d'autres) sont calculés par le code à partir d'événements qu'un modèle rapporte, et orientés par le [[soul]] de chaque personnage. L'état est conservé par message, donc un swipe ou un message supprimé ne laisse jamais de chiffres périmés.
+
+À qui appartient le sentiment : chaque chiffre indique ce que ce personnage ressent envers *votre* personnage, jamais l'inverse. Les événements derrière eux sont ce que fait votre personnage : un baiser sur le front ou une étreinte réchauffe comfort et affection, seul un baiser romantique fait monter arousal. Quand un personnage fait du tort au vôtre (trompe, ment, part), c'est l'acte du personnage : il n'est pas inscrit au compte du vôtre, et le capteur reçoit pour consigne de ne pas baisser pour cela la confiance que le personnage vous accorde. Si un chiffre bouge encore à tort, signalez-le comme issue : le modèle du capteur est un modèle, et un petit peut mal lire une scène.
 
 Le bouton « Story, move » à côté de Send arme une impulsion unique pour la réponse suivante ; sa flèche choisit une quête ouverte ou un rebondissement.
 

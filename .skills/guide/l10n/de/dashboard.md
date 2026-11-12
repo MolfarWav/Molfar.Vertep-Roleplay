@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # Das Szenen-Dashboard
 
 Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend ist, wie jede Figur zu dir steht, was sie trägt und weiß, welche Handlungsfäden offen sind. Es ist für alle, die möchten, dass die Geschichte Beziehungen und Details zwischen den Antworten behält. Der Hilfe-Artikel *Scene dashboard* listet seine Felder auf.
@@ -12,6 +12,8 @@ Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend
 Eine Figur, die von woanders aus in Kontakt ist (eine Nachricht, ein Brief, ein Anruf, ein Video), wird in der Szenenzeile so markiert, mit einem kurzen Satz dazu, was sie erreicht: per Nachricht oder Brief nur die gesendeten Worte; per Anruf nur die Stimme und die Geräusche nahe dem Telefon; per Video nur, was in der Kamera ist und was in der Nähe zu hören ist. Eine stille Handlung, etwa den Kessel aufsetzen, ist ihr nicht bekannt.
 
 Die Zahlen (trust, comfort, attraction, respect, affection und mehr) werden von Code aus Ereignissen berechnet, die ein Modell meldet, und von der [[soul]] jeder Figur geprägt. Der Zustand wird pro Nachricht gehalten, sodass ein Swipe oder eine gelöschte Nachricht nie veraltete Zahlen hinterlässt.
+
+Wessen Gefühl es ist: Jede Zahl zeigt, wie sich diese Figur über *deine* Figur fühlt, nie umgekehrt. Die Ereignisse dahinter sind das, was deine Figur tut: ein Kuss auf die Stirn oder eine Umarmung wärmt Comfort und Affection, nur ein romantischer Kuss hebt Arousal. Wenn eine Figur deiner Figur Unrecht tut (betrügt, lügt, geht), ist das die Tat der Figur: Sie wird nicht deiner Figur zugeschrieben, und der Sensor wird angewiesen, dafür nicht das Vertrauen der Figur in dich zu senken. Bewegt sich eine Zahl trotzdem falsch, melde es als Issue: Das Sensor-Modell ist ein Modell, und ein kleines kann eine Szene falsch lesen.
 
 Der Button "Story, move" neben Send armiert einen einmaligen Anstoß für die nächste Antwort; sein Pfeil wählt eine offene Quest oder eine Wendung.
 

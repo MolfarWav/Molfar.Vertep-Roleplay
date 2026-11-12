@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che tiene traccia della scena: chi è presente, come ogni personaggio si sente nei tuoi confronti, cosa indossa e cosa sa, i fili narrativi aperti. È per chiunque voglia che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo di aiuto *Scene dashboard* elenca i suoi campi.
@@ -12,6 +12,8 @@ Aprila cliccando su un ritratto nella chat e scegliendo Dashboard. Il pannello l
 Un personaggio che è in contatto da altrove (un messaggio, una lettera, una chiamata, un video) è segnalato così nella riga della scena, con una breve frase in più su cosa gli arriva: per messaggio o lettera solo le parole inviate; per chiamata solo la voce e i suoni vicino al telefono; per video solo ciò che è nella telecamera e ciò che si sente lì vicino. Un'azione silenziosa, come mettere su il bollitore, non è nota a loro.
 
 I numeri (fiducia, comfort, attrazione, rispetto, affetto e altri) sono calcolati dal codice a partire dagli eventi che un modello segnala, e inclinati dal [[soul]] di ogni personaggio. Lo stato è mantenuto per messaggio, quindi uno swipe o un messaggio eliminato non lascia mai numeri obsoleti.
+
+Di chi è il sentimento: ogni numero è come quel personaggio sente nei confronti del *tuo* personaggio, mai il contrario. Gli eventi dietro di essi sono ciò che fa il tuo personaggio: un bacio sulla fronte o un abbraccio scaldano comfort e affection, solo un bacio romantico alza arousal. Quando un personaggio fa un torto al tuo (tradisce, mente, se ne va), è un'azione del personaggio: non viene registrata come del tuo personaggio, e al sensore viene detto di non abbassare per questo la fiducia del personaggio in te. Se un numero si muove ancora in modo sbagliato, segnalalo come issue: il modello del sensore è un modello, e uno piccolo può fraintendere una scena.
 
 Il pulsante "Story, move" accanto a Send prepara una spinta una tantum per la prossima risposta; la sua freccia sceglie una quest aperta o un colpo di scena.
 

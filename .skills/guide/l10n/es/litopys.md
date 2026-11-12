@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: el registro de la historia
 
 Litopys (la crónica) es la memoria larga de un chat. Lee la historia en segundo plano y escribe un capítulo por cada escena terminada, además de los hechos que la historia ha establecido. Cuando un chat se hace demasiado largo para la ventana del modelo, el registro lleva la historia hacia adelante. Úsalo para historias largas; no necesitas iniciarlo.
@@ -33,6 +33,8 @@ Los mensajes más antiguos solo pueden salir del prompt cuando la ventana está 
 ## Aquello a lo que un hablante no estuvo presente
 
 Cuando un personaje responde, por defecto el modelo no recibe los mensajes recientes de escenas en las que ese personaje no estuvo. El Dashboard dice quién estuvo allí ([[dashboard]]); tu mensaje cuenta junto con la respuesta que lo contesta. Una tanda de mensajes omitidos se convierte en una línea como `[Bram was not here: 6 messages]`. Si el lugar no cambió después de que el personaje se fuera, la línea dice que estaba al alcance del oído y que oyó voces y ruido, no las palabras. Siempre se conservan: los mensajes del propio personaje, el mensaje más reciente, un mensaje del que el Dashboard no tiene datos, y todo cuando el Dashboard nunca lista a ese personaje, así que no se oculta nada por una suposición.
+
+El mismo corte se aplica en cualquier chat, también en una tarjeta de narrador, cuando continúas desde la vista de alguien (el menú + del redactor): el personaje que elegiste es entonces quien responde, así que las escenas en las que no estuvo quedan fuera del prompt y no puede saber lo que pasó allí. Funciona según la dirección que escribe ese menú; un "OOC: Pov Alice" escrito a mano no se reconoce.
 
 El selector **Leave out what a speaker was not present for** (Library, Litopys settings, bloque "Recollections") tiene tres opciones: "Groups only" (por defecto), "Every chat" y "Off". Un chat puede desactivarlo en el tablero Canvas Prompt, en el apartado "Messages a speaker was not present for". Necesita que Litopys esté activado para el chat y el Dashboard activado, y no se aplica a un turno de narrador, un turno de lista ni un turno de "write my line". El tablero Prompt muestra cada línea como una parte llamada "Presence · N messages left out".
 

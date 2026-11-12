@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: het verhaalverslag
 
 Litopys (de kroniek) is het langetermijngeheugen van één chat. Het leest het verhaal op de achtergrond en schrijft een hoofdstuk voor elke afgeronde scène, plus de feiten die het verhaal heeft vastgelegd. Wanneer een chat te lang wordt voor het venster van het model, draagt het verslag het verhaal verder. Gebruik het voor lange verhalen; je hoeft het niet zelf te starten.
@@ -33,6 +33,8 @@ Oudere berichten kunnen de prompt alleen verlaten wanneer het venster vol is, of
 ## Waar een spreker niet bij was
 
 Wanneer één personage antwoordt, krijgt het model standaard niet de recente berichten uit scènes waarin dat personage niet was. Het Dashboard zegt wie er was ([[dashboard]]); jouw bericht telt samen met het antwoord dat erop volgt. Een reeks overgeslagen berichten wordt één regel zoals `[Bram was not here: 6 messages]`. Als de plek niet veranderde nadat het personage wegging, zegt de regel dat ze binnen gehoorsafstand waren en stemmen en geluid hoorden, niet de woorden. Altijd bewaard: de eigen berichten van het personage, het nieuwste bericht, een bericht waarvoor het Dashboard geen gegevens heeft, en alles wanneer het Dashboard dat personage nooit vermeldt, zodat niets op een gok wordt verborgen.
+
+Dezelfde afkapping geldt in elke chat, ook een verteller-kaart, wanneer je doorgaat vanuit het gezichtspunt van iemand (het +-menu van het invoerveld): het personage dat je koos is dan degene die antwoordt, dus scènes waar het niet bij was blijven buiten de prompt en het kan niet weten wat daar gebeurde. Het werkt vanuit de richting die dat menu schrijft; een zelf getypte "OOC: Pov Alice" wordt niet herkend.
 
 De select **Leave out what a speaker was not present for** (Library, Litopys settings, blok "Recollections") heeft drie keuzes: "Groups only" (standaard), "Every chat" en "Off". Eén chat kan het uitzetten op het Canvas Prompt-bord, item "Messages a speaker was not present for". Het vereist Litopys aan voor de chat en het Dashboard aan, en het geldt niet voor een vertellersbeurt, een rooster-beurt of een "write my line"-beurt. Het Prompt-bord toont elke regel als een deel met de naam "Presence · N messages left out".
 

@@ -33,6 +33,8 @@ Older messages can leave the prompt only when the window is full, or scene by sc
 
 When one character answers, the model by default does not get the recent messages from scenes that character was not in. The Dashboard says who was there ([[dashboard]]); your message counts together with the reply that answers it. A run of left-out messages becomes one line such as `[Bram was not here: 6 messages]`. If the place did not change after the character left, the line says they were within earshot and heard voices and noise, not the words. Always kept: the character's own messages, the newest message, a message the Dashboard has no data for, and everything when the Dashboard never lists that character, so nothing is hidden on a guess.
 
+The same cut runs in any chat, a narrator card included, when you continue from someone's view (the composer's + menu): the character you chose is then the one who answers, so the scenes they were not in stay out of the prompt and they cannot know what happened there. It works from the direction that menu writes; a hand-written "OOC: Pov Alice" is not recognised.
+
 The select **Leave out what a speaker was not present for** (Library, Litopys settings, block "Recollections") has three choices: "Groups only" (default), "Every chat" and "Off". One chat can switch it off on the Canvas Prompt board, item "Messages a speaker was not present for". It needs Litopys on for the chat and the Dashboard on, and it does not apply to a narrator turn, a roster turn or a "write my line" turn. The Prompt board shows each line as a part named "Presence · N messages left out".
 
 ## Import a chat log

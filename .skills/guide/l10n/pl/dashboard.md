@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # Panel sceny
 
 Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać o tobie myśli, co noszą i co wiedzą, jakie wątki fabularne są otwarte. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
@@ -12,6 +12,8 @@ Otwórz go, klikając portret na czacie i wybierając Panel. Panel boczny ma czt
 Postać, która kontaktuje się z innego miejsca (wiadomość tekstowa, list, rozmowa, wideo), jest tak oznaczona w linii sceny, z jednym krótkim zdaniem o tym, co do niej dociera: przez wiadomość lub list tylko wysłane słowa; przez rozmowę tylko głos i dźwięki w pobliżu telefonu; przez wideo tylko to, co jest w kamerze i co słychać w pobliżu. Cicha czynność, taka jak nastawienie czajnika, nie jest im znana.
 
 Liczby (zaufanie, komfort, pociąg, szacunek, czułość i inne) są wyliczane przez kod ze zdarzeń, które zgłasza model, i przechylane przez [[soul]] każdej postaci. Stan jest przechowywany dla każdej wiadomości, więc przesunięcie palcem ani usunięta wiadomość nigdy nie zostawiają nieaktualnych liczb.
+
+Czyje to uczucie: każda liczba pokazuje, jak dana postać odnosi się do *twojej* postaci, nigdy odwrotnie. Zdarzenia za nimi to to, co robi twoja postać: pocałunek w czoło albo uścisk ogrzewa comfort i affection, tylko romantyczny pocałunek podnosi arousal. Gdy postać krzywdzi twoją postać (zdradza, kłamie, odchodzi), to czyn tej postaci: nie zapisuje się na konto twojej postaci, a sensorowi mówi się, żeby nie obniżał za to zaufania tej postaci do ciebie. Jeśli liczba nadal zmienia się błędnie, zgłoś to jako issue: model sensora to model, a mały może źle odczytać scenę.
 
 Przycisk „Story, move" obok Send uzbraja jednorazowe popchnięcie dla następnej odpowiedzi; jego strzałka wybiera otwarty wątek albo zwrot akcji.
 

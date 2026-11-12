@@ -15,5 +15,8 @@
     "lingva.ml",
     "api-free.deepl.com",
     "api.deepl.com"
-  ]
+  ],
+  "limits": {
+    "executionMs": 30000
+  }
 }

@@ -1284,7 +1284,8 @@ const LOCAL_WI_VEC_DIR = ".cache/lorebooks/";
 const LOCAL_SHELF_VEC_DIR = ".cache/databank-vectors/";
 const LOCAL_LIT_VEC_DIR = ".cache/litopys/vectors/";
 const LOCAL_EMBED_STATUS = ".cache/embed-status.json";
-/** Move one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it moved. */
+/** Copy one split record (`name.json` and `name.pN.json`) from `legacyDir` to `dir`. True when it was copied. The old files stay:
+ *  a removal travels through the sync, and a device that had not updated yet lost its vectors that way (#389). */
 function adoptLegacy(fsx, legacyDir, dir, name) {
   let main = null;
   try { main = fsx.read(legacyDir + name + ".json"); } catch { return false; }
@@ -1296,7 +1297,6 @@ function adoptLegacy(fsx, legacyDir, dir, name) {
     for (const f of parts) fsx.write(dir + f, fsx.read(legacyDir + f));
     fsx.write(dir + name + ".json", main); // the main file last: with it there, the move is whole
   } catch { return false; }
-  for (const f of [name + ".json", ...parts]) { try { fsx.remove(legacyDir + f); } catch {} }
   return true;
 }
 /** splitRead of a local-cache record; one never moved yet is moved from its old place first. */

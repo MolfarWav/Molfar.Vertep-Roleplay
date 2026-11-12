@@ -199,7 +199,7 @@ describe("vocabulary", () => {
     expect(v.novelty.family).toBe("knowledge");
     expect(v.other.deltas).toEqual({});
     for (const id of ["learned_about_user", "heard_user_name", "heard_rumor"]) expect(v[id]).toBeUndefined();
-    expect(Object.keys(v).length).toBe(59);
+    expect(Object.keys(v).length).toBe(61);
   });
 
   it("every default row is valid: a known family, short meaning, known stats, user-file round trip", () => {
@@ -1070,7 +1070,7 @@ describe("config", () => {
     expect(c).toMatchObject({ sensorModel: "", mode: "sensor", catchUp: true, debug: false, injection: { enabled: true, maxTokens: 300 }, custom: [] });
     expect(c.families.body).toBe(true);
     expect(c.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
-    expect(c.events.length).toBe(59);
+    expect(c.events.length).toBe(61);
   });
 
   it("PUT of the default prompt (or whitespace changes of it) stores nothing", () => {
@@ -3108,7 +3108,7 @@ describe("the event vocabulary editor", () => {
     // `other` is the fallback and stays
     expect(v.other).toBeDefined();
     expect(P.buildVocab([{ id: "kept_promise", off: true }, { id: "kept_promise", family: "trust", meaning: "back", deltas: { trust: 1 } }]).kept_promise.meaning).toBe("back");
-    expect(Object.keys(v).length).toBe(58);
+    expect(Object.keys(v).length).toBe(60);
     fs.writeFileSync(eventsFile(), JSON.stringify({ events: [{ id: "kept_promise", off: true }] }));
     writeChat("c1", three());
     const mock = mockHost([keptPromise]);
@@ -3134,14 +3134,14 @@ describe("the event vocabulary editor", () => {
     const ids = rows.map((r: any) => r.id);
     expect(ids.slice(0, 3)).toEqual(["kept_promise", "broke_promise", "told_truth"]);
     expect(ids.at(-1)).toBe("dance");
-    expect(ids.length).toBe(60);
+    expect(ids.length).toBe(62);
     const by = (id: string) => rows.find((r: any) => r.id === id);
     expect(by("kept_promise")).toMatchObject({ source: "changed", off: false, meaning: "mine", deltas: { trust: 5 } });
     expect(by("broke_promise")).toMatchObject({ source: "default", off: false });
     expect(by("gift")).toMatchObject({ source: "default", off: true, family: "warmth", meaning: "gave something meant for them" });
     expect(by("dance")).toMatchObject({ source: "custom", off: true, family: "play", deltas: { affection: 1 } });
     expect(by("told_truth")).toMatchObject({ source: "default", off: false });
-    expect(P.vocabRows([]).length).toBe(59);
+    expect(P.vocabRows([]).length).toBe(61);
   });
 
   it("GET /dashboard/config carries the rows, the delta keys and the family order", () => {
@@ -3483,7 +3483,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(19);
+    expect(past.length).toBe(20);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
@@ -4991,9 +4991,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-11)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-12)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-10)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-11)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -5023,7 +5023,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-14)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-15)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -5077,10 +5077,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-9)!;
+    const before = past.at(-10)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-10));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-11));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {

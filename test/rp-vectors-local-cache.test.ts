@@ -27,7 +27,7 @@ describe("vectors live in the local cache", () => {
     expect(L.loadVectors(m.host.fs, "chatA").c1.hash).toBe("h1");
   });
 
-  it("vectors an older version left in the synced folder are moved over once, with their extra files", () => {
+  it("vectors an older version left in the synced folder are copied over once and stay where they were (#389), with their extra files", () => {
     const m = mk();
     writeJson("litopys/vectors/old1.json", { c1: vec("h1"), _more: 1 });
     writeJson("litopys/vectors/old1.p2.json", { c2: vec("h2") });
@@ -35,8 +35,9 @@ describe("vectors live in the local cache", () => {
     expect(Object.keys(got).sort()).toEqual(["c1", "c2"]);
     expect(exists(".cache/litopys/vectors/old1.json")).toBe(true);
     expect(exists(".cache/litopys/vectors/old1.p2.json")).toBe(true);
-    expect(exists("litopys/vectors/old1.json")).toBe(false);
-    expect(exists("litopys/vectors/old1.p2.json")).toBe(false);
+    // the old copies stay: a removal would travel through the sync and wipe the vectors of a device not updated yet (#389)
+    expect(exists("litopys/vectors/old1.json")).toBe(true);
+    expect(exists("litopys/vectors/old1.p2.json")).toBe(true);
     // the next read comes from the cache
     expect(Object.keys(L.loadVectors(m.host.fs, "old1")).sort()).toEqual(["c1", "c2"]);
   });
@@ -57,25 +58,25 @@ describe("vectors live in the local cache", () => {
     expect(exists("litopys/vectors/gone2.json")).toBe(false);
   });
 
-  it("the lorebook vectors are written under .cache/lorebooks; an old synced cache is moved over once", () => {
+  it("the lorebook vectors are written under .cache/lorebooks; an old synced cache is copied over once and stays", () => {
     const m = mk();
     writeJson("lorebooks/.vectors.json", { "book#0": vec("h") });
     expect(Object.keys(engine.loadWiVectors(m.host.fs))).toEqual(["book#0"]);
     expect(exists(".cache/lorebooks/.vectors.json")).toBe(true);
-    expect(exists("lorebooks/.vectors.json")).toBe(false);
+    expect(exists("lorebooks/.vectors.json")).toBe(true);
     engine.saveWiVectors(m.host.fs, { "book#1": vec("h1") });
-    expect(exists("lorebooks/.vectors.json")).toBe(false);
+    expect(Object.keys(readJson("lorebooks/.vectors.json"))).toEqual(["book#0"]); // the old copy is never written again
     expect(Object.keys(readJson(".cache/lorebooks/.vectors.json"))).toEqual(["book#1"]);
   });
 
-  it("a Data Bank file's vectors are moved over once, and the engine finds them in the cache", () => {
+  it("a Data Bank file's vectors are copied over once, and the engine finds them in the cache", () => {
     const m = mk();
     writeJson("databank-vectors/f1.json", { v: 1, m: "bge-m3", dim: 3, chunks: { "0": [0.1, 0.2, 0.3] } });
     const got = engine.semanticEmbedWork(m.host.fs, { id: "chatx" }, [], "hello there");
     expect(got).toMatchObject({ wantScan: true }); // an old synced file already counts
     const vf = L.finishShelf(m.host.fs, { id: "f1", chunks: [{ i: 1, text: "x" }] }, [{ i: 1 }], [[0.4, 0.5, 0.6]], "bge-m3", 3);
     expect(vf).toBe(1);
-    expect(exists("databank-vectors/f1.json")).toBe(false);
+    expect(exists("databank-vectors/f1.json")).toBe(true);
     expect(Object.keys(readJson(".cache/databank-vectors/f1.json").chunks).sort()).toEqual(["0", "1"]);
   });
 
