@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.116.0 (2026-11-12)
+
 - Changed: **characters no longer know what only the Persona card says.** The persona text now goes into the prompt under one line (about 45 tokens) saying it is the player's character sheet, known to the narrator, and that other characters know of it only what the story showed them; one who has not met the persona knows none of it. The persona memory (earlier stories) rule says the same about a character who was not there. Models kept letting strangers mention what the sheet says (what the player's character made or did).
 - Fixed: **the Agents drawer is titled Agents, not Canvas.** Agents is a Canvas board and shared its section key, so the drawer (and a phone page) took the first match, Canvas.
 - Fixed: **a regex script over a text longer than 20,000 characters no longer drops the rest.** The pattern still sees only the first 20,000 characters, but the text after them is now kept as it was (before, the reply or prompt part was cut there).
