@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # Het scherm Dashboard
 
 Het Dashboard is een paneel naast de chat dat de scène bijhoudt: wie er aanwezig is, hoe elk personage jou vindt, wat ze dragen en weten, de open verhaallijnen. Het is voor iedereen die wil dat het verhaal relaties en details tussen antwoorden onthoudt. Het Help-artikel *Scene dashboard* somt de velden ervan op.
@@ -12,6 +12,8 @@ Open het door in de chat op een portret te klikken en Dashboard te kiezen. Het z
 Een personage dat van elders contact heeft (een bericht, een brief, een telefoontje, een video) is zo gemarkeerd in de scèneregel, met nog een korte zin over wat hen bereikt: via bericht of brief alleen de woorden die gestuurd zijn; via telefoontje alleen de stem en de geluiden bij de telefoon; via video alleen wat in de camera is en wat er in de buurt te horen is. Een stille handeling, zoals de ketel opzetten, is voor hen niet bekend.
 
 De getallen (vertrouwen, comfort, aantrekking, respect, genegenheid, en meer) worden door code berekend uit gebeurtenissen die een model meldt, en bijgesteld door de [[soul]] van elk personage. De toestand wordt per bericht bewaard, zodat een swipe of een verwijderd bericht nooit verouderde getallen achterlaat.
+
+Wiens gevoel het is: elk getal is hoe dat personage over *jouw* personage denkt, nooit andersom. De gebeurtenissen erachter zijn wat jouw personage doet: een kus op het voorhoofd of een knuffel verwarmt comfort en affection, alleen een romantische kus verhoogt arousal. Wanneer een personage jouw personage iets aandoet (vreemdgaat, liegt, weggaat), is dat de daad van het personage: het wordt niet op de rekening van jouw personage geboekt, en de sensor krijgt de opdracht om het vertrouwen van het personage in jou er niet om te verlagen. Als een getal nog steeds verkeerd beweegt, meld het als issue: het sensormodel is een model, en een klein model kan een scène verkeerd lezen.
 
 De knop "Story, move" naast Send zet een eenmalig duwtje klaar voor het volgende antwoord; de pijl kiest een open quest of een twist.
 

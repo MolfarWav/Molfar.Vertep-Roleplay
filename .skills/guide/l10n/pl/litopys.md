@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: zapis opowieści
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta opowieść w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które opowieść ustaliła. Gdy czat staje się zbyt długi dla okna modelu, zapis prowadzi opowieść dalej. Używaj go do długich historii; nie musisz go włączać.
@@ -33,6 +33,8 @@ Starsze wiadomości mogą opuścić prompt tylko wtedy, gdy okno jest pełne, al
 ## Czego mówiący nie był świadkiem
 
 Gdy odpowiada jedna postać, model domyślnie nie dostaje ostatnich wiadomości ze scen, w których tej postaci nie było. Dashboard mówi, kto tam był ([[dashboard]]); twoja wiadomość liczy się razem z odpowiedzią, która na nią odpowiada. Ciąg pominiętych wiadomości staje się jedną linią, na przykład `[Bram was not here: 6 messages]`. Jeśli miejsce nie zmieniło się po odejściu postaci, linia mówi, że była w zasięgu słuchu i słyszała głosy oraz hałas, ale nie słowa. Zawsze zachowane: własne wiadomości postaci, najnowsza wiadomość, wiadomość, do której Dashboard nie ma danych, i wszystko, gdy Dashboard nigdy nie wymienia tej postaci, więc nic nie jest ukrywane na podstawie domysłu.
+
+To samo cięcie działa w każdym czacie, także na karcie narratora, gdy kontynuujesz z czyjegoś punktu widzenia (menu + przy polu pisania): wybrana przez ciebie postać jest wtedy tą, która odpowiada, więc sceny, w których nie była, zostają poza promptem i nie może wiedzieć, co tam się wydarzyło. Działa na podstawie kierunku, który zapisuje to menu; ręcznie wpisane „OOC: Pov Alice” nie jest rozpoznawane.
 
 Lista **Leave out what a speaker was not present for** (Library, Litopys settings, blok "Recollections") ma trzy opcje: "Groups only" (domyślnie), "Every chat" i "Off". Jeden czat może to wyłączyć na planszy Canvas Prompt, w punkcie "Messages a speaker was not present for". Wymaga to włączonego Litopysa dla czatu i włączonego Dashboardu, i nie dotyczy tury narratora, tury obsady ani tury "write my line". Plansza Prompt pokazuje każdą linię jako część o nazwie "Presence · N messages left out".
 

@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: il registro della storia
 
 Litopys (la cronaca) è la memoria lunga di una chat. Legge la storia in background e scrive un capitolo per ogni scena conclusa, più i fatti che la storia ha stabilito. Quando una chat diventa troppo lunga per la finestra del modello, il registro porta avanti la storia. Usalo per le storie lunghe; non devi avviarlo.
@@ -33,6 +33,8 @@ I messaggi più vecchi possono lasciare il prompt solo quando la finestra è pie
 ## Ciò a cui un parlante non era presente
 
 Quando un personaggio risponde, il modello per impostazione predefinita non riceve i messaggi recenti delle scene in cui quel personaggio non era presente. Il Dashboard dice chi c'era ([[dashboard]]); il tuo messaggio conta insieme alla risposta che gli risponde. Una serie di messaggi esclusi diventa una riga come `[Bram was not here: 6 messages]`. Se il luogo non è cambiato dopo che il personaggio se n'è andato, la riga dice che era a portata d'orecchio e ha sentito voci e rumori, non le parole. Vengono sempre conservati: i messaggi del personaggio stesso, il messaggio più recente, un messaggio per cui il Dashboard non ha dati, e tutto quando il Dashboard non elenca mai quel personaggio, così nulla viene nascosto per un'ipotesi.
+
+Lo stesso taglio vale in ogni chat, anche con una scheda narratore, quando continui dal punto di vista di qualcuno (il menu + del compositore): il personaggio scelto è allora quello che risponde, quindi le scene a cui non ha partecipato restano fuori dal prompt e lui non può sapere cosa è successo lì. Funziona in base alla direzione che scrive quel menu; un "OOC: Pov Alice" scritto a mano non viene riconosciuto.
 
 Il menu **Leave out what a speaker was not present for** (Library, Litopys settings, blocco "Recollections") ha tre scelte: "Groups only" (predefinita), "Every chat" e "Off". Una singola chat può disattivarlo dalla board Canvas Prompt, alla voce "Messages a speaker was not present for". Richiede Litopys attivo per la chat e il Dashboard attivo, e non si applica a un turno del narratore, a un turno del roster o a un turno "write my line". La board Prompt mostra ogni riga come una parte chiamata "Presence · N messages left out".
 

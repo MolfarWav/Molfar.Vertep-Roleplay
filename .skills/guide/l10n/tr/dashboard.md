@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # Sahne Panosu
 
 Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimler burada, her karakter senin hakkında ne hissediyor, ne giyiyorlar ve ne biliyorlar, açık hikâye konuları neler. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes için. *Sahne panosu* başlıklı Yardım makalesi alanlarını listeler.
@@ -12,6 +12,8 @@ Sohbette bir portreye tıklayıp Pano'yu seçerek aç. Yan panelin dört sekmesi
 Başka bir yerden iletişimde olan bir karakter (bir mesaj, bir mektup, bir arama, bir görüntülü konuşma) sahne satırında böyle işaretlenir, ona neyin ulaştığına dair bir kısa cümleyle birlikte: mesaj veya mektupla yalnızca gönderilen sözler; aramayla yalnızca ses ve telefonun yakınındaki sesler; görüntülü konuşmayla yalnızca kamerada olan ve kamera yakınında duyulan. Sessiz bir eylem, örneğin çaydanlığı ocağa koymak, onlar tarafından bilinmez.
 
 Sayılar (güven, rahatlık, çekim, saygı, sevgi ve daha fazlası) bir modelin bildirdiği olaylardan kod tarafından hesaplanır ve her karakterin [[soul]] değerine göre eğilir. Durum her mesaj için ayrı tutulur, böylece bir kaydırma veya silinen bir mesaj asla eski sayılar bırakmaz.
+
+Duygu kimin: her sayı, o karakterin *senin* karakterine karşı nasıl hissettiğidir, asla tersi değil. Arkasındaki olaylar senin karakterinin yaptıklarıdır: alna bir öpücük ya da bir sarılma comfort ve affection'ı ısıtır, yalnızca romantik bir öpücük arousal'ı yükseltir. Bir karakter senin karakterine haksızlık ettiğinde (aldatır, yalan söyler, terk eder), bu karakterin eylemidir: senin karakterinin hanesine yazılmaz ve sensöre bunun için karakterin sana olan güvenini düşürmemesi söylenir. Bir sayı hâlâ yanlış hareket ediyorsa, bunu issue olarak bildir: sensör modeli bir modeldir ve küçük bir model bir sahneyi yanlış okuyabilir.
 
 Gönder'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek seferlik bir dürtme hazırlar; oku bir açık görev veya bir beklenmedik gelişme seçer.
 

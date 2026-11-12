@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.115.0 (2026-11-12)
+
 - Fixed: **an update no longer wipes the vectors of your other device (Molfar.Vertep#389).** 4.112.0 moved the vectors into the device's own cache and deleted the old synced files; that deletion travelled through the sync, so a device that had not updated yet lost its vectors and showed "Embedding: 0 of 65". The old files are now copied and left alone.
 - Fixed: **a reply written from someone's view no longer knows what a scene without them hid (Molfar.Vertep#392).** "Continue from someone's view" now also tells the memory plugin whose view it is, so the recent messages that character was not present for are replaced by a "was not here" line in any chat, a narrator card included (before, only a one-voice group reply was cut). A hand-written "OOC: Pov Alice" is not recognised; use the menu.
 - Changed: **Dashboard: kinds of kiss, and whose deed an event is (Molfar.Vertep#394).** New events `tender_kiss` (forehead, cheek, hand) and `hug` raise no arousal; `kiss` is romantic only; a gentle touch gives 3 arousal instead of 6. The sensor is told that events are only the user's character's deeds and that a character cheating on or lying to the user's character is not one of them. The guide's Dashboard page says whose feeling each number is. Not checked with a real model.

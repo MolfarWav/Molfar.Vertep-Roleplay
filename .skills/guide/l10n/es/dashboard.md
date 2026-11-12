@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # El panel de la escena
 
 El panel es un panel junto al chat que sigue la escena: quién está presente, cómo se siente cada personaje hacia ti, qué llevan puesto y qué saben, los hilos argumentales abiertos. Es para cualquiera que quiera que la historia recuerde relaciones y detalles entre respuestas. El artículo de ayuda *Scene dashboard* enumera sus campos.
@@ -12,6 +12,8 @@ El panel es un panel junto al chat que sigue la escena: quién está presente, c
 Un personaje que está en contacto desde otro lugar (un mensaje, una carta, una llamada, un vídeo) se marca así en la línea de la escena, con una frase corta más sobre lo que le llega: por mensaje o carta solo las palabras enviadas; por llamada solo la voz y los sonidos cerca del teléfono; por vídeo solo lo que está en la cámara y lo que se oye cerca de ella. Una acción silenciosa, como poner la tetera al fuego, no la conoce.
 
 Los números (confianza, comodidad, atracción, respeto, afecto, y más) los calcula el código a partir de eventos que reporta un modelo, y se inclinan según el [[soul]] de cada personaje. El estado se guarda por mensaje, así que un swipe o un mensaje borrado nunca deja números obsoletos.
+
+De quién es el sentimiento: cada número indica cómo ese personaje siente hacia *tu* personaje, nunca al revés. Los eventos detrás de ellos son lo que hace tu personaje: un beso en la frente o un abrazo sube comfort y affection, solo un beso romántico sube arousal. Cuando un personaje agravia a tu personaje (engaña, miente, se va), es un acto del personaje: no se registra como de tu personaje, y al sensor se le indica que no baje por ello la confianza del personaje en ti. Si un número sigue moviéndose mal, repórtalo como issue: el modelo del sensor es un modelo, y uno pequeño puede malinterpretar una escena.
 
 El botón "Story, move" junto a Send prepara un empujón de una sola vez para la próxima respuesta; su flecha elige una misión abierta o un giro.
 

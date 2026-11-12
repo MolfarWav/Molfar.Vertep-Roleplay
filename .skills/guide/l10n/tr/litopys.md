@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: hikâyenin kaydı
 
 Litopys (vakayname), bir sohbetin uzun hafızasıdır. Hikâyeyi arka planda okur ve tamamlanan her sahne için bir bölüm, ayrıca hikâyenin yerleştirdiği olguları yazar. Bir sohbet modelin penceresi için fazla uzadığında, kayıt hikâyeyi ileri taşır. Uzun hikâyeler için kullanın; başlatmanıza gerek yok.
@@ -33,6 +33,8 @@ Eski mesajlar istemi yalnızca pencere dolduğunda ya da bir bölüm onları kap
 ## Bir konuşmacının bulunmadığı şeyler
 
 Bir karakter yanıtladığında, model varsayılan olarak o karakterin içinde olmadığı sahnelerin son mesajlarını almaz. Dashboard kimin orada olduğunu söyler ([[dashboard]]); sizin mesajınız onu yanıtlayan yanıtla birlikte sayılır. Dışarıda bırakılan bir dizi mesaj `[Bram was not here: 6 messages]` gibi tek bir satır olur. Karakter ayrıldıktan sonra yer değişmediyse, satır onların kulak eriminde olduğunu ve sesler ile gürültüyü duyduğunu, kelimeleri değil, söyler. Her zaman tutulanlar: karakterin kendi mesajları, en yeni mesaj, Dashboard'un verisi olmayan bir mesaj ve Dashboard o karakteri hiç listelemediğinde her şey, böylece bir tahminle hiçbir şey gizlenmez.
+
+Aynı kesim her sohbette geçerlidir, anlatıcı kartı dahil, birinin bakış açısından devam ettiğinde (yazı alanındaki + menüsü): seçtiğin karakter o zaman yanıtlayan olur, bu yüzden içinde bulunmadıkları sahneler prompt'un dışında kalır ve orada neler olduğunu bilemezler. Bu menünün yazdığı yöne göre çalışır; elle yazılmış bir "OOC: Pov Alice" tanınmaz.
 
 **Leave out what a speaker was not present for** seçicisinin (Library, Litopys settings, "Recollections" bloğu) üç seçeneği vardır: "Groups only" (varsayılan), "Every chat" ve "Off". Bir sohbet bunu Canvas Prompt panosunda, "Messages a speaker was not present for" öğesinde kapatabilir. Sohbet için Litopys'in açık ve Dashboard'un açık olmasını gerektirir ve bir anlatıcı turuna, bir kadro turuna ya da bir "write my line" turuna uygulanmaz. Prompt panosu her satırı "Presence · N messages left out" adlı bir parça olarak gösterir.
 

@@ -1,4 +1,4 @@
-<!-- source: a32bcafee83b -->
+<!-- source: 3c2de24f3ae0 -->
 # O painel da cena
 
 O Dashboard é um painel ao lado do chat que acompanha a cena: quem está presente, como cada personagem se sente em relação a você, o que vestem e sabem, os fios da história em aberto. É para quem quer que a história lembre relacionamentos e detalhes entre respostas. O artigo de Ajuda *Scene dashboard* lista seus campos.
@@ -12,6 +12,8 @@ Abra-o clicando em um retrato no chat e escolhendo Dashboard. O painel lateral t
 Um personagem que está em contato de outro lugar (uma mensagem, uma carta, uma ligação, um vídeo) é marcado assim na linha da cena, com mais uma frase curta sobre o que chega até ele: por mensagem ou carta apenas as palavras enviadas; por ligação apenas a voz e os sons perto do telefone; por vídeo apenas o que está na câmera e o que se ouve perto dela. Uma ação silenciosa, como ligar a chaleira, não é conhecida por ele.
 
 Os números (trust, comfort, attraction, respect, affection, e mais) são calculados por código a partir de eventos que um modelo relata, e ajustados pelo [[soul]] de cada personagem. O estado é mantido por mensagem, então um swipe ou uma mensagem apagada nunca deixa números desatualizados.
+
+De quem é o sentimento: cada número mostra como aquele personagem se sente em relação ao *seu* personagem, nunca o contrário. Os eventos por trás deles são o que o seu personagem faz: um beijo na testa ou um abraço aquece comfort e affection, só um beijo romântico eleva arousal. Quando um personagem faz mal ao seu (trai, mente, vai embora), esse é o ato do personagem: não é lançado como do seu personagem, e ao sensor é dito para não baixar por isso a confiança do personagem em você. Se um número ainda se move de forma errada, relate como issue: o modelo do sensor é um modelo, e um pequeno pode ler mal uma cena.
 
 O botão "Story, move" ao lado de Send arma um empurrão de uma vez só para a próxima resposta; sua seta escolhe uma quest em aberto ou uma reviravolta.
 

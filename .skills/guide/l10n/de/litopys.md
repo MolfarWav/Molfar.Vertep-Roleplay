@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: die Chronik der Geschichte
 
 Litopys (die Chronik) ist das Langzeitgedächtnis eines Chats. Sie liest die Geschichte im Hintergrund mit und schreibt für jede abgeschlossene Szene ein Kapitel, dazu die Fakten, die die Geschichte etabliert hat. Wenn ein Chat zu lang für das Fenster des Modells wird, trägt die Chronik die Geschichte weiter. Nutze sie für lange Geschichten; du musst sie nicht selbst starten.
@@ -33,6 +33,8 @@ Standardmäßig wird die Chronik automatisch eingefügt. "Memory size" sagt, wie
 ## Was ein Sprecher nicht miterlebt hat
 
 Wenn eine Figur antwortet, bekommt das Modell standardmäßig nicht die neuesten Nachrichten aus Szenen, in denen diese Figur nicht war. Das Dashboard sagt, wer da war ([[dashboard]]); deine Nachricht zählt zusammen mit der Antwort, die sie beantwortet. Eine Reihe ausgelassener Nachrichten wird zu einer Zeile wie `[Bram was not here: 6 messages]`. Wenn sich der Ort nach dem Weggang der Figur nicht geändert hat, sagt die Zeile, dass sie in Hörweite war und Stimmen und Geräusche gehört hat, nicht die Worte. Immer behalten werden: die eigenen Nachrichten der Figur, die neueste Nachricht, eine Nachricht, für die das Dashboard keine Daten hat, und alles, wenn das Dashboard diese Figur nie auflistet, damit nichts auf Verdacht verborgen wird.
+
+Derselbe Schnitt gilt in jedem Chat, auch bei einer Erzählerkarte, wenn du aus der Sicht einer Figur weiterschreibst (das +-Menü des Eingabefelds): Dann antwortet die Figur, die du gewählt hast, sodass Szenen, bei denen sie nicht dabei war, nicht in den Prompt gelangen und sie nicht wissen können, was dort geschah. Es funktioniert anhand der Richtung, die dieses Menü schreibt; ein handgeschriebenes "OOC: Pov Alice" wird nicht erkannt.
 
 Die Auswahl **Leave out what a speaker was not present for** (Library, Litopys settings, Block "Recollections") hat drei Möglichkeiten: "Groups only" (Standard), "Every chat" und "Off". Ein einzelner Chat kann sie auf dem Canvas Prompt board ausschalten, Punkt "Messages a speaker was not present for". Sie braucht Litopys an für den Chat und das Dashboard an, und sie gilt nicht für einen Narrator-Turn, einen Roster-Turn oder einen "write my line"-Turn. Das Prompt board zeigt jede Zeile als Teil namens "Presence · N messages left out".
 

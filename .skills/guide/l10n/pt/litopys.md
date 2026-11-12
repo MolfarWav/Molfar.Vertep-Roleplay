@@ -1,4 +1,4 @@
-<!-- source: 76ba933a11e2 -->
+<!-- source: 52ed61b4b823 -->
 # Litopys: o registro da história
 
 Litopys (a crônica) é a memória longa de um chat. Ela lê a história em segundo plano e escreve um capítulo para cada cena concluída, além dos fatos que a história estabeleceu. Quando um chat fica longo demais para a janela do modelo, o registro leva a história adiante. Use para histórias longas; você não precisa iniciá-lo.
@@ -33,6 +33,8 @@ Mensagens mais antigas só podem sair do prompt quando a janela está cheia, ou 
 ## Aquilo em que um falante não estava presente
 
 Quando um personagem responde, o modelo por padrão não recebe as mensagens recentes de cenas em que esse personagem não estava. O Dashboard diz quem estava lá ([[dashboard]]); sua mensagem conta junto com a resposta que a atende. Uma sequência de mensagens deixadas de fora vira uma linha como `[Bram was not here: 6 messages]`. Se o lugar não mudou depois que o personagem saiu, a linha diz que ele estava ao alcance da voz e ouviu vozes e barulho, não as palavras. Sempre mantidas: as mensagens do próprio personagem, a mensagem mais nova, uma mensagem para a qual o Dashboard não tem dados, e tudo quando o Dashboard nunca lista esse personagem, então nada é escondido por suposição.
+
+O mesmo corte vale em qualquer chat, inclusive em um cartão de narrador, quando você continua a partir da visão de alguém (o menu + do compositor): o personagem escolhido é então quem responde, então as cenas das quais ele não participou ficam fora do prompt e ele não pode saber o que aconteceu lá. Funciona pela direção que esse menu escreve; um "OOC: Pov Alice" escrito à mão não é reconhecido.
 
 O seletor **Leave out what a speaker was not present for** (Library, Litopys settings, bloco "Recollections") tem três opções: "Groups only" (padrão), "Every chat" e "Off". Um chat pode desligá-lo no quadro Canvas Prompt, item "Messages a speaker was not present for". Ele precisa do Litopys ligado para o chat e do Dashboard ligado, e não se aplica a um turno de narrador, um turno de elenco ou um turno de "escreva minha fala". O quadro Prompt mostra cada linha como uma parte chamada "Presence · N messages left out".
 
