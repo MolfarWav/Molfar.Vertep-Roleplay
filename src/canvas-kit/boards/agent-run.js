@@ -239,11 +239,12 @@ export function applyWrites(schema, own, writes) {
       if (f.type !== 'number' || !Number.isFinite(w.by)) { refused.push({ write: w, why: 'wrong type' }); continue; }
       const step = w.clamp && Number.isFinite(w.clamp.maxStep) ? Math.min(Math.abs(w.by), Math.abs(w.clamp.maxStep)) * Math.sign(w.by) : w.by;
       next[w.field] = clampTo(f, (Number.isFinite(next[w.field]) ? next[w.field] : 0) + step);
-    } else if (w.op === 'list.add' || w.op === 'list.update' || w.op === 'list.remove') {
+    } else if (w.op === 'list.add' || w.op === 'list.update' || w.op === 'list.upsert' || w.op === 'list.remove') {
       if (f.type !== 'list') { refused.push({ write: w, why: 'wrong type' }); continue; }
       const list = Array.isArray(next[w.field]) ? next[w.field] : [];
       const at = w.op === 'list.add' ? -1 : list.findIndex((e) => String(e[w.key]) === String(w.id));
-      if (w.op === 'list.add') {
+      // upsert: the entry with this key is changed, else a new one is added (a tile said again does not pile up)
+      if (w.op === 'list.add' || (w.op === 'list.upsert' && at < 0)) {
         if (list.length >= f.max) { refused.push({ write: w, why: 'list is full' }); continue; }
         list.push(w.item);
       } else if (at < 0) refused.push({ write: w, why: 'no such entry' });
@@ -475,7 +476,7 @@ function runCards(file, ctx, answers, seen) {
           const item = {};
           for (const k of Object.keys(f.item || {})) item[k] = f.item[k] === 'flag' ? ins[k] === 'yes' : ins[k];
           w = p.op === 'remove' ? { op: 'list.remove', field: p.field, key: p.key, id: ins.key }
-            : { op: p.op === 'update' ? 'list.update' : 'list.add', field: p.field, item, ...(p.op === 'update' ? { key: p.key, id: item[p.key] } : {}) };
+            : { op: p.op === 'update' ? 'list.update' : p.op === 'upsert' ? 'list.upsert' : 'list.add', field: p.field, item, ...(p.op === 'update' || p.op === 'upsert' ? { key: p.key, id: item[p.key] } : {}) };
         }
         if (!w || (w.op === 'own.set' && w.value === undefined)) skip();
         else { writes.push(w); out('done', true); ran({ [w.op]: w.field }); }

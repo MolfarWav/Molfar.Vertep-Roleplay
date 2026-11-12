@@ -23,7 +23,8 @@ export function writeLine(w: unknown): string {
     case 'own.set': return `${field} = ${fmtValue(w.value)}`
     case 'own.add': { const by = Number(w.by); return `${field} ${by >= 0 ? '+' : '−'}${fmtValue(Math.abs(by))}` }
     case 'list.add': return `${field} + ${item(w.item)}`
-    case 'list.update': return `${field} ~ ${item(w.item)}`
+    case 'list.update':
+    case 'list.upsert': return `${field} ~ ${item(w.item)}`
     case 'list.remove': return `${field} − ${fmtValue(w.id)}`
     default: return ''
   }

@@ -316,6 +316,10 @@ function GridForm({ w, state, onChange, fields }: { w: Obj; state: State; onChan
         {pick('cell', 'text')}
       </div>
       <p className="text-xs leading-snug text-muted-foreground">{t('fg.grid.fieldsHint', { max: GRID.max })}</p>
+      <Field label={t('fg.grid.send')} hint={t('fg.grid.sendHint')}>
+        <Input value={String(w.send ?? '')} maxLength={200} placeholder={t('fg.grid.sendExample')} className="max-md:h-10"
+          onChange={(e) => { const { send: _s, ...rest } = w; onChange(e.target.value ? { ...rest, send: e.target.value } : rest) }} />
+      </Field>
       <span className="text-xs font-medium">{t('fg.grid.legend')}</span>
       <div className="grid grid-cols-2 gap-1.5 px-1.5 text-xs text-muted-foreground" aria-hidden="true"><span>{t('fg.grid.value')}</span><span>{t('fg.grid.label')}</span></div>
       {legend.map((l, i) => (

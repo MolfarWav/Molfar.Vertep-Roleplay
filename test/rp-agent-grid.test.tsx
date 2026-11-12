@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { compileAgent } from "../src/canvas-kit/boards/agent-check.js";
-import { gridModel, sampleGridEntries } from "../src/lib/agent-grid";
+import { gridModel, sampleGridEntries, tapText } from "../src/lib/agent-grid";
 import { fieldsFor, gridFields, newWidget, setWidgetKind } from "../src/lib/forge";
 
 (globalThis as unknown as { location: unknown }).location = { pathname: "/app/u/roleplay/", origin: "http://x", hash: "", search: "" };
@@ -43,6 +43,17 @@ describe("grid widget: the checker", () => {
     const f = recipe();
     change(grid(f), f);
     expect(codes(f)).toContain(code);
+  });
+
+  it("send (a tap writes in the message box): text of 1 to 200 characters with only the slots col, row and state", () => {
+    const ok = recipe();
+    grid(ok).send = "Look at {{col}}/{{row}} ({{state}})";
+    expect(codes(ok)).toEqual([]);
+    for (const bad of ["", "  ", "x".repeat(201), "Go to {{place}}", 5 as never]) {
+      const f = recipe();
+      grid(f).send = bad;
+      expect(codes(f)).toContain("E_WIDGET");
+    }
   });
 
   it("two characters of one symbol are a mark (an emoji counts as one)", () => {
@@ -125,7 +136,7 @@ describe("grid widget: the editor's helpers", () => {
     const w = newWidget("grid", state);
     expect(w).toMatchObject({ w: "grid", bind: "tiles", x: "x", y: "y", cell: "kind" });
     const f = recipe();
-    f.agent.state = { tiles: { type: "list", item: state.tiles.item, max: 100 } };
+    f.agent.state = { tiles: { type: "list", item: { tile: "text", ...state.tiles.item }, max: 100 } };
     f.agent.panels[0].widgets = [w];
     expect(codes(f)).toEqual([]);
   });
@@ -133,6 +144,35 @@ describe("grid widget: the editor's helpers", () => {
     const meter = newWidget("meter", state);
     expect(setWidgetKind(meter, "grid", state).w).toBe("grid");
     expect(setWidgetKind(newWidget("grid", state), "meter", state)).toMatchObject({ w: "meter", bind: "hp" });
+  });
+});
+
+describe("grid widget: a tap on a tile", () => {
+  it("tapText fills the slots and leaves other text alone", () => {
+    expect(tapText("To {{col}},{{ row }} ({{state}}) {{x}}", 3, 4, "Ours")).toBe("To 3,4 (Ours) {{x}}");
+  });
+  const w = { ...grid(recipe()), send: "We head for column {{col}}, row {{row}}." };
+  const own = { tiles: [{ x: 3, y: 4, kind: "claimed" }] };
+  it("with send, every tile of the board is a button, the empty ones too", () => {
+    const html = renderToStaticMarkup(<GridWidget w={w as never} set={{ own }} chatId="c1" />);
+    expect(html.match(/<button/g)?.length).toBe(48);
+    expect(html).not.toContain('role="img"');
+  });
+  it("without send, or without a chat (the editor's preview), a tile is not a button", () => {
+    const { send: _s, ...noSend } = w;
+    expect(renderToStaticMarkup(<GridWidget w={noSend as never} set={{ own }} chatId="c1" />)).not.toContain("<button");
+    expect(renderToStaticMarkup(<GridWidget w={w as never} set={{ own }} />)).not.toContain("<button");
+  });
+  it("a tap puts the text in the composer", () => {
+    const seen: unknown[] = [];
+    const on = (e: Event) => seen.push((e as CustomEvent).detail);
+    (globalThis as any).window ??= globalThis;
+    const target = new EventTarget();
+    (globalThis as any).window = Object.assign(target, { dispatchEvent: target.dispatchEvent.bind(target) });
+    target.addEventListener("vertep:composer-insert", on);
+    const { insertIntoComposer } = require("../src/lib/agents");
+    insertIntoComposer("c1", tapText(w.send, 3, 4, "Ours"));
+    expect(seen).toEqual([{ chatId: "c1", text: "We head for column 3, row 4." }]);
   });
 });
 

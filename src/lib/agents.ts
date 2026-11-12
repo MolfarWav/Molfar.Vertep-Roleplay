@@ -130,6 +130,8 @@ export interface PanelWidget {
   y?: string
   cell?: string
   legend?: { value: string; label: string; tone: string; mark?: string }[]
+  /** `grid` widget: a tap on a tile puts this text in the message box, with {{col}}, {{row}} and {{state}} filled in */
+  send?: string
 }
 export type PanelPlace = 'top1' | 'top2' | 'float'
 export interface AgentPanel { id: string; title: string; place?: PanelPlace; widgets: PanelWidget[] }

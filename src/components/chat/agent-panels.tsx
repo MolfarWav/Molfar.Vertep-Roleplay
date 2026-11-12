@@ -100,7 +100,7 @@ export function Widget({ w, set, chatId, compact }: { w: PanelWidget; set: Pick<
     )
   }
   if (w.w === 'html') return compact ? null : <TemplateFrame w={w} set={set} />
-  if (w.w === 'grid') return compact ? null : <GridWidget w={w} set={set} />
+  if (w.w === 'grid') return compact ? null : <GridWidget w={w} set={set} chatId={chatId} />
 
   if (w.w === 'meter' || w.w === 'counter' || w.w === 'number') {
     const n = typeof value === 'number' ? value : 0
