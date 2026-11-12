@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.117.0 (2026-11-12)
+
 - Changed: **Dashboard quests close when the story settles them (Molfar.Vertep#400).** The sensor's rules said "silence is not resolution", so a quest the story settled in two turns stayed open for dozens. Now each new quest carries a "done when" condition, and every turn the sensor checks every open quest: it closes it when it is done, failed, or the story moved past it (a quest tied to one scene ends with that scene); a full limit closes finished quests before opening new ones. The Quests box shows the goal alone; the condition is kept apart (`done` in the quest, `docs/DATA-FORMATS.md`) and shown back to the sensor. Measured on three real chats (a narrator card, a single card with NPCs, a group) with the turn director bench (Molfar.Vertep#401, `scripts/director-bench.ts`): more quests close on the turn the story settles them, at no extra cost. The previous sensor prompt is a past default, so a copy of it follows the update; a saved Threads block equal to any past default now follows it too.
 - Added: `scripts/director-bench.ts` and `scripts/director-score.ts`, the bench that replays a saved chat through the Dashboard (as it is, split into specialists, a hybrid, or a router) and scores it against an answer key (Molfar.Vertep#401). A corpus with a user's chat stays outside the repository.
 
