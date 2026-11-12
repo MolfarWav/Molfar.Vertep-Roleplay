@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle, Translate, FilmSlate } from '@phosphor-icons/react'
+import { PaperPlaneRight, Square, ArrowsClockwise, CaretDoubleRight, User, Paperclip, X, FileText, Plus, Image as ImageIcon, Lightning, ArrowsOut, MagicWand, CircleNotch, ChatTeardropText, Sparkle, Translate, FilmSlate, Clock } from '@phosphor-icons/react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -21,6 +21,7 @@ import {
 } from "@/components/chat/composer-autocomplete"
 import { useT } from '@/hooks/use-t'
 import { RegenerateHintDialog } from '@/components/chat/regenerate-hint-dialog'
+import { TimeSkipDialog } from '@/components/chat/time-skip-dialog'
 import { useApp } from "@/lib/store"
 import { useFinePointer, useLastPointer, useTouchUi } from "@/hooks/use-touch-ui"
 import { uid } from "@/lib/tokens"
@@ -100,6 +101,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   const [historyIdx, setHistoryIdx] = useState(-1)
   const [expandOpen, setExpandOpen] = useState(false)
   const [hintOpen, setHintOpen] = useState(false)
+  const [timeSkipOpen, setTimeSkipOpen] = useState(false)
   // a hint regenerates the newest reply, so there must be one
   const hasReply = !!chat?.messages.some((m) => m.role === 'assistant' && !m.picture)
   const [qrOpen, setQrOpen] = useState(false)
@@ -623,6 +625,9 @@ export function Composer({ chatId }: { chatId: ID }) {
                 <User className="size-4" /> {t('composer.impersonate')}
               </DropdownMenuItem>
               <PovSubmenu chatId={chatId} disabled={isStreaming} onSomeoneElse={insertPovDirection} />
+              <DropdownMenuItem onClick={() => setTimeSkipOpen(true)} disabled={isStreaming} data-testid="time-skip-menu">
+                <Clock className="size-4" /> {t('timeskip.menu')}
+              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
@@ -802,6 +807,7 @@ export function Composer({ chatId }: { chatId: ID }) {
         placeholder={t('composer.expandedPlaceholder')}
       />
       <RegenerateHintDialog chatId={chatId} open={hintOpen} onOpenChange={setHintOpen} />
+      <TimeSkipDialog chatId={chatId} open={timeSkipOpen} onOpenChange={setTimeSkipOpen} />
 
       {imageGen?.enabled && (
         <ImageGenDialog

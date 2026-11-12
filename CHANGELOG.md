@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Added: **Skip time.** The composer's "+" menu has **Skip time...**: a window with a number, a unit (minutes to years) and an optional note ("until the morning"). It sends one stage direction alone ("Time skip: 3 days. ..."), so the next reply jumps over the gap and continues from its end; nothing is written in the chat as your message and the Dashboard clock follows the reply. Guide page memory.
+
 ## 4.115.0 (2026-11-12)
 
 - Fixed: **an update no longer wipes the vectors of your other device (Molfar.Vertep#389).** 4.112.0 moved the vectors into the device's own cache and deleted the old synced files; that deletion travelled through the sync, so a device that had not updated yet lost its vectors and showed "Embedding: 0 of 65". The old files are now copied and left alone.
