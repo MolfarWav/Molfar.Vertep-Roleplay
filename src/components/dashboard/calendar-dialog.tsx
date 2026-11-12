@@ -94,7 +94,6 @@ export function CalendarDialog({ open, onOpenChange, current, today, busy, onSav
             </Button>
             <Button variant="ghost" size="sm" className="h-9 max-md:h-10" onClick={() => setRows(SAMPLE)}>{t('dash.cal.sample')}</Button>
           </div>
-          {!rowsOk && <p className="text-xs text-destructive" role="alert">{t('dash.cal.monthsBad', { max: CUSTOM_CALENDAR_LIMITS.days })}</p>}
         </section>
 
         <section className="flex flex-col gap-2" aria-labelledby="cal-extra">
@@ -132,14 +131,15 @@ export function CalendarDialog({ open, onOpenChange, current, today, busy, onSav
               </select>
             </label>
           )}
-          {!dateOk && <p className="text-xs text-destructive" role="alert">{t('dash.cal.dateBad')}</p>}
           <p className="text-xs text-muted-foreground">{t('dash.cal.todayHint')}</p>
         </section>
 
-        <DialogFooter className="gap-2 max-md:flex-col-reverse">
+        {/* the footer stays in view while the months scroll, and carries the reason Save is off: on a phone the field that is wrong may be far above */}
+        <DialogFooter className="sticky bottom-0 z-10 gap-2 sm:flex-wrap">
           {current && <Button variant="ghost" className="max-md:h-10 sm:mr-auto" disabled={busy} onClick={onReal}>{t('dash.cal.real')}</Button>}
           <Button variant="outline" className="max-md:h-10" onClick={() => onOpenChange(false)}>{t('dash.cal.cancel')}</Button>
           <Button className="max-md:h-10" disabled={busy || !ok} onClick={save}>{t('dash.cal.save')}</Button>
+          {!ok && <p className="text-xs text-destructive sm:order-first sm:basis-full" role="alert" data-testid="calendar-problem">{!rowsOk ? t('dash.cal.monthsBad', { max: CUSTOM_CALENDAR_LIMITS.days }) : !dateOk ? t('dash.cal.dateBad') : t('dash.cal.weekdaysBad', { max: CUSTOM_CALENDAR_LIMITS.weekdays })}</p>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

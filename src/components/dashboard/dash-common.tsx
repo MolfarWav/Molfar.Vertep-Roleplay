@@ -124,6 +124,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [own, setOwn] = useState(false)
+  const [pop, setPop] = useState(false)
   if (!dash || !calendar) return null
   const hidden = calendar.off
   const custom = calendar.custom ?? null
@@ -140,7 +141,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
     <CalendarDialog open={own} onOpenChange={setOwn} current={custom} today={calendar.today ?? null} busy={busy}
       onSave={(c, present) => void run({ custom: c, present }).then((done) => { if (done) setOwn(false) })}
       onReal={() => void run({ custom: null }).then((done) => { if (done) setOwn(false) })} />
-    <Popover onOpenChange={(open) => { if (open) setDraft(clock.date ?? '') }}>
+    <Popover open={pop} onOpenChange={(open) => { setPop(open); if (open) setDraft(clock.date ?? '') }}>
       <PopoverTrigger
         render={
           <button
@@ -177,7 +178,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
             <p className="text-muted-foreground">{t('dash.date.hint')}</p>
           </div>
         )}
-        <button type="button" onClick={() => setOwn(true)} data-testid="dash-calendar-own"
+        <button type="button" onClick={() => { setPop(false); setOwn(true) }} data-testid="dash-calendar-own"
           className="flex min-h-10 w-full flex-col items-start gap-0.5 rounded-md border border-border px-2.5 py-1.5 text-left hover:bg-muted">
           <span className="text-sm font-medium">{custom ? t('dash.cal.edit') : t('dash.cal.open')}</span>
           <span className="text-muted-foreground">{custom ? t('dash.cal.summary', { n: custom.months.length, era: custom.era ?? '' }) : t('dash.cal.openHint')}</span>
