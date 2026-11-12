@@ -62,6 +62,17 @@ function messageDirections(m) {
   if (!m || !Array.isArray(m.directions)) return [];
   return m.directions.filter((d) => typeof d === "string" && d.trim()).map((d) => d.trim().slice(0, DIRECTION_MAX_CHARS)).slice(0, DIRECTIONS_MAX);
 }
+/**
+ * The persona text as the prompt carries it: the text is the player's character sheet, known to the narrator, and the other
+ * characters know of it only what the story has shown them. Without this line a model reads the sheet as common knowledge of
+ * the scene and has strangers mention what only the sheet says (what the player's character made, owns, did). ~45 tokens.
+ */
+export function personaFrame(name, text) {
+  const t = String(text == null ? "" : text);
+  if (!t.trim()) return t;
+  const who = String(name || "").trim();
+  return "[" + (who ? who + " is" : "This is") + " the player's character. This sheet is known to you, the narrator. The other characters know of it only what they have seen, heard or been told in the story; one who has not met " + (who || "them") + " knows none of it and does not guess it.]\n" + t;
+}
 /** How the directions reach the prompt. `role` is the preset's choice: "system" (default) or "user". */
 export function stageDirectionsBlock(directions, role) {
   const body = directions.map((d) => "- " + d.replace(/\n+/g, " ")).join("\n");
@@ -3809,7 +3820,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     charPersonality: rosterMembers.length ? joined((c) => c.personality) : (speakerCard && speakerCard.personality ? speakerCard.personality : ""),
     // a narrator without a shared scenario carries every member's own
     scenario: speakerCard && speakerCard.scenario ? speakerCard.scenario : narrating ? joined((c) => c.scenario) : "",
-    personaDescription: persona && persona.description ? persona.description : "",
+    personaDescription: persona && persona.description ? personaFrame(userName, persona.description) : "",
     worldInfoBefore: wi.before.length ? wi.before.join("\n") : "",
     worldInfoAfter: wi.after.length ? wi.after.join("\n") : "",
     // <START> separators become the example-chat marker line — a readable

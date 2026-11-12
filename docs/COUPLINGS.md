@@ -189,6 +189,13 @@ Date: 2026-11-05.
 - **Why / history:** handbook findings 2, items 3 and 4. Whether a short later entry may fill the room an oversized one left is an open question for the owner.
 - **Trap:** a reader who sees "skipped: budget" on a short entry next to a long one that did not fit may think the budget is not spent; it is.
 
+### The persona text carries a knowledge frame (handbook findings 2)
+- **Touches:** `personaFrame` and the `personaDescription` marker in `plugins/engine/plugin.js` `assemble`; `PERSONA_MEMORY_RULE` in `plugins/litopys`; the presets' own line "Card, persona and lore details are known to you, not to them" (Vertep Lite, Medium, Molfar).
+- **Must stay true:** whatever preset places the persona section, its text starts with one bracketed line that says the sheet is the narrator's knowledge and other characters know only what the story showed; an empty persona adds nothing. The macro `{{persona}}` and every helper request that reads the persona description get the sheet without the frame.
+- **Fails in:** `test/rp-persona-frame.test.ts`.
+- **Why / history:** the owner's report, 2026-11-12: strangers kept mentioning a detail only the Persona card holds. Not tried on a real model.
+- **Trap:** a preset that wraps the persona section in its own text now shows the frame inside it; about 45 tokens more per request, for every preset.
+
 ### Card and lorebook formats
 - **Touches:** `docs/DATA-FORMATS.md` (sections "Characters", "Lorebooks", "Presets"); `.skills/edit-large-card/SKILL.md` (Roleplay); its engine copy `.fork/app-skills/roleplay/edit-large-card/SKILL.md`; the workspace task for the built-in agent (in the engine repo, `.fork/handoff/`); `src/lib/types.ts`; `src/lib/engine.ts` (`characterToCard`, `lorebookToEngine`).
 - **Must stay true:** every field the app writes to `data/characters/<id>/card.json` or `data/lorebooks/<id>.json` is named in `docs/DATA-FORMATS.md`. The card skill describes the same format as the code.
