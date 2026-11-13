@@ -66,6 +66,7 @@ import { cardTalkativeness, guessTalkativeness } from '@/lib/talkativeness'
 import { useT } from '@/hooks/use-t'
 import { CharacterBooks } from '@/components/character/character-books'
 import { OpeningGenerator, ScenarioGenerator, useSceneDraft } from '@/components/groups/scene-generate'
+import { DynamicsFields, VoiceFields } from '@/components/groups/dynamics-fields'
 import type { Character, Chat, GroupConfig, GroupMemberSettings } from '@/lib/types'
 
 const COLORS = ['#e06c75', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#d19a66', '#abb2bf']
@@ -565,6 +566,12 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                           </Button>
                         </div>
 
+                        <VoiceFields
+                          memberId={id}
+                          voice={ms.voice}
+                          onCommit={(v) => (v ? patchMemberSetting(id, { voice: v }) : resetMemberKey(id, 'voice'))}
+                        />
+
                         <div className="space-y-1.5">
                           <Label htmlFor={`opening-${id}`}>{t('group.ed.opening')}</Label>
                           <Select
@@ -787,6 +794,15 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                 id="color-dialogue"
                 checked={g.colorDialogue !== false}
                 onCheckedChange={(v) => updateGroup(group.id, { colorDialogue: v })}
+              />
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-3" data-testid="group-dynamics">
+              <p className="text-sm font-medium">{t('group.dyn.title')}</p>
+              <DynamicsFields
+                idPrefix="ed"
+                value={{ banter: g.banter ?? 'off', pushback: g.pushback ?? 'off', spotlight: g.spotlight ?? false }}
+                onChange={(patch) => updateGroup(group.id, patch)}
               />
             </div>
 

@@ -45,10 +45,10 @@ describe("docs/DATA-FORMATS.md names every field the app writes", () => {
     const g: Required<GroupConfig> = {
       id: "g", name: "G", memberIds: [], mode: "natural", mutedIds: [], generationMode: "swap", allowSelfResponses: false,
       autoMode: false, autoDelaySec: 5, openingMessage: "", favorite: false, avatar: "", tags: [], note: "", scenario: "",
-      openings: [], memberSettings: {}, embeddedLorebookId: null, linkedLorebookIds: [], memberBooks: "all",
+      openings: [], memberSettings: {}, embeddedLorebookId: null, linkedLorebookIds: [], memberBooks: "all", banter: "can", pushback: "can", spotlight: true,
     };
     expect(missing(Object.keys(g).filter((k) => k !== "id"))).toEqual([]);
-    const ms: Required<GroupMemberSettings> = { talkativeness: 0.5, opening: "group", color: "" };
+    const ms: Required<GroupMemberSettings> = { talkativeness: 0.5, opening: "group", color: "", voice: { quirks: [], lines: [] } };
     expect(missing(Object.keys(ms))).toEqual([]);
   });
 

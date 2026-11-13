@@ -44,7 +44,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, c
             aria-checked={on}
             onClick={() => onChange(o.id)}
             className={cn(
-              'border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+              'border px-2.5 py-1 text-xs transition-colors outline-none max-md:min-h-10 focus-visible:ring-2 focus-visible:ring-ring/60',
               on ? 'border-primary bg-primary/15 text-foreground' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
               wasThis && 'outline outline-1 -outline-offset-1 outline-dashed outline-foreground/40',
             )}

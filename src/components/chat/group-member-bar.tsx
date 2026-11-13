@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { DynamicsFields } from '@/components/groups/dynamics-fields'
 import { useApp } from '@/lib/store'
 import type { Character, Chat, ChatTurns } from '@/lib/types'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
@@ -19,7 +20,8 @@ function settingsOf(chat: Chat, group: Character): GroupSettings {
   return chat.groupSettings ?? {
     activation: group.group?.mode ?? 'natural', generationMode: group.group?.generationMode ?? 'swap',
     autoMode: group.group?.autoMode ?? false, autoDelaySec: group.group?.autoDelaySec ?? 5,
-    allowSelfResponses: group.group?.allowSelfResponses ?? false, muted: group.group?.mutedIds ?? [],
+    allowSelfResponses: group.group?.allowSelfResponses ?? false,
+    banter: group.group?.banter ?? 'off', pushback: group.group?.pushback ?? 'off', spotlight: group.group?.spotlight ?? false, muted: group.group?.mutedIds ?? [],
     order: group.members ?? [],
   }
 }
@@ -138,7 +140,7 @@ function TurnsButton({ chat, gs, onChange, onOpenGroup }: {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs" aria-label={`${t('turns.title')}: ${short}${own ? `, ${t('turns.ownShort')}` : ''}`} data-testid="chat-turns">
+          <Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs max-md:h-10" aria-label={`${t('turns.title')}: ${short}${own ? `, ${t('turns.ownShort')}` : ''}`} data-testid="chat-turns">
             <ArrowsLeftRight className="size-3.5" aria-hidden="true" />
             <span className="max-w-28 truncate">{short}</span>
             {own && <span className="size-1.5 shrink-0 rounded-full bg-primary" title={t('turns.ownShort')} aria-hidden="true" />}
@@ -186,6 +188,10 @@ function TurnsButton({ chat, gs, onChange, onOpenGroup }: {
             <SwitchRow id="gs-self" label={t('group.ed.allowSelfResponses')} hint={t('group.ed.allowSelfResponsesHint')}
               checked={gs.allowSelfResponses} onChange={(v) => onChange({ allowSelfResponses: v })} />
           )}
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <p className="text-sm font-medium">{t('group.dyn.title')}</p>
+            <DynamicsFields idPrefix="gs" value={{ banter: gs.banter, pushback: gs.pushback, spotlight: gs.spotlight }} onChange={(patch) => onChange(patch)} />
+          </div>
           {!waitsForPick(gs) && (
             <SwitchRow id="gs-auto" label={t('group.ed.autoMode')} hint={t('group.ed.autoModeHint')}
               checked={gs.autoMode} onChange={(v) => onChange({ autoMode: v })} />
