@@ -1,0 +1,89 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Repetition guard",
+  "agent": {
+    "formatVersion": 1,
+    "id": "repetition-guard",
+    "version": "1.0.0",
+    "name": "Repetition guard",
+    "description": "Finds phrases and sentence openings the character keeps reusing in its last replies and tells the next reply to avoid them. No model call: a script counts.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "limits": {
+      "maxCalls": 0,
+      "concurrency": 1
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 60,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "h",
+            "source": "history",
+            "only": "char",
+            "last": 6,
+            "tokens": 8000
+          }
+        ]
+      }
+    },
+    {
+      "id": "count",
+      "type": "code.script",
+      "x": 260,
+      "y": 60,
+      "title": "Find repeats",
+      "params": {
+        "code": "var text = String(input.h || \"\");\nvar WORD = /[\\p{L}\\p{N}]+(?:['\\u2019\\u02BC-][\\p{L}\\p{N}]+)*/gu;\nvar START = /(?:^|[.!?\\u2026\\n])[\\s\"'\\u00AB\\u00BB\\u201C\\u201D\\u201E\\u2018\\u2019*_(\\[\\u2014\\u2013-]*$/;\nvar rows = text.split(/\\n\\n(?=[^\\n:]{1,60}: )/).map(function (r) { return r.replace(/^[^\\n:]{1,60}: /, \"\"); }).slice(-6);\n\nfunction tokens(s) {\n  var out = [];\n  var m;\n  var prev = 0;\n  WORD.lastIndex = 0;\n  while ((m = WORD.exec(s)) !== null) {\n    var w = m[0];\n    var brk = /[.!?…\\n;:]/.test(s.slice(prev, m.index));\n    prev = m.index + w.length;\n    var cap = w.charAt(0) !== w.charAt(0).toLowerCase();\n    var first = START.test(s.slice(Math.max(0, m.index - 12), m.index));\n    out.push({ low: w.toLowerCase(), len: w.length, name: cap && !first, brk: brk, at: m.index, end: m.index + w.length });\n  }\n  return out;\n}\n\nvar grams = new Map();\nvar all = [];\nfor (var r = 0; r < rows.length; r++) {\n  var t = tokens(rows[r]);\n  all.push(t);\n  for (var n = 3; n <= 5; n++) {\n    for (var i = 0; i + n <= t.length; i++) {\n      var key = t[i].low;\n      var cut = false;\n      for (var k = 1; k < n; k++) { if (t[i + k].brk) { cut = true; break; } key += \" \" + t[i + k].low; }\n      if (cut) continue;\n      var g = grams.get(key);\n      if (!g) { g = { reps: new Set(), r: r, i: i, n: n }; grams.set(key, g); }\n      g.reps.add(r);\n    }\n  }\n}\n\nvar cands = [];\ngrams.forEach(function (g, key) {\n  if (g.reps.size < 2) return;\n  var t = all[g.r].slice(g.i, g.i + g.n);\n  var letters = 0;\n  var content = false;\n  for (var j = 0; j < t.length; j++) {\n    letters += t[j].len;\n    if (!t[j].name && t[j].len >= 4) content = true;\n  }\n  if (!content || letters < 12) return;\n  cands.push({ key: key, n: g.n, reps: g.reps.size, letters: letters, shown: rows[g.r].slice(t[0].at, t[t.length - 1].end) });\n});\ncands.sort(function (a, b) { return b.n - a.n || b.reps - a.reps || b.letters - a.letters; });\nvar kept = [];\nfor (var c = 0; c < cands.length && kept.length < 5; c++) {\n  var w = cands[c].key.split(\" \");\n  var clash = false;\n  for (var q = 0; q < kept.length && !clash; q++) {\n    var hay = \" \" + kept[q].key + \" \";\n    for (var p = 0; p + 1 < w.length; p++) {\n      if (w[p].length < 4 && w[p + 1].length < 4) continue;\n      if (hay.indexOf(\" \" + w[p] + \" \" + w[p + 1] + \" \") >= 0) { clash = true; break; }\n    }\n  }\n  if (!clash) kept.push(cands[c]);\n}\nkept.sort(function (a, b) { return b.letters - a.letters; });\n\nvar opens = new Map();\nfor (var r2 = 0; r2 < rows.length; r2++) {\n  var sentences = rows[r2].split(/(?<=[.!?\\u2026])\\s+|\\n+/);\n  for (var s = 0; s < sentences.length; s++) {\n    var t2 = tokens(sentences[s]);\n    if (t2.length < 3) continue;\n    var okey = t2[0].low + \" \" + t2[1].low;\n    var o = opens.get(okey);\n    if (!o) { o = { n: 0, letters: t2[0].len + t2[1].len, shown: sentences[s].slice(t2[0].at, t2[1].end) }; opens.set(okey, o); }\n    o.n++;\n  }\n}\nvar openers = [];\nopens.forEach(function (o) { if (o.n >= 3 && o.letters >= 8) openers.push(o); });\nopeners.sort(function (a, b) { return b.n - a.n; });\nopeners = openers.slice(0, 2);\n\nif (!kept.length && !openers.length) return {};\nvar parts = [];\nif (kept.length) parts.push(\"Do not reuse these phrases from earlier replies: \" + kept.map(function (x) { return '\"' + x.shown + '\"'; }).join(\"; \") + \".\");\nif (openers.length) parts.push(\"Do not open sentences with \" + openers.map(function (x) { return '\"' + x.shown + '...\"'; }).join(\" or \") + \" again.\");\nparts.push(\"Say it in fresh words.\");\nreturn { text: parts.join(\" \") };\n",
+        "inputs": [
+          {
+            "id": "h",
+            "type": "text"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "text",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 520,
+      "y": 60,
+      "title": "Output",
+      "params": {
+        "kind": "prompt-insert",
+        "label": "Repetition guard",
+        "show": "inspector"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:h",
+      "to": "count:h"
+    },
+    {
+      "id": "e2",
+      "from": "count:text",
+      "to": "out:in"
+    }
+  ]
+}

@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.120.0 (2026-11-13)
+
+- Added: **three ready agents in "Start from a ready agent" (Molfar.Vertep#396).** **Repetition guard** (no model call: a script finds phrases of three to five words that two of the last six replies share, and sentence openings used three times, and adds at most five of them to the next prompt as "do not reuse"; works on Cyrillic; a chat with nothing repeated gets no hint). **Canon guard** (every third reply, one call: checks the last three replies against the card and up to 30 Litopys facts; a contradiction leaves a note under the reply and a button that puts "(OOC: ...)" in the message box; each problem is shown once; it never rewrites a reply and never changes a fact; it needs a one-character chat with Litopys facts, otherwise it quietly does nothing). **Ledger** (one call per reply, skipped when neither message holds a digit, a number word or a time word: the model reports changes as short lines and a script does every sum, income per day and countdowns; a floating table; the next reply is told the true numbers; the player corrects by hand with `(ledger: gold = 500)` or `(ledger: remove gold)`; up to 12 rows). Guide page `agents` and the agent-craft skill name them (translations stale).
+
 ## 4.119.0 (2026-11-13)
 
 - Added: **keyword triggers can look further back (Molfar.Vertep#396).** An agent's trigger has an optional `scan` (1 to 50 messages, default 2 as before); the Agent tab shows "Look back this many messages" once words are set.

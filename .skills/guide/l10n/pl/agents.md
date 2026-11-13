@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -27,7 +27,15 @@ Ponad pasem agent może działać przy każdej N-tej odpowiedzi albo tylko wtedy
 
 ## Gotowi agenci
 
-Naciśnij „New agent” na planszy Agenci w **Canvas** (otwiera ją pozycja **Agents** na pasku bocznym). „Empty agent” daje kartę Input i notkę. „Start from a ready agent” oferuje siedem działających: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter i Character growth (proponuje, jak zmienił się bohater, dla zakładki Memory karty; patrz strona o pamięci). Pod „Drafts” są agenci, których Molfar zapisał w twoim obszarze roboczym („Drafts from Molfar”).
+Naciśnij „New agent” na planszy Agenci w **Canvas** (otwiera ją pozycja **Agents** na pasku bocznym). „Empty agent” daje kartę Input i notkę. „Start from a ready agent” oferuje dziesięć działających: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (proponuje, jak zmienił się bohater, dla zakładki Memory karty; patrz strona o pamięci), Repetition guard, Canon guard i Ledger (opisani niżej). Pod „Drafts” są agenci, których Molfar zapisał w twoim obszarze roboczym („Drafts from Molfar”).
+
+### Repetition guard, Canon guard i Ledger
+
+Trzech gotowych agentów na problemy, na które natrafiają długie historie. Włączaj każdego osobno w czacie, jak każdego agenta, i przeczytaj jego uprawnienia, zanim je zatwierdzisz.
+
+- **Repetition guard** powstrzymuje model przed powtarzaniem własnych słów. Po każdej odpowiedzi skrypt (bez wywołania modelu, więc na darmowym modelu nic nie kosztuje) czyta ostatnie sześć odpowiedzi postaci i znajduje wyrażenia o długości od trzech do pięciu słów wspólne dla dwóch odpowiedzi oraz początki zdań użyte trzy razy. Wkłada do następnego promptu najwyżej pięć wyrażeń jako „Do not reuse these phrases from earlier replies: ...” (około 40 do 80 tokenów). Działa na cyrylicy tak samo jak na łacinie. Czat bez powtórzeń nie dostaje żadnej wskazówki. Czyta historię czatu i uruchamia kod.
+- **Canon guard** wyłapuje odpowiedź sprzeczną z kartą postaci albo z faktami zapisanymi przez Litopys (wygląd, imiona, miejsca, rzeczy, które ktoś posiada). Co trzecią odpowiedź czyta trzy ostatnie odpowiedzi, kartę i do 30 faktów i pyta model raz. Gdy znajdzie sprzeczność, zostawia notkę pod odpowiedzią, zakończoną przypomnieniem, by zaktualizować fakt w Litopys, jeśli historia naprawdę się zmieniła, oraz przycisk nad polem wiadomości, który wpisuje „(OOC: ...)” z poprawką; ty decydujesz, czy ją wysłać. Nigdy nie przepisuje odpowiedzi, nie zmienia karty ani faktu i pokazuje każdy problem tylko raz. Potrzebuje czatu z jedną postacią, który ma fakty Litopys; bez jednego z nich po cichu nic nie robi.
+- **Ledger** prowadzi liczby, na których opiera się gra o zasoby: pieniądze, zapasy, skarbiec z dochodem na dzień, odliczania („przybycie za 4 dni”). Model zgłasza tylko to, co się zmieniło; skrypt robi wszystkie rachunki i przesuwa dni. Tabela stoi w pływającym oknie, a następna odpowiedź dostaje prawdziwe liczby, żeby żadnej nie zmyślała. Tylko liczby, nigdy przedmioty. Popraw liczbę sam, wpisując w wiadomości (ledger: gold = 500) albo (ledger: remove gold); działają też (ledger: timer Castle = 4) i (ledger: gold per day = 50). Pyta model raz na odpowiedź, ale tylko gdy odpowiedź lub twoja wiadomość zawiera cyfrę, liczebnik albo słowo o czasie (dzień, tydzień, noc, rano; po angielsku, ukraińsku i rosyjsku); odpowiedź bez nich nic nie kosztuje, a liczby i tak trafiają do promptu. Do 12 wierszy.
 
 ## Edytor
 

@@ -6,7 +6,7 @@ Without this skill, Molfar invents card types, asks the model to do arithmetic, 
 
 ## Procedure
 
-1. **Name the job in one sentence and pick its shape.** Six shapes cover most asks; each has a verified file in `references/`:
+1. **Name the job in one sentence and pick its shape.** Ten shapes cover most asks; each has a verified file in `references/`:
    - a note under the reply: `recipe-note.vertep-agent.json`
    - a tracker the code counts (a number, a list) with a panel: `recipe-tracker.vertep-agent.json`
    - buttons the player can tap: `recipe-choices.vertep-agent.json`
@@ -14,6 +14,9 @@ Without this skill, Molfar invents card types, asks the model to do arithmetic, 
    - a map of the places the story visits, drawn in the floating window: `recipe-map.vertep-agent.json`
    - a board of tiles (seen, taken, dangerous, a settlement) for a story that names its map squares: `recipe-territory.vertep-agent.json`
    - the living portrait of a character, written in blocks like the card's own text and named by the Profile sections (what changed in them, what the story added), which the player accepts in the card's Memory tab and which then wins over the card's description: `recipe-growth.vertep-agent.json`; it uses the `write.growth` card and the `growth` Input source
+   - a free hint made by a script that counts words (no model call): phrases and sentence openings the character keeps reusing, told to the next reply as "do not reuse": `recipe-repetition.vertep-agent.json`; read it for how a Script card handles Cyrillic and how a hint with nothing to say stays out of the prompt
+   - a note plus a button that checks the newest replies against the card and the recorded facts (one call every third reply; it needs both to exist, or it quietly skips): `recipe-canon.vertep-agent.json`; read it for how a Script card holds back a repeat and how a `choices` button fills the message box
+   - a table of the numbers a resource game lives on (money, stock, daily income, countdowns) that the model only reports and a script sums, with the player's own corrections written as `(ledger: gold = 500)`: `recipe-ledger.vertep-agent.json`; read it for how two Outputs of one hint stay exclusive and how a Script card can gate a model call
    A request that mixes shapes is one agent with several Output cards, not several agents, unless the user wants to switch them separately. Ask at most three questions, and only those that change the file: what it keeps or says, how often, what the user should see.
 2. **Copy the closest recipe, then edit it.** (If no recipe and no card fits the job, stop here: see "Say so when the cards cannot do it" below.) `read_file` the recipe once, change the id, name, description, prompts, fields and panels. Never write `agent.derived` or a hash: the check fills them in.
 3. **Read the card list when a param is unknown.** `references/cards.md` is the short form. For anything it does not settle, `grep` the heading "Agents:" in `apps/roleplay/docs/DATA-FORMATS.md` and read that section once. Do not invent a card type: an unknown type makes the agent refuse to run.

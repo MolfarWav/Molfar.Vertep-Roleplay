@@ -26,7 +26,15 @@ On top of the lane, an agent can run on every Nth reply or only when chosen word
 
 ## Ready agents
 
-Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** item opens it). "Empty agent" gives an Input and a note. "Start from a ready agent" offers seven working ones: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter and Character growth (it proposes how the character has changed, for the card's Memory tab; see the memory page). Under "Drafts" are agents Molfar wrote into your workspace ("Drafts from Molfar").
+Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** item opens it). "Empty agent" gives an Input and a note. "Start from a ready agent" offers ten working ones: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (it proposes how the character has changed, for the card's Memory tab; see the memory page), Repetition guard, Canon guard and Ledger (described below). Under "Drafts" are agents Molfar wrote into your workspace ("Drafts from Molfar").
+
+### Repetition guard, Canon guard and Ledger
+
+Three ready agents for problems that long stories run into. Turn each on per chat, like any agent, and read its permissions before you allow it.
+
+- **Repetition guard** stops a model from reusing its own words. After each reply a script (no model call, so it costs nothing on a free model) reads the last six replies of the character and finds phrases of three to five words that two replies share, and sentence openings used three times. It puts at most five phrases into the next prompt as "Do not reuse these phrases from earlier replies: ..." (about 40 to 80 tokens). It works on Cyrillic as on Latin. A chat with nothing repeated gets no hint. It reads the chat history and runs code.
+- **Canon guard** catches a reply that contradicts the character card or the facts Litopys recorded (looks, names, places, things someone owns). Every third reply it reads the last three replies, the card and up to 30 facts, and asks the model once. When it finds a contradiction it leaves a note under the reply, ending with a reminder to update the fact in Litopys if the story really changed, and a button above the message box that writes "(OOC: ...)" with the correction; you decide whether to send it. It never rewrites a reply and never changes a card or a fact, and it shows each problem once. It needs a one-character chat that has Litopys facts; without either it quietly does nothing.
+- **Ledger** keeps the numbers a resource game lives on: money, stock, a treasury with income per day, countdowns ("arrival in 4 days"). The model only reports what changed; a script does every sum and moves days forward. A table sits in a floating window, and the next reply is told the true numbers so it invents none. Numbers only, never items. Fix a number yourself by writing (ledger: gold = 500) or (ledger: remove gold) in your message; (ledger: timer Castle = 4) and (ledger: gold per day = 50) work too. It asks the model once per reply, but only when the reply or your message holds a digit, a number word or a time word (day, week, night, morning, in English, Ukrainian and Russian); a reply with none costs nothing, and the numbers still go into the prompt. Up to 12 rows.
 
 ## The editor
 

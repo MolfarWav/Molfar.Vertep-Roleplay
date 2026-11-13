@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # 에이전트와 에이전트 제작소
 
 에이전트는 카드와 연결선으로 만드는 작은 도우미입니다. 채팅의 일부를 읽고(답장 전이나 후, 원하는 대로 고를 수 있습니다), 모델에게 짧은 질문을 하나 이상 할 수 있으며, 자체 메모를 보관하고, 무언가를 보여 줍니다: 답장 아래의 메모, 누를 수 있는 버튼, 수치 표시, 지도, 또는 다음 답장을 위한 힌트. 예: 추천 다음 행동 세 가지, 긴장도 표시, 방문한 장소 지도. 이 페이지는 그런 추가 기능을 원하는 분을 위한 것입니다. 도움말에는 편집기에 관한 문서가 세 편 있습니다: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
@@ -27,7 +27,15 @@
 
 ## 준비된 에이전트
 
-**Canvas**의 **Agents** 보드에서 "New agent"를 누르세요(레일의 **Agents** 항목이 이 보드를 엽니다). "Empty agent"는 Input 하나와 메모 하나를 줍니다. "Start from a ready agent"는 작동하는 일곱 가지를 제공합니다: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth(캐릭터가 어떻게 변했는지를 제안하며, 카드의 Memory 탭용입니다. 메모리 페이지 참조). "Drafts" 아래에는 Molfar가 작업 공간에 써 둔 에이전트가 있습니다("Drafts from Molfar").
+**Canvas**의 **Agents** 보드에서 "New agent"를 누르세요(레일의 **Agents** 항목이 이 보드를 엽니다). "Empty agent"는 Input 하나와 메모 하나를 줍니다. "Start from a ready agent"는 작동하는 열 가지를 제공합니다: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth(캐릭터가 어떻게 변했는지를 제안하며, 카드의 Memory 탭용입니다. 메모리 페이지 참조), Repetition guard, Canon guard, Ledger(아래에서 설명). "Drafts" 아래에는 Molfar가 작업 공간에 써 둔 에이전트가 있습니다("Drafts from Molfar").
+
+### Repetition guard, Canon guard, Ledger
+
+긴 이야기에서 흔히 부딪히는 문제를 위한 준비된 에이전트가 세 가지 있습니다. 다른 에이전트처럼 채팅마다 켜고, 허용하기 전에 권한을 읽어 보세요.
+
+- **Repetition guard**는 모델이 자기 표현을 되풀이하지 않게 합니다. 답장마다 스크립트가(모델을 호출하지 않으므로 무료 모델에서도 비용이 들지 않습니다) 캐릭터의 최근 답장 여섯 개를 읽고, 두 답장이 함께 쓴 세 단어에서 다섯 단어짜리 표현과 세 번 쓰인 문장 시작을 찾습니다. 다음 프롬프트에는 최대 다섯 개의 표현을 "Do not reuse these phrases from earlier replies: ..."로 넣습니다(약 40~80토큰). 키릴 문자든 라틴 문자든 작동합니다. 반복이 없는 채팅에는 힌트가 나오지 않습니다. 채팅 기록을 읽고 코드를 실행합니다.
+- **Canon guard**는 캐릭터 카드나 Litopys가 기록한 사실(외모, 이름, 장소, 누군가가 가진 물건)과 모순되는 답장을 잡아냅니다. 답장 세 번마다 최근 답장 세 개, 카드, 최대 30개의 사실을 읽고 모델에게 한 번 묻습니다. 모순을 찾으면 답장 아래에 메모를 남기는데, 이야기가 정말 바뀐 것이라면 Litopys의 사실을 갱신하라는 알림으로 끝납니다. 또 메시지 입력란 위에 수정 내용이 담긴 "(OOC: ...)"를 써 주는 버튼이 나타나며, 보낼지 말지는 직접 정합니다. 답장을 고쳐 쓰거나 카드나 사실을 바꾸는 일은 절대 없고, 같은 문제는 한 번만 보여 줍니다. Litopys 사실이 있는 캐릭터 한 명의 채팅이 필요하며, 둘 중 하나라도 없으면 조용히 아무것도 하지 않습니다.
+- **Ledger**는 자원 관리 게임이 의존하는 숫자를 관리합니다. 돈, 재고, 하루 수입이 있는 국고, 카운트다운("4일 뒤 도착") 등입니다. 모델은 바뀐 것만 보고하고, 모든 계산은 스크립트가 하며 날짜도 앞으로 넘깁니다. 표는 떠 있는 창에 표시되고, 다음 답장에는 정확한 숫자가 전달되어 숫자를 지어내지 못합니다. 숫자만 다루며 물건은 다루지 않습니다. 숫자를 직접 고치려면 메시지에 (ledger: gold = 500) 또는 (ledger: remove gold)를 쓰세요. (ledger: timer Castle = 4)와 (ledger: gold per day = 50)도 됩니다. 답장당 모델에게 한 번 묻지만, 답장이나 내 메시지에 숫자, 수를 나타내는 낱말, 시간을 나타내는 낱말(일, 주, 밤, 아침; 영어, 우크라이나어, 러시아어)이 있을 때만 묻습니다. 그런 것이 없는 답장은 비용이 들지 않고, 숫자는 그래도 프롬프트에 들어갑니다. 최대 12행입니다.
 
 ## 편집기
 

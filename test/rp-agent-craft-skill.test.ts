@@ -16,8 +16,8 @@ const same = (x: unknown) => JSON.parse(JSON.stringify(x));
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".vertep-agent.json")).sort();
 
 describe("agent-craft recipes", () => {
-  it("there are the seven the skill names", () => {
-    expect(files).toEqual(["recipe-choices.vertep-agent.json", "recipe-growth.vertep-agent.json", "recipe-hint.vertep-agent.json", "recipe-map.vertep-agent.json", "recipe-note.vertep-agent.json", "recipe-territory.vertep-agent.json", "recipe-tracker.vertep-agent.json"]);
+  it("there are the ten the skill names", () => {
+    expect(files).toEqual(["recipe-canon.vertep-agent.json", "recipe-choices.vertep-agent.json", "recipe-growth.vertep-agent.json", "recipe-hint.vertep-agent.json", "recipe-ledger.vertep-agent.json", "recipe-map.vertep-agent.json", "recipe-note.vertep-agent.json", "recipe-repetition.vertep-agent.json", "recipe-territory.vertep-agent.json", "recipe-tracker.vertep-agent.json"]);
     const skill = fs.readFileSync(new URL("../SKILL.md", dir), "utf8");
     for (const f of files) expect(skill).toContain(f);
   });

@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # 代理与代理工坊
 
 代理是一个由卡片和连线搭建的小助手。它读取聊天的一部分（在回复之前或之后，由你选择），可能会向模型提出一个或多个简短问题，保留自己的笔记，并展示一些内容：回复下方的一条注释、可点击的按钮、一个计量表、一张地图，或是对下一次回复的提示。例如：三个建议的后续行动、一个紧张度计量表、一张已到访地点的地图。本页面向那些想要这些附加功能的人。帮助中有三篇关于编辑器的文章：“Agent editor: how an agent works”、“Agent editor: the cards”和“Agent editor: three ready agents”。
@@ -27,7 +27,15 @@
 
 ## 现成代理
 
-在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供七个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board、Tension meter和Character growth（提出角色如何变化，用于卡片的Memory标签页；见记忆页面）。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
+在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供十个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board、Tension meter、Character growth（提出角色如何变化，用于卡片的Memory标签页；见记忆页面）、Repetition guard、Canon guard和Ledger（下文说明）。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
+
+### Repetition guard、Canon guard和Ledger
+
+三个现成代理，针对长篇故事容易遇到的问题。像其他代理一样按聊天分别开启，并在允许之前先读它的权限。
+
+- **Repetition guard**防止模型重复使用自己的用语。每次回复后，一段脚本（不调用模型，所以在免费模型上也不花费任何费用）读取角色最近的六条回复，找出两条回复共有的三到五个词的短语，以及使用了三次的句子开头。它最多把五个短语放进下一次提示中，形式为“Do not reuse these phrases from earlier replies: ...”（约40到80个token）。西里尔字母和拉丁字母都适用。没有重复的聊天不会收到提示。它会读取聊天记录并运行代码。
+- **Canon guard**会发现与角色卡片或Litopys所记录事实（外貌、名字、地点、某人拥有的东西）相矛盾的回复。每三条回复，它读取最近三条回复、卡片和最多30条事实，并向模型询问一次。发现矛盾时，它会在回复下方留下一条注释，结尾提醒你：如果故事确实变了，请在Litopys中更新该事实；消息框上方还会出现一个按钮，写入带有更正内容的“(OOC: ...)”，是否发送由你决定。它从不改写回复，也从不更改卡片或事实，每个问题只显示一次。它需要一个有Litopys事实的单角色聊天；两者缺一，它就默默地什么也不做。
+- **Ledger**记录资源类游戏赖以运转的数字：金钱、库存、有每日收入的国库、倒计时（“4天后到达”）。模型只报告发生了什么变化；所有计算都由脚本完成，天数也由它推进。表格显示在一个浮动窗口里，下一条回复会被告知真实的数字，这样它就不会自己编造。只记录数字，从不记录物品。你可以自己修正数字，在消息里写(ledger: gold = 500)或(ledger: remove gold)；(ledger: timer Castle = 4)和(ledger: gold per day = 50)同样有效。它每条回复向模型询问一次，但只有当回复或你的消息包含数字、数词或时间词（日、周、夜、早晨，英语、乌克兰语和俄语）时才询问；没有这些的回复不花费任何费用，数字仍会进入提示。最多12行。
 
 ## 编辑器
 

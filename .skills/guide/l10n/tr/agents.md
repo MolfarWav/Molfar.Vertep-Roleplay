@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -27,7 +27,15 @@ Ajanın ne zaman çalışacağı bir şeride (lane) bağlıdır. Ajanın dosyas�
 
 ## Hazır ajanlar
 
-Canvas'taki Agents panosunda "New agent"a basın (raydaki **Agents** öğesi onu açar). "Empty agent" bir Girdi ve bir not verir. "Start from a ready agent" yedi çalışan ajan sunar: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter ve Character growth (karakterin nasıl değiştiğini önerir, kartın Memory sekmesi için; bellek sayfasına bakın). "Drafts" altında Molfar'ın çalışma alanınıza yazdığı ajanlar bulunur ("Drafts from Molfar").
+Canvas'taki Agents panosunda "New agent"a basın (raydaki **Agents** öğesi onu açar). "Empty agent" bir Girdi ve bir not verir. "Start from a ready agent" on çalışan ajan sunar: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (karakterin nasıl değiştiğini önerir, kartın Memory sekmesi için; bellek sayfasına bakın), Repetition guard, Canon guard ve Ledger (aşağıda anlatılır). "Drafts" altında Molfar'ın çalışma alanınıza yazdığı ajanlar bulunur ("Drafts from Molfar").
+
+### Repetition guard, Canon guard ve Ledger
+
+Uzun hikâyelerin karşılaştığı sorunlar için üç hazır ajan. Her birini, her ajan gibi, sohbet başına açın ve izin vermeden önce izinlerini okuyun.
+
+- **Repetition guard**, bir modelin kendi sözcüklerini yeniden kullanmasını engeller. Her yanıttan sonra bir betik (model çağrısı yok, bu yüzden ücretsiz bir modelde hiçbir şeye mal olmaz) karakterin son altı yanıtını okur; iki yanıtın ortak kullandığı üç ila beş sözcüklük öbekleri ve üç kez kullanılmış cümle başlangıçlarını bulur. Bir sonraki isteme en çok beş öbeği "Do not reuse these phrases from earlier replies: ..." olarak koyar (yaklaşık 40 ila 80 token). Kiril alfabesinde de Latin alfabesinde de çalışır. Hiçbir şeyin tekrarlanmadığı bir sohbet ipucu almaz. Sohbet geçmişini okur ve kod çalıştırır.
+- **Canon guard**, karakter kartıyla veya Litopys'in kaydettiği olgularla (görünüm, adlar, yerler, birinin sahip olduğu şeyler) çelişen bir yanıtı yakalar. Her üçüncü yanıtta son üç yanıtı, kartı ve en çok 30 olguyu okur ve modele bir kez sorar. Bir çelişki bulursa yanıtın altına bir not bırakır; not, hikâye gerçekten değiştiyse olguyu Litopys'te güncellemeniz hatırlatmasıyla biter. Ayrıca mesaj kutusunun üstünde düzeltmeyle birlikte "(OOC: ...)" yazan bir düğme çıkar; göndermek sizin kararınızdır. Bir yanıtı asla yeniden yazmaz, bir kartı veya olguyu asla değiştirmez ve her sorunu yalnızca bir kez gösterir. Litopys olguları olan tek karakterli bir sohbet gerekir; ikisinden biri yoksa sessizce hiçbir şey yapmaz.
+- **Ledger**, bir kaynak oyununun dayandığı sayıları tutar: para, stok, günlük gelirli bir hazine, geri sayımlar ("4 gün içinde varış"). Model yalnızca neyin değiştiğini bildirir; tüm toplamaları bir betik yapar ve günleri ilerletir. Bir tablo yüzen bir pencerede durur ve bir sonraki yanıta gerçek sayılar söylenir, böylece hiçbirini uydurmaz. Yalnızca sayılar, asla eşyalar. Bir sayıyı kendiniz düzeltmek için mesajınıza (ledger: gold = 500) veya (ledger: remove gold) yazın; (ledger: timer Castle = 4) ve (ledger: gold per day = 50) de çalışır. Yanıt başına modele bir kez sorar, ama yalnızca yanıt ya da mesajınız bir rakam, yazıyla yazılmış bir sayı ya da bir zaman sözcüğü (gün, hafta, gece, sabah; İngilizce, Ukraynaca ve Rusça) içeriyorsa; bunların hiçbirini içermeyen bir yanıt hiçbir şeye mal olmaz ve sayılar yine de isteme girer. En çok 12 satır.
 
 ## Düzenleyici
 

@@ -1,0 +1,288 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Canon guard",
+  "agent": {
+    "formatVersion": 1,
+    "id": "canon-guard",
+    "version": "1.0.0",
+    "name": "Canon guard",
+    "description": "Every third reply, checks the newest replies against the character card and the recorded facts. When one states a hard fact the other way (looks, names, places, things), it leaves a note under the reply and a button that writes the correction into your message box. It never rewrites a reply and never changes a fact.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 3,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "reads a card and some facts, answers a small JSON; a stronger model misses less"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    },
+    "state": {
+      "seen": {
+        "type": "text",
+        "start": "|"
+      }
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 120,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "hist",
+            "source": "history",
+            "only": "char",
+            "last": 3,
+            "tokens": 2500
+          },
+          {
+            "id": "card",
+            "source": "card"
+          },
+          {
+            "id": "facts",
+            "source": "litopysFacts",
+            "limit": 30
+          }
+        ]
+      }
+    },
+    {
+      "id": "rd",
+      "type": "state.read",
+      "x": 10,
+      "y": 330,
+      "title": "Keys already shown",
+      "params": {
+        "field": "seen",
+        "as": "text"
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 260,
+      "y": 120,
+      "title": "Contradiction?",
+      "params": {
+        "role": "fast",
+        "prompt": "You check a story for continuity. Compare the newest replies with the character card and the recorded facts. Report ONE contradiction only when a reply states a hard fact that the card or the facts say is otherwise: looks (hair, eyes, age, scars), names, places, what exists, things someone owns. Do not judge style, tone or character, and ignore anything the sources do not mention. A change the story clearly caused (a haircut, a move, a loss) is not a contradiction. Do not report these keys again: {{seen}}\n\nCharacter card:\n{{card}}\n\nRecorded facts:\n{{facts}}\n\nNewest replies:\n{{hist}}\n\nFields: found (true or false), what (one sentence: what the reply says against what the source says), fix (one short line the player could write to correct it, in the story's language), key (two or three lowercase words joined by hyphens). When nothing is wrong: found false and empty texts.",
+        "answer": {
+          "as": "json",
+          "shape": {
+            "found": "bool",
+            "what": "text",
+            "fix": "text",
+            "key": "text"
+          }
+        },
+        "maxTokens": 200,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "yes",
+      "type": "logic.if",
+      "x": 520,
+      "y": 120,
+      "title": "Found one?",
+      "params": {
+        "inputs": [
+          {
+            "id": "found",
+            "type": "flag"
+          }
+        ],
+        "match": "all",
+        "rows": [
+          {
+            "left": {
+              "from": "wire",
+              "port": "found"
+            },
+            "op": "isYes"
+          }
+        ]
+      }
+    },
+    {
+      "id": "make",
+      "type": "code.script",
+      "x": 780,
+      "y": 120,
+      "title": "Word it, skip repeats",
+      "params": {
+        "code": "var seen = String(input.seen || \"|\");\nvar what = String(input.what || \"\").replace(/\\s+/g, \" \").trim().slice(0, 300);\nvar fix = String(input.fix || \"\").replace(/\\s+/g, \" \").trim().slice(0, 200);\nvar key = String(input.key || \"\").toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, \"-\").replace(/^-+|-+$/g, \"\").slice(0, 40);\nif (input.found !== true || !what || !fix) return {};\nif (key && seen.indexOf(\"|\" + key + \"|\") >= 0) return {};\nvar kept = (seen + (key ? key + \"|\" : \"\")).slice(-300);\nif (kept.charAt(0) !== \"|\") kept = \"|\" + kept;\nreturn { note: what + \" If this is the new truth, update the fact in Litopys.\", button: \"(OOC: \" + fix + \")\", seen2: kept };\n",
+        "inputs": [
+          {
+            "id": "found",
+            "type": "flag"
+          },
+          {
+            "id": "what",
+            "type": "text"
+          },
+          {
+            "id": "fix",
+            "type": "text"
+          },
+          {
+            "id": "key",
+            "type": "text"
+          },
+          {
+            "id": "seen",
+            "type": "text"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "note",
+            "type": "text"
+          },
+          {
+            "id": "button",
+            "type": "text"
+          },
+          {
+            "id": "seen2",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "id": "keep",
+      "type": "state.set",
+      "x": 1040,
+      "y": 330,
+      "title": "Remember the key",
+      "params": {
+        "field": "seen",
+        "as": "text"
+      }
+    },
+    {
+      "id": "note",
+      "type": "agent.output",
+      "x": 1040,
+      "y": 60,
+      "title": "Note",
+      "params": {
+        "kind": "note",
+        "title": "Canon check"
+      }
+    },
+    {
+      "id": "btn",
+      "type": "agent.output",
+      "x": 1040,
+      "y": 190,
+      "title": "Button",
+      "params": {
+        "kind": "choices",
+        "show": "bottom"
+      }
+    },
+    {
+      "id": "log",
+      "type": "agent.output",
+      "x": 1300,
+      "y": 330,
+      "title": "Log",
+      "params": {
+        "kind": "state-patch",
+        "show": "log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:hist",
+      "to": "ask:hist"
+    },
+    {
+      "id": "e2",
+      "from": "in:card",
+      "to": "ask:card"
+    },
+    {
+      "id": "e3",
+      "from": "in:facts",
+      "to": "ask:facts"
+    },
+    {
+      "id": "e4",
+      "from": "rd:value",
+      "to": "ask:seen"
+    },
+    {
+      "id": "e5",
+      "from": "ask:found",
+      "to": "yes:found"
+    },
+    {
+      "id": "e6",
+      "from": "ask:found",
+      "to": "make:found"
+    },
+    {
+      "id": "e7",
+      "from": "ask:what",
+      "to": "make:what"
+    },
+    {
+      "id": "e8",
+      "from": "ask:fix",
+      "to": "make:fix"
+    },
+    {
+      "id": "e9",
+      "from": "ask:key",
+      "to": "make:key"
+    },
+    {
+      "id": "e10",
+      "from": "rd:value",
+      "to": "make:seen"
+    },
+    {
+      "id": "e11",
+      "from": "yes:yes",
+      "to": "make:when"
+    },
+    {
+      "id": "e12",
+      "from": "make:note",
+      "to": "note:in"
+    },
+    {
+      "id": "e13",
+      "from": "make:button",
+      "to": "btn:in"
+    },
+    {
+      "id": "e14",
+      "from": "make:seen2",
+      "to": "keep:value"
+    },
+    {
+      "id": "e15",
+      "from": "keep:done",
+      "to": "log:in"
+    }
+  ]
+}
