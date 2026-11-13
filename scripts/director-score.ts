@@ -318,6 +318,13 @@ for (const s of replayRuns) {
   out(`| ${s.run.tag} | ${fmt(mean(diffs[s.run.tag]!), 2)} | ${closes} |`);
 }
 
+// --json <file>: the counts per run and signal (TP/FP/FN/positives) for scripts/director-phase1.ts
+const jsonFile = flag("--json");
+if (jsonFile) {
+  const dump = scores.map((s) => ({ tag: s.run.tag, mode: s.run.mode, turns: s.scoredTurns.length, counts: s.counts, unreadable: s.unreadable, preds: Object.fromEntries(s.scoredTurns.map((k) => [k, s.replay ? derive(s.recs.get(k), s.prevs.get(k)).flags : s.recs.get(k)?.signals ?? null])) }));
+  fs.writeFileSync(jsonFile, JSON.stringify(dump, null, 1));
+}
+
 const text = lines.join("\n") + "\n";
 console.log(text);
 fs.writeFileSync(outFile, text, "utf8");

@@ -308,6 +308,57 @@ if (flag("--router") === "v2") {
   SIGNALS.person_enter = "a character who was not in the scene at the end of the previous messages appears or comes back: in person, by phone, by message, or is first seen, even at the very end";
   SIGNALS.vow_said = "a binding or story-changing statement: a promise, vow, threat, ultimatum, a binding order, a confession, or ANY lie a character tells (a lie counts even when casual)";
 }
+// ---------- ask-first and calibrated (turn director phase 1, one call each; bench only) ----------
+// --ask-first: the output's first key is `changed` (the 13 router questions, v2 wording, "when unsure, answer true"),
+// and a section is written only when its question is true; the tracker keeps the previous value of the others.
+// --calibrated: one sentence per over-reported field with its base rate and a quota.
+// Both patch the sensor's system prompt of the baseline mode; they can be combined (tag them apart).
+const askFirst = args.includes("--ask-first");
+const calibrated = args.includes("--calibrated");
+function signalsV2(): Record<string, string> {
+  return {
+    ...SIGNALS,
+    quest_progress: "a goal or problem that drives the story moved: a concrete step toward it happened, or it got harder (whether or not it is in the Previous state's thread list)",
+    quest_end: "a goal or problem that drove the story was settled in these messages: achieved, failed, or it stopped mattering (the danger passed, the errand is done, the meeting happened), whether or not it is in the Previous state's thread list",
+    person_enter: "a character who was not in the scene at the end of the previous messages appears or comes back: in person, by phone, by message, or is first seen, even at the very end",
+    vow_said: "a binding or story-changing statement: a promise, vow, threat, ultimatum, a binding order, a confession, or ANY lie a character tells (a lie counts even when casual)",
+  };
+}
+function mustReplace(text: string, from: string, to: string): string {
+  if (!text.includes(from)) throw new Error("prompt patch did not match: " + from.slice(0, 60));
+  return text.replace(from, to);
+}
+function patchAskFirst(sys: string): string {
+  const sig = signalsV2();
+  const keys = Object.keys(sig);
+  const block = [
+    "Changed",
+    'Before every other key, answer these questions in "changed": true or false each, about what the New messages show. The Previous state is only background. When unsure, answer true.',
+    ...keys.map((k) => "- " + k + ": " + sig[k]),
+    "",
+    "Then write a section only when its question is true. Leave every other key out; the tracker keeps the previous value.",
+    "- place_change, time_jump, scene_cut, person_enter or person_leave: place, weather, time, day, date, scene, present, struck, userAt and at.",
+    "- clothes_change or item_change: outfit and holding under chars, and objects.",
+    "- relation_event: events and edges.",
+    "- secret_learned or vow_said: learned, said, told, retire, people and blindSpot.",
+    "- quest_progress, quest_end or new_goal: threads.",
+    "Always write minutes, names, and for every present character mood, condition, goal, leads, contact and thought.",
+  ].join("\n");
+  let out = mustReplace(sys, "\n\nOutput shape\n", "\n\n" + block + "\n\nOutput shape\n");
+  out = mustReplace(out, '\nOutput shape\n{ "present"', '\nOutput shape\n{ "changed": { ' + keys.map((k) => '"' + k + '": false').join(", ") + ' },\n  "present"');
+  return out;
+}
+function patchCalibrated(sys: string): string {
+  let out = sys;
+  // a note's weight: most notes are everyday
+  out = mustReplace(out, "wound).", "wound). Most notes are everyday: in a story like this about one turn in four has a note that is important or key, and key is rare (a handful in a whole story). At most one note a turn may be marked important or key.");
+  // an event's weight: most turns have none that is significant
+  out = mustReplace(out, "(a life saved, a vow, a betrayal).", "(a life saved, a vow, a betrayal). Ordinary talk, small help, teasing and flirting are routine. In a story like this about two turns in five have a significant event and pivotal is rare. At most one event a turn may be significant or pivotal.");
+  // said: about one turn in two
+  out = mustReplace(out, "None when nothing strong was said, which is most turns.", "None when nothing strong was said, which is most turns. In a story like this about every second turn has one; a promise of the moment, an ordinary refusal or an order nobody must obey is not one. Report at most one per turn.");
+  return out;
+}
+
 const ROUTER_SYSTEM = [
   "You watch an ongoing roleplay story for a tracker. Read the Previous state and the New messages (the player's last message and the reply). For each question below, answer true or false about what the New messages show. The Previous state is only background. When you are unsure, answer true.",
   "Reply with one JSON object with exactly these keys and true or false as values. No prose, no code fences.",
@@ -411,11 +462,15 @@ async function update(rec: any): Promise<void> {
           return;
         }
         if (isSensor(b.req) && questRules) b.req.systemPrompt = String(b.req.systemPrompt).replace(PARTS.threads!, questRules);
+        if (isSensor(b.req) && calibrated) b.req.systemPrompt = patchCalibrated(String(b.req.systemPrompt));
+        if (isSensor(b.req) && askFirst) b.req.systemPrompt = patchAskFirst(String(b.req.systemPrompt));
+        if (isSensor(b.req) && !out.system) out.system = String(b.req.systemPrompt);
         const a = await callModel(String(b.req.systemPrompt ?? ""), String(b.req.messages?.map((m: any) => m.content).join("\n\n") ?? ""), model, b.req.presetParams?.max_tokens ?? 4000, b.req.presetParams?.temperature ?? 0);
         rec.calls.push({ who: isSensor(b.req) ? "sensor" : b.key, ms: a.ms, input: a.input, output: a.output, error: a.error });
         if (isSensor(b.req)) {
           rec.sensorMs = a.ms;
           rec.raw = a.error ? null : parse(a.text);
+          if (askFirst) rec.changed = rec.raw && typeof rec.raw.changed === "object" ? rec.raw.changed : null;
         }
         (results as any)[b.key] = a.error ? { text: "", model: "error", error: a.error, usage: { input: 0, output: 0 } } : { text: a.text, model: a.model, usage: { input: a.input, output: a.output }, genTimeMs: a.ms };
       }),
@@ -463,5 +518,10 @@ for (const k of turns) {
   const errs = rec.calls.filter((c: any) => c.error).map((c: any) => c.who + ": " + c.error);
   console.log(`turn ${k}: ${rec.ms} ms, sensor ${rec.sensorMs ?? "-"} ms, calls ${rec.calls.length}, tokens ${tin}/${tout}, open threads ${(rec.snap?.threads ?? []).filter((t: any) => t.status === "open").length}${errs.length ? " ! " + errs.join("; ") : ""}`);
   fs.writeFileSync(path.join(corpus, `results-${tag}.json`), JSON.stringify(out, null, 1));
+}
+// ask-first: the `changed` flags as a router-style run (scored by director-score.ts as `<tag>-flags`)
+if (askFirst) {
+  const flags = { tag: tag + "-flags", mode: "router", model: modelOverride ?? null, turns: out.turns.map((r: any) => ({ k: r.k, ms: r.ms, calls: [], signals: r.changed })) };
+  fs.writeFileSync(path.join(corpus, `results-${tag}-flags.json`), JSON.stringify(flags, null, 1));
 }
 fs.rmSync(root, { recursive: true, force: true });
