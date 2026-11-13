@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # Agentes e a forja de agentes
 
 Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -27,7 +27,15 @@ Além da faixa, um agente pode rodar a cada N respostas, ou somente quando palav
 
 ## Agentes prontos
 
-Pressione "New agent" no quadro Agents do **Canvas** (o item **Agents** da barra lateral o abre). "Empty agent" cria um cartão Input e uma nota. "Start from a ready agent" oferece sete prontos para uso: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter e Character growth (sugere como o personagem mudou, para a aba Memory do cartão; veja a página sobre memória). Em "Drafts" ficam os agentes que o Molfar escreveu no seu espaço de trabalho ("Drafts from Molfar").
+Pressione "New agent" no quadro Agents do **Canvas** (o item **Agents** da barra lateral o abre). "Empty agent" cria um cartão Input e uma nota. "Start from a ready agent" oferece dez prontos para uso: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (sugere como o personagem mudou, para a aba Memory do cartão; veja a página sobre memória), Repetition guard, Canon guard e Ledger (descritos abaixo). Em "Drafts" ficam os agentes que o Molfar escreveu no seu espaço de trabalho ("Drafts from Molfar").
+
+### Repetition guard, Canon guard e Ledger
+
+Três agentes prontos para problemas que as histórias longas encontram. Ative cada um por chat, como qualquer agente, e leia as permissões dele antes de permitir.
+
+- **Repetition guard** impede que um modelo reutilize as próprias palavras. Depois de cada resposta, um script (sem chamada ao modelo, então não custa nada em um modelo gratuito) lê as últimas seis respostas do personagem e encontra expressões de três a cinco palavras que duas respostas compartilham, e inícios de frase usados três vezes. Coloca no máximo cinco expressões no próximo prompt: "Do not reuse these phrases from earlier replies: ..." (cerca de 40 a 80 tokens). Funciona com cirílico como com latino. Um chat sem repetições não recebe nenhuma dica. Lê o histórico do chat e executa código.
+- **Canon guard** pega uma resposta que contradiz o cartão do personagem ou os fatos registrados pelo Litopys (aparência, nomes, lugares, coisas que alguém possui). A cada três respostas, lê as últimas três respostas, o cartão e até 30 fatos, e consulta o modelo uma vez. Quando encontra uma contradição, deixa uma nota sob a resposta, que termina com um lembrete para atualizar o fato no Litopys se a história realmente mudou, e um botão acima da caixa de mensagem que escreve "(OOC: ...)" com a correção; você decide se a envia. Nunca reescreve uma resposta nem altera um cartão ou um fato, e mostra cada problema uma só vez. Precisa de um chat de um só personagem com fatos do Litopys; sem um dos dois, não faz nada em silêncio.
+- **Ledger** guarda os números de que vive um jogo de recursos: dinheiro, estoque, um tesouro com renda por dia, contagens regressivas ("chegada em 4 dias"). O modelo só informa o que mudou; um script faz todas as contas e avança os dias. Uma tabela fica em uma janela flutuante, e à próxima resposta são ditos os números verdadeiros para que ela não invente nenhum. Só números, nunca itens. Corrija um número você mesmo escrevendo (ledger: gold = 500) ou (ledger: remove gold) na sua mensagem; (ledger: timer Castle = 4) e (ledger: gold per day = 50) também funcionam. Consulta o modelo uma vez por resposta, mas só quando a resposta ou a sua mensagem contém um dígito, um número por extenso ou uma palavra de tempo (dia, semana, noite, manhã, em inglês, ucraniano e russo); uma resposta sem nenhum desses não custa nada, e os números continuam entrando no prompt. Até 12 linhas.
 
 ## O editor
 

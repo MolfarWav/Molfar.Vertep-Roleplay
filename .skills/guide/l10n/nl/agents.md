@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -27,7 +27,15 @@ Bovenop de lane kan een agent draaien op elk N-de antwoord, of alleen wanneer ge
 
 ## Kant-en-klare agents
 
-Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item van de rail opent het). "Empty agent" geeft een Input en een notitie. "Start from a ready agent" biedt zeven werkende aan: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter en Character growth (hij stelt voor hoe het personage is veranderd, voor het tabblad Memory van de kaart; zie de pagina over het geheugen). Onder "Drafts" staan agents die Molfar in je werkruimte heeft geschreven ("Drafts from Molfar").
+Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item van de rail opent het). "Empty agent" geeft een Input en een notitie. "Start from a ready agent" biedt tien werkende aan: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (hij stelt voor hoe het personage is veranderd, voor het tabblad Memory van de kaart; zie de pagina over het geheugen), Repetition guard, Canon guard en Ledger (hieronder beschreven). Onder "Drafts" staan agents die Molfar in je werkruimte heeft geschreven ("Drafts from Molfar").
+
+### Repetition guard, Canon guard en Ledger
+
+Drie kant-en-klare agents voor problemen waar lange verhalen tegenaan lopen. Zet elk per chat aan, zoals elke agent, en lees zijn rechten voordat je ze toestaat.
+
+- **Repetition guard** houdt een model ervan af zijn eigen woorden te hergebruiken. Na elk antwoord leest een script (geen modelaanroep, dus op een gratis model kost het niets) de laatste zes antwoorden van het personage en vindt zinsdelen van drie tot vijf woorden die twee antwoorden delen, en zinsbegin dat drie keer is gebruikt. Het zet hoogstens vijf zinsdelen in de volgende prompt: "Do not reuse these phrases from earlier replies: ..." (ongeveer 40 tot 80 tokens). Het werkt met Cyrillisch net als met Latijns schrift. Een chat zonder herhalingen krijgt geen hint. Het leest de chatgeschiedenis en voert code uit.
+- **Canon guard** vangt een antwoord op dat de personagekaart of de door Litopys vastgelegde feiten tegenspreekt (uiterlijk, namen, plaatsen, bezittingen). Elk derde antwoord leest het de laatste drie antwoorden, de kaart en maximaal 30 feiten, en vraagt het model één keer. Vindt het een tegenspraak, dan laat het een notitie onder het antwoord achter, die eindigt met een herinnering om het feit in Litopys bij te werken als het verhaal echt is veranderd, en een knop boven het berichtvak die "(OOC: ...)" met de correctie schrijft; jij beslist of je die verstuurt. Het herschrijft nooit een antwoord, verandert nooit een kaart of een feit en toont elk probleem maar één keer. Het heeft een chat met één personage en Litopys-feiten nodig; zonder een van beide doet het stilletjes niets.
+- **Ledger** houdt de getallen bij waar een spel met grondstoffen van leeft: geld, voorraad, een schatkist met inkomsten per dag, aftellingen ("aankomst over 4 dagen"). Het model meldt alleen wat er veranderd is; een script doet alle sommen en schuift de dagen op. Een tabel staat in een zwevend venster, en het volgende antwoord krijgt de echte getallen te horen, zodat het er geen verzint. Alleen getallen, nooit voorwerpen. Corrigeer zelf een getal door (ledger: gold = 500) of (ledger: remove gold) in je bericht te schrijven; (ledger: timer Castle = 4) en (ledger: gold per day = 50) werken ook. Het vraagt het model één keer per antwoord, maar alleen als het antwoord of je bericht een cijfer, een getalwoord of een tijdwoord bevat (dag, week, nacht, ochtend, in het Engels, Oekraïens en Russisch); een antwoord zonder die kost niets, en de getallen gaan toch in de prompt. Maximaal 12 rijen.
 
 ## De editor
 

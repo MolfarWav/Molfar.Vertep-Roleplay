@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.119.0'
+export const APP_VERSION = '4.120.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.ready-agents',
+    since: '4.120.0',
+    help: 'canvas',
+    keywords: { en: 'ready agents repetition guard canon guard ledger repeats phrases contradiction continuity numbers money gold days countdown table', uk: 'готові агенти повтори фрази суперечність канон безперервність числа гроші золото дні відлік таблиця' },
+    title: { en: 'Three new ready agents: repeats, canon, numbers', uk: 'Три нових готових агенти: повтори, канон, числа' },
+    body: {
+      en: 'Agents, New agent, Start from a ready agent now has three more. Repetition guard (no model call) finds phrases the character keeps reusing and tells the next reply to avoid them. Canon guard checks every third reply against the card and the Litopys facts and leaves a note and a button that puts the correction in your message box. Ledger keeps money, stock, daily income and countdowns in a floating table; fix a number by writing (ledger: gold = 500) in your message. Each one asks for its permissions first and shows its cost.',
+      uk: 'У Agents, New agent, Start from a ready agent з’явилося ще три. Repetition guard (без виклику моделі) знаходить фрази, які персонаж повторює, і просить наступну відповідь їх уникати. Canon guard кожну третю відповідь звіряє з карткою та фактами Litopys і лишає нотатку та кнопку, що кладе виправлення у ваше поле повідомлення. Ledger веде гроші, запаси, щоденний дохід і відліки в плаваючій таблиці; число виправляєте рядком (ledger: gold = 500) у повідомленні. Кожен спершу питає дозволи й показує свою вартість.',
+    },
+  },
   {
     id: 'new.growth',
     since: '4.119.0',

@@ -1,4 +1,4 @@
-<!-- source: 31f4ce67a69a -->
+<!-- source: 0c2ff8467612 -->
 # Gli agenti e la fucina degli agenti
 
 Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -27,7 +27,15 @@ Sopra la corsia, un agente può girare a ogni N-esima risposta oppure solo quand
 
 ## Agenti pronti
 
-Premi "New agent" nella bacheca Agents del **Canvas** (la voce **Agents** della barra laterale la apre). "Empty agent" fornisce un Input e una nota. "Start from a ready agent" ne offre sette funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio, Indicatore di tensione e Character growth (propone come è cambiato il personaggio, per la scheda Memory della carta; vedi la pagina sulla memoria). Sotto "Drafts" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Drafts from Molfar").
+Premi "New agent" nella bacheca Agents del **Canvas** (la voce **Agents** della barra laterale la apre). "Empty agent" fornisce un Input e una nota. "Start from a ready agent" ne offre dieci funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio, Indicatore di tensione, Character growth (propone come è cambiato il personaggio, per la scheda Memory della carta; vedi la pagina sulla memoria), Repetition guard, Canon guard e Ledger (descritti sotto). Sotto "Drafts" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Drafts from Molfar").
+
+### Repetition guard, Canon guard e Ledger
+
+Tre agenti pronti per problemi in cui incappano le storie lunghe. Attiva ciascuno per chat, come qualsiasi agente, e leggi i suoi permessi prima di concederli.
+
+- **Repetition guard** impedisce a un modello di riusare le proprie parole. Dopo ogni risposta uno script (nessuna chiamata al modello, quindi su un modello gratuito non costa nulla) legge le ultime sei risposte del personaggio e trova le espressioni di tre-cinque parole condivise da due risposte, e gli inizi di frase usati tre volte. Mette al massimo cinque espressioni nel prompt successivo: "Do not reuse these phrases from earlier replies: ..." (circa 40-80 token). Funziona con il cirillico come con il latino. Una chat senza ripetizioni non riceve alcun suggerimento. Legge la cronologia della chat ed esegue codice.
+- **Canon guard** intercetta una risposta che contraddice la scheda del personaggio o i fatti registrati da Litopys (aspetto, nomi, luoghi, cose che qualcuno possiede). Ogni tre risposte legge le ultime tre risposte, la scheda e fino a 30 fatti, e interroga il modello una volta. Quando trova una contraddizione, lascia una nota sotto la risposta, che termina con il promemoria di aggiornare il fatto in Litopys se la storia è davvero cambiata, e un pulsante sopra la casella del messaggio che scrive "(OOC: ...)" con la correzione; sei tu a decidere se inviarla. Non riscrive mai una risposta e non modifica mai una scheda o un fatto, e mostra ogni problema una sola volta. Richiede una chat con un solo personaggio e con fatti di Litopys; senza l'una o gli altri, non fa nulla in silenzio.
+- **Ledger** tiene i numeri di cui vive un gioco di risorse: denaro, scorte, un tesoro con entrate al giorno, conti alla rovescia ("arrivo tra 4 giorni"). Il modello riferisce solo ciò che è cambiato; uno script fa tutte le somme e fa avanzare i giorni. Una tabella sta in una finestra fluttuante, e alla risposta successiva vengono detti i numeri veri perché non ne inventi. Solo numeri, mai oggetti. Correggi un numero tu stesso scrivendo (ledger: gold = 500) o (ledger: remove gold) nel tuo messaggio; funzionano anche (ledger: timer Castle = 4) e (ledger: gold per day = 50). Interroga il modello una volta per risposta, ma solo quando la risposta o il tuo messaggio contiene una cifra, un numero scritto a parole o una parola di tempo (giorno, settimana, notte, mattina, in inglese, ucraino e russo); una risposta senza nulla di tutto ciò non costa nulla, e i numeri entrano comunque nel prompt. Fino a 12 righe.
 
 ## L'editor
 
