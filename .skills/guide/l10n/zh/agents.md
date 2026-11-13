@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # 代理与代理工坊
 
 代理是一个由卡片和连线搭建的小助手。它读取聊天的一部分（在回复之前或之后，由你选择），可能会向模型提出一个或多个简短问题，保留自己的笔记，并展示一些内容：回复下方的一条注释、可点击的按钮、一个计量表、一张地图，或是对下一次回复的提示。例如：三个建议的后续行动、一个紧张度计量表、一张已到访地点的地图。本页面向那些想要这些附加功能的人。帮助中有三篇关于编辑器的文章：“Agent editor: how an agent works”、“Agent editor: the cards”和“Agent editor: three ready agents”。
@@ -23,11 +23,11 @@
 - **回复之后**：注释、追踪器和计量表的常用通道。
 - **手动**：仅在你按下其所在行的运行按钮时运行。
 
-在通道之上，代理还可以每第N次回复运行一次，或仅在出现选定词语时运行。
+在通道之上，代理还可以每第N次回复运行一次，或仅在出现选定词语时运行。除非代理另有说明，这些词语在最近两条消息中查找：设定词语后，Agent 标签页会出现“Look back this many messages”（1 到 50）。
 
 ## 现成代理
 
-在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供六个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board和Tension meter。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
+在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供七个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board、Tension meter和Character growth（提出角色如何变化，用于卡片的Memory标签页；见记忆页面）。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
 
 ## 编辑器
 
@@ -52,3 +52,7 @@ Try标签页运行一个虚构的回合，不会改动任何内容。你可以�
 **组**是一个有名称的代理列表（“Save this chat's list as a set”；“Make default”会将它赋予新聊天）。Canvas的“Agent sets”面板显示每组的时间与调用成本，并保存“Agents' notes in chats”开关，用于隐藏所有代理的注释。每个代理的结果位置可以在聊天的Agents标签页中更改，选项为适合它的位置。
 
 每张“Ask the model”卡片每次运行调用一次；编辑器会显示数量。“Every Nth reply”可分摊成本。
+
+**启用前的成本。** 权限页面以及代理在 Agents 表中的卡片会给出一次运行的估算：调用次数，以及大致输入多少 token、最多输出多少。Agents 标签页会为聊天中已开启的代理加上每次回复的合计行，已计入“Every Nth reply”的分摊。这一数字来自代理文件（其问题的长度、读取的内容、回答上限），而不是来自你的聊天，因此标注为“约”：实际数字取决于聊天和模型。不调用模型的代理会说明这一点。
+
+**提示的放置位置。** 提示类型的 Output 卡片（“prompt-insert”）有“Position in the prompt”：历史之后（默认，即上一条玩家消息的末尾）、系统提示词的开头，或其末尾。系统提示词中的提示对模型分量更重，因此请保持简短。它与任何提示使用相同的权限。

@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # 에이전트와 에이전트 제작소
 
 에이전트는 카드와 연결선으로 만드는 작은 도우미입니다. 채팅의 일부를 읽고(답장 전이나 후, 원하는 대로 고를 수 있습니다), 모델에게 짧은 질문을 하나 이상 할 수 있으며, 자체 메모를 보관하고, 무언가를 보여 줍니다: 답장 아래의 메모, 누를 수 있는 버튼, 수치 표시, 지도, 또는 다음 답장을 위한 힌트. 예: 추천 다음 행동 세 가지, 긴장도 표시, 방문한 장소 지도. 이 페이지는 그런 추가 기능을 원하는 분을 위한 것입니다. 도움말에는 편집기에 관한 문서가 세 편 있습니다: "Agent editor: how an agent works", "Agent editor: the cards" and "Agent editor: three ready agents".
@@ -23,11 +23,11 @@
 - **After the reply**: 메모, 트래커, 수치 표시에 보통 쓰는 레인입니다.
 - **By hand**: 해당 행의 실행 버튼을 누를 때만 실행됩니다.
 
-레인과 별도로, 에이전트는 매 N번째 답장마다 또는 정해 둔 단어가 나올 때만 실행되도록 설정할 수 있습니다.
+레인과 별도로, 에이전트는 매 N번째 답장마다 또는 정해 둔 단어가 나올 때만 실행되도록 설정할 수 있습니다. 단어는 마지막 두 메시지에서 찾으며, 에이전트가 다르게 정하지 않는 한 그렇습니다. 단어를 설정하면 Agent 탭에 "Look back this many messages"(1~50)가 나타납니다.
 
 ## 준비된 에이전트
 
-**Canvas**의 **Agents** 보드에서 "New agent"를 누르세요(레일의 **Agents** 항목이 이 보드를 엽니다). "Empty agent"는 Input 하나와 메모 하나를 줍니다. "Start from a ready agent"는 작동하는 여섯 가지를 제공합니다: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter. "Drafts" 아래에는 Molfar가 작업 공간에 써 둔 에이전트가 있습니다("Drafts from Molfar").
+**Canvas**의 **Agents** 보드에서 "New agent"를 누르세요(레일의 **Agents** 항목이 이 보드를 엽니다). "Empty agent"는 Input 하나와 메모 하나를 줍니다. "Start from a ready agent"는 작동하는 일곱 가지를 제공합니다: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth(캐릭터가 어떻게 변했는지를 제안하며, 카드의 Memory 탭용입니다. 메모리 페이지 참조). "Drafts" 아래에는 Molfar가 작업 공간에 써 둔 에이전트가 있습니다("Drafts from Molfar").
 
 ## 편집기
 
@@ -52,3 +52,7 @@ Script 카드가 있는 에이전트가 한 채팅에서 세 번 연속으로 �
 **세트**는 이름 붙은 에이전트 목록입니다("Save this chat's list as a set"; "Make default"를 누르면 새 채팅에 기본으로 적용됩니다). 캔버스의 "Agent sets" 보드는 각 세트의 시간과 호출 비용을 보여 주고, 모든 에이전트의 메모를 숨기는 "Agents' notes in chats" 스위치를 담고 있습니다. 각 에이전트의 결과가 놓일 자리는 채팅의 Agents 탭에서 바꿀 수 있으며, 그 에이전트에 맞는 자리들 중에서 고릅니다.
 
 각 "Ask the model" 카드는 실행당 호출 한 번입니다. 편집기에 그 횟수가 표시됩니다. "Every Nth reply"는 비용을 나눕니다.
+
+**켜기 전에 드는 비용.** 권한 페이지와 Agents 시트의 에이전트 카드에는 한 번 실행할 때의 추정치가 있습니다: 호출 수와, 들어가는 토큰과 최대로 나오는 토큰이 대략 얼마인지. Agents 탭에는 채팅에서 켜 둔 에이전트들의 답장당 합계 줄이 추가되며, "Every Nth reply"는 이미 나누어 반영되어 있습니다. 이 값은 채팅이 아니라 에이전트 파일(질문의 길이, 읽는 내용, 답변 한도)에서 계산되므로 "약"이라고 표시됩니다. 실제 수치는 채팅과 모델에 따라 달라집니다. 모델을 호출하지 않는 에이전트는 그렇다고 표시됩니다.
+
+**힌트가 들어가는 위치.** 힌트 종류의 Output 카드("prompt-insert")에는 "Position in the prompt"가 있습니다: 기록 뒤(기본값, 마지막 플레이어 메시지의 끝), 시스템 프롬프트의 시작, 또는 그 끝. 시스템 프롬프트의 힌트는 모델에게 더 무겁게 작용하니 짧게 유지하세요. 모든 힌트와 같은 권한입니다.

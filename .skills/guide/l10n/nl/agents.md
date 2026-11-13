@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -23,11 +23,11 @@ Wanneer hij draait, bepaalt zijn **lane**. Het agentbestand noemt de lane waarin
 - **After the reply**: de gewone lane voor notities, trackers en meters.
 - **By hand**: draait alleen wanneer je op de run-knop van zijn rij drukt.
 
-Bovenop de lane kan een agent draaien op elk N-de antwoord, of alleen wanneer gekozen woorden verschijnen.
+Bovenop de lane kan een agent draaien op elk N-de antwoord, of alleen wanneer gekozen woorden verschijnen. De woorden worden gezocht in de laatste twee berichten, tenzij de agent anders aangeeft: het tabblad Agent heeft "Look back this many messages" (1 tot 50) zodra er woorden zijn ingesteld.
 
 ## Kant-en-klare agents
 
-Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item van de rail opent het). "Empty agent" geeft een Input en een notitie. "Start from a ready agent" biedt zes werkende aan: Next moves, Pacing nudge, Story map, Scene recap, Territory board en Tension meter. Onder "Drafts" staan agents die Molfar in je werkruimte heeft geschreven ("Drafts from Molfar").
+Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item van de rail opent het). "Empty agent" geeft een Input en een notitie. "Start from a ready agent" biedt zeven werkende aan: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter en Character growth (hij stelt voor hoe het personage is veranderd, voor het tabblad Memory van de kaart; zie de pagina over het geheugen). Onder "Drafts" staan agents die Molfar in je werkruimte heeft geschreven ("Drafts from Molfar").
 
 ## De editor
 
@@ -52,3 +52,7 @@ Een agent met een Script-kaart die in een chat drie runs op rij te laat klaar is
 Een **set** is een benoemde lijst agents ("Save this chat's list as a set"; "Make default" geeft hem aan nieuwe chats). Het bord "Agent sets" van het Canvas toont de kosten per set in tijd en aanroepen, en bevat de schakelaar "Agents' notes in chats" die alle notities van agents verbergt. De resultaatplek van elke agent kan in het tabblad Agents van de chat worden gewijzigd, uit de plekken die bij hem passen.
 
 Elke "Ask the model"-kaart is één aanroep per run; de editor toont het aantal. "Every Nth reply" verdeelt de kosten.
+
+**Wat het kost, voordat je het aanzet.** De permissiepagina en de kaart van de agent in het Agents-blad tonen een schatting voor één run: de aanroepen en ongeveer hoeveel tokens erin gaan en hooguit eruit komen. Het tabblad Agents voegt een regel toe met het totaal per antwoord voor de agents die in de chat aanstaan, met "Every Nth reply" al verdeeld. Het wordt berekend uit de bestanden van de agents (de lengte van hun vragen, wat ze lezen, hun antwoordlimieten), niet uit je chat, dus er staat "ongeveer": de echte getallen hangen af van de chat en het model. Een agent die geen model aanroept, zegt dat.
+
+**Waar een hint naartoe gaat.** Een Output-kaart van het type hint ("prompt-insert") heeft "Position in the prompt": na de geschiedenis (de standaard, het einde van het laatste spelerbericht), aan het begin van de systeemprompt of aan het eind ervan. Een hint in de systeemprompt weegt zwaarder voor het model, dus houd hem kort. Het is dezelfde toestemming als voor elke hint.

@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Agents et la forge d'agents
 
 Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Il lit une partie de la discussion (avant ou après une réponse, au choix), peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
@@ -23,11 +23,11 @@ Le moment d'exécution est une voie. Le fichier de l'agent indique la voie de d�
 - **After the reply** : la voie habituelle pour les notes, les suivis et les compteurs.
 - **By hand** : ne s'exécute que lorsque vous appuyez sur le bouton d'exécution de sa ligne.
 
-En plus de la voie, un agent peut tourner à chaque N-ième réponse ou seulement lorsque certains mots choisis apparaissent.
+En plus de la voie, un agent peut tourner à chaque N-ième réponse ou seulement lorsque certains mots choisis apparaissent. Les mots sont cherchés dans les deux derniers messages, sauf si l'agent en décide autrement : l'onglet Agent propose « Look back this many messages » (de 1 à 50) dès que des mots sont définis.
 
 ## Agents prêts à l'emploi
 
-Appuyez sur « New agent » dans le tableau Agents du **Canvas** (l'élément **Agents** du rail l'ouvre). « Empty agent » donne une Entrée et une note. « Start from a ready agent » en propose six qui fonctionnent : Prochains mouvements, Coup de pouce de rythme, Carte de l'histoire, Récapitulatif de scène, Plateau de territoire et Jauge de tension. Sous « Drafts » se trouvent les agents que Molfar a écrits dans votre espace de travail (« Drafts from Molfar »).
+Appuyez sur « New agent » dans le tableau Agents du **Canvas** (l'élément **Agents** du rail l'ouvre). « Empty agent » donne une Entrée et une note. « Start from a ready agent » en propose sept qui fonctionnent : Prochains mouvements, Coup de pouce de rythme, Carte de l'histoire, Récapitulatif de scène, Plateau de territoire, Jauge de tension et Character growth (il propose comment le personnage a changé, pour l'onglet Memory de la carte ; voir la page sur la mémoire). Sous « Drafts » se trouvent les agents que Molfar a écrits dans votre espace de travail (« Drafts from Molfar »).
 
 ## L'éditeur
 
@@ -52,3 +52,7 @@ Un agent doté d'une carte Script qui manque de temps trois exécutions d'affil�
 Un **ensemble** est une liste nommée d'agents (« Save this chat's list as a set » ; « Make default » la donne aux nouvelles discussions). Le tableau « Agent sets » du Canvas montre le coût de chaque ensemble en temps et en appels, et contient l'interrupteur « Agents' notes in chats » qui masque toutes les notes des agents. La place du résultat de chaque agent peut être changée dans l'onglet Agents de la discussion, parmi les places qui lui conviennent.
 
 Chaque carte « Ask the model » représente un appel par exécution ; l'éditeur en montre le nombre. « Every Nth reply » divise le coût.
+
+**Ce que cela coûte, avant de l'activer.** La page des autorisations et la carte de l'agent dans la feuille Agents affichent une estimation pour une exécution : les appels, et à peu près combien de jetons entrent et, au plus, combien sortent. L'onglet Agents ajoute une ligne avec le total par réponse pour les agents actifs dans la discussion, « Every Nth reply » déjà réparti. Elle est calculée à partir des fichiers des agents (longueur de leurs questions, ce qu'ils lisent, leurs limites de réponse), pas à partir de votre discussion ; d'où « environ » : les vrais chiffres dépendent de la discussion et du modèle. Un agent qui n'interroge aucun modèle le dit.
+
+**Où va un indice.** Une carte Output de type indice (« prompt-insert ») a « Position in the prompt » : après l'historique (par défaut, la fin du dernier message du joueur), au début du prompt système, ou à sa fin. Un indice dans le prompt système pèse davantage auprès du modèle, gardez-le donc court. C'est la même autorisation que pour tout indice.

@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -23,11 +23,11 @@ Kiedy agent działa, to jego **pas** (lane). Plik agenta nazywa pas, w którym s
 - **After the reply**: zwykły pas dla notek, trackerów i wskaźników.
 - **By hand**: działa tylko po naciśnięciu przycisku uruchomienia w jego wierszu.
 
-Ponad pasem agent może działać przy każdej N-tej odpowiedzi albo tylko wtedy, gdy pojawią się wybrane słowa.
+Ponad pasem agent może działać przy każdej N-tej odpowiedzi albo tylko wtedy, gdy pojawią się wybrane słowa. Słowa szukane są w dwóch ostatnich wiadomościach, chyba że agent stanowi inaczej: zakładka Agent ma „Look back this many messages” (od 1 do 50), gdy słowa są ustawione.
 
 ## Gotowi agenci
 
-Naciśnij „New agent” na planszy Agenci w **Canvas** (otwiera ją pozycja **Agents** na pasku bocznym). „Empty agent” daje kartę Input i notkę. „Start from a ready agent” oferuje sześć działających: Next moves, Pacing nudge, Story map, Scene recap, Territory board i Tension meter. Pod „Drafts” są agenci, których Molfar zapisał w twoim obszarze roboczym („Drafts from Molfar”).
+Naciśnij „New agent” na planszy Agenci w **Canvas** (otwiera ją pozycja **Agents** na pasku bocznym). „Empty agent” daje kartę Input i notkę. „Start from a ready agent” oferuje siedem działających: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter i Character growth (proponuje, jak zmienił się bohater, dla zakładki Memory karty; patrz strona o pamięci). Pod „Drafts” są agenci, których Molfar zapisał w twoim obszarze roboczym („Drafts from Molfar”).
 
 ## Edytor
 
@@ -52,3 +52,7 @@ Agent z kartą Script, któremu w czacie trzy przebiegi z rzędu skończą się 
 **Zestaw** to nazwana lista agentów („Save this chat's list as a set”; „Make default” daje go nowym czatom). Plansza „Agent sets” w Canvas pokazuje koszt każdego zestawu w czasie i wywołaniach, a także przełącznik „Agents' notes in chats”, który ukrywa notatki wszystkich agentów. Miejsce wyniku każdego agenta można zmienić na karcie Agents czatu, spośród miejsc, które mu pasują.
 
 Każda karta „Ask the model” to jedno wywołanie na przebieg; edytor pokazuje ich liczbę. „Every Nth reply” dzieli koszt.
+
+**Ile to kosztuje, zanim to włączysz.** Strona uprawnień i karta agenta w arkuszu Agents pokazują szacunek dla jednego przebiegu: wywołania oraz mniej więcej ile tokenów wchodzi i najwyżej ile wychodzi. Zakładka Agents dodaje wiersz z sumą na odpowiedź dla agentów włączonych w czacie, z już rozłożonym „Every Nth reply”. Jest liczona z plików agentów (długość ich pytań, co czytają, ich limity odpowiedzi), a nie z czatu, dlatego jest „około”: prawdziwe liczby zależą od czatu i modelu. Agent, który nie pyta modelu, to mówi.
+
+**Gdzie trafia podpowiedź.** Karta Output typu podpowiedź („prompt-insert”) ma „Position in the prompt”: po historii (domyślnie, koniec ostatniej wiadomości gracza), na początku promptu systemowego albo na jego końcu. Podpowiedź w prompcie systemowym waży dla modelu więcej, więc trzymaj ją krótko. To te same uprawnienia co każda podpowiedź.

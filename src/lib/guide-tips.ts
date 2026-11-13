@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.118.0'
+export const APP_VERSION = '4.119.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.growth',
+    since: '4.119.0',
+    help: 'story',
+    keywords: { en: 'how they changed growth portrait character development card memory agent arc evolve blocks personality relationships', uk: 'як змінився персонаж розвиток портрет арка пам’ять картки агент блоки характер стосунки' },
+    title: { en: 'A character who grows with the story', uk: 'Персонаж, що росте разом з історією' },
+    body: {
+      en: 'Open a character card, Memory tab: How they changed is a living portrait written in blocks, one for the parts of a character that a story can change (personality, relationships, goals...) and for what came out along the way. Start the ready agent Character growth (Agents, Start from a ready agent) and it proposes a block now and then; nothing is used until you accept it. Accepted blocks go into every chat of that character and win over the card text where they differ. You set how many tokens it may use.',
+      uk: 'Відкрийте картку персонажа, вкладка Memory: «Як змінився персонаж» це живий портрет блоками, окремо для частин, які історія може змінити (характер, стосунки, цілі...), і для того, що відкрилося по дорозі. Запустіть готового агента Character growth (Agents, Start from a ready agent), і він час від часу пропонує блок; нічого не діє, поки ви не приймете. Прийняті блоки йдуть у кожен чат цього персонажа й перемагають текст картки там, де вони розходяться. Скільки токенів на це відводити, ви задаєте самі.',
+    },
+  },
   {
     id: 'new.stage-directions',
     since: '4.111.0',

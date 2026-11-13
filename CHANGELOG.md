@@ -4,6 +4,13 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.119.0 (2026-11-13)
+
+- Added: **keyword triggers can look further back (Molfar.Vertep#396).** An agent's trigger has an optional `scan` (1 to 50 messages, default 2 as before); the Agent tab shows "Look back this many messages" once words are set.
+- Added: **the cost of an agent is shown before it is turned on (Molfar.Vertep#396).** The permissions page and the agent's card carry an estimate of one run (calls, tokens in, tokens out), and the chat's Agents tab shows the total per reply for the agents that are on, with "every Nth reply" spread in. It is an estimate from the agents' files and says "about".
+- Added: **a hint can go into the system prompt (Molfar.Vertep#396).** The Output card of a hint has "Position in the prompt": after the history (as before), the start of the system prompt, or its end (new error `E_INSERT_POSITION`). `replace` of existing prompt text is not offered.
+- Added: **"How they changed": a living portrait of the character, kept apart from the card (Molfar.Vertep#396).** The card's Memory tab has a new section. The story's effect on a character is written in BLOCKS like the card's own text, named by the Profile sections that can change (background, relationships, personality, behaviors, goals, trauma, sexuality, other): a block updates what the card says about that part, or adds something new that came out in the story. The ready agent **Character growth** (and the new card "Propose a block of the character's portrait", permission `write:card.growth`) proposes one block now and then (every 8th reply, the player's own "Every Nth reply" changes it); a block waits for your yes, and one that updates an accepted block shows both texts side by side, keeps the old one and can be reverted. Accepted blocks go into every chat of the character as one part at the end of the system prompt that says it is more recent and wins over the card's description and personality. You set the room (100 to 8000 tokens, 1500 by default); over it the newest blocks stay. Own Prompt board switch, so one chat can ignore it. The card is never edited. Stored in `characters/<id>/growth.json` (written only by the agents plugin); a new Input source `growth` shows an agent what is already there. Group chats propose nothing yet.
+
 ## 4.118.0 (2026-11-12)
 
 - Fixed: **a Script card that always runs out of time no longer costs 2.5 s on every reply (Molfar.Vertep#273).** After three runs in a row that failed because the script was ended, the agent is skipped in that chat ("Paused: its script ran out of time ... press Run again"); a hand run goes ahead, and one that works ends the pause.
