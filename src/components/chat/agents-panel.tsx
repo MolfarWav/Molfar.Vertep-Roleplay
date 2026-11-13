@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { AgentOwnLimits } from '@/components/chat/agent-own-limits'
+import { AgentRunCost, ReplyCostLine } from '@/components/chat/agent-cost'
 import { AgentNotesSwitch } from '@/components/chat/agent-notes-switch'
 import { AgentPermissions } from '@/components/chat/agent-permissions'
 import { allowedCount } from '@/lib/agent-permissions'
@@ -107,6 +108,7 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
           <ArrowCounterClockwise className="size-3" aria-hidden="true" /> {t('ag.backToSet')}
         </button>
       )}
+      <ReplyCostLine items={list?.items ?? []} installed={data.installed} className="mt-0.5 w-full text-caption leading-snug text-muted-foreground" />
       <AgentNotesSwitch className="mt-1 w-full" />
     </div>
   )
@@ -330,6 +332,7 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
           : <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">{t('ag.allowed')}</span>)}
       </div>
       {agent.description && <p className="text-xs leading-relaxed text-muted-foreground">{agent.description}</p>}
+      <AgentRunCost agent={agent} />
       {agent.errors.length > 0 && <p className="text-xs text-destructive">{t('ag.wait.errors')}: <AgentIssueText issue={agent.errors[0]} /></p>}
       {update && <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300" data-testid="agent-update">{t('ag.update.lead', { name: agent.name, n: added.length })}</p>}
       {agent.unsupported.length > 0 && (

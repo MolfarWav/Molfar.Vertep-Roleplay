@@ -160,3 +160,61 @@ export const importMemory = (o: MemoryOwner, body: { chatId: string; arc: boolea
   o.kind === 'card'
     ? importCardMemory({ cardId: o.id, ...body })
     : j<MemoryView>('/litopys/memory/import', { method: 'POST', body: sharedBody(o, { ...body, notes: [], said: [], habits: [] }) })
+
+// ---- how a character changed (#396): the living portrait, characters/<id>/growth.json, served by the agents plugin (/agents/growth)
+
+export type GrowthSection = 'background' | 'relationships' | 'personality' | 'behaviors' | 'goals' | 'trauma' | 'sexuality' | 'other'
+export type GrowthKind = 'changed' | 'added'
+
+/** One block of the portrait, written like the card's own text. An agent proposes; nothing is used until the user accepts. */
+export interface GrowthEntry {
+  id: string
+  section: GrowthSection
+  /** changed = updates what the card says; added = something new. */
+  kind: GrowthKind
+  title?: string
+  text: string
+  /** A few words: what in the card this replaces. */
+  basis?: string
+  /** Older texts of this block, newest first (up to 3). */
+  prev?: string[]
+  /** A proposal that revises this accepted block: accepting it merges into that block. */
+  revises?: string
+  on: boolean
+  state: 'proposed' | 'accepted'
+  origin: 'agent' | 'user'
+  agent?: string
+  from?: { chatId: string; title: string; at: number }
+  at: number
+}
+
+export interface GrowthView {
+  growth: { v: 2; next: number; entries: GrowthEntry[]; inject: { enabled: boolean; maxTokens: number } }
+  /** The section names in the order the portrait shows them. */
+  sections: GrowthSection[]
+  /** What the portrait costs in a prompt now: tokens used of the room, blocks sent / left out for lack of room / live (accepted and on). */
+  tokens: { used: number; room: number; sent: number; omitted: number; live: number }
+}
+
+/** The fields of a block the user writes or edits. */
+export interface GrowthFields { section: GrowthSection; kind: GrowthKind; title?: string; text: string; basis?: string }
+
+export type GrowthPatch =
+  | ({ op: 'add' } & GrowthFields)
+  | { op: 'accept'; id: string }
+  | ({ op: 'edit'; id: string } & Partial<GrowthFields>)
+  | { op: 'on'; id: string; on: boolean }
+  | { op: 'delete'; id: string }
+  | { op: 'revert'; id: string }
+  | { op: 'inject'; enabled?: boolean; maxTokens?: number }
+
+export const GROWTH_TEXT_MAX = 1200
+export const GROWTH_TITLE_MAX = 80
+export const GROWTH_BASIS_MAX = 120
+export const GROWTH_MIN_TOKENS = 100
+export const GROWTH_MAX_TOKENS = 8000
+
+export const loadGrowth = (cardId: string) => j<GrowthView>(`/agents/growth?cardId=${q(cardId)}`)
+
+export const putGrowth = (cardId: string, patch: GrowthPatch) =>
+  j<GrowthView>('/agents/growth', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })

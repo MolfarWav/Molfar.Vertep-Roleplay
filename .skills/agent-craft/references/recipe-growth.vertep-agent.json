@@ -1,0 +1,119 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Character growth",
+  "agent": {
+    "formatVersion": 1,
+    "id": "character-growth",
+    "version": "2.0.0",
+    "name": "Character growth",
+    "description": "Now and then asks whether the story has changed the character or shown something new about them, and proposes one block of the character's living portrait (written like the card's own text) for the card's Memory tab. Nothing is used until you accept it.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 8,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "writes a short paragraph as JSON; a stronger model gives better blocks"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    }
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 100,
+      "title": "Input",
+      "params": {
+        "give": [
+          { "id": "hist", "source": "history", "last": 10, "tokens": 2500 },
+          { "id": "card", "source": "card" },
+          { "id": "known", "source": "growth" }
+        ]
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 280,
+      "y": 100,
+      "title": "What has changed or come out",
+      "params": {
+        "role": "fast",
+        "prompt": "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe recent story:\n{{hist}}\n\nHas the story lasting changed the character (how they think, act, treat someone, what they want), or shown something new about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not a mood of one scene. If yes, write ONE block: changed is true; section is the part of the character it belongs to; kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). If nothing lasting happened, or you are unsure: changed is false and the rest is empty. Answer with JSON only.",
+        "answer": {
+          "as": "json",
+          "shape": {
+            "changed": "bool",
+            "section": "enum:background|relationships|personality|behaviors|goals|trauma|sexuality|other",
+            "kind": "enum:changed|added",
+            "title": "text",
+            "text": "text",
+            "basis": "text"
+          }
+        },
+        "maxTokens": 600,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "chg",
+      "type": "logic.if",
+      "x": 560,
+      "y": 100,
+      "title": "Did something change?",
+      "params": {
+        "inputs": [
+          { "id": "changed", "type": "flag" }
+        ],
+        "match": "all",
+        "rows": [
+          {
+            "left": { "from": "wire", "port": "changed" },
+            "op": "isYes"
+          }
+        ]
+      }
+    },
+    {
+      "id": "grow",
+      "type": "write.growth",
+      "x": 840,
+      "y": 100,
+      "title": "Propose the block",
+      "params": {}
+    },
+    {
+      "id": "out",
+      "type": "agent.output",
+      "x": 1100,
+      "y": 100,
+      "title": "Output",
+      "params": {
+        "kind": "state-patch",
+        "show": "log"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": "in:hist", "to": "ask:hist" },
+    { "id": "e2", "from": "in:card", "to": "ask:card" },
+    { "id": "e3", "from": "in:known", "to": "ask:known" },
+    { "id": "e4", "from": "ask:changed", "to": "chg:changed" },
+    { "id": "e5", "from": "chg:yes", "to": "grow:when" },
+    { "id": "e6", "from": "ask:text", "to": "grow:text" },
+    { "id": "e7", "from": "ask:section", "to": "grow:section" },
+    { "id": "e8", "from": "ask:kind", "to": "grow:kind" },
+    { "id": "e9", "from": "ask:title", "to": "grow:title" },
+    { "id": "e10", "from": "ask:basis", "to": "grow:basis" },
+    { "id": "e11", "from": "grow:done", "to": "out:in" }
+  ]
+}

@@ -62,6 +62,10 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
   `{"v":1,"sources":[],"habits":[]}` first. Keep a habit to a reaction or manner worth reusing in every chat,
   not a fact about one story, and not a copy of the card's own text. To choose and write habits, use the skill
   `card-habits`.
+- How the character has changed over play is not in `card.json` either: it is the living portrait in `characters/<id>/growth.json`
+  (blocks `{ section, kind, text, state }`), written only by the app's agents (the "Character growth" agent) and the card's
+  Memory tab, and put into chats as "what has changed and come out, this wins over the description". Leave that file alone:
+  do not write it by hand and do not copy its lines into `description`, `personality` or the Soul.
 - The editor keeps a change as a draft until the user presses Save changes: a card you edit on disk while
   it is open in the editor can meet a draft, and the user then chooses which version to keep.
 

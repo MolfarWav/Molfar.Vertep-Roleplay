@@ -44,6 +44,8 @@ export interface AgentInfo {
   models?: Record<string, { hint?: string }>
   /** the user's own choices for this agent (see saveAgentOwn) */
   own?: AgentOwn
+  /** an estimate of one run (calls, tokens in, tokens out), from the file; see src/lib/agent-cost.ts */
+  cost?: { calls: number; tokensIn: number; tokensOut: number }
 }
 
 /** What the user set for one agent: a model for each role, the most model calls a run may make (0 = no limit), and how often it runs (every N replies; 0 = as its author set). */
@@ -427,6 +429,7 @@ const SOURCE_KEYS: Record<string, MsgKey> = {
   summary: 'ag.need.src.summary',
   litopysFacts: 'ag.need.src.litopysFacts',
   lorebook: 'ag.need.src.lorebook',
+  growth: 'ag.need.src.growth',
 }
 
 type T = (key: MsgKey, vars?: Vars) => string
@@ -435,6 +438,7 @@ type T = (key: MsgKey, vars?: Vars) => string
 export function describeNeed(token: string, t: T): string {
   if (token === 'llm') return t('ag.need.llm')
   if (token === 'write:prompt') return t('ag.need.prompt')
+  if (token === 'write:card.growth') return t('ag.need.growth')
   if (token === 'show:note') return t('ag.need.note')
   if (token === 'show:choices') return t('ag.need.choices')
   if (token === 'show:panel') return t('ag.need.panel')

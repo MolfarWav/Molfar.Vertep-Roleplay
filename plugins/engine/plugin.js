@@ -3232,7 +3232,7 @@ function cleanTurns(t) {
 }
 /** Per-chat prompt switches (meta.promptBoard): which prompt parts this chat
  *  leaves out. Absent = everything on. */
-const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "stageDirections","plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:presence", "plugin:world"];
+const PROMPT_BOARD_OFF_KEYS = ["databank", "authorNote", "stageDirections","plugin:litopys", "plugin:relations", "plugin:said", "plugin:journal", "plugin:cardmemory", "plugin:cardhabits", "plugin:cardgrowth", "plugin:personamemory", "plugin:worldmemory", "plugin:recollections", "plugin:verbatim", "plugin:presence", "plugin:world"];
 const PROMPT_BOARD_OFF_RE = /^(section|book):[A-Za-z0-9_.\-]{1,128}$/;
 const PROMPT_BOARD_DEFAULT_HISTORY = { lastN: 0, only: "all", thinking: true };
 /** A literal string inside a RegExp. */
@@ -4233,6 +4233,9 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:cardhabits")) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
+  if (isOff("plugin:cardgrowth")) {
+    omit("memory", "Character growth", "off for this chat", undefined, "plugin:cardgrowth");
+  }
   if (isOff("plugin:recollections")) {
     omit("memory", "What the characters remember", "off for this chat", undefined, "plugin:recollections");
   }
@@ -4456,6 +4459,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:journal", label: "Character journal", kind: "dashboard", state: isOff("plugin:journal") ? "off" : "on" });
   board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
+  board.push({ key: "plugin:cardgrowth", label: "Character growth", kind: "memory", state: isOff("plugin:cardgrowth") ? "off" : "on" });
   board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });
   // the word-for-word passages are on by default: their switch shows unless the Library setting is off
   try {

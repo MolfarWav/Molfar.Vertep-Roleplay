@@ -4,6 +4,7 @@ import { Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { AgentRunCost } from '@/components/chat/agent-cost'
 import { AgentRoleModels } from '@/components/chat/agent-own-limits'
 import { useT } from '@/hooks/use-t'
 import { describeNeed, grantAgentTokens, type AgentInfo } from '@/lib/agents'
@@ -101,6 +102,7 @@ export function AgentPermissions({ agent, open, onOpenChange, onChanged }: { age
             </div>
           )}
           {agent.maxCalls > 0 && <p className="text-[11px] text-muted-foreground">{t('ag.review.calls', { n: agent.maxCalls })}</p>}
+          <AgentRunCost agent={agent} />
         </div>
         <DialogFooter className="flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
           <p className={cn('text-xs', done === n ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} aria-live="polite" data-testid="agent-perm-progress">

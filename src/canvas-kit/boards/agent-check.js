@@ -49,7 +49,7 @@ export const readCanvasFile = (raw) => {
 
 const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
-  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
+  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', growth: 'text', state: null,
 };
 /**
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
@@ -108,6 +108,8 @@ const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
 const NEEDS_BY_OUTPUT = { 'prompt-insert': ['write:prompt'], note: ['show:note'], choices: ['show:choices'] };
+/** Where a `prompt-insert` text goes in the outgoing prompt: after the history (the end of the last player message, the default), at the start of the system prompt, or at the end of the system prompt. */
+export const INSERT_POSITIONS = ['after-history', 'system-start', 'system-end'];
 export const AGENT_CARDS = {
   'agent.input': {
     label: 'Input', colorVar: '--k-data', hint: 'What the agent receives. What is not listed here, the agent cannot see.',
@@ -159,6 +161,15 @@ export const AGENT_CARDS = {
     label: 'Write to Dashboard', colorVar: '--k-write', hint: 'Queued, applied only after a successful run.',
     ports: (p) => [{ id: 'value', side: 'in', type: p.as === 'number' ? 'number' : 'text' }, { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }],
     needs: (p) => [`write:state.${p.field}`],
+  },
+  'write.growth': {
+    label: 'Propose a block of the character\'s portrait', colorVar: '--k-write', hint: 'Adds a block to the "how they changed" portrait in the character\'s card memory: the text, the Profile section it belongs to, whether it changes that part or adds something new. It waits for your yes and never edits the card.',
+    ports: () => [
+      { id: 'text', side: 'in', type: 'text' }, { id: 'section', side: 'in', type: 'text', optional: true }, { id: 'kind', side: 'in', type: 'text', optional: true },
+      { id: 'title', side: 'in', type: 'text', optional: true }, { id: 'basis', side: 'in', type: 'text', optional: true },
+      { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' },
+    ],
+    needs: () => ['write:card.growth'],
   },
   'state.read': {
     label: 'Read own state', colorVar: '--k-data', hint: 'The current value of one of the agent\'s own fields.',
@@ -693,6 +704,8 @@ export function validateAgent(raw) {
     err('E_ID', 'agent.id must be a lowercase slug of 2-41 characters');
   if (!['before', 'parallel', 'after', 'manual'].includes(a.trigger?.when))
     err('E_TRIGGER', 'trigger.when must be before, parallel, after or manual');
+  if (a.trigger?.scan !== undefined && !(Number.isInteger(a.trigger.scan) && a.trigger.scan >= 1 && a.trigger.scan <= 50))
+    err('E_TRIGGER', 'trigger.scan must be a whole number from 1 to 50');
   if (a.trigger?.when === 'parallel' && f.nodes.some((n) => n.type === 'agent.output' && n.params?.kind === 'prompt-insert')) {
     err('E_PARALLEL_INSERT', 'A parallel agent runs beside the reply, so its text cannot reach this reply. Use "before" for a prompt insert, or write to state');
   }
@@ -778,6 +791,8 @@ export function validateAgent(raw) {
     const op = (o.params ?? {});
     if (op.show != null && !(SHOW_BY_KIND[op.kind] ?? []).includes(op.show))
       err('E_SHOW_NOT_ALLOWED', `Output "${o.title}": "${op.show}" is not a place where a "${op.kind}" result can be shown`, o.id);
+    if (op.position != null && (op.kind !== 'prompt-insert' || !INSERT_POSITIONS.includes(op.position)))
+      err('E_INSERT_POSITION', `Output "${o.title}": position must be one of ${INSERT_POSITIONS.join(', ')}, and only a prompt-insert has one`, o.id);
   }
   const wiresIn = new Map();
   const adj = new Map();

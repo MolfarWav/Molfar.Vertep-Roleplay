@@ -28,6 +28,8 @@ export const DASH_WRITE_FIELDS: Record<string, { as: 'text' | 'number'; char?: t
 /** The key under which the host hands a Dashboard value to the executor (`ctx.dash`): `field`, or `field@name` with `of`. */
 /** The World DM dice an If rule may read (#155), and what of a die: `rolled` is a flag, `outcome` text. */
 export const DICE_DIES: string[]
+/** Where a `prompt-insert` text goes in the outgoing prompt (#396). */
+export const INSERT_POSITIONS: string[]
 export const DICE_WHATS: Record<string, 'flag' | 'text'>
 export const diceType: (o: { what?: string } | null | undefined) => 'flag' | 'text'
 export const dashKey: (x: { field?: string; of?: string } | null | undefined) => string | undefined

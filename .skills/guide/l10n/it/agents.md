@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Gli agenti e la fucina degli agenti
 
 Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -23,11 +23,11 @@ Quando viene eseguito è una corsia. Il file dell'agente indica la corsia in cui
 - **After the reply**: la corsia abituale per appunti, tracker e indicatori.
 - **By hand**: gira solo quando premi il pulsante di esecuzione della sua riga.
 
-Sopra la corsia, un agente può girare a ogni N-esima risposta oppure solo quando compaiono parole scelte.
+Sopra la corsia, un agente può girare a ogni N-esima risposta oppure solo quando compaiono parole scelte. Le parole si cercano negli ultimi due messaggi, salvo che l'agente dica altro: la scheda Agent ha "Look back this many messages" (da 1 a 50) non appena le parole sono impostate.
 
 ## Agenti pronti
 
-Premi "New agent" nella bacheca Agents del **Canvas** (la voce **Agents** della barra laterale la apre). "Empty agent" fornisce un Input e una nota. "Start from a ready agent" ne offre sei funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio e Indicatore di tensione. Sotto "Drafts" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Drafts from Molfar").
+Premi "New agent" nella bacheca Agents del **Canvas** (la voce **Agents** della barra laterale la apre). "Empty agent" fornisce un Input e una nota. "Start from a ready agent" ne offre sette funzionanti: Prossime mosse, Spinta al ritmo, Mappa della storia, Riepilogo scena, Tavola del territorio, Indicatore di tensione e Character growth (propone come è cambiato il personaggio, per la scheda Memory della carta; vedi la pagina sulla memoria). Sotto "Drafts" ci sono gli agenti che Molfar ha scritto nel tuo spazio di lavoro ("Drafts from Molfar").
 
 ## L'editor
 
@@ -52,3 +52,7 @@ Un agente con una scheda Script che esaurisce il tempo tre esecuzioni di fila in
 Un **insieme** è un elenco di agenti con nome ("Save this chat's list as a set"; "Make default" lo assegna alle nuove chat). La bacheca "Agent sets" del Canvas mostra il costo in tempo e in chiamate di ogni insieme e contiene l'interruttore "Agents' notes in chats", che nasconde le note di tutti gli agenti. Il posto del risultato di ogni agente può essere cambiato nella scheda Agenti della chat, tra i posti adatti.
 
 Ogni scheda "Ask the model" è una chiamata per esecuzione; l'editor ne mostra il numero. "Every Nth reply" divide il costo.
+
+**Quanto costa, prima di attivarlo.** La pagina dei permessi e la scheda dell'agente nel foglio Agents mostrano una stima per un'esecuzione: le chiamate e, più o meno, quanti token entrano e, al massimo, quanti ne escono. La scheda Agents aggiunge una riga con il totale per risposta per gli agenti attivi nella chat, con "Every Nth reply" già ripartito. È ricavata dai file degli agenti (lunghezza delle domande, cosa leggono, limiti delle risposte), non dalla chat, quindi c'è scritto "circa": i numeri reali dipendono dalla chat e dal modello. Un agente che non interroga alcun modello lo dice.
+
+**Dove va un suggerimento.** Una scheda Output di tipo suggerimento ("prompt-insert") ha "Position in the prompt": dopo la cronologia (predefinito, la fine dell'ultimo messaggio del giocatore), all'inizio del prompt di sistema o alla sua fine. Un suggerimento nel prompt di sistema pesa di più per il modello, quindi tienilo breve. È lo stesso permesso di ogni suggerimento.

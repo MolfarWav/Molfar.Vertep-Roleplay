@@ -460,6 +460,16 @@ function runCards(file, ctx, answers, seen) {
       if (vals.some((v) => v !== SKIP && v !== PENDING && v !== ABSENT)) { out('out', true); ran(); }
       else if (vals.some((v) => v === PENDING)) wait();
       else skip();
+    } else if (node.type === 'write.growth') {
+      const g = gate(['text'], 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const text = asText(ins.text).trim();
+        const opt = (k) => (typeof ins[k] === 'string' ? ins[k].trim() : '');
+        if (!text) skip();
+        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis') }); out('done', true); ran({ 'growth.add': short(text) }); }
+      }
     } else if (node.type === 'write.state' || node.type === 'state.set' || node.type === 'state.add' || node.type === 'state.list') {
       const dataPorts = ports.filter((x) => x.side === 'in' && x.id !== 'when' && !(node.type === 'state.add' && x.id === 'by')).map((x) => x.id);
       const needBy = node.type === 'state.add' && ins.by !== ABSENT;

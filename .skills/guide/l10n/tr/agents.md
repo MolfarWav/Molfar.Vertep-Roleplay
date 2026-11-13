@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -23,11 +23,11 @@ Ajanın ne zaman çalışacağı bir şeride (lane) bağlıdır. Ajanın dosyas�
 - **After the reply**: notlar, izleyiciler ve göstergeler için olağan şerit.
 - **By hand**: yalnızca satırının çalıştır düğmesine bastığınızda çalışır.
 
-Şeridin üstüne, bir ajan her N. yanıtta ya da yalnızca seçilen sözcükler göründüğünde de çalışabilir.
+Şeridin üstüne, bir ajan her N. yanıtta ya da yalnızca seçilen sözcükler göründüğünde de çalışabilir. Sözcükler, ajan aksini belirtmedikçe son iki mesajda aranır. Sözcükler ayarlandığında Agent sekmesinde "Look back this many messages" (1 ile 50 arası) görünür.
 
 ## Hazır ajanlar
 
-Canvas'taki Agents panosunda "New agent"a basın (raydaki **Agents** öğesi onu açar). "Empty agent" bir Girdi ve bir not verir. "Start from a ready agent" altı çalışan ajan sunar: Next moves, Pacing nudge, Story map, Scene recap, Territory board ve Tension meter. "Drafts" altında Molfar'ın çalışma alanınıza yazdığı ajanlar bulunur ("Drafts from Molfar").
+Canvas'taki Agents panosunda "New agent"a basın (raydaki **Agents** öğesi onu açar). "Empty agent" bir Girdi ve bir not verir. "Start from a ready agent" yedi çalışan ajan sunar: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter ve Character growth (karakterin nasıl değiştiğini önerir, kartın Memory sekmesi için; bellek sayfasına bakın). "Drafts" altında Molfar'ın çalışma alanınıza yazdığı ajanlar bulunur ("Drafts from Molfar").
 
 ## Düzenleyici
 
@@ -52,3 +52,7 @@ Bir sohbette üst üste üç çalıştırmada zaman aşımına uğrayan bir Scri
 Bir **set**, adlandırılmış bir ajan listesidir ("Save this chat's list as a set"; "Make default" onu yeni sohbetlere verir). Canvas'ın "Agent sets" panosu her setin zaman ve çağrı maliyetini gösterir ve her ajanın notlarını gizleyen "Agents' notes in chats" anahtarını tutar. Her ajanın sonuç yeri, sohbetin Agents sekmesinde, ona uyan yerler arasından değiştirilebilir.
 
 Her "Ask the model" kartı çalıştırma başına bir çağrıdır; düzenleyici sayıyı gösterir. "Every Nth reply" maliyeti böler.
+
+**Açmadan önce ne kadara mal olur.** İzinler sayfası ve Agents sayfasındaki ajan kartı tek bir çalıştırma için bir tahmin gösterir: çağrılar ve kabaca ne kadar token girdiği ve en fazla ne kadarının çıktığı. Agents sekmesi, sohbette açık olan ajanlar için yanıt başına toplamı gösteren bir satır ekler; "Every Nth reply" zaten paylaştırılmıştır. Bu rakam sohbetten değil ajanların dosyalarından (soruların uzunluğu, okudukları, yanıt sınırları) hesaplanır; bu yüzden "yaklaşık" yazar: gerçek sayılar sohbete ve modele bağlıdır. Hiçbir modele sormayan bir ajan bunu söyler.
+
+**İpucunun nereye gittiği.** İpucu türünde bir Çıktı kartı ("prompt-insert") "Position in the prompt" seçeneğine sahiptir: geçmişten sonra (varsayılan, son oyuncu mesajının sonu), sistem isteminin başında ya da sonunda. Sistem istemindeki bir ipucu modelde daha fazla ağırlık taşır, bu yüzden kısa tutun. Her ipucuyla aynı izin geçerlidir.

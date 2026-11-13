@@ -139,6 +139,24 @@ describe("install and permissions", () => {
     expect(r.missing).toEqual([]);
   });
 
+  it("the list carries an estimate of what one run costs, for the screens to show before an agent is turned on (#396)", () => {
+    j("/agents/install", "PUT", { file: copy(keeper) });
+    const info = j("/agents/list").agents.find((x: Json) => x.id === "dungeon-keeper");
+    const asks = keeper.nodes.filter((n: Json) => n.type === "model.ask");
+    expect(info.cost.calls).toBe(keeper.agent.derived.maxCalls);
+    expect(info.cost.tokensOut).toBe(asks.reduce((t: number, n: Json) => t + (n.params.maxTokens > 0 ? Math.min(n.params.maxTokens, 4000) : 600), 0));
+    // every Ask card carries its own text and the framing, so the input side is never below that
+    expect(info.cost.tokensIn).toBeGreaterThanOrEqual(asks.length * 70);
+    // an agent that never asks a model costs nothing
+    const code = copy(keeper);
+    code.nodes = [{ id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [{ id: "last", source: "lastReply" }] } }, { id: "tpl", type: "text.template", x: 0, y: 0, title: "T", params: { text: "{{last}}" } }, { id: "out", type: "agent.output", x: 0, y: 0, title: "O", params: { kind: "note", title: "N" } }];
+    code.edges = [{ id: "a", from: "in:last", to: "tpl:last" }, { id: "b", from: "tpl:text", to: "out:in" }];
+    code.agent = { formatVersion: 1, id: "code-only", version: "1.0.0", name: "Code only", trigger: { when: "after" }, models: {}, limits: { maxCalls: 0 } };
+    delete code.agent.derived;
+    j("/agents/install", "PUT", { file: code });
+    expect(j("/agents/list").agents.find((x: Json) => x.id === "code-only").cost).toEqual({ calls: 0, tokensIn: 0, tokensOut: 0 });
+  });
+
   it("a file that lies about what it needs, or does not pass the check, is refused and not stored", () => {
     const lie = copy(keeper);
     lie.agent.derived.needs = ["llm"];
@@ -297,6 +315,26 @@ describe("a run after a reply", () => {
     setMessages("c1", [...CHAT, ["user", "x"], ["char", "The IMP bows."]]);
     install({ when: "after", keywords: ["imp"] });
     expect(runChat("c1").ran[0].status).toBe("ok"); // not case-sensitive, looked for in the last two messages
+  });
+
+  it("trigger.scan sets how many messages the keywords are looked for in (#396)", () => {
+    const install = (trigger: Json) => { const f = copy(keeper); f.agent.trigger = trigger; delete f.agent.derived; return call("PUT", "/agents/install", { file: f, grant: true }); };
+    // "imp" was said four messages ago: the last two messages (the default) do not hold it
+    setMessages("c1", [["char", "Welcome, keeper."], ["user", "I summon an imp."], ["char", "It bows."], ["user", "Fine."], ["char", "Dark falls."]]);
+    install({ when: "after", keywords: ["imp"] });
+    expect(runChat("c1").skipped[0].why).toMatch(/trigger did not fire/);
+    install({ when: "after", keywords: ["imp"], scan: 3 });
+    expect(runChat("c1").skipped[0].why).toMatch(/trigger did not fire/); // the user message is fourth from the end
+    install({ when: "after", keywords: ["imp"], scan: 4 });
+    expect(runChat("c1").ran[0].status).toBe("ok");
+    install({ when: "after", keywords: ["imp"], scan: 1 });
+    expect(runChat("c1").skipped[0].why).toMatch(/trigger did not fire/);
+    // out of range or not a whole number: the checker refuses the file
+    for (const bad of [0, 51, 2.5, "3"]) {
+      const res = install({ when: "after", keywords: ["imp"], scan: bad });
+      expect(res.status).toBe(400);
+      expect(res.json?.errors.map((e: Json) => e.code)).toContain("E_TRIGGER");
+    }
   });
 
   it("the user's own everyN replaces the author's, and clearing it brings the author's back", () => {
@@ -474,13 +512,13 @@ describe("the same rules as the engine", () => {
 });
 
 describe("a hint for the next reply", () => {
-  const hinter = () => {
+  const hinter = (position = "after-history") => {
     const f = copy(keeper);
     f.agent = { formatVersion: 1, id: "scene-hint", version: "1.0.0", name: "Scene hint", trigger: { when: "after" }, models: {}, limits: { maxCalls: 0 } };
     f.nodes = [
       { id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [{ id: "last", source: "lastReply" }] } },
       { id: "tpl", type: "text.template", x: 0, y: 0, title: "Hint", params: { text: "Keep the imp in view. The last scene: {{last}}" } },
-      { id: "out", type: "agent.output", x: 0, y: 0, title: "Out", params: { kind: "prompt-insert", label: "Scene hint", position: "after-history" } },
+      { id: "out", type: "agent.output", x: 0, y: 0, title: "Out", params: { kind: "prompt-insert", label: "Scene hint", position } },
     ];
     f.edges = [{ id: "a", from: "in:last", to: "tpl:last" }, { id: "b", from: "tpl:text", to: "out:in" }];
     return compileAgent(f).file;
@@ -510,6 +548,38 @@ describe("a hint for the next reply", () => {
     expect(out.messages[0].content).not.toContain("pops into the dark");
     fs.writeFileSync(path.join(root, "chats", "c2.meta.json"), JSON.stringify({ id: "c2", agents: { v: 1, own: [{ agent: "scene-hint", on: false }] } }));
     expect(reply("c2", [{ role: "user", content: "Go on." }])).toBeNull();
+  });
+
+  it("puts the hint where its Output card says: the start or the end of the system prompt (#396)", () => {
+    const HINT = "[Scene hint]\nKeep the imp in view. The last scene: A small imp pops into the dark.";
+    const prompt = () => [{ role: "system", content: "S1" }, { role: "system", content: "S2" }, { role: "user", content: "Hi." }, { role: "assistant", content: "Yes." }, { role: "system", content: "Post note" }, { role: "user", content: "Go on." }];
+    j("/agents/install", "PUT", { file: hinter("system-start"), grant: true });
+    runChat("c2");
+    let out = reply("c2", prompt()) as Json;
+    expect(out.messages.map((m: Json) => m.content)).toEqual([HINT + "\n\nS1", "S2", "Hi.", "Yes.", "Post note", "Go on."]);
+    expect(out.promptSources.parts[0]).toMatchObject({ kind: "plugin", label: "Agent: Scene hint" });
+    j("/agents/install", "PUT", { file: hinter("system-end"), grant: true });
+    runChat("c2"); // the same reply already ran: the stored hint keeps its old position until the next reply
+    setMessages("c2", [...CHAT, ["user", "x"], ["char", "The imp bows."]]);
+    runChat("c2");
+    const HINT2 = "[Scene hint]\nKeep the imp in view. The last scene: The imp bows.";
+    // the end of the block that opens the prompt, not the system note that comes after the history
+    out = reply("c2", prompt()) as Json;
+    expect(out.messages.map((m: Json) => m.content)).toEqual(["S1", "S2\n\n" + HINT2, "Hi.", "Yes.", "Post note", "Go on."]);
+    // a prompt with no system message gets one of its own, in front
+    out = reply("c2", [{ role: "user", content: "Go on." }]) as Json;
+    expect(out.messages).toEqual([{ role: "system", content: HINT2 }, { role: "user", content: "Go on." }]);
+  });
+
+  it("refuses a position that is not one of the three, and one on a note (#396)", () => {
+    const res = call("PUT", "/agents/install", { file: hinter("middle"), grant: true });
+    expect(res.status).toBe(400);
+    expect(res.json?.errors.map((e: Json) => e.code)).toContain("E_INSERT_POSITION");
+    const f = hinter();
+    f.nodes[2].params = { kind: "note", title: "N", position: "system-start" };
+    delete f.agent.derived;
+    const res2 = call("PUT", "/agents/install", { file: f, grant: true });
+    expect(res2.json?.errors.map((e: Json) => e.code)).toContain("E_INSERT_POSITION");
   });
 
   it("only touches a reply request", () => {

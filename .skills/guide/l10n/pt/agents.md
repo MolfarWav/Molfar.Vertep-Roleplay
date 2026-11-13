@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Agentes e a forja de agentes
 
 Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -23,11 +23,11 @@ Quando ele executa é definido por uma faixa. O arquivo do agente indica a faixa
 - **After the reply**: a faixa usual para notas, rastreadores e medidores.
 - **By hand**: roda somente quando você pressiona o botão de executar da sua linha.
 
-Além da faixa, um agente pode rodar a cada N respostas, ou somente quando palavras escolhidas aparecem.
+Além da faixa, um agente pode rodar a cada N respostas, ou somente quando palavras escolhidas aparecem. As palavras são procuradas nas duas últimas mensagens, a menos que o agente diga outra coisa: a aba Agent tem "Look back this many messages" (de 1 a 50) assim que houver palavras definidas.
 
 ## Agentes prontos
 
-Pressione "New agent" no quadro Agents do **Canvas** (o item **Agents** da barra lateral o abre). "Empty agent" cria um cartão Input e uma nota. "Start from a ready agent" oferece seis prontos para uso: Next moves, Pacing nudge, Story map, Scene recap, Territory board e Tension meter. Em "Drafts" ficam os agentes que o Molfar escreveu no seu espaço de trabalho ("Drafts from Molfar").
+Pressione "New agent" no quadro Agents do **Canvas** (o item **Agents** da barra lateral o abre). "Empty agent" cria um cartão Input e uma nota. "Start from a ready agent" oferece sete prontos para uso: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter e Character growth (sugere como o personagem mudou, para a aba Memory do cartão; veja a página sobre memória). Em "Drafts" ficam os agentes que o Molfar escreveu no seu espaço de trabalho ("Drafts from Molfar").
 
 ## O editor
 
@@ -52,3 +52,7 @@ Um agente com um cartão Script que estoura o tempo três execuções seguidas e
 Um **conjunto** é uma lista nomeada de agentes ("Save this chat's list as a set"; "Make default" o dá a chats novos). O quadro "Agent sets" do Canvas mostra o custo de cada conjunto em tempo e chamadas, e tem o interruptor "Agents' notes in chats" que oculta as notas de todos os agentes. O local do resultado de cada agente pode ser mudado na aba Agents do chat, entre os locais que lhe servem.
 
 Cada cartão "Ask the model" é uma chamada por execução; o editor mostra o número. "Every Nth reply" divide o custo.
+
+**Quanto custa, antes de ligar.** A página de permissões e o cartão do agente na folha Agents mostram uma estimativa para uma execução: as chamadas e, aproximadamente, quantos tokens entram e, no máximo, quantos saem. A aba Agents acrescenta uma linha com o total por resposta para os agentes ligados no chat, com "Every Nth reply" já distribuído. Ela é lida dos arquivos dos agentes (o tamanho das perguntas, o que leem, os limites de resposta), não do seu chat, por isso diz "cerca de": os números reais dependem do chat e do modelo. Um agente que não consulta modelo diz isso.
+
+**Onde fica uma dica.** Um cartão Output do tipo dica ("prompt-insert") tem "Position in the prompt": depois do histórico (o padrão, o fim da última mensagem do jogador), no início do prompt do sistema ou no fim dele. Uma dica no prompt do sistema pesa mais para o modelo, então mantenha-a curta. É a mesma permissão de qualquer dica.

@@ -175,6 +175,31 @@ card (`POST /litopys/habits { chatId, id, op: "on"|"accept"|"reject"|"edit"|"kee
 activity log notes "habit.seen" and "habit.earn". Not for the user's character, not for what the card says; at most
 two new candidates a chapter and twelve live ones a chat.
 
+**The living portrait: how the character changed (growth, Molfar.Vertep#396).** What the story did to a character, written as
+BLOCKS like the card's own text and named by the Profile tab's sections, apart from the habits (rules for how they act) and from
+`memory.json` (which Litopys owns): `characters/<id>/growth.json`, written only by the agents plugin, edited in the card's Memory
+tab (`GET|PUT /agents/growth`), never in `card.json` or an export. Shape: `{ "v": 2, "next": <n>, "entries": [ { "id": "g1",
+"section": "background"|"relationships"|"personality"|"behaviors"|"goals"|"trauma"|"sexuality"|"other", "kind": "changed"|"added",
+"title": "<optional, up to 80>", "text": "<up to 1200 characters>", "basis": "<optional, up to 120: what it replaces>", "prev":
+["<older text>", ...], "revises": "<id>", "on": true, "state": "proposed"|"accepted", "origin": "agent"|"user", "agent": "<agent
+id>", "runKey": "<message id>#<swipe>", "from": { "chatId", "title", "at" }, "at": <ms> } ], "inject": { "enabled": true,
+"maxTokens": 1500 } }`. A "changed" block says how that part of the character is NOW (it updates what the card says), an "added"
+block is something that came out in the story (a relationship, a secret, a skill, the past). Identity (name, age) and appearance
+are not sections on purpose, they hardly ever change; a rare scar is an `other` block. A v1 file (`was`, `now`) is read as one
+`changed` block of `other` with the text "Was: ... Now: ...". At most 200 entries. `inject.maxTokens` is the user's room, 100 to 8000
+(default 1500); over it the newest accepted blocks stay (one that does not fit is skipped, a smaller older one may still go in).
+An agent's `write.growth` card adds `proposed` blocks (at most 2 a run, a solo chat only; a text already in the file is not added
+twice; a re-run of the same reply replaces that agent's still-proposed blocks of it). A proposed "changed" block about a section
+that already has an accepted "changed" block carries `revises` (its id): accepting it replaces that block's text and moves the old
+text to `prev` (3 kept), and `revert` brings it back. Nothing is put in a prompt before the user accepts it. In a reply the
+agents plugin adds one part "Agents · character growth" at the end of the leading system block, after the card's sections and the
+persona: "How <name> has changed and what has come out over the story so far. Where this differs from the character description and
+personality above, this is more recent and wins.", then `## Personality (now)` and so on in the Profile's section order (the
+"changed" blocks of a section together, each "added" block under its own title). The card's own text stays in the prompt: a
+Profile card's `description` and `personality` are compiled text without section headings, so a section cannot be cut out of
+them reliably. Own Prompt board switch `plugin:cardgrowth`; the plugin's `insertCeiling` counts the part. The card is never edited,
+so a card with a Profile (whose `description` and `personality` are rebuilt on save) keeps its portrait.
+
 **What each character remembers of a scene (#99).** A chapter in `litopys/chats/<chatId>.json` may carry `views`:
 `[{ "who": "<name as the scene spells it>", "text": "<1-2 sentences, first person, at most 300 characters>" }]`, at most 8, one per
 name. The chapter worker writes them in the same call as the chapter, only when the scene has at least one named character
@@ -999,6 +1024,8 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 ```
 
 - `agent.id` is a lowercase slug (2-41 characters). `trigger.when` is `before`, `parallel`, `after` or `manual`.
+  `trigger.scan` (optional, a whole number from 1 to 50, default 2) is how many of the newest messages the `keywords` are
+  looked for in; another value is `E_TRIGGER`. An older Roleplay ignores the field and looks at two.
   `models` names roles (`fast`), never a model id and never a key: the user maps a role to a connection at install.
 - `derived` is computed from the cards: `needs` (permission tokens, sorted), `maxCalls` (model calls per run) and
   `hash` (sha256 of the header without `derived`, the cards without `x`/`y`, and the wires). A file whose `derived`
@@ -1030,6 +1057,12 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   stands on the state it carried until it has its own), leaving out characters the user removed from the Dashboard.
   A value the Dashboard does not have is missing: a card that needs it is skipped, an If says Unknown. The executor gets
   the values in `ctx.dash` under `dashKey`: `field`, or `field@name` with `of`.
+- The living portrait (#396): a `write.growth` card (permission `write:card.growth`; inputs `text`, optional `section`, `kind`,
+  `title`, `basis` (all text), optional `when`; output `done`) stages `{ op: "growth.add", text, section, kind, title, basis }`, which the
+  host turns into a `proposed` block of `characters/<id>/growth.json` (format above; an unknown `section` becomes `other`, a `kind`
+  other than `added` is `changed`). The Input source `growth` (permission `read:growth`) gives what is already there, newest 20, one
+  line a block ("- [personality] Title: text"), or "(nothing yet)"; missing in a group chat. The ready agent "Character growth"
+  (`recipe-growth`) asks one question every eighth reply (the user's own "Every Nth reply" changes it) and writes one block.
 - Dashboard fields an agent may change (#132, write): a `write.state` card `{ field, as, of?, clamp? }` with the permission
   `write:state.<field>`, one per field. The list is `DASH_WRITE_FIELDS` of the checker: the readable ones except `present`
   (it decides who is on the Dashboard at all), 12 fields. `as` and `of` follow the same rules as reading (`E_DASH_TYPE`,
@@ -1094,6 +1127,11 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - `params.show` on an Output, where a result may appear: `state-patch` → `log`, `feed`, `top1`, `top2`, `float`, `toast`;
   `note` → `note`, `log`, `feed`, `top1`, `float`; `prompt-insert` → `inspector`, `note`; `choices` → `bottom`, `log`,
   `float`. Anything else is `E_SHOW_NOT_ALLOWED`. A `parallel` agent cannot insert into the prompt (`E_PARALLEL_INSERT`).
+- `params.position` on a `prompt-insert` Output, where the text goes in the outgoing prompt: `after-history` (the default, the
+  end of the last player message), `system-start` (the start of the first system message) or `system-end` (the end of the last
+  system message of the block that opens the prompt). A prompt with no system message gets one of its own. Another value, or a
+  position on another kind, is `E_INSERT_POSITION`. The permission is the same `write:prompt`; the text is clipped at 4000
+  characters and carries the agent's label. `replace` of existing prompt text is not offered.
 - Own state (`agent.state`): fields the agent declares, kept apart from the Dashboard. A field is `{ "type": "number",
   "min", "max", "start" }`, `text`, `flag`, or `{ "type": "list", "item": { "name": "text", "level": "number" }, "max": 20 }`
   (a list must have `max`, 1 to 500, and 1 to 8 entry fields; at most 40 fields). Field names start with a letter and use
@@ -1302,7 +1340,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   run `bun scripts/sync-agents-plugin.ts` (a test fails when the copy is old).
 
 Errors the checker raises: `E_ENVELOPE`, `E_FORMAT_VERSION`, `E_ID`, `E_TRIGGER`, `E_DUP_NODE`, `E_PORT_ID`,
-`E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_SHOW_NOT_ALLOWED`,
+`E_ROLE`, `E_IF_EMPTY`, `E_IF_OP`, `E_IF_OPERAND`, `E_INPUT_COUNT`, `E_OUTPUT_COUNT`, `E_INSERT_POSITION`, `E_SHOW_NOT_ALLOWED`,
 `E_EDGE_NODE`, `E_EDGE_PORT`, `E_EDGE_DIRECTION`, `E_TYPE`, `E_TWO_WIRES`, `E_UNWIRED`, `E_CYCLE`, `E_ROUNDS`, `E_BUDGET`,
 `E_STATE_FIELD`, `E_STATE_LIMIT`, `E_STATE_UNKNOWN`, `E_STATE_TYPE`, `E_STATE_OP`, `E_PANEL`, `E_WIDGET`, `E_BIND`,
 `E_TPL_FIELD`, `E_TPL_UNCLOSED`, `E_TPL_FORBIDDEN`, `E_SCRIPT_LIMIT`, `E_SCRIPT_SYNTAX`; the derived-field errors `E_NEEDS_MISMATCH`, `E_CALLS_MISMATCH`, `E_HASH`; warnings

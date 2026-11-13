@@ -1,4 +1,4 @@
-<!-- source: 3036f6063dc6 -->
+<!-- source: 31f4ce67a69a -->
 # Agents und die Agenten-Schmiede
 
 Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
@@ -23,11 +23,11 @@ Wann er läuft, ist eine Spur (lane). Die Datei des Agenten legt fest, in welche
 - **After the reply**: die übliche Spur für Notizen, Tracker und Anzeigen.
 - **By hand**: läuft nur, wenn du den Lauf-Button seiner Zeile drückst.
 
-Zusätzlich kann ein Agent bei jeder N-ten Antwort laufen oder nur, wenn bestimmte Wörter auftauchen.
+Zusätzlich kann ein Agent bei jeder N-ten Antwort laufen oder nur, wenn bestimmte Wörter auftauchen. Die Wörter werden in den letzten zwei Nachrichten gesucht, außer der Agent sagt etwas anderes: Im Tab Agent gibt es „Look back this many messages“ (1 bis 50), sobald Wörter gesetzt sind.
 
 ## Fertige Agents
 
-Drücke „New agent“ im Agents-Brett des **Canvas** (der Rail-Punkt **Agents** öffnet es). „Empty agent“ ergibt eine Input- und eine Notiz-Karte. „Start from a ready agent“ bietet sechs funktionierende an: Next moves, Pacing nudge, Story map, Scene recap, Territory board und Tension meter. Unter „Drafts“ stehen Agents, die Molfar in deinen Workspace geschrieben hat („Drafts from Molfar“).
+Drücke „New agent“ im Agents-Brett des **Canvas** (der Rail-Punkt **Agents** öffnet es). „Empty agent“ ergibt eine Input- und eine Notiz-Karte. „Start from a ready agent“ bietet sieben funktionierende an: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter und Character growth (er schlägt vor, wie sich die Figur verändert hat, für den Tab Memory der Karte; siehe die Seite zum Speicher). Unter „Drafts“ stehen Agents, die Molfar in deinen Workspace geschrieben hat („Drafts from Molfar“).
 
 ## Der Editor
 
@@ -52,3 +52,7 @@ Ein Agent mit einer Script-Karte, die in einem Chat dreimal hintereinander aus Z
 Ein **Set** ist eine benannte Liste von Agents („Save this chat's list as a set“; „Make default“ gibt sie neuen Chats). Das Brett „Agent sets“ im Canvas zeigt die Kosten jedes Sets in Zeit und Aufrufen und enthält den Schalter „Agents' notes in chats“, der alle Notizen der Agents ausblendet. Der Ergebnisplatz jedes Agents lässt sich im Agents-Tab des Chats ändern, unter den Plätzen, die zu ihm passen.
 
 Jede „Ask the model“-Karte ist ein Aufruf pro Lauf; der Editor zeigt die Zahl. „Every Nth reply“ teilt die Kosten.
+
+**Was es kostet, bevor du es einschaltest.** Die Seite zu den Berechtigungen und die Karte des Agenten im Blatt Agents zeigen eine Schätzung für einen Lauf: die Aufrufe und ungefähr wie viele Tokens hinein- und höchstens herausgehen. Der Tab Agents fügt eine Zeile mit der Summe pro Antwort für die Agenten hinzu, die im Chat eingeschaltet sind, mit „Every Nth reply“ schon verteilt. Sie wird aus den Dateien der Agenten berechnet (Länge ihrer Fragen, was sie lesen, ihre Antwortgrenzen), nicht aus deinem Chat, deshalb steht „etwa“ dabei: die echten Zahlen hängen vom Chat und vom Modell ab. Ein Agent, der kein Modell fragt, sagt das.
+
+**Wo ein Hinweis hingeht.** Eine Output-Karte vom Typ Hinweis („prompt-insert“) hat „Position in the prompt“: nach dem Verlauf (der Standard, das Ende der letzten Spielernachricht), am Anfang des System-Prompts oder an dessen Ende. Ein Hinweis im System-Prompt wiegt beim Modell schwerer, also halte ihn kurz. Es ist dieselbe Berechtigung wie bei jedem Hinweis.
