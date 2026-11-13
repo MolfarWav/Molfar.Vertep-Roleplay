@@ -1,4 +1,4 @@
-<!-- source: fdd649d68f3c -->
+<!-- source: 9bbf7efc4d3f -->
 # Charaktere, Personas und Gruppen
 
 Alles, womit du spielst, lebt in vier Bereichen: Characters, Groups, Personas und Marketplace. Diese Seite sagt, wofür jeder gedacht ist; die Hilfeartikel *Your characters*, *The card editor tabs* und *Groups of characters* enthalten die Einzelheiten.
@@ -30,7 +30,11 @@ Eine Persona bist du: Name, Pronomen, Beschreibung, Avatar. Das Modell sieht sie
 
 ## Gruppen
 
-Eine Gruppe bringt mehrere Charaktere in einen Chat. „New group“ lässt dich Mitglieder wählen. Der Editor hat Overview, Members, Scene, Turns, Lore und Chats. Der Turns-Tab entscheidet, wer antwortet: Narrator (eine Antwort lässt alle sprechen) oder Each in turn. Eine neue Gruppe startet als Narrator. Eine Gruppe ist keine Karte: Das Löschen einer Gruppe löscht ihre Chats, niemals ihre Mitglieder. Mitglieder ohne eigene Farbe bekommen automatisch verschiedene Farben.
+Eine Gruppe bringt mehrere Charaktere in einen Chat. „New group“ lässt dich Mitglieder wählen. Der Editor hat Overview, Members, Scene, Turns, Lore und Chats. Der Turns-Tab entscheidet, wer antwortet: Narrator (eine Antwort lässt alle sprechen) oder Each in turn. Eine neue Gruppe startet als Narrator.
+
+Der Turns-Tab enthält außerdem **How they talk**: **Unterbrechungen** (Interruptions): Mitglieder fallen ins Wort, reden übereinander oder überhören eine Frage, wenn es zu ihrem Charakter passt. **Eigentore** (Own goals): Mitglieder widersprechen, verhandeln oder weigern sich, wenn ein Plan gegen ihr Wesen geht, auch wenn das Spannung mit dir erzeugt. **Stille Mitglieder einbeziehen** (Draw in quiet members): Wer eine Weile still war, bekommt mehr Chancen zu antworten, und eine erzählte Szene wird gebeten, sie einzubeziehen. Die ersten beiden stehen auf Aus, Darf oder Soll: Darf erlaubt es, wenn es zur Szene passt, Soll erwartet es, und wenn jede Antwort zum Streit wird, geh zurück auf Darf. Neue Gruppen starten mit Darf und eingeschaltetem Einbeziehen; ältere Gruppen haben alles aus, bis du es einschaltest. Der eigene Turns-Button des Chats kann sie nur für diesen einen Chat ändern. Öffne auf dem Members-Tab den Abschnitt „In this group“ eines Mitglieds, um ihm eine **voice** zu geben, die nur in dieser Gruppe gilt: bis zu zwei Sprechgewohnheiten (spricht in Fragmenten, stellt nie Fragen) und bis zu fünf Beispielsätze. Ein paar Zeilen lehren den Rhythmus besser als Adjektive, und verschiedene Charaktere sollten auf dieselbe Nachricht unterschiedlich reagieren.
+
+Eine Gruppe ist keine Karte: Das Löschen einer Gruppe löscht ihre Chats, niemals ihre Mitglieder. Mitglieder ohne eigene Farbe bekommen automatisch verschiedene Farben.
 
 ## Karten bekommen
 

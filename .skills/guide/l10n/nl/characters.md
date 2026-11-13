@@ -1,4 +1,4 @@
-<!-- source: fdd649d68f3c -->
+<!-- source: 9bbf7efc4d3f -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina zegt waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* hebben de details.
@@ -18,13 +18,23 @@ De editor heeft zes tabbladen:
 
 Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Colors geeft "Voices" elke spreker een eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart die meerdere personages bevat (secties genoemd naar elk van hen) kleurt de regels van elk personage zelf, elk in een andere kleur, en dit blijft bij de chat bewaard. In elke andere chat open je het chatmenu, "Voice colors", en zet je de schakelaar aan; "Spread colors" geeft iedereen die je niet hebt gekozen een andere kleur. Dit heeft het Relationship-dashboard nodig, dat de lijst met personages levert.
 
+## Brieven van kaarten
+
+Een kaart die je een tijdje niet hebt gespeeld, kan je een korte brief in zijn eigen stem schrijven. De brief komt in de inbox terecht ("Waiting on you" op Home, de inbox-knop in de rail) als een groene Letter; als je hem opent, ga je naar de oude chat, of start je een chat voor een kaart die je nooit hebt gespeeld. Een brief schrijft nooit in een chat en verzint nooit gebeurtenissen.
+
+Hij staat **uit tot je hem aanzet**. Zolang hij uit staat, staat er bovenaan de sectie Personages en in "Waiting on you" op Home een groene kaart "Let your characters write to you": **Turn on** zet hem meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen van inactiviteit, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt gestopt staan in Personages, More, Letters from cards. Brieven worden om de paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen stilligt, een kaart die je 14 dagen nooit hebt gespeeld, en een gespeelde kaart zonder Soul (één keer). Als het schrijfmodel drie controles achter elkaar faalt (of er geen is ingesteld), toont de inbox een rode melding "Letters" met de reden, en **Open** brengt je naar de instellingen voor brieven; een brief die aankomt, een ander model of het uitzetten van brieven haalt de melding weg.
+
 ## Persona's
 
 Een persona ben jij: naam, voornaamwoorden, beschrijving, avatar. Het model ziet hem overal waar de prompt over de gebruiker spreekt. "Use this persona" maakt hem je standaard en schakelt de open chat ernaar over. Een persona kan eigen lorebooks dragen en kan aan gekozen personages worden vastgemaakt, zodat nieuwe chats met hen ermee beginnen.
 
 ## Groepen
 
-Een groep zet meerdere personages in één chat. "New group" laat je leden kiezen. De editor heeft Overview, Members, Scene, Turns, Lore en Chats. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord vertolkt iedereen) of Each in turn. Een nieuwe groep begint als Narrator. Een groep is geen kaart: een groep verwijderen verwijdert zijn chats, nooit zijn leden. Leden zonder eigen kleur krijgen automatisch verschillende kleuren.
+Een groep zet meerdere personages in één chat. "New group" laat je leden kiezen. De editor heeft Overview, Members, Scene, Turns, Lore en Chats. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord vertolkt iedereen) of Each in turn. Een nieuwe groep begint als Narrator.
+
+Het tabblad Turns heeft ook **How they talk**: **Onderbrekingen** (Interruptions): leden vallen in, praten door elkaar heen of negeren een vraag wanneer dat bij hun personage past. **Eigen doelpunten** (Own goals): leden maken bezwaar, onderhandelen of weigeren wanneer een plan indruist tegen wie ze zijn, ook al ontstaat er spanning met jou. **Stille leden betrekken** (Draw in quiet members): wie een tijdje stil is geweest, krijgt meer kansen om te antwoorden, en een verteld tafereel wordt gevraagd hen erbij te betrekken. De eerste twee staan op Off, Can of Should: Can staat het toe wanneer het bij het tafereel past, Should verwacht het, en als elk antwoord een ruzie wordt, ga dan terug naar Can. Nieuwe groepen beginnen met Can en met het betrekken van stille leden aan; oudere groepen houden alles uit tot je het aanzet. De eigen Turns-knop van de chat kan ze voor die ene chat wijzigen. Open op het tabblad Members de sectie "In this group" van een lid om hem een **voice** te geven die alleen deze groep gebruikt: tot twee spreekgewoonten (praat in fragmenten, stelt nooit vragen) en tot vijf voorbeeldzinnen. Een paar zinnen leren het ritme beter dan bijvoeglijke naamwoorden, en verschillende personages moeten op hetzelfde nieuws verschillend reageren.
+
+Een groep is geen kaart: een groep verwijderen verwijdert zijn chats, nooit zijn leden. Leden zonder eigen kleur krijgen automatisch verschillende kleuren.
 
 ## Kaarten verkrijgen
 
@@ -32,12 +42,6 @@ Een groep zet meerdere personages in één chat. "New group" laat je leden kieze
 - De Marktplaats doorzoekt meerdere bronnen tegelijk; open een resultaat om de volledige kaart te lezen voordat je importeert. Elke bron heeft zijn eigen sorteervolgorde en volwassenenfilter, en sommige vereisen een handmatige download.
 - Exporteren schrijft een PNG met de kaart erin.
 - "With Molfar" op Home (en in Lorebooks) vraagt Molfar om samen met jou een kaart of een lorebook op te stellen. Zie [[vertep:molfar]].
-
-## Brieven van kaarten
-
-Een kaart die je een tijdje niet hebt gespeeld, kan je een korte brief in zijn eigen stem schrijven. De brief komt in de inbox terecht ("Waiting on you" op Home, de inbox-knop in de rail) als een groene Letter; als je hem opent, ga je naar de oude chat, of start je een chat voor een kaart die je nooit hebt gespeeld. Een brief schrijft nooit in een chat en verzint nooit gebeurtenissen.
-
-Hij staat **uit tot je hem aanzet**. Zolang hij uit staat, staat er bovenaan de sectie Personages en in "Waiting on you" op Home een groene kaart "Let your characters write to you": **Turn on** zet hem meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen van inactiviteit, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt gestopt staan in Personages, More, Letters from cards. Brieven worden om de paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen stilligt, een kaart die je 14 dagen nooit hebt gespeeld, en een gespeelde kaart zonder Soul (één keer). Als het schrijfmodel drie controles achter elkaar faalt (of er geen is ingesteld), toont de inbox een rode melding "Letters" met de reden, en **Open** brengt je naar de instellingen voor brieven; een brief die aankomt, een ander model of het uitzetten van brieven haalt de melding weg.
 
 ## Portretten voor kaarten zonder portret
 

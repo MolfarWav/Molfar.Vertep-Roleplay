@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.121.0 (2026-11-13)
+
 - Added: **how a group talks (Molfar.Vertep#294, and three ideas from a Reddit post).** The group editor's Turns tab has **How they talk**: **Interruptions** and **Own goals**, each Off, Can or Should (Can allows it when it fits the scene, Should expects it), and **Draw in quiet members** (Spotlight). Interruptions: members cut in, talk over each other or ignore a question when it fits their character. Own goals: members object, bargain or refuse when a plan goes against who they are, even if it creates tension with the player. Spotlight: in each-in-turn groups a member's chance to answer grows by a quarter for every reply they have been quiet, up to six (a named member still answers first); in narrator and merged-card groups a present member quiet for six replies gets one line asking the narration to bring them in. New groups start with Can, Can and Spotlight on; older groups keep everything off. The chat's Turns button changes them for one chat. The Members tab has a **voice** per member for this group only: up to two speech habits and five sample lines, sent with the scene text (the speaker's only in each-in-turn groups). Stored in `groups/<id>.json` as `banter`, `pushback`, `spotlight` and `memberSettings.<id>.voice`, and as keys of a chat's `turns`. Nothing run on a real model yet. Not built: the attention weight of #294 (who the story is about, shrinking faded members) and the "same news, different reaction" test button.
 
 ## 4.120.0 (2026-11-13)

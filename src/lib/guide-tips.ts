@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.120.0'
+export const APP_VERSION = '4.121.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.group-dynamics',
+    since: '4.121.0',
+    help: 'characters',
+    keywords: { en: 'group chat interrupt interruptions own goals refuse object voice speech habits sample lines quiet members spotlight narrator', uk: 'група груповий чат перебивання власні цілі відмова голос манера мови приклади реплік мовчазні учасники narrator' },
+    title: { en: 'Groups: interruptions, own goals, voices', uk: 'Групи: перебивання, власні цілі, голоси' },
+    body: {
+      en: 'Group editor, Turns tab, "How they talk": Interruptions (members cut in and talk over each other), Own goals (members object or refuse when a plan goes against who they are) and Draw in quiet members. Off, Can or Should: Can allows it when it fits, Should expects it; if every reply becomes an argument, go back to Can. New groups start with Can; older groups keep everything off. The Turns button above a group chat changes it for that chat only. On the Members tab, "In this group" now has a voice per member: up to two speech habits and five sample lines.',
+      uk: 'Редактор групи, вкладка Turns, «Як вони розмовляють»: «Перебивання» (учасники вриваються й говорять одночасно), «Власні цілі» (учасники заперечують або відмовляються, коли план суперечить їхній вдачі) і «Залучати мовчазних». «Вимк.», «Можуть» або «Мають»: «Можуть» дозволяє, коли пасує, «Мають» очікує цього; якщо кожна відповідь стає суперечкою, поверніть «Можуть». Нові групи починають із «Можуть»; старі лишають усе вимкненим. Кнопка Turns у чаті змінює це для одного чату. На вкладці Members у «У цій групі» тепер є голос учасника: до двох манер мови й п’яти прикладів реплік.',
+    },
+  },
   {
     id: 'new.ready-agents',
     since: '4.120.0',
