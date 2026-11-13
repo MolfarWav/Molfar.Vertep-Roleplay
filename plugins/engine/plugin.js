@@ -3200,6 +3200,8 @@ function chatVoices(g, members, groupId) {
  *  group's default for that chat only; a missing key follows the group. */
 const TURN_MODES = ["natural", "list", "manual"];
 const TURN_GEN_MODES = ["narrator", "swap", "append"];
+/** Group dynamics dials (`banter`, `pushback`): off, "can" (allowed when it fits) or "should" (expected). */
+const DIALS = ["off", "can", "should"];
 /** A chat's sprite outfits: { speaker (a voice's name, "" = the card itself): outfit }, short strings only; null when empty. */
 /** A chat's own CSS: the text as written, at most 20000 characters; blank or not a string = none. */
 function cleanChatCss(v) {
@@ -3224,6 +3226,9 @@ function cleanTurns(t) {
   if (TURN_GEN_MODES.includes(t.generationMode)) out.generationMode = t.generationMode;
   if (TURN_MODES.includes(t.mode)) out.mode = t.mode;
   if (typeof t.allowSelfResponses === "boolean") out.allowSelfResponses = t.allowSelfResponses;
+  if (DIALS.includes(t.banter)) out.banter = t.banter;
+  if (DIALS.includes(t.pushback)) out.pushback = t.pushback;
+  if (typeof t.spotlight === "boolean") out.spotlight = t.spotlight;
   if (typeof t.autoMode === "boolean") out.autoMode = t.autoMode;
   if (Number.isFinite(t.autoDelaySec)) out.autoDelaySec = Math.min(120, Math.max(1, Math.round(t.autoDelaySec)));
   if (Array.isArray(t.mutedIds)) out.mutedIds = [...new Set(t.mutedIds.filter((x) => typeof x === "string" && x))];
@@ -3842,6 +3847,18 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     groupSceneLine = narrating
       ? "This is a group scene with " + userName + ". Characters: " + rosterMembers.map((m) => m.name).join(", ") + ". You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions, unless the preset's instructions say otherwise."
       : "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
+    // dynamics (interruptions, own goals), the Spotlight line and the members' voice notes follow the scene line
+    if (groupCfg) {
+      const one = narrating ? null : charName;
+      const extra = [groupDynamicsText(groupCfg, one, userName)];
+      if (groupCfg.spotlight === true && rosterMembers.length) {
+        extra.push(spotlightLine(rosterMembers, silentTurns(msgs, rosterMembers, narrating)));
+      }
+      groupSceneLine = [groupSceneLine, ...extra].filter(Boolean).join(" ");
+      const voiced = rosterMembers.length ? rosterMembers : members.filter((m) => speaker && m.id === speaker.id);
+      const voices = groupVoicesText(groupCfg, voiced);
+      if (voices) groupSceneLine += "\n\n" + voices;
+    }
     markers.scenario = (markers.scenario ? markers.scenario + "\n\n" : "") + groupSceneLine;
   }
 
@@ -4666,12 +4683,81 @@ function mentionAt(text, name) {
   }
   return at;
 }
+/** Spotlight (Molfar.Vertep#294): each silent turn adds SPOTLIGHT_STEP to a member's weight, up to SPOTLIGHT_CAP
+ *  turns; in a group where one reply voices several members, a present member quiet for SPOTLIGHT_NOTE turns or
+ *  more gets one line asking the model to draw them in. */
+const SPOTLIGHT_STEP = 0.25;
+const SPOTLIGHT_CAP = 6;
+const SPOTLIGHT_NOTE = 6;
+/** How many replies each member has been quiet for, Map(id -> n). A reply by a member's own card counts as
+ *  spoken; a narrator reply (one voice for everyone) counts for a member whose name it mentions. Greetings
+ *  and pictures are not turns. At most `scan` replies are looked at in narrator mode, where each costs a regex. */
+export function silentTurns(msgs, members, narrating, scan = 8) {
+  const replies = (Array.isArray(msgs) ? msgs : []).filter((m) => m && m.role === "char" && !m.picture && !m.greeting);
+  const out = new Map();
+  for (const mem of members) {
+    let n = 0;
+    const limit = narrating ? Math.min(scan, replies.length) : replies.length;
+    for (let i = replies.length - 1; i >= replies.length - limit; i--) {
+      const r = replies[i];
+      const spoke = narrating ? mentionAt(String(r.text || "").toLowerCase(), mem.name) >= 0 : r.charId === mem.id;
+      if (spoke) break;
+      n++;
+    }
+    out.set(mem.id, n);
+  }
+  return out;
+}
+/** The Spotlight line for a narrator or append group, "" when nobody has been quiet long enough (at most two names). */
+export function spotlightLine(members, silent) {
+  const quiet = members.map((m) => ({ name: m.name, n: silent.get(m.id) || 0 })).filter((x) => x.n >= SPOTLIGHT_NOTE).sort((a, b) => b.n - a.n).slice(0, 2);
+  return quiet.map((x) => x.name + " has been quiet for " + x.n + " turns; give them a natural way into the scene.").join(" ");
+}
+/** The group's dynamics lines (interruptions, own goals) for the scene text. `one` = the one character who
+ *  writes this reply (swap, append); null = a single reply voices everyone (narrator). */
+export function groupDynamicsText(g, one, userName) {
+  const dial = (v) => (v === "can" || v === "should" ? v : "off");
+  const b = dial(g && g.banter);
+  const p = dial(g && g.pushback);
+  const out = [];
+  if (b !== "off") {
+    out.push(one
+      ? one + " " + b + " cut in on what others say, talk over them, or ignore a question entirely when it fits their personality (show a cut-off line with a dash). A group conversation " + (b === "should" ? "should feel chaotic and realistic." : "can feel chaotic and realistic when the scene calls for it.")
+      : "Characters " + b + " interrupt each other, talk over one another, or ignore questions entirely when it fits their personality (show a cut-off line with a dash). Group conversations " + (b === "should" ? "should feel chaotic and realistic." : "can feel chaotic and realistic when the scene calls for it."));
+  }
+  if (p !== "off") {
+    const act = (p === "should" ? "" : "can ") + "object, bargain, or refuse outright";
+    out.push(one
+      ? one + " acts on their own goals and values. When a plan goes against who they are, they " + act + ", even if it creates tension with " + userName + "."
+      : "Characters act on their own goals and values. When a plan goes against who they are, they " + act + ", even if it creates tension with " + userName + ".");
+  }
+  return out.join(" ");
+}
+/** A member's voice notes in this group, cleaned: up to 2 speech habits and 5 sample lines. */
+export function cleanVoice(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const list = (a, max, len) => (Array.isArray(a) ? a.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, len)).slice(0, max) : []);
+  const quirks = list(v.quirks, 2, 120);
+  const lines = list(v.lines, 5, 240);
+  return quirks.length || lines.length ? { quirks, lines } : null;
+}
+/** The voices block: what each of these members sounds like in this group (one line per member), "" when none has notes. */
+export function groupVoicesText(g, voiced) {
+  const rows = [];
+  for (const m of voiced) {
+    const ms = g && g.memberSettings && typeof g.memberSettings === "object" ? g.memberSettings[m.id] : null;
+    const v = cleanVoice(ms && ms.voice);
+    if (!v) continue;
+    rows.push(m.name + (v.quirks.length ? ". Habits: " + v.quirks.join("; ") + "." : ".") + (v.lines.length ? " Sounds like: " + v.lines.map((l) => "\"" + l + "\"").join(" / ") : ""));
+  }
+  return rows.length ? "[Voices: each character keeps their own vocabulary and rhythm; never give two of them the same turns of phrase.]\n" + rows.join("\n") : "";
+}
 /** Who answers this turn in a group, in order. list: every unmuted member;
  *  natural: the members the user named, else one pick weighted by
  *  talkativeness (never the member who just spoke unless the group allows
  *  self responses); manual: nobody. `random` is injectable for peeks and
  *  tests; peeks pass null and get the most likely pick instead of a roll. */
-function groupTurnPlan(group, members, lastSpeakerId, userText, random) {
+export function groupTurnPlan(group, members, lastSpeakerId, userText, random, silent) {
   const muted = new Set(group.mutedIds || []);
   const order = (group.memberIds || []).map((id) => members.find((m) => m.id === id)).filter((m) => m && !muted.has(m.id));
   if (!order.length || group.mode === "manual") return [];
@@ -4681,7 +4767,9 @@ function groupTurnPlan(group, members, lastSpeakerId, userText, random) {
   const text = String(userText || "").toLowerCase();
   const named = pool.map((m) => ({ m, at: mentionAt(text, m.name) })).filter((x) => x.at >= 0).sort((x, y) => x.at - y.at);
   if (named.length) return named.map((x) => x.m);
-  const weights = pool.map((m) => talkativeness(m.card));
+  // Spotlight: a member who has been quiet gets a bigger share, up to SPOTLIGHT_CAP turns of it
+  const boost = (m) => (group.spotlight === true && silent ? 1 + Math.min(silent.get(m.id) || 0, SPOTLIGHT_CAP) * SPOTLIGHT_STEP : 1);
+  const weights = pool.map((m) => talkativeness(m.card) * boost(m));
   const total = weights.reduce((a, w) => a + w, 0);
   if (random === null) return [pool[weights.indexOf(Math.max(...weights))]];
   if (total <= 0) return [pool[Math.floor((random || Math.random)() * pool.length)]];
@@ -5625,7 +5713,7 @@ export function handleRoute(req, host) {
     const peekVoices = chatVoices(peekGroup, members, chat.meta.groupId);
     const peekSpeaker = (peeked && peeked.role === "char" && peekVoices.find((m) => m.id === peeked.charId))
       || (isNarratorGroup(peekGroup) ? peekVoices[peekVoices.length - 1] : null)
-      || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null)[0] : null)
+      || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null, silentTurns(msgs, members, false))[0] : null)
       || members[0] || null;
     const scanInfoPeek = host.llm.embedInfo && host.llm.embedInfo.scan;
     const scanModelPeek = scanInfoPeek && typeof scanInfoPeek.model === "string" ? scanInfoPeek.model : "";
@@ -6631,7 +6719,7 @@ const toolX = (r) => ({
         let plan = null;
         if (group) {
           const lastChar = [...chat.msgs].reverse().find((m) => m.role === "char" && !m.picture);
-          plan = isNarratorGroup(group) ? [meta.groupId] : groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text).map((m) => m.id);
+          plan = isNarratorGroup(group) ? [meta.groupId] : groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text, undefined, silentTurns(chat.msgs, members, false)).map((m) => m.id);
           speaker = voices.find((m) => m.id === plan[0]) || null;
         }
         if (!speaker) return err(400, "chat has no participating characters");

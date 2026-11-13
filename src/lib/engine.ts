@@ -1082,6 +1082,9 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   return out
 }
 
+/** What a NEW group starts with: interruptions and own goals at "can", Spotlight on. Older groups have none of these keys and play as before. */
+export const NEW_GROUP_DYNAMICS = { banter: 'can', pushback: 'can', spotlight: true } as const
+
 /** How a group chat plays: the group's defaults with the chat's own turns on
  *  top (the engine's withChatTurns does the same). The order keeps only
  *  current members; members added since go last. */
@@ -1095,6 +1098,9 @@ export function chatGroupSettings(g: GroupConfig, turns?: ChatTurns): NonNullabl
     autoMode: t.autoMode ?? g.autoMode ?? false,
     autoDelaySec: t.autoDelaySec ?? g.autoDelaySec ?? 5,
     allowSelfResponses: t.allowSelfResponses ?? g.allowSelfResponses ?? false,
+    banter: t.banter ?? g.banter ?? 'off',
+    pushback: t.pushback ?? g.pushback ?? 'off',
+    spotlight: t.spotlight ?? g.spotlight ?? false,
     muted: t.mutedIds ?? g.mutedIds ?? [],
     order,
   }
@@ -1110,6 +1116,9 @@ export function mergeChatTurns(g: GroupConfig, turns: ChatTurns | undefined, pat
   if (next.generationMode !== undefined && next.generationMode === dflt.generationMode) delete next.generationMode
   if (next.mode !== undefined && next.mode === dflt.activation) delete next.mode
   if (next.allowSelfResponses !== undefined && next.allowSelfResponses === dflt.allowSelfResponses) delete next.allowSelfResponses
+  if (next.banter !== undefined && next.banter === dflt.banter) delete next.banter
+  if (next.pushback !== undefined && next.pushback === dflt.pushback) delete next.pushback
+  if (next.spotlight !== undefined && next.spotlight === dflt.spotlight) delete next.spotlight
   if (next.autoMode !== undefined && next.autoMode === dflt.autoMode) delete next.autoMode
   if (next.autoDelaySec !== undefined && next.autoDelaySec === dflt.autoDelaySec) delete next.autoDelaySec
   if (next.mutedIds !== undefined && same([...next.mutedIds].sort(), [...dflt.muted].sort())) delete next.mutedIds

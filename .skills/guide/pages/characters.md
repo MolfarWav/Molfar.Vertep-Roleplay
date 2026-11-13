@@ -23,7 +23,11 @@ A persona is you: name, pronouns, description, avatar. The model sees it whereve
 
 ## Groups
 
-A group puts several characters into one chat. "New group" lets you pick members. The editor has Overview, Members, Scene, Turns, Lore and Chats. The Turns tab decides who answers: Narrator (one reply voices everyone) or Each in turn. A new group starts as Narrator. A group is not a card: deleting a group deletes its chats, never its members. Members without a color of their own get different colors automatically.
+A group puts several characters into one chat. "New group" lets you pick members. The editor has Overview, Members, Scene, Turns, Lore and Chats. The Turns tab decides who answers: Narrator (one reply voices everyone) or Each in turn. A new group starts as Narrator.
+
+The Turns tab also has **How they talk**: **Interruptions** (members cut in, talk over each other or ignore a question when it fits their character), **Own goals** (members object, bargain or refuse when a plan goes against who they are, even if it creates tension with you) and **Draw in quiet members** (someone who has been quiet for a while gets more chances to answer, and a narrated scene is asked to bring them in). The first two are Off, Can or Should: Can allows it when it fits the scene, Should expects it, and if every reply turns into an argument, go back to Can. New groups start with Can and Draw in on; older groups keep everything off until you turn it on. The chat's own Turns button can change them for one chat only. On the Members tab, open a member's "In this group" section to give them a **voice** that only this group uses: up to two speech habits (talks in fragments, never asks questions) and up to five sample lines. A few lines teach the rhythm better than adjectives, and different characters should answer the same news differently.
+
+A group is not a card: deleting a group deletes its chats, never its members. Members without a color of their own get different colors automatically.
 
 ## Getting cards
 

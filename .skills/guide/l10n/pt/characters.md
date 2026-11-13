@@ -1,4 +1,4 @@
-<!-- source: fdd649d68f3c -->
+<!-- source: 9bbf7efc4d3f -->
 # Personagens, personas e grupos
 
 Tudo com que você joga vive em quatro seções: Characters, Groups, Personas e Marketplace. Esta página diz para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
@@ -18,13 +18,23 @@ O editor tem seis abas:
 
 Um cartão pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Colors, "Voices" dá a cada falante sua própria cor. Se você não listar vozes, o chat faz isso por você: um cartão que contém vários personagens (seções com o nome de cada um) colore sozinho as falas de cada personagem, cada um com uma cor diferente, e isso fica salvo com o chat. Em qualquer outro chat, abra o menu do chat, "Voice colors", e ligue o interruptor; "Spread colors" dá uma cor diferente a todos que você não escolheu. Isso precisa do Relationship dashboard, que fornece a lista de personagens.
 
+## Cartas dos cartões
+
+Um cartão que você não joga há algum tempo pode lhe escrever um bilhete curto com a própria voz. O bilhete cai na Inbox (o "Waiting on you" da Home, o botão da Inbox na barra lateral) como uma Letter verde; ao abri-lo você vai para o chat antigo, ou começa um chat com um cartão com o qual você nunca jogou. Uma carta nunca escreve dentro de um chat e nunca inventa eventos.
+
+Ela fica **desligada até você ligá-la**. Enquanto estiver desligada, um cartão verde "Let your characters write to you" fica no topo da seção Characters e em "Waiting on you" da Home: **Turn on** a liga na hora, **Not now** esconde o cartão de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um mesmo cartão, o modelo de escrita) e os cartões que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat parado há 14 dias, um cartão que você nunca jogou há 14 dias, e um cartão jogado sem Soul (uma vez). Se o modelo de escrita falhar três verificações seguidas (ou nenhum estiver definido), a Inbox mostra uma falha vermelha "Letters" com o motivo, e **Open** leva você às configurações de cartas; uma carta que chega, outro modelo ou desligar as cartas a limpa.
+
 ## Personas
 
 Uma persona é você: nome, pronomes, descrição, avatar. O modelo a vê onde quer que o prompt fale do usuário. "Use this persona" a torna seu padrão e troca o chat aberto para ela. Uma persona pode carregar seus próprios lorebooks e pode ser fixada a personagens escolhidos, para que chats novos com eles comecem com ela.
 
 ## Grupos
 
-Um grupo coloca vários personagens em um chat. "New group" permite escolher os membros. O editor tem Overview, Members, Scene, Turns, Lore e Chats. A aba Turns decide quem responde: Narrator (uma resposta dá voz a todos) ou Each in turn. Um grupo novo começa como Narrator. Um grupo não é um cartão: apagar um grupo apaga seus chats, nunca seus membros. Membros sem uma cor própria recebem cores diferentes automaticamente.
+Um grupo coloca vários personagens em um chat. "New group" permite escolher os membros. O editor tem Overview, Members, Scene, Turns, Lore e Chats. A aba Turns decide quem responde: Narrator (uma resposta dá voz a todos) ou Each in turn. Um grupo novo começa como Narrator.
+
+A aba Turns também tem **How they talk**: **Interrupções** (Interruptions): os membros se intrometem, falam por cima uns dos outros ou ignoram uma pergunta quando isso combina com o personagem. **Autogols** (Own goals): os membros objetam, negociam ou recusam quando um plano vai contra quem são, mesmo que isso crie tensão com você. **Trazer os membros calados** (Draw in quiet members): quem ficou quieto por um tempo tem mais chances de responder, e uma cena narrada é instruída a trazê-lo para a conversa. As duas primeiras opções são Off, Can ou Should: Can permite quando combina com a cena, Should espera isso, e se cada resposta virar uma discussão, volte para Can. Grupos novos começam com Can e com a opção de trazer os calados ligada; grupos antigos mantêm tudo desligado até você ligar. O próprio botão Turns do chat pode mudar isso só para aquele chat. Na aba Members, abra a seção "In this group" de um membro para dar a ele uma **voice** que só este grupo usa: até dois hábitos de fala (fala em fragmentos, nunca faz perguntas) e até cinco frases de exemplo. Algumas frases ensinam o ritmo melhor do que adjetivos, e personagens diferentes devem responder de forma diferente à mesma notícia.
+
+Um grupo não é um cartão: apagar um grupo apaga seus chats, nunca seus membros. Membros sem uma cor própria recebem cores diferentes automaticamente.
 
 ## Obtendo cartões
 
@@ -32,12 +42,6 @@ Um grupo coloca vários personagens em um chat. "New group" permite escolher os 
 - O Marketplace busca em várias fontes ao mesmo tempo; abra um resultado para ler o cartão completo antes de importar. Cada fonte tem sua própria ordenação e filtro adulto, e algumas precisam de download manual.
 - Exportar grava um PNG com o cartão dentro.
 - "With Molfar" na Home (e em Lorebooks) pede ao Molfar que rascunhe um cartão ou um lorebook com você. Veja [[vertep:molfar]].
-
-## Cartas dos cartões
-
-Um cartão que você não joga há algum tempo pode lhe escrever um bilhete curto com a própria voz. O bilhete cai na Inbox (o "Waiting on you" da Home, o botão da Inbox na barra lateral) como uma Letter verde; ao abri-lo você vai para o chat antigo, ou começa um chat com um cartão com o qual você nunca jogou. Uma carta nunca escreve dentro de um chat e nunca inventa eventos.
-
-Ela fica **desligada até você ligá-la**. Enquanto estiver desligada, um cartão verde "Let your characters write to you" fica no topo da seção Characters e em "Waiting on you" da Home: **Turn on** a liga na hora, **Not now** esconde o cartão de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um mesmo cartão, o modelo de escrita) e os cartões que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat parado há 14 dias, um cartão que você nunca jogou há 14 dias, e um cartão jogado sem Soul (uma vez). Se o modelo de escrita falhar três verificações seguidas (ou nenhum estiver definido), a Inbox mostra uma falha vermelha "Letters" com o motivo, e **Open** leva você às configurações de cartas; uma carta que chega, outro modelo ou desligar as cartas a limpa.
 
 ## Retratos para cartões sem um
 

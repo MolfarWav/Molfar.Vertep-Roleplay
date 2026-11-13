@@ -477,17 +477,19 @@ Edit groups in the app's group editor (Characters, Groups); every field below is
 | `generationMode` | `narrator` (one reply voices every unmuted member, stored with the group's id as `charId`; new groups start here), `swap` (the speaker's card only; the default when the field is absent) or `append` (every unmuted member's card). |
 | `colorDialogue` | Colour each member's dialogue in this group's chats (default on): `memberSettings.<id>.color`, else the card's dialogue colour, else a palette colour by position. |
 | `allowSelfResponses`, `autoMode`, `autoDelaySec` | The same member may answer twice in a row; the group keeps talking on its own every N seconds. |
+| `banter`, `pushback` | Group dynamics, each `off` / `can` / `should` (absent = `off`, so older groups play as before; a new group starts at `can`). `banter`: members may interrupt, talk over each other or ignore a question when it fits their character (one scene line, about 45 tokens). `pushback`: members act on their own goals and may object, bargain or refuse, even against the player's plan. `can` softens the wording, `should` states it as expected. |
+| `spotlight` | `true` draws quiet members back in (absent = off; a new group starts on). In `natural` mode a member's weight is talkativeness x (1 + min(quiet turns, 6) x 0.25), where quiet turns = replies since that member last spoke (a named member still wins; muted members are never picked). In `narrator` and `append` groups a present member quiet for 6 or more turns adds one line to the scene text ("Name has been quiet for N turns; give them a natural way into the scene."), two names at most; in narrator mode "quiet" means the name is not in the recent replies. |
 | `favorite`, `avatar`, `tags`, `note` | Library fields; `avatar` empty = the members' portraits; `note` is never sent to the model. |
 | `scenario` | Shared scenario: replaces every member's own scenario in this group's chats. |
 | `openings` | Narrated lines a new chat opens with (the first shows, the others are swipes). |
-| `memberSettings` | `{ <memberId>: { talkativeness?, opening?, color? } }`: talkativeness 0..1 wins over the card's; `opening` is `"group"` (default: the card's group-only greetings), `"none"`, or a number (that greeting of the card: 0 = first message, then the alternates); `color` is the member's dialogue colour here. |
+| `memberSettings` | `{ <memberId>: { talkativeness?, opening?, color?, voice? } }`: talkativeness 0..1 wins over the card's; `opening` is `"group"` (default: the card's group-only greetings), `"none"`, or a number (that greeting of the card: 0 = first message, then the alternates); `color` is the member's dialogue colour here; `voice` is `{ quirks: string[], lines: string[] }` (at most 2 speech habits of 120 characters and 5 sample lines of 240), how the member sounds in this group: it rides with the scene text as one row per member (swap: the speaker's only; narrator and append: every unmuted member). |
 | `embeddedLorebookId`, `linkedLorebookIds` | The group's own books, scanned in every chat of the group. |
 | `memberBooks` | Members' books in this group: `all` (default), `speaker` (only the current speaker's), `off`. Global and persona books always stay. |
 | `openingMessage` | Older field: a system line at the start of a new chat. |
 
 `mode`, `generationMode`, `mutedIds`, `allowSelfResponses`, `autoMode`, `autoDelaySec` and the order of `memberIds`
 are the defaults for the group's chats. A chat can override any of them in its meta, `chats/<id>.meta.json`:
-`turns: { generationMode?, mode?, allowSelfResponses?, autoMode?, autoDelaySec?, mutedIds?, order? }`. A key set
+`turns: { generationMode?, mode?, allowSelfResponses?, banter?, pushback?, spotlight?, autoMode?, autoDelaySec?, mutedIds?, order? }`. A key set
 there wins for that chat only; a missing key follows the group, so a change to the group reaches every chat that
 did not change that key. `order` lists member ids in this chat's speaking order (members it does not name go
 last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = follow the group again) or at creation,

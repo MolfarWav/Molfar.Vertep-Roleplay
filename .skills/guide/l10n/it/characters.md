@@ -1,4 +1,4 @@
-<!-- source: fdd649d68f3c -->
+<!-- source: 9bbf7efc4d3f -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Personaggi, Gruppi, Persone e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* hanno i dettagli.
@@ -24,7 +24,11 @@ Una persona sei tu: nome, pronomi, descrizione, avatar. Il modello la vede ovunq
 
 ## Gruppi
 
-Un gruppo mette più personaggi in una chat. "New group" ti consente di scegliere i membri. L'editor ha Overview, Members, Scene, Turns, Lore e Chats. La scheda Turns decide chi risponde: Narrator (una risposta dà voce a tutti) o Each in turn. Un nuovo gruppo inizia come Narrator. Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri. I membri senza un colore proprio ricevono automaticamente colori diversi.
+Un gruppo mette più personaggi in una chat. "New group" ti consente di scegliere i membri. L'editor ha Overview, Members, Scene, Turns, Lore e Chats. La scheda Turns decide chi risponde: Narrator (una risposta dà voce a tutti) o Each in turn. Un nuovo gruppo inizia come Narrator.
+
+La scheda Turns ha anche **How they talk**: **Interruzioni** (Interruptions): i membri si intromettono, parlano sopra gli altri o ignorano una domanda quando si adatta al loro personaggio. **Autogol** (Own goals): i membri obiettano, trattano o rifiutano quando un piano va contro ciò che sono, anche se crea tensione con te. **Coinvolgere i membri silenziosi** (Draw in quiet members): chi è stato zitto per un po' ha più occasioni di rispondere, e a una scena narrata viene chiesto di includerlo. Le prime due opzioni sono Off, Can o Should: Can lo permette quando si adatta alla scena, Should lo prevede, e se ogni risposta diventa una discussione, torna a Can. I nuovi gruppi partono con Can e con il coinvolgimento dei silenziosi attivo; i gruppi più vecchi tengono tutto disattivato finché non lo accendi. Il pulsante Turns della chat può cambiarli solo per quella chat. Nella scheda Members, apri la sezione "In this group" di un membro per dargli una **voce** che usa solo questo gruppo: fino a due abitudini di parlato (parla a frammenti, non fa mai domande) e fino a cinque frasi di esempio. Poche frasi insegnano il ritmo meglio degli aggettivi, e personaggi diversi dovrebbero reagire in modo diverso alla stessa notizia.
+
+Un gruppo non è una scheda: eliminare un gruppo elimina le sue chat, mai i suoi membri. I membri senza un colore proprio ricevono automaticamente colori diversi.
 
 ## Ottenere schede
 

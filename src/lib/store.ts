@@ -38,7 +38,7 @@ import {
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
   fetchCharacterSummaries, fetchCharacterCard, fetchCharacterAvatars, type EngineCard,
   fetchBookSummaries, fetchBook,
-  engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns,
+  engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns, NEW_GROUP_DYNAMICS,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI, updateMessageDirections,
@@ -1940,11 +1940,11 @@ export const useApp = create<AppState>()(
         const gid = uid('grp')
         await j(`/groups/${encodeURIComponent(gid)}`, {
           method: 'PUT',
-          body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),
+          body: JSON.stringify({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }),
         })
         const members = get().characters.filter((c) => memberIds.includes(c.id))
         bumpMutate()
-        set((s) => ({ characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, members)] }))
+        set((s) => ({ characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }, members)] }))
         const chatId = await get().newChat(gid)
         return chatId
       },
@@ -1956,14 +1956,14 @@ export const useApp = create<AppState>()(
         const gid = uid('grp')
         await j(`/groups/${encodeURIComponent(gid)}`, {
           method: 'PUT',
-          body: JSON.stringify({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }),
+          body: JSON.stringify({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }),
         })
         await j(`/chats/${encodeURIComponent(chatId)}`, { method: 'PATCH', body: JSON.stringify({ groupId: gid, characterId: null }) })
         const members = get().characters.filter((c) => memberIds.includes(c.id))
         bumpMutate()
         set((s) => ({
-          characters: [...s.characters, groupToCharacter({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, members)],
-          chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid, groupSettings: chatGroupSettings({ name: '', memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator' }, c.turns) } : c)),
+          characters: [...s.characters, groupToCharacter({ id: gid, name: `${solo.name} & co.`, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }, members)],
+          chats: s.chats.map((c) => (c.id === chatId ? { ...c, characterId: gid, groupSettings: chatGroupSettings({ name: '', memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }, c.turns) } : c)),
           activeCharacterId: s.activeCharacterId === solo.id ? gid : s.activeCharacterId,
         }))
         return gid

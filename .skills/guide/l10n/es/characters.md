@@ -1,4 +1,4 @@
-<!-- source: fdd649d68f3c -->
+<!-- source: 9bbf7efc4d3f -->
 # Personajes, personas y grupos
 
 Todo con lo que juegas vive en cuatro secciones: Characters, Groups, Personas y Marketplace. Esta página dice para qué sirve cada una; los artículos de Help *Your characters*, *The card editor tabs* y *Groups of characters* tienen los detalles.
@@ -18,13 +18,23 @@ El editor tiene seis pestañas:
 
 Una tarjeta puede interpretar varios personajes a la vez (un narrador o director de juego). Bajo Colors, "Voices" da a cada hablante su propio color. Si no listas voces, el chat lo hace por ti: una tarjeta que contiene varios personajes (secciones con el nombre de cada uno) colorea sola las líneas de cada personaje, cada uno con un color distinto, y el color se guarda con el chat. En cualquier otro chat, abre el menú del chat, "Voice colors", y activa el interruptor; "Spread colors" da un color distinto a todos los que no hayas elegido. Esto necesita el dashboard Relationship, que aporta la lista de personajes.
 
+## Cartas de las tarjetas
+
+Una tarjeta que no has jugado durante un tiempo puede escribirte una nota corta con su propia voz. La nota llega a la bandeja (la sección "Waiting on you" de Home, el botón de la bandeja en el riel) como una Carta verde; al abrirla te lleva al chat antiguo, o inicia un chat para una tarjeta que nunca jugaste. Una carta nunca escribe en un chat ni inventa sucesos.
+
+Está **apagado hasta que lo enciendas**. Mientras esté apagado, una tarjeta verde "Let your characters write to you" aparece arriba de la sección Characters y en "Waiting on you" de Home: **Turn on** lo enciende al momento, **Not now** oculta la tarjeta para siempre. Los números (días de inactividad, cartas al día, días entre cartas de una misma tarjeta, el modelo de escritura) y las tarjetas que dejaste de usar están en Characters, More, Cartas de las tarjetas. Las cartas se revisan cada pocas horas mientras la app está abierta: un chat inactivo 14 días, una tarjeta que nunca jugaste durante 14 días, y una tarjeta jugada sin Soul (una vez). Si el modelo de escritura falla tres comprobaciones seguidas (o no hay ninguno configurado), la bandeja muestra un fallo rojo "Letters" con el motivo, y **Open** te lleva a los ajustes de Cartas; una carta que llega, otro modelo o apagar las cartas lo quita.
+
 ## Personas
 
 Una persona eres tú: nombre, pronombres, descripción, avatar. El modelo la ve donde el prompt habla del usuario. "Use this persona" la hace tu predeterminada y cambia a ella el chat abierto. Una persona puede llevar sus propios lorebooks y puede bloquearse a personajes elegidos, para que los chats nuevos con ellos empiecen con ella.
 
 ## Grupos
 
-Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir miembros. El editor tiene Overview, Members, Scene, Turns, Lore y Chats. La pestaña Turns decide quién responde: Narrator (una respuesta da voz a todos) o Each in turn. Un grupo nuevo empieza como Narrator. Un grupo no es una tarjeta: eliminar un grupo elimina sus chats, nunca a sus miembros. Los miembros sin color propio reciben colores distintos automáticamente.
+Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir miembros. El editor tiene Overview, Members, Scene, Turns, Lore y Chats. La pestaña Turns decide quién responde: Narrator (una respuesta da voz a todos) o Each in turn. Un grupo nuevo empieza como Narrator.
+
+La pestaña Turns también tiene **How they talk**: **Interrupciones** (Interruptions): los miembros intervienen, hablan encima unos de otros o ignoran una pregunta cuando encaja con su personaje. **Autogoles** (Own goals): los miembros se oponen, negocian o se niegan cuando un plan va contra quienes son, aunque genere tensión contigo. **Involucrar a los callados** (Draw in quiet members): quien lleva un rato sin hablar tiene más oportunidades de responder, y una escena narrada recibe el encargo de incluirlo. Las dos primeras están en Off, Can o Should: Can lo permite cuando encaja con la escena, Should lo espera, y si cada respuesta se convierte en una discusión, vuelve a Can. Los grupos nuevos empiezan con Can y con la opción de involucrar a los callados activada; los grupos antiguos tienen todo desactivado hasta que lo enciendas. El botón Turns del propio chat puede cambiarlos solo para ese chat. En la pestaña Members, abre la sección "In this group" de un miembro para darle una **voice** que solo usa este grupo: hasta dos hábitos de habla (habla en fragmentos, nunca hace preguntas) y hasta cinco frases de muestra. Unas pocas frases enseñan el ritmo mejor que los adjetivos, y personajes distintos deben responder de forma distinta a la misma noticia.
+
+Un grupo no es una tarjeta: eliminar un grupo elimina sus chats, nunca a sus miembros. Los miembros sin color propio reciben colores distintos automáticamente.
 
 ## Conseguir tarjetas
 
@@ -32,12 +42,6 @@ Un grupo pone a varios personajes en un mismo chat. "New group" te deja elegir m
 - El Marketplace busca en varias fuentes a la vez; abre un resultado para leer la tarjeta completa antes de importarla. Cada fuente tiene su propio orden y filtro de adultos, y algunas necesitan una descarga manual.
 - Export escribe un PNG con la tarjeta dentro.
 - "With Molfar" en Home (y en Lorebooks) pide a Molfar redactar una tarjeta o un lorebook contigo. Véase [[vertep:molfar]].
-
-## Cartas de las tarjetas
-
-Una tarjeta que no has jugado durante un tiempo puede escribirte una nota corta con su propia voz. La nota llega a la bandeja (la sección "Waiting on you" de Home, el botón de la bandeja en el riel) como una Carta verde; al abrirla te lleva al chat antiguo, o inicia un chat para una tarjeta que nunca jugaste. Una carta nunca escribe en un chat ni inventa sucesos.
-
-Está **apagado hasta que lo enciendas**. Mientras esté apagado, una tarjeta verde "Let your characters write to you" aparece arriba de la sección Characters y en "Waiting on you" de Home: **Turn on** lo enciende al momento, **Not now** oculta la tarjeta para siempre. Los números (días de inactividad, cartas al día, días entre cartas de una misma tarjeta, el modelo de escritura) y las tarjetas que dejaste de usar están en Characters, More, Cartas de las tarjetas. Las cartas se revisan cada pocas horas mientras la app está abierta: un chat inactivo 14 días, una tarjeta que nunca jugaste durante 14 días, y una tarjeta jugada sin Soul (una vez). Si el modelo de escritura falla tres comprobaciones seguidas (o no hay ninguno configurado), la bandeja muestra un fallo rojo "Letters" con el motivo, y **Open** te lleva a los ajustes de Cartas; una carta que llega, otro modelo o apagar las cartas lo quita.
 
 ## Retratos para tarjetas sin imagen
 

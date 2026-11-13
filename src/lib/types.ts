@@ -32,6 +32,17 @@ export interface GroupMemberSettings {
   opening?: 'group' | 'none' | number
   /** dialogue colour in this group (CSS colour); empty = the card's */
   color?: string
+  /** how this member sounds in the group: up to 2 speech habits and 5 sample lines */
+  voice?: GroupVoice
+}
+
+/** A group's dial: off, "can" (allowed when it fits the scene) or "should" (expected). */
+export type GroupDial = 'off' | 'can' | 'should'
+
+/** A member's voice notes in a group (never in the card). */
+export interface GroupVoice {
+  quirks?: string[]
+  lines?: string[]
 }
 
 /** groups/<id>.json. A group is not a card: it lists members and how they share a chat. */
@@ -50,6 +61,12 @@ export interface GroupConfig {
   autoDelaySec?: number
   openingMessage?: string
   favorite?: boolean
+  /** how much the members cut in on each other: off (the default for older groups), "can" (when it fits) or "should" (expected) */
+  banter?: GroupDial
+  /** how much the members act on their own goals and may object or refuse: same values */
+  pushback?: GroupDial
+  /** quiet members get drawn back in: a bigger share of the picks, a line for a narrator group (default off for older groups) */
+  spotlight?: boolean
   /** the group's picture (a stored media URL or data URL); absent = the members' portraits */
   avatar?: string
   tags?: string[]
@@ -73,6 +90,9 @@ export interface ChatTurns {
   generationMode?: 'swap' | 'append' | 'narrator'
   mode?: 'manual' | 'list' | 'natural'
   allowSelfResponses?: boolean
+  banter?: GroupDial
+  pushback?: GroupDial
+  spotlight?: boolean
   autoMode?: boolean
   autoDelaySec?: number
   mutedIds?: string[]
@@ -297,6 +317,9 @@ export interface Chat {
     autoMode: boolean
     autoDelaySec: number
     allowSelfResponses: boolean
+    banter: GroupDial
+    pushback: GroupDial
+    spotlight: boolean
     muted: ID[]
     /** the members in this chat's order */
     order: ID[]
