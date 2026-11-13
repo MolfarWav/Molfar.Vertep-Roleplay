@@ -15,6 +15,7 @@ const GROUPS: { key: MsgKey; types: string[] }[] = [
   { key: 'fg.pal.code', types: ['code.script'] },
   { key: 'fg.pal.write', types: ['state.set', 'state.add', 'state.list'] },
   { key: 'fg.pal.dash', types: ['write.state'] },
+  { key: 'fg.pal.card', types: ['write.growth'] },
   { key: 'fg.pal.out', types: ['agent.output'] },
   { key: 'fg.pal.misc', types: ['note'] },
 ]

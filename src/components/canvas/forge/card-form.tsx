@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CaretRight, Plus, Trash } from '@phosphor-icons/react'
 import { SHOW_BY_KIND } from '@/canvas-kit/boards/agent'
-import { DASH_FIELDS, DICE_DIES, DICE_WHATS, diceType } from '@/canvas-kit/boards/agent-check.js'
+import { DASH_FIELDS, DICE_DIES, DICE_WHATS, INSERT_POSITIONS, diceType } from '@/canvas-kit/boards/agent-check.js'
 import type { CanvasNode, Graph } from '@/canvas-kit/graph'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -736,7 +736,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
       {node.type === 'agent.output' && (
         <>
           <Field label={t('fg.out.kind')}>
-            <NativeSelect value={kind} onChange={(k) => { const { show: _s, ...rest } = p; onParams({ ...rest, kind: k }) }}>
+            <NativeSelect value={kind} onChange={(k) => { const { show: _s, position: _p, ...rest } = p; onParams({ ...rest, kind: k }) }}>
               {OUTPUT_KINDS.map((k) => <option key={k} value={k}>{t(`fg.kind.${k}` as MsgKey)}</option>)}
             </NativeSelect>
           </Field>
@@ -752,9 +752,16 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
             </Field>
           )}
           {kind === 'prompt-insert' && (
-            <Field label={t('fg.out.label')} hint={t('fg.out.labelHint')}>
-              <Input value={String(p.label ?? '')} className="max-md:h-10" onChange={(e) => set({ label: e.target.value })} />
-            </Field>
+            <>
+              <Field label={t('fg.out.label')} hint={t('fg.out.labelHint')}>
+                <Input value={String(p.label ?? '')} className="max-md:h-10" onChange={(e) => set({ label: e.target.value })} />
+              </Field>
+              <Field label={t('fg.out.position')} hint={t('fg.out.positionHint')}>
+                <NativeSelect value={String(p.position ?? 'after-history')} onChange={(position) => { const { position: _p, ...rest } = p; onParams(position === 'after-history' ? rest : { ...rest, position }) }}>
+                  {INSERT_POSITIONS.map((pos) => <option key={pos} value={pos}>{t(`fg.out.pos.${pos}` as MsgKey)}</option>)}
+                </NativeSelect>
+              </Field>
+            </>
           )}
         </>
       )}

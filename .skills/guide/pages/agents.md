@@ -22,11 +22,11 @@ When it runs is a lane. The agent's file names the lane it starts in, and each c
 - **After the reply**: the usual lane for notes, trackers and meters.
 - **By hand**: runs only when you press the run button of its row.
 
-On top of the lane, an agent can run on every Nth reply or only when chosen words appear.
+On top of the lane, an agent can run on every Nth reply or only when chosen words appear. The words are looked for in the last two messages unless the agent says otherwise: the Agent tab has "Look back this many messages" (1 to 50) once words are set.
 
 ## Ready agents
 
-Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** item opens it). "Empty agent" gives an Input and a note. "Start from a ready agent" offers six working ones: Next moves, Pacing nudge, Story map, Scene recap, Territory board and Tension meter. Under "Drafts" are agents Molfar wrote into your workspace ("Drafts from Molfar").
+Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** item opens it). "Empty agent" gives an Input and a note. "Start from a ready agent" offers seven working ones: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter and Character growth (it proposes how the character has changed, for the card's Memory tab; see the memory page). Under "Drafts" are agents Molfar wrote into your workspace ("Drafts from Molfar").
 
 ## The editor
 
@@ -51,3 +51,7 @@ An agent with a Script card that runs out of time three runs in a row in a chat 
 A **set** is a named list of agents ("Save this chat's list as a set"; "Make default" gives it to new chats). The Canvas's "Agent sets" board shows each set's cost in time and calls, and holds the "Agents' notes in chats" switch that hides every agent's notes. Each agent's result place can be changed in the chat's Agents tab, among the places that suit it.
 
 Each "Ask the model" card is one call per run; the editor shows the number. "Every Nth reply" divides the cost.
+
+**What it costs, before you turn it on.** The permissions page and the agent's card in the Agents sheet carry an estimate for one run: the calls, and about how many tokens go in and at most come out. The Agents tab adds a line with the total per reply for the agents that are on in the chat, the "every Nth reply" already spread in. It is read from the agents' files (the length of their questions, what they read, their answer limits), not from your chat, so it says "about": the real numbers depend on the chat and the model. An agent that asks no model says so.
+
+**Where a hint goes.** An Output card of kind hint ("prompt-insert") has "Position in the prompt": after the history (the default, the end of the last player message), at the start of the system prompt, or at its end. A hint in the system prompt weighs more with the model, so keep it short. It is the same permission as any hint.

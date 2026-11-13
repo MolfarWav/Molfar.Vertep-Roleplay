@@ -12,10 +12,10 @@ type Params = Record<string, unknown>
 /** The cards in the order the "add a card" list shows them. `note` is a comment for people. */
 export const CARD_ORDER = [
   'agent.input', 'text.template', 'model.ask', 'data.parse', 'text.extract', 'text.cut', 'logic.if', 'logic.merge',
-  'code.script', 'random.dice', 'random.pick', 'state.read', 'state.set', 'state.add', 'state.list', 'write.state', 'agent.output', 'note',
+  'code.script', 'random.dice', 'random.pick', 'state.read', 'state.set', 'state.add', 'state.list', 'write.state', 'write.growth', 'agent.output', 'note',
 ] as const
 
-export const INPUT_SOURCES = ['lastReply', 'lastUserMessage', 'history', 'card', 'persona', 'authorNote', 'myPrevious', 'litopysFacts', 'lorebook'] as const
+export const INPUT_SOURCES = ['lastReply', 'lastUserMessage', 'history', 'card', 'persona', 'authorNote', 'myPrevious', 'litopysFacts', 'lorebook', 'growth'] as const
 export const OUTPUT_KINDS = ['note', 'choices', 'prompt-insert', 'state-patch'] as const
 
 /** What a new card starts with: something the checker accepts as a shape, which the user then fills in. */

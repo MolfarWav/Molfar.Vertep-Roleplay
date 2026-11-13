@@ -51,7 +51,7 @@ const readCanvasFile = (raw) => {
 
 const SOURCE_TYPE = {
   lastReply: 'text', lastUserMessage: 'text', history: 'text', card: 'text', persona: 'text', summary: 'text',
-  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', state: null,
+  authorNote: 'text', myPrevious: 'text', preGenInjections: 'text', parallelResults: 'text', litopysFacts: 'text', lorebook: 'text', growth: 'text', state: null,
 };
 /**
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
@@ -110,6 +110,8 @@ const whenIn = [{ id: 'when', side: 'in', type: 'signal', optional: true }];
 const whenDone = [{ id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }];
 const OUTPUT_TEXT_KINDS = ['prompt-insert', 'note', 'choices'];
 const NEEDS_BY_OUTPUT = { 'prompt-insert': ['write:prompt'], note: ['show:note'], choices: ['show:choices'] };
+/** Where a `prompt-insert` text goes in the outgoing prompt: after the history (the end of the last player message, the default), at the start of the system prompt, or at the end of the system prompt. */
+const INSERT_POSITIONS = ['after-history', 'system-start', 'system-end'];
 const AGENT_CARDS = {
   'agent.input': {
     label: 'Input', colorVar: '--k-data', hint: 'What the agent receives. What is not listed here, the agent cannot see.',
@@ -161,6 +163,15 @@ const AGENT_CARDS = {
     label: 'Write to Dashboard', colorVar: '--k-write', hint: 'Queued, applied only after a successful run.',
     ports: (p) => [{ id: 'value', side: 'in', type: p.as === 'number' ? 'number' : 'text' }, { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' }],
     needs: (p) => [`write:state.${p.field}`],
+  },
+  'write.growth': {
+    label: 'Propose a block of the character\'s portrait', colorVar: '--k-write', hint: 'Adds a block to the "how they changed" portrait in the character\'s card memory: the text, the Profile section it belongs to, whether it changes that part or adds something new. It waits for your yes and never edits the card.',
+    ports: () => [
+      { id: 'text', side: 'in', type: 'text' }, { id: 'section', side: 'in', type: 'text', optional: true }, { id: 'kind', side: 'in', type: 'text', optional: true },
+      { id: 'title', side: 'in', type: 'text', optional: true }, { id: 'basis', side: 'in', type: 'text', optional: true },
+      { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' },
+    ],
+    needs: () => ['write:card.growth'],
   },
   'state.read': {
     label: 'Read own state', colorVar: '--k-data', hint: 'The current value of one of the agent\'s own fields.',
@@ -427,7 +438,7 @@ function checkScript(n, err) {
 const WIDGET_BIND = { meter: 'number', number: 'number', counter: 'number', table: 'list', list: 'list', log: 'list', text: 'text', grid: 'list' };
 /** The `grid` widget: a board of cols x rows tiles, each tile coloured by a state kept in a list (docs/DATA-FORMATS.md, "Agents"). */
 const GRID_TONES = ['ok', 'info', 'warn', 'bad', 'accent', 'muted'];
-const GRID_LIMITS = { size: 16, legend: 8 };
+const GRID_LIMITS = { size: 16, legend: 8, send: 200 };
 const PANEL_PLACES = ['top1', 'top2', 'float'];
 const TPL_TAGS = /<\s*(script|iframe|object|embed|link|meta|base|form|frame|frameset|applet|foreignobject)\b/i;
 const TPL_BAD = [
@@ -513,6 +524,15 @@ function checkGrid(w, field, where, err) {
     err('E_BIND', `${where}: grid needs x and y, two different number fields of the entries of "${w.bind}"`);
   if (!named('cell', 'text'))
     err('E_BIND', `${where}: grid needs cell, a text field of the entries of "${w.bind}" that holds the tile's state`);
+  // `send`: a tap on a tile puts this text in the message box (nothing is sent); slots {{col}}, {{row}} and {{state}} (#273)
+  if (w.send !== undefined) {
+    if (typeof w.send !== 'string' || !w.send.trim() || w.send.length > GRID_LIMITS.send)
+      err('E_WIDGET', `${where}: send is text of 1-${GRID_LIMITS.send} characters`);
+    else {
+      const bad = [...w.send.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)].map((m) => m[1]).filter((s) => !['col', 'row', 'state'].includes(s));
+      if (bad.length) err('E_WIDGET', `${where}: send may use only the slots {{col}}, {{row}} and {{state}}, not {{${bad[0]}}}`);
+    }
+  }
   const legend = w.legend;
   if (!Array.isArray(legend) || !legend.length || legend.length > GRID_LIMITS.legend) {
     err('E_WIDGET', `${where}: grid needs a legend of 1-${GRID_LIMITS.legend} states`);
@@ -686,6 +706,8 @@ function validateAgent(raw) {
     err('E_ID', 'agent.id must be a lowercase slug of 2-41 characters');
   if (!['before', 'parallel', 'after', 'manual'].includes(a.trigger?.when))
     err('E_TRIGGER', 'trigger.when must be before, parallel, after or manual');
+  if (a.trigger?.scan !== undefined && !(Number.isInteger(a.trigger.scan) && a.trigger.scan >= 1 && a.trigger.scan <= 50))
+    err('E_TRIGGER', 'trigger.scan must be a whole number from 1 to 50');
   if (a.trigger?.when === 'parallel' && f.nodes.some((n) => n.type === 'agent.output' && n.params?.kind === 'prompt-insert')) {
     err('E_PARALLEL_INSERT', 'A parallel agent runs beside the reply, so its text cannot reach this reply. Use "before" for a prompt insert, or write to state');
   }
@@ -771,6 +793,8 @@ function validateAgent(raw) {
     const op = (o.params ?? {});
     if (op.show != null && !(SHOW_BY_KIND[op.kind] ?? []).includes(op.show))
       err('E_SHOW_NOT_ALLOWED', `Output "${o.title}": "${op.show}" is not a place where a "${op.kind}" result can be shown`, o.id);
+    if (op.position != null && (op.kind !== 'prompt-insert' || !INSERT_POSITIONS.includes(op.position)))
+      err('E_INSERT_POSITION', `Output "${o.title}": position must be one of ${INSERT_POSITIONS.join(', ')}, and only a prompt-insert has one`, o.id);
   }
   const wiresIn = new Map();
   const adj = new Map();
@@ -1342,6 +1366,16 @@ function runCards(file, ctx, answers, seen) {
       if (vals.some((v) => v !== SKIP && v !== PENDING && v !== ABSENT)) { out('out', true); ran(); }
       else if (vals.some((v) => v === PENDING)) wait();
       else skip();
+    } else if (node.type === 'write.growth') {
+      const g = gate(['text'], 'when');
+      if (g === 'skip') skip();
+      else if (g === 'wait') wait();
+      else {
+        const text = asText(ins.text).trim();
+        const opt = (k) => (typeof ins[k] === 'string' ? ins[k].trim() : '');
+        if (!text) skip();
+        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis') }); out('done', true); ran({ 'growth.add': short(text) }); }
+      }
     } else if (node.type === 'write.state' || node.type === 'state.set' || node.type === 'state.add' || node.type === 'state.list') {
       const dataPorts = ports.filter((x) => x.side === 'in' && x.id !== 'when' && !(node.type === 'state.add' && x.id === 'by')).map((x) => x.id);
       const needBy = node.type === 'state.add' && ins.by !== ABSENT;
@@ -1706,6 +1740,7 @@ function sourceValue(fsx, chat, give, last) {
   if (src === "myPrevious") return typeof last === "string" && last ? last : undefined;
   if (src === "litopysFacts") return litopysFactsText(fsx, meta, give);
   if (src === "lorebook") return lorebookText(fsx, meta, msgs, give);
+  if (src === "growth") return growthText(fsx, meta);
   return undefined; // summary, and anything this host does not know
 }
 
@@ -1820,7 +1855,9 @@ function withOwnEvery(trigger, everyN) {
 function keywordsOk(trigger, msgs) {
   const kw = isObj(trigger) && Array.isArray(trigger.keywords) ? trigger.keywords.filter((k) => typeof k === "string" && k.trim()) : [];
   if (!kw.length) return true;
-  const text = msgs.slice(-2).map((m) => msgText(m, false).toLowerCase()).join("\n");
+  // how far back the words are looked for: the author's `scan` (1 to 50), else the last two messages
+  const scan = isObj(trigger) && Number.isInteger(trigger.scan) && trigger.scan >= 1 ? Math.min(trigger.scan, 50) : 2;
+  const text = msgs.slice(-scan).map((m) => msgText(m, false).toLowerCase()).join("\n");
   return kw.some((k) => text.includes(k.trim().toLowerCase()));
 }
 
@@ -2272,12 +2309,13 @@ function commitRun(fsx, chatId, view, results, turn, runs, started, phase) {
       continue;
     }
     const isDash = (w) => w.op === "dash.set";
-    const applied = applyWrites(r.schema, r.base, r.res.writes.filter((w) => !isDash(w)));
+    const applied = applyWrites(r.schema, r.base, r.res.writes.filter((w) => !isDash(w) && w.op !== "growth.add"));
     const dash = applyDashWrites(fsx, chatId, view, id, r.res.writes);
+    const growth = applyGrowthWrites(fsx, view, id, r.res.writes, turn.key);
     const outputs = r.res.outputs.map((o) => (o.show || r.pick.item.show ? { ...o, show: r.pick.item.show && (SHOW_BY_KIND[o.kind] || []).includes(r.pick.item.show) ? r.pick.item.show : o.show } : o));
     writeJsonAt(fsx, statePath(chatId, id), { v: 1, own: applied.own, last: lastTextOf(outputs), memo: isObj(r.res.memo) ? r.res.memo : {}, n: r.runN + 1, before: { id: turn.id, own: r.base, memo: r.memo, n: r.runN } });
     items2 = items2.filter((x) => x.agent !== id).concat(outputs.filter((o) => o.kind === "prompt-insert" && o.text).map((o) => ({ agent: id, label: o.label, text: o.text, position: o.position, at: now })));
-    runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: [...applied.refused, ...dash.refused], ...(dash.applied.length ? { dash: dash.applied } : {}), outputs });
+    runs.push({ ...entry, calls: r.res.calls, writes: r.res.writes, refused: [...applied.refused, ...dash.refused, ...growth.refused], ...(dash.applied.length ? { dash: dash.applied } : {}), outputs });
     ranOut.push({ agent: id, status: "ok", calls: r.res.calls, writes: r.res.writes.length, outputs: outputs.length });
   }
   writeJsonAt(fsx, runsPath(chatId), { v: 1, runs: runs.slice(-AG_RUNS_MAX) });
@@ -2738,6 +2776,47 @@ function placesOf(file) {
   return out;
 }
 
+/**
+ * What one run of an agent costs, as an estimate for the person to judge before turning it on (Molfar.Vertep#396).
+ * `calls` is the most model calls a run makes (the checker's `derived.maxCalls`); `tokensOut` the sum of the Ask cards'
+ * answer limits (an upper bound); `tokensIn` each Ask card's own prompt text plus a nominal size for what its slots take
+ * from the Input card (a real chat's sizes are not known here), plus the fixed framing every request carries. The list is
+ * not per chat, so this never claims to be exact: the screens say "about".
+ */
+const COST_FRAME = 70;
+const COST_SOURCE = { lastReply: 500, lastUserMessage: 80, card: 800, persona: 300, authorNote: 100, myPrevious: 100, lorebook: 400, state: 20 };
+function costOf(file, calls) {
+  const nodes = Array.isArray(file && file.nodes) ? file.nodes : [];
+  const edges = Array.isArray(file && file.edges) ? file.edges : [];
+  const input = nodes.find((n) => n.type === "agent.input");
+  const gives = new Map(((input && input.params && input.params.give) || []).map((g) => [g.id, g]));
+  const sizeOf = (g) => {
+    if (!g) return 150;
+    if (g.source === "history") {
+      const n = Number.isInteger(g.last) && g.last > 0 ? Math.min(g.last, 60) : 10;
+      const cap = Number.isInteger(g.tokens) && g.tokens >= 100 ? g.tokens : 0;
+      return cap ? Math.min(n * 150, cap) : n * 150;
+    }
+    if (g.source === "litopysFacts") return giveLimit(g, 20, 60) * 25;
+    return COST_SOURCE[g.source] || 150;
+  };
+  let tokensIn = 0, tokensOut = 0;
+  for (const n of nodes) {
+    if (n.type !== "model.ask") continue;
+    const p = n.params || {};
+    const slots = slotsOf(p.prompt);
+    let t = approxTokens(String(p.prompt || "").replace(/\{\{\s*[A-Za-z0-9_-]+\s*\}\}/g, "")) + COST_FRAME;
+    for (const s of slots) {
+      const e = edges.find((x) => x.to === n.id + ":" + s);
+      const from = e ? String(e.from).split(":") : [];
+      t += from[0] === (input && input.id) ? sizeOf(gives.get(from[1])) : 150;
+    }
+    tokensIn += t;
+    tokensOut += Number.isInteger(p.maxTokens) && p.maxTokens > 0 ? Math.min(p.maxTokens, 4000) : 600;
+  }
+  return { calls: Number.isInteger(calls) ? calls : 0, tokensIn: Math.round(tokensIn), tokensOut: Math.round(tokensOut) };
+}
+
 function listRoute(req, host) {
   const fsx = host.fs;
   let files = [];
@@ -2763,6 +2842,7 @@ function listRoute(req, host) {
       runnable: !blocker(agent, granted, own.maxCalls), blocker: blocker(agent, granted, own.maxCalls), places: placesOf(agent.file),
       scripts: agent.file.nodes.filter((n) => n.type === "code.script").map((n) => ({ id: n.id, title: str(n.title) || n.id, code: str(n.params && n.params.code) })),
       own: { models: own.models, maxCalls: own.maxCalls, everyN: own.everyN },
+      cost: costOf(agent.file, agent.report.derived ? agent.report.derived.maxCalls : 0),
     });
   }
   return ok({ agents });
@@ -2894,8 +2974,244 @@ export function handleRoute(req, host) {
   if (path === "/agents/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
   if (path === "/agents/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
+  if (path === "/agents/growth" && (req.method === "GET" || req.method === "PUT")) return growthRoute(req, host);
   if (seg.length === 2 && req.method === "DELETE") return removeRoute(req, host, seg[1]);
   return ok({ error: "not found" }, 404);
+}
+
+// ---------- how a character changed: the living portrait (Molfar.Vertep#396) ----------
+//
+// characters/<id>/growth.json, written only by this plugin (the plugin host has no plugin-to-plugin calls, so one writer
+// means no lost update against Litopys, which owns characters/<id>/memory.json). It is not part of card.json or an export.
+//   { v: 2, next: <n>, entries: [ { id: "g1", section, kind: "changed"|"added", title?, text, basis?, prev?: [text],
+//     revises?: <id>, on, state: "proposed"|"accepted", origin: "agent"|"user", agent?, runKey?, from?: { chatId, title, at },
+//     at } ], inject: { enabled, maxTokens } }
+// An entry is a BLOCK of the portrait, named by the sections of the Profile tab: a "changed" block says how that part of the
+// character is now, an "added" block is something that came out in the story (a relationship, a secret, a skill, the past).
+// v1 entries { was, now } are read as one "changed" block of the section "other". A "proposed" block waits for the user and is
+// never put in a prompt. Accepted blocks that are on go into one part at the end of the leading system block, worded so that
+// they win over what the card says. A proposed block about a section that already has an accepted one REVISES it: accepting
+// it replaces the text and keeps the old one in `prev`, from where the user can revert.
+
+const GROWTH = { entries: 200, text: 1200, title: 80, basis: 120, perRun: 2, roomMin: 100, roomMax: 8000, room: 1500, prev: 3 };
+/**
+ * The Profile's sections that a story can change, in the order its text is compiled, and `other` for what fits none. Identity
+ * (the name, age, birthday) and appearance are left out on purpose: they hardly ever change, and the rare scar or new haircut
+ * is an "other" block.
+ */
+const GROWTH_SECTIONS = ["background", "relationships", "personality", "behaviors", "goals", "trauma", "sexuality", "other"];
+const GROWTH_LABEL = { background: "Background", relationships: "Relationships", personality: "Personality", behaviors: "Behaviors", goals: "Goals", trauma: "Trauma", sexuality: "Sexuality", other: "Other" };
+const growthPath = (cardId) => "characters/" + cardId + "/growth.json";
+
+function cleanGrowthEntry(x) {
+  if (!isObj(x) || !/^g[0-9]{1,6}$/.test(str(x.id))) return null;
+  // a v1 entry (was / now) becomes one block
+  const text = str(x.text) || (str(x.now) ? (str(x.was) ? "Was: " + str(x.was) + " Now: " + str(x.now) : str(x.now)) : "");
+  if (!text) return null;
+  const e = {
+    id: str(x.id), section: GROWTH_SECTIONS.includes(str(x.section)) ? str(x.section) : "other", kind: str(x.kind) === "added" ? "added" : "changed",
+    text: clip(text, GROWTH.text), on: x.on !== false, state: x.state === "accepted" ? "accepted" : "proposed", origin: x.origin === "user" ? "user" : "agent", at: Number.isFinite(x.at) ? x.at : 0,
+  };
+  if (str(x.title)) e.title = clip(str(x.title), GROWTH.title);
+  if (str(x.basis)) e.basis = clip(str(x.basis), GROWTH.basis);
+  if (Array.isArray(x.prev)) { const p = x.prev.map(str).filter(Boolean).slice(0, GROWTH.prev).map((s) => clip(s, GROWTH.text)); if (p.length) e.prev = p; }
+  if (/^g[0-9]{1,6}$/.test(str(x.revises))) e.revises = str(x.revises);
+  if (/^[A-Za-z0-9_-]{1,64}$/.test(str(x.agent))) e.agent = str(x.agent);
+  if (str(x.runKey)) e.runKey = clip(str(x.runKey), 200);
+  if (isObj(x.from)) e.from = { chatId: str(x.from.chatId).slice(0, 120), title: str(x.from.title).slice(0, 120), at: Number.isFinite(x.from.at) ? x.from.at : 0 };
+  return e;
+}
+
+function readGrowth(fsx, cardId) {
+  const raw = AG_CHAT.test(cardId) ? readJsonAt(fsx, growthPath(cardId), null) : null;
+  const o = isObj(raw) ? raw : {};
+  const entries = (Array.isArray(o.entries) ? o.entries : []).map(cleanGrowthEntry).filter(Boolean).slice(0, GROWTH.entries);
+  const inj = isObj(o.inject) ? o.inject : {};
+  const room = Number.isInteger(inj.maxTokens) ? Math.max(GROWTH.roomMin, Math.min(GROWTH.roomMax, inj.maxTokens)) : GROWTH.room;
+  const next = Math.max(Number.isInteger(o.next) ? o.next : 1, 1 + Math.max(0, ...entries.map((e) => Number(e.id.slice(1)))));
+  return { v: 2, next, entries, inject: { enabled: inj.enabled !== false, maxTokens: room } };
+}
+
+const cardExists = (fsx, cardId) => AG_CHAT.test(cardId) && isObj(readJsonAt(fsx, "characters/" + cardId + "/card.json", null));
+const writeGrowth = (fsx, cardId, g) => writeJsonAt(fsx, growthPath(cardId), g);
+
+/** The card of a chat that has exactly one (a solo chat); "" for a group or a chat with none. */
+function soloCardOf(meta) {
+  const m = isObj(meta) ? meta : {};
+  if (m.groupId) return "";
+  const ids = new Set([str(m.characterId), ...(Array.isArray(m.characterIds) ? m.characterIds : []).map(str)].filter(Boolean));
+  return ids.size === 1 && AG_CHAT.test([...ids][0]) ? [...ids][0] : "";
+}
+
+/** The heading and body of one block as the prompt carries it. */
+const growthHeading = (e) => (e.kind === "added" ? (e.title || GROWTH_LABEL[e.section] + " (new)") : GROWTH_LABEL[e.section] + " (now)");
+
+/**
+ * What goes into a reply: the accepted blocks that are on. The newest are taken first until the user's room is spent (a block
+ * that does not fit is skipped, a smaller older one may still go in), then they are written in the Profile's section order, the
+ * "changed" blocks of a section under one heading, each "added" block under its own. `omitted` counts those left out.
+ */
+function growthLayout(g, name) {
+  const live = g.entries.filter((e) => e.state === "accepted" && e.on);
+  if (!live.length) return null;
+  const head = "How " + (name || "the character") + " has changed and what has come out over the story so far. Where this differs from the character description and personality above, this is more recent and wins.";
+  let used = approxTokens(head) + 4;
+  const keep = [];
+  const order = [...live].sort((a, b) => b.at - a.at);
+  for (const e of order) {
+    const t = approxTokens(e.text) + approxTokens(growthHeading(e)) + 4;
+    if (used + t > g.inject.maxTokens) continue;
+    used += t;
+    keep.push(e);
+  }
+  if (!keep.length) return { text: "", tokens: 0, count: 0, omitted: live.length };
+  const blocks = [];
+  for (const s of GROWTH_SECTIONS) {
+    const inSection = keep.filter((e) => e.section === s).sort((a, b) => a.at - b.at);
+    const changed = inSection.filter((e) => e.kind === "changed");
+    if (changed.length) blocks.push("## " + GROWTH_LABEL[s] + " (now)\n" + changed.map((e) => e.text).join("\n\n"));
+    for (const e of inSection.filter((x) => x.kind === "added")) blocks.push("## " + growthHeading(e) + "\n" + e.text);
+  }
+  const text = head + "\n\n" + blocks.join("\n\n");
+  return { text, tokens: approxTokens(text), count: keep.length, omitted: live.length - keep.length };
+}
+
+/** The part a chat gets (null when there is nothing to say, or the chat's Prompt board switch or the master switch is off). */
+function growthPart(fsx, meta, card) {
+  const cardId = soloCardOf(meta);
+  if (!cardId) return null;
+  const off = isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
+  if (off.includes("plugin:cardgrowth")) return null;
+  const g = readGrowth(fsx, cardId);
+  if (!g.inject.enabled) return null;
+  const cd = card === undefined ? readJsonAt(fsx, "characters/" + cardId + "/card.json", null) : card;
+  const name = isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "";
+  const lay = growthLayout(g, name);
+  if (!lay || !lay.count) return null;
+  return { cardId, text: lay.text, tokens: lay.tokens, count: lay.count, omitted: lay.omitted };
+}
+
+/** The Growth routes' answer: the file as it is now and what the part would cost. */
+function growthAnswer(fsx, cardId) {
+  const g = readGrowth(fsx, cardId);
+  const live = g.entries.filter((e) => e.state === "accepted" && e.on).length;
+  const lay = growthLayout(g, "");
+  return { growth: g, sections: GROWTH_SECTIONS, tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live } };
+}
+
+/**
+ * What is already written about how the card's character changed, as one line a block (newest 20), for the Input source
+ * `growth`. "(nothing yet)" when there is nothing, so a card that asks for it still runs the first time; undefined in a group chat.
+ */
+function growthText(fsx, meta) {
+  const cardId = soloCardOf(meta);
+  if (!cardId) return undefined;
+  const rows = readGrowth(fsx, cardId).entries.slice(-20).map((e) => {
+    const body = e.text.replace(/\s+/g, " ");
+    return "- [" + e.section + (e.kind === "added" ? ", new" : "") + "] " + (e.title ? e.title + ": " : "") + clip(body, 220) + (e.state === "proposed" ? " (waiting for the user)" : "");
+  });
+  return rows.length ? rows.join("\n") : "(nothing yet)";
+}
+
+/**
+ * The `growth.add` writes of one run become proposed blocks (a solo chat only: a group has no single card). A block about a
+ * section that already has an accepted "changed" block is marked as its revision. A re-run of the same reply replaces the
+ * agent's still-proposed blocks of it; a text the file already has is not added twice. Returns what was refused, with the
+ * reason, for the run log.
+ */
+function applyGrowthWrites(fsx, view, agentId, writes, turnKey) {
+  const refused = [];
+  const adds = writes.filter((w) => w.op === "growth.add");
+  if (!adds.length) return { applied: 0, refused };
+  const cardId = soloCardOf(view.meta);
+  if (!cardId) { refused.push("growth: this chat has no single card (a group chat is not supported)"); return { applied: 0, refused }; }
+  if (!cardExists(fsx, cardId)) { refused.push("growth: the card is gone"); return { applied: 0, refused }; }
+  const g = readGrowth(fsx, cardId);
+  const before = g.entries.length;
+  g.entries = g.entries.filter((e) => !(e.state === "proposed" && e.agent === agentId && e.runKey === turnKey));
+  const now = Date.now();
+  let applied = 0;
+  for (const w of adds) {
+    if (applied >= GROWTH.perRun) { refused.push("growth: at most " + GROWTH.perRun + " proposals a run"); break; }
+    const text = clip(str(w.text), GROWTH.text);
+    if (!text) continue;
+    if (g.entries.some((e) => e.text.toLowerCase() === text.toLowerCase())) { refused.push("growth: already there"); continue; }
+    if (g.entries.length >= GROWTH.entries) { refused.push("growth: the list is full (" + GROWTH.entries + ")"); break; }
+    const section = GROWTH_SECTIONS.includes(str(w.section)) ? str(w.section) : "other";
+    const kind = str(w.kind) === "added" ? "added" : "changed";
+    const e = { id: "g" + g.next, section, kind, text, on: true, state: "proposed", origin: "agent", agent: agentId, runKey: turnKey, from: { chatId: str(view.chatId), title: str(view.meta && view.meta.title), at: now }, at: now };
+    if (str(w.title)) e.title = clip(str(w.title), GROWTH.title);
+    if (str(w.basis)) e.basis = clip(str(w.basis), GROWTH.basis);
+    if (kind === "changed" && section !== "other") {
+      const old = g.entries.filter((x) => x.state === "accepted" && x.kind === "changed" && x.section === section).sort((a, b) => b.at - a.at)[0];
+      if (old) e.revises = old.id;
+    }
+    g.next++;
+    g.entries.push(e);
+    applied++;
+  }
+  if (applied || g.entries.length !== before) writeGrowth(fsx, cardId, g);
+  return { applied, refused };
+}
+
+/** GET|PUT /agents/growth: the list for the card's Memory tab and the user's decisions on it. */
+function growthRoute(req, host) {
+  const fsx = host.fs;
+  const cardId = str((req.query && req.query.cardId) || (isObj(req.body) && req.body.cardId));
+  if (!cardExists(fsx, cardId)) return ok({ error: "cardId of an existing card required" }, 400);
+  if (req.method === "GET") return ok(growthAnswer(fsx, cardId));
+  const b = isObj(req.body) ? req.body : {};
+  const g = readGrowth(fsx, cardId);
+  const find = () => g.entries.find((e) => e.id === str(b.id));
+  const text = (v) => clip(str(v), GROWTH.text);
+  const op = str(b.op);
+  const bad = (m, s) => ok({ error: m }, s || 400);
+  if ("section" in b && !GROWTH_SECTIONS.includes(str(b.section))) return bad("section is one of " + GROWTH_SECTIONS.join(", "));
+  if ("kind" in b && !["changed", "added"].includes(str(b.kind))) return bad("kind is changed or added");
+  if (op === "add") {
+    if (!text(b.text)) return bad("text is required");
+    if (g.entries.length >= GROWTH.entries) return bad("the list is full");
+    const e = { id: "g" + g.next, section: str(b.section) || "other", kind: str(b.kind) === "added" ? "added" : "changed", text: text(b.text), on: true, state: "accepted", origin: "user", at: Date.now() };
+    if (str(b.title)) e.title = clip(str(b.title), GROWTH.title);
+    if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis);
+    g.next++;
+    g.entries.push(e);
+  } else if (op === "accept" || op === "edit" || op === "on" || op === "delete" || op === "revert") {
+    const e = find();
+    if (!e) return bad("no such entry", 404);
+    if (op === "accept") {
+      const target = e.revises ? g.entries.find((x) => x.id === e.revises && x.state === "accepted") : null;
+      if (target) {
+        // a revision replaces the text of the block it revises; the old text stays in `prev` for a revert
+        target.prev = [target.text, ...(target.prev || [])].slice(0, GROWTH.prev);
+        target.text = e.text;
+        if (e.title) target.title = e.title;
+        if (e.basis) target.basis = e.basis;
+        target.at = Date.now();
+        g.entries = g.entries.filter((x) => x !== e);
+      } else { e.state = "accepted"; delete e.revises; }
+    } else if (op === "on") e.on = b.on !== false;
+    else if (op === "delete") g.entries = g.entries.filter((x) => x !== e);
+    else if (op === "revert") {
+      if (!e.prev || !e.prev.length) return bad("nothing to go back to");
+      e.text = e.prev[0];
+      if (e.prev.length > 1) e.prev = e.prev.slice(1); else delete e.prev;
+    } else {
+      if ("text" in b) { if (!text(b.text)) return bad("text cannot be empty"); e.text = text(b.text); }
+      if ("section" in b) e.section = str(b.section);
+      if ("kind" in b) e.kind = str(b.kind);
+      if ("title" in b) { if (str(b.title)) e.title = clip(str(b.title), GROWTH.title); else delete e.title; }
+      if ("basis" in b) { if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis); else delete e.basis; }
+    }
+  } else if (op === "inject") {
+    if ("enabled" in b) g.inject.enabled = b.enabled !== false;
+    if ("maxTokens" in b) {
+      if (!Number.isInteger(b.maxTokens) || b.maxTokens < GROWTH.roomMin || b.maxTokens > GROWTH.roomMax) return bad("maxTokens is a whole number from " + GROWTH.roomMin + " to " + GROWTH.roomMax);
+      g.inject.maxTokens = b.maxTokens;
+    }
+  } else return bad("op is add, accept, edit, on, delete, revert or inject");
+  writeGrowth(fsx, cardId, g);
+  return ok(growthAnswer(fsx, cardId));
 }
 
 // ---------- the hint for the next reply ----------
@@ -2906,7 +3222,33 @@ function withLastUser(messages, text) {
   return [...messages, { role: "user", content: text }];
 }
 
-/** The prompt inserts of the agents this chat still uses are added to the reply request, after the history, with the agent's label. */
+/** Adds text to a system message (at its start or its end), or as a system message of its own when the prompt has none. */
+function withSystemText(messages, text, where) {
+  const sys = (m) => m && m.role === "system" && typeof m.content === "string";
+  if (where === "system-start") {
+    const i = messages.findIndex(sys);
+    if (i < 0) return [{ role: "system", content: text }, ...messages];
+    return messages.map((m, k) => (k === i ? { ...m, content: text + "\n\n" + m.content } : m));
+  }
+  // the end of the system prompt = the last system message of the block that opens the prompt (a system note after the history stays last)
+  let end = -1;
+  for (let k = 0; k < messages.length && messages[k] && messages[k].role === "system"; k++) end = k;
+  if (end < 0 || !sys(messages[end])) return [{ role: "system", content: text }, ...messages];
+  return messages.map((m, k) => (k === end ? { ...m, content: m.content + "\n\n" + text } : m));
+}
+
+/** What the inserts of the live agents put where: each text carries its agent's label; the place is the Output card's `position`. */
+function withInserts(messages, items) {
+  const labelled = (xs) => xs.map((x) => "[" + (str(x.label) || x.agent) + "]\n" + x.text.trim()).join("\n\n");
+  const at = (p) => items.filter((x) => (INSERT_POSITIONS.includes(x.position) ? x.position : "after-history") === p);
+  let out = messages;
+  if (at("system-start").length) out = withSystemText(out, labelled(at("system-start")), "system-start");
+  if (at("system-end").length) out = withSystemText(out, labelled(at("system-end")), "system-end");
+  if (at("after-history").length) out = withLastUser(out, labelled(at("after-history")));
+  return out;
+}
+
+/** The prompt inserts of the agents this chat still uses are added to the reply request, each where its Output card says (after the history unless set), with the agent's label. */
 /**
  * insertCeiling (Molfar.Vertep#220): what the chat's agents wrote for the next reply is already on disk, so this one is
  * exact: the inserts waiting in agents/inserts/<chatId>.json, counted the way the engine counts a prompt (ASCII 3.5 characters
@@ -2918,7 +3260,10 @@ export function insertCeiling(ctx, host) {
   const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
   if (!fsx || !/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) return { ceilings: [] };
   const f = readJsonAt(fsx, insertsPath(chatId), null);
-  if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(0);
+  // what the card's character has become (growth.json) is on disk too, so its part is counted exactly
+  const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {});
+  const growTokens = grow ? grow.tokens + 4 : 0;
+  if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(growTokens);
   const tokens = (text) => {
     const s = String(text == null ? "" : text);
     let ascii = 0, alpha = 0, other = 0;
@@ -2931,7 +3276,7 @@ export function insertCeiling(ctx, host) {
     return Math.ceil(ascii / 3.5 + alpha / 2 + other);
   };
   const total = f.items.reduce((t, it) => t + (it && typeof it.text === "string" ? tokens(it.text) + tokens(String(it.label || it.agent || "")) + 4 : 0), 0);
-  return ceilingAnswer(total);
+  return ceilingAnswer(total + growTokens);
 }
 /** A zero row says "asked, nothing to reserve": an answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table). */
 const ceilingAnswer = (total) => ({ ceilings: [{ id: "agents", tokens: Math.max(0, Math.round(total)) }] });
@@ -2949,15 +3294,22 @@ export function llmRequest(ctx, host) {
       try { before = runBefore(ctx, host, fsx, chatId, req); } catch (e) { try { host.log("agents before: " + (e && e.message ? e.message : String(e))); } catch {} }
       if (before && before.pending) return { ...ctx, stash: before.pending };
     }
-    const f = readJsonAt(fsx, insertsPath(chatId), null);
-    if (!isObj(f) || !Array.isArray(f.items) || !f.items.length) return null;
     const meta = readJsonAt(fsx, "chats/" + chatId + ".meta.json", null);
     if (!isObj(meta)) return null;
-    const live = new Set(chatAgents(fsx, meta).filter((it) => it.on).map((it) => it.agent));
-    const send = f.items.filter((x) => isObj(x) && live.has(x.agent) && typeof x.text === "string" && x.text.trim());
-    if (!send.length) return null;
-    const text = send.map((x) => "[" + (str(x.label) || x.agent) + "]\n" + x.text.trim()).join("\n\n");
-    return { messages: withLastUser(req.messages, text), promptSources: { parts: send.map((x) => ({ kind: "plugin", label: "Agent: " + (str(x.label) || x.agent), text: x.text })) } };
+    const f = readJsonAt(fsx, insertsPath(chatId), null);
+    const items = isObj(f) && Array.isArray(f.items) ? f.items : [];
+    const live = items.length ? new Set(chatAgents(fsx, meta).filter((it) => it.on).map((it) => it.agent)) : null;
+    const send = items.filter((x) => isObj(x) && live.has(x.agent) && typeof x.text === "string" && x.text.trim());
+    // what the card's character has become: one part at the end of the leading system block, after the card's own sections
+    const grow = growthPart(fsx, meta);
+    if (!send.length && !grow) return null;
+    let messages = send.length ? withInserts(req.messages, send) : req.messages;
+    const parts = send.map((x) => ({ kind: "plugin", label: "Agent: " + (str(x.label) || x.agent), text: x.text }));
+    if (grow) {
+      messages = withSystemText(messages, grow.text, "system-end");
+      parts.unshift({ kind: "plugin", label: "Agents · character growth", text: grow.text });
+    }
+    return { messages, promptSources: { parts } };
   } catch (e) {
     try { host.log("agents insert: " + (e && e.message ? e.message : String(e))); } catch {}
     return null;

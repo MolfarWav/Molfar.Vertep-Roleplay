@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import { ArrowsClockwise, BookOpenText, CaretRight, CheckCircle, CircleNotch, DotsThree, Trash, Warning, Waves } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -29,8 +28,10 @@ import {
 import { MEMORY_TEXT } from './memory-kind'
 import { AddButton, Block } from './memory-block'
 import { HabitsBlock } from './memory-habits'
+import { GrowthBlock } from './memory-growth'
 import { MemoryImportDialog } from './memory-import-dialog'
 import { StoryLines } from './memory-story-lines'
+import { TokenField } from './memory-token-field'
 
 // the card keeps its old key; a persona's and a world's carry their kind
 const openKey = (o: MemoryOwner) => (o.kind === 'card' ? `rp-mem-open:${o.id}` : `rp-mem-open:${o.kind}:${o.id}`)
@@ -194,6 +195,8 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
 
       {isCard && card && <HabitsBlock c={card} data={data} t={t} apply={apply} />}
 
+      {isCard && card && <GrowthBlock card={card} />}
+
       <InjectBlock owner={owner} data={data} t={t} apply={apply} />
 
       <p className="text-xs text-muted-foreground">{t('mem.saved')}</p>
@@ -269,38 +272,5 @@ function InjectBlock({ owner, data, t, apply }: { owner: MemoryOwner; data: Memo
         />
       )}
     </Block>
-  )
-}
-
-/** A number of tokens that is saved when the field is left (or Enter); the server's clamped value wins after every save. */
-function TokenField({ id, label, unit, value, min, max, onCommit }: { id: string; label: string; unit: string; value: number; min: number; max: number; onCommit: (v: number) => Promise<unknown> }) {
-  const [text, setText] = useState(String(value))
-  useEffect(() => { setText(String(value)) }, [value])
-  const commit = async () => {
-    const n = Math.round(Number(text))
-    const v = Number.isFinite(n) && text.trim() !== '' ? Math.min(max, Math.max(min, n)) : value
-    setText(String(v))
-    if (v !== value) await onCommit(v)
-  }
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium">{label}</label>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="number"
-          inputMode="numeric"
-          min={min}
-          max={max}
-          step={50}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={() => void commit()}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-          className="w-28 max-md:h-10"
-        />
-        <span className="text-xs text-muted-foreground">{unit}</span>
-      </div>
-    </div>
   )
 }

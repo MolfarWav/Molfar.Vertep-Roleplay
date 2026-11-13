@@ -182,7 +182,7 @@ describe("the file an edit leaves", () => {
 describe("the recipes the editor starts from", () => {
   it("are the skill's files (run: bun scripts/sync-agent-recipes.ts)", () => {
     expect(fs.readFileSync(new URL("../src/lib/forge-recipes.ts", import.meta.url), "utf8")).toBe(generated());
-    expect(AGENT_RECIPES.map((r) => (r.agent as Json).id)).toEqual(["next-moves-ai", "pacing-nudge", "story-map", "scene-recap", "territory-board", "tension-meter"]);
+    expect(AGENT_RECIPES.map((r) => (r.agent as Json).id)).toEqual(["next-moves-ai", "character-growth", "pacing-nudge", "story-map", "scene-recap", "territory-board", "tension-meter"]);
   });
 });
 

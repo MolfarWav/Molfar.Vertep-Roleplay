@@ -21,7 +21,7 @@ export function AgentForm({ agent, title, onAgent, onTitle, onRename, installed 
   installed: boolean
 }) {
   const t = useT()
-  const trigger = (agent.trigger ?? { when: 'after', everyN: 1, keywords: [] }) as { when: string; everyN?: number; keywords?: string[] }
+  const trigger = (agent.trigger ?? { when: 'after', everyN: 1, keywords: [] }) as { when: string; everyN?: number; keywords?: string[]; scan?: number }
   const state = (agent.state ?? {}) as Record<string, any>
   const set = (patch: Agent) => onAgent({ ...agent, ...patch })
   const setTrigger = (patch: Record<string, unknown>) => set({ trigger: { ...trigger, ...patch } })
@@ -84,8 +84,19 @@ export function AgentForm({ agent, title, onAgent, onTitle, onRename, installed 
         </Field>
         <Field label={t('fg.trigger.keywords')} hint={t('fg.trigger.keywordsHint')}>
           <Input defaultValue={(trigger.keywords ?? []).join(', ')} placeholder={t('fg.trigger.keywordsEg')} className="max-md:h-10"
-            onBlur={(e) => setTrigger({ keywords: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />
+            onBlur={(e) => {
+              const keywords = e.target.value.split(',').map((x) => x.trim()).filter(Boolean)
+              // no words, no look-back: the field hides, so its value must not stay behind in the file
+              if (keywords.length) { setTrigger({ keywords }); return }
+              const { scan: _s, ...rest } = trigger
+              set({ trigger: { ...rest, keywords } })
+            }} />
         </Field>
+        {(trigger.keywords ?? []).length > 0 && (
+          <Field label={t('fg.trigger.scan')} hint={t('fg.trigger.scanHint')}>
+            <NumberBox value={trigger.scan ?? 2} min={1} max={50} onChange={(n) => setTrigger({ scan: n ?? 2 })} />
+          </Field>
+        )}
       </section>
 
       <section className="flex flex-col gap-2 border-t border-border pt-3" aria-label={t('fg.state')}>

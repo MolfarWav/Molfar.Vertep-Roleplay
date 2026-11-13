@@ -41,6 +41,7 @@ export function requestOrder<T extends { item: { key: string } }>(
     if (key === 'plugin:presence' && historyStart !== Infinity) return historyStart - 0.32
     if (key === 'plugin:recollections' && historyStart !== Infinity) return historyStart - 0.34
     if (key === 'plugin:cardhabits' && historyStart !== Infinity) return historyStart - 0.35
+    if (key === 'plugin:cardgrowth' && historyStart !== Infinity) return historyStart - 0.36
     return undefined
   }
   return rows
