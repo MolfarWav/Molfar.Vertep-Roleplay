@@ -1,0 +1,352 @@
+{
+  "format": "vertep-canvas",
+  "version": 1,
+  "kind": "agent",
+  "title": "Ledger",
+  "agent": {
+    "formatVersion": 1,
+    "id": "ledger",
+    "version": "1.0.0",
+    "name": "Ledger",
+    "description": "Keeps the numbers a resource game lives on (money, stock, a treasury with daily income, countdowns) in a floating table, and tells the next reply the true numbers. The model only reports what changed; a script does every sum. Fix a number yourself by writing (ledger: gold = 500) or (ledger: remove gold) in your message.",
+    "author": "Molfar",
+    "trigger": {
+      "when": "after",
+      "everyN": 1,
+      "keywords": []
+    },
+    "models": {
+      "fast": {
+        "hint": "lists changes as short lines; a small model is enough"
+      }
+    },
+    "limits": {
+      "maxCalls": 1,
+      "concurrency": 1
+    },
+    "state": {
+      "book": {
+        "type": "text",
+        "start": "[]"
+      },
+      "html": {
+        "type": "text",
+        "start": ""
+      }
+    },
+    "panels": [
+      {
+        "id": "ledger",
+        "title": "Numbers",
+        "place": "float",
+        "widgets": [
+          {
+            "w": "html",
+            "height": 220,
+            "bind": "html"
+          }
+        ]
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "in",
+      "type": "agent.input",
+      "x": 10,
+      "y": 120,
+      "title": "Input",
+      "params": {
+        "give": [
+          {
+            "id": "reply",
+            "source": "lastReply"
+          },
+          {
+            "id": "user",
+            "source": "lastUserMessage"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rd",
+      "type": "state.read",
+      "x": 10,
+      "y": 320,
+      "title": "The table",
+      "params": {
+        "field": "book",
+        "as": "text"
+      }
+    },
+    {
+      "id": "a",
+      "type": "code.script",
+      "x": 260,
+      "y": 120,
+      "title": "Your commands, the gate",
+      "params": {
+        "code": "var MAXROWS = 12;\nfunction round2(n) { return Math.round(n * 100) / 100; }\nfunction num(s) { var n = Number(String(s).replace(\",\", \".\")); return isFinite(n) ? n : null; }\nfunction clean(s) { return String(s).replace(/\\s+/g, \" \").trim().slice(0, 40); }\nfunction load(s) {\n  var out = [];\n  try {\n    var a = JSON.parse(String(s || \"[]\"));\n    if (Array.isArray(a)) {\n      for (var i = 0; i < a.length && out.length < MAXROWS; i++) {\n        var r = a[i];\n        if (r && typeof r.name === \"string\" && r.name && (r.kind === \"stock\" || r.kind === \"timer\") && typeof r.amount === \"number\" && isFinite(r.amount)) {\n          out.push({ name: r.name.slice(0, 40), kind: r.kind, amount: r.amount, perDay: r.kind === \"stock\" && typeof r.perDay === \"number\" && isFinite(r.perDay) ? r.perDay : 0 });\n        }\n      }\n    }\n  } catch (e) {}\n  return out;\n}\nfunction find(rows, name) {\n  var k = name.toLowerCase();\n  for (var i = 0; i < rows.length; i++) if (rows[i].name.toLowerCase() === k) return rows[i];\n  return null;\n}\nfunction put(rows, name, kind) {\n  var r = find(rows, name);\n  if (r) return r.kind === kind ? r : null;\n  if (rows.length >= MAXROWS) return null;\n  r = { name: name, kind: kind, amount: 0, perDay: 0 };\n  rows.push(r);\n  return r;\n}\nfunction change(r, field, op, n) {\n  var cur = field === \"perDay\" ? r.perDay : r.amount;\n  var v = round2(op === \"=\" ? n : op === \"+\" ? cur + n : cur - n);\n  if (Math.abs(v) > 1000000000) return;\n  if (r.kind === \"timer\" && v < 0) v = 0;\n  r[field] = v;\n}\nfunction pass(rows, days) {\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    r.amount = r.kind === \"stock\" ? round2(r.amount + r.perDay * days) : Math.max(0, round2(r.amount - days));\n  }\n}\nfunction fmt(n) {\n  var s = String(round2(n));\n  var neg = s.charAt(0) === \"-\";\n  if (neg) s = s.slice(1);\n  var p = s.split(\".\");\n  p[0] = p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \"\\u00A0\");\n  return (neg ? \"\\u2212\" : \"\") + p.join(\".\");\n}\nfunction days(n) { return fmt(n) + (n === 1 ? \" day\" : \" days\"); }\nfunction esc(s) { return String(s).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/\"/g, \"&quot;\"); }\nfunction table(rows) {\n  if (!rows.length) return '<div style=\"opacity:0.7;padding:4px 8px\">Nothing tracked yet. Numbers the story states will appear here.</div>';\n  var cell = \"padding:4px 8px;border-bottom:1px solid rgba(128,128,128,0.35);\";\n  var out = '<table style=\"width:100%;border-collapse:collapse;font-size:14px\"><tr><th style=\"text-align:left;' + cell + '\">What</th><th style=\"text-align:right;' + cell + '\">Now</th><th style=\"text-align:right;' + cell + '\">Per day</th></tr>';\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    var now = r.kind === \"timer\" ? (r.amount > 0 ? \"in \" + days(r.amount) : \"\\u2691 now\") : fmt(r.amount);\n    var per = r.kind === \"stock\" && r.perDay ? (r.perDay > 0 ? \"+\" : \"\") + fmt(r.perDay) : \"\\u2014\";\n    out += '<tr><td style=\"text-align:left;' + cell + '\">' + esc(r.name) + '</td><td style=\"text-align:right;' + cell + '\">' + esc(now) + '</td><td style=\"text-align:right;' + cell + '\">' + esc(per) + \"</td></tr>\";\n  }\n  return out + \"</table>\";\n}\nfunction insert(rows) {\n  var parts = [];\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    if (r.kind === \"timer\") parts.push(r.name + (r.amount > 0 ? \" in \" + days(r.amount) : \": now\"));\n    else parts.push(r.name + \" \" + fmt(r.amount) + (r.perDay ? \" (\" + (r.perDay > 0 ? \"+\" : \"\") + fmt(r.perDay) + \" a day)\" : \"\"));\n  }\n  return \"The true numbers, use them and invent no others: \" + parts.join(\"; \") + \".\";\n}\nfunction manual(rows, cmd) {\n  var c = cmd.replace(/\\u2212/g, \"-\").trim();\n  var m = /^remove\\s+(.{1,40})$/i.exec(c);\n  if (m) {\n    var k = clean(m[1]).toLowerCase();\n    for (var i = 0; i < rows.length; i++) if (rows[i].name.toLowerCase() === k) { rows.splice(i, 1); break; }\n    return;\n  }\n  m = /^(timer\\s+)?(.{1,40}?)(\\s+per\\s+day)?\\s*=\\s*(-?\\d+(?:[.,]\\d+)?)$/i.exec(c);\n  if (!m || (m[1] && m[3])) return;\n  var name = clean(m[2]);\n  var n = num(m[4]);\n  if (!name || /^(days|timer)$/i.test(name) || n === null || Math.abs(n) > 1000000000) return;\n  var r = put(rows, name, m[1] ? \"timer\" : \"stock\");\n  if (r) change(r, m[3] ? \"perDay\" : \"amount\", \"=\", n);\n}\nvar CUE = /\\d|(?<![\\p{L}])(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|hundreds|thousand|dozen|couple|several|day|days|week|weeks|night|nights|month|months|year|years|morning|dawn|dusk|noon|midnight|overnight|later|два|дві|три|чотири|п['’ʼ]ять|шість|сім|вісім|дев['’ʼ]ять|десять|двадцять|тридцять|п['’ʼ]ятдесят|сто|сотня|тисяча|тисячі|кілька|день|дні|днів|дня|тиждень|тижні|тижнів|ніч|ночі|місяць|місяці|місяців|рік|роки|років|ранок|ранку|світанок|північ|пізніше|четыре|пять|шесть|семь|восемь|девять|десять|двадцать|тридцать|пятьдесят|тысяча|тысячи|несколько|дней|неделя|недели|недель|ночь|ночи|месяц|месяца|месяцев|утро|утром|рассвет|полночь|позже)(?![\\p{L}])/iu;\nvar rows = load(input.book);\nvar user = String(input.user || \"\");\nvar reply = String(input.reply || \"\");\nvar re = /\\(ledger:\\s*([^)]{1,80})\\)/gi;\nvar m;\nwhile ((m = re.exec(user)) !== null) manual(rows, m[1]);\nvar rest = user.replace(/\\(ledger:[^)]*\\)/gi, \" \").trim();\nvar out = { book1: JSON.stringify(rows), html1: table(rows) };\nif (CUE.test(rest + \" \" + reply)) {\n  out.story = \"Current table (JSON):\\n\" + JSON.stringify(rows) + \"\\n\\nPlayer wrote:\\n\" + rest.slice(-1000) + \"\\n\\nStory reply:\\n\" + reply.slice(-4000);\n} else if (rows.length) {\n  out.insert1 = insert(rows);\n}\nreturn out;\n",
+        "inputs": [
+          {
+            "id": "reply",
+            "type": "text"
+          },
+          {
+            "id": "user",
+            "type": "text"
+          },
+          {
+            "id": "book",
+            "type": "text"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "book1",
+            "type": "text"
+          },
+          {
+            "id": "html1",
+            "type": "text"
+          },
+          {
+            "id": "story",
+            "type": "text"
+          },
+          {
+            "id": "insert1",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ask",
+      "type": "model.ask",
+      "x": 520,
+      "y": 120,
+      "title": "What changed",
+      "params": {
+        "role": "fast",
+        "prompt": "You keep the numbers of a resource game: money, stock, income per day, countdowns. Read the player's message and the story reply and list ONLY the changes the story states. One line each:\nname: -30  (spent or lost)\nname: +30  (gained)\nname: =500  (the story gives the new total)\nname per day: =50  (income a day is now 50; +10 raises it by 10)\ntimer name: =4  (days left until something happens)\ndays: 2  (days that passed in the story)\nUse the names from the current table when they fit. Numbers only, never items. If nothing changed, answer: none\n\n{{story}}",
+        "answer": {
+          "as": "text"
+        },
+        "maxTokens": 120,
+        "batchKey": null
+      }
+    },
+    {
+      "id": "b",
+      "type": "code.script",
+      "x": 780,
+      "y": 120,
+      "title": "Do the sums",
+      "params": {
+        "code": "var MAXROWS = 12;\nfunction round2(n) { return Math.round(n * 100) / 100; }\nfunction num(s) { var n = Number(String(s).replace(\",\", \".\")); return isFinite(n) ? n : null; }\nfunction clean(s) { return String(s).replace(/\\s+/g, \" \").trim().slice(0, 40); }\nfunction load(s) {\n  var out = [];\n  try {\n    var a = JSON.parse(String(s || \"[]\"));\n    if (Array.isArray(a)) {\n      for (var i = 0; i < a.length && out.length < MAXROWS; i++) {\n        var r = a[i];\n        if (r && typeof r.name === \"string\" && r.name && (r.kind === \"stock\" || r.kind === \"timer\") && typeof r.amount === \"number\" && isFinite(r.amount)) {\n          out.push({ name: r.name.slice(0, 40), kind: r.kind, amount: r.amount, perDay: r.kind === \"stock\" && typeof r.perDay === \"number\" && isFinite(r.perDay) ? r.perDay : 0 });\n        }\n      }\n    }\n  } catch (e) {}\n  return out;\n}\nfunction find(rows, name) {\n  var k = name.toLowerCase();\n  for (var i = 0; i < rows.length; i++) if (rows[i].name.toLowerCase() === k) return rows[i];\n  return null;\n}\nfunction put(rows, name, kind) {\n  var r = find(rows, name);\n  if (r) return r.kind === kind ? r : null;\n  if (rows.length >= MAXROWS) return null;\n  r = { name: name, kind: kind, amount: 0, perDay: 0 };\n  rows.push(r);\n  return r;\n}\nfunction change(r, field, op, n) {\n  var cur = field === \"perDay\" ? r.perDay : r.amount;\n  var v = round2(op === \"=\" ? n : op === \"+\" ? cur + n : cur - n);\n  if (Math.abs(v) > 1000000000) return;\n  if (r.kind === \"timer\" && v < 0) v = 0;\n  r[field] = v;\n}\nfunction pass(rows, days) {\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    r.amount = r.kind === \"stock\" ? round2(r.amount + r.perDay * days) : Math.max(0, round2(r.amount - days));\n  }\n}\nfunction fmt(n) {\n  var s = String(round2(n));\n  var neg = s.charAt(0) === \"-\";\n  if (neg) s = s.slice(1);\n  var p = s.split(\".\");\n  p[0] = p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \"\\u00A0\");\n  return (neg ? \"\\u2212\" : \"\") + p.join(\".\");\n}\nfunction days(n) { return fmt(n) + (n === 1 ? \" day\" : \" days\"); }\nfunction esc(s) { return String(s).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/\"/g, \"&quot;\"); }\nfunction table(rows) {\n  if (!rows.length) return '<div style=\"opacity:0.7;padding:4px 8px\">Nothing tracked yet. Numbers the story states will appear here.</div>';\n  var cell = \"padding:4px 8px;border-bottom:1px solid rgba(128,128,128,0.35);\";\n  var out = '<table style=\"width:100%;border-collapse:collapse;font-size:14px\"><tr><th style=\"text-align:left;' + cell + '\">What</th><th style=\"text-align:right;' + cell + '\">Now</th><th style=\"text-align:right;' + cell + '\">Per day</th></tr>';\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    var now = r.kind === \"timer\" ? (r.amount > 0 ? \"in \" + days(r.amount) : \"\\u2691 now\") : fmt(r.amount);\n    var per = r.kind === \"stock\" && r.perDay ? (r.perDay > 0 ? \"+\" : \"\") + fmt(r.perDay) : \"\\u2014\";\n    out += '<tr><td style=\"text-align:left;' + cell + '\">' + esc(r.name) + '</td><td style=\"text-align:right;' + cell + '\">' + esc(now) + '</td><td style=\"text-align:right;' + cell + '\">' + esc(per) + \"</td></tr>\";\n  }\n  return out + \"</table>\";\n}\nfunction insert(rows) {\n  var parts = [];\n  for (var i = 0; i < rows.length; i++) {\n    var r = rows[i];\n    if (r.kind === \"timer\") parts.push(r.name + (r.amount > 0 ? \" in \" + days(r.amount) : \": now\"));\n    else parts.push(r.name + \" \" + fmt(r.amount) + (r.perDay ? \" (\" + (r.perDay > 0 ? \"+\" : \"\") + fmt(r.perDay) + \" a day)\" : \"\"));\n  }\n  return \"The true numbers, use them and invent no others: \" + parts.join(\"; \") + \".\";\n}\nfunction apply(rows, text) {\n  var passed = 0;\n  var lines = String(text || \"\").split(\"\\n\").slice(0, 20);\n  for (var i = 0; i < lines.length; i++) {\n    var l = lines[i].replace(/\\u2212/g, \"-\").replace(/^[\\s>*`\\u2022-]+/, \"\").replace(/[`*\\s]+$/, \"\");\n    if (!l || /^none\\.?$/i.test(l)) continue;\n    var d = /^days\\s*:\\s*\\+?(\\d{1,3})$/i.exec(l);\n    if (d) { passed += Number(d[1]); continue; }\n    var m = /^(timer\\s+)?(.{1,60}?)(\\s+per\\s+day)?\\s*:\\s*([=+-])\\s*(\\d+(?:[.,]\\d+)?)$/i.exec(l);\n    if (!m || (m[1] && m[3])) continue;\n    var name = clean(m[2]);\n    var n = num(m[5]);\n    if (!name || /^(days|timer)$/i.test(name) || n === null || Math.abs(n) > 1000000000) continue;\n    var r = put(rows, name, m[1] ? \"timer\" : \"stock\");\n    if (r) change(r, m[3] ? \"perDay\" : \"amount\", m[4], n);\n  }\n  if (passed > 0) pass(rows, Math.min(passed, 365));\n}\nvar rows = load(input.book1);\napply(rows, input.lines);\nvar out = { book2: JSON.stringify(rows), html2: table(rows) };\nif (rows.length) out.insert2 = insert(rows);\nreturn out;\n",
+        "inputs": [
+          {
+            "id": "book1",
+            "type": "text"
+          },
+          {
+            "id": "lines",
+            "type": "text"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "book2",
+            "type": "text"
+          },
+          {
+            "id": "html2",
+            "type": "text"
+          },
+          {
+            "id": "insert2",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sb1",
+      "type": "state.set",
+      "x": 520,
+      "y": 320,
+      "title": "Table (yours)",
+      "params": {
+        "field": "book",
+        "as": "text"
+      }
+    },
+    {
+      "id": "sh1",
+      "type": "state.set",
+      "x": 520,
+      "y": 420,
+      "title": "Panel (yours)",
+      "params": {
+        "field": "html",
+        "as": "text"
+      }
+    },
+    {
+      "id": "sb2",
+      "type": "state.set",
+      "x": 1040,
+      "y": 320,
+      "title": "Table (sums)",
+      "params": {
+        "field": "book",
+        "as": "text"
+      }
+    },
+    {
+      "id": "sh2",
+      "type": "state.set",
+      "x": 1040,
+      "y": 420,
+      "title": "Panel (sums)",
+      "params": {
+        "field": "html",
+        "as": "text"
+      }
+    },
+    {
+      "id": "mg",
+      "type": "logic.merge",
+      "x": 1300,
+      "y": 370,
+      "title": "Any write",
+      "params": {
+        "count": 4
+      }
+    },
+    {
+      "id": "log",
+      "type": "agent.output",
+      "x": 1560,
+      "y": 370,
+      "title": "Log",
+      "params": {
+        "kind": "state-patch",
+        "show": "log"
+      }
+    },
+    {
+      "id": "oa",
+      "type": "agent.output",
+      "x": 520,
+      "y": 20,
+      "title": "Hint (no change today)",
+      "params": {
+        "kind": "prompt-insert",
+        "label": "Ledger",
+        "show": "inspector"
+      }
+    },
+    {
+      "id": "ob",
+      "type": "agent.output",
+      "x": 1040,
+      "y": 20,
+      "title": "Hint (after the sums)",
+      "params": {
+        "kind": "prompt-insert",
+        "label": "Ledger",
+        "show": "inspector"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "in:reply",
+      "to": "a:reply"
+    },
+    {
+      "id": "e2",
+      "from": "in:user",
+      "to": "a:user"
+    },
+    {
+      "id": "e3",
+      "from": "rd:value",
+      "to": "a:book"
+    },
+    {
+      "id": "e4",
+      "from": "a:story",
+      "to": "ask:story"
+    },
+    {
+      "id": "e5",
+      "from": "ask:text",
+      "to": "b:lines"
+    },
+    {
+      "id": "e6",
+      "from": "a:book1",
+      "to": "b:book1"
+    },
+    {
+      "id": "e7",
+      "from": "a:book1",
+      "to": "sb1:value"
+    },
+    {
+      "id": "e8",
+      "from": "a:html1",
+      "to": "sh1:value"
+    },
+    {
+      "id": "e9",
+      "from": "b:book2",
+      "to": "sb2:value"
+    },
+    {
+      "id": "e10",
+      "from": "b:html2",
+      "to": "sh2:value"
+    },
+    {
+      "id": "e11",
+      "from": "sb1:done",
+      "to": "mg:i1"
+    },
+    {
+      "id": "e12",
+      "from": "sh1:done",
+      "to": "mg:i2"
+    },
+    {
+      "id": "e13",
+      "from": "sb2:done",
+      "to": "mg:i3"
+    },
+    {
+      "id": "e14",
+      "from": "sh2:done",
+      "to": "mg:i4"
+    },
+    {
+      "id": "e15",
+      "from": "mg:out",
+      "to": "log:in"
+    },
+    {
+      "id": "e16",
+      "from": "a:insert1",
+      "to": "oa:in"
+    },
+    {
+      "id": "e17",
+      "from": "b:insert2",
+      "to": "ob:in"
+    }
+  ]
+}
