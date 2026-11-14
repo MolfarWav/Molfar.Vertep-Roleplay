@@ -205,7 +205,8 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
               </span>
               <span className="min-w-[7rem] flex-1">
                 <span className={cn('block truncate text-xs', it.on && 'font-semibold', !it.on && 'text-muted-foreground')}>{label}</span>
-                <span className={cn('block truncate text-[10px]', st.warn ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+                {/* a warning is read in full (it says what to do), a plain status may be cut */}
+                <span className={cn('block', st.warn ? 'text-xs text-amber-700 dark:text-amber-400' : 'truncate text-[10px] text-muted-foreground')}>
                   {ph && !st.warn ? `${t(`ag.phase.${ph === 'before' && it.wait === false ? 'parallel' : ph}` as 'ag.phase.after')} · ` : ''}{st.text}
                 </span>
               </span>
