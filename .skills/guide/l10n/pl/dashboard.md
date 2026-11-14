@@ -1,4 +1,4 @@
-<!-- source: 8d00981bad28 -->
+<!-- source: b6c59373d069 -->
 # Panel sceny
 
 Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać o tobie myśli, co noszą i co wiedzą, jakie wątki fabularne są otwarte. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
@@ -16,6 +16,8 @@ Liczby (zaufanie, komfort, pociąg, szacunek, czułość i inne) są wyliczane p
 Czyje to uczucie: każda liczba pokazuje, jak dana postać odnosi się do *twojej* postaci, nigdy odwrotnie. Zdarzenia za nimi to to, co robi twoja postać: pocałunek w czoło albo uścisk ogrzewa comfort i affection, tylko romantyczny pocałunek podnosi arousal. Gdy postać krzywdzi twoją postać (zdradza, kłamie, odchodzi), to czyn tej postaci: nie zapisuje się na konto twojej postaci, a sensorowi mówi się, żeby nie obniżał za to zaufania tej postaci do ciebie. Jeśli liczba nadal zmienia się błędnie, zgłoś to jako issue: model sensora to model, a mały może źle odczytać scenę.
 
 **Data i własny kalendarz.** Zegar pokazuje datę pod godziną. Dotknij ołówka obok, aby ustawić datę, ukryć ją albo wrócić do automatycznej. Dla świata fantasy lub isekai, którego miesiące i lata nie są nasze, wybierz **A world with its own calendar…** w tym okienku: nazwij miesiące i podaj liczbę dni każdego (12 miesięcy po 30 dni to jedno dotknięcie), dodaj nazwy dni tygodnia i erę („AR", „of the Third Age"), jeśli chcesz, i podaj datę obecnego dnia historii, w dowolnym roku, także przed zerem. Potem data idzie za licznikiem Day („3 Frostmoon 1204 AR"), pokazuje się na zegarze i w liniach sceny, które czyta model, a tekst historii nigdy jej nie przesuwa. **Use the real calendar** w tym samym oknie przywraca ją z powrotem.
+
+**Jak zegar podąża za historią.** Pisz czas tak, jak byś go opowiedział: "half an hour later", "через годину", "the next day, 9:30", "three days later". Zegar odczytuje te zwroty w twoich kwestiach i w historii (poza wypowiedzią: obietnica w cudzysłowie, "come in an hour", nie jest czasem, który upłynął), a następna odpowiedź od razu widzi nowy czas. Czas, który historia nazywa, to punkt, w którym stoi zegar. Gdy podana jest tylko pora dnia ("the next morning"), zegar pokazuje około 09:00. Mały szary czas nad dużym to poprzedni zegar ("12:51 →" nad "12:56"), a model otrzymuje to samo, z informacją, o ile się przesunął ("5 min after 12:51"). Dzień nie zmienia się, dopóki historia nie przekroczy północy albo nie powie, że to zrobiła. Dla przeskoku, którego wolisz nie rozpisywać, **Skip time...** w menu "+" wysyła go za ciebie.
 
 Przycisk „Story, move" obok Send uzbraja jednorazowe popchnięcie dla następnej odpowiedzi; jego strzałka wybiera otwarty wątek albo zwrot akcji.
 

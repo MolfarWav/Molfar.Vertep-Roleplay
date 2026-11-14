@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Agents et la forge d'agents
 
 Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Il lit une partie de la discussion (avant ou après une réponse, au choix), peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
@@ -55,7 +55,7 @@ Un agent doté d'une carte Script qui manque de temps trois exécutions d'affil�
 
 1. Appuyez sur « Install » (« Update » pour une copie modifiée d'un agent installé ; utilisez « Edit a copy » pour en changer un).
 2. Autorisez-le une fois : « Review permissions », puis « Allow all » ou ligne par ligne. Il s'exécute lorsque chaque ligne est activée. Une mise à jour demandant plus attend une nouvelle autorisation. Une carte Script demande « Run its own small program » ; la liste des autorisations montre son code (« Read the code ») avant que vous l'autorisiez, et si une mise à jour change le code, l'autorisation est redemandée.
-3. Ajoutez-le à une discussion. Dans la pastille d'en-tête de la discussion, ouvrez l'onglet **Agents** : « In this chat » liste les agents actifs, « Installed » liste le reste (choisissez-en un pour l'ajouter). Une ligne peut s'exécuter à nouveau maintenant, être retirée, ou empêcher la réponse de l'attendre. Une nouvelle discussion n'a aucun agent jusqu'à ce que vous en ajoutiez ou choisissiez un ensemble.
+3. Ajoutez-le à une discussion. Dans la pastille d'en-tête de la discussion, ouvrez l'onglet **Agents** : « In this chat » liste les agents actifs, « Installed » liste le reste (choisissez-en un pour l'ajouter). Une ligne peut s'exécuter à nouveau maintenant, être retirée, ou empêcher la réponse de l'attendre. Une nouvelle discussion n'a aucun agent jusqu'à ce que vous en ajoutiez ou choisissiez un ensemble. Un agent qui n'est pas encore autorisé affiche **Allow…** dans sa ligne : cela ouvre immédiatement sa boîte de dialogue d'autorisation. Une ligne peut s'exécuter à nouveau maintenant, être supprimée ou arrêter la réponse qui l'attend.
 
 Un **ensemble** est une liste nommée d'agents (« Save this chat's list as a set » ; « Make default » la donne aux nouvelles discussions). Le tableau « Agent sets » du Canvas montre le coût de chaque ensemble en temps et en appels, et contient l'interrupteur « Agents' notes in chats » qui masque toutes les notes des agents. La place du résultat de chaque agent peut être changée dans l'onglet Agents de la discussion, parmi les places qui lui conviennent.
 

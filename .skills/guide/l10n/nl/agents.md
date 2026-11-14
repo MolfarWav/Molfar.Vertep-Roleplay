@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -55,7 +55,7 @@ Een agent met een Script-kaart die in een chat drie runs op rij te laat klaar is
 
 1. Druk op "Install" ("Update" voor een gewijzigde kopie van een geïnstalleerde agent; gebruik "Edit a copy" om er een te wijzigen).
 2. Sta hem één keer toe: "Review permissions", dan "Allow all" of regel voor regel. Hij draait wanneer elke regel aan staat. Een update die meer vraagt, wacht op een nieuwe Allow. Een Script-kaart vraagt om "Run its own small program"; de lijst met rechten toont de code ("Read the code") voordat je toestaat, en als een update de code wijzigt, wordt de toestemming opnieuw gevraagd.
-3. Voeg hem toe aan een chat. Open in de pil van de chatkop het tabblad **Agents**: "In this chat" toont actieve agents, "Installed" toont de rest (kies er een om hem toe te voegen). Een rij kan nu opnieuw draaien, verwijderd worden, of het antwoord laten stoppen met wachten op hem. Een nieuwe chat heeft geen agents totdat je er een paar toevoegt of een set kiest.
+3. Voeg hem toe aan een chat. Open in de pil van de chatkop het tabblad **Agents**: "In this chat" toont actieve agents, "Installed" toont de rest (kies er een om hem toe te voegen). Een rij kan nu opnieuw draaien, verwijderd worden, of het antwoord laten stoppen met wachten op hem. Een nieuwe chat heeft geen agents totdat je er een paar toevoegt of een set kiest. Een agent die nog niet is toegestaan, toont **Allow…** in zijn rij: daarmee opent meteen het toestemmingsvenster. Een rij kan nu opnieuw worden uitgevoerd, worden verwijderd of het wachtende antwoord stoppen.
 
 Een **set** is een benoemde lijst agents ("Save this chat's list as a set"; "Make default" geeft hem aan nieuwe chats). Het bord "Agent sets" van het Canvas toont de kosten per set in tijd en aanroepen, en bevat de schakelaar "Agents' notes in chats" die alle notities van agents verbergt. De resultaatplek van elke agent kan in het tabblad Agents van de chat worden gewijzigd, uit de plekken die bij hem passen.
 

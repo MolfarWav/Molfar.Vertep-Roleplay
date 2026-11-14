@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -55,7 +55,7 @@ Agent z kartą Script, któremu w czacie trzy przebiegi z rzędu skończą się 
 
 1. Naciśnij „Install” („Update” dla zmienionej kopii zainstalowanego agenta; aby coś zmienić, użyj „Edit a copy”).
 2. Zgódź się raz: „Review permissions”, potem „Allow all” lub pozycja po pozycji. Agent działa, gdy każda linia jest włączona. Aktualizacja prosząca o więcej czeka na nową zgodę. Karta Script prosi o „Run its own small program”; lista zgód pokazuje jej kod („Read the code”), zanim na nią pozwolisz, a jeśli aktualizacja zmienia kod, zgoda jest pytana ponownie.
-3. Dodaj go do czatu. W pigułce nagłówka czatu otwórz kartę **Agents**: „In this chat” pokazuje aktywnych agentów, „Installed” pokazuje pozostałych (wybierz jednego, aby go dodać). Wiersz może uruchomić się ponownie teraz, zostać usunięty lub zatrzymać czekającą na niego odpowiedź. Nowy czat nie ma agentów, dopóki ich nie dodasz lub nie wybierzesz zestawu.
+3. Dodaj go do czatu. W pigułce nagłówka czatu otwórz kartę **Agents**: „In this chat” pokazuje aktywnych agentów, „Installed” pokazuje pozostałych (wybierz jednego, aby go dodać). Wiersz może uruchomić się ponownie teraz, zostać usunięty lub zatrzymać czekającą na niego odpowiedź. Nowy czat nie ma agentów, dopóki ich nie dodasz lub nie wybierzesz zestawu. Agent, który nie jest jeszcze dozwolony, pokazuje **Allow…** w swoim wierszu: od razu otwiera okno uprawnień. Wiersz może teraz zostać uruchomiony ponownie, usunięty lub zatrzymać oczekującą na niego odpowiedź.
 
 **Zestaw** to nazwana lista agentów („Save this chat's list as a set”; „Make default” daje go nowym czatom). Plansza „Agent sets” w Canvas pokazuje koszt każdego zestawu w czasie i wywołaniach, a także przełącznik „Agents' notes in chats”, który ukrywa notatki wszystkich agentów. Miejsce wyniku każdego agenta można zmienić na karcie Agents czatu, spośród miejsc, które mu pasują.
 
