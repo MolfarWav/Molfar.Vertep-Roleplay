@@ -121,17 +121,19 @@ describe("calendar arithmetic", () => {
 
 describe("the clock", () => {
   it("never goes back a day, and a part of the day starts a running clock marked approximate", () => {
+    // the first reading names a part of the day: the clock starts at that part's start (the minutes are not added on top)
     const t = P.advanceClock(null, { time: "evening", day: 4, minutes: 25 }, "send");
-    expect(t).toMatchObject({ day: 4, time: "19:25", band: "evening", approx: true });
+    expect(t).toMatchObject({ day: 4, time: "19:00", band: "evening", approx: true });
     // a model that writes "day 1" in a continued chat does not reset the count
-    expect(P.advanceClock(t, { day: 1, minutes: 5 }, "send")).toMatchObject({ day: 4, time: "19:30" });
-    // the same part of the day again: the clock stands; another part sets it to that part's start
-    expect(P.advanceClock(t, { time: "evening", minutes: 5 }, "send")).toMatchObject({ time: "19:30", approx: true });
+    expect(P.advanceClock(t, { day: 1, minutes: 5 }, "send")).toMatchObject({ day: 4, time: "19:05" });
+    // the same part of the day again: the clock stands and the minutes move it; another part sets it to that part's start
+    expect(P.advanceClock(t, { time: "evening", minutes: 5 }, "send")).toMatchObject({ time: "19:05", approx: true });
     expect(P.advanceClock(t, { time: "night" }, "send")).toMatchObject({ time: "23:00", band: "night", approx: true });
-    // an exact time is not approximate, and past midnight the day moves
+    // an exact time is not approximate, and is where the clock stands; past midnight the minutes move the day
     const exact = P.advanceClock(t, { time: "23:40", minutes: 30 }, "send");
-    expect(exact).toMatchObject({ day: 5, time: "00:10", band: "night" });
+    expect(exact).toMatchObject({ day: 4, time: "23:40", band: "night" });
     expect(exact.approx).toBeUndefined();
+    expect(P.advanceClock(exact, { minutes: 30 }, "send")).toMatchObject({ day: 5, time: "00:10", band: "night" });
     // nothing known: no clock is made up
     expect(P.advanceClock(null, { minutes: 5 }, "send").time).toBeNull();
   });
@@ -145,7 +147,7 @@ describe("the chat's calendar", () => {
     const s = readStateFile("c1");
     expect(s.calendar).toEqual({ start: today, src: "today" });
     let v = view(mock, "c1");
-    expect(v.view.clock).toMatchObject({ day: 1, time: "19:10", approx: true, date: today });
+    expect(v.view.clock).toMatchObject({ day: 1, time: "19:00", approx: true, date: today });
     expect(v.view.calendar).toEqual({ source: "today", off: false });
     // eight hours later it is the next day
     writeChat("c1", [...three(), A("m4", "Later."), U("m5", "Sleep.")]);

@@ -662,6 +662,19 @@ const EVENT_DEEDS_RULE =
 const EVENT_CONTACT_RULE =
   "- Pick a contact event by what the text shows. A kiss on the forehead, cheek or hand, or a quick friendly one is \"tender_kiss\"; \"kiss\" is only a romantic kiss; a hug or being held is \"hug\". Never use a romantic or sexual event for tender or friendly contact.";
 
+// How the sensor reports story time (the Scene block). time is where the clock stands at the END of the new messages and code does
+// not add minutes on top of it; a duration the text states is the number of minutes; a day only when the text jumps over days.
+const CLOCK_RULES = [
+  "- minutes: story time that passed in the new messages. When the text says how long, in any language (\"half an hour later\", \"a night passed\"), that is the number. Otherwise estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time: what the clock shows at the end of the new messages, only when the text names or clearly implies it (\"at 9:30\", \"the next morning\", \"at noon\", \"evening\"): HH:MM, or a part of the day. Never copy the time of the Previous state and never guess one. When you give time, code takes it as it is and adds no minutes to it.",
+  "- day: the day number at the end of the new messages, only when the text jumps over days (\"the next day\", \"three days later\", \"day 5\"). Passing midnight is not a jump: code counts it from the clock. Sleeping through a night is not a new day unless the text says so.",
+];
+// The Scene lines of the sensor prompt before the clock rules above (a stored copy of that prompt follows the current default).
+const CLOCK_RULES_22 = [
+  "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
+  "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+];
+
 export const DEFAULT_PROMPTS = {
   sensor: [
     "You are the scene sensor of an ongoing roleplay story. Read the New messages and the Previous state, and report what happened in the new messages. Code turns your report into numbers. You never give numbers for relationships. The only number you give is \"minutes\".",
@@ -685,8 +698,7 @@ export const DEFAULT_PROMPTS = {
     "- Use the ids exactly as written in the vocabulary. Nothing in it fits: use \"other\". Never stretch an id to fit.",
     "",
     "Scene:",
-    "- minutes: story time that passed in the new messages. Estimate it from what happens: a few lines of talk 2-5, a meal 20-40, a walk across a castle 10-20, a night's sleep 480. 0 only when nothing happens (for example a continuation of the same moment).",
-    "- time and day: only when the text states them (\"evening\", \"19:40\", \"day 3\").",
+    ...CLOCK_RULES,
     "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list of the other characters, never the user's character itself, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
@@ -745,7 +757,9 @@ export const DEFAULT_PROMPTS = {
 };
 // The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
 // The twenty-first sensor prompt (before quests got a "done when" and closed when done, failed or dropped, #400).
-const SENSOR_PROMPT_21 = DEFAULT_PROMPTS.sensor.replace(["Threads:", ...QUEST_RULES_2].join("\n"), THREADS_BLOCK_21);
+// The twenty-second sensor prompt (before the clock rules: a duration the text states, time as the end of the messages, a day only for a jump; Molfar.Vertep#406).
+const SENSOR_PROMPT_22 = DEFAULT_PROMPTS.sensor.replace(CLOCK_RULES.join("\n"), CLOCK_RULES_22.join("\n"));
+const SENSOR_PROMPT_21 = SENSOR_PROMPT_22.replace(["Threads:", ...QUEST_RULES_2].join("\n"), THREADS_BLOCK_21);
 const SENSOR_PROMPT_20 = SENSOR_PROMPT_21.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
 // The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
 const SENSOR_PROMPT_19 = SENSOR_PROMPT_20.replace(LAYOUT_RULE, LAYOUT_RULE_19);
@@ -818,7 +832,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -4259,6 +4273,9 @@ function askLeakCheck(host, ctx) {
   });
 }
 
+/** What the new messages say about time (readTimeWords): from the player's lines only (they move the story's clock), or from all of them (the sensor's hint). */
+const timeHintOf = (msgs, onlyUser) => readTimeWords(arr(msgs).filter((m) => !onlyUser || (m && m.role === "user")).map((m) => str(m && m.text)).join("\n"));
+
 function sensorUser(ctx) {
   return [
     castText(ctx),
@@ -4268,6 +4285,7 @@ function sensorUser(ctx) {
     ...[backdropText(ctx)].filter(Boolean),
     ...[leakCheckText(ctx)].filter(Boolean),
     ...scanBlocks(ctx),
+    ...[timeWordsText(timeHintOf(ctx.newMsgs, false))].filter(Boolean),
     newMessagesText(ctx.newMsgs, storyView(ctx.fsx, ctx.meta)),
   ].join("\n\n");
 }
@@ -4439,33 +4457,67 @@ const pad2 = (n) => (n < 10 ? "0" : "") + n;
 const BAND_ANCHOR = { dawn: 6 * 60, morning: 9 * 60, "late morning": 11 * 60, day: 14 * 60, evening: 19 * 60, night: 23 * 60 };
 const hhmm = (total) => pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
 
-/** The clock after this turn. Minutes move a known time, rolling over midnight. */
-export function advanceClock(prevClock, out, op) {
+/**
+ * The clock after this turn.
+ *
+ * `time` is what the clock shows at the END of the new messages, so a time the text names is where the clock stands and the
+ * minutes are not added on top of it (a sensor that wrote "morning" and 480 minutes for a night's sleep made 09:00 + 8 h = 17:00,
+ * and the next "next morning" then jumped a day). Minutes move the clock only when no new time is named, or when the time named
+ * is the one the Previous state already shows (a copy, not news). A part of the day the minutes already reach is taken as
+ * that moment, not the start of the part. `hint` is what readTimeWords found in the story text: a jump of more than one
+ * day needs words behind it (a sensor that invents "day 3" after a night's sleep moves the day by one at most).
+ */
+export function advanceClock(prevClock, out, op, hint) {
   const c = { day: 1, time: null, minutes: 0, band: null, place: null, weather: null, ...(prevClock || {}) };
   // the date is worked out from the chat's calendar when the clock is read, never kept in a snapshot
   delete c.date;
   const prevDay = c.day;
   const prevTotal = c.time ? Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]) : null;
+  const m = num(out.minutes);
+  const mins = op === "continue" || !Number.isFinite(m) ? 0 : clamp(Math.round(m), 0, MAX_MINUTES);
   const day = num(out.day);
   // the day count only goes forward: a model that writes "day 1" in a continued chat does not set it back
-  if (Number.isFinite(day) && day >= c.day) c.day = Math.floor(day);
+  if (Number.isFinite(day) && day >= c.day) {
+    const said = hint ? Math.max(Math.floor(Number(hint.dayNo) || 0), c.day + Math.floor(Number(hint.days) || 0)) : 0;
+    c.day = Math.min(Math.floor(day), hint && prevClock ? Math.max(c.day + 1, said) : Infinity);
+  }
   // where the time the text states falls on the clock (minutes after midnight), or null when it states none
   let stated = null;
+  // the clock was set by a time the text named: the minutes do not move it again
+  let fixed = false;
   const t = str(out.time);
   const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
   if (hm && Number(hm[1]) < 24 && Number(hm[2]) < 60) {
-    c.time = pad2(Number(hm[1])) + ":" + hm[2];
-    stated = Number(hm[1]) * 60 + Number(hm[2]);
-    delete c.approx;
+    const at = Number(hm[1]) * 60 + Number(hm[2]);
+    // the Previous state's own exact time written back is not news: the minutes move it
+    if (!(prevTotal !== null && at === prevTotal && c.approx !== true)) {
+      c.time = pad2(Number(hm[1])) + ":" + hm[2];
+      stated = at;
+      fixed = true;
+      delete c.approx;
+    }
   } else if (BAND_WORDS.includes(t.toLowerCase())) {
     const band = t.toLowerCase();
     // the part of the day the clock already shows stands; another part sets the clock to that part's start
     if (!(c.time && bandOfHour(Number(c.time.split(":")[0])) === band)) {
+      const reach = prevTotal !== null && mins > 0 ? prevTotal + mins : null;
+      if (reach !== null && bandOfHour(Math.floor((reach % 1440) / 60)) === band) {
+        // the minutes land inside that part: that moment, not its start
+        if (c.day === prevDay) c.day += Math.floor(reach / 1440);
+        c.time = hhmm(reach % 1440);
+        c.approx = true;
+        stated = reach % 1440;
+      } else {
+        c.time = null;
+        stated = BAND_ANCHOR[band];
+      }
       c.band = band;
-      c.time = null;
-      stated = BAND_ANCHOR[band];
+      fixed = true;
     }
   }
+  // a new day the sensor claims while the time it names is later than the clock's (no midnight between), and no word in the text
+  // jumps a day, is an invented day: sleeping through a night is not a new day (the sensor wrote "day 3" after a sleep in day 2)
+  if (hint && !(hint.days > 0) && stated !== null && prevTotal !== null && c.day === prevDay + 1 && stated > prevTotal && !(hint.dayNo >= c.day)) c.day = prevDay;
   // a time of day well before the clock's, with no new day number: the story went past midnight ("the next morning",
   // "07:00" after 23:00). Without this the clock rewinds inside the same day and every date after it is a day short (#207).
   // A small step back is the sensor correcting itself and stays on the same day.
@@ -4474,12 +4526,17 @@ export function advanceClock(prevClock, out, op) {
     c.time = hhmm(BAND_ANCHOR[c.band]);
     c.approx = true;
   }
-  const m = num(out.minutes);
-  c.minutes = op === "continue" || !Number.isFinite(m) ? 0 : clamp(Math.round(m), 0, MAX_MINUTES);
-  if (c.time) {
+  c.minutes = mins;
+  if (c.time && fixed) {
+    const total = Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]);
+    c.band = bandOfHour(Math.floor(total / 60));
+    // what the minutes field shows: how far the clock really moved
+    if (prevTotal !== null) c.minutes = clamp((c.day - prevDay) * 1440 + total - prevTotal, 0, MAX_MINUTES);
+  } else if (c.time) {
     const parts = c.time.split(":");
     const total = Number(parts[0]) * 60 + Number(parts[1]) + c.minutes;
-    c.day += Math.floor(total / 1440);
+    // a day the sensor already moved this turn is the midnight these minutes cross: not counted twice
+    if (c.day === prevDay) c.day += Math.floor(total / 1440);
     const rest = total % 1440;
     c.time = pad2(Math.floor(rest / 60)) + ":" + pad2(rest % 60);
     c.band = bandOfHour(Math.floor(rest / 60));
@@ -4487,6 +4544,207 @@ export function advanceClock(prevClock, out, op) {
   if (str(out.place)) c.place = cut(str(out.place), 200);
   if (str(out.weather)) c.weather = cut(str(out.weather), 200);
   return c;
+}
+
+// lexicon:start (the words of time in Ukrainian, Russian and English: data, the one place the plugin source may hold other scripts)
+// ---------- time words in the story text (Ukrainian, Russian, English) ----------
+// The sensor is a small model and often reads "half an hour later" or "the next day at 9:30" as nothing, and the story model
+// writes its next reply before the sensor has seen the player's line. Code reads the plain, explicit phrases itself, outside
+// direct speech (a promise in a line of dialogue is not time that passed): how long ("через півгодини", "two hours later"), a
+// time ("о 9:30", "at 9 pm"), a jump of days ("наступного ранку", "three days later"). The result is a hint for the sensor, a
+// fallback for what it missed, and the clock of the next reply while the sensor has not read the player's line.
+const L0 = "(?<![\\p{L}\\p{N}])";
+const L1 = "(?![\\p{L}\\p{N}])";
+const NUMBER_WORDS = {
+  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  fifteen: 15, twenty: 20, thirty: 30, forty: 40, "forty-five": 45, sixty: 60, пару: 2,
+  один: 1, одну: 1, одна: 1, два: 2, дві: 2, три: 3, чотири: 4, "п'ять": 5, шість: 6, сім: 7, вісім: 8, "дев'ять": 9, десять: 10,
+  одинадцять: 11, дванадцять: 12, "п'ятнадцять": 15, двадцять: 20, тридцять: 30, сорок: 40,
+  две: 2, четыре: 4, пять: 5, шесть: 6, семь: 7, восемь: 8, девять: 9, одиннадцать: 11, двенадцать: 12, пятнадцать: 15,
+  двадцать: 20, тридцать: 30,
+};
+const UNIT_KIND = {
+  m: "хвилину хвилини хвилин хвилина хв минуту минуты минут минута мин minute minutes min mins",
+  h: "годину години годин година час часа часов hour hours hr hrs",
+  d: "день дня дні днів дней добу доби діб сутки суток day days",
+  w: "тиждень тижні тижнів тижня неделю недели недель неделя week weeks",
+};
+// the unit words that stand for one when no number comes before them ("через годину")
+const UNIT_ONE = new Set("хвилину минуту minute хвилина минута годину година час hour день добу сутки day тиждень неделю week".split(" "));
+const unitKindOf = (w) => Object.keys(UNIT_KIND).find((k) => UNIT_KIND[k].split(" ").includes(w)) || null;
+const POD = "ранку|вечора|ночі|дня|утра|вечера|ночи|am|pm|a\\.m\\.|p\\.m\\.";
+const PREP = "(?:о|об|в|у|к|коло|близько|около|приблизно|about|at|around|by)";
+const NUM_RE = "(\\d{1,3}|" + Object.keys(NUMBER_WORDS).sort((a, b) => b.length - a.length).join("|") + ")";
+const AFTER = "(?:через|спустя|після|после|after)";
+const FILLER = "(?:(?:буквально|ровно|примерно|приблизно|около|about|just|only|almost)\\s+)?";
+const RE_THROUGH = new RegExp(L0 + AFTER + "\\s+" + FILLER + "(?:" + NUM_RE + "\\s+)?(\\p{L}{2,12})" + L1, "gu");
+const RE_LATER = new RegExp(L0 + "(?<!half\\s)" + NUM_RE + "\\s+(\\p{L}{2,12})\\s+(?:later|passed|went by|пізніше|позже)" + L1, "gu");
+const RE_PASSED = new RegExp(L0 + "(?:минуло|минула|минули|пройшло|пройшла|пройшли|прошло|прошла|прошли|passed|elapsed)\\s+(?:" + NUM_RE + "\\s+)?(\\p{L}{2,12})" + L1, "gu");
+const RE_HALF = new RegExp(L0 + "(?:" + AFTER + "\\s+(?:пів\\s?години|півгодини|полчаса|пол\\s?часа|half an hour)|half an hour (?:later|passed))" + L1, "gu");
+const RE_HALF_MORE = new RegExp(L0 + "(?:" + AFTER + "\\s+(?:півтори\\s+години|полтора\\s+часа|an hour and a half)|an hour and a half later)" + L1, "gu");
+const RE_CLOCK = new RegExp(L0 + PREP + "\\s+(\\d{1,2}):(\\d{2})(?!\\d)(?:\\s*(" + POD + "))?", "gu");
+const RE_POD = new RegExp(L0 + PREP + "\\s+(\\d{1,2})(?:[.:](\\d{2}))?(?!\\d)\\s*(?:(?:годин\\p{L}*|год\\.?|o'clock|часов|часа|час)\\s*)?(" + POD + ")" + L1, "gu");
+const RE_NIGHT = new RegExp(L0 + "(?:опівночі|в\\s+полночь|at\\s+midnight)" + L1, "gu");
+const RE_NOON = new RegExp(L0 + "(?:опівдні|в\\s+полдень|at\\s+noon)" + L1, "gu");
+const RE_NEXT_UK_RU = new RegExp(
+  L0 + "(?:на\\s+)?(?:наступн(?:ого|ий|ому|а|е|у)|следующ(?:его|ий|ем|ую|ему|ее|ей))\\s+(дня|день|ранку|ранок|вечора|вечір|вечером|вечер|утром|утра|утро|ночі|ночь|дні)" + L1, "gu");
+const RE_NEXT_EN = new RegExp(L0 + "(?:the\\s+)?(?:next|following)\\s+(day|morning|evening|afternoon|night)" + L1, "gu");
+const RE_NEXT_OTHER = new RegExp(L0 + "(?:наутро|на\\s+другий\\s+день|на\\s+другой\\s+день|the\\s+day\\s+after)" + L1, "gu");
+const RE_DAYNO = new RegExp(L0 + "(?:день|day|дня)\\s+(\\d{1,4})" + L1, "gu");
+const NEXT_BAND = { ранку: "morning", ранок: "morning", утром: "morning", утра: "morning", утро: "morning", morning: "morning", вечора: "evening", вечір: "evening", вечером: "evening", вечер: "evening", evening: "evening", ночі: "night", ночь: "night", night: "night" };
+
+/** The text with direct speech, and the spaces a model writes as braille blanks, taken out; lower case. */
+function outsideSpeech(text) {
+  let s = String(text || "").replace(/[⠀ ​ ]/g, " ").replace(/[’ʼ`´]/g, "'");
+  s = s.replace(/"[^"\n]{0,800}"/g, " ").replace(/“[^”\n]{0,800}”/g, " ").replace(/«[^»\n]{0,800}»/g, " ").replace(/„[^“”\n]{0,800}[“”]/g, " ");
+  s = s.replace(/^[ \t]*[—–][^\n]*$/gm, " ");
+  return s.toLowerCase();
+}
+
+/** A time said with a part of the day ("9 pm", "о 9 ранку") as hours and minutes, or null when it is not a time. */
+function clock24(h, mi, pod) {
+  let hour = h;
+  if (pod === "pm" || pod === "p.m." || pod === "вечора" || pod === "вечера") {
+    if (hour < 12) hour += 12;
+  } else if (pod === "дня") {
+    if (hour >= 1 && hour <= 6) hour += 12;
+  } else if (pod === "ночі" || pod === "ночи") {
+    if (hour === 12) hour = 0;
+    else if (hour >= 6 && hour < 12) hour += 12;
+  } else if (pod === "ранку" || pod === "утра" || pod === "am" || pod === "a.m.") {
+    if (hour === 12) hour = 0;
+  }
+  return hour < 24 && mi < 60 ? pad2(hour) + ":" + pad2(mi) : null;
+}
+
+/**
+ * What the story text says about time: { minutes, time, days, band, dayNo, nextBand, hits }. `minutes` is how long it says passed,
+ * `time` an exact time it names ("HH:MM", the last one), `days` how many days it jumps, `band` the part of the day a "next
+ * morning" names, `dayNo` a day number it writes ("day 5"), `hits` the phrases with what each means (for the sensor's hint).
+ */
+export function readTimeWords(text) {
+  const s = outsideSpeech(text);
+  const out = { minutes: 0, time: null, days: 0, band: null, dayNo: 0, nextBand: null, hits: [] };
+  if (!s.trim()) return out;
+  const hit = (raw, says) => out.hits.push({ text: raw.replace(/\s+/g, " ").trim().slice(0, 60), says });
+  let nextDays = 0;
+  let spanDays = 0;
+  const span = (raw, n, word) => {
+    const kind = unitKindOf(word);
+    if (!kind || !(n >= 1)) return;
+    if (kind === "m") {
+      out.minutes += n;
+      hit(raw, n + (n === 1 ? " minute" : " minutes"));
+    } else if (kind === "h") {
+      out.minutes += n * 60;
+      hit(raw, n + (n === 1 ? " hour" : " hours"));
+    } else {
+      const d = kind === "w" ? n * 7 : n;
+      spanDays += d;
+      hit(raw, d + (d === 1 ? " day" : " days"));
+    }
+  };
+  const count = (numRaw, word) => {
+    if (numRaw === undefined) return UNIT_ONE.has(word) ? 1 : 0;
+    const n = /^\d+$/.test(numRaw) ? Number(numRaw) : NUMBER_WORDS[numRaw];
+    return Number.isFinite(n) ? n : 0;
+  };
+  for (const m of s.matchAll(RE_THROUGH)) span(m[0], count(m[1], m[2]), m[2]);
+  for (const m of s.matchAll(RE_LATER)) span(m[0], count(m[1], m[2]), m[2]);
+  for (const m of s.matchAll(RE_PASSED)) span(m[0], count(m[1], m[2]), m[2]);
+  for (const m of s.matchAll(RE_HALF)) {
+    out.minutes += 30;
+    hit(m[0], "30 minutes");
+  }
+  for (const m of s.matchAll(RE_HALF_MORE)) {
+    out.minutes += 90;
+    hit(m[0], "90 minutes");
+  }
+  // an exact time: the last one the text names stands for where the story is now
+  const at = [];
+  const seen = new Set();
+  for (const m of s.matchAll(RE_CLOCK)) {
+    seen.add(m.index);
+    const v = clock24(Number(m[1]), Number(m[2]), m[3] || "");
+    if (v) at.push({ i: m.index, v, raw: m[0] });
+  }
+  for (const m of s.matchAll(RE_POD)) {
+    if (seen.has(m.index)) continue;
+    const v = clock24(Number(m[1]), m[2] ? Number(m[2]) : 0, m[3]);
+    if (v) at.push({ i: m.index, v, raw: m[0] });
+  }
+  for (const m of s.matchAll(RE_NIGHT)) at.push({ i: m.index, v: "00:00", raw: m[0] });
+  for (const m of s.matchAll(RE_NOON)) at.push({ i: m.index, v: "12:00", raw: m[0] });
+  at.sort((a, b) => a.i - b.i);
+  for (const a of at) hit(a.raw, a.v);
+  if (at.length) out.time = at[at.length - 1].v;
+  // a jump to the next day, with the part of the day it names
+  for (const m of s.matchAll(RE_NEXT_UK_RU)) {
+    nextDays = 1;
+    out.nextBand = NEXT_BAND[m[1]] || out.nextBand;
+    hit(m[0], "the next " + (NEXT_BAND[m[1]] || "day"));
+  }
+  for (const m of s.matchAll(RE_NEXT_EN)) {
+    nextDays = 1;
+    out.nextBand = NEXT_BAND[m[1]] || out.nextBand;
+    hit(m[0], "the next " + (NEXT_BAND[m[1]] || "day"));
+  }
+  for (const m of s.matchAll(RE_NEXT_OTHER)) {
+    nextDays = 1;
+    if (/наутро/.test(m[0])) out.nextBand = "morning";
+    hit(m[0], "the next day");
+  }
+  for (const m of s.matchAll(RE_DAYNO)) out.dayNo = Math.max(out.dayNo, Number(m[1]));
+  out.days = Math.max(nextDays, spanDays);
+  out.band = out.nextBand;
+  return out;
+}
+
+// lexicon:end
+
+/**
+ * The hint as it stands against this clock: "the next morning" right after midnight (before five) is the morning of the same
+ * calendar day, so it adds no day.
+ */
+export function settleHint(prevClock, hint) {
+  if (!hint || hint.days !== 1 || hint.nextBand !== "morning" || !prevClock || !prevClock.time) return hint;
+  const t0 = Number(prevClock.time.split(":")[0]) * 60 + Number(prevClock.time.split(":")[1]);
+  return t0 < 300 ? { ...hint, days: 0 } : hint;
+}
+
+/**
+ * The sensor's report with what the text says put into it: a duration the text states is the minutes when it is longer than
+ * the sensor's, a time it names is the time, a jump of days the day. "The next morning" right after midnight (before five) is
+ * the same calendar day's morning, so it adds no day.
+ */
+export function withTimeHints(out, prevClock, hint) {
+  if (!hint || !arr(hint.hits).length) return out;
+  const o = { ...out };
+  const day0 = Number(prevClock && prevClock.day) || 1;
+  const days = hint.days;
+  if (days > 0) {
+    const d = num(o.day);
+    if (!Number.isFinite(d) || d < day0 + days) o.day = day0 + days;
+  }
+  if (hint.time) o.time = hint.time;
+  else if (hint.band && !/^\d{1,2}:\d{2}$/.test(str(o.time))) o.time = hint.band;
+  if (hint.minutes > 0) {
+    const m = num(o.minutes);
+    o.minutes = Number.isFinite(m) ? Math.max(m, hint.minutes) : hint.minutes;
+    // a part of the day the sensor named while the text only says how long it took is the sensor's guess
+    if (!hint.time && !hint.band && BAND_WORDS.includes(str(o.time).toLowerCase())) delete o.time;
+  }
+  return o;
+}
+
+/** The "Time words" block of the sensor input, or "" when the text names none. */
+function timeWordsText(hint) {
+  if (!hint || !hint.hits.length) return "";
+  return [
+    "Time words",
+    "Code found these time phrases in the new messages, outside direct speech. They are hints, not facts: use one for minutes, time or day only when it tells how much story time passed or what time it is now, never when it is a plan or a promise for later.",
+    ...hint.hits.slice(0, 8).map((h) => "- \"" + h.text + "\" = " + h.says),
+  ].join("\n");
 }
 
 // ---------- the calendar (#113): a date for the day counter ----------
@@ -6268,7 +6526,9 @@ function applySensor(ctx, out, op, model, unknownIds) {
   applyBeliefEnd(ctx, out, turn, K);
   applyJournal(ctx, out, present, turn, K);
   applyNames(ctx, out, present, turn, K);
-  const clock = advanceClock(B && B.clock, out, op);
+  // what the player's own lines say about time (how long, what time, a jump of days) wins over a sensor that missed it
+  const timeHint = settleHint(B && B.clock, timeHintOf(ctx.newMsgs, true));
+  const clock = advanceClock(B && B.clock, withTimeHints(out, B && B.clock, timeHint), op, timeHint);
   noteCalendar(state, clock.day, out.date, ctx.today);
   const prevLayout = isObj(B && B.layout) ? B.layout : {};
   // one place for every thing: what a character reports in `see` this turn leaves where it was
@@ -6951,14 +7211,33 @@ export function estimateTokensScript(text) {
   return Math.ceil(ascii / 3.5 + alpha / 2 + other);
 }
 
-function dayWords(clock, cal) {
+const minutesOfClock = (c) => Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]);
+
+/**
+ * How far the clock moved since an earlier one, in words ("5 min after 12:51", "7 h 30 min after 19:00 the day before"), or "" when
+ * either has no hour or the clock did not move forward. The story model reads time as a running thing, not as a bare number.
+ */
+export function sinceWords(prev, clock) {
+  if (!isObj(prev) || !isObj(clock) || !str(prev.time) || !str(clock.time)) return "";
+  const days = (Number(clock.day) || 1) - (Number(prev.day) || 1);
+  const min = days * 1440 + minutesOfClock(clock) - minutesOfClock(prev);
+  if (!(min > 0)) return "";
+  const span = min < 60 ? min + " min" : min < 2880 ? Math.floor(min / 60) + " h" + (min % 60 ? " " + (min % 60) + " min" : "") : Math.round(min / 1440) + " days";
+  // a time worked out from a part of the day is only about that
+  const loose = prev.approx === true || clock.approx === true;
+  return (loose ? "about " : "") + span + " after " + (prev.approx === true ? "about " : "") + prev.time + (days === 1 ? " the day before" : "");
+}
+
+function dayWords(clock, cal, prevClock) {
   const day = Number(clock && clock.day) || 1;
   const date = dateTextOf(cal, day);
   if (date) {
     // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
     // ("it is already noon" while the Dashboard said about 09:00, #207)
     const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
-    return date + hour + (clock && clock.band ? ", " + clock.band : "");
+    // and how far it moved since the clock before, so the model sees time running: "12:56 (5 min after 12:51)"
+    const since = sinceWords(prevClock, clock);
+    return date + hour + (since ? " (" + since + ")" : "") + (clock && clock.band ? ", " + clock.band : "");
   }
   // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
@@ -7058,7 +7337,7 @@ function feelingsLine(c, user, who) {
 }
 
 /** Day, place and who is there: once, above the characters. */
-function sceneLine(snap, user, cal) {
+function sceneLine(snap, user, cal, prevClock) {
   const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
   const away = (n) => snap.chars && snap.chars[n] && CONTACT_WORDS[snap.chars[n].contact];
   const here = arr(snap.present).filter((n) => !away(n));
@@ -7077,7 +7356,7 @@ function sceneLine(snap, user, cal) {
     else merged.push({ kind: s.kind, names: [...s.names] });
   }
   const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." + merged.map((s) => " " + remoteSenses(s.kind, s.names, user)).join("") : "";
-  return "[Background, the scene: " + dayWords(snap.clock, cal) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
+  return "[Background, the scene: " + dayWords(snap.clock, cal, prevClock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
 /** The most ties the insert names (#184 P8): a handful, so a big cast costs about 60 tokens, not a roll call. */
@@ -7330,6 +7609,29 @@ export function saidBlock(state, keys, holders, maxTokens, ov) {
   return lines.join("\n");
 }
 
+/** The player's lines after the newest snapshot, up to the reply being written: the text the sensor has not read yet. */
+function unsensedUserText(line, at, turn) {
+  const end = (turn.op === "swipe" || turn.op === "continue") && turn.targetId ? line.findIndex((l) => l.msg.id === turn.targetId) : -1;
+  const upto = end >= 0 ? end : line.length;
+  const from = at.key === INHERIT_KEY ? 0 : line.findIndex((l) => l.key === at.key) + 1;
+  const texts = line.slice(Math.max(0, from), upto).filter((l) => l.msg.role === "user").map((l) => str(l.msg.text)).filter(Boolean).slice(-3);
+  // a new line the chat file does not hold yet is the request's own
+  if (!texts.length && turn.op === "send" && str(turn.userText)) texts.push(str(turn.userText));
+  return texts.join("\n");
+}
+
+/**
+ * The snapshot the scene line is written from: the newest one, with its clock moved by what the player's unread line says about
+ * time ("an hour later", "the next day at 9:30"). Only the clock changes, and only for this prompt: the sensor reads the line after
+ * the reply and keeps or corrects it. Without it the story model wrote against a clock the player's own words already contradicted.
+ */
+function provisionalClock(snap, line, at, turn) {
+  const prev = isObj(snap.clock) ? snap.clock : null;
+  const hint = settleHint(prev, readTimeWords(unsensedUserText(line, at, turn)));
+  if (!hint.hits.length) return snap;
+  return { ...snap, clock: advanceClock(prev, withTimeHints({}, prev, hint), "send", hint) };
+}
+
 export function buildInsert(fsx, chatId, turn, cfg) {
   if (turn.op === "impersonate") return null;
   const chat = readChat(fsx, chatId);
@@ -7342,6 +7644,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const { names: cards, souls } = chatCharacters(fsx, chat.meta);
   // what the user removed and a second name of one soul never reach the prompt
   const snap = withoutNames(at.snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(at.snap.chars))]);
+  // the clock of the scene line: the player's newest line is in no snapshot yet (the sensor reads it after the reply)
+  const clockSnap = provisionalClock(snap, line, at, turn);
+  // the clock it moved from: the newest snapshot's own when the player's line moved it, else the snapshot before it
+  const before = clockSnap !== snap ? snap.clock : (() => {
+    const j = nearestSnapshot(state, at.keys, at.keys.length - 1);
+    return j >= 0 && isObj(state.snapshots[at.keys[j]]) ? state.snapshots[at.keys[j]].clock : null;
+  })();
   const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
@@ -7385,13 +7694,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const layoutText = cfg.layout && cfg.layout.inject === false ? "" : layoutBlock(ctx, present, focus);
   // the ties between the people here, only where a notebook may show too: a group that cannot say who speaks gets none
   const edgesText = notesFor.length ? edgesLine(snap, present, speaker, focus) : "";
-  const shared = estimateTokens(sceneLine(snap, ctx.user, ctx.calendar) + threads + layoutText + edgesText + CLOSING);
+  const shared = estimateTokens(sceneLine(clockSnap, ctx.user, ctx.calendar, before) + threads + layoutText + edgesText + CLOSING);
   const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   // a character with no pinned note shows no notebook line once the limit is 0
   const hasPinned = (n) => arr(ctx.notebook[n]).some((x) => noteRank(x) === 0);
   const showsNotes = (n, notes, limit) => notes.includes(n) && (limit > 0 || hasPinned(n));
   const build = (withRest, notes, limit) => {
-    const blocks = [sceneLine(snap, ctx.user, ctx.calendar), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
+    const blocks = [sceneLine(clockSnap, ctx.user, ctx.calendar, before), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
     if (layoutText) blocks.push(layoutText);
     if (edgesText) blocks.push(edgesText);
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
@@ -8132,6 +8441,12 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     // the newest message has no snapshot yet: the catch-up has not run
     stale: idx !== keys.length - 1,
     clock: isObj(snap.clock) ? clockWithDate(snap.clock, state.calendar) : null,
+    // the clock one reading before, for the Dashboard's "12:51 → 12:56": its hour and day only, null when there is none
+    prevClock: (() => {
+      const j = nearestSnapshot(state, keys, idx);
+      const c = j >= 0 && isObj(state.snapshots[keys[j]]) ? state.snapshots[keys[j]].clock : null;
+      return isObj(c) && str(c.time) ? { day: Number(c.day) || 1, time: c.time, ...(c.approx === true ? { approx: true } : {}) } : null;
+    })(),
     // where the date comes from (text, today, user) and whether it is shown: the Dashboard lets the user change it
     calendar: calendarView(state, isObj(snap.clock) ? snap.clock.day : 1),
     scenes: scenesOf(state, keys).map((sc) => {

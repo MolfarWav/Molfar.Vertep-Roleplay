@@ -137,7 +137,7 @@ export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weath
     <>
       {(view.clock || present.length > 0) && (
         <div className="flex flex-col gap-3 border-b border-border px-3 py-3">
-          <SceneBlock clock={view.clock} calendar={view.calendar} weatherSize={weatherSize} />
+          <SceneBlock clock={view.clock} prev={view.prevClock} calendar={view.calendar} weatherSize={weatherSize} />
           {present.length > 0 && (
             <div className="flex flex-wrap gap-2.5 pt-1">
               {present.map((n) => (

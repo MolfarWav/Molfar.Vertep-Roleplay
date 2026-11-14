@@ -54,7 +54,7 @@ An agent with a Script card that runs out of time three runs in a row in a chat 
 
 1. Press "Install" ("Update" for a changed copy of an installed agent; use "Edit a copy" to change one).
 2. Allow it once: "Review permissions", then "Allow all" or line by line. It runs when every line is on. An update asking for more waits for a new Allow. A Script card asks for "Run its own small program"; the permission list shows its code ("Read the code") before you allow it, and if an update changes the code, the permission is asked again.
-3. Add it to a chat. In the chat header pill open the **Agents** tab: "In this chat" lists active agents, "Installed" lists the rest (pick one to add it). A row can run again now, be removed, or stop the reply waiting for it. A new chat has no agents until you add some or pick a set.
+3. Add it to a chat. In the chat header pill open the **Agents** tab: "In this chat" lists active agents, "Installed" lists the rest (pick one to add it). An agent that is not allowed yet shows **Allow…** in its row: it opens its permission dialog at once. A row can run again now, be removed, or stop the reply waiting for it. A new chat has no agents until you add some or pick a set.
 
 A **set** is a named list of agents ("Save this chat's list as a set"; "Make default" gives it to new chats). The Canvas's "Agent sets" board shows each set's cost in time and calls, and holds the "Agents' notes in chats" switch that hides every agent's notes. Each agent's result place can be changed in the chat's Agents tab, among the places that suit it.
 

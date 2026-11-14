@@ -75,7 +75,7 @@ export function BandMark({ band, className }: { band: string | null | undefined;
  * Time (or band word) large with the date line under it, the weather tile to the right, then the place on the
  * full width. `weatherSize`: the tile's icon (52 px; 40 px in a narrow strip; 48 px in the wide header).
  */
-export function SceneBlock({ clock, calendar, weatherSize = 52 }: { clock: Clock | null; calendar?: DashView['calendar']; weatherSize?: number }) {
+export function SceneBlock({ clock, calendar, weatherSize = 52, prev }: { clock: Clock | null; calendar?: DashView['calendar']; weatherSize?: number; prev?: DashView['prevClock'] }) {
   const t = useT()
   const tx = useTx()
   const lang = useLang()
@@ -87,6 +87,14 @@ export function SceneBlock({ clock, calendar, weatherSize = 52 }: { clock: Clock
     <div className="flex min-w-0 flex-col gap-2">
       <div className={cn('grid min-w-0 items-center gap-x-3 gap-y-1', hasWeather ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1')}>
         <div className={cn('flex min-w-0 flex-col gap-1', hasWeather && 'max-w-[150px]')}>
+          {clock.time && prev && (prev.time !== clock.time || prev.day !== clock.day) && (
+            // the clock before, small, above the new one: the time is seen running (12:51 → 12:56)
+            <div className="flex items-baseline gap-1 font-mono text-caption leading-none text-muted-foreground tabular-nums" data-testid="dash-time-was" title={t('dash.time.was', { time: prev.time })}>
+              <span aria-hidden="true">{prev.day !== clock.day ? `${t('dash.day', { n: prev.day })} · ` : ''}{prev.approx ? '≈' : ''}{prev.time}</span>
+              <span aria-hidden="true">→</span>
+              <span className="sr-only">{t('dash.time.was', { time: prev.time })}</span>
+            </div>
+          )}
           {clock.time ? (
             <div className="font-heading text-3xl leading-none tabular-nums" title={clock.approx ? t('dash.time.approx') : undefined}>
               {clock.approx && <span aria-hidden="true" className="mr-1 align-[0.1em] text-xl text-muted-foreground">≈</span>}
