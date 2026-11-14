@@ -1,4 +1,4 @@
-<!-- source: 8d00981bad28 -->
+<!-- source: b6c59373d069 -->
 # Sahne Panosu
 
 Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimler burada, her karakter senin hakkında ne hissediyor, ne giyiyorlar ve ne biliyorlar, açık hikâye konuları neler. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes için. *Sahne panosu* başlıklı Yardım makalesi alanlarını listeler.
@@ -16,6 +16,8 @@ Sayılar (güven, rahatlık, çekim, saygı, sevgi ve daha fazlası) bir modelin
 Duygu kimin: her sayı, o karakterin *senin* karakterine karşı nasıl hissettiğidir, asla tersi değil. Arkasındaki olaylar senin karakterinin yaptıklarıdır: alna bir öpücük ya da bir sarılma comfort ve affection'ı ısıtır, yalnızca romantik bir öpücük arousal'ı yükseltir. Bir karakter senin karakterine haksızlık ettiğinde (aldatır, yalan söyler, terk eder), bu karakterin eylemidir: senin karakterinin hanesine yazılmaz ve sensöre bunun için karakterin sana olan güvenini düşürmemesi söylenir. Bir sayı hâlâ yanlış hareket ediyorsa, bunu issue olarak bildir: sensör modeli bir modeldir ve küçük bir model bir sahneyi yanlış okuyabilir.
 
 **Tarih ve kendi takvimin.** Saatin altında bir tarih görünür. Onu ayarlamak, gizlemek veya otomatiğe döndürmek için yanındaki kaleme dokun. Ayları ve yılları bizimki gibi olmayan bir fantezi ya da isekai dünyası için, o pencerede **A world with its own calendar…** seçeneğini seç: ayları adlandır ve her birine gün sayısını ver (30 günlük 12 ay tek dokunuşla), istersen hafta günü adlarını ve bir çağ ("AR", "of the Third Age") ekle ve hikâyenin bugünkü gününün tarihini söyle, herhangi bir yılda, sıfırdan önce bile. Bundan sonra tarih Gün sayacını takip eder ("3 Frostmoon 1204 AR"), saatte ve modelin okuduğu sahne satırlarında görünür ve hikâye metni onu asla değiştirmez. Aynı penceredeki **Use the real calendar** onu geri alır.
+
+**Saat hikâyeyi nasıl takip eder.** Zamanı anlatacağınız gibi yazın: "half an hour later", "через годину", "the next day, 9:30", "three days later". Saat bu ifadeleri sizin repliklerinizde ve hikâyede okur (konuşma dışında: tırnak içindeki bir söz, "come in an hour", geçen zaman değildir) ve sonraki yanıt yeni zamanı zaten görür. Hikâyenin adlandırdığı zaman, saatin bulunduğu yerdir. Günün yalnızca bir bölümü söylendiğinde ("the next morning"), saat yaklaşık 09:00 gösterir. Büyük saatin üzerindeki küçük gri saat, önceki saattir ("12:56" üzerinde "12:51 →") ve modele aynısı, ne kadar ilerlediğiyle birlikte söylenir ("5 min after 12:51"). Hikâye gece yarısını geçene ya da geçtiğini söyleyene kadar gün değişmez. Yazmak istemediğiniz bir atlama için "+" menüsündeki **Skip time...** onu sizin yerinize gönderir.
 
 Gönder'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek seferlik bir dürtme hazırlar; oku bir açık görev veya bir beklenmedik gelişme seçer.
 

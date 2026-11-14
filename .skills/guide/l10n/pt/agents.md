@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Agentes e a forja de agentes
 
 Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -55,7 +55,7 @@ Um agente com um cartão Script que estoura o tempo três execuções seguidas e
 
 1. Pressione "Install" ("Update" para uma cópia alterada de um agente instalado; use "Edit a copy" para mudar um).
 2. Permita-o uma vez: "Review permissions", depois "Allow all" ou linha por linha. Ele executa quando todas as linhas estão ativas. Uma atualização que pede mais espera por uma nova permissão. Um cartão Script pede "Run its own small program"; a lista de permissões mostra o código dele ("Read the code") antes de você permitir, e se uma atualização mudar o código, a permissão é pedida de novo.
-3. Adicione-o a um chat. No selo do cabeçalho do chat, abra a aba **Agents**: "In this chat" lista os agentes ativos, "Installed" lista os demais (escolha um para adicioná-lo). Uma linha pode executar de novo agora, ser removida, ou fazer a resposta deixar de esperar por ela. Um chat novo não tem agentes até você adicionar alguns ou escolher um conjunto.
+3. Adicione-o a um chat. No selo do cabeçalho do chat, abra a aba **Agents**: "In this chat" lista os agentes ativos, "Installed" lista os demais (escolha um para adicioná-lo). Uma linha pode executar de novo agora, ser removida, ou fazer a resposta deixar de esperar por ela. Um chat novo não tem agentes até você adicionar alguns ou escolher um conjunto. Um agente que ainda não é permitido mostra **Allow…** na linha dele: isso abre a caixa de diálogo de permissão imediatamente. Uma linha pode rodar de novo agora, ser removida ou parar a resposta que espera por ela.
 
 Um **conjunto** é uma lista nomeada de agentes ("Save this chat's list as a set"; "Make default" o dá a chats novos). O quadro "Agent sets" do Canvas mostra o custo de cada conjunto em tempo e chamadas, e tem o interruptor "Agents' notes in chats" que oculta as notas de todos os agentes. O local do resultado de cada agente pode ser mudado na aba Agents do chat, entre os locais que lhe servem.
 

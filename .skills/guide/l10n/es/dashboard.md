@@ -1,4 +1,4 @@
-<!-- source: 8d00981bad28 -->
+<!-- source: b6c59373d069 -->
 # El panel de la escena
 
 El panel es un panel junto al chat que sigue la escena: quién está presente, cómo se siente cada personaje hacia ti, qué llevan puesto y qué saben, los hilos argumentales abiertos. Es para cualquiera que quiera que la historia recuerde relaciones y detalles entre respuestas. El artículo de ayuda *Scene dashboard* enumera sus campos.
@@ -16,6 +16,8 @@ Los números (confianza, comodidad, atracción, respeto, afecto, y más) los cal
 De quién es el sentimiento: cada número indica cómo ese personaje siente hacia *tu* personaje, nunca al revés. Los eventos detrás de ellos son lo que hace tu personaje: un beso en la frente o un abrazo sube comfort y affection, solo un beso romántico sube arousal. Cuando un personaje agravia a tu personaje (engaña, miente, se va), es un acto del personaje: no se registra como de tu personaje, y al sensor se le indica que no baje por ello la confianza del personaje en ti. Si un número sigue moviéndose mal, repórtalo como issue: el modelo del sensor es un modelo, y uno pequeño puede malinterpretar una escena.
 
 **La fecha y un calendario propio.** El reloj muestra una fecha bajo la hora. Toca el lápiz que está junto a ella para fijar la fecha, ocultarla o volver a automático. Para un mundo de fantasía o isekai cuyos meses y años no son los nuestros, elige **A world with its own calendar…** en ese cuadro: nombra los meses y dale a cada uno sus días (12 meses de 30 días es un toque), añade nombres de días de la semana y una era ("AR", "of the Third Age") si quieres, y di la fecha del día presente de la historia, en cualquier año, también antes de cero. Después de eso la fecha sigue el contador de días ("3 Frostmoon 1204 AR"), aparece en el reloj y en las líneas de la escena que lee el modelo, y el texto de la historia nunca la mueve. **Use the real calendar** en la misma ventana la devuelve.
+
+**Cómo sigue el reloj a la historia.** Escribe la hora como la contarías: "half an hour later", "через годину", "the next day, 9:30", "three days later". El reloj lee estas expresiones en tus líneas y en la historia (fuera del habla: una promesa entre comillas, "come in an hour", no es tiempo transcurrido), y la siguiente respuesta ya ve la nueva hora. La hora que la historia nombra es donde está el reloj. Cuando solo se dice una parte del día ("the next morning"), el reloj muestra alrededor de las 09:00. La hora gris pequeña sobre la grande es el reloj anterior ("12:51 →" sobre "12:56"), y al modelo se le dice lo mismo, con cuánto se movió ("5 min after 12:51"). Un día no cambia hasta que la historia cruza la medianoche o dice que lo hizo. Para un salto que prefieres no escribir, **Skip time...** en el menú "+" lo envía por ti.
 
 El botón "Story, move" junto a Send prepara un empujón de una sola vez para la próxima respuesta; su flecha elige una misión abierta o un giro.
 

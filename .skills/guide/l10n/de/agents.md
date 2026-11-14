@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Agents und die Agenten-Schmiede
 
 Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
@@ -55,7 +55,7 @@ Ein Agent mit einer Script-Karte, die in einem Chat dreimal hintereinander aus Z
 
 1. Drücke „Install“ („Update“ bei einer geänderten Kopie eines installierten Agents; nutze „Edit a copy“, um einen zu ändern).
 2. Erlaube ihn einmal: „Review permissions“, dann „Allow all“ oder Zeile für Zeile. Er läuft, wenn jede Zeile an ist. Ein Update, das mehr verlangt, wartet auf ein neues Allow. Eine Script-Karte verlangt „Run its own small program“; die Berechtigungsliste zeigt ihren Code („Read the code“), bevor du erlaubst, und ändert ein Update den Code, wird die Berechtigung erneut abgefragt.
-3. Füge ihn einem Chat hinzu. Öffne in der Chat-Kopfzeilen-Pille den **Agents**-Tab: „In this chat“ listet aktive Agents, „Installed“ listet die übrigen (wähle einen, um ihn hinzuzufügen). Eine Zeile kann jetzt erneut laufen, entfernt werden oder das Warten der Antwort auf ihn beenden. Ein neuer Chat hat keine Agents, bis du welche hinzufügst oder ein Set wählst.
+3. Füge ihn einem Chat hinzu. Öffne in der Chat-Kopfzeilen-Pille den **Agents**-Tab: „In this chat“ listet aktive Agents, „Installed“ listet die übrigen (wähle einen, um ihn hinzuzufügen). Eine Zeile kann jetzt erneut laufen, entfernt werden oder das Warten der Antwort auf ihn beenden. Ein neuer Chat hat keine Agents, bis du welche hinzufügst oder ein Set wählst. Ein Agent, der noch nicht erlaubt ist, zeigt **Allow…** in seiner Zeile: Es öffnet sofort seinen Berechtigungsdialog. Eine Zeile kann jetzt erneut laufen, entfernt werden oder die wartende Antwort stoppen.
 
 Ein **Set** ist eine benannte Liste von Agents („Save this chat's list as a set“; „Make default“ gibt sie neuen Chats). Das Brett „Agent sets“ im Canvas zeigt die Kosten jedes Sets in Zeit und Aufrufen und enthält den Schalter „Agents' notes in chats“, der alle Notizen der Agents ausblendet. Der Ergebnisplatz jedes Agents lässt sich im Agents-Tab des Chats ändern, unter den Plätzen, die zu ihm passen.
 
