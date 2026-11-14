@@ -354,3 +354,64 @@ describe("repairs of states the first id version migrated", () => {
     expect(objectsOf(lastSnap("c1")).join(" ")).toContain("brass lamp");
   });
 });
+
+// Found in the owner's Kaede chat (2026-11-15): eight worn items on the Dashboard, four of them wrong.
+describe("clothes do not pile up", () => {
+  const item = (id: string, kind: "wear" | "hold", text: string) => ({ id, kind, text });
+
+  it("a character out of the scene keeps her ids in the Previous state, so coming back makes no second cardigan", () => {
+    const { play, lastPrompt } = story();
+    let snap = play({ chars: { Aria: { outfit: { see: [{ text: "white form-fitting spaghetti-strap top" }, { text: "dark blue knit cardigan" }] } } } });
+    expect(itemsOf(snap, "Aria")).toEqual(["o1 white form-fitting spaghetti-strap top", "o2 dark blue knit cardigan"]);
+    // the sensor empties the scene for one turn
+    play({ present: [], struck: ["Aria", "Bram"] });
+    play({ present: ["Aria"], chars: { Aria: { mood: "calm" } } });
+    const text = lastPrompt();
+    expect(text).toContain("Present: .");
+    expect(text).toContain("Aria (not in the scene before; if the new messages show them, these are their things, report them by these ids): Wearing: o1 white form-fitting spaghetti-strap top; o2 dark blue knit cardigan.");
+  });
+
+  it("the same garment in other words and with no id is the listed one; another colour is a second garment", () => {
+    const start = [item("o1", "wear", "white form-fitting spaghetti-strap top"), item("o2", "wear", "dark blue knit cardigan sleeves pulled down"), item("o3", "wear", "grey wool skirt")];
+    let n = 3;
+    const opts = { newId: () => "o" + ++n };
+    let r = P.applyLedger(start, 3, "wear", { see: [{ text: "dark blue wool cardigan" }, { text: "white knit top" }] }, [], opts);
+    expect(r.items).toEqual(start);
+    expect(r.seen).toEqual(["o2", "o1"]);
+    r = P.applyLedger(start, 3, "wear", { see: [{ text: "blue plaid pleated uniform skirt" }, { text: "black thigh-high stockings" }] }, [], opts);
+    expect(r.items.map((i: any) => i.id + " " + i.text).slice(3)).toEqual(["o4 blue plaid pleated uniform skirt", "o5 black thigh-high stockings"]);
+    // two listed garments of the kind: code cannot say which one is meant, so the report stays a new item as before
+    const two = [item("o1", "wear", "grey jacket"), item("o2", "wear", "club jacket")];
+    r = P.applyLedger(two, 2, "wear", { see: [{ text: "wet bomber jacket" }] });
+    expect(r.items.length).toBe(3);
+    // held things are not joined by kind
+    r = P.applyLedger([item("o1", "hold", "red shoes")], 1, "hold", { see: [{ text: "old shoes" }] });
+    expect(r.items.length).toBe(2);
+  });
+
+  it("a 'new state' that says the item was left somewhere takes it off, with the place", () => {
+    const start = [item("o1", "wear", "grey wool skirt"), item("o2", "wear", "dark blue cardigan unbuttoned"), item("o3", "wear", "wet sneakers")];
+    const r = P.applyLedger(start, 3, "wear", { see: [{ id: "o1", text: "grey wool skirt, left behind in the room" }, { id: "o2", text: "thrown on the hanger" }, { id: "o3", text: "wet sneakers, squelching inside" }] });
+    expect(r.items.map((i: any) => i.id)).toEqual(["o3"]);
+    expect(r.off).toEqual([
+      { id: "o1", item: "grey wool skirt", where: "in the room" },
+      { id: "o2", item: "dark blue cardigan unbuttoned", where: "on the hanger" },
+    ]);
+    expect(r.seen).toEqual(["o3"]);
+    expect(P.goneWhere("jacket thrown over the shoulders")).toBe(null);
+    expect(P.goneWhere("jacket draped over her arm")).toBe(null);
+    expect(P.goneWhere("white gown dragging on the floor")).toBe(null);
+    expect(P.goneWhere("cardigan, taken off")).toBe("");
+    expect(P.goneWhere("phone, left on the nightstand")).toBe("on the nightstand");
+  });
+
+  it("a text that does not speak of the listed item is not its new state", () => {
+    const start = [item("o1", "wear", "white and gold gown")];
+    let r = P.applyLedger(start, 1, "wear", { see: [{ id: "o1", text: "a fresh dark stain spreading down the thigh" }] });
+    expect(r.items).toEqual(start);
+    expect(r.seen).toEqual(["o1"]);
+    // the same gown, torn: still a new state
+    r = P.applyLedger(start, 1, "wear", { see: [{ id: "o1", text: "torn white dress" }] });
+    expect(r.items[0].text).toBe("torn white dress");
+  });
+});
