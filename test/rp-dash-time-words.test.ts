@@ -285,8 +285,8 @@ describe("the sensor run and the reply prompt follow the player's words about ti
     const mock = eveningThen();
     writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then."), U("m3", "*На наступний день, о 9:30, я прокинувся.*")]);
     const line = sceneOf(P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "", targetId: "", userText: "*На наступний день, о 9:30, я прокинувся.*" }, { injection: {} }).text);
-    expect(line).toContain("Tuesday 27 October 2026, 09:30, morning");
-    expect(line).not.toContain("19:00");
+    expect(line).toContain("Tuesday 27 October 2026, 09:30 (14 h 30 min after 19:00 the day before), morning");
+    expect(line).not.toContain("19:00, ");
     // the stored snapshot is not touched: the sensor reads the line after the reply
     expect(view(mock, "c1").view.clock).toMatchObject({ day: 1, time: "19:00" });
   });
@@ -321,5 +321,56 @@ describe("the sensor run and the reply prompt follow the player's words about ti
     writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then."), U("m3", "*Через дві години я повернувся.*"), A("m4", "Через три дні.")]);
     const line = sceneOf(P.buildInsert(mock.host.fs, "c1", { op: "swipe", speakerName: "", targetId: "m4", userText: "" }, { injection: {} }).text);
     expect(line).toContain("21:00");
+  });
+});
+
+describe("the clock as time running: how far it moved since the clock before (Molfar.Vertep#406)", () => {
+  it("sinceWords tells minutes, hours, the day before and days", () => {
+    expect(P.sinceWords(clock("12:51"), clock("12:56"))).toBe("5 min after 12:51");
+    expect(P.sinceWords(clock("12:00"), clock("14:30"))).toBe("2 h 30 min after 12:00");
+    expect(P.sinceWords(clock("12:00"), clock("14:00"))).toBe("2 h after 12:00");
+    expect(P.sinceWords(clock("19:00", 3), clock("07:30", 4))).toBe("12 h 30 min after 19:00 the day before");
+    expect(P.sinceWords(clock("19:00", 3), clock("19:00", 7))).toBe("4 days after 19:00");
+    // a time worked out from a part of the day is only about that
+    expect(P.sinceWords(clock("09:00", 1, true), clock("09:30", 1, true))).toBe("about 30 min after about 09:00");
+    // nothing when the clock did not move forward, or has no hour
+    expect(P.sinceWords(clock("12:00"), clock("12:00"))).toBe("");
+    expect(P.sinceWords(clock("12:00"), clock("11:00"))).toBe("");
+    expect(P.sinceWords(null, clock("11:00"))).toBe("");
+    expect(P.sinceWords({ day: 1, time: null }, clock("11:00"))).toBe("");
+  });
+
+  it("the scene line says how far the clock moved since the reading before", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then.")]);
+    const mock = mockHost([reply({ present: ["Aria"], time: "12:51", day: 1, date: "2026-10-26" }), reply({ present: ["Aria"], minutes: 5 })]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then."), U("m3", "Go on."), A("m4", "Right.")]);
+    update(mock, "c1");
+    const line = sceneOf(P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "", targetId: "", userText: "Next." }, { injection: {} }).text);
+    expect(line).toContain("Monday 26 October 2026, 12:56 (5 min after 12:51), midday".replace("midday", "day"));
+    // the first reading has nothing before it
+    writeChat("c2", [U("m1", "Hello."), A("m2", "Hm.")]);
+    const one = mockHost([reply({ present: ["Aria"], time: "12:51", day: 1, date: "2026-10-26" })]);
+    update(one, "c2");
+    expect(sceneOf(P.buildInsert(one.host.fs, "c2", turn, { injection: {} }).text)).not.toContain("after");
+  });
+
+  it("a jump the player has just written counts from the newest reading", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then.")]);
+    const mock = mockHost([reply({ present: ["Aria"], time: "19:00", day: 1, date: "2026-10-26" })]);
+    update(mock, "c1");
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then."), U("m3", "*Через півгодини я пішов до кафе.*")]);
+    const line = sceneOf(P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "", targetId: "", userText: "*Через півгодини я пішов до кафе.*" }, { injection: {} }).text);
+    expect(line).toContain("19:30 (30 min after 19:00)");
+  });
+
+  it("the Dashboard view carries the clock before the newest one", () => {
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then.")]);
+    const mock = mockHost([reply({ present: ["Aria"], time: "12:51", day: 1, date: "2026-10-26" }), reply({ present: ["Aria"], minutes: 5 })]);
+    update(mock, "c1");
+    expect(view(mock, "c1").view.prevClock).toBeNull();
+    writeChat("c1", [U("m1", "Hello."), A("m2", "Evening, then."), U("m3", "Go on."), A("m4", "Right.")]);
+    update(mock, "c1");
+    expect(view(mock, "c1").view.prevClock).toEqual({ day: 1, time: "12:51" });
   });
 });

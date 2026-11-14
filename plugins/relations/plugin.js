@@ -7211,14 +7211,33 @@ export function estimateTokensScript(text) {
   return Math.ceil(ascii / 3.5 + alpha / 2 + other);
 }
 
-function dayWords(clock, cal) {
+const minutesOfClock = (c) => Number(c.time.split(":")[0]) * 60 + Number(c.time.split(":")[1]);
+
+/**
+ * How far the clock moved since an earlier one, in words ("5 min after 12:51", "7 h 30 min after 19:00 the day before"), or "" when
+ * either has no hour or the clock did not move forward. The story model reads time as a running thing, not as a bare number.
+ */
+export function sinceWords(prev, clock) {
+  if (!isObj(prev) || !isObj(clock) || !str(prev.time) || !str(clock.time)) return "";
+  const days = (Number(clock.day) || 1) - (Number(prev.day) || 1);
+  const min = days * 1440 + minutesOfClock(clock) - minutesOfClock(prev);
+  if (!(min > 0)) return "";
+  const span = min < 60 ? min + " min" : min < 2880 ? Math.floor(min / 60) + " h" + (min % 60 ? " " + (min % 60) + " min" : "") : Math.round(min / 1440) + " days";
+  // a time worked out from a part of the day is only about that
+  const loose = prev.approx === true || clock.approx === true;
+  return (loose ? "about " : "") + span + " after " + (prev.approx === true ? "about " : "") + prev.time + (days === 1 ? " the day before" : "");
+}
+
+function dayWords(clock, cal, prevClock) {
   const day = Number(clock && clock.day) || 1;
   const date = dateTextOf(cal, day);
   if (date) {
     // an hour worked out from the part of the day is told as "about": left out, the story model made up its own hour
     // ("it is already noon" while the Dashboard said about 09:00, #207)
     const hour = clock && clock.time ? ", " + (clock.approx === true ? "about " : "") + clock.time : "";
-    return date + hour + (clock && clock.band ? ", " + clock.band : "");
+    // and how far it moved since the clock before, so the model sees time running: "12:56 (5 min after 12:51)"
+    const since = sinceWords(prevClock, clock);
+    return date + hour + (since ? " (" + since + ")" : "") + (clock && clock.band ? ", " + clock.band : "");
   }
   // a hidden date keeps the prompt words only: the day and the part of the day, no digits
   const which = day <= ORDINALS.length ? "the " + ORDINALS[day - 1] + " day" : "a day long into the story";
@@ -7318,7 +7337,7 @@ function feelingsLine(c, user, who) {
 }
 
 /** Day, place and who is there: once, above the characters. */
-function sceneLine(snap, user, cal) {
+function sceneLine(snap, user, cal, prevClock) {
   const where = [snap.clock && snap.clock.place, snap.clock && snap.clock.weather].filter(Boolean).join("; ");
   const away = (n) => snap.chars && snap.chars[n] && CONTACT_WORDS[snap.chars[n].contact];
   const here = arr(snap.present).filter((n) => !away(n));
@@ -7337,7 +7356,7 @@ function sceneLine(snap, user, cal) {
     else merged.push({ kind: s.kind, names: [...s.names] });
   }
   const remote = far.length ? " Not in the same place as " + user + ", in touch from elsewhere: " + far.join(", ") + "." + merged.map((s) => " " + remoteSenses(s.kind, s.names, user)).join("") : "";
-  return "[Background, the scene: " + dayWords(snap.clock, cal) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
+  return "[Background, the scene: " + dayWords(snap.clock, cal, prevClock) + "." + (where ? " " + where + "." : "") + " Present: " + [user, ...here].join(", ") + "." + remote + "]";
 }
 
 /** The most ties the insert names (#184 P8): a handful, so a big cast costs about 60 tokens, not a roll call. */
@@ -7627,6 +7646,11 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const snap = withoutNames(at.snap, [...removedOf(state), ...notPersonsIn(state, Object.keys(at.snap.chars))]);
   // the clock of the scene line: the player's newest line is in no snapshot yet (the sensor reads it after the reply)
   const clockSnap = provisionalClock(snap, line, at, turn);
+  // the clock it moved from: the newest snapshot's own when the player's line moved it, else the snapshot before it
+  const before = clockSnap !== snap ? snap.clock : (() => {
+    const j = nearestSnapshot(state, at.keys, at.keys.length - 1);
+    return j >= 0 && isObj(state.snapshots[at.keys[j]]) ? state.snapshots[at.keys[j]].clock : null;
+  })();
   const overlay = loadOverlay(fsx, chatId);
   const present = arr(snap.present).filter((n) => snap.chars[n]);
   const group = !!chat.meta.groupId;
@@ -7670,13 +7694,13 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const layoutText = cfg.layout && cfg.layout.inject === false ? "" : layoutBlock(ctx, present, focus);
   // the ties between the people here, only where a notebook may show too: a group that cannot say who speaks gets none
   const edgesText = notesFor.length ? edgesLine(snap, present, speaker, focus) : "";
-  const shared = estimateTokens(sceneLine(clockSnap, ctx.user, ctx.calendar) + threads + layoutText + edgesText + CLOSING);
+  const shared = estimateTokens(sceneLine(clockSnap, ctx.user, ctx.calendar, before) + threads + layoutText + edgesText + CLOSING);
   const budget = (Number(cfg.injection && cfg.injection.maxTokens) || 300) * Math.max(1, focus.length) + shared;
   // a character with no pinned note shows no notebook line once the limit is 0
   const hasPinned = (n) => arr(ctx.notebook[n]).some((x) => noteRank(x) === 0);
   const showsNotes = (n, notes, limit) => notes.includes(n) && (limit > 0 || hasPinned(n));
   const build = (withRest, notes, limit) => {
-    const blocks = [sceneLine(clockSnap, ctx.user, ctx.calendar), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
+    const blocks = [sceneLine(clockSnap, ctx.user, ctx.calendar, before), ...focus.map((n) => characterBlock(ctx, n, showsNotes(n, notes, limit), limit))];
     if (layoutText) blocks.push(layoutText);
     if (edgesText) blocks.push(edgesText);
     if (withRest && rest.length) blocks.push((focus.length ? "Also present: " : "People here: ") + rest.map((n) => compactLine(ctx, n)).join(" "));
@@ -8417,6 +8441,12 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     // the newest message has no snapshot yet: the catch-up has not run
     stale: idx !== keys.length - 1,
     clock: isObj(snap.clock) ? clockWithDate(snap.clock, state.calendar) : null,
+    // the clock one reading before, for the Dashboard's "12:51 → 12:56": its hour and day only, null when there is none
+    prevClock: (() => {
+      const j = nearestSnapshot(state, keys, idx);
+      const c = j >= 0 && isObj(state.snapshots[keys[j]]) ? state.snapshots[keys[j]].clock : null;
+      return isObj(c) && str(c.time) ? { day: Number(c.day) || 1, time: c.time, ...(c.approx === true ? { approx: true } : {}) } : null;
+    })(),
     // where the date comes from (text, today, user) and whether it is shown: the Dashboard lets the user change it
     calendar: calendarView(state, isObj(snap.clock) ? snap.clock.day : 1),
     scenes: scenesOf(state, keys).map((sc) => {

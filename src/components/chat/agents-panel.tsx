@@ -167,7 +167,7 @@ function PlacePicker({ chatId, item, info }: { chatId: string; item: ChatAgentIt
 }
 
 /** The tab's rows (inside the palette's list): the chat's agents, the installed ones to add, the sets. */
-export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls, onManage }: { chatId: string; data: AgentsData; itemCls: string; activeItemCls: string; actionCls: string; onManage: () => void }) {
+export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls, onManage, onAllow }: { chatId: string; data: AgentsData; itemCls: string; activeItemCls: string; actionCls: string; onManage: () => void; /** open the agents sheet on this agent with its permissions asked */ onAllow: (agentId: string) => void }) {
   const t = useT()
   const when = useRelativeTime()
   const edit = useEdit(chatId)
@@ -224,17 +224,30 @@ export function AgentsTabItems({ chatId, data, itemCls, activeItemCls, actionCls
                 </button>
               )}
               {(info?.places?.length ?? 0) > 1 && <PlacePicker chatId={chatId} item={it} info={info!} />}
-              <button
-                type="button"
-                aria-label={t('ag.runAgain.title')}
-                title={t('ag.runAgain.title')}
-                disabled={running || !it.on || !!waitingFor(info, t, installed !== undefined)}
-                data-testid={`agent-run-${it.agent}`}
-                onClick={(e) => { e.stopPropagation(); void runAgents(chatId, it.agent) }}
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40 max-md:size-10"
-              >
-                <ArrowClockwise className={cn('size-3.5', running && 'animate-spin')} aria-hidden="true" />
-              </button>
+              {info && !info.errors.length && !info.unsupported.length && info.missing.length > 0 ? (
+                // not allowed yet: the one thing to do is here, not in another window (the row used to say only "Waiting for your permission")
+                <button
+                  type="button"
+                  aria-label={t('ag.allow.for', { name: label })}
+                  data-testid={`agent-allow-${it.agent}`}
+                  onClick={(e) => { e.stopPropagation(); onAllow(it.agent) }}
+                  className="flex h-8 shrink-0 items-center rounded-md border border-amber-500/50 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/25 dark:text-amber-300 max-md:h-10"
+                >
+                  {t('ag.allow')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={t('ag.runAgain.title')}
+                  title={t('ag.runAgain.title')}
+                  disabled={running || !it.on || !!waitingFor(info, t, installed !== undefined)}
+                  data-testid={`agent-run-${it.agent}`}
+                  onClick={(e) => { e.stopPropagation(); void runAgents(chatId, it.agent) }}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40 max-md:size-10"
+                >
+                  <ArrowClockwise className={cn('size-3.5', running && 'animate-spin')} aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={t('ag.removeFromChat')}
@@ -360,11 +373,12 @@ export function InstalledAgent({ agent, focus, onChanged }: { agent: AgentInfo; 
 }
 
 /** One place for the agents of the app: install a file, see and allow what it asks, remove it, and manage sets. */
-export function AgentsSheet({ chatId, open, onOpenChange, data }: { chatId: string; open: boolean; onOpenChange: (o: boolean) => void; data: AgentsData }) {
+export function AgentsSheet({ chatId, open, onOpenChange, data, focusAgent = null }: { chatId: string; open: boolean; onOpenChange: (o: boolean) => void; data: AgentsData; /** an agent to scroll to and ask permissions for as the sheet opens */ focusAgent?: string | null }) {
   const t = useT()
   const [confirm, confirmDialog] = useConfirm()
   const file = useRef<HTMLInputElement>(null)
   const [fresh, setFresh] = useState<string | null>(null)
+  useEffect(() => { if (open && focusAgent) setFresh(focusAgent) }, [open, focusAgent])
   const [setName, setSetName] = useState('')
   const [busy, setBusy] = useState(false)
   const { installed, sets, defaultSet, list, reload, refreshInstalled } = data

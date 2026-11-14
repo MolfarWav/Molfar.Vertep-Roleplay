@@ -124,6 +124,8 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('preset')
   const [agentsOpen, setAgentsOpen] = useState(false)
+  // the agent whose permissions the sheet asks for when it opens from an "Allow…" button
+  const [agentsFocus, setAgentsFocus] = useState<string | null>(null)
   const agents = useAgentsData(chatId, open && tab === 'agents')
   const shownPresets = presets.slice(0, GROUP_CAP)
   const totalOf = usePresetTotals([...new Set([chat?.presetId, presets.find((p) => p.isDefault)?.id, ...shownPresets.map((p) => p.id)].filter((x): x is ID => !!x))], chatId, chat?.presetVars, open && tab === 'preset')
@@ -348,7 +350,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
               )}
 
               {tab === 'agents' && (
-                <AgentsTabItems chatId={chatId} data={agents} itemCls={itemCls} activeItemCls={activeItemCls} actionCls={actionCls} onManage={() => pick(() => setAgentsOpen(true))} />
+                <AgentsTabItems chatId={chatId} data={agents} itemCls={itemCls} activeItemCls={activeItemCls} actionCls={actionCls} onManage={() => pick(() => { setAgentsFocus(null); setAgentsOpen(true) })} onAllow={(id) => pick(() => { setAgentsFocus(id); setAgentsOpen(true) })} />
               )}
 
               {tab === 'profile' && (
@@ -448,7 +450,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
         </button>
         {open && <div className="overflow-hidden rounded-lg border border-border">{body}</div>}
         <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
-        <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} />
+        <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} focusAgent={agentsFocus} />
       </div>
     )
   }
@@ -506,7 +508,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
       </Popover>
 
       <PresetPanel chatId={chatId} open={panelOpen} onOpenChange={setPanelOpen} />
-      <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} />
+      <AgentsSheet chatId={chatId} open={agentsOpen} onOpenChange={setAgentsOpen} data={agents} focusAgent={agentsFocus} />
     </>
   )
 }

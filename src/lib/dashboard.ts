@@ -181,6 +181,8 @@ export interface DashView {
   /** the newest message has no snapshot yet */
   stale: boolean
   clock: Clock | null
+  /** the clock one reading before (hour and day only), for "12:51 → 12:56"; null when there is none (Molfar.Vertep#406) */
+  prevClock?: { day: number; time: string; approx?: boolean } | null
   present: string[]
   /** every character: full ones in the scene first, then compact, then absent */
   order: string[]
