@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -55,7 +55,7 @@ Bir sohbette üst üste üç çalıştırmada zaman aşımına uğrayan bir Scri
 
 1. "Install"a basın ("Update" kurulu bir ajanın değiştirilmiş kopyası için; birini değiştirmek için "Edit a copy" kullanın).
 2. Bir kez izin verin: "Review permissions", sonra "Allow all" ya da satır satır. Her satır açıkken çalışır. Daha fazlasını isteyen bir güncelleme yeni bir Allow bekler. Bir Script kartı "Run its own small program" izni ister; izin listesi, onu açmadan önce kodunu gösterir ("Read the code") ve bir güncelleme kodu değiştirirse izin yeniden sorulur.
-3. Onu bir sohbete ekleyin. Sohbet başlığındaki hapta **Agents** sekmesini açın: "In this chat" etkin ajanları, "Installed" geri kalanları listeler (eklemek için birini seçin). Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya yanıtın onu beklemesini durdurabilir. Yeni bir sohbette, siz bazılarını eklemeden ya da bir set seçmeden hiç ajan yoktur.
+3. Onu bir sohbete ekleyin. Sohbet başlığındaki hapta **Agents** sekmesini açın: "In this chat" etkin ajanları, "Installed" geri kalanları listeler (eklemek için birini seçin). Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya yanıtın onu beklemesini durdurabilir. Yeni bir sohbette, siz bazılarını eklemeden ya da bir set seçmeden hiç ajan yoktur. Henüz izin verilmemiş bir etmen satırında **Allow…** gösterir: bu, izin penceresini hemen açar. Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya onu bekleyen yanıtı durdurabilir.
 
 Bir **set**, adlandırılmış bir ajan listesidir ("Save this chat's list as a set"; "Make default" onu yeni sohbetlere verir). Canvas'ın "Agent sets" panosu her setin zaman ve çağrı maliyetini gösterir ve her ajanın notlarını gizleyen "Agents' notes in chats" anahtarını tutar. Her ajanın sonuç yeri, sohbetin Agents sekmesinde, ona uyan yerler arasından değiştirilebilir.
 

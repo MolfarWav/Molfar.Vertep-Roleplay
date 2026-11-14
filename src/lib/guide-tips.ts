@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.121.0'
+export const APP_VERSION = '4.122.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.clock-follows',
+    since: '4.122.0',
+    help: 'story',
+    keywords: { en: 'clock time dashboard half an hour later next day next morning hours minutes date day jump skip time running scene line', uk: 'годинник час дашборд через півгодини наступного дня наступного ранку години хвилини дата день стрибок перемотка рядок сцени' },
+    title: { en: 'The clock follows what you write', uk: 'Годинник слідує за тим, що ви пишете' },
+    body: {
+      en: 'Write time as you would tell it ("half an hour later", "the next day, 9:30", "three days later") and the Dashboard clock moves with it, in the very next reply too. The previous time sits small above the new one ("12:51 → 12:56"), and the model is told how far it moved.',
+      uk: 'Пишіть час так, як ви б його розповіли («через півгодини», «наступного дня о 9:30», «через три дні»), і годинник Dashboard рухається разом із ним, уже в наступній відповіді. Попередній час маленький стоїть над новим («12:51 → 12:56»), а модель знає, наскільки він зсунувся.',
+    },
+  },
   {
     id: 'new.group-dynamics',
     since: '4.121.0',

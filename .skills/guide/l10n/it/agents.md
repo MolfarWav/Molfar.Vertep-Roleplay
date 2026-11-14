@@ -1,4 +1,4 @@
-<!-- source: 0c2ff8467612 -->
+<!-- source: c7ff99fc9c56 -->
 # Gli agenti e la fucina degli agenti
 
 Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -55,7 +55,7 @@ Un agente con una scheda Script che esaurisce il tempo tre esecuzioni di fila in
 
 1. Premi "Install" ("Update" per una copia modificata di un agente installato; usa "Edit a copy" per cambiarne uno).
 2. Consenti una volta: "Review permissions", poi "Allow all" o riga per riga. Viene eseguito quando ogni riga è attiva. Un aggiornamento che chiede di più attende un nuovo consenso. Una scheda Script chiede "Run its own small program"; l'elenco dei permessi mostra il suo codice ("Read the code") prima che tu consenta, e se un aggiornamento cambia il codice, il permesso viene chiesto di nuovo.
-3. Aggiungilo a una chat. Nella pillola dell'intestazione della chat apri la scheda **Agents**: "In this chat" elenca gli agenti attivi, "Installed" elenca gli altri (scegline uno per aggiungerlo). Una riga può essere eseguita di nuovo adesso, essere rimossa oppure smettere di far attendere la risposta. Una nuova chat non ha agenti finché non ne aggiungi alcuni o non scegli un insieme.
+3. Aggiungilo a una chat. Nella pillola dell'intestazione della chat apri la scheda **Agents**: "In this chat" elenca gli agenti attivi, "Installed" elenca gli altri (scegline uno per aggiungerlo). Una riga può essere eseguita di nuovo adesso, essere rimossa oppure smettere di far attendere la risposta. Una nuova chat non ha agenti finché non ne aggiungi alcuni o non scegli un insieme. Un agente non ancora consentito mostra **Allow…** nella sua riga: apre subito la finestra dei permessi. Una riga può essere eseguita di nuovo ora, essere rimossa o fermare la risposta in attesa.
 
 Un **insieme** è un elenco di agenti con nome ("Save this chat's list as a set"; "Make default" lo assegna alle nuove chat). La bacheca "Agent sets" del Canvas mostra il costo in tempo e in chiamate di ogni insieme e contiene l'interruttore "Agents' notes in chats", che nasconde le note di tutti gli agenti. Il posto del risultato di ogni agente può essere cambiato nella scheda Agenti della chat, tra i posti adatti.
 
