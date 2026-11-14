@@ -339,10 +339,10 @@ describe("what the sensor and the story model read", () => {
 
   it("the previous default sensor prompt still counts as the default", () => {
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-8)!;
+    const before = past.at(-9)!;
     expect(before).toContain("up to the open thread limit given in the input");
     expect(before).not.toContain("Give each new thread a kind");
-    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", past.at(-1)!.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-7));
+    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", past.at(-2)!.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-8));
   });
 
   it("proposals ride the state file, not the snapshot, and a rebuilt state starts without them", () => {
@@ -500,11 +500,11 @@ describe("quests close when done, failed or dropped (#400)", () => {
     expect(threads).toContain("A thread tied to one scene ends with that scene.");
     expect(threads).not.toContain("Silence is not resolution");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.at(-1)).toContain("Silence is not resolution: a thread nobody mentioned stays open.");
+    expect(past.at(-2)).toContain("Silence is not resolution: a thread nobody mentioned stays open.");
     // the newest past default is the previous default as a whole, so a saved copy of it follows the update
-    expect(past.at(-1)!.replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, "")).toBe(
-      (P.DEFAULT_PROMPTS.sensor as string).replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, ""),
-    );
+    // (the clock rules came after it: those lines are left out of both)
+    const bare = (text: string) => text.replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, "").replace(/^- (?:minutes|time and day|time|day):.*\n/gm, "");
+    expect(bare(past.at(-2)!)).toBe(bare(P.DEFAULT_PROMPTS.sensor as string));
   });
 
   it("splitDone keeps the goal as the text and the condition apart; a plain text is all goal", () => {
@@ -546,7 +546,7 @@ describe("quests close when done, failed or dropped (#400)", () => {
 
   it("a saved Threads part equal to a past default follows the new default", () => {
     const mock = mockHost();
-    const oldThreads = P.PAST_DEFAULT_PROMPTS.sensor.at(-1).match(/Threads:\n[\s\S]*?(?=\n\nKeep the whole reply compact)/)[0];
+    const oldThreads = P.PAST_DEFAULT_PROMPTS.sensor.at(-2).match(/Threads:\n[\s\S]*?(?=\n\nKeep the whole reply compact)/)[0];
     expect(oldThreads).toContain("Silence is not resolution");
     // as a settings page left open across the update would save it
     fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensorParts: { threads: oldThreads, role: "Blocks." } }));
