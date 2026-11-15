@@ -192,7 +192,7 @@ function AfterFold({ trace, older, t }: { trace: MemoryTrace; older: boolean; t:
           ))}
           {trace.leaks.map((l) => (
             <li key={`${l.key}:${l.factId}:${l.who}`} className="px-3 py-2">
-              <p className="break-words text-body">{t('memtrace.leak', { who: l.who })}</p>
+              <p className="break-words text-body">{t(l.remote ? 'memtrace.leakRemote' : 'memtrace.leak', { who: l.who })}</p>
               <p className="mt-0.5 break-words text-caption text-muted-foreground">{l.text}</p>
             </li>
           ))}

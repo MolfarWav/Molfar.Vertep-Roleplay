@@ -334,6 +334,8 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           </select>
           <p className="text-xs text-muted-foreground">{t('lit.set.presenceCutHint')}</p>
         </Field>
+        {switchRow('lit-remote-note', t('lit.set.remoteNote'), t('lit.set.remoteNoteHint'), cfg.remoteNote !== false, (v) => save({ remoteNote: v }))}
+        {switchRow('lit-suspects', t('lit.set.suspects'), t('lit.set.suspectsHint'), cfg.suspects !== false, (v) => save({ suspects: v }))}
       </SettingsBlock>
 
       <SettingsBlock tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>

@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # El panel de la escena
 
 El panel es un panel junto al chat que sigue la escena: quién está presente, cómo se siente cada personaje hacia ti, qué llevan puesto y qué saben, los hilos argumentales abiertos. Es para cualquiera que quiera que la historia recuerde relaciones y detalles entre respuestas. El artículo de ayuda *Scene dashboard* enumera sus campos.
@@ -42,6 +42,8 @@ Bajo el cuaderno de una persona, la lista **Said** guarda las cosas fuertes que 
 Cuando un personaje miente delante de otros, los otros lo toman como verdad. Sus siguientes respuestas lo tratan como algo que les dijeron y que no tienen motivo para dudar, hasta que la historia muestre lo contrario. Solo se engaña a las personas que estaban en la escena, y solo en sus propias respuestas: si habla otro, no repite la mentira.
 
 Abre una mentira y verás **Believe it:** con un botón para cada persona que todavía se la cree. Pulsa un nombre cuando esa persona lo haya descubierto. El menú de la fila también tiene **This was a lie** para una afirmación que el sensor no marcó como tal (las personas en la escena entonces se la creen), y **Not a lie** cuando el sensor se equivocó. El sensor termina la creencia por su cuenta cuando una respuesta muestra que sale la verdad. Quitar la mentira de la lista quita con ella todas las creencias.
+
+**Una respuesta que sabe demasiado.** Tras una respuesta, el sensor también comprueba si un personaje actuó sobre un secreto que no conoce (un hecho de Litopys que solo otros saben), y, en una escena donde alguien te habla por mensaje o por una llamada desde otro lugar, si reaccionó a algo que hiciste o dijiste en voz alta y que nunca enviaste. Esa respuesta recibe una nota tranquila debajo: **Regenerate reply**, **Not a leak**, y para un secreto **found out** cuando el personaje sí lo supo. Hasta que respondas, el personaje no aprende nada de esa respuesta.
 
 > El narrador da voz a todos en una sola respuesta, así que siempre sabe la verdad. Esto solo evita que un personaje actúe según lo que sabe otro.
 

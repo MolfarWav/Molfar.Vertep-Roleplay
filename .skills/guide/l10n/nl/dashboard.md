@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # Het scherm Dashboard
 
 Het Dashboard is een paneel naast de chat dat de scène bijhoudt: wie er aanwezig is, hoe elk personage jou vindt, wat ze dragen en weten, de open verhaallijnen. Het is voor iedereen die wil dat het verhaal relaties en details tussen antwoorden onthoudt. Het Help-artikel *Scene dashboard* somt de velden ervan op.
@@ -42,6 +42,8 @@ Onder het notitieboek van een persoon houdt de lijst **Said** de sterke dingen b
 Wanneer een personage liegt waar anderen bij zijn, nemen de anderen het als waar aan. Hun volgende antwoorden behandelen het als iets wat hun verteld is en waar ze geen reden hebben om aan te twijfelen, tot het verhaal anders laat zien. Alleen de mensen die in de scène waren worden misleid, en alleen in hun eigen antwoorden: iemand anders die spreekt herhaalt de leugen niet.
 
 Open een leugen en je ziet **Believe it:** met een knop voor elke persoon die het nog gelooft. Druk op een naam wanneer die persoon erachter is gekomen. Het menu van de rij heeft ook **This was a lie** voor een uitspraak die de sensor er niet een noemde (de mensen in de scène geloven het dan), en **Not a lie** wanneer de sensor het mis had. De sensor beëindigt het geloof vanzelf wanneer een antwoord laat zien dat de waarheid uitkomt. De leugen uit de lijst verwijderen verwijdert elk geloof ermee.
+
+**Een antwoord dat te veel weet.** Na een antwoord controleert de sensor ook of een personage handelde naar een geheim dat ze niet kennen (een Litopys-feit dat alleen anderen weten), en, in een scène waarin iemand met je praat via bericht of een telefoontje van elders, of ze reageerden op iets wat je deed of hardop zei maar nooit verstuurde. Zo'n antwoord krijgt een stille notitie eronder: **Regenerate reply**, **Not a leak**, en voor een geheim **found out** wanneer het personage het wel heeft geleerd. Tot je antwoordt, leert het personage niets uit dat antwoord.
 
 > De verteller verwoordt iedereen in één antwoord, dus die weet altijd de waarheid. Dit houdt alleen het ene personage tegen om te handelen naar wat een ander personage weet.
 

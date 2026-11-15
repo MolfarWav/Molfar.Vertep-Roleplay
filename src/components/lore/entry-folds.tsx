@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm'
 import { Switch } from '@/components/ui/switch'
 import { Fold } from '@/components/ui/fold'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -9,7 +11,7 @@ import { KeyChips } from '@/components/lore/key-chips'
 import { POSITION_CHOICES, POSITION_KEY, POSITION_SHORT_KEY, LOGIC_KEY, TRIGGER_TYPES, canonicalPosition } from '@/components/lore/lore-labels'
 import { useT } from '@/hooks/use-t'
 import {
-  groupsSummary, hasChainLimits, matchSummary, onlyWhenSummary, staysSummary, triOf, triValue, waitsOf, waitsValue, whereSummary,
+  groupsSummary, hasChainLimits, matchSummary, onlyWhenSummary, secretSummary, staysSummary, triOf, triValue, waitsOf, waitsValue, whereSummary,
 } from '@/lib/lore-entry'
 import { useApp } from '@/lib/store'
 import type { MsgKey } from '@/lib/i18n'
@@ -47,6 +49,17 @@ const LOGICS: EntryLogic[] = ['AND_ANY', 'AND_ALL', 'NOT_ANY', 'NOT_ALL']
 export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange: (p: Partial<LoreEntry>) => void }) {
   const t = useT()
   const characters = useApp((s) => s.characters)
+  const [confirm, confirmDialog] = useConfirm()
+  const secret = e.secret
+  /** Off removes the field; a filled secret asks first, so a stray tap does not lose the names and words. */
+  const setSecretOn = async (on: boolean) => {
+    if (on) return onChange({ secret: { knownBy: [], cover: '', reveal: [] } })
+    if (secret && (secret.knownBy.length > 0 || secret.cover.trim() || secret.reveal.length > 0)) {
+      const ok = await confirm({ title: t('lore.ed.secretOffTitle'), description: t('lore.ed.secretOffBody'), actionLabel: t('lore.ed.secretOffAction') })
+      if (!ok) return
+    }
+    onChange({ secret: undefined })
+  }
 
   const position = canonicalPosition(e.position) as EntryPosition
   const atDepth = position === 'at_depth'
@@ -179,6 +192,50 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
           </div>,
           t('lore.ed.triggersHint'),
         )}
+      </Fold>
+
+      <Fold
+        id="lore-entry-secret"
+        title={t('lore.ed.secret')}
+        tone="amber"
+        summary={secretSummary(secret, t)}
+      >
+        <SettingRow label={t('lore.ed.secretSwitch')} info={t('lore.ed.secretInfo')}>
+          <Switch tone="cta" checked={!!secret} onCheckedChange={(v) => void setSecretOn(v)} aria-label={t('lore.ed.secretSwitch')} />
+        </SettingRow>
+        {secret && block(t('lore.ed.secretKnownBy'),
+          <KeyChips
+            id={`lore-secret-known-${e.id}`}
+            keys={secret.knownBy}
+            onChange={(knownBy) => onChange({ secret: { ...secret, knownBy } })}
+            label={t('lore.ed.secretKnownBy')}
+            placeholder={t('lore.ed.secretNamesPlaceholder')}
+          />,
+          t('lore.ed.secretKnownByHint'),
+        )}
+        {secret && block(t('lore.ed.secretCover'),
+          <Textarea
+            id={`lore-secret-cover-${e.id}`}
+            value={secret.cover}
+            onChange={(ev) => onChange({ secret: { ...secret, cover: ev.target.value } })}
+            rows={3}
+            placeholder={t('lore.ed.secretCoverPlaceholder')}
+            aria-label={t('lore.ed.secretCover')}
+            className="text-body"
+          />,
+          t('lore.ed.secretCoverHint'),
+        )}
+        {secret && block(t('lore.ed.secretReveal'),
+          <KeyChips
+            id={`lore-secret-reveal-${e.id}`}
+            keys={secret.reveal}
+            onChange={(reveal) => onChange({ secret: { ...secret, reveal } })}
+            label={t('lore.ed.secretReveal')}
+            placeholder={t('lore.ed.keysPlaceholder')}
+          />,
+          t('lore.ed.secretRevealHint'),
+        )}
+        {confirmDialog}
       </Fold>
 
       <Fold

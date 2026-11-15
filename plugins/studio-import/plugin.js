@@ -421,6 +421,7 @@ function embeddedBookToWorld(raw) {
       ignoreBudget: x.ignore_budget === true,
       ...(x.character_filter && typeof x.character_filter === "object" ? { characterFilter: x.character_filter } : {}),
       ...(Array.isArray(x.triggers) ? { triggers: x.triggers } : {}),
+      ...(x.molfar_secret && typeof x.molfar_secret === "object" && !Array.isArray(x.molfar_secret) ? { molfarSecret: x.molfar_secret } : {}),
     };
   });
   return { entries };
@@ -482,6 +483,8 @@ function normalizeBook(raw, fallbackName) {
         characterFilter: keyList(e.characterFilter.names), tagFilter: keyList(e.characterFilter.tags),
         characterFilterExclude: e.characterFilter.isExclude === true,
       } : {}),
+      // Molfar's own secret entry (who knows, cover, reveal words); a plain ST book never has it
+      ...(e.molfarSecret && typeof e.molfarSecret === "object" && !Array.isArray(e.molfarSecret) ? { secret: e.molfarSecret } : {}),
       ...(Array.isArray(e.triggers) && e.triggers.length ? { triggerFilters: e.triggers.filter((t) => typeof t === "string") } : {}),
       ...(e.excludeRecursion === true ? { nonRecursable: true } : {}),
       ...(e.ignoreBudget === true ? { ignoreBudget: true } : {}),

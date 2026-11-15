@@ -918,6 +918,7 @@ export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
           ? { character_filter: { isExclude: e.characterFilterExclude, names: e.characterFilter, tags: e.tagFilter } }
           : {}),
         ...(e.triggerFilters.length ? { triggers: e.triggerFilters } : {}),
+        ...(e.secret ? { molfar_secret: e.secret } : {}),
       },
     })),
   }
@@ -1275,12 +1276,15 @@ export interface WIFiredRow {
   depth: number
   probability?: number
   group?: string
+  /** a secret entry (#416): the speaker knows it, was given the cover text, or the narrator got the truth marked with who knows it */
+  secret?: 'known' | 'cover' | 'marked'
+  knowers?: string[]
   /** skipped rows only */
   reason?: 'budget'
 }
 export type WIBlockReason =
   | 'delay' | 'cooldown' | 'recursion_delay' | 'non_recursable' | 'secondary'
-  | 'probability' | 'group' | 'character' | 'trigger'
+  | 'probability' | 'group' | 'character' | 'trigger' | 'secret'
 export interface WIBlockedRow {
   book: string
   bookId?: string
@@ -1622,7 +1626,7 @@ const LORE_ENTRY_KNOWN = new Set([
   'sticky', 'cooldown', 'delay', 'enabled', 'characterFilter', 'characterFilterExclude', 'tagFilter', 'triggerFilters',
   'nonRecursable', 'preventFurtherRecursion', 'ignoreBudget', 'delayUntilRecursion', 'automationId', 'matchSources',
   'scanDepthOverride', 'caseSensitiveOverride', 'caseSensitive', 'wholeWordsOverride', 'matchWholeWords',
-  'groupScoringOverride', 'wordFormsOverride', 'folder',
+  'groupScoringOverride', 'wordFormsOverride', 'folder', 'secret',
 ])
 const LORE_BOOK_KNOWN = new Set([
   'id', 'name', 'folderId', 'folders', 'folderTones', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
@@ -1633,6 +1637,13 @@ const extraOf = (o: Record<string, unknown>, known: Set<string>): Record<string,
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(o)) if (!known.has(k) && v !== undefined) out[k] = v
   return Object.keys(out).length ? out : undefined
+}
+const cleanNames = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [])
+/** The entry's secret as the editor holds it, or undefined when the entry is not secret (the field is missing or not an object). */
+const cleanSecret = (v: unknown): LoreEntry['secret'] => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const o = v as Record<string, unknown>
+  return { knownBy: cleanNames(o.knownBy), cover: typeof o.cover === 'string' ? o.cover : '', reveal: cleanNames(o.reveal) }
 }
 const boolOrNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
 
@@ -1676,6 +1687,7 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
       wholeWordsOverride: e.wholeWordsOverride, groupScoringOverride: e.groupScoringOverride,
       wordFormsOverride: e.wordFormsOverride,
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
+      ...(e.secret ? { secret: e.secret } : {}),
     })),
   }
 }
@@ -1717,6 +1729,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
       automationId: (e.automationId as string) ?? '',
       matchSources: (e.matchSources as LoreEntry['matchSources']) ?? { description: false, personality: false, scenario: false, persona: false },
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
+      ...(cleanSecret(e.secret) ? { secret: cleanSecret(e.secret) } : {}),
       ...(extraOf(e, LORE_ENTRY_KNOWN) ? { extra: extraOf(e, LORE_ENTRY_KNOWN) } : {}),
     })),
     settings: (b.settings as Lorebook['settings']) ?? {

@@ -142,6 +142,10 @@ export interface LitFact {
   text: string
   subject: string
   knownBy: string[] | 'all'
+  /** #416: names that only suspect the fact (never also in knownBy) */
+  suspectedBy?: string[]
+  /** #416: those who know keep it from the others */
+  secret?: boolean
   type: LitFactType
   weight: LitFactWeight
   pinned: boolean
@@ -426,6 +430,10 @@ export interface LitConfig {
   castKnowledge?: boolean
   /** #289: the recent messages a speaking character was not present for leave their prompt (default `groups`: a group's replies only); missing from an older plugin */
   presenceCut?: 'groups' | 'all' | 'off'
+  /** #415: a short line after each player message of a scene with someone in touch from elsewhere (default on); missing from an older plugin */
+  remoteNote?: boolean
+  /** #416: the chapter worker also notes who only suspects a fact and which facts are kept secret (default on); missing from an older plugin */
+  suspects?: boolean
   /** #184: the chapter worker also writes search words (`also`) for new facts and chapters (default on); missing from an older plugin */
   searchWords?: boolean
   /** #184: on top of the brief, the narrator writes a hidden plan first (default off); missing from an older plugin */
@@ -462,6 +470,8 @@ export interface LitFactFields {
   text?: string
   subject?: string
   knownBy?: string[] | 'all'
+  suspectedBy?: string[]
+  secret?: boolean
   type?: LitFactType
   weight?: LitFactWeight
 }

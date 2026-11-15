@@ -16,6 +16,7 @@ import {
   CircleNotch,
   Eye,
   ChatText,
+  LockSimple,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { ConsolidateBar } from './consolidate'
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -278,6 +280,21 @@ export function usePinFlow(chat: LitChat, onChat: (c: LitChat) => void) {
   return { pin, dialog }
 }
 
+/** "Aria, Bram" to names: trimmed, no blanks, no repeats (any case). */
+function parseNameList(input: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of input.split(',')) {
+    const n = part.trim()
+    if (n && !seen.has(n.toLowerCase())) {
+      seen.add(n.toLowerCase())
+      out.push(n)
+    }
+  }
+  return out
+}
+const sameNames = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])
+
 function FactEditor({
   fact,
   names,
@@ -299,6 +316,8 @@ function FactEditor({
   const [knownInput, setKnownInput] = useState(
     fact && Array.isArray(fact.knownBy) ? fact.knownBy.map(knownEditorName).join(', ') : ''
   )
+  const [suspectInput, setSuspectInput] = useState((fact?.suspectedBy ?? []).join(', '))
+  const [secret, setSecret] = useState(fact?.secret === true)
   const [type, setType] = useState<LitFactType>(fact?.type ?? 'event')
   const [weight, setWeight] = useState<LitFactWeight>(fact?.weight ?? 'everyday')
 
@@ -311,6 +330,9 @@ function FactEditor({
   if (!fact || text.trim() !== fact.text) patch.text = text.trim()
   if (!fact || normSubject !== fact.subject) patch.subject = normSubject
   if (!fact || !sameKnown(normKnown, fact.knownBy)) patch.knownBy = normKnown
+  const suspects = parseNameList(suspectInput)
+  if (!sameNames(suspects, fact?.suspectedBy ?? [])) patch.suspectedBy = suspects
+  if (secret !== (fact?.secret === true)) patch.secret = secret
   if (!fact || type !== fact.type) patch.type = type
   if (!fact || weight !== fact.weight) patch.weight = weight
 
@@ -389,6 +411,27 @@ function FactEditor({
             />
           )}
           {!everyone && <p className="text-xs text-muted-foreground">{t('lit.knownByHint')}</p>}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${listId}-suspects`} className="text-xs text-muted-foreground">{t('lit.f.suspectedBy')}</label>
+          <Input
+            id={`${listId}-suspects`}
+            value={suspectInput}
+            onChange={(e) => setSuspectInput(e.target.value)}
+            placeholder={t('lit.suspectedByPlaceholder')}
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground">{t('lit.suspectedByHint')}</p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">{t('lit.f.secret')}</span>
+          <label className="flex min-h-10 items-center gap-2 text-sm md:min-h-8">
+            <Switch tone="cta" checked={secret} onCheckedChange={setSecret} aria-label={t('lit.f.secret')} />
+            {t('lit.f.secretOn')}
+          </label>
+          <p className="text-xs text-muted-foreground">{t('lit.f.secretHint')}</p>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -611,6 +654,14 @@ export function FactItem({ fact, ctl, compact = false, slot = '' }: { fact: LitF
               <Eye className="size-3 shrink-0" aria-hidden="true" />
               <span className="min-w-0">{fact.knownBy === 'all' ? t('lit.knownByAll') : t('lit.knownBy', { names: knownNames(fact.knownBy, t) })}</span>
             </Badge>
+            {fact.suspectedBy && fact.suspectedBy.length > 0 && (
+              <span className="text-[11px] text-muted-foreground" data-testid="fact-suspects">{t('lit.suspects', { names: fact.suspectedBy.join(', ') })}</span>
+            )}
+            {fact.secret === true && (
+              <span className="flex items-center text-muted-foreground" title={t('lit.secretFact')} aria-label={t('lit.secretFact')} data-testid="fact-secret">
+                <LockSimple className="size-3.5" aria-hidden="true" />
+              </span>
+            )}
             <Badge variant="outline" className={cn('text-[10px]', TYPE_TONE[fact.type])}>{t(typeKey(fact.type))}</Badge>
             <Badge variant="outline" className={cn('text-[10px]', WEIGHT_TONE[fact.weight])}>
               {t(weightKey(fact.weight))}

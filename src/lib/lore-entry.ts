@@ -141,6 +141,15 @@ export function onlyWhenSummary(i: OnlyWhenInput, tr: Tr): string {
   return parts.join(SEP)
 }
 
+/** "Off", or "2 know · cover · 1 word" for a secret entry (an empty part is left out). */
+export function secretSummary(s: { knownBy: string[]; cover: string; reveal: string[] } | undefined, tr: Tr): string {
+  if (!s) return tr('lore.sum.secretOff')
+  const parts = [tr('lore.sum.secretKnow', { n: s.knownBy.length })]
+  if (s.cover.trim()) parts.push(tr('lore.sum.secretCover'))
+  if (s.reveal.length > 0) parts.push(tr('lore.sum.secretWords', { n: s.reveal.length }))
+  return parts.join(SEP)
+}
+
 export interface StaysInput {
   sticky: number
   cooldown: number

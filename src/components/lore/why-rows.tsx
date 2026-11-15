@@ -1,4 +1,4 @@
-import { Prohibit, Scissors } from '@phosphor-icons/react'
+import { LockSimple, Prohibit, Scissors } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
@@ -22,6 +22,8 @@ function ViaChip({ tone, children }: { tone: ToneName; children: React.ReactNode
   return <span className={cn('inline-flex h-5 max-w-full items-center gap-1 rounded-full border px-1.5 text-caption font-medium', TONES[tone].chip)}>{children}</span>
 }
 
+const SECRET_KEY = { cover: 'lore.why.secretCover', known: 'lore.why.secretKnown', marked: 'lore.why.secretMarked' } as const satisfies Record<NonNullable<WIFiredRow['secret']>, MsgKey>
+
 /** How an entry got in, as chips: the key (and the secondary keys that held), the score of a hit by meaning with a small scale, sticky, always on. */
 export function WhyChips({ r }: { r: WIFiredRow }) {
   const t = useT() as T
@@ -41,6 +43,12 @@ export function WhyChips({ r }: { r: WIFiredRow }) {
           </>
         ) : null}
       </ViaChip>
+      {r.secret ? (
+        <ViaChip tone="violet">
+          <LockSimple className="size-3 shrink-0" aria-hidden="true" />
+          {t(SECRET_KEY[r.secret])}
+        </ViaChip>
+      ) : null}
       {r.secondary?.length ? <span className="text-caption text-muted-foreground">{t('lore.why.and', { keys: r.secondary.map(quote).join(', ') })}</span> : null}
     </span>
   )
@@ -62,6 +70,7 @@ export function blockedText(r: WIBlockedRow, t: T): string {
     case 'group': return t('lore.block.group', { group: String(d ?? ''), winner: r.winner ?? '' })
     case 'character': return d === 'excluded' ? t('lore.block.speakerExcluded') : t('lore.block.speakerNotListed')
     case 'trigger': return t('lore.block.trigger', { types: String(d ?? '') })
+    case 'secret': return t('lore.block.secret', { names: String(d ?? '') || '–' })
     default: return String(r.reason)
   }
 }

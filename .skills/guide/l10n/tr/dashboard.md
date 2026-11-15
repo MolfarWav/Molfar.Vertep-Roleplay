@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # Sahne Panosu
 
 Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimler burada, her karakter senin hakkında ne hissediyor, ne giyiyorlar ve ne biliyorlar, açık hikâye konuları neler. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes için. *Sahne panosu* başlıklı Yardım makalesi alanlarını listeler.
@@ -42,6 +42,8 @@ Bir kişinin not defterinin altında **Said** listesi, söylediği ve kendisine 
 Bir karakter başkalarının önünde yalan söylediğinde, diğerleri onu doğru kabul eder. Sonraki yanıtları, hikâye aksini gösterene kadar, ona söylenmiş ve şüphe etmek için hiçbir sebebi olmadıkları bir şey olarak davranır. Yalnızca sahnede olan kişiler kandırılır ve yalnızca kendi yanıtlarında: başka biri konuştuğunda yalanı tekrarlamaz.
 
 Bir yalanı açtığında **Believe it:** görürsün, hâlâ ona inanan her kişi için bir düğmeyle. O kişi öğrendiğinde bir ada bas. Satırın menüsünde ayrıca sensörün yalan demediği bir ifade için **This was a lie** (sahnedeki kişiler o zaman ona inanır) ve sensör yanlış anladığında **Not a lie** bulunur. Sensör, bir yanıt gerçeğin ortaya çıktığını gösterdiğinde inancı kendisi sona erdirir. Yalanı listeden kaldırmak, her inancı da onunla birlikte kaldırır.
+
+**Çok şey bilen bir yanıt.** Bir yanıttan sonra sensör ayrıca bir karakterin bilmediği bir sırra göre davranıp davranmadığını kontrol eder (yalnızca başkalarının bildiği bir Litopys olgusu) ve birinin seninle başka yerden mesajla ya da aramayla konuştuğu bir sahnede, asla göndermediğin bir şeye veya yüksek sesle söylediğin bir söze tepki verip vermediğini de kontrol eder. Böyle bir yanıt altında sessiz bir not alır: **Regenerate reply**, **Not a leak** ve karakter sırrı gerçekten öğrendiyse **found out**. Sen yanıtlayana kadar karakter o yanıttan hiçbir şey öğrenmez.
 
 > Anlatıcı tek bir yanıtta herkesi seslendirir, dolayısıyla gerçeği her zaman bilir. Bu yalnızca bir karakterin, başka bir karakterin bildiği bir şeye göre davranmasını engeller.
 

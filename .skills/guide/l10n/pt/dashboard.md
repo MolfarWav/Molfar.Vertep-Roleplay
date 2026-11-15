@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # O painel da cena
 
 O Dashboard é um painel ao lado do chat que acompanha a cena: quem está presente, como cada personagem se sente em relação a você, o que vestem e sabem, os fios da história em aberto. É para quem quer que a história lembre relacionamentos e detalhes entre respostas. O artigo de Ajuda *Scene dashboard* lista seus campos.
@@ -42,6 +42,8 @@ Sob o caderno de uma pessoa, a lista **Said** guarda as coisas fortes que ela di
 Quando um personagem mente na frente de outros, os outros tomam como verdade. Suas próximas respostas tratam isso como algo que lhes foi dito e que não têm motivo para duvidar, até a história mostrar o contrário. Apenas as pessoas que estavam na cena são enganadas, e apenas em suas próprias respostas: outra pessoa falando não repete a mentira.
 
 Abra uma mentira e você vê **Believe it:** com um botão para cada pessoa que ainda acredita nela. Aperte um nome quando aquela pessoa tiver descoberto. O menu da linha também tem **This was a lie** para uma declaração que o sensor não classificou como tal (as pessoas na cena então acreditam nela), e **Not a lie** quando o sensor errou. O sensor encerra a crença sozinho quando uma resposta mostra a verdade vindo à tona. Remover a mentira da lista remove todas as crenças junto.
+
+**Uma resposta que sabe demais.** Após uma resposta, o sensor também verifica se um personagem agiu com base em um segredo que não conhece (um fato do Litopys que só outros sabem), e, numa cena em que alguém fala com você por mensagem ou uma ligação de outro lugar, se reagiu a algo que você fez ou disse em voz alta e que nunca enviou. Essa resposta recebe uma nota discreta embaixo: **Regenerate reply**, **Not a leak**, e para um segredo **found out** quando o personagem de fato o descobriu. Até você responder, o personagem não aprende nada daquela resposta.
 
 > O narrador dá voz a todos em uma única resposta, então sempre sabe a verdade. Isso apenas impede que um personagem aja com base no que outro personagem sabe.
 

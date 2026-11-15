@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # Panel sceny
 
 Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać o tobie myśli, co noszą i co wiedzą, jakie wątki fabularne są otwarte. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
@@ -42,6 +42,8 @@ Pod notatnikiem osoby lista **Said** przechowuje mocne rzeczy, które powiedziel
 Gdy postać kłamie przed innymi, inni biorą to za prawdę. Ich następne odpowiedzi traktują to jako coś, co im powiedziano i w co nie mają powodu wątpić, dopóki historia nie pokaże inaczej. Tylko osoby obecne w scenie dają się oszukać i tylko we własnych odpowiedziach: ktoś inny mówiąc, nie powtarza kłamstwa.
 
 Otwórz kłamstwo i zobaczysz **Believe it:** z przyciskiem dla każdej osoby, która wciąż w nie wierzy. Naciśnij imię, gdy ta osoba się dowiedziała. Menu tego rzędu ma też **This was a lie** dla stwierdzenia, którego sensor nie nazwał kłamstwem (osoby w scenie wtedy w nie wierzą) oraz **Not a lie**, gdy sensor się pomylił. Sensor sam kończy wiarę, gdy odpowiedź pokazuje, że prawda wychodzi na jaw. Usunięcie kłamstwa z listy usuwa wraz z nim każdą wiarę.
+
+**Odpowiedź, która wie za dużo.** Po odpowiedzi sensor sprawdza też, czy postać nie zadziałała na podstawie tajemnicy, której nie zna (fakt z Litopysu znany tylko innym), a w scenie, gdzie ktoś rozmawia z tobą przez tekst lub połączenie z innego miejsca, czy nie zareagowała na coś, co zrobiłeś lub powiedziałeś na głos, a czego nigdy nie wysłałeś. Taka odpowiedź dostaje pod sobą cichą notkę: **Regenerate reply**, **Not a leak**, a dla tajemnicy **found out**, gdy postać naprawdę się jej dowiedziała. Dopóki nie odpowiesz, postać niczego się z tej odpowiedzi nie uczy.
 
 > Narrator wypowiada wszystkich w jednej odpowiedzi, więc zawsze zna prawdę. To tylko powstrzymuje jedną postać przed działaniem na tym, co wie inna postać.
 

@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # Le tableau de bord de la scène
 
 Le tableau de bord est un panneau à côté du chat qui suit la scène : qui est présent, ce que chaque personnage ressent pour vous, ce qu'il porte et ce qu'il sait, les fils narratifs ouverts. Il s'adresse à quiconque veut que l'histoire se souvienne des relations et des détails entre les réponses. L'article d'aide *Tableau de bord de la scène* énumère ses champs.
@@ -42,6 +42,8 @@ Sous le carnet d'une personne, la liste **Said** conserve les choses fortes qu'e
 Quand un personnage ment devant d'autres, les autres le prennent pour vrai. Leurs réponses suivantes le traitent comme quelque chose qu'on leur a dit et qu'ils n'ont aucune raison de mettre en doute, jusqu'à ce que l'histoire montre le contraire. Seules les personnes qui étaient dans la scène sont dupes, et seulement dans leurs propres réponses : quelqu'un d'autre qui parle ne répète pas le mensonge.
 
 Ouvrez un mensonge et vous voyez **Believe it:** avec un bouton pour chaque personne qui y croit encore. Appuyez sur un nom quand cette personne a découvert la vérité. Le menu de la ligne contient aussi **This was a lie** pour une déclaration que le capteur n'a pas qualifiée de mensonge (les personnes présentes dans la scène y croient alors), et **Not a lie** quand le capteur s'est trompé. Le capteur met fin à la croyance de lui-même quand une réponse montre que la vérité éclate. Retirer le mensonge de la liste retire toutes les croyances avec lui.
+
+**Une réponse qui en sait trop.** Après une réponse, le capteur vérifie aussi si un personnage a agi sur un secret qu'il ne connaît pas (un fait Litopys que seuls d'autres connaissent), et, dans une scène où quelqu'un vous parle par texto ou par appel depuis ailleurs, s'il a réagi à quelque chose que vous avez fait ou dit à voix haute mais que vous n'avez jamais envoyé. Une telle réponse reçoit une note discrète en dessous : **Regenerate reply**, **Not a leak**, et pour un secret **found out** quand le personnage l'a effectivement appris. Tant que vous ne répondez pas, le personnage n'apprend rien de cette réponse.
 
 > Le narrateur fait parler tout le monde dans une seule réponse, donc il connaît toujours la vérité. Cela sert uniquement à empêcher un personnage d'agir sur ce qu'un autre personnage sait.
 

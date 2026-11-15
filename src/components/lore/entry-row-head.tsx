@@ -1,4 +1,4 @@
-import { CaretRight, ClockCountdown, Funnel, PushPin, Snowflake, Warning } from '@phosphor-icons/react'
+import { CaretRight, ClockCountdown, Funnel, LockSimple, PushPin, Snowflake, Warning } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Chip } from '@/components/ui/section'
 import { Switch } from '@/components/ui/switch'
@@ -86,6 +86,11 @@ export function EntryRowHead({ e, open, selecting, checked, onCheck, onToggle, o
             <span className="text-caption text-muted-foreground" title={t('lore.badge.waits', { n: waits })} aria-label={t('lore.badge.waits', { n: waits })}>↻{waits}</span>
           )}
           {e.group && <Badge variant="outline" className="max-w-32 text-caption font-normal text-muted-foreground" title={t('lore.badge.group', { group: e.group })}><span className="truncate">{e.group}</span></Badge>}
+          {e.secret && (
+            <span className="text-muted-foreground" title={t('lore.badge.secret')} aria-label={t('lore.badge.secret')}>
+              <LockSimple className="size-3" aria-hidden="true" />
+            </span>
+          )}
           {hasFilter && (
             <span className="text-muted-foreground" title={t('lore.badge.filters')} aria-label={t('lore.badge.filters')}>
               <Funnel className="size-3" aria-hidden="true" />
