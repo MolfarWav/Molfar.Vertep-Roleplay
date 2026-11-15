@@ -3911,7 +3911,7 @@ describe("the user's notes and threads (overlay)", () => {
     expect(readStateFile("c1").snapshots["m3#0"].threads.length).toBe(2);
     expect(notes(mock, { op: "thread-add", text: "More" }).json.queued).toBe(true);
     const body = (v: unknown) => drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: v } }).json.maxThreads;
-    expect([body(99), body(0), body("x"), body(3), body(20)]).toEqual([20, 1, 1, 3, 20]);
+    expect([body(99), body(20), body(0), body("x"), body(3)]).toEqual([20, 20, 1, 1, 3]);
     expect(stored().maxThreads).toBeUndefined();
   });
 
