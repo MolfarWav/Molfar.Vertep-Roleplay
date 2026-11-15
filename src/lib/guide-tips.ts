@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.127.0'
+export const APP_VERSION = '4.128.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.secrets',
+    since: '4.128.0',
+    help: 'world',
+    keywords: { en: 'secret lorebook entry cover hidden identity disguise artifact who knows reveal suspect suspicion kept secret remote text call leak', uk: 'таємниця секрет запис лорбука прикриття прихована особа маскування артефакт хто знає розкриття підозра підозрює тримає в таємниці на відстані повідомлення дзвінок витік' },
+    title: { en: 'Secrets that stay secret', uk: 'Таємниці, що лишаються таємницями' },
+    body: {
+      en: 'A lorebook entry can be secret (the entry\'s new "Secret" fold): who knows it, what everyone else sees, and the words that give it away. A character who does not know gets the cover text. Litopys facts can say who only suspects them. And when someone is in touch by text or a call, the model is told what reached them, so a wish you said aloud stays yours.',
+      uk: 'Запис лорбука може бути таємним (новий блок «Secret» у записі): хто його знає, що бачать інші, і слова, що видають правду. Персонаж, який не знає, отримує текст-прикриття. Факти Літопису можуть казати, хто лише підозрює. А коли хтось на зв’язку повідомленнями чи дзвінком, модель знає, що саме до нього дійшло, тож бажання, сказане вголос на самоті, лишається вашим.',
+    },
+  },
   {
     id: 'new.clock-follows',
     since: '4.122.0',
