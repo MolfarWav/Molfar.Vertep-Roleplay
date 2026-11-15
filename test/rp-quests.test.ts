@@ -241,12 +241,21 @@ describe("the limits and the proposal queue (#86)", () => {
   it("the limits are settings, clamped", () => {
     const mock = mockHost();
     const put = (b: Record<string, unknown>) => drive(mock, { method: "PUT", path: "/dashboard/config", body: b }).json;
-    const j = put({ maxMain: 9, maxSteps: 0, everydayTurns: 99, retireAfter: 99 });
-    expect([j.maxMain, j.maxSteps, j.everydayTurns, j.retireAfter]).toEqual([2, 1, 30, 10]);
-    const k = put({ maxMain: 1, maxSteps: 4, everydayTurns: 8, retireAfter: 3 });
-    expect([k.maxMain, k.maxSteps, k.everydayTurns, k.retireAfter]).toEqual([1, 4, 8, 3]);
+    const j = put({ maxMain: 99, maxThreads: 99, maxSteps: 0, maxEveryday: 99, everydayTurns: 99, retireAfter: 99 });
+    expect([j.maxMain, j.maxThreads, j.maxSteps, j.maxEveryday, j.everydayTurns, j.retireAfter]).toEqual([10, 20, 1, 20, 30, 10]);
+    // steps have no real ceiling
+    expect(put({ maxSteps: 50 }).maxSteps).toBe(50);
+    expect(put({ maxSteps: 99999 }).maxSteps).toBe(1000);
+    // up to ten main and twenty side quests are accepted as typed
+    const m = put({ maxMain: 10, maxThreads: 20 });
+    expect([m.maxMain, m.maxThreads]).toEqual([10, 20]);
+    // the defaults: 1 main, 3 side, 6 steps, 10 everyday
+    const k = put({ maxMain: 1, maxThreads: 3, maxSteps: 6, maxEveryday: 10, everydayTurns: 8, retireAfter: 3 });
+    expect([k.maxMain, k.maxThreads, k.maxSteps, k.maxEveryday, k.everydayTurns, k.retireAfter]).toEqual([1, 3, 6, 10, 8, 3]);
     const stored = JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8"));
     expect(stored.maxMain).toBeUndefined();
+    expect(stored.maxSteps).toBeUndefined();
+    expect(stored.maxEveryday).toBeUndefined();
     expect(stored.retireAfter).toBeUndefined();
   });
 });
@@ -308,10 +317,15 @@ describe("threads left open (#86)", () => {
     expect(v.proposals).toEqual([]);
   });
 
-  it("no more than five everyday quests stay open", () => {
+  it("no more than ten everyday quests stay open, or as many as the setting says", () => {
     const mock = mockHost();
-    const v = play(mock, { open: ["a", "b", "c", "d", "e", "f", "g"].map((x) => item("Chore " + x, "everyday")) });
-    expect(open(v).map((t: any) => t.text)).toEqual(["Chore c", "Chore d", "Chore e", "Chore f", "Chore g"]);
+    const names = "abcdefghijkl".split("");
+    const v = play(mock, { open: names.map((x) => item("Chore " + x, "everyday")) });
+    expect(open(v).map((t: any) => t.text)).toEqual(names.slice(2).map((x) => "Chore " + x));
+    const mock2 = mockHost();
+    setConfig({ maxEveryday: 3 });
+    const w = play(mock2, { open: names.slice(0, 5).map((x) => item("Chore " + x, "everyday")) });
+    expect(open(w).map((t: any) => t.text)).toEqual(["Chore c", "Chore d", "Chore e"]);
   });
 });
 
@@ -322,7 +336,7 @@ describe("what the sensor and the story model read", () => {
     play(mock, { open: [item("Find the key", "main", undefined, "t1"), item("Water the plants", "everyday", undefined, "t2"), item("Search the cellar", "side", "t1")] });
     const input = mock.requests.at(-1)!.req.messages[0].content as string;
     expect(input).toContain('Open threads: t1 [main] "Find the key", t2 [everyday] "Water the plants"');
-    expect(input).toContain("Open thread limits: main 1/1, side 0/3, steps per main thread 4 (everyday threads are not counted).");
+    expect(input).toContain("Open thread limits: main 1/1, side 0/3, steps per main thread 6 (everyday threads are not counted).");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("Give each new thread a kind");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("parent set to that main thread's id");
   });

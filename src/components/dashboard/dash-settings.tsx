@@ -64,6 +64,7 @@ interface DashConfig {
   /** quests (#117): absent on an older plugin */
   maxMain?: number
   maxSteps?: number
+  maxEveryday?: number
   everydayTurns?: number
   retireAfter?: number
   sensorMode?: 'parts' | 'whole'
@@ -98,6 +99,7 @@ interface Form {
   threadCheckEvery: number
   maxMain: number
   maxSteps: number
+  maxEveryday: number
   everydayTurns: number
   retireAfter: number
   noteAgeTurns: number
@@ -146,7 +148,8 @@ const DEFAULT_SENSOR_TOKENS = 3000
 const DEFAULT_MAX_THREADS = 3
 const DEFAULT_THREAD_CHECK = 5
 const DEFAULT_MAX_MAIN = 1
-const DEFAULT_MAX_STEPS = 4
+const DEFAULT_MAX_STEPS = 6
+const DEFAULT_MAX_EVERYDAY = 10
 const DEFAULT_EVERYDAY = 8
 const DEFAULT_RETIRE = 3
 const DEFAULT_NOTE_AGE = 30
@@ -171,6 +174,7 @@ function pickForm(c: DashConfig): Form {
     threadCheckEvery: c.threadCheckEvery ?? DEFAULT_THREAD_CHECK,
     maxMain: c.maxMain ?? DEFAULT_MAX_MAIN,
     maxSteps: c.maxSteps ?? DEFAULT_MAX_STEPS,
+    maxEveryday: c.maxEveryday ?? DEFAULT_MAX_EVERYDAY,
     everydayTurns: c.everydayTurns ?? DEFAULT_EVERYDAY,
     retireAfter: c.retireAfter ?? DEFAULT_RETIRE,
     noteAgeTurns: c.noteAgeTurns ?? DEFAULT_NOTE_AGE,
@@ -202,15 +206,16 @@ function promptMeta(c: DashConfig): PromptMeta {
 
 const clampTokens = (n: number) => Math.min(MAX_TOKENS, Math.max(MIN_TOKENS, Math.round(Number.isFinite(n) ? n : MIN_TOKENS)))
 const clampSensorTokens = (n: number) => Math.min(MAX_SENSOR_TOKENS, Math.max(MIN_SENSOR_TOKENS, Math.round(Number.isFinite(n) ? n : DEFAULT_SENSOR_TOKENS)))
-const clampThreads = (n: number) => Math.min(6, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
+const clampThreads = (n: number) => Math.min(20, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_MAX_THREADS)))
 const clampNoteAge = (n: number) => Math.min(500, Math.max(5, Math.round(Number.isFinite(n) ? n : DEFAULT_NOTE_AGE)))
 const clampSaid = (n: number) => Math.min(4, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_SAID)))
 const clampJournalTurns = (n: number) => Math.min(10, Math.max(1, Math.round(Number.isFinite(n) ? n : DEFAULT_JOURNAL.thoughtTurns)))
 const clampJournalTokens = (n: number) => Math.min(400, Math.max(40, Math.round(Number.isFinite(n) ? n : DEFAULT_JOURNAL.maxTokens)))
 const clampCheck =(n: number) => Math.min(50, Math.max(0, Math.round(Number.isFinite(n) ? n : DEFAULT_THREAD_CHECK)))
 const clampTo = (lo: number, hi: number, dflt: number) => (n: number) => Math.min(hi, Math.max(lo, Math.round(Number.isFinite(n) ? n : dflt)))
-const clampMain = clampTo(1, 2, DEFAULT_MAX_MAIN)
-const clampSteps = clampTo(1, 6, DEFAULT_MAX_STEPS)
+const clampMain = clampTo(1, 10, DEFAULT_MAX_MAIN)
+const clampSteps = clampTo(1, 1000, DEFAULT_MAX_STEPS)
+const clampMaxEveryday = clampTo(1, 20, DEFAULT_MAX_EVERYDAY)
 const clampEveryday = clampTo(0, 30, DEFAULT_EVERYDAY)
 const clampRetire = clampTo(0, 10, DEFAULT_RETIRE)
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -291,6 +296,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
         threadCheckEvery: clampCheck(form.threadCheckEvery),
         maxMain: clampMain(form.maxMain),
         maxSteps: clampSteps(form.maxSteps),
+        maxEveryday: clampMaxEveryday(form.maxEveryday),
         everydayTurns: clampEveryday(form.everydayTurns),
         retireAfter: clampRetire(form.retireAfter),
         // blocks, or the one custom text: never both (a whole prompt would shadow the blocks)
@@ -608,12 +614,13 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
           <Section variant="tinted" tone="pink" icon={Compass} id="sensor-quests" title={t('dash.set.card.quests')} chips={questsChipText ? [questsChipText] : undefined}>
             <div className="grid grid-cols-2 gap-3 p-4 max-md:grid-cols-1">
               {meta.questCfg && (
-                <NumTile label={t('dash.set.maxMain')} hint={t('dash.set.hint.mainQuests')} value={form.maxMain} min={1} max={2} onCommit={(n) => patch({ maxMain: n })} />
+                <NumTile label={t('dash.set.maxMain')} hint={t('dash.set.hint.mainQuests')} value={form.maxMain} min={1} max={10} onCommit={(n) => patch({ maxMain: n })} />
               )}
-              <NumTile label={t('dash.set.maxThreads')} hint={t('dash.set.hint.sideQuests')} value={form.maxThreads} min={1} max={6} onCommit={(n) => patch({ maxThreads: n })} />
+              <NumTile label={t('dash.set.maxThreads')} hint={t('dash.set.hint.sideQuests')} value={form.maxThreads} min={1} max={20} onCommit={(n) => patch({ maxThreads: n })} />
               {meta.questCfg && (
                 <>
-                  <NumTile label={t('dash.set.maxSteps')} value={form.maxSteps} min={1} max={6} onCommit={(n) => patch({ maxSteps: n })} />
+                  <NumTile label={t('dash.set.maxSteps')} hint={t('dash.set.hint.steps')} value={form.maxSteps} min={1} max={1000} onCommit={(n) => patch({ maxSteps: n })} />
+                  <NumTile label={t('dash.set.maxEveryday')} hint={t('dash.set.hint.everydayQuests')} value={form.maxEveryday} min={1} max={20} onCommit={(n) => patch({ maxEveryday: n })} />
                   <NumTile label={t('dash.set.everydayTurns')} hint={t('dash.set.hint.never')} value={form.everydayTurns} min={0} max={30} onCommit={(n) => patch({ everydayTurns: n })} />
                   <NumTile label={t('dash.set.retireAfter')} hint={t('dash.set.hint.never')} value={form.retireAfter} min={0} max={10} onCommit={(n) => patch({ retireAfter: n })} />
                 </>

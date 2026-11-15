@@ -10,9 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/setting-row'
 import { ModelMark } from '@/components/model-mark'
+import { PromptPeekDialog } from '@/components/chat/prompt-peek-dialog'
+import { RequestCache } from '@/components/chat/request-cache'
 import { fetchLitConfig, LIT_CONFIG_EVENT, putLitConfig, type LitConfig } from '@/components/library/litopys-api'
 import { useT } from '@/hooks/use-t'
 import { continueInNewChat } from '@/lib/continue-chat'
+import { lastReplyUsage, type ReplyUsage } from '@/lib/cache-boundary'
 import { alertLimit, lastPromptTokens, parseTokens, requestLevel, shortTokens, shouldOfferTrim, type RequestLevel } from '@/lib/long-chat'
 import { formatTokens } from '@/lib/tokens'
 import { cn, shortModel } from '@/lib/utils'
@@ -45,12 +48,15 @@ export interface RequestSize {
   /** "Not now": the popup stays away until the request has grown by half */
   hide: () => void
   streaming: boolean
+  /** What the newest reply's request was billed as: full price, read from the cache, written to it; null before any reply. */
+  usage: ReplyUsage | null
 }
 
 /** The state behind the button and the popup; chat-view owns it so the phone menu can open the popup too. */
 export function useRequestSize(chat: Chat | undefined, model: string | null, windowTokens: number | null, streaming: boolean): RequestSize {
   const chatId = chat?.id ?? ''
   const tokens = lastPromptTokens(chat?.messages ?? [])
+  const usage = lastReplyUsage(chat?.messages ?? [])
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState<number | null>(() => readDismissed(chatId))
   const [cfg, setCfg] = useState<LitConfig | null>(null)
@@ -87,7 +93,7 @@ export function useRequestSize(chat: Chat | undefined, model: string | null, win
     setDismissed(tokens)
     try { localStorage.setItem(key(chatId), String(tokens)) } catch { /* private mode: the popup may come back after a reload, harmless */ }
   }
-  return { chatId, tokens, model, windowTokens, limit, level, cfg, open, setOpen, hide, streaming }
+  return { chatId, tokens, model, windowTokens, limit, level, cfg, open, setOpen, hide, streaming, usage }
 }
 
 /** Colours by level; the icon and the words change too, so colour is never the only signal. */
@@ -205,6 +211,7 @@ function LimitControl({ rs }: { rs: RequestSize }) {
 export function RequestSizeDialog({ rs }: { rs: RequestSize }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
+  const [peek, setPeek] = useState(false)
   const over = rs.level === 'over'
   const litopysOn = !!rs.cfg && rs.cfg.enabled !== false && rs.cfg.insert !== false
   const canSwitch = litopysOn && rs.cfg?.cutMode !== 'scenes'
@@ -280,6 +287,10 @@ export function RequestSizeDialog({ rs }: { rs: RequestSize }) {
             </div>
           )}
         </dl>
+        <RequestCache rs={rs} onShow={() => setPeek(true)} />
+        {rs.usage && rs.usage.cacheRead > 0 && (
+          <PromptPeekDialog open={peek} onOpenChange={setPeek} chatId={rs.chatId} title={t('req.cache.peekTitle')} cache={{ cachedTokens: rs.usage.cacheRead, promptTokens: rs.usage.prompt }} />
+        )}
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           <Button className="h-11 w-full md:h-9" variant={over ? 'default' : 'outline'} onClick={() => void yes()} disabled={busy || rs.streaming} data-testid="request-continue">
             {over ? t('req.yes') : t('req.yesAnyway')}

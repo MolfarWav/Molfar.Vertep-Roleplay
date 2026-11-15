@@ -63,7 +63,7 @@ export interface Thread {
 export type QuestKind = 'main' | 'side' | 'everyday'
 /** What waits for the user (#117, #86): a quest that did not fit its limit, or one the story left alone. */
 export interface QuestProposal { id: string; type: 'open' | 'close'; why: 'limit' | 'stale'; text: string; kind: QuestKind; parent?: string; threadId?: string; by?: 'user'; turn: number }
-export interface QuestLimits { main: number; side: number; steps: number; everydayTurns: number; retireAfter: number }
+export interface QuestLimits { main: number; side: number; steps: number; everyday?: number; everydayTurns: number; retireAfter: number }
 export interface Edge { from: string; to: string; role: string; warmth: string }
 export type NoteTag = 'pinned' | 'important' | 'everyday'
 export const NOTE_TAGS: readonly NoteTag[] = ['pinned', 'important', 'everyday']
@@ -368,7 +368,7 @@ export const QUEST_KINDS: readonly QuestKind[] = ['main', 'side', 'everyday']
 export const questKindOf = (t: Thread): QuestKind => (t.kind && QUEST_KINDS.includes(t.kind) ? t.kind : 'side')
 /** The limits when the plugin sends none (an older one): the defaults, with its one open-thread limit as the side limit. */
 export const questLimitsOf = (limits: QuestLimits | undefined, maxThreads?: number): QuestLimits =>
-  limits ?? { main: 1, side: maxThreads ?? 3, steps: 4, everydayTurns: 8, retireAfter: 3 }
+  limits ?? { main: 1, side: maxThreads ?? 3, steps: 6, everyday: 10, everydayTurns: 8, retireAfter: 3 }
 
 export interface QuestGroups {
   /** each open main quest with its open steps and how many of its steps are done */

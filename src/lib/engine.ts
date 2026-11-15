@@ -193,6 +193,8 @@ export interface EngineModel {
   /** takes pictures as input (from the engine catalog) */
   images?: boolean
   pricing: ModelPricing | null
+  /** How the model's prompt cache is held (engine 1.16.6+); absent on an older engine. */
+  cache?: 'default' | 'long' | 'keepalive'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -327,6 +329,30 @@ export async function fetchModels(): Promise<{ models: ModelInfo[]; favorites: M
       pricing: m.pricing ?? null,
     })) }
   } catch { return { models: [], favorites: [] } }
+}
+
+/** How one model's prompt cache is held and what keep-alive has done for it (#112); null on an older engine or an unknown model. */
+export interface CacheInfo {
+  mode: 'default' | 'long' | 'keepalive'
+  keepalive: { sent: number; lastRead: number | null; active: number; stopped: string | null; skipped: string | null } | null
+}
+
+export async function fetchCacheInfo(ref: string): Promise<CacheInfo | null> {
+  try {
+    const r = await fetch('/v1/models?all=1')
+    if (!r.ok) return null
+    const { models } = (await r.json()) as { models?: EngineModel[] }
+    const m = (models ?? []).find((x) => `${x.provider}/${x.modelId}` === ref)
+    if (!m || (m.cache !== 'default' && m.cache !== 'long' && m.cache !== 'keepalive')) return null
+    let keepalive: CacheInfo['keepalive'] = null
+    if (m.cache === 'keepalive') {
+      const k = await fetch(`/v1/models/keepalive?model=${encodeURIComponent(ref)}`)
+      if (k.ok) keepalive = (await k.json()) as CacheInfo['keepalive']
+    }
+    return { mode: m.cache, keepalive }
+  } catch {
+    return null
+  }
 }
 
 /** The instruct formats the engine can write a text completion prompt in. */

@@ -6,6 +6,8 @@ A chat that runs for weeks grows, and every reply sends more of it to the model.
 
 By default the whole chat is sent while the window has room. On a big window the cost keeps growing, so the chat header has a **Request size** button next to the story tools (on a phone: in the Menu). It shows how many tokens the last request sent, the whole prompt as the provider counted it, and which model got it. Press it for the model, its window and your limit. It is teal below three quarters of the limit, amber from there, and red with a warning sign past it. The Canvas Prompt board lists every part of a request ([[canvas]]).
 
+The popup also has a **Prompt cache** section. Providers keep the start of a request in a cache and charge much less for what they read from it, so it shows how much of the last request came from the cache (a bar and token counts), how much was written to it and how much went at full price, and the cache setting of this model (set in the main Settings, Connections and models, the model, Cache lifetime: see [[vertep:models]]). With Keep alive on, it also shows how many keep-alive requests were sent and why it is not running when it is not. **Show where the cache ends** opens the prompt peek with the cut marked: blocks served from the cache are green, the block where it ends is amber, the rest is full price, and each source (card, lorebook, history...) says whether it was cached. The cut is an estimate, counted with our own tokenizer. If nothing is cached after the second reply of a chat, the model or its connection does not cache.
+
 When a reply pushes the request past the limit, a popup opens:
 
 - **Yes, continue in a new chat** creates the next chat at once and opens it.
