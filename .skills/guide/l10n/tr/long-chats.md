@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Uzun sohbetler ve token maliyeti
 
 Haftalarca süren bir sohbet büyür ve her yanıt, onun daha fazlasını modele gönderir. Bu sayfa, yanıtları yavaşlayan ya da pahalılaşan veya modeli hikâyenin başını unutan kişiler içindir.
@@ -6,6 +6,8 @@ Haftalarca süren bir sohbet büyür ve her yanıt, onun daha fazlasını modele
 ## Request size düğmesi
 
 Varsayılan olarak, pencere yeterli olduğu sürece tüm sohbet gönderilir. Büyük bir pencerede maliyet artmaya devam eder, bu yüzden sohbet başlığında, hikâye araçlarının yanında (telefonda: Menü'de) bir **Request size** düğmesi vardır. Son isteğin kaç token gönderdiğini, sağlayıcının saydığı şekliyle tüm istemi ve hangi modelin aldığını gösterir. Modeli, penceresini ve sınırınızı görmek için ona basın. Sınırın dörtte üçünün altında turkuaz, oradan itibaren amber renginde ve ötesinde uyarı işaretiyle kırmızıdır. Canvas Prompt panosu bir isteğin her parçasını listeler ([[canvas]]).
+
+Açılır pencerede ayrıca bir **Prompt cache** bölümü vardır. Sağlayıcılar bir isteğin başını önbellekte tutar ve oradan okudukları için çok daha az ücret alır, bu yüzden son isteğin ne kadarının önbellekten geldiğini (bir çubuk ve token sayıları), ne kadarının önbelleğe yazıldığını ve ne kadarının tam fiyattan gittiğini ve bu modelin önbellek ayarını (ana Settings, Connections and models, model, Cache lifetime içinde ayarlanır: bkz. [[vertep:models]]) gösterir. Keep alive açıkken, kaç keep-alive isteği gönderildiğini ve çalışmadığında neden çalışmadığını da gösterir. **Show where the cache ends**, istem göz atmayı kesik işaretlenmiş olarak açar: önbellekten sunulan bloklar yeşil, bittiği blok amber, geri kalanı tam fiyat ve her kaynak (kart, lorebook, geçmiş...) önbelleğe alınıp alınmadığını söyler. Kesik bir tahmindir, kendi tokenizer'ımızla sayılır. Bir sohbetin ikinci yanıtından sonra hiçbir şey önbelleğe alınmıyorsa, model veya bağlantısı önbellekleme yapmıyor demektir.
 
 Bir yanıt isteği sınırın ötesine taşıdığında bir açılır pencere açılır:
 

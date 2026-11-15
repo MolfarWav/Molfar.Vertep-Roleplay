@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Conversas longas e custo de tokens
 
 Uma conversa que dura semanas cresce, e cada resposta envia mais dela para o modelo. Esta página é para quem tem respostas lentas ou caras, ou cujo modelo esquece o começo da história.
@@ -6,6 +6,8 @@ Uma conversa que dura semanas cresce, e cada resposta envia mais dela para o mod
 ## O botão "Request size"
 
 Por padrão, a conversa inteira é enviada enquanto houver espaço na janela. Em uma janela grande o custo continua crescendo, então o cabeçalho da conversa tem um botão **Request size** ao lado das ferramentas da história (no celular: no Menu). Ele mostra quantos tokens a última requisição enviou, o prompt inteiro como o provedor contou, e qual modelo recebeu. Toque nele para ver o modelo, sua janela e seu limite. Ele fica azul-petróleo abaixo de três quartos do limite, âmbar a partir daí, e vermelho com um sinal de aviso quando passa. O quadro Canvas Prompt lista cada parte de uma requisição ([[canvas]]).
+
+O popup também tem uma seção **Prompt cache**. Os provedores guardam o começo de uma requisição em um cache e cobram bem menos pelo que leem dele, então ela mostra quanto da última requisição veio do cache (uma barra e contagens de tokens), quanto foi escrito nele e quanto foi a preço cheio, e a configuração de cache deste modelo (definida nas Configurações principais, Connections and models, o modelo, Cache lifetime: veja [[vertep:models]]). Com Keep alive ligado, ela também mostra quantas requisições keep-alive foram enviadas e por que não está rodando quando não está. **Show where the cache ends** abre o prompt peek com o corte marcado: os blocos servidos do cache são verdes, o bloco onde ele termina é âmbar, o resto é a preço cheio, e cada fonte (cartão, lorebook, histórico...) diz se foi cacheada. O corte é uma estimativa, contada com nosso próprio tokenizer. Se nada estiver em cache depois da segunda resposta de uma conversa, o modelo ou sua conexão não faz cache.
 
 Quando uma resposta empurra a requisição além do limite, um popup abre:
 

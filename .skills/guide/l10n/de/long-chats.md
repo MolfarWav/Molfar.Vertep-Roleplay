@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Lange Chats und Token-Kosten
 
 Ein Chat, der über Wochen läuft, wächst, und jede Antwort schickt mehr davon an das Modell. Diese Seite ist für alle, deren Antworten langsam oder teuer werden, oder deren Modell den Anfang der Geschichte vergisst.
@@ -6,6 +6,8 @@ Ein Chat, der über Wochen läuft, wächst, und jede Antwort schickt mehr davon 
 ## Die Schaltfläche "Request size"
 
 Standardmäßig wird der ganze Chat gesendet, solange das Fenster Platz hat. Bei einem großen Fenster wachsen die Kosten immer weiter, deshalb hat der Chat-Kopf neben den Story-Werkzeugen eine Schaltfläche **Request size** (auf dem Handy: im Menü). Sie zeigt, wie viele Tokens die letzte Anfrage gesendet hat, den ganzen Prompt so, wie der Anbieter ihn gezählt hat, und welches Modell ihn bekommen hat. Tippe darauf für das Modell, sein Fenster und dein Limit. Sie ist türkis unter drei Vierteln des Limits, ab dort bernsteinfarben und rot mit einem Warnzeichen darüber. Das Canvas Prompt-Board listet jeden Teil einer Anfrage auf ([[canvas]]).
+
+Das Popup hat auch einen Abschnitt **Prompt cache**. Anbieter behalten den Anfang einer Anfrage in einem Cache und berechnen viel weniger für das, was sie daraus lesen, deshalb zeigt er, wie viel der letzten Anfrage aus dem Cache kam (ein Balken und Token-Zahlen), wie viel hineingeschrieben wurde und wie viel zum vollen Preis ging, und die Cache-Einstellung dieses Modells (eingestellt in den Haupt-Settings, Connections and models, das Modell, Cache lifetime: siehe [[vertep:models]]). Mit Keep alive an zeigt er auch, wie viele Keep-alive-Anfragen gesendet wurden und warum er nicht läuft, wenn er nicht läuft. **Show where the cache ends** öffnet den Prompt-Peek mit der Markierung des Schnitts: Blöcke, die aus dem Cache bedient werden, sind grün, der Block, an dem er endet, ist bernsteinfarben, der Rest ist voller Preis, und jede Quelle (Karte, Lorebook, Verlauf...) sagt, ob sie gecacht wurde. Der Schnitt ist eine Schätzung, gezählt mit unserem eigenen Tokenizer. Wenn nach der zweiten Antwort eines Chats nichts gecacht ist, cacht das Modell oder seine Verbindung nicht.
 
 Wenn eine Antwort die Anfrage über das Limit treibt, öffnet sich ein Popup:
 

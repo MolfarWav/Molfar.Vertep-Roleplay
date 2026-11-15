@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # Panel sceny
 
 Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać o tobie myśli, co noszą i co wiedzą, jakie wątki fabularne są otwarte. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
@@ -26,6 +26,10 @@ Przycisk „Story, move" obok Send uzbraja jednorazowe popchnięcie dla następn
 ## Co się zmieniło, na czacie
 
 Pod najnowszą odpowiedzią wyciszona linia mówi, co Panel dla niej zarejestrował: „Changed: Ada · trust fell, mood calm → tense, +2". Dotknij jej, aby rozwinąć te same chipy co rząd „Since your last reply" w Panelu; chip otwiera pasującą zakładkę Panelu (na telefonie jego dolny arkusz). Starsze odpowiedzi nie pokazują nic, a linia czeka, gdy odpowiedź jest pisana albo Panel wciąż się aktualizuje. Aby ją ukryć, wyłącz „Show what changed under the newest reply" w Settings > Chat Behavior.
+
+## Ile questów
+
+Ustawienia Panelu, sekcja Quests, ustalają, ile questów pozostaje otwartych: questy główne od 1 do 10 (domyślnie 1), questy poboczne od 1 do 20 (domyślnie 3), questy codzienne od 1 do 20 (domyślnie 10; najstarsze kończą się pierwsze) i kroki na quest główny od 1 bez górnego limitu (domyślnie 6). Questy codzienne kończą się też same po pewnej liczbie tur i nie są liczone przeciwko limitom głównych i pobocznych. Więcej otwartych questów oznacza dłuższą podpowiedź sensora i dłuższy wstawiony fragment questów w odpowiedzi, więc podnoś je tylko dla historii, które naprawdę prowadzą wiele wątków naraz.
 
 ## Więzi między postaciami
 
