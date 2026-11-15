@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.123.0 (2026-11-15)
+
 - Fixed: **clothes no longer pile up on the Dashboard (Molfar.Vertep#409).** A long chat ended with eight worn items, four of them wrong: a second cardigan and a second top, a skirt left in the room, and an item named "thrown on the hanger". Three causes in code. (1) The sensor was shown the ids of the items only for characters in the scene; when it emptied the scene for a turn, the character came back described in words, and other words for the same garment became a new item. Up to three characters out of the scene now keep their line of ids in the Previous state. (2) A new state on a listed id was taken as written, so "grey wool skirt, left behind in the room" kept the skirt on; such a text now takes the item off and puts it where the text says, and a text that does not speak of the item at all is dropped. (3) A worn item reported with no id was matched only when every word was already listed; the same kind of garment as exactly one listed item, with no colour against it, is now that item ("white knit top" for "white form-fitting spaghetti-strap top"). The three checks read English, the language the sensor writes items in. Checked by replaying the sensor's saved answers from that chat; not yet run with a live model.
 
 ## 4.122.0 (2026-11-14)
