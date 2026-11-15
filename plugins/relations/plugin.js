@@ -218,39 +218,40 @@ const SPECTRUM_FOR_GAIN = {
 };
 const HARM_SPECTRUM = ["pessimist_optimist", true];
 
-// four phrases per stat: < -50, -50..-1, 0..50, > 50. {user} {their} {self} are filled by code.
-export const TIERS = {
-  trust: [
-    "expects betrayal",
-    "wary; tests {user}'s words before believing them",
-    "answers honestly",
-    "says the uncomfortable thing {self}",
-  ],
-  comfort: [
-    "flinches and watches the exits whenever {user} is near",
-    "on edge near {user}; keeps a step of distance",
-    "polite and steady near {user}",
-    "wholly at ease; lets silences stand, guard down",
-  ],
-  attraction: [
-    "repelled; recoils from closeness and avoids {user}'s eyes",
-    "unmoved or put off; keeps talk cool and impersonal",
-    "no pull beyond a passing glance",
-    "openly drawn; seeks closeness and loses the thread of a sentence",
-  ],
-  respect: [
-    "holds {user} in contempt; talks over and past {user}",
-    "doubts {user}'s judgment; obeys only when pressed",
-    "listens and takes {user} seriously, yet speaks plainly",
-    "defers on what matters; changes {their} mind when {user} speaks",
-  ],
-  affection: [
-    "wants nothing to do with {user}; withholds even courtesy",
-    "cool; polite but keeps all warmth back",
-    "courteous; warms only when given a reason",
-    "cares openly; seeks {user} out and worries when {user} is hurt",
-  ],
+// Eight phrases per stat (#bond): a slight, moderate, strong and extreme band on each side of zero; |value| <= 5 says nothing.
+// Bands (BAND_EDGES): 6..15, 16..39, 40..69, 70+ and the same below zero. The four-tier split of the Dashboard's history lines
+// and labels (tierIndex) is a separate, coarser thing and stays as it was. {user} {their} {self} are filled by code.
+const BAND_EDGES = [6, 16, 40, 70];
+export const PHRASES = {
+  trust: {
+    pos: ["gives {user} the benefit of the doubt", "answers honestly", "trusts {user} with real things and says the uncomfortable thing {self}", "trusts {user} without reservation"],
+    neg: ["a little doubtful of {user}'s words", "wary, tests {user}'s words before believing them", "distrusts {user}, expects to be misled", "expects betrayal"],
+  },
+  comfort: {
+    pos: ["a little more at ease near {user}", "polite and steady near {user}", "at ease near {user}, lets silences stand", "wholly at ease, guard down"],
+    neg: ["slightly stiff near {user}", "on edge near {user}, keeps a step of distance", "tense near {user}, watches {user}'s hands and the exits", "flinches and watches the exits whenever {user} is near"],
+  },
+  attraction: {
+    pos: ["notices {user}, an odd glance now and then", "a spark of interest, lingers when {user} is near", "drawn to {user}, seeks closeness", "openly, helplessly drawn, loses the thread of a sentence"],
+    neg: ["no romantic pull, keeps things friendly and flat", "put off by {user}, keeps talk cool and impersonal", "uncomfortable with any closeness from {user}", "repelled, recoils from closeness and avoids {user}'s eyes"],
+  },
+  respect: {
+    pos: ["begins to take {user} seriously", "listens and takes {user} seriously, yet speaks plainly", "values {user}'s judgment and weighs {user}'s advice", "defers on what matters, changes {their} mind when {user} speaks"],
+    neg: ["a little dismissive of {user}'s opinions", "doubts {user}'s judgment, obeys only when pressed", "looks down on {user}, talks over {user}", "holds {user} in contempt, talks over and past {user}"],
+  },
+  affection: {
+    pos: ["friendly enough, warms to {user} a little", "courteous, warms only when given a reason", "fond of {user}, remembers small things", "cares openly, seeks {user} out and worries when {user} is hurt"],
+    neg: ["a touch cool toward {user}", "cool, polite but keeps all warmth back", "dislikes {user}, shows it in small ways", "wants nothing to do with {user}, withholds even courtesy"],
+  },
 };
+
+/** The band of a value: 0 = says nothing, 1..4 = slight..extreme, negative below zero. */
+export function bandOf(v) {
+  const a = Math.abs(v);
+  if (!(a >= BAND_EDGES[0])) return 0;
+  const k = a >= BAND_EDGES[3] ? 4 : a >= BAND_EDGES[2] ? 3 : a >= BAND_EDGES[1] ? 2 : 1;
+  return v < 0 ? -k : k;
+}
 
 // low band (value <= base + 10) injects nothing
 export const PULSE_BANDS = {
@@ -265,20 +266,65 @@ export const PULSE_BANDS = {
 };
 
 const within = (v, n) => Math.abs(v) <= n;
-// first match wins
+// first match wins: the specific ones first. Each id also has a UI name and line (dash.const.*, dash.constLine.*) and its
+// stars in src/lib/dashboard.ts CONSTELLATION_STATS. BOND_WORDS says it to the reply model (object-free: "Bond with <user>: ...").
 export const CONSTELLATIONS = [
   { id: "contempt", test: (s) => s.respect < -50 },
+  { id: "hatred", test: (s) => s.affection < -50 && s.trust < -20 },
   { id: "grudging_respect", test: (s, cls) => cls === "hostile" && s.respect > 30 },
   { id: "fear", test: (s) => s.comfort < -50 && s.respect > 0 },
+  { id: "betrayed", test: (s) => s.trust < -40 && s.affection > 15 },
+  { id: "love_hate", test: (s) => s.attraction > 35 && s.affection < -15 },
+  { id: "not_that_way", test: (s) => s.attraction < -30 && s.affection > 20 },
+  { id: "passion", test: (s) => s.attraction > 60 && s.affection > 50 && s.trust > 40 && s.comfort > 40 },
   { id: "romance", test: (s) => s.attraction > 40 && s.affection > 40 && s.trust > 20 },
   { id: "dangerous_pull", test: (s) => s.attraction > 50 && s.trust < 0 },
   { id: "honor_without_trust", test: (s) => s.respect > 50 && s.trust < 0 },
+  { id: "infatuation", test: (s) => s.attraction > 35 && s.trust < 30 },
+  { id: "resentment", test: (s) => s.affection < -30 },
+  { id: "uneasy_respect", test: (s) => s.comfort < -25 && s.respect > 25 },
+  { id: "devoted", test: (s) => s.trust > 60 && s.affection > 60 && s.comfort > 40 },
+  { id: "admiration", test: (s) => s.respect > 50 && s.affection > 25 && s.trust <= 50 },
   { id: "loyal", test: (s) => s.trust > 50 && s.respect > 40 && s.attraction < 20 },
+  { id: "family", test: (s) => s.comfort > 45 && s.affection > 40 && s.attraction < 10 },
   { id: "friendship", test: (s) => s.trust > 30 && s.comfort > 30 && s.affection > 30 },
   { id: "outsider", test: (s) => s.trust < -30 && s.comfort < -20 },
+  { id: "wary", test: (s) => s.trust < -15 && s.comfort < 0 },
+  { id: "distant", test: (s) => s.affection < -15 && s.trust < 10 },
+  { id: "cautious_warmth", test: (s) => s.affection > 20 && s.trust < 10 && s.trust > -15 },
+  { id: "ease", test: (s) => s.comfort > 30 && s.trust >= 0 },
+  { id: "friendly", test: (s) => s.trust > 15 && s.comfort > 15 && s.affection > 15 },
   { id: "strangers", test: (s) => DISPOSITION.every((k) => within(s[k], 15)) },
   { id: "unsettled", test: () => true },
 ];
+// what the reply model reads after "Bond with <user>:"; strangers and unsettled say nothing worth a line
+export const BOND_WORDS = {
+  contempt: "contempt, no respect left",
+  hatred: "hatred; trusts nothing {user} does",
+  grudging_respect: "an enemy who respects {user}",
+  fear: "respects {user} and is afraid",
+  betrayed: "was fond of {user}, but the trust is broken",
+  love_hate: "drawn to {user} and resentful at once",
+  not_that_way: "fond of {user} as a person, with no romantic interest",
+  passion: "deeply in love with {user}",
+  romance: "romantic: drawn to {user}, fond of {user} and trusting",
+  dangerous_pull: "drawn to {user} without trusting {user}",
+  honor_without_trust: "respects {user} more than trusts {user}",
+  infatuation: "infatuated with {user}, though the heart is not yet in it",
+  resentment: "resentful; holds a cold grudge against {user}",
+  uneasy_respect: "respects {user} but is uneasy around {user}",
+  devoted: "deeply attached to {user} and would stand by {user}",
+  admiration: "admires {user} and likes {user}",
+  loyal: "loyal to {user} and respectful, but no romance",
+  family: "at home with {user}, like family",
+  friendship: "friends with {user}: trust, ease and warmth",
+  outsider: "distrusts {user} and keeps away",
+  wary: "guarded around {user}",
+  distant: "distant and cool toward {user}",
+  cautious_warmth: "warming to {user} but holding back",
+  ease: "comfortable around {user}",
+  friendly: "friendly with {user}, still getting to know each other",
+};
 
 // ---------- prompts ----------
 // The sensor prompt ships with the plugin. config.json holds one only when the
@@ -2072,13 +2118,69 @@ export function pulseBand(value, base) {
   return value > 70 ? "high" : "moderate";
 }
 
-/** The tier phrase of one stat with the placeholders filled. */
+/** The phrase of one stat for its band, placeholders filled; "" when the value is in the neutral band. */
 export function tierPhrase(stat, value, who) {
+  const b = bandOf(value);
+  if (!b) return "";
   const w = who || {};
-  return TIERS[stat][tierIndex(value)]
+  return PHRASES[stat][b > 0 ? "pos" : "neg"][Math.abs(b) - 1]
     .split("{user}").join(w.user || "the user")
     .split("{their}").join(w.their || "their")
     .split("{self}").join(w.self || "themself");
+}
+
+// What a stat has been doing lately (#bond): a rise or fall over the last TREND_WINDOW snapshots, said as a tail after the bond.
+// A rise counts when the stat gained TREND_NET or more with at most one step down, or gained TREND_SOFT or more in at least
+// three steps up and none down (a steady climb); a fall is the same the other way. It describes a movement that has not
+// settled yet, so a stat already past 50 (or below -50) says nothing: that is the bond itself.
+export const TREND_WINDOW = 6;
+const TREND_NET = 8;
+const TREND_SOFT = 4;
+const TREND_TAILS = {
+  trust: { up: "starting to open up to {user}", down: "losing trust in {user}" },
+  comfort: { up: "relaxing around {user}", down: "growing uneasy around {user}" },
+  attraction: { up: "a romantic interest in {user} is stirring", close: "wants physical closeness with {user}", down: "losing interest in {user}" },
+  respect: { up: "starting to look up to {user}", down: "losing respect for {user}" },
+  affection: { up: "growing fonder of {user}", down: "cooling toward {user}" },
+};
+/**
+ * The tails for one character: `trail` is the stats of the last snapshots, oldest first (at least 3 or nothing is said);
+ * `close` = the arousal pulse is above its base, which turns a rising attraction into "wants physical closeness". At most 2,
+ * the biggest movements first. Returns the filled phrases.
+ */
+export function trendTails(trail, who, close) {
+  const pts = arr(trail).filter((t) => isObj(t));
+  if (pts.length < 3) return [];
+  const found = [];
+  for (const stat of DISPOSITION) {
+    const v = pts.map((p) => num(p[stat])).map((x) => (Number.isFinite(x) ? x : 0));
+    const net = v[v.length - 1] - v[0];
+    const steps = v.slice(1).map((x, i) => x - v[i]);
+    const up = steps.filter((d) => d > 0).length;
+    const down = steps.filter((d) => d < 0).length;
+    const now = v[v.length - 1];
+    const rising = (net >= TREND_NET && down <= 1) || (net >= TREND_SOFT && up >= 3 && down === 0);
+    const falling = (net <= -TREND_NET && up <= 1) || (net <= -TREND_SOFT && down >= 3 && up === 0);
+    if (rising && now <= 50) found.push({ stat, dir: "up", size: net });
+    else if (falling && now >= -50) found.push({ stat, dir: "down", size: -net });
+  }
+  found.sort((a, b) => b.size - a.size);
+  const w = who || {};
+  return found.slice(0, 2).map((x) => {
+    const t = TREND_TAILS[x.stat];
+    const text = x.dir === "up" ? (x.stat === "attraction" && close ? t.close : t.up) : t.down;
+    return text.split("{user}").join(w.user || "the user");
+  });
+}
+
+/** The bond line for one character: the constellation said to the model, with the tails; "" when there is nothing to say. */
+export function bondLine(stats, cls, user, tails) {
+  if (!isObj(stats) || DISPOSITION.every((k) => !num(stats[k]))) return "";
+  const id = constellationOf(stats, cls).id;
+  const words = BOND_WORDS[id];
+  if (!words) return "";
+  const main = words.split("{user}").join(user || "the user");
+  return "Bond with " + (user || "the user") + ": " + main + (arr(tails).length ? "; lately " + arr(tails).join(", ") : "") + ".";
 }
 
 // ---------- chat: messages, active line, characters ----------
@@ -3657,7 +3759,8 @@ function previousStateText(ctx) {
     const c = B.chars && B.chars[name];
     if (!c) continue;
     const fresh = DISPOSITION.every((s) => !c.stats[s]);
-    let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).join("; ")) + ".";
+    const phrases = fresh ? [] : DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).filter(Boolean);
+    let line = name + " toward " + ctx.userName + ": " + (fresh ? "no history yet" : phrases.length ? phrases.join("; ") : "no strong feelings yet") + ".";
     if (c.mood) line += " Mood: " + c.mood + ".";
     // what the character holds and wears, each item with its id: the sensor refers to the ids (#236)
     const its = itemsOf(c);
@@ -7421,13 +7524,11 @@ function knowsLine(name, user, notes, nameEntry, pr, soft) {
   return "What " + name + " knows about " + user + ": " + parts.join(" ") + (soft ? "" : " Anything else about " + user + ", " + name + " does not know.");
 }
 
-// a feeling this close to neutral is not worth a phrase
-const FELT = 10;
-
+// a feeling this close to neutral is not worth a phrase (the neutral band of bandOf)
 function feelingsLine(c, user, who) {
   if (DISPOSITION.every((s) => !c.stats[s])) return "no history yet";
-  const felt = DISPOSITION.filter((s) => Math.abs(c.stats[s]) >= FELT);
-  return felt.length ? felt.map((s) => tierPhrase(s, c.stats[s], who)).join("; ") : "no strong feelings yet";
+  const felt = DISPOSITION.map((s) => tierPhrase(s, c.stats[s], who)).filter(Boolean);
+  return felt.length ? felt.join("; ") : "no strong feelings yet";
 }
 
 /** Day, place and who is there: once, above the characters. */
@@ -7499,8 +7600,12 @@ function characterBlock(ctx, name, withNotes, limit) {
   const lines = ["[How " + name + " is right now:"];
   if (CONTACT_WORDS[c.contact]) lines.push("Not in the same place as " + user + ": they talk " + CONTACT_WORDS[c.contact] + ".");
   const hostile = hostilityWords(c.hostility);
-  lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
   const bases = pulseBases(soul);
+  // the bond first (the constellation, said short), with what has been rising or falling lately; then the five feelings
+  const closeBy = isObj(c.pulse) && pulseBand(c.pulse.arousal, bases.arousal) !== "low";
+  const bond = bondLine(c.stats, c.cls, user, trendTails(typeof ctx.trailOf === "function" ? ctx.trailOf(name) : [], { user }, closeBy));
+  if (bond) lines.push(bond);
+  lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
   const pulse = PULSE.map((p) => PULSE_BANDS[p][pulseBand(c.pulse[p], bases[p])]).filter(Boolean);
   // snapshots from before `fresh` existed count every field as fresh
   const isFresh = (f) => !Array.isArray(c.fresh) || c.fresh.includes(f);
@@ -7768,6 +7873,8 @@ export function buildInsert(fsx, chatId, turn, cfg) {
     user: userNameOf(fsx, chat.meta),
     notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),
     names: activeNames(state, at.keys),
+    // the stats of the last snapshots on the active line, oldest first: what a stat has been doing lately (trendTails)
+    trailOf: (n) => at.keys.slice(-TREND_WINDOW * 3).map((k) => state.snapshots[k]).filter((x) => isObj(x) && isObj(x.chars) && isObj(x.chars[n]) && isObj(x.chars[n].stats)).slice(-TREND_WINDOW).map((x) => x.chars[n].stats),
     // linked to an earlier chat but never started from it: the Dashboard cannot say what is unknown (see knowsLine)
     soft: !isObj(state.inherited) && !!linkedFrom(fsx, chatId),
     calendar: state.calendar,

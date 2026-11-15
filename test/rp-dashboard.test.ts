@@ -149,14 +149,30 @@ describe("physics", () => {
     const S = (o: Record<string, number>) => ({ trust: 0, comfort: 0, attraction: 0, respect: 0, affection: 0, ...o });
     const cases: [string, Record<string, number>, string][] = [
       ["contempt", { respect: -60 }, "ally"],
+      ["hatred", { affection: -60, trust: -30 }, "ally"],
       ["grudging_respect", { respect: 40 }, "hostile"],
       ["fear", { comfort: -60, respect: 10 }, "ally"],
+      ["betrayed", { trust: -50, affection: 30 }, "ally"],
+      ["love_hate", { attraction: 40, affection: -20 }, "ally"],
+      ["not_that_way", { attraction: -40, affection: 30 }, "ally"],
+      ["passion", { attraction: 70, affection: 60, trust: 50, comfort: 50 }, "romantic"],
       ["romance", { attraction: 50, affection: 50, trust: 30 }, "romantic"],
       ["dangerous_pull", { attraction: 60, trust: -5 }, "ally"],
       ["honor_without_trust", { respect: 60, trust: -5 }, "ally"],
+      ["infatuation", { attraction: 40, trust: 10 }, "ally"],
+      ["resentment", { affection: -40 }, "ally"],
+      ["uneasy_respect", { comfort: -30, respect: 30 }, "ally"],
+      ["devoted", { trust: 65, affection: 65, comfort: 45, respect: 30 }, "ally"],
+      ["admiration", { respect: 60, affection: 30, trust: 20 }, "ally"],
       ["loyal", { trust: 60, respect: 50 }, "ally"],
+      ["family", { comfort: 50, affection: 45, trust: 20 }, "ally"],
       ["friendship", { trust: 40, comfort: 40, affection: 40 }, "ally"],
       ["outsider", { trust: -40, comfort: -30 }, "neutral"],
+      ["wary", { trust: -20, comfort: -5 }, "neutral"],
+      ["distant", { affection: -20, trust: 0 }, "neutral"],
+      ["cautious_warmth", { affection: 25, trust: 0 }, "neutral"],
+      ["ease", { comfort: 35, trust: 5 }, "neutral"],
+      ["friendly", { trust: 20, comfort: 20, affection: 20 }, "neutral"],
       ["strangers", { trust: 15, comfort: -15 }, "neutral"],
       ["unsettled", { trust: 20 }, "neutral"],
     ];
@@ -167,9 +183,10 @@ describe("physics", () => {
   });
 
   it("tier phrases fill their placeholders", () => {
-    expect(P.tierPhrase("trust", -10, { user: "the King" })).toBe("wary; tests the King's words before believing them");
-    expect(P.tierPhrase("trust", 80)).toBe("says the uncomfortable thing themself");
-    expect(P.tierPhrase("respect", 80, { user: "Ann" })).toBe("defers on what matters; changes their mind when Ann speaks");
+    expect(P.tierPhrase("trust", -20, { user: "the King" })).toBe("wary, tests the King's words before believing them");
+    expect(P.tierPhrase("trust", -10, { user: "the King" })).toBe("a little doubtful of the King's words");
+    expect(P.tierPhrase("trust", 50)).toBe("trusts the user with real things and says the uncomfortable thing themself");
+    expect(P.tierPhrase("respect", 80, { user: "Ann" })).toBe("defers on what matters, changes their mind when Ann speaks");
     expect(P.pulseBand(19, 9)).toBe("low");
     expect(P.pulseBand(20, 9)).toBe("moderate");
     expect(P.pulseBand(71, 9)).toBe("high");
@@ -1480,16 +1497,17 @@ describe("prompt insert", () => {
     expect(text).toContain(P.tierPhrase("trust", 60, who));
     expect(text).toContain(P.tierPhrase("respect", -30, who));
     expect(P.tierPhrase("trust", 60, who)).not.toBe(P.tierPhrase("trust", 0, who));
-    // comfort, attraction and affection sit at 0: below the threshold of 10, no phrase
-    for (const stat of ["comfort", "attraction", "affection"]) expect(text).not.toContain(P.tierPhrase(stat, 0, who));
+    // comfort, attraction and affection sit at 0: the neutral band, no phrase
+    for (const stat of ["comfort", "attraction", "affection"]) expect(P.tierPhrase(stat, 0, who)).toBe("");
     // the scene says the date, not "the first day" (#113)
     expect(text).not.toContain("The first day.");
-    // the edge: 9 is silent, 10 and -10 speak
-    setStats("c1", "m3#0", "Aria", { trust: 0, respect: 0, comfort: 9, attraction: -9, affection: 10 });
+    // the edge: 5 is silent, 6 and -6 speak
+    setStats("c1", "m3#0", "Aria", { trust: 0, respect: 0, comfort: 5, attraction: -5, affection: 6 });
     const edge = insertOf(ask(mock, "c1"));
-    expect(edge).toContain(P.tierPhrase("affection", 10, who));
-    expect(edge).not.toContain(P.tierPhrase("comfort", 9, who));
-    expect(edge).not.toContain(P.tierPhrase("attraction", -9, who));
+    expect(edge).toContain(P.tierPhrase("affection", 6, who));
+    expect(P.tierPhrase("comfort", 5, who)).toBe("");
+    expect(edge).not.toContain(P.tierPhrase("comfort", 6, who));
+    expect(edge).not.toContain(P.tierPhrase("attraction", -6, who));
     // all zero: no history yet, and the third day in words (an evening on it)
     writeChat("c2", three());
     const blank = mockHost([reply({ present: ["Aria"], day: 3, time: "evening" })]);
