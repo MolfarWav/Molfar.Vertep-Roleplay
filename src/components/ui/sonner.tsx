@@ -17,6 +17,15 @@ const TYPE_CLASSES = {
   info: "!border-sky-400 !bg-sky-50 !text-sky-950 dark:!border-sky-700 dark:!bg-sky-950 dark:!text-sky-100",
 }
 
+// A proposal toast wears the colour of the block it points to (portrait sky, habits violet, quests amber, facts emerald),
+// so the colour says which part of the app it is about. Same opaque look as the type classes above.
+export const TONE_TOAST = {
+  sky: "!border-sky-400 !bg-sky-50 !text-sky-950 dark:!border-sky-700 dark:!bg-sky-950 dark:!text-sky-100",
+  violet: "!border-violet-400 !bg-violet-50 !text-violet-950 dark:!border-violet-700 dark:!bg-violet-950 dark:!text-violet-100",
+  amber: "!border-amber-400 !bg-amber-50 !text-amber-950 dark:!border-amber-700 dark:!bg-amber-950 dark:!text-amber-100",
+  emerald: "!border-emerald-400 !bg-emerald-50 !text-emerald-950 dark:!border-emerald-700 dark:!bg-emerald-950 dark:!text-emerald-100",
+} as const
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const theme = useApp((s) => s.settings.themeMode)
 

@@ -2,8 +2,9 @@
 import type { LitChat, LitChatItem, LitProposal } from '@/components/library/litopys-api'
 import { t, type Lang, type MsgKey } from '@/lib/i18n'
 import type { Letter } from '@/lib/letters-core'
+import { byKind, type ProposalItem, type ProposalKind } from '@/lib/proposal-core'
 
-export type AttentionKind = 'litopys' | 'soul' | 'failed'
+export type AttentionKind = 'litopys' | 'soul' | 'failed' | 'growth' | 'habits' | 'quests'
 
 /** settings.attention: a kind is on unless set to false. */
 export type AttentionSettings = Partial<Record<AttentionKind, boolean>>
@@ -199,6 +200,8 @@ export type InboxRow =
   | { kind: 'litopys'; key: string; chatId: string; name: string; count: number; why?: string }
   | { kind: 'soul'; key: string; characterId: string; name: string; count: number; at: number }
   | { kind: 'letter'; key: string; letter: Letter; name: string }
+  /** a portrait block, a habit or a quest the story proposed in the open chat (proposal-core.ts), one row per kind */
+  | { kind: 'proposal'; key: string; what: ProposalKind; chatId: string; cardId: string; name: string; count: number }
 
 /** A Library row hidden from the inbox: gone until that chat's pending count changes. */
 export const litDismissKey = (chatId: string, count: number) => `lit:${chatId}:${count}`
@@ -215,6 +218,8 @@ export interface InboxInput {
   /** the main reason a chat's proposals wait, by chat id (#184 P5) */
   litWhy?: Record<string, string>
   soul: SoulWaiting[]
+  /** what the story proposed in the open chat: portrait blocks, habits, quests */
+  waiting?: readonly ProposalItem[]
   /** unread letters from cards (#72); they are never failures and never turn the badge red */
   letters?: Letter[]
   /** background failures from every source, soul ones included only through `soul` */
@@ -256,9 +261,14 @@ export function inboxRows(input: InboxInput): { rows: InboxRow[]; total: number;
       rows.push({ kind: 'soul', key: `soul:${d.characterId}`, characterId: d.characterId, name: input.cardName(d.characterId), count: d.n, at: d.at })
     }
   }
+  for (const g of byKind(input.waiting ?? [])) {
+    if (!attentionOn(input.settings, g.kind)) continue
+    const first = g.items[0]!
+    rows.push({ kind: 'proposal', key: `proposal:${g.kind}:${first.chatId}`, what: g.kind, chatId: first.chatId, cardId: first.cardId, name: g.kind === 'growth' && g.items.length === 1 ? first.name : input.chatName(first.chatId), count: g.items.length })
+  }
   for (const l of input.letters ?? []) rows.push({ kind: 'letter', key: `letter:${l.id}`, letter: l, name: input.cardName(l.characterId) })
   const failures = rows.filter((r) => r.kind === 'failed').length
-  const total = rows.reduce((a, r) => a + (r.kind === 'litopys' ? r.count : 1), 0)
+  const total = rows.reduce((a, r) => a + (r.kind === 'litopys' || r.kind === 'proposal' ? r.count : 1), 0)
   return { rows, total, failures }
 }
 

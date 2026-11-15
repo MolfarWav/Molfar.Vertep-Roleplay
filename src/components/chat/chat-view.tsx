@@ -26,6 +26,7 @@ import { AutoBackground } from '@/components/world/world-auto-bg'
 import { FiredPanel } from '@/components/chat/fired-panel'
 import type { FiredTab } from '@/components/chat/fired-tabs'
 import { useApp, useChat, useCharacter, checkSoulProposals } from '@/lib/store'
+import { checkChatProposals } from '@/lib/proposal-toasts'
 import { speakText, voiceFor } from '@/lib/tts'
 import { ChatQuickSwitch } from '@/components/chat/chat-quick-bar'
 import { ChatsView } from '@/components/views/chats-view'
@@ -192,6 +193,19 @@ export function ChatView() {
     const id = setInterval(() => { if (document.visibilityState === 'visible') void checkSoulProposals(activeChatId) }, 60_000)
     return () => clearInterval(id)
   }, [activeChatId])
+  // what the story proposed (a portrait block, a habit, a quest) is told in the chat in the colour of its block: when the
+  // chat opens, a few seconds after each reply (the agents run after it) and every minute
+  useEffect(() => {
+    if (!activeChatId) return
+    void checkChatProposals(activeChatId)
+    const id = setInterval(() => { if (document.visibilityState === 'visible') void checkChatProposals(activeChatId) }, 60_000)
+    return () => clearInterval(id)
+  }, [activeChatId])
+  useEffect(() => {
+    if (!activeChatId || isStreaming) return
+    const id = setTimeout(() => { void checkChatProposals(activeChatId) }, 6000)
+    return () => clearTimeout(id)
+  }, [activeChatId, isStreaming])
   // the agents' notes under the replies need the chat's agents and their runs, once per chat
   useEffect(() => { if (activeChatId) void ensureAgentRuns(activeChatId) }, [activeChatId])
   // Home's "Branches" button opens the chat and asks for its tree

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BellSimple, BellSlash, CaretRight, Check, EnvelopeSimple, Scroll, Sparkle, Warning, X } from '@phosphor-icons/react'
+import { BellSimple, BellSlash, CaretRight, Check, EnvelopeSimple, Lightbulb, ListChecks, Scroll, Sparkle, TrendUp, Warning, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { dismissInboxRows as dismissStoreRows, useApp } from '@/lib/store'
 import { dismissLetters, muteCard, useLetters } from '@/lib/letters'
@@ -32,6 +32,7 @@ export function useInboxRows() {
   const litNames = useAttention((s) => s.litNames)
   const litWhy = useAttention((s) => s.litWhy)
   const soul = useAttention((s) => s.soul)
+  const waiting = useAttention((s) => s.waiting)
   const letters = useLetters((s) => s.letters)
   const failed = useAttention((s) => s.failed)
   const dismissed = useAttention((s) => s.dismissed)
@@ -44,6 +45,7 @@ export function useInboxRows() {
     litopys,
     litWhy,
     soul,
+    waiting,
     letters,
     failed,
     dismissed,
@@ -82,6 +84,7 @@ function openRow(row: InboxRow) {
   const app = useApp.getState()
   if (row.kind === 'letter') openLetter(row)
   else if (row.kind === 'litopys') app.focusLibraryChat(row.chatId)
+  else if (row.kind === 'proposal') openProposal(row)
   else if (row.kind === 'soul') app.openCharacterOnTab(row.characterId, 'soul')
   else {
     const f = row.item
@@ -98,6 +101,19 @@ function openRow(row: InboxRow) {
   }
 }
 
+/** A proposal row opens the place its block lives in: the card's Memory tab, the chat's habits in the Library, the chat's Dashboard quests. */
+function openProposal(row: Extract<InboxRow, { kind: 'proposal' }>) {
+  const app = useApp.getState()
+  if (row.what === 'growth' && row.cardId) app.openCharacterOnTab(row.cardId, 'memory')
+  else if (row.what === 'habits') {
+    useApp.setState({ ledgerTabRequest: 'habits' })
+    app.focusLibraryChat(row.chatId)
+  } else {
+    app.openChat(row.chatId)
+    app.openDashboard({ tab: 'quests' })
+  }
+}
+
 /** A letter opens where it points: the old chat, a new chat with the card, or the card's Soul tab. Opening it reads it: it goes. */
 function openLetter(row: Extract<InboxRow, { kind: 'letter' }>) {
   const { letter } = row
@@ -108,7 +124,7 @@ function openLetter(row: Extract<InboxRow, { kind: 'letter' }>) {
   else void app.startChatAndOpen(letter.characterId)
 }
 
-/** Colour, icon and kind label of each row kind: a failure is red, a Library approval blue, a soul review violet, a letter from a card green (calm, never counted as a failure). */
+/** Colour, icon and kind label of each row kind: a failure is red, a Library fact approval green, a soul review violet, a letter from a card teal (calm, never counted as a failure); portrait blocks, habits and quests wear the colour of their block (proposal-core.ts). */
 const KIND_STYLE = {
   failed: {
     icon: Warning,
@@ -118,9 +134,9 @@ const KIND_STYLE = {
   },
   litopys: {
     icon: Scroll,
-    row: 'border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10',
-    chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-    iconTone: 'text-sky-600 dark:text-sky-300',
+    row: 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10',
+    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    iconTone: 'text-emerald-600 dark:text-emerald-300',
   },
   soul: {
     icon: Sparkle,
@@ -130,9 +146,30 @@ const KIND_STYLE = {
   },
   letter: {
     icon: EnvelopeSimple,
-    row: 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10',
-    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    iconTone: 'text-emerald-600 dark:text-emerald-300',
+    row: 'border-teal-500/30 bg-teal-500/5 hover:bg-teal-500/10',
+    chip: 'bg-teal-500/15 text-teal-700 dark:text-teal-300',
+    iconTone: 'text-teal-600 dark:text-teal-300',
+  },
+} as const
+
+const PROPOSAL_STYLE = {
+  growth: {
+    icon: TrendUp,
+    row: 'border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10',
+    chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    iconTone: 'text-sky-600 dark:text-sky-300',
+  },
+  habits: {
+    icon: ListChecks,
+    row: 'border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10',
+    chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+    iconTone: 'text-violet-600 dark:text-violet-300',
+  },
+  quests: {
+    icon: Lightbulb,
+    row: 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10',
+    chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    iconTone: 'text-amber-600 dark:text-amber-300',
   },
 } as const
 
@@ -141,11 +178,11 @@ export function InboxItem({ row, phone, selecting, selected, onToggle }: { row: 
   const t = useT()
   const when = useRelativeTime()
   const lang = resolveLanguage(useApp((s) => s.settings.language))
-  const style = KIND_STYLE[row.kind]
+  const style = row.kind === 'proposal' ? PROPOSAL_STYLE[row.what] : KIND_STYLE[row.kind]
   const Icon = style.icon
   const name = row.name || '…'
-  const kindLabel = t(row.kind === 'failed' ? 'inbox.kind.failed' : row.kind === 'litopys' ? 'inbox.kind.litopys' : row.kind === 'letter' ? 'inbox.kind.letter' : 'inbox.kind.soul')
-  const what = row.kind === 'failed' ? row.reason : row.kind === 'litopys' ? t('inbox.lit', { n: row.count }) : row.kind === 'letter' ? row.letter.text : t('inbox.soul', { n: row.count })
+  const kindLabel = t(row.kind === 'failed' ? 'inbox.kind.failed' : row.kind === 'litopys' ? 'inbox.kind.litopys' : row.kind === 'letter' ? 'inbox.kind.letter' : row.kind === 'proposal' ? (`inbox.kind.${row.what}` as const) : 'inbox.kind.soul')
+  const what = row.kind === 'failed' ? row.reason : row.kind === 'litopys' ? t('inbox.lit', { n: row.count }) : row.kind === 'letter' ? row.letter.text : row.kind === 'proposal' ? t('inbox.waitingN', { n: row.count }) : t('inbox.soul', { n: row.count })
   // why the suggestions wait (#184 P5): a line of its own, so a phone can read all of it
   const whyText = row.kind === 'litopys' && row.why ? t('lit.whyWaits', { text: t(whyKey(row.why)) }) : ''
   const at = row.kind === 'failed' ? row.item.at : row.kind === 'soul' ? row.at : row.kind === 'letter' ? row.letter.at : 0
@@ -232,7 +269,7 @@ function NewList() {
 
 /** The filter chips: only the kinds that have something (plus All and What's new). Hidden when there is one choice. */
 function FilterChips({ counts, hasNew, value, onChange, phone }: {
-  counts: Record<'failed' | 'litopys' | 'soul' | 'letter', number>
+  counts: Record<'failed' | 'litopys' | 'soul' | 'letter' | 'proposal', number>
   hasNew: boolean
   value: InboxFilter
   onChange: (f: InboxFilter) => void
@@ -243,6 +280,7 @@ function FilterChips({ counts, hasNew, value, onChange, phone }: {
   if (counts.failed) chips.push({ key: 'failed', label: t('inbox.filter.failed'), n: counts.failed })
   if (counts.litopys) chips.push({ key: 'litopys', label: t('inbox.filter.litopys'), n: counts.litopys })
   if (counts.soul) chips.push({ key: 'soul', label: t('inbox.filter.soul'), n: counts.soul })
+  if (counts.proposal) chips.push({ key: 'proposal', label: t('inbox.filter.proposal'), n: counts.proposal })
   if (counts.letter) chips.push({ key: 'letter', label: t('inbox.filter.letter'), n: counts.letter })
   if (hasNew) chips.push({ key: 'new', label: t('inbox.filter.new') })
   if (chips.length < 2) return null
@@ -285,6 +323,7 @@ function InboxBody({ phone }: { phone?: boolean }) {
     litopys: rows.filter((r) => r.kind === 'litopys').length,
     soul: rows.filter((r) => r.kind === 'soul').length,
     letter: rows.filter((r) => r.kind === 'letter').length,
+    proposal: rows.filter((r) => r.kind === 'proposal').length,
   }
   // a chip that emptied (the failure cleared, the last suggestion was settled) falls back to All
   const active: InboxFilter = filter === 'all' || filter === 'new' ? (filter === 'new' && !hasNew ? 'all' : filter) : counts[filter] > 0 ? filter : 'all'

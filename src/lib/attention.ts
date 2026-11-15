@@ -13,10 +13,14 @@
 // (memory when storage is unavailable). Everything waiting at the first poll after a load is
 // toasted too, batched into one toast, so a pile the player never saw still gets said once.
 
+import { createElement } from 'react'
+import { Scroll } from '@phosphor-icons/react'
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { acceptLitProposal, rejectLitProposal, fetchLitChat, fetchLitChats, isPinLimit, type LitChatItem } from '@/components/library/litopys-api'
 import { t, type Lang } from '@/lib/i18n'
+import { PROPOSAL_TONE, type ProposalItem } from '@/lib/proposal-core'
+import { TONE_TOAST } from '@/components/ui/sonner'
 import { listWorldChats } from '@/lib/world'
 import {
   failKey, failReason, litCounts, litopysFailures, litWhy, soulFailures, takeNew, takeNewFailures, toastPlan, waitingOf, worldFailures, workerName,
@@ -34,6 +38,8 @@ interface AttentionState {
   litWhy: Record<string, string>
   /** cards with souls proposed or a failed rating, newest first */
   soul: SoulWaiting[]
+  /** what the story proposed in the open chat: portrait blocks, habits, quests (proposal-toasts.ts) */
+  waiting: ProposalItem[]
   /** background failures by source (soul failures ride in `soul`) */
   failedBy: Partial<Record<'world' | 'litopys' | 'dashboard' | 'letters', FailedItem[]>>
   /** all of them, dismissed ones left out */
@@ -43,7 +49,7 @@ interface AttentionState {
 }
 
 export const useAttention = create<AttentionState>(() => ({
-  litopys: {}, litNames: {}, litWhy: {}, soul: [], failedBy: {}, failed: [], dismissed: new Set(),
+  litopys: {}, litNames: {}, litWhy: {}, soul: [], waiting: [], failedBy: {}, failed: [], dismissed: new Set(),
 }))
 
 const mergeFailed = (by: AttentionState['failedBy'], dismissed: Set<string>) =>
@@ -82,6 +88,11 @@ export function setLitCounts(items: Pick<LitChatItem, 'id' | 'name' | 'proposals
   useAttention.setState({ litopys: on ? litCounts(items) : {}, litNames: on ? namesOf(items) : {}, litWhy: on ? litWhy(items) : {} })
 }
 
+/** The open chat's check (proposal-toasts.ts) hands over what waits there, for the inbox. */
+export function setWaiting(list: ProposalItem[]) {
+  useAttention.setState({ waiting: list })
+}
+
 /** The soul poll (store.ts, which owns the engine helper) hands its list over here. */
 export function setSoulWaiting(list: SoulWaiting[]) {
   useAttention.setState({ soul: list })
@@ -118,7 +129,7 @@ const SEEN_KEY = 'rp.attention.seen'
 const SEEN_MAX = 400
 let seenMem: string[] = []
 
-function readSeen(): Set<string> {
+export function readSeen(): Set<string> {
   let list = seenMem
   try {
     const raw = localStorage.getItem(SEEN_KEY)
@@ -129,7 +140,7 @@ function readSeen(): Set<string> {
   return new Set(Array.isArray(list) ? list : [])
 }
 
-function writeSeen(seen: Set<string>) {
+export function writeSeen(seen: Set<string>) {
   seenMem = [...seen].slice(-SEEN_MAX)
   try {
     localStorage.setItem(SEEN_KEY, JSON.stringify(seenMem))
@@ -142,7 +153,7 @@ function writeSeen(seen: Set<string>) {
 /** Typing in a field: wait until the keys rest, so the toast never lands mid-word. */
 let lastKey = 0
 if (typeof window !== 'undefined') window.addEventListener('keydown', () => { lastKey = Date.now() }, true)
-function whenIdle(fn: () => void, tries = 10) {
+export function whenIdle(fn: () => void, tries = 10) {
   const el = typeof document !== 'undefined' ? document.activeElement : null
   const typing = !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || (el as HTMLElement).isContentEditable)
   if (tries > 0 && typing && Date.now() - lastKey < 2500) {
@@ -152,9 +163,9 @@ function whenIdle(fn: () => void, tries = 10) {
   fn()
 }
 
-const isPhone = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches
+export const isPhone = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches
 /** 40 px targets on phones; the class lands on sonner's own buttons. */
-const BTN = 'max-md:!h-10 max-md:!px-3'
+export const BTN = 'max-md:!h-10 max-md:!px-3'
 
 export interface AttentionDeps {
   lang: Lang
@@ -249,7 +260,7 @@ export function setDashFailure(chatId: string, title: string, err: { at: number;
 }
 
 /** The inbox drawer: one open flag for the rail (desktop) and the More sheet (phone), and the chip picked. */
-export type InboxFilter = 'all' | 'failed' | 'litopys' | 'soul' | 'letter' | 'new'
+export type InboxFilter = 'all' | 'failed' | 'litopys' | 'soul' | 'letter' | 'proposal' | 'new'
 export const useInbox = create<{ open: boolean; filter: InboxFilter; setOpen: (open: boolean) => void; setFilter: (f: InboxFilter) => void }>((set) => ({
   open: false,
   filter: 'all',
@@ -266,10 +277,12 @@ function showToast(items: WaitingProposal[], deps: AttentionDeps) {
     description: plan.description,
     duration: 20_000,
     position: isPhone() ? ('bottom-center' as const) : undefined,
-    classNames: { actionButton: BTN, cancelButton: BTN },
+    icon: createElement(Scroll, { className: 'size-4', weight: 'fill', 'aria-hidden': true }),
+    // the facts of the Library are emerald, like the proposals of the other kinds wear their own block's colour (proposal-core.ts)
+    classNames: { toast: TONE_TOAST[PROPOSAL_TONE.litopys], actionButton: BTN, cancelButton: BTN },
   }
   if (!plan.inline) {
-    toast.info(plan.title, { ...base, action: open })
+    toast(plan.title, { ...base, action: open })
     return
   }
   const p = items[0]!
@@ -285,7 +298,7 @@ function showToast(items: WaitingProposal[], deps: AttentionDeps) {
       toast.error(msg, { action: open, duration: 10_000 })
     }
   }
-  toast.info(plan.title, {
+  toast(plan.title, {
     ...base,
     action: { label: t('attn.accept', lang), onClick: () => void settle(true) },
     cancel: { label: t('attn.reject', lang), onClick: () => void settle(false) },

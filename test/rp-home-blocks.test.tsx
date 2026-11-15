@@ -240,7 +240,7 @@ describe("WaitingView detail", () => {
       { kind: "litopys", key: "b", chatId: "c", name: "y", count: 3 },
       { kind: "soul", key: "c", characterId: "d", name: "z", count: 4, at: 1 },
     ] as never;
-    expect(kindsOf(rows)).toEqual({ failed: 1, litopys: 3, soul: 1, letter: 0 });
+    expect(kindsOf(rows)).toEqual({ failed: 1, litopys: 3, soul: 1, letter: 0, growth: 0, habits: 0, quests: 0 });
   });
 });
 
