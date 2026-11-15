@@ -527,7 +527,7 @@ describe("update route", () => {
     expect(req.systemPrompt).toContain("\"open\": [ { \"id\": \"t1 or null\"");
     expect(req.systemPrompt.endsWith("Leave out any key the new messages give nothing for. date: only a whole date the text states (day, month and year), never a guess.")).toBe(true);
     const user = req.messages[0].content as string;
-    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limits: main 0/1, side 0/3, steps per main thread 4 (everyday threads are not counted).\n\nNew messages\n[user] Hello.")).toBe(true);
+    expect(user.startsWith("Characters\nuser: You. Aria (ally).\n\nPrevious state\n(none: this is the start)\nOpen thread limits: main 0/1, side 0/3, steps per main thread 6 (everyday threads are not counted).\n\nNew messages\n[user] Hello.")).toBe(true);
     expect(CYRILLIC.test(req.systemPrompt)).toBe(false);
   });
 
@@ -3911,7 +3911,7 @@ describe("the user's notes and threads (overlay)", () => {
     expect(readStateFile("c1").snapshots["m3#0"].threads.length).toBe(2);
     expect(notes(mock, { op: "thread-add", text: "More" }).json.queued).toBe(true);
     const body = (v: unknown) => drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: v } }).json.maxThreads;
-    expect([body(9), body(0), body("x"), body(3)]).toEqual([6, 1, 1, 3]);
+    expect([body(99), body(0), body("x"), body(3), body(20)]).toEqual([20, 1, 1, 3, 20]);
     expect(stored().maxThreads).toBeUndefined();
   });
 
@@ -4144,11 +4144,11 @@ describe("overlay keys and the open thread limit line", () => {
     writeChat("c1", three());
     const mock = mockHost([keptPromise, reply({ present: ["Aria"], minutes: 1 })]);
     update(mock, "c1");
-    expect(mock.requests[0]!.req.messages[0].content).toContain("/3, steps per main thread 4");
+    expect(mock.requests[0]!.req.messages[0].content).toContain("/3, steps per main thread 6");
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { maxThreads: 5 } });
     writeChat("c1", [...three(), A("m4", "Hm."), U("m5", "Yes.")]);
     update(mock, "c1");
-    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("/5, steps per main thread 4");
+    expect(mock.requests.at(-1)!.req.messages[0].content).toContain("/5, steps per main thread 6");
     expect(P.DEFAULT_PROMPTS.sensor).toContain("up to the open thread limits given in the input");
   });
 });
@@ -4524,7 +4524,7 @@ describe("fast mode", () => {
     for (const head of ["Truth:", "Events:", "Scene:", "Knowledge:", "Threads:", "Event vocabulary\n", "Output shape\n", "Characters\nuser: You.", "Previous state\n"]) expect(text).toContain(head);
     expect(text).toContain("kept_promise");
     expect(text).toContain("Open threads: t1 [side] \"Who has the key?\"");
-    expect(text).toContain("Open thread limits: main 0/1, side 1/3, steps per main thread 4");
+    expect(text).toContain("Open thread limits: main 0/1, side 1/3, steps per main thread 6");
     expect(text).toContain("Aria (ally)");
     expect(text).toContain("Present: Aria.");
     // not the sensor's own role, language or size lines
