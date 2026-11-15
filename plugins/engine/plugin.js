@@ -2424,6 +2424,176 @@ export function wiVectorHits(items, vecMap, scanVec, scanModel) {
   }
   return out;
 }
+
+// ---------- secret entries (Molfar.Vertep#416): who in a chat knows an entry's truth ----------
+// An entry with `secret: { knownBy, cover, reveal }` reaches a reply spoken by one character only when that character
+// knows it; anyone else gets the cover (or nothing). A reply that voices several characters gets the truth with a
+// marker that says who knows it. Who knows is computed at every scan from the chat itself (the active line and the
+// Dashboard's `present`), so a swipe, an edit or a deleted message never leaves stale knowledge behind; only what the
+// player adds or removes by hand is stored (`lore-known/<chatId>.json`).
+const LORE_KNOWN_DIR = "lore-known/";
+const LORE_ENTRY_KEY = /^[A-Za-z0-9_.-]{1,128}#\d{1,9}$/;
+const SECRET_NAMES_MAX = 40;
+const SECRET_NAME_CHARS = 80;
+const secretNames = (v) => [...new Set((Array.isArray(v) ? v : []).map((x) => (typeof x === "string" ? x.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, SECRET_NAME_CHARS) : "")).filter(Boolean))].slice(0, SECRET_NAMES_MAX);
+
+/** An entry's secret, cleaned, or null when the entry is not secret. */
+export function secretOf(entry) {
+  const s = entry && entry.secret && typeof entry.secret === "object" && !Array.isArray(entry.secret) ? entry.secret : null;
+  if (!s) return null;
+  return { knownBy: secretNames(s.knownBy), cover: typeof s.cover === "string" ? s.cover.trim() : "", reveal: secretNames(s.reveal) };
+}
+
+/** Two names of one person: equal (case-blind), or the shorter is a whole-word part of the longer ("Yae Miko" in "Sugar Mommy | Yae Miko"). */
+export function sameKnower(a, b) {
+  const x = String(a || "").trim().toLowerCase();
+  const y = String(b || "").trim().toLowerCase();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  if (short.length < 3) return false;
+  const wordCh = /[\p{L}\p{N}]/u;
+  for (let at = long.indexOf(short); at >= 0; at = long.indexOf(short, at + 1)) {
+    const before = at > 0 ? long[at - 1] : "";
+    const after = long[at + short.length] || "";
+    if (!wordCh.test(before) && !wordCh.test(after)) return true;
+  }
+  return false;
+}
+
+/** The chat's hand-made list: { add: {entryKey: [names]}, remove: {entryKey: [names]} }. */
+export function loreKnownOf(fsx, chatId) {
+  const raw = /^[A-Za-z0-9_-]{1,128}$/.test(String(chatId || "")) ? jsonAt(fsx, LORE_KNOWN_DIR + chatId + ".json") : null;
+  const clean = (m) => {
+    const out = {};
+    for (const [k, v] of Object.entries(m && typeof m === "object" ? m : {})) if (LORE_ENTRY_KEY.test(k)) out[k] = secretNames(v);
+    return out;
+  };
+  return { add: clean(raw && raw.add), remove: clean(raw && raw.remove) };
+}
+
+/**
+ * Who was there for each message of the line (oldest first): a reply by its own Dashboard snapshot, a player's message
+ * by the snapshot of the reply that answers it, a message after the last reply (and the pending text) by the latest
+ * snapshot. A Set of names as the Dashboard spells them, or null when no snapshot says.
+ */
+export function presenceOfLine(line, dash) {
+  const snaps = dash && dash.snapshots && typeof dash.snapshots === "object" ? dash.snapshots : null;
+  const out = new Array(line.length).fill(null);
+  if (!snaps) return out;
+  const presentOf = (m) => {
+    if (!m || !m.id) return null;
+    const s = snaps[m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)];
+    const names = s && Array.isArray(s.present) ? s.present.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim()) : [];
+    return names.length ? new Set(names) : null;
+  };
+  const isReply = (m) => m && m.role !== "user" && m.role !== "system" && !m.pending;
+  let latest = null;
+  for (let i = 0; i < line.length; i++) if (isReply(line[i])) latest = presentOf(line[i]) || latest;
+  let next = latest;
+  for (let i = line.length - 1; i >= 0; i--) {
+    if (isReply(line[i])) {
+      next = presentOf(line[i]);
+      out[i] = next;
+    } else out[i] = next;
+  }
+  return out;
+}
+
+/**
+ * Who knows a secret entry in this chat, as [{name, how: "start" | "heard" | "manual", word?}]:
+ * `secret.knownBy` from the start; heard: a message of the line whose text has a reveal word teaches everyone present
+ * for it (`presence`, from presenceOfLine) and its author (a message with no snapshot: the author only); manual: the
+ * chat's list. A hand removal beats the other three. `match(text, word)` tests a reveal word (the scan's key matcher).
+ */
+export function loreKnowers({ secret, key, line, presence, manual, userName, match }) {
+  const out = [];
+  const removed = (manual && manual.remove && manual.remove[key]) || [];
+  const push = (row) => {
+    if (!row.name || out.some((x) => sameKnower(x.name, row.name)) || removed.some((r) => sameKnower(r, row.name))) return;
+    out.push(row);
+  };
+  for (const n of secret.knownBy) push({ name: n, how: "start" });
+  if (secret.reveal.length && Array.isArray(line)) {
+    const test = typeof match === "function" ? match : (t, w) => String(t).toLowerCase().includes(String(w).toLowerCase());
+    for (let i = 0; i < line.length; i++) {
+      const m = line[i];
+      const text = m && typeof m.text === "string" ? m.text : "";
+      if (!text) continue;
+      const word = secret.reveal.find((w) => test(text, w));
+      if (!word) continue;
+      const author = m.role === "user" || m.pending ? String(userName || m.name || "") : String(m.name || "");
+      const there = presence && presence[i] ? [...presence[i]] : [];
+      for (const n of [author, ...there]) if (n && n.trim()) push({ name: n.trim(), how: "heard", word });
+    }
+  }
+  for (const n of (manual && manual.add && manual.add[key]) || []) push({ name: n, how: "manual" });
+  return out;
+}
+
+/**
+ * What a secret entry gives this reply. `voice`: { names: Set of lower-case names of the one speaker, several: bool }.
+ * One voice that knows: the content ("known"); one that does not: the cover ("cover"), or nothing ("hidden").
+ * Several voices (a narrator, a roster turn, a card with several names) or an unknown speaker: the content with a
+ * marker ("marked"), so the instruction sits next to the secret itself.
+ */
+export function secretView(content, secret, knowers, voice) {
+  const text = String(content || "").trim();
+  const one = !!(voice && !voice.several && voice.names && voice.names.size);
+  if (one) {
+    const knows = knowers.some((k) => [...voice.names].some((n) => sameKnower(k.name, n)));
+    if (knows) return { mode: "known", text };
+    return secret.cover ? { mode: "cover", text: secret.cover } : { mode: "hidden", text: "" };
+  }
+  const names = knowers.map((k) => k.name);
+  const list = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+  const who = names.length ? "only " + list + (names.length > 1 ? " know" : " knows") + " this" : "nobody in the story knows this yet";
+  const rest = secret.cover ? " Everyone else knows it only as: " + secret.cover : " Everyone else knows nothing of it.";
+  return { mode: "marked", text: text + "\n[Secret: " + who + "." + rest + " Nobody else may act on the truth.]" };
+}
+
+/** The lower-case names a card answers to (mirrors Litopys cardNamesOf: name, data.name, the Soul's characters). */
+export function cardNameSet(card) {
+  const names = new Set();
+  const add = (n) => {
+    const s = typeof n === "string" ? n.trim().toLowerCase() : "";
+    if (s) names.add(s);
+  };
+  if (card && typeof card === "object") {
+    add(card.name);
+    if (card.data && typeof card.data === "object") add(card.data.name);
+    const soul = card.extensions && typeof card.extensions === "object" ? card.extensions.molfar_soul : null;
+    for (const k of Object.keys(soul && typeof soul.characters === "object" && soul.characters ? soul.characters : {})) add(k);
+  }
+  return names;
+}
+
+/**
+ * The secret-entry context of one scan, read lazily (only a scan that meets a secret entry reads the Dashboard):
+ * { voice, knowersOf(key, secret, entry) }. `line` is the chat's messages oldest first, the pending text last.
+ */
+export function loreContext(fsx, meta, line, userName, voice) {
+  const chatId = meta && typeof meta.id === "string" ? meta.id : "";
+  let base = null;
+  const load = () => {
+    if (base) return base;
+    const ok = /^[A-Za-z0-9_-]{1,128}$/.test(chatId);
+    const dash = ok ? jsonAt(fsx, "dashboard/state/" + chatId + ".json") : null;
+    base = { presence: presenceOfLine(line, dash), manual: ok ? loreKnownOf(fsx, chatId) : { add: {}, remove: {} } };
+    return base;
+  };
+  return {
+    voice,
+    knowersOf(key, secret, entry) {
+      const b = load();
+      // the scan's own matcher: whole words, word forms and the other script, as the entry's keys use them
+      const eff = { ...entry, wordForms: typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : true };
+      const match = (text, word) => keyMatch(String(text).toLowerCase(), word, eff, null, String(text));
+      return loreKnowers({ secret, key, line, presence: b.presence, manual: b.manual, userName, match });
+    },
+  };
+}
+
 function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts) {
   const options = opts && typeof opts === "object" ? opts : {};
   const dryRun = options.dryRun === true;
@@ -2516,8 +2686,17 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     const bs = book.settings && typeof book.settings === "object" ? book.settings : {};
     entries.forEach((entry, i) => {
       if (entry.enabled === false) return;
+      const id = (book.id || book.name) + "#" + (entry.uid ?? i);
+      // a secret entry (#416): what this reply gets of it, decided once per scan
+      const sec = secretOf(entry);
+      let secretV = null;
+      if (sec) {
+        const lore = options.lore && typeof options.lore.knowersOf === "function" ? options.lore : null;
+        const knowers = lore ? lore.knowersOf(id, sec, entry) : sec.knownBy.map((name) => ({ name, how: "start" }));
+        secretV = { ...secretView(entry.content, sec, knowers, lore ? lore.voice : null), knowers };
+      }
       items.push({
-        entry, book: book.name || book.id || "", bookId: book.id || book.name, bookSettings: bs, vec: book.vectorized, id: (book.id || book.name) + "#" + (entry.uid ?? i),
+        entry, book: book.name || book.id || "", bookId: book.id || book.name, bookSettings: bs, vec: book.vectorized, id, secretV,
         fmt: typeof book.formatTemplate === "string" ? book.formatTemplate : "",
         rank: strategy === "character_first" ? (charBooks.has(book.id) ? 0 : 1) : strategy === "global_first" ? (book.globalActive === true ? 0 : 1) : 0,
         groupScoring: typeof entry.groupScoringOverride === "boolean" ? entry.groupScoringOverride : bs.groupScoring === true,
@@ -2613,6 +2792,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     return wiEntryMatch(eff, text, raw, item.groupScoring && !!entry.group, viaVector === true);
   };
   const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
+  // what an entry puts into the prompt and into recursion: a secret one its view for this speaker (#416)
+  const contentOf = (x) => (x.secretV ? x.secretV.text : String(x.entry.content || ""));
 
   let depthNow = scanDepth;
   let passBase = 0; // pass numbers keep counting across min-activations rounds
@@ -2621,7 +2802,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     for (;;) {
       const base = windowOf(depthNow);
       // a deeper round still sees what earlier rounds pulled in by recursion
-      const carried = activated.filter((x) => x.entry.preventFurtherRecursion !== true).map((x) => String(x.entry.content || ""));
+      const carried = activated.filter((x) => x.entry.preventFurtherRecursion !== true).map(contentOf);
       let win = carried.length ? { raw: base.raw + "\n" + carried.join("\n"), low: base.low + "\n" + carried.join("\n").toLowerCase() } : base;
       for (let pass = 0; ; pass++) {
         let newly = [];
@@ -2630,7 +2811,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           const { entry, id } = item;
           if (seen.has(id) || rolledOut.has(id)) continue;
           const constant = isConstantEntry(entry);
-          const filtered = filterOut(entry);
+          // a secret the speaker does not know and that has no cover stays out, with its reason (#416)
+          const filtered = filterOut(entry) || (item.secretV && item.secretV.mode === "hidden" ? { reason: "secret", detail: item.secretV.knowers.map((k) => k.name).join(", ") } : null);
           const st = stickyLive(id);
           // held back: say why only for entries whose keys would hit now
           const wouldHit = () => constant || (() => { const m = matchEntry(item, win, firstPass); return m && !m.fail ? m : null; })();
@@ -2697,7 +2879,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
         if (!recursionOn || pass + 1 >= maxPasses) { passBase += pass + 1; break; }
         const added = newly
           .filter((x) => x.entry.preventFurtherRecursion !== true)
-          .map((x) => String(x.entry.content || ""));
+          .map(contentOf);
         if (!added.length) { passBase += pass + 1; break; }
         win = { raw: win.raw + "\n" + added.join("\n"), low: win.low + "\n" + added.join("\n").toLowerCase() };
       }
@@ -2727,7 +2909,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     trace: [], skipped: [], blocked: [], placed: [], unmatched: [], used: 0, budgetChars: budget, scanDepth: depthNow,
     scope: scope || books.map((b) => ({ id: b.id || b.name, name: b.name || b.id })),
   };
-  const textOf = (x) => wiFormat(x.fmt, String(x.entry.content || "").trim());
+  const textOf = (x) => wiFormat(x.fmt, contentOf(x).trim());
   // The budget is claimed in order-DESCENDING priority (higher
   // order wins, constants NOT exempt); ignoreBudget entries are always
   // included but their content still consumes budget for later entries
@@ -2756,6 +2938,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       ...(sticky ? { sticky: true } : {}),
       ...why,
       ...(group ? { group } : {}),
+      ...(x.secretV ? { secret: x.secretV.mode, knowers: x.secretV.knowers.slice(0, 8).map((k) => k.name) } : {}),
     };
     if (!admitted.has(x)) { out.skipped.push({ ...rec, reason: "budget" }); continue; }
     out.trace.push(rec);
@@ -3775,6 +3958,15 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const wiScanBase = scanMsgs.filter((m) => m.role !== "system" && m.hidden !== true);
   // the author's note can feed world-info keys too (its scan flag)
   const anScan = isOff("authorNote") ? [] : meta.authorNoteObject && meta.authorNoteObject.includeInWIScan === true ? [String(meta.authorNoteObject.text || "")] : [];
+  // secret entries (#416): who speaks this reply, and the chat line their knowers are read from
+  const loreVoice = (() => {
+    if (opts && opts.gen === "impersonate") return { names: new Set([String(userName || "").trim().toLowerCase()].filter(Boolean)), several: false };
+    const wiGroupCfg = isGroup ? chatGroup(fsx, meta) : null;
+    if (narrating || (wiGroupCfg && wiGroupCfg.generationMode === "append")) return { names: new Set(), several: true };
+    const names = cardNameSet(speakerCard);
+    return { names, several: names.size !== 1 };
+  })();
+  const loreLine = msgs.filter((m) => m && m.role !== "system" && m.hidden !== true).concat(pendingUserText ? [{ role: "user", text: String(pendingUserText), pending: true }] : []);
   const wi = activateWorldInfo(fsx, meta, anScan.length && anScan[0] ? wiScanBase.concat([{ text: anScan[0] }]) : wiScanBase, persona?.lorebookIds || [], wiBudgetChars(preset),
     // dry runs (peek) read timed effects but never consume them; the speaker
     // card fields + persona text feed entries with matchSources
@@ -3783,6 +3975,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       scanVec: opts && opts.scanVec ? opts.scanVec : null,
       scanModel: opts && opts.scanModel ? String(opts.scanModel) : "",
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
+      lore: loreContext(fsx, meta, loreLine, userName, loreVoice),
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
       excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [])],
@@ -5813,6 +6006,66 @@ export function handleRoute(req, host) {
     return ok(chatBookReport(fsx, chat.meta, log && typeof log === "object" && log.v === 1 ? log : null));
   }
 
+  // ---------- secret entries of a chat and who knows them (#416) ----------
+  // GET ?chatId=: the secret entries of the chat's books with their knowers (from the start, heard, added by hand) and
+  // the people of the latest Dashboard snapshot (the names the panel suggests). POST {chatId, entry, who, op}: add or
+  // remove one knower by hand; only this list is stored, the rest is read from the chat at every scan.
+  if (head === "lore-known" && req.method === "GET") {
+    const cid = req.query && typeof req.query.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(req.query.chatId) ? req.query.chatId : "";
+    if (!cid) return err(400, "chatId required");
+    const chat = loadChat(fsx, cid);
+    if (!chat) return err(404, "chat not found");
+    const { persona, userName } = chatPersona(fsx, chat.meta);
+    const bound = new Set([...(chat.meta.lorebookIds || []), ...((persona && persona.lorebookIds) || []), ...worldBookOf(chat.meta)].filter((x) => typeof x === "string" && x));
+    const line = chat.msgs.filter((m) => m && m.role !== "system" && m.hidden !== true);
+    const lore = loreContext(fsx, chat.meta, line, userName, null);
+    const entries = [];
+    for (const book of readBoundBooks(fsx, bound)) {
+      (book.entries || []).forEach((entry, i) => {
+        const sec = entry && entry.enabled !== false ? secretOf(entry) : null;
+        if (!sec || entries.length >= 200) return;
+        const key = (book.id || book.name) + "#" + (entry.uid ?? i);
+        entries.push({ key, bookId: book.id || book.name, book: book.name || book.id || "", title: wiTitle(entry), cover: !!sec.cover, reveal: sec.reveal, knowers: lore.knowersOf(key, sec, entry) });
+      });
+    }
+    const dash = jsonAt(fsx, "dashboard/state/" + cid + ".json");
+    // the names the panel suggests: who the latest snapshot lists, and the player's character
+    const present = presenceOfLine(line, dash).filter(Boolean).pop();
+    const people = [];
+    for (const n of [...(present ? [...present] : []), String(userName || "")]) if (n && !people.some((x) => sameKnower(x, n))) people.push(n);
+    return ok({ chatId: cid, entries, people });
+  }
+  if (head === "lore-known" && req.method === "POST") {
+    const b = body();
+    const cid = typeof b.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(b.chatId) ? b.chatId : "";
+    if (!cid || !loadChat(fsx, cid)) return err(404, "chat not found");
+    const key = typeof b.entry === "string" && LORE_ENTRY_KEY.test(b.entry) ? b.entry : "";
+    if (!key) return err(400, "entry must be <bookId>#<uid>");
+    const who = secretNames([b.who])[0] || "";
+    if (!who) return err(400, "who required");
+    if (b.op !== "add" && b.op !== "remove") return err(400, "op must be add or remove");
+    const list = loreKnownOf(fsx, cid);
+    const without = (m) => {
+      const rest = (m[key] || []).filter((n) => !sameKnower(n, who));
+      if (rest.length) m[key] = rest;
+      else delete m[key];
+    };
+    const into = (m) => {
+      m[key] = secretNames([...(m[key] || []), who]);
+    };
+    if (b.op === "add") {
+      without(list.remove);
+      into(list.add);
+    } else {
+      without(list.add);
+      into(list.remove);
+    }
+    // a chat keeps at most 500 entries in each list: the oldest keys go first
+    for (const m of [list.add, list.remove]) for (const k of Object.keys(m).slice(0, Math.max(0, Object.keys(m).length - 500))) delete m[k];
+    fsx.write(LORE_KNOWN_DIR + cid + ".json", JSON.stringify({ v: 1, add: list.add, remove: list.remove }));
+    return ok({ ok: true });
+  }
+
   // ---------- world info status: what ACTUALLY fires for a chat ----------
   // Same activation path a generation runs, with real budget numbers — the
   // app's "active entries" viewer shows this instead of a mock.
@@ -5843,6 +6096,12 @@ export function handleRoute(req, host) {
         dryRun: true, config: preset && preset.studio && preset.studio.worldInfo,
         excludeBookIds: groupExcludedBookIds(peekGroupCfg, members, lead ? lead.id : null),
         speaker: lead ? { id: lead.id, name: lead.name, tags: lead.card && lead.card.tags } : null,
+        lore: (() => {
+          const names = lead ? cardNameSet(lead.card) : new Set();
+          const narr = !!(peekGroupCfg && (peekGroupCfg.generationMode === "append" || peekGroupCfg.generationMode === "narrator"));
+          const line = chat.msgs.filter((m) => m && m.role !== "system" && m.hidden !== true);
+          return loreContext(fsx, chat.meta, line, chatPersona(fsx, chat.meta).userName, { names, several: narr || names.size !== 1 });
+        })(),
         genTypes: ["normal"],
         characterBookIds: cardBookIds(members.map((m) => m.card)),
         sources: (() => {
