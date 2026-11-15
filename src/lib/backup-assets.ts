@@ -3,7 +3,7 @@
 // (`/v1/assets/<id>`). The plugin that builds the zip cannot read that store, so the app adds the bytes
 // itself after export and puts them back before import. Ids are the SHA-256 of the bytes, so a picture
 // restored on another install gets the id the files already carry: nothing to rewrite.
-import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { deflateSync, strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 
 const ASSET_URL = /\/v1\/assets\/([a-f0-9]{64})(?![a-f0-9])/gi
 const TEXT_ENTRY = /\.(json|jsonl)$/i
@@ -116,8 +116,148 @@ export async function restoreBackupAssets(
   return { zip: zipSync(rest, { level: 0 }), restored, failed }
 }
 
-/** A chosen backup file as base64 for `/import/zip`, its pictures restored on the way. */
-export async function backupFileForImport(file: File): Promise<{ zipBase64: string; restored: number; failed: number }> {
+/** SillyTavern keeps a character's expression pictures in `characters/<Name>/<emotion>.png`. */
+const SPRITE_ENTRY = /^(?:.*\/)?characters\/([^/]+)\/([^/]+)\.(png|webp|jpe?g|gif)$/i
+const SPRITE_MIME: Record<string, string> = { png: 'image/png', webp: 'image/webp', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg' }
+
+/** { folder: { emotion: url } }: what `/import/zip` takes as `sprites`. */
+export type SpriteMap = Record<string, Record<string, string>>
+
+/** Takes the character sprite folders out of a library zip, stores each picture in the engine's asset store
+ *  (`store` maps `folder/emotion` to a URL) and returns the zip without them plus the folders' URLs. The
+ *  plugin cannot reach the store, and these pictures would otherwise be read as cards that failed. A zip with
+ *  no sprite folder comes back untouched. */
+export async function extractSprites(
+  zip: Uint8Array,
+  store: (blobs: [string, Blob][]) => Promise<Record<string, string>>,
+): Promise<{ zip: Uint8Array; sprites: SpriteMap; count: number }> {
+  let found: Record<string, Uint8Array>
+  try {
+    found = unzipSync(zip, { filter: (f) => SPRITE_ENTRY.test(f.name) })
+  } catch {
+    return { zip, sprites: {}, count: 0 } // not a zip we can read: the import reports it
+  }
+  const names = Object.keys(found)
+  if (!names.length) return { zip, sprites: {}, count: 0 }
+  const blobs: [string, Blob][] = []
+  for (const n of names) {
+    const m = SPRITE_ENTRY.exec(n)!
+    blobs.push([`${m[1]}\u0000${m[2]}`, new Blob([found[n] as unknown as BlobPart], { type: SPRITE_MIME[m[3]!.toLowerCase()] ?? 'image/png' })])
+  }
+  const urls = await store(blobs)
+  const sprites: SpriteMap = {}
+  let count = 0
+  for (const [key, url] of Object.entries(urls)) {
+    const [folder, emotion] = key.split('\u0000')
+    if (!folder || !emotion) continue
+    ;(sprites[folder] ??= {})[emotion] = url
+    count++
+  }
+  const rest = unzipSync(zip, { filter: (f) => !SPRITE_ENTRY.test(f.name) })
+  return { zip: zipSync(rest, { level: 0 }), sprites, count }
+}
+
+/** What the import plugin never reads: pictures, audio and video outside `characters/` (a library zip of another
+ *  app carries backgrounds, thumbnails and the like). The card pictures themselves stay. */
+const MEDIA = /\.(png|jpe?g|webp|gif|avif|bmp|svg|ico|mp3|wav|ogg|flac|m4a|mp4|webm|mov|mkv)$/i
+const CARD_ENTRY = /^(?:.*\/)?characters\/[^/]+\.(png|json)$/i
+const CHAT_ENTRY = /(?:^|\/)chats\//i
+const TEXT_ENTRY_ANY = /\.(json|jsonl|txt|md)$/i
+/** A request body reaches the engine through the app bridge, which refuses over 32 MB, and base64 adds a third:
+ *  a part stays well under that. */
+export const PART_BUDGET = 18 * 1024 * 1024
+
+export type LibraryPart = { zip: Uint8Array; names: string[] }
+
+/** A library zip cut into requests the bridge accepts, in the order the plugin needs: character cards first,
+ *  then everything that is not a chat (books, presets, personas, settings: small, kept in one part so the names
+ *  they point at resolve), then the chats, each with its sidecars. Media the plugin does not read is dropped
+ *  (`dropped` counts them). A zip that fits comes back as one part. A single file over the budget gets a part
+ *  of its own. */
+export function splitLibrary(zip: Uint8Array, budget = PART_BUDGET): { parts: LibraryPart[]; dropped: number } {
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(zip, { filter: (f) => !f.name.endsWith('/') })
+  } catch {
+    return { parts: [{ zip, names: [] }], dropped: 0 } // not a zip we can read: the import reports it
+  }
+  let dropped = 0
+  type Unit = { names: string[]; size: number }
+  const cards: Unit[] = []
+  const small: Unit = { names: [], size: 0 }
+  const chats = new Map<string, Unit>()
+  for (const [name, data] of Object.entries(files)) {
+    if (MEDIA.test(name) && !CARD_ENTRY.test(name)) { dropped++; continue }
+    // text compresses; a part is measured as the zip will hold it
+    const size = TEXT_ENTRY_ANY.test(name) && data.length > 4096 ? deflateSync(data).length : data.length
+    if (CARD_ENTRY.test(name)) cards.push({ names: [name], size })
+    else if (CHAT_ENTRY.test(name)) {
+      const stem = name.replace(/\.(jsonl|meta\.json|memories\.json)$/i, '')
+      const u = chats.get(stem) ?? { names: [], size: 0 }
+      u.names.push(name); u.size += size
+      chats.set(stem, u)
+    } else { small.names.push(name); small.size += size }
+  }
+  cards.sort((a, b) => (a.names[0]! < b.names[0]! ? -1 : 1))
+  const units = [...cards, ...(small.names.length ? [small] : []), ...[...chats.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, u]) => u)]
+  const groups: string[][] = []
+  let cur: string[] = []
+  let used = 0
+  for (const u of units) {
+    if (cur.length && used + u.size > budget) { groups.push(cur); cur = []; used = 0 }
+    cur.push(...u.names); used += u.size
+  }
+  if (cur.length) groups.push(cur)
+  if (!groups.length) return { parts: [{ zip, names: [] }], dropped }
+  // nothing dropped and nothing to split: the zip goes as it came
+  if (groups.length === 1 && !dropped) return { parts: [{ zip, names: groups[0]! }], dropped }
+  const parts = groups.map((names) => {
+    const entries: Record<string, [Uint8Array, { level: 0 | 6 }]> = {}
+    for (const n of names) entries[n] = [files[n]!, { level: TEXT_ENTRY_ANY.test(n) ? 6 : 0 }]
+    return { zip: zipSync(entries), names }
+  })
+  return { parts, dropped }
+}
+
+export type ImportSummary = Record<string, unknown>
+
+/** Imports a chosen backup or library zip through `post` (one `/import/zip` request per part) and returns the
+ *  summaries merged. Its pictures go back into the engine first, and the character sprite folders of a library
+ *  are stored and sent beside the part that holds that character's card. A failing part stops the import; the
+ *  earlier parts stay imported, and the message says so. */
+export async function importBackupFile(
+  file: File,
+  post: (body: { zipBase64: string; sprites?: SpriteMap }) => Promise<ImportSummary>,
+  onPart?: (done: number, total: number) => void,
+  budget = PART_BUDGET,
+): Promise<{ summary: ImportSummary; restored: number; failed: number; spriteCount: number; parts: number; dropped: number }> {
   const out = await restoreBackupAssets(new Uint8Array(await file.arrayBuffer()))
-  return { zipBase64: bytesToB64(out.zip), restored: out.restored, failed: out.failed }
+  const { storeEmotions } = await import('@/lib/card-import')
+  const sp = await extractSprites(out.zip, storeEmotions)
+  const { parts, dropped } = splitLibrary(sp.zip, budget)
+  // a sprite folder rides with the part whose card file carries its name, else with the first part
+  const withSprites = parts.map(() => ({}) as SpriteMap)
+  for (const [folder, pics] of Object.entries(sp.sprites)) {
+    const at = parts.findIndex((p) => p.names.some((n) => CARD_ENTRY.test(n) && n.split('/').pop()!.replace(/\.(png|json)$/i, '').toLowerCase() === folder.toLowerCase()))
+    withSprites[at >= 0 ? at : 0]![folder] = pics
+  }
+  const summary: ImportSummary = {}
+  const merge = (r: ImportSummary) => {
+    for (const [k, v] of Object.entries(r)) {
+      if (!Array.isArray(v)) continue
+      summary[k] = [...((summary[k] as unknown[] | undefined) ?? []), ...v]
+    }
+  }
+  for (let i = 0; i < parts.length; i++) {
+    onPart?.(i, parts.length)
+    try {
+      const sprites = withSprites[i]!
+      merge(await post({ zipBase64: bytesToB64(parts[i]!.zip), ...(Object.keys(sprites).length ? { sprites } : {}) }))
+    } catch (e) {
+      const why = String((e as Error).message ?? e)
+      const done = i === 1 ? 'the earlier part was imported' : `the ${i} earlier parts were imported`
+      throw new Error(parts.length > 1 ? `part ${i + 1} of ${parts.length}: ${why}${i ? ` (${done})` : ''}` : why)
+    }
+  }
+  return { summary, restored: out.restored, failed: out.failed, spriteCount: sp.count, parts: parts.length, dropped }
 }

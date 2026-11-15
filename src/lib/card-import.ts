@@ -67,7 +67,7 @@ async function fitEmotions(blobs: [string, Blob][]): Promise<Record<string, stri
 /** Each emotion image goes to the engine's asset store (alpha kept, SPRITE_MAX_PX on the long side) and the card
  *  keeps its URL, so a pack is not shrunk to fit the card file (#167). Falls back to fitEmotions when the store
  *  cannot be reached. An image that does not decode is skipped. */
-async function storeEmotions(blobs: [string, Blob][]): Promise<Record<string, string>> {
+export async function storeEmotions(blobs: [string, Blob][]): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
   try {
     for (const [key, blob] of blobs) {

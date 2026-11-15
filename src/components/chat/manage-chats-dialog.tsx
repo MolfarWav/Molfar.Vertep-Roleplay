@@ -19,7 +19,7 @@ import { saveFile } from "@/lib/export"
 import { j } from "@/lib/engine"
 import { ChatLogImportDialog } from "@/components/chat/chat-log-import-dialog"
 import { parseChatLog } from "@/lib/chat-log-text"
-import { backupFileForImport } from "@/lib/backup-assets"
+import { importBackupFile } from "@/lib/backup-assets"
 import type { Chat, ID } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -360,13 +360,8 @@ export function ManageChatsDialog({
     run.start(f.name, tNow("imp.step.reading"))
     try {
       run.step(tNow("imp.step.pictures"), 0.15)
-      const { zipBase64, failed } = await backupFileForImport(f)
+      const { summary: r, failed } = await importBackupFile(f, (body) => j<Record<string, unknown>>("/import/zip", { method: "POST", body: JSON.stringify(body) }), (i, n) => run.step(tNow("imp.step.unpacking"), 0.3 + 0.6 * (i / n)))
       if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
-      run.step(tNow("imp.step.unpacking"), 0.3)
-      const r = await j<Record<string, unknown>>("/import/zip", {
-        method: "POST",
-        body: JSON.stringify({ zipBase64 }),
-      })
       const parts = Object.entries(r)
         .filter(([, v]) => Array.isArray(v) && v.length)
         .map(([k, v]) => `${(v as unknown[]).length} ${k}`)

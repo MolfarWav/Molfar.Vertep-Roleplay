@@ -31,7 +31,7 @@ import { resolveLanguage, t, type MsgKey } from "@/lib/i18n"
 import type { AppSettings } from "@/lib/types"
 import { extractCharaFromPng, regexExport, regexImport, regexScriptsOf } from "@/lib/interop"
 import { downloadBlob, fileToRawBase64, importLorebookFiles, j } from "@/lib/engine"
-import { addAssetsToBackup, backupFileForImport } from "@/lib/backup-assets"
+import { addAssetsToBackup, importBackupFile } from "@/lib/backup-assets"
 import { cn } from "@/lib/utils"
 import { useConfirm } from "@/components/ui/confirm"
 import { defaultSettings } from "@/lib/seed"
@@ -573,15 +573,11 @@ function STImportSection() {
     run.start(f.name, tNow("imp.step.reading"))
     try {
       run.step(tNow("imp.step.pictures"), 0.15)
-      const { zipBase64, restored, failed } = await backupFileForImport(f)
-      run.step(tNow("imp.step.unpacking"), 0.3)
-      const r = await j<Record<string, unknown>>("/import/zip", {
-        method: "POST",
-        body: JSON.stringify({ zipBase64 }),
-      })
+      const { summary: r, restored, failed, spriteCount } = await importBackupFile(f, (body) => j<Record<string, unknown>>("/import/zip", { method: "POST", body: JSON.stringify(body) }), (i, n) => run.step(tNow("imp.step.unpacking"), 0.3 + 0.6 * (i / n)))
       const parts = Object.entries(r)
         .filter(([, v]) => Array.isArray(v) && v.length)
         .map(([k, v]) => `${(v as unknown[]).length} ${k}`)
+      if (spriteCount) parts.push(`${spriteCount} sprites`)
       if (restored) parts.push(tNow("backup.picturesRestored", undefined, { n: restored }))
       if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
       toast.success(parts.length ? `Imported ${parts.join(", ")}` : "Nothing recognized in that zip")
@@ -681,16 +677,14 @@ function DataSection() {
     run.start(file.name, tNow("imp.step.reading"))
     try {
       run.step(tNow("imp.step.pictures"), 0.15)
-      const { zipBase64, restored, failed } = await backupFileForImport(file)
-      run.step(tNow("imp.step.unpacking"), 0.3)
-      const summary = await j<{ characters: string[]; lorebooks: string[]; presets: string[]; regex: string[]; personas: string[]; chats: string[]; databank?: string[]; errors: string[] }>("/import/zip", {
-        method: "POST", body: JSON.stringify({ zipBase64 }),
-      })
-      const n = summary.characters.length + summary.lorebooks.length + summary.presets.length + summary.regex.length + summary.personas.length + summary.chats.length + (summary.databank?.length ?? 0)
+      const imported = await importBackupFile(file, (body) => j<Record<string, unknown>>("/import/zip", { method: "POST", body: JSON.stringify(body) }), (i, n) => run.step(tNow("imp.step.unpacking"), 0.3 + 0.6 * (i / n)))
+      const { restored, failed } = imported
+      const summary = imported.summary as { characters?: string[]; lorebooks?: string[]; presets?: string[]; regex?: string[]; personas?: string[]; chats?: string[]; databank?: string[]; errors?: string[] }
+      const n = (summary.characters?.length ?? 0) + (summary.lorebooks?.length ?? 0) + (summary.presets?.length ?? 0) + (summary.regex?.length ?? 0) + (summary.personas?.length ?? 0) + (summary.chats?.length ?? 0) + (summary.databank?.length ?? 0)
       if (failed) toast.error(tNow("backup.picturesFailed", undefined, { n: failed }))
       const notes = [
         restored ? tNow("backup.picturesRestored", undefined, { n: restored }) : "",
-        summary.errors.length ? `${summary.errors.length} skipped (incl. PNG cards, import those from Characters → Import)` : "",
+        summary.errors?.length ? `${summary.errors.length} skipped (incl. PNG cards, import those from Characters → Import)` : "",
       ].filter(Boolean)
       toast.success(`Restored ${n} items`, { description: notes.length ? notes.join(" · ") : undefined })
       run.step(tNow("imp.step.refreshing"), 0.9)
