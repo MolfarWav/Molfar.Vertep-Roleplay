@@ -157,3 +157,55 @@ export function buildFiredReport(title: string, log: FiredLog | null, trace: Mem
   if (trace) out.push('', buildReport('', trace, now))
   return out.join('\n')
 }
+
+// ---------- what the chat's books hold (#258 never fired, #259 entry vectors): `GET /fired-books` of the engine plugin ----------
+
+export interface BookNever { uid: number | null; title: string; keys: number; vectorized: boolean }
+export interface BookReport {
+  id: string
+  name: string
+  /** switched off for this chat on the prompt board */
+  off: boolean
+  /** enabled entries (always-on ones included) */
+  entries: number
+  disabled: number
+  constant: number
+  /** the first of the entries the log never saw (at most 40) and how many there are */
+  never: BookNever[]
+  neverTotal: number
+  /** entries that match by meaning: with a usable vector, with one of another model, with none */
+  vec: { items: number; have: number; other: number; missing: number }
+}
+export interface FiredBooks {
+  chatId: string
+  /** null = no reply recorded yet: nothing can be called "never" */
+  since: number | null
+  replies: number
+  /** the log is full (300 entries), so an entry missing from it may only have been dropped for room */
+  capped: boolean
+  /** the embeddings model in use ('' = not known) */
+  model: string
+  books: BookReport[]
+}
+
+/** The books that have entries the log never saw, the most such entries first. */
+export function neverBooks(r: FiredBooks): BookReport[] {
+  return r.books.filter((b) => b.neverTotal > 0).sort((a, b) => b.neverTotal - a.neverTotal || a.name.localeCompare(b.name))
+}
+export const neverTotal = (r: FiredBooks): number => r.books.reduce((n, b) => n + b.neverTotal, 0)
+
+/** The Vectors tab's lorebook card: the state of the entries that match by meaning, in the words of the other cards. */
+export type BookMeaningState = 'off' | 'empty' | 'none' | 'partial' | 'all' | 'other'
+export interface BookMeaning { state: BookMeaningState; items: number; have: number; other: number; missing: number; books: BookReport[] }
+
+/** `off` = the engine has no embeddings connection at all (then nothing is compared, whatever is stored). Books switched off for the chat do not count. */
+export function bookMeaning(r: FiredBooks, setup: 'ready' | 'none' | 'unknown'): BookMeaning {
+  const books = r.books.filter((b) => !b.off && b.vec.items > 0)
+  const sum = (k: 'items' | 'have' | 'other' | 'missing') => books.reduce((n, b) => n + b.vec[k], 0)
+  const items = sum('items')
+  const have = sum('have')
+  const other = sum('other')
+  const missing = sum('missing')
+  const state: BookMeaningState = items === 0 ? 'empty' : setup === 'none' ? 'off' : have === items ? 'all' : have > 0 ? (other > 0 && missing === 0 ? 'other' : 'partial') : other > 0 && missing === 0 ? 'other' : 'none'
+  return { state, items, have, other, missing, books }
+}

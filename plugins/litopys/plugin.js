@@ -1228,9 +1228,9 @@ export const WORKER_SHAPE =
 
 /** Added to the chapter prompt while habits are on (#106), so a customised chapter prompt keeps working. */
 export const HABITS_RULE = [
-  "Habits (optional, usually none):",
-  "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, not what the card already says.",
-  "- Add one only when a character did something characteristic: {who, name, rule, when, evidence}. At most 2 per scene. Never for the user's character.",
+  "Habits (look at each named character in every scene):",
+  "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, and not something listed under Already on the card.",
+  "- Add one when a character did something characteristic, in their own way and not just what anyone would do: {who, name, rule, when, evidence}. At most 2 per scene. Never for the user's character. Leave the list empty when no one did.",
   "- name: 2-6 words. rule: 1-3 short lines saying what they do. when: one short line, or \"\". evidence: a short quote or one line on what they did in this scene.",
   "- When a Known habit showed again, give {reinforce: its id, evidence} and no new habit.",
 ].join("\n");
@@ -2428,6 +2428,9 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
       .slice(0, 12)
       .map((k) => k.id + ": " + k.who + " - " + k.name + ": " + str(k.rule).split("\n").join(" "));
     if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
+    // what the card already keeps as a habit: the worker would otherwise earn it a second time
+    const onCard = arr(opts.cardRules).map((r) => cut(str(r).split("\n").join(" "), 160)).filter(Boolean).slice(0, 8);
+    if (onCard.length) parts.splice(parts.length - 1, 0, "Already on the card (do not report these again)\n" + onCard.map((r) => "- " + r).join("\n"));
   }
   const userText = parts.join("\n\n");
   // #178: only when there is a known fact to point at
@@ -4313,6 +4316,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       sources: ctx.sources,
       cardRules: ctx.cardRules,
     });
+    // what the worker offered and what was kept, so a report "no habits are found" says which it was: none offered, or all repeated the card
+    ctx.habitsStats = { got: earned.got, added: earned.added + earned.earned, repeatsCard: earned.repeatsCard, over: earned.over };
     // the activity log tells it like a level reached: who earned what, and who was seen with a habit the first time
     for (const k of earned.earnedList) addActivity(ctx.habitsStore || st, "worker", "habit.earn", k.who + " earned the habit " + quote(k.name), [k.id], now, { who: k.who, name: k.name, seen: k.seen });
     for (const k of earned.addedList) addActivity(ctx.habitsStore || st, "worker", "habit.seen", k.who + " showed a habit: " + quote(k.name), [k.id], now, { who: k.who, name: k.name });
@@ -4340,6 +4345,7 @@ export function applyWorkerResult(st, work, parsed, ctx) {
     ms,
     usage,
     facts: { got: arr(parsed.facts).length, added: factAdds.length, ...(skipped ? { skipped } : {}) },
+    ...(ctx.habitsStats ? { habits: ctx.habitsStats } : {}),
     ...(skips.length ? { skips, chapter: chapterId } : {}),
   };
   if (ctx.reply) st.worker.reply = cut(ctx.reply, 4000);
@@ -5307,6 +5313,34 @@ export function repeatsSource(text, sentences) {
   return arr(sentences).some((s) => diceSimilarity(text, s) >= 0.7);
 }
 
+/**
+ * A habit rule that only says again what the card or a lorebook says (#270). `repeatsSource` compares the whole text with one
+ * sentence by Dice, which misses a paraphrase and a rule of two or three lines set against a one-sentence source. Here a source
+ * sentence repeats the rule when it is close by Dice, or when most of the shorter text lies inside the longer one, and the rule
+ * repeats the card when its whole text does, or when every line of it does. Different languages still pass: trigrams do not
+ * cross a script.
+ */
+const HABIT_SOURCE_DICE = 0.55;
+const HABIT_SOURCE_CONTAINED = 0.7;
+function lineOverlaps(text, sentence) {
+  const a = trigrams(text);
+  const b = trigrams(sentence);
+  if (!a.size || !b.size) return false;
+  let hit = 0;
+  for (const g of a) if (b.has(g)) hit++;
+  if ((2 * hit) / (a.size + b.size) >= HABIT_SOURCE_DICE) return true;
+  // the rule is a shortened version of the sentence, or the sentence sits inside a longer rule
+  const small = a.size <= b.size ? a : b;
+  return small.size >= 12 && hit / small.size >= HABIT_SOURCE_CONTAINED;
+}
+export function repeatsCardText(rule, sentences) {
+  const list = arr(sentences);
+  if (!list.length) return false;
+  if (list.some((s) => lineOverlaps(rule, s))) return true;
+  const lines = str(rule).split(SENTENCE_SPLIT).map((l) => l.trim()).filter((l) => l.length >= 12);
+  return lines.length > 1 && lines.every((l) => list.some((s) => lineOverlaps(l, s)));
+}
+
 /** Notebook notes as they count (ported from relations activeNotebook + effectiveNotebook, reading only). */
 function liveNotes(dash, line, overlay, withCarried) {
   const keys = new Set(line.map((m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)));
@@ -5864,7 +5898,7 @@ export function onTick(_ctx, host) {
             gen.inFlight = { key: shortKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
             if (!saveChatFile(fsx, st)) return;
             beat(fsx, chatId, now);
-            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { maxWords, names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) }));
+            if (typeof host.llm.request === "function") host.llm.request(shortKey, buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { maxWords, names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash), cardRules: chatCfg.habits !== false ? cardHabitRules(fsx, meta) : [] }));
             return;
           }
           // the registry is read (and seeded) right before the names are written
@@ -5953,7 +5987,7 @@ export function onTick(_ctx, host) {
         gen.inFlight = { key: sendKey, from: work.scene.from, to: work.scene.to, fromNo: work.scene.fromIdx + 1, toNo: work.scene.toIdx + 1, since: now };
         if (!saveChatFile(fsx, st)) return;
         beat(fsx, chatId, now);
-        const req = buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash) });
+        const req = buildWorkerRequest(gen, work, line, dash, chatCfg, meta, { ...(retry ? { maxWords: retry.maxWords } : {}), names: helperNames(fsx, meta), view: storyView(fsx, meta), notCast: narratorNames(fsx, meta), canon: litCanon(fsx, chatId, meta, dash), cardRules: chatCfg.habits !== false ? cardHabitRules(fsx, meta) : [] });
         if (host.llm && typeof host.llm.request === "function") host.llm.request(sendKey, req);
         return;
       } catch (e) {
@@ -9374,12 +9408,13 @@ function cardHabitRules(fsx, meta) {
  * Returns { added, reinforced, earned }.
  */
 export function applyHabits(st, list, c) {
-  const res = { added: 0, reinforced: 0, earned: 0, addedList: [], earnedList: [] };
+  const res = { added: 0, reinforced: 0, earned: 0, addedList: [], earnedList: [], got: 0, repeatsCard: 0, over: 0 };
   st.habits = arr(st.habits);
   st.counters.habit = Number(st.counters.habit) || 0;
   let fresh = 0;
   for (const op of arr(list).slice(0, 6)) {
     if (!isObj(op)) continue;
+    res.got++;
     const evidence = cut(str(op.evidence), 200);
     let target = null;
     const rid = str(op.reinforce || op.id);
@@ -9396,9 +9431,14 @@ export function applyHabits(st, list, c) {
         if (same.status === "rejected") continue;
         target = same;
       } else {
-        if (repeatsSource(rule, c.sources) || arr(c.cardRules).some((r) => diceSimilarity(r, rule) >= CHAT_HABIT_SAME)) continue;
-        if (fresh >= CHAT_HABIT_NEW_PER_CHAPTER) continue;
-        if (st.habits.filter((k) => k.status !== "rejected").length >= CHAT_HABIT_MAX) continue;
+        if (repeatsSource(rule, c.sources) || repeatsCardText(rule, c.sources) || arr(c.cardRules).some((r) => diceSimilarity(r, rule) >= CHAT_HABIT_SAME)) {
+          res.repeatsCard++;
+          continue;
+        }
+        if (fresh >= CHAT_HABIT_NEW_PER_CHAPTER || st.habits.filter((k) => k.status !== "rejected").length >= CHAT_HABIT_MAX) {
+          res.over++;
+          continue;
+        }
         const made = {
           id: "k" + ++st.counters.habit,
           who,

@@ -1449,7 +1449,7 @@ function wiEntryEmbedText(entry) {
   const title = String(entry.title || entry.comment || "").trim();
   return (title ? title + "\n" : "") + String(entry.content || "").trim() + "\n" + (entry.keys || []).join(", ");
 }
-function wiEntryHash(entry) {
+export function wiEntryHash(entry) {
   const title = String(entry.title || entry.comment || "").trim();
   return strHash(String(entry.content || "") + "|" + String(entry.keys || "") + (title ? "|" + title : ""));
 }
@@ -3685,6 +3685,56 @@ function sweepFiredLogs(fsx) {
   } catch { /* no directory yet */ }
 }
 
+/**
+ * What the chat's lorebooks hold, set against the "What fired" log and the entry vectors (#258, #259): per book in this chat's
+ * scope, how many entries never fired (enabled, not always-on, not in the log) with the first of them named, and how many
+ * entries that match by meaning have a usable vector. Read-only. `log` is the chat's fired log, or null before its first reply.
+ * The log keeps at most FIRED_CAP entries, so once it is full an entry missing from it may only have been dropped for room:
+ * `capped` says so and the panel does not call that list "never".
+ */
+const BOOK_NEVER_LISTED = 40;
+export function chatBookReport(fsx, meta, log) {
+  const { persona } = chatPersona(fsx, meta);
+  const off = new Set(((cleanPromptBoard(meta.promptBoard) || {}).off || []).filter((k) => String(k).startsWith("book:")).map((k) => String(k).slice(5)));
+  const bound = new Set([...(meta.lorebookIds || []), ...((persona && persona.lorebookIds) || []), ...worldBookOf(meta)].filter((x) => typeof x === "string" && x));
+  const counted = log && typeof log === "object" && log.lore && typeof log.lore === "object" ? log.lore : null;
+  const capped = !!counted && Object.keys(counted).length >= FIRED_CAP;
+  const vecMap = loadWiVectors(fsx);
+  const model = embedModelOf(fsx);
+  const books = [];
+  for (const book of readBoundBooks(fsx, bound)) {
+    const bookId = String(book.id || book.name);
+    const row = { id: bookId, name: String(book.name || bookId), off: off.has(bookId), entries: 0, disabled: 0, constant: 0, never: [], neverTotal: 0, vec: { items: 0, have: 0, other: 0, missing: 0 } };
+    (book.entries || []).forEach((entry, i) => {
+      if (!entry || typeof entry !== "object") return;
+      if (entry.enabled === false) { row.disabled += 1; return; }
+      row.entries += 1;
+      if (isConstantEntry(entry)) { row.constant += 1; return; }
+      if (counted && !counted[bookId + ":" + String(entry.uid ?? wiTitle(entry))]) {
+        row.neverTotal += 1;
+        if (row.never.length < BOOK_NEVER_LISTED) row.never.push({ uid: entry.uid ?? null, title: wiTitle(entry), keys: Array.isArray(entry.keys) ? entry.keys.length : 0, vectorized: entry.vectorized === true || entry.status === "vectorized" });
+      }
+      if (entry.vectorized === true || entry.status === "vectorized") {
+        row.vec.items += 1;
+        const cached = vecMap[wiVectorKey(book, entry, i)];
+        if (!cached || cached.hash !== wiEntryHash(entry) || !Array.isArray(cached.vector)) row.vec.missing += 1;
+        else if (wiVectorUsable(cached, model)) row.vec.have += 1;
+        else row.vec.other += 1;
+      }
+    });
+    books.push(row);
+  }
+  return {
+    chatId: meta.id,
+    // null: no reply yet, so nothing can be called "never"
+    since: counted ? log.since : null,
+    replies: counted ? log.replies : 0,
+    capped,
+    model,
+    books,
+  };
+}
+
 function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const pbOff = new Set((cleanPromptBoard(meta.promptBoard) || {}).off || []);
   const isOff = (k) => pbOff.has(k);
@@ -5751,6 +5801,16 @@ export function handleRoute(req, host) {
     if (!log || typeof log !== "object" || log.v !== 1) return ok({ chatId: cid, log: null });
     if (req.query.brief) return ok({ chatId: cid, brief: { replies: log.replies, since: log.since, loreFired: log.last && Array.isArray(log.last.fired) ? log.last.fired.length : 0 } });
     return ok({ chatId: cid, log });
+  }
+
+  // ---------- what the chat's books hold (#258 never fired, #259 entry vectors): read-only, next to the fired log ----------
+  if (head === "fired-books" && req.method === "GET") {
+    const cid = req.query && typeof req.query.chatId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(req.query.chatId) ? req.query.chatId : "";
+    if (!cid) return err(400, "chatId required");
+    const chat = loadChat(fsx, cid);
+    if (!chat) return err(404, "chat not found");
+    const log = readJson("fired-log/" + cid + ".json", null);
+    return ok(chatBookReport(fsx, chat.meta, log && typeof log === "object" && log.v === 1 ? log : null));
   }
 
   // ---------- world info status: what ACTUALLY fires for a chat ----------

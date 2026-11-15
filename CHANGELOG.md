@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.125.0 (2026-11-15)
+
+- Added: **"Never fired" in the What fired panel (Molfar.Vertep#258).** On the Lorebooks tab, Whole chat, a closed fold lists per book the enabled entries that went into none of the counted replies (always-on entries are left out, a book switched off for the chat is marked), with how many keys each has. It is the list for tidying a lorebook. When the log is full (it keeps 300 entries) the fold says the list is only a hint. New read-only route `GET /fired-books`.
+- Added: **lorebook vectors on the Vectors tab (Molfar.Vertep#259).** A third card, "Lorebook entries by meaning", says how many of the entries set to "By meaning" have a usable vector, with the same states as the other two (off, no vectors yet, partly, other model, all done) and a line per book. There is no button: the engine makes the missing vectors while it prepares the next reply.
+- Fixed: **Litopys finds habits more often, and no longer earns what the card says (Molfar.Vertep#270, not closed: it needs a check on the reporter's chat).** The chapter prompt no longer says "usually none" (a small model read it as "none") and shows the habits the card already keeps under "Already on the card". A habit that restates the card or a lorebook is now caught when it is a shortened version of one sentence or when every line of it is on the card (before: only one sentence at 70% likeness). A chat's file says how many habits the worker offered, kept, dropped as a repeat and dropped for the limit (`worker.habits`). Not changed: a rule written in another language than the card still passes.
+
 ## 4.124.0 (2026-11-15)
 
 - Fixed: **a big library zip (a SillyTavern data folder) imports through Import > Backup zip.** The progress bar reached 100% and then showed "Connection lost": the app bridge refuses a request body over 32 MB, and the whole zip, backgrounds and thumbnails included, went in one request. Now the app leaves out the pictures that are not cards and sends the rest in parts of at most about 18 MB, in the order the importer needs (character cards, then books, presets and personas together, then the chats with their sidecars). A name written by an earlier part (a preset, a persona, a book) is found on disk by the later ones. If a part fails, the message says which one and that the earlier ones were imported. A chat transcript of 2 to about 3 MB now comes through too (it was skipped without a word); a bigger one is listed as not imported.

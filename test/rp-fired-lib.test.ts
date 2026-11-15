@@ -1,6 +1,6 @@
 /** The "What fired" helpers (#253): how the last reply's rows are grouped, how the counted lists are ordered, and the plain-text report. */
 import { describe, expect, it } from "bun:test";
-import { buildFiredReport, loreGroups, repliesAgo, share, topBank, topLore, type FiredLast, type FiredLog } from "../src/lib/fired";
+import { bookMeaning, buildFiredReport, loreGroups, neverBooks, neverTotal, repliesAgo, share, topBank, topLore, type FiredLast, type FiredLog } from "../src/lib/fired";
 
 const row = (title: string, via: string, over: Record<string, unknown> = {}) =>
   ({ uid: 1, title, book: "Town", bookId: "town", via, chars: 40, pass: 0, ...over }) as never;
@@ -61,5 +61,29 @@ describe("what fired: helpers", () => {
     expect(text).toContain("Bell [Town] 7/10");
     expect(text).toContain("notes.txt #1 5/10");
     expect(buildFiredReport("", null, null, null)).toContain("no record yet");
+  });
+});
+
+describe("what the chat's books hold (#258, #259)", () => {
+  const book = (id: string, over: Record<string, unknown> = {}) => ({ id, name: id, off: false, entries: 5, disabled: 0, constant: 1, never: [], neverTotal: 0, vec: { items: 0, have: 0, other: 0, missing: 0 }, ...over }) as never;
+  const rep = (books: unknown[]) => ({ chatId: "c", since: 1, replies: 4, capped: false, model: "emb/a", books }) as never;
+
+  it("lists the books with entries that never fired, the most first, and counts them", () => {
+    const r = rep([book("a", { neverTotal: 1 }), book("b"), book("c", { neverTotal: 3 })]);
+    expect(neverBooks(r).map((b) => b.id)).toEqual(["c", "a"]);
+    expect(neverTotal(r)).toBe(4);
+  });
+
+  it("the meaning state: nothing set up, off, none, partial, other model, all; a switched-off book does not count", () => {
+    const vec = (items: number, have: number, other = 0) => ({ items, have, other, missing: items - have - other });
+    expect(bookMeaning(rep([book("a")]), "ready").state).toBe("empty");
+    expect(bookMeaning(rep([book("a", { vec: vec(3, 0) })]), "none").state).toBe("off");
+    expect(bookMeaning(rep([book("a", { vec: vec(3, 0) })]), "ready").state).toBe("none");
+    expect(bookMeaning(rep([book("a", { vec: vec(4, 1) })]), "ready")).toMatchObject({ state: "partial", items: 4, have: 1 });
+    expect(bookMeaning(rep([book("a", { vec: vec(3, 1, 2) })]), "unknown").state).toBe("other");
+    expect(bookMeaning(rep([book("a", { vec: vec(3, 3) })]), "ready").state).toBe("all");
+    const mixed = bookMeaning(rep([book("a", { vec: vec(2, 2) }), book("b", { off: true, vec: vec(5, 0) })]), "ready");
+    expect(mixed).toMatchObject({ state: "all", items: 2 });
+    expect(mixed.books.map((b) => b.id)).toEqual(["a"]);
   });
 });

@@ -74,10 +74,10 @@ describe("chat habits: earning", () => {
     const ln = line(story(10));
     const work = { scene: { from: "m1", to: "m6", fromIdx: 0, toIdx: 5, count: 6, kind: "scene", label: "" }, replaces: null };
     const on = L.buildWorkerRequest(st, work, ln, {}, { ...L.loadConfig({ read: () => { throw new Error("none"); } } as any), habits: true }, { userName: "You" });
-    expect(on.systemPrompt).toContain("Habits (optional, usually none)");
+    expect(on.systemPrompt).toContain("Habits (look at each named character in every scene)");
     expect(on.systemPrompt).toContain('"habits":[');
     const off = L.buildWorkerRequest(st, work, ln, {}, { ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, habits: false }, { userName: "You" });
-    expect(off.systemPrompt).not.toContain("Habits (optional");
+    expect(off.systemPrompt).not.toContain("Habits (look at each");
     expect(off.messages[0].content).not.toContain("Known habits");
     expect(L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" }, habits: [SILENCE] })).habits).toHaveLength(1);
     expect(L.parseWorkerReply(JSON.stringify({ chapter: { label: "L", text: "T" } })).habits).toEqual([]);
@@ -228,5 +228,45 @@ describe("habits in the card import (#113)", () => {
     const p = route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "next" }).json;
     expect(p.habits[0]).toMatchObject({ id: "k1", dup: "memory", checked: false });
     expect(route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "next", arc: false, habits: [] }).status).toBe(400);
+  });
+});
+
+describe("chat habits: what already stands on the card (#270)", () => {
+  const SOURCES = ["Aria never raises her voice, even when she is angry; she goes quiet and keeps working.", "A quiet courier who delivers letters across the old town at dawn.", "She distrusts anyone who smiles too quickly."];
+
+  it("a shortened version of a card sentence, or a rule whose every line is on the card, counts as the card's; a new reaction does not", () => {
+    expect(L.repeatsCardText("Goes quiet when angry.", SOURCES)).toBe(true);
+    expect(L.repeatsCardText("She distrusts smiling strangers.\nShe watches anyone who smiles too fast.", SOURCES)).toBe(true);
+    expect(L.repeatsCardText("When angry she does not raise her voice. She goes quiet and keeps working.", SOURCES)).toBe(true);
+    expect(L.repeatsCardText("She hums old songs while she kneads dough in the morning.", SOURCES)).toBe(false);
+    expect(L.repeatsCardText(SILENCE.rule, SOURCES)).toBe(false);
+    expect(L.repeatsCardText("Anything at all here.", [])).toBe(false);
+  });
+
+  it("applyHabits drops a repeat of the card and says so in its counts", () => {
+    const st = L.emptyChat("c1");
+    const r = L.applyHabits(st, [{ who: "Aria", name: "Quiet when angry", rule: "Goes quiet when angry." }, SILENCE], c("c1", { sources: SOURCES }));
+    expect(st.habits.map((k: any) => k.name)).toEqual([SILENCE.name]);
+    expect(r).toMatchObject({ got: 2, added: 1, repeatsCard: 1, over: 0 });
+  });
+
+  it("a habit left out for the per-chapter limit is counted apart from a repeat", () => {
+    const st = L.emptyChat("c1");
+    const rules = ["Hums an old song while she kneads the dough.", "Counts the coins twice before she hands over a parcel.", "Leaves the window open a hand's width, whatever the weather."];
+    const r = L.applyHabits(st, rules.map((rule, i) => ({ who: "Aria", name: `Habit ${i}`, rule })), c("c1"));
+    expect(r).toMatchObject({ got: 3, added: 2, repeatsCard: 0, over: 1 });
+  });
+
+  it("the worker is told what the card already keeps as a habit, and not asked when the habits are off", () => {
+    const st = L.emptyChat("c1");
+    const ln = line(story(10));
+    const work = { scene: { from: "m1", to: "m6", fromIdx: 0, toIdx: 5, count: 6, kind: "scene", label: "" }, replaces: null };
+    const cfg = { ...L.DEFAULT_CONFIG, ...L.DEFAULT_PROMPTS, habits: true };
+    const on = L.buildWorkerRequest(st, work, ln, {}, cfg, { userName: "You" }, { cardRules: ["She never raises her voice at anyone.\nEven when she is angry."] });
+    const all = JSON.stringify(on.messages ?? on);
+    expect(all).toContain("Already on the card");
+    expect(all).toContain("She never raises her voice at anyone. Even when she is angry.");
+    const off = L.buildWorkerRequest(st, work, ln, {}, { ...cfg, habits: false }, { userName: "You" }, { cardRules: ["x rule"] });
+    expect(JSON.stringify(off.messages ?? off)).not.toContain("Already on the card");
   });
 });
