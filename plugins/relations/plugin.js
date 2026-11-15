@@ -3495,6 +3495,8 @@ const DEFAULT_CONFIG = {
   journal: { on: true, inject: true, thoughtTurns: 3, maxTokens: 120 },
   // where everyone stands, the objects in the scene and what is worn or held (#185): whether the reply prompt carries it
   layout: { inject: true },
+  // the bond line (the constellation said to the reply model, with its tails); always on unless switched off
+  bond: { inject: true },
   // a check of replies for a character acting on a secret it does not know (#184 P3): on, a quiet badge under the reply
   leakCheck: true,
   catchUp: true,
@@ -3551,6 +3553,7 @@ const mergeConfig = (stored) => ({
   said: { ...DEFAULT_CONFIG.said, ...(isObj(stored.said) ? stored.said : {}) },
   journal: { ...DEFAULT_CONFIG.journal, ...(isObj(stored.journal) ? stored.journal : {}) },
   layout: { ...DEFAULT_CONFIG.layout, ...(isObj(stored.layout) ? stored.layout : {}) },
+  bond: { ...DEFAULT_CONFIG.bond, ...(isObj(stored.bond) ? stored.bond : {}) },
 });
 export const saidPerTurnOf = (cfg) => clamp(Math.round(num(cfg && cfg.said && cfg.said.perTurn)) || DEFAULT_CONFIG.said.perTurn, 1, 4);
 /** The journal is on unless the config says off (a chat without the setting is on). */
@@ -3672,6 +3675,12 @@ function nextConfig(stored, b) {
     if (parseBool(b.layout.inject) !== undefined) lo.inject = parseBool(b.layout.inject);
     for (const k of Object.keys(lo)) if (lo[k] === DEFAULT_CONFIG.layout[k]) delete lo[k];
     put("layout", lo, {});
+  }
+  if (isObj(b.bond)) {
+    const bo = { ...(isObj(next.bond) ? next.bond : {}) };
+    if (parseBool(b.bond.inject) !== undefined) bo.inject = parseBool(b.bond.inject);
+    for (const k of Object.keys(bo)) if (bo[k] === DEFAULT_CONFIG.bond[k]) delete bo[k];
+    put("bond", bo, {});
   }
   for (const key of PROMPT_KEYS) {
     if (typeof b[key] !== "string") continue;
@@ -7604,7 +7613,7 @@ function characterBlock(ctx, name, withNotes, limit) {
   // the bond first (the constellation, said short), with what has been rising or falling lately; then the five feelings
   const closeBy = isObj(c.pulse) && pulseBand(c.pulse.arousal, bases.arousal) !== "low";
   const bond = bondLine(c.stats, c.cls, user, trendTails(typeof ctx.trailOf === "function" ? ctx.trailOf(name) : [], { user }, closeBy));
-  if (bond) lines.push(bond);
+  if (bond && ctx.bondOn !== false) lines.push(bond);
   lines.push("Toward " + user + ": " + feelingsLine(c, user, who) + (hostile ? "; " + hostile : "") + ".");
   const pulse = PULSE.map((p) => PULSE_BANDS[p][pulseBand(c.pulse[p], bases[p])]).filter(Boolean);
   // snapshots from before `fresh` existed count every field as fresh
@@ -7869,6 +7878,8 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const ctx = {
     snap,
     layoutCfg: cfg.layout,
+    // the bond line is on unless the config says off (a config from before it, or none, is on)
+    bondOn: !(cfg.bond && cfg.bond.inject === false),
     souls,
     user: userNameOf(fsx, chat.meta),
     notebook: freshNotes(effectiveNotebook(state, at.keys, overlay).live, snap.turn, noteAgeOf(cfg)),

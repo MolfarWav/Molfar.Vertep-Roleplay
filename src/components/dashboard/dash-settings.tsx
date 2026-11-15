@@ -76,6 +76,7 @@ interface DashConfig {
   journal?: JournalSettings
   /** #185: where everyone stands, the objects and the clothes in the reply prompt; absent on an older plugin */
   layout?: { inject: boolean }
+  bond?: { inject: boolean }
   soul?: string
   nudge?: string
   nudgeTwist?: string
@@ -103,6 +104,7 @@ interface Form {
   said: { perTurn: number; inject: boolean }
   journal: JournalSettings
   layout: { inject: boolean }
+  bond: { inject: boolean }
   catchUp: boolean
   leakCheck: boolean
   autoSoul: boolean
@@ -180,6 +182,7 @@ function pickForm(c: DashConfig): Form {
       maxTokens: c.journal?.maxTokens ?? DEFAULT_JOURNAL.maxTokens,
     },
     layout: { inject: c.layout?.inject !== false },
+    bond: { inject: c.bond?.inject !== false },
     catchUp: c.catchUp !== false,
     leakCheck: c.leakCheck !== false,
     autoSoul: c.autoSoul !== false,
@@ -577,6 +580,9 @@ function SensorSection({ meta, form, setForm, view, saving, dirty, onSave, onRes
           </SettingRow>
           <SettingRow label={t('dash.set.layoutInject')} info={t('dash.set.layoutInject.hint')}>
             <Switch checked={form.layout.inject} onCheckedChange={(v) => patch({ layout: { inject: v } })} aria-label={t('dash.set.layoutInject')} />
+          </SettingRow>
+          <SettingRow label={t('dash.set.bondInject')} info={t('dash.set.bondInject.hint')}>
+            <Switch checked={form.bond.inject} onCheckedChange={(v) => patch({ bond: { inject: v } })} aria-label={t('dash.set.bondInject')} />
           </SettingRow>
           <div className="grid grid-cols-2 gap-3 p-4 max-md:grid-cols-1">
             <NumTile label={t('dash.set.tokens')} value={form.injection.maxTokens} min={MIN_TOKENS} max={MAX_TOKENS} step={10} disabled={!form.injection.enabled} onCommit={(n) => patch({ injection: { ...form.injection, maxTokens: n } })} />

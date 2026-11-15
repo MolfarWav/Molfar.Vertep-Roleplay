@@ -207,6 +207,23 @@ describe("the bond in the reply prompt", () => {
     expect(lines[bond] + lines[toward]).not.toMatch(/[0-9]/);
   });
 
+  it("the setting turns the line off; it is on by default, in a config from before it too", () => {
+    const mock = seed([4, 8, 11, 14, 16, 19]);
+    const off = P.buildInsert(mock.host.fs, "c1", { op: "send", speakerName: "Aria", targetId: "", userText: "More?" }, { injection: {}, bond: { inject: false } }).text as string;
+    expect(off).not.toContain("Bond with");
+    expect(off).toContain("Toward You:");
+    expect(ask(mock)).toContain("Bond with You:");
+    // the route keeps the choice and drops it from the file once it is the default again
+    const get = () => drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(get().bond).toEqual({ inject: true });
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { bond: { inject: false } } });
+    expect(get().bond).toEqual({ inject: false });
+    expect(JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8")).bond).toEqual({ inject: false });
+    drive(mock, { method: "PUT", path: "/dashboard/config", body: { bond: { inject: true } } });
+    expect(get().bond).toEqual({ inject: true });
+    expect(JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8")).bond).toBeUndefined();
+  });
+
   it("without a trail there is the bond and no tail", () => {
     const text = ask(seed([19]));
     expect(text).toContain("Bond with You: loyal to You and respectful, but no romance.");
