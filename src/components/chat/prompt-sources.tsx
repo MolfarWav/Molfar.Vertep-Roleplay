@@ -3,6 +3,7 @@ import { CaretDown, CaretRight } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { PromptSources, PromptSourceSpan } from '@/lib/engine'
+import type { CacheState } from '@/lib/cache-boundary'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 
@@ -46,7 +47,14 @@ interface Row {
   index: number | null
 }
 
-function SourceRow({ row, active, onPick, total }: { row: Row; active: boolean; onPick: (i: number | null) => void; total: number }): ReactNode {
+const CACHE_WORD: Record<CacheState, string> = { cached: 'cached', partial: 'partly cached', new: 'full price' }
+const CACHE_TINT: Record<CacheState, string> = {
+  cached: 'bg-teal-500/15 text-teal-700 dark:text-teal-300',
+  partial: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  new: 'bg-muted text-muted-foreground',
+}
+
+function SourceRow({ row, active, onPick, total, cacheState }: { row: Row; active: boolean; onPick: (i: number | null) => void; total: number; cacheState?: CacheState | null }): ReactNode {
   const { part, index } = row
   const clickable = index != null && part.located
   return (
@@ -71,6 +79,7 @@ function SourceRow({ row, active, onPick, total }: { row: Row; active: boolean; 
         {!part.located ? (
           <Badge variant="outline" className="px-1 py-0 text-[10px] font-normal">not found in the request</Badge>
         ) : null}
+        {cacheState ? <span className={cn('rounded px-1.5 text-caption font-medium', CACHE_TINT[cacheState])} data-testid="part-cache">{CACHE_WORD[cacheState]}</span> : null}
       </span>
       <span className="whitespace-nowrap text-right text-muted-foreground">
         {formatTokens(row.tokens)} · {pct(row.tokens / total)}%
@@ -82,12 +91,14 @@ function SourceRow({ row, active, onPick, total }: { row: Row; active: boolean; 
 /** The "Sources" section of the peek: parts grouped by kind (largest group
  *  first, request order inside), the unlabeled rest, what was left out and the
  *  preset's choices. Collapsible, open by default. */
-export function PromptSourcesPanel({ sources, total, active, onPick }: {
+export function PromptSourcesPanel({ sources, total, active, onPick, cacheStates }: {
   sources: PromptSources
   /** tokens of all blocks, the base for the shares */
   total: number
   active: number | null
   onPick: (part: number | null) => void
+  /** Where each part sits against the cache cut (by index in sources.parts), when the peek was opened from the cache view */
+  cacheStates?: (CacheState | null)[] | null
 }): ReactNode {
   const [open, setOpen] = useState(true)
   const [leftOutOpen, setLeftOutOpen] = useState(false)
@@ -141,7 +152,7 @@ export function PromptSourcesPanel({ sources, total, active, onPick }: {
                   </span>
                 </div>
                 {(expandedGroup ? group.rows : group.rows.slice(0, 8)).map((row) => (
-                  <SourceRow key={row.index} row={row} total={base} active={row.index === active} onPick={onPick} />
+                  <SourceRow key={row.index} row={row} total={base} active={row.index === active} onPick={onPick} cacheState={row.index != null ? (cacheStates?.[row.index] ?? null) : null} />
                 ))}
                 {many ? (
                   <button

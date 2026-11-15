@@ -26,6 +26,10 @@ The "Story, move" button next to Send arms a one-time nudge for the next reply; 
 
 Under the newest reply, a muted line says what the Dashboard recorded for it: "Changed: Ada · trust fell, mood calm → tense, +2". Tap it to unfold the same chips as the Dashboard's "Since your last reply" row; a chip opens the matching Dashboard tab (on a phone, its bottom sheet). Older replies show nothing, and the line waits while a reply is being written or the Dashboard is still updating. To hide it, switch off "Show what changed under the newest reply" in Settings > Chat Behavior.
 
+## How many quests
+
+The Dashboard settings, section Quests, set how many quests stay open: main quests from 1 to 10 (1 by default), side quests from 1 to 20 (3 by default), everyday quests from 1 to 20 (10 by default; the oldest end first), and steps per main quest from 1 with no upper limit (6 by default). Everyday quests also end by themselves after a number of turns, and are not counted against the main and side limits. More open quests mean a longer sensor prompt and a longer quest insert in the reply, so raise them only for stories that really run many lines at once.
+
 ## Ties between characters
 
 The sensor notes how two characters who are not you stand to each other, as a one-word role and a one-word warmth ("rival, cold"). The reply's prompt carries up to four of these as one short line, only for people in the scene. A character's own reply gets just the ties that character is part of; a narrator gets the ties of the people the turn is about first.

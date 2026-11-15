@@ -7,10 +7,29 @@ import { useT } from '@/hooks/use-t'
 import { promptPreview } from '@/lib/engine'
 import { useWorldLive } from '@/lib/world'
 import { MarkedPre, PromptSourcesPanel } from '@/components/chat/prompt-sources'
+import { blockStates, cacheBoundary, partStates, type CacheState } from '@/lib/cache-boundary'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 
 type Preview = Awaited<ReturnType<typeof promptPreview>>
+
+/** The block's place against the cache cut: words, not only a colour. */
+function CacheTag({ state, within }: { state: CacheState; within: number }) {
+  const text = state === 'cached' ? 'cached' : state === 'partial' ? `cache ends ~${Math.round(within * 100)}% in` : 'full price'
+  return (
+    <span
+      className={cn(
+        'rounded px-1.5 text-caption font-medium',
+        state === 'cached' && 'bg-teal-500/15 text-teal-700 dark:text-teal-300',
+        state === 'partial' && 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+        state === 'new' && 'bg-muted text-muted-foreground',
+      )}
+      data-testid="cache-tag"
+    >
+      {text}
+    </span>
+  )
+}
 
 /**
  * The REAL assembled prompt for a chat, straight from the engine's preview
@@ -19,7 +38,7 @@ type Preview = Awaited<ReturnType<typeof promptPreview>>
  * text, fully expanded.
  */
 export function PromptPeekDialog({
-  open, onOpenChange, chatId, userText, messageId, title,
+  open, onOpenChange, chatId, userText, messageId, title, cache,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -29,6 +48,8 @@ export function PromptPeekDialog({
   /** scope the assembly to one message: the prompt as of that point */
   messageId?: string
   title?: string
+  /** What the provider's cache covered on the last reply: marks where in this prompt the cache ends (an approximation) */
+  cache?: { cachedTokens: number; promptTokens: number }
 }) {
   const t = useT()
   // the World DM's event is not in this preview: it joins the prompt when the reply is written
@@ -60,9 +81,13 @@ export function PromptPeekDialog({
         ...data.messages.map((m, i) => ({ role: m.role, content: m.content, name: `Message ${i + 1}`, msg: i })),
       ]
     : []
-  const total = blocks.reduce((a, b) => a + estimateTokens(b.content), 0)
+  const sized = blocks.map((b) => ({ msg: b.msg, tokens: estimateTokens(b.content), length: b.content.length }))
+  const total = sized.reduce((a, b) => a + b.tokens, 0)
+  const boundary = cache ? cacheBoundary(sized, cache.cachedTokens, cache.promptTokens) : null
+  const states = boundary ? blockStates(sized, boundary) : null
   const sources = data?.sources?.parts.length ? data.sources : null
   const spans = data?.sourceSpans ?? []
+  const partCache = boundary && sources ? partStates(sized, spans, sources.parts.length, boundary) : null
   // the block holding the first mark of the active part is the one to scroll to
   const firstBlock = active == null ? -2 : (blocks.find((b) => spans.some((s) => s.msg === b.msg && s.part === active))?.msg ?? -2)
 
@@ -106,6 +131,12 @@ export function PromptPeekDialog({
             {data && <span className="text-xs font-normal text-muted-foreground">preset: {data.presetName} · {formatTokens(total)} tokens · {blocks.length} blocks</span>}
           </DialogTitle>
         </DialogHeader>
+        {boundary && (
+          <p className="rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground" data-testid="cache-boundary-note">
+            The cache covers about <span className="font-medium text-foreground">{Math.round((boundary.at / boundary.total) * 100)}%</span> of this prompt, counted from the top ({formatTokens(boundary.at)} of {formatTokens(boundary.total)} tokens).
+            Green blocks are served from the cache, the amber one is where it ends, the rest is sent at full price. Approximate: the provider counts tokens a little differently, and anything changed above the cut puts the cut higher.
+          </p>
+        )}
         {worldEvent && <p className="text-xs text-muted-foreground" data-testid="world-event-note">{t('world.promptNote')}</p>}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {busy && (
@@ -116,12 +147,23 @@ export function PromptPeekDialog({
           {error && <p className="p-4 text-sm text-destructive">{error}</p>}
           {data && !busy && (
             <div className="flex flex-col gap-2 pb-2">
-              {sources && <PromptSourcesPanel sources={sources} total={total} active={active} onPick={setActive} />}
+              {sources && <PromptSourcesPanel sources={sources} total={total} active={active} onPick={setActive} cacheStates={partCache} />}
               {blocks.map((b, i) => (
-                <div key={i} className={cn('rounded-md border border-border px-2.5 py-2', b.role === 'system' && 'bg-muted/30')}>
+                <div
+                  key={i}
+                  data-cache={states?.[i]}
+                  className={cn(
+                    'rounded-md border border-border px-2.5 py-2',
+                    b.role === 'system' && 'bg-muted/30',
+                    states?.[i] === 'cached' && 'border-l-4 border-l-teal-500',
+                    states?.[i] === 'partial' && 'border-l-4 border-l-amber-500',
+                    states?.[i] === 'new' && 'border-l-4 border-l-transparent',
+                  )}
+                >
                   <div className="mb-1 flex items-center gap-2">
                     <Badge variant={b.role === 'system' ? 'secondary' : b.role === 'user' ? 'outline' : 'outline'} className="text-[10px]">{b.role}</Badge>
                     <span className="text-[11px] text-muted-foreground">{b.name}</span>
+                    {states && boundary && <CacheTag state={states[i]!} within={i === boundary.block ? boundary.within : 0} />}
                     <span className="ml-auto text-[11px] text-muted-foreground">{formatTokens(estimateTokens(b.content))} tok</span>
                   </div>
                   <MarkedPre

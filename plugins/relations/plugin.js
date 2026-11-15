@@ -3338,7 +3338,6 @@ export function effectiveProposals(state, ov, threads) {
 export const THREAD_KINDS = ["main", "side", "everyday"];
 /** "main", "side" or "everyday"; a thread with no kind (everything before quests) is a side quest. */
 export const questKind = (t) => (isObj(t) && THREAD_KINDS.includes(t.kind) ? t.kind : "side");
-const EVERYDAY_OPEN_MAX = 5;
 const PROPOSALS_KEPT = 8;
 
 /** What is open, counted the way the limits count it: main, side (steps and everyday are counted apart). */
@@ -3478,7 +3477,9 @@ const DEFAULT_CONFIG = {
   // quests (#117): open main quests, open steps under one main quest, turns an everyday quest lives (0 = never closed),
   // and thread checks without change before the owner is asked to close one (0 = never asked)
   maxMain: 1,
-  maxSteps: 4,
+  maxSteps: 6,
+  // open everyday quests at most (the oldest end first)
+  maxEveryday: 10,
   everydayTurns: 8,
   retireAfter: 3,
   // notes older than this many turns leave the insert (pinned ones stay); Litopys keeps the important ones as facts
@@ -3584,7 +3585,7 @@ const noteAgeOf = (cfg) => {
 };
 const maxThreadsOf = (cfg) => {
   const n = num(cfg && cfg.maxThreads);
-  return Number.isFinite(n) ? clamp(Math.round(n), 1, 6) : DEFAULT_CONFIG.maxThreads;
+  return Number.isFinite(n) ? clamp(Math.round(n), 1, 20) : DEFAULT_CONFIG.maxThreads;
 };
 const threadCheckOf = (cfg) => {
   const n = num(cfg && cfg.threadCheckEvery);
@@ -3594,8 +3595,10 @@ const cfgInt = (cfg, key, lo, hi) => {
   const n = num(cfg && cfg[key]);
   return Number.isFinite(n) ? clamp(Math.round(n), lo, hi) : DEFAULT_CONFIG[key];
 };
-const maxMainOf = (cfg) => cfgInt(cfg, "maxMain", 1, 2);
-const maxStepsOf = (cfg) => cfgInt(cfg, "maxSteps", 1, 6);
+// the most a person may ask for: 10 main quests, 20 side and 20 everyday ones; steps have no real ceiling (1000 only keeps the file sane)
+const maxMainOf = (cfg) => cfgInt(cfg, "maxMain", 1, 10);
+const maxStepsOf = (cfg) => cfgInt(cfg, "maxSteps", 1, 1000);
+const maxEverydayOf = (cfg) => cfgInt(cfg, "maxEveryday", 1, 20);
 const everydayTurnsOf = (cfg) => cfgInt(cfg, "everydayTurns", 0, 30);
 const retireAfterOf = (cfg) => cfgInt(cfg, "retireAfter", 0, 10);
 
@@ -3621,6 +3624,7 @@ function nextConfig(stored, b) {
   if (Number.isFinite(num(b.threadCheckEvery))) put("threadCheckEvery", threadCheckOf(b), DEFAULT_CONFIG.threadCheckEvery);
   if (Number.isFinite(num(b.maxMain))) put("maxMain", maxMainOf(b), DEFAULT_CONFIG.maxMain);
   if (Number.isFinite(num(b.maxSteps))) put("maxSteps", maxStepsOf(b), DEFAULT_CONFIG.maxSteps);
+  if (Number.isFinite(num(b.maxEveryday))) put("maxEveryday", maxEverydayOf(b), DEFAULT_CONFIG.maxEveryday);
   if (Number.isFinite(num(b.everydayTurns))) put("everydayTurns", everydayTurnsOf(b), DEFAULT_CONFIG.everydayTurns);
   if (Number.isFinite(num(b.retireAfter))) put("retireAfter", retireAfterOf(b), DEFAULT_CONFIG.retireAfter);
   if (isObj(b.sensorParts)) {
@@ -6617,12 +6621,12 @@ function applyThreads(ctx, out, turn) {
       propose({ type: "open", why: "limit", text, ...(done ? { done } : {}), kind, ...(parent ? { parent } : {}) });
     }
   }
-  // an everyday quest is small: it ends by itself, and no more than a few are open at once
+  // an everyday quest is small: it ends by itself, and no more than the limit are open at once
   const everydayFor = everydayTurnsOf(ctx.cfg);
   const everyday = threads.filter((t) => t.status === "open" && !t.parent && questKind(t) === "everyday").sort((a, b) => (num(a.since) || 0) - (num(b.since) || 0));
   for (const t of everyday) if (everydayFor && turn - (num(t.since) || 0) >= everydayFor) { t.status = "resolved"; t.resolvedAt = turn; }
   const stillEveryday = everyday.filter((t) => t.status === "open");
-  for (const t of stillEveryday.slice(0, Math.max(0, stillEveryday.length - EVERYDAY_OPEN_MAX))) { t.status = "resolved"; t.resolvedAt = turn; }
+  for (const t of stillEveryday.slice(0, Math.max(0, stillEveryday.length - maxEverydayOf(ctx.cfg)))) { t.status = "resolved"; t.resolvedAt = turn; }
   // a thread the check asked about and the story left as it was grows stale; one the sensor reworded starts over
   const retireAt = retireAfterOf(ctx.cfg);
   const every = threadCheckOf(ctx.cfg);
@@ -8680,7 +8684,7 @@ export function stateView(fsx, chatId, state, keys, cfg) {
     insert,
     insertEnabled: !(cfg.injection && cfg.injection.enabled === false),
     maxThreads: maxThreadsOf(cfg),
-    limits: { main: maxMainOf(cfg), side: maxThreadsOf(cfg), steps: maxStepsOf(cfg), everydayTurns: everydayTurnsOf(cfg), retireAfter: retireAfterOf(cfg) },
+    limits: { main: maxMainOf(cfg), side: maxThreadsOf(cfg), steps: maxStepsOf(cfg), everyday: maxEverydayOf(cfg), everydayTurns: everydayTurnsOf(cfg), retireAfter: retireAfterOf(cfg) },
     noteAgeTurns: noteAgeOf(cfg),
     saidPerTurn: saidPerTurnOf(cfg),
     journal: { on: journalOnOf(cfg), inject: journalInjectOf(cfg), thoughtTurns: thoughtTurnsOf(cfg), maxTokens: journalTokensOf(cfg) },
