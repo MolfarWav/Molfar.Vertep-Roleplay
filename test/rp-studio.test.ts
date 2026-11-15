@@ -2307,6 +2307,41 @@ describe("rp studio: scoped regex + extended samplers + v3 cards", () => {
     expect(Array.isArray(card.assets)).toBe(true);
   }, 30_000);
 
+  it("library zip: sprite folders attach to the card of that name or of that file, and are not card errors", async () => {
+    const card = (name: string) => JSON.stringify({ spec: "chara_card_v2", data: { name, description: name + " desc" } });
+    const entries: Record<string, unknown> = {
+      "characters/default_Seraphina.json": card("Seraphina"),
+      "characters/Kit File.json": card("Kit"),
+      "characters/Seraphina/joy.png": { __b64: true, base64: "QQ==" },
+    };
+    const m = mockHost();
+    (m.host as { zip: unknown }).zip = { entries: () => entries, list: () => 3 };
+    const url = (c: string) => "/v1/assets/" + c.repeat(64);
+    const sprites = { Seraphina: { joy: url("a"), anger: url("b"), "": url("c") }, "Kit File": { neutral: url("d"), bad: "javascript:1" }, Nobody: { joy: url("e") } };
+    const r = await drive(stUrl, { method: "POST", path: "/import/zip", body: { zipBase64: "x", sprites } }, m);
+    expect(r.json.errors).toEqual([]);
+    const ids = r.json.characters as string[];
+    const read = (n: string) => JSON.parse(fs.readFileSync(path.join(root, "characters", ids.find((i) => i.startsWith(n))!, "card.json"), "utf8"));
+    expect(read("seraphina").studio.expressions).toEqual([{ name: "joy", url: url("a") }, { name: "anger", url: url("b") }]);
+    // the folder carries the card FILE name, the card says Kit
+    expect(read("kit").studio.expressions).toEqual([{ name: "neutral", url: url("d") }]);
+    expect((r.json.notes as string[]).some((n) => /Nobody.*not attached/.test(n))).toBe(true);
+    expect((r.json.notes as string[]).some((n) => /Seraphina: 2 sprites attached/.test(n))).toBe(true);
+  }, 30_000);
+
+  it("library zip: sprite pictures that reach the plugin are counted in one note, not listed as failed cards", async () => {
+    const entries: Record<string, unknown> = {
+      "characters/Ann.json": JSON.stringify({ spec: "chara_card_v2", data: { name: "Ann", description: "d" } }),
+      "characters/Ann/joy.png": { __b64: true, base64: "QQ==" },
+      "characters/Ann/sad.png": { __b64: true, base64: "QQ==" },
+    };
+    const m = mockHost();
+    (m.host as { zip: unknown }).zip = { entries: () => entries, list: () => 3 };
+    const r = await drive(stUrl, { method: "POST", path: "/import/zip", body: { zipBase64: "x" } }, m);
+    expect(r.json.errors).toEqual([]);
+    expect((r.json.notes as string[]).join("|")).toMatch(/2 character sprite pictures in the zip were not imported/);
+  }, 30_000);
+
   it("charx package: emotion assets named <character>__<outfit>__<emotion> become sprites of that character and outfit", async () => {
     const entries: Record<string, unknown> = {
       "card.json": JSON.stringify({

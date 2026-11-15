@@ -1,7 +1,8 @@
 // A studio backup carries the pictures its files point at (Molfar Vertep issue #89).
 import { describe, expect, it } from "bun:test";
+import { randomBytes } from "node:crypto";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
-import { addAssetsToBackup, referencedAssetIds, restoreBackupAssets, type AssetBytes } from "../src/lib/backup-assets";
+import { addAssetsToBackup, extractSprites, referencedAssetIds, restoreBackupAssets, splitLibrary, type AssetBytes } from "../src/lib/backup-assets";
 
 const ID_A = "a".repeat(64);
 const ID_B = "b".repeat(64);
@@ -70,5 +71,98 @@ describe("a backup with its pictures", () => {
     expect((await restoreBackupAssets(plain, async () => true)).zip).toBe(plain);
     const junk = new Uint8Array([1, 2, 3, 4]);
     expect((await restoreBackupAssets(junk, async () => true)).zip).toBe(junk);
+  });
+});
+
+describe("character sprite folders in a library zip", () => {
+  const lib = () => zipSync({
+    "data/default-user/characters/Seraphina.png": new Uint8Array([1]),
+    "data/default-user/characters/Seraphina/joy.png": new Uint8Array([2, 2]),
+    "data/default-user/characters/Seraphina/anger.WEBP": new Uint8Array([3]),
+    "data/default-user/characters/Kit/neutral.jpg": new Uint8Array([4]),
+    "data/default-user/characters/Kit/readme.txt": strToU8("not a picture"),
+    "data/default-user/worlds/book.json": strToU8("{}"),
+  }, { level: 0 });
+  const fakeStore = async (blobs: [string, Blob][]) => Object.fromEntries(blobs.map(([k, b]) => [k, `/v1/assets/${"f".repeat(63)}${b.type.length % 10}`]));
+
+  it("stores the pictures, groups them by folder and leaves the rest of the zip", async () => {
+    const seen: [string, string][] = [];
+    const out = await extractSprites(lib(), async (blobs) => { for (const [k, b] of blobs) seen.push([k, b.type]); return fakeStore(blobs); });
+    expect(out.count).toBe(3);
+    expect(Object.keys(out.sprites).sort()).toEqual(["Kit", "Seraphina"]);
+    expect(Object.keys(out.sprites.Seraphina!).sort()).toEqual(["anger", "joy"]);
+    expect(seen.find(([k]) => k === "Seraphina\u0000anger")?.[1]).toBe("image/webp");
+    const left = Object.keys(unzipSync(out.zip)).sort();
+    expect(left).toEqual(["data/default-user/characters/Kit/readme.txt", "data/default-user/characters/Seraphina.png", "data/default-user/worlds/book.json"]);
+  });
+
+  it("a zip without sprite folders comes back as it was, and the store is not asked", async () => {
+    const plain = zipSync({ "characters/a.json": strToU8("{}") }, { level: 0 });
+    let asked = 0;
+    const out = await extractSprites(plain, async () => { asked++; return {}; });
+    expect(out.zip).toBe(plain);
+    expect(out.count).toBe(0);
+    expect(asked).toBe(0);
+  });
+});
+
+describe("a library zip cut into requests the bridge accepts", () => {
+  // random bytes do not compress, so a part is as big as it looks
+  const noise = (n: number, _seed: number) => new Uint8Array(randomBytes(n));
+  const names = (z: Uint8Array) => Object.keys(unzipSync(z)).sort();
+
+  it("a small library is one part, and its media outside characters/ is left out", () => {
+    const zip = zipSync({
+      "characters/Ann.png": new Uint8Array([1, 2]),
+      "characters/Ann/joy.png": new Uint8Array([3]),
+      "backgrounds/room.jpg": new Uint8Array([4]),
+      "worlds/book.json": strToU8("{}"),
+      "chats/Ann/talk.jsonl": strToU8("{}\n"),
+    }, { level: 0 });
+    const out = splitLibrary(zip);
+    expect(out.dropped).toBe(2); // the sprite and the background
+    expect(out.parts).toHaveLength(1);
+    expect(names(out.parts[0]!.zip)).toEqual(["characters/Ann.png", "chats/Ann/talk.jsonl", "worlds/book.json"]);
+  });
+
+  it("an untouched small zip comes back as it was", () => {
+    const zip = zipSync({ "worlds/a.json": strToU8("{}"), "chats/x/a.jsonl": strToU8("{}\n") }, { level: 0 });
+    const out = splitLibrary(zip);
+    expect(out.parts).toHaveLength(1);
+    expect(out.parts[0]!.zip).toBe(zip);
+    expect(out.dropped).toBe(0);
+  });
+
+  it("splits by size in the order cards, the rest, chats, and keeps a chat with its sidecars", () => {
+    const zip = zipSync({
+      "characters/B.png": noise(600, 1),
+      "characters/A.png": noise(600, 2),
+      "worlds/book.json": strToU8(JSON.stringify({ name: "Book" })),
+      "presets/p.json": strToU8("{}"),
+      "chats/A/one.jsonl": noise(500, 3),
+      "chats/A/one.meta.json": strToU8("{}"),
+      "chats/A/one.memories.json": strToU8("[]"),
+      "chats/A/two.jsonl": noise(500, 4),
+    }, { level: 0 });
+    const { parts } = splitLibrary(zip, 1000);
+    const listed = parts.map((p) => names(p.zip));
+    // cards come first (A before B), then the books and presets together, then the chats
+    expect(listed.flat().indexOf("characters/A.png")).toBeLessThan(listed.flat().indexOf("characters/B.png"));
+    expect(listed.flat().indexOf("characters/B.png")).toBeLessThan(listed.flat().indexOf("worlds/book.json"));
+    expect(listed.flat().indexOf("presets/p.json")).toBeLessThan(listed.flat().indexOf("chats/A/one.jsonl"));
+    // the books and presets share a part, and the sidecars sit with their chat
+    expect(listed.findIndex((l) => l.includes("worlds/book.json"))).toBe(listed.findIndex((l) => l.includes("presets/p.json")));
+    const one = listed.findIndex((l) => l.includes("chats/A/one.jsonl"));
+    expect(listed[one]).toContain("chats/A/one.meta.json");
+    expect(listed[one]).toContain("chats/A/one.memories.json");
+    expect(parts.length).toBeGreaterThan(2);
+    // every entry lands in exactly one part
+    expect(listed.flat().sort()).toEqual(Object.keys(unzipSync(zip)).sort());
+  });
+
+  it("one file over the budget gets a part of its own", () => {
+    const zip = zipSync({ "chats/A/huge.jsonl": noise(5000, 9), "chats/A/small.jsonl": strToU8("{}\n") }, { level: 0 });
+    const { parts } = splitLibrary(zip, 1000);
+    expect(parts.map((p) => names(p.zip))).toEqual([["chats/A/huge.jsonl"], ["chats/A/small.jsonl"]]);
   });
 });

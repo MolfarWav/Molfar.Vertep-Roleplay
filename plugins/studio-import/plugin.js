@@ -1813,6 +1813,26 @@ export function handleRoute(req, host) {
   const bookIdByName = new Map();
   const presetIdByName = new Map();
   const personaIdByName = new Map();
+  // A big library arrives in several requests (the app bridge carries about 32 MB at a time), so a name
+  // written by an earlier request is not in these maps: the item on disk with that name stands in for it.
+  const diskIds = new Map();
+  const diskIdOf = (dir, name) => {
+    const key = dir + "|" + lower(name);
+    if (diskIds.has(key)) return diskIds.get(key);
+    let found;
+    try {
+      for (const f of fsx.list(dir)) {
+        if (!f.endsWith(".json") || f.endsWith(".meta.json")) continue;
+        const v = readJson(dir + "/" + f, null);
+        if (v && typeof v.name === "string" && lower(v.name) === lower(name)) { found = typeof v.id === "string" && v.id ? v.id : f.replace(/.json$/, ""); break; }
+      }
+    } catch {}
+    diskIds.set(key, found);
+    return found;
+  };
+  const bookIdOf = (nm) => bookIdByName.get(lower(nm)) || diskIdOf("lorebooks", nm);
+  const presetIdOf = (nm) => presetIdByName.get(lower(nm)) || diskIdOf("presets", nm);
+  const personaIdOf = (nm) => personaIdByName.get(lower(nm)) || diskIdOf("personas", nm);
   const charIdByName = () => {
     const m = new Map();
     try {
@@ -1888,7 +1908,7 @@ export function handleRoute(req, host) {
         rest[k] = v;
       }
       if (Array.isArray(full._lorebookNames) && full._lorebookNames.length) {
-        rest.lorebookIds = full._lorebookNames.map((nm) => bookIdByName.get(lower(nm))).filter(Boolean);
+        rest.lorebookIds = full._lorebookNames.map(bookIdOf).filter(Boolean);
       }
       if (Array.isArray(full._boundNames) && full._boundNames.length) {
         const byName = charIdByName();
@@ -1922,16 +1942,16 @@ export function handleRoute(req, host) {
         meta[k] = v;
       }
       if (typeof saved.title === "string" && saved.title.trim()) meta.title = saved.title;
-      const wantPreset = presetIdByName.get(lower(saved._presetName));
+      const wantPreset = saved._presetName ? presetIdOf(saved._presetName) : undefined;
       if (wantPreset) meta.presetId = wantPreset;
-      const wantPersona = personaIdByName.get(lower(saved._personaName));
+      const wantPersona = saved._personaName ? personaIdOf(saved._personaName) : undefined;
       if (wantPersona) {
         meta.personaId = wantPersona;
         const p = readJson("personas/" + wantPersona + ".json", null);
         if (p && p.name) meta.userName = p.name;
       }
       if (Array.isArray(saved._lorebookNames)) {
-        meta.lorebookIds = saved._lorebookNames.map((nm) => bookIdByName.get(lower(nm))).filter(Boolean);
+        meta.lorebookIds = saved._lorebookNames.map(bookIdOf).filter(Boolean);
       }
       // branch parentage points at chat ids from the other machine; the
       // restored chats are new files, so a stale parent would render a
@@ -2126,7 +2146,28 @@ export function handleRoute(req, host) {
       return PHASES.length;
     };
     const orderedNames = Object.keys(entries).sort((a, b) => phaseOf(a) - phaseOf(b) || (a < b ? -1 : a > b ? 1 : 0));
+    // Which card each file of characters/ became, for the sprite folders below: SillyTavern names a
+    // sprite folder after the character, and the card's file can be named otherwise ("default_Seraphina.png").
+    const idByFileBase = new Map();
+    let spritesLeft = 0;
+    let trackBase = null;
+    let trackLen = 0;
+    // the entry that just ran wrote a card when the list of ids grew: the newest id is its card
+    const flushTrack = () => {
+      if (trackBase && summary.characters.length > trackLen) idByFileBase.set(trackBase.toLowerCase(), summary.characters[summary.characters.length - 1]);
+      trackBase = null;
+    };
     for (const name of orderedNames) {
+      flushTrack();
+      // a transcript the engine would not hand over as text (over its limit) is said, not skipped in silence
+      if (/^chats\/.+\.jsonl$/i.test(name) && !isText(entries[name])) { summary.errors.push("chat too large to read (" + name + "): import that one with Chats"); continue; }
+      // characters/<Name>/<emotion>.png is a sprite, not a card. The browser stores them in the asset
+      // store first and sends them as `body.sprites`; one that is still here was not delivered.
+      if (/^characters\/[^/]+\/[^/]+\.(png|webp|jpe?g|gif)$/i.test(name)) { spritesLeft++; continue; }
+      if (name.startsWith("characters/") && /\.(png|json)$/i.test(name) && name.split("/").length === 2) {
+        trackBase = name.split("/")[1].replace(/\.(png|json)$/i, "");
+        trackLen = summary.characters.length;
+      }
       // A card PNG lives in characters/, or loose at the root when someone
       // zipped a pile of cards. Anywhere else (persona and user avatars,
       // backgrounds, sprites) a .png is just a picture — reading it as a
@@ -2307,6 +2348,47 @@ export function handleRoute(req, host) {
         } catch { summary.errors.push("chat failed: " + name); }
         continue;
       }
+    }
+    flushTrack();
+
+    // Character sprites (characters/<Name>/<emotion>.png): the app already put the pictures in the asset
+    // store and sent `sprites: { <folder>: { <emotion>: <url> } }`. A folder belongs to the card of the
+    // same name written by this import, else to the card whose file carried that name.
+    const spriteBody = req.body && typeof req.body === "object" && req.body.sprites && typeof req.body.sprites === "object" && !Array.isArray(req.body.sprites) ? req.body.sprites : null;
+    if (spriteBody) {
+      const idByCardName = new Map();
+      for (const cid of summary.characters) {
+        const card = readJson("characters/" + cid + "/card.json", null);
+        if (card && card.name) idByCardName.set(String(card.name).toLowerCase(), cid);
+      }
+      for (const folder of Object.keys(spriteBody).slice(0, 5000)) {
+        const cid = idByCardName.get(folder.toLowerCase()) || idByFileBase.get(folder.toLowerCase());
+        const pics = spriteBody[folder];
+        const card = cid && pics && typeof pics === "object" && !Array.isArray(pics) ? readJson("characters/" + cid + "/card.json", null) : null;
+        if (!card) { summary.notes.push("sprites of \"" + folder.slice(0, 80) + "\" were not attached: no character of that name in this import"); continue; }
+        const have = Array.isArray(card.studio && card.studio.expressions) ? card.studio.expressions : [];
+        const names = new Set(have.map((e) => String(e && e.name).toLowerCase()));
+        const added = [];
+        let spent = 0;
+        for (const key of Object.keys(pics).slice(0, 300)) {
+          const url = pics[key];
+          const nm = String(key).trim().slice(0, 80);
+          if (!nm || typeof url !== "string" || names.has(nm.toLowerCase())) continue;
+          // a stored picture is a URL; bytes inline are the fallback and ride inside card.json, so they are capped
+          if (!ASSET_URL.test(url)) {
+            if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(url) || url.length >= 700 * 1024 || spent + url.length > EXPRESSIONS_BUDGET) { summary.notes.push(card.name + ": sprite \"" + nm + "\" left out, the card file would grow past its size limit"); continue; }
+            spent += url.length;
+          }
+          names.add(nm.toLowerCase());
+          added.push({ name: nm, url });
+        }
+        if (!added.length) continue;
+        card.studio = { ...card.studio, expressions: [...have, ...added] };
+        writeJson("characters/" + cid + "/card.json", card);
+        summary.notes.push(card.name + ": " + added.length + " sprite" + (added.length === 1 ? "" : "s") + " attached");
+      }
+    } else if (spritesLeft) {
+      summary.notes.push(spritesLeft + " character sprite picture" + (spritesLeft === 1 ? "" : "s") + " in the zip were not imported (the app did not send them)");
     }
 
     // App settings and the local collections (quick replies, themes,
