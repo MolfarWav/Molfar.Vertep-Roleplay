@@ -3642,6 +3642,8 @@ function journalPreviousLines(ctx, B) {
   return out;
 }
 
+/** How many characters outside the scene still get their items listed for the sensor (the ones whose clothes came up last). */
+const AWAY_LISTED = 3;
 function previousStateText(ctx) {
   const B = ctx.base && ctx.base.snap;
   if (!B) return "Previous state\n(none: this is the start)\n" + limitsLine(ctx.cfg, []);
@@ -3666,6 +3668,17 @@ function previousStateText(ctx) {
     else if (!c.outfitSet) line += " Wearing: nothing recorded yet, so report in outfit any garment the new messages show on " + name + ", not only a change.";
     if (c.at) line += " At: " + c.at + ".";
     lines.push(line);
+  }
+  // someone who is out of the scene but whose clothes and things are recorded: without their ids a character who comes back
+  // is reported in words, and other words for the same garment made a second cardigan and a second top
+  const away = Object.keys(isObj(B.chars) ? B.chars : {})
+    .filter((n) => !arr(B.present).includes(n) && itemsOf(B.chars[n]).length)
+    .sort((a, b) => (Number(B.chars[b].shownTurn) || 0) - (Number(B.chars[a].shownTurn) || 0))
+    .slice(0, AWAY_LISTED);
+  for (const name of away) {
+    const its = itemsOf(B.chars[name]);
+    const listing = (kind) => its.filter((x) => x.kind === kind).map((x) => x.id + " " + x.text).join("; ");
+    lines.push(name + " (not in the scene before; if the new messages show them, these are their things, report them by these ids):" + (listing("hold") ? " Holding: " + listing("hold") + "." : "") + (listing("wear") ? " Wearing: " + listing("wear") + "." : ""));
   }
   if (isObj(B.layout)) {
     if (B.layout.userAt) lines.push(ctx.userName + ": " + B.layout.userAt + ".");
@@ -5511,6 +5524,64 @@ export function applyStackDelta(old, delta) {
 // formats (a plain text, { add, remove }). A snapshot from before the ledger gets its items from the outfit and holding texts,
 // and one from before the registry ids (i1, i2 per character) is migrated by ensureRegistry (migrateThings).
 const ITEMS_MAX = 14;
+// The sensor writes item texts in English, so these three checks read English only; any other wording falls through unchanged.
+// Kinds of garment: two wordings of one kind on one character are the same garment unless their colours differ.
+const GARMENT_KINDS = new Map(
+  [
+    ["top", "tops", "camisole", "tee", "tank"],
+    ["shirt", "shirts", "blouse"],
+    ["cardigan"],
+    ["sweater", "jumper", "pullover", "hoodie", "sweatshirt"],
+    ["jacket", "coat", "blazer", "parka", "windbreaker"],
+    ["skirt"],
+    ["dress", "gown", "sundress"],
+    ["pants", "trousers", "jeans", "slacks", "leggings"],
+    ["shorts"],
+    ["stockings", "stocking", "tights", "pantyhose"],
+    ["socks", "sock"],
+    ["sneakers", "sneaker", "trainers", "shoes", "shoe", "boots", "boot", "heels", "sandals", "slippers", "loafers"],
+    ["apron"],
+    ["bra"],
+    ["panties", "underwear", "briefs"],
+    ["scarf"],
+    ["gloves", "glove"],
+    ["hat", "cap", "beanie"],
+    ["robe", "bathrobe", "kimono", "yukata"],
+  ].flatMap((group) => group.map((w) => [w, group[0]])),
+);
+const COLOUR_WORDS = new Map(Object.entries({ black: "black", white: "white", grey: "grey", gray: "grey", red: "red", crimson: "red", scarlet: "red", blue: "blue", navy: "blue", green: "green", teal: "teal", yellow: "yellow", pink: "pink", purple: "purple", violet: "purple", brown: "brown", beige: "beige", cream: "beige", orange: "orange", gold: "gold", golden: "gold", silver: "silver" }));
+const kindsIn = (text) => new Set(outfitWords(text).map((w) => GARMENT_KINDS.get(w)).filter(Boolean));
+const coloursIn = (text) => new Set(outfitWords(text).map((w) => COLOUR_WORDS.get(w)).filter(Boolean));
+/** The same kind of garment (a top and a top) with no colour that says they are two. */
+export function sameKindOfGarment(a, b) {
+  const kb = kindsIn(b);
+  if (![...kindsIn(a)].some((k) => kb.has(k))) return false;
+  const ca = coloursIn(a);
+  const cb = coloursIn(b);
+  return !ca.size || !cb.size || [...ca].some((c) => cb.has(c));
+}
+// Words that say an item is no longer on the character. A sensor wrote them as a "new state" of a listed item
+// ({ id, text: "grey wool skirt, left behind in the room" }) instead of `off`, and the skirt stayed worn. A garment thrown
+// over her shoulders is still worn: a body part after the preposition does not count.
+const GONE_VERB = "left|thrown|tossed|flung|dropped|hung|hanging|draped|folded|lying";
+const GONE_TEXT = new RegExp(
+  "\\b(?:left behind|taken off|took off|pulled off|kicked off|removed|discarded|no longer (?:worn|wearing|on)|not worn|changed out of" +
+    "|(?:" + GONE_VERB + ")\\s+(?:aside|away|(?:up\\s+)?(?:on|onto|over|in|into|at|by|across|under)\\s+(?:the|a|an)\\s+(?!shoulders?\\b|arms?\\b|neck\\b|head\\b|waist\\b|hips?\\b|wrists?\\b|ankles?\\b|hands?\\b|fingers?\\b|legs?\\b|foot\\b|feet\\b|hair\\b|back\\b|chest\\b|body\\b)\\p{L}+))",
+  "iu",
+);
+const GONE_LEAD = new RegExp("^(?:left behind|taken off|took off|pulled off|kicked off|removed|discarded|" + GONE_VERB + ")\\s*(?:up\\s+)?", "i");
+/** Where a "gone" text says the item lies ("left behind in the room" = "in the room"), or "" when it names no place. null: the text does not say it is gone. */
+export function goneWhere(raw) {
+  const m = GONE_TEXT.exec(str(raw));
+  if (!m) return null;
+  const rest = str(raw).slice(m.index).replace(GONE_LEAD, "").replace(/[,;]+/g, " ").replace(/\s+/g, " ").trim();
+  return /^(?:on|onto|over|in|into|at|by|across|under)\b/i.test(rest) ? cut(rest, 100) : "";
+}
+/** Does a new text for a listed item still speak of that item: a shared word that is not a colour or a state, or the same kind of garment. */
+const speaksOf = (listed, text) => {
+  const lw = outfitWords(listed);
+  return sameKindOfGarment(listed, text) || outfitWords(text).some((w) => w.length >= 3 && !GARMENT_SKIP.has(w) && lw.some((x) => sameWord(w, x)));
+};
 const THING_ID = /^o\d+$/;
 const LEGACY_ID = /^i\d+$/;
 const idNum = (id) => Number(String(id).replace(/^\D+/, "")) || 0;
@@ -5576,6 +5647,18 @@ export function applyLedger(items0, seq0, kind, report, lying = [], opts = {}) {
     const text = itemText(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry);
     const mine = id ? of(id) : null;
     if (mine) {
+      const raw = str(isObj(entry) ? (entry.text ?? entry.item ?? "") : "");
+      // "left behind in the room", "thrown on the hanger" as the new state of a listed item: it was taken off, the text is where it lies
+      const where = raw ? goneWhere(raw) : null;
+      if (where !== null) {
+        takeOff({ id, where });
+        return;
+      }
+      // a text that names neither the item nor its kind is not a state of it: the listed wording stands (also a text in another language)
+      if (text && outfitWords(text).length && !speaksOf(mine.text, text)) {
+        seen.push(id);
+        return;
+      }
       // a new state of the same item (torn, wet); a report that says less than the list does changes nothing (#185)
       if (text && outfitWords(text).length && !covers(mine.text, text) && text !== mine.text) {
         mine.text = text;
@@ -5594,6 +5677,8 @@ export function applyLedger(items0, seq0, kind, report, lying = [], opts = {}) {
       }
     }
     if (!text || !outfitWords(text).length) return;
+    // "thrown on the hanger" under an id this character does not have: not a thing she wears or holds now
+    if (goneWhere(str(isObj(entry) ? (entry.text ?? entry.item ?? "") : entry)) !== null) return;
     // the sensor forgot the id of a listed item: the words find it, once
     const same = items.find((i) => i.kind === kind && covers(i.text, text));
     if (same) {
@@ -5606,6 +5691,15 @@ export function applyLedger(items0, seq0, kind, report, lying = [], opts = {}) {
       seen.push(poorer.id);
       changed = true;
       return;
+    }
+    // the same garment in other words ("white knit top" for "white form-fitting spaghetti-strap top"): one worn item of that kind,
+    // no colour against it. Held things are left alone: two cups or two keys are two things far more often than two tops are
+    if (kind === "wear") {
+      const alike = items.filter((i) => i.kind === kind && sameKindOfGarment(i.text, text));
+      if (alike.length === 1) {
+        seen.push(alike[0].id);
+        return;
+      }
     }
     newItem(text);
   };
