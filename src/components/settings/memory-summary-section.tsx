@@ -334,10 +334,15 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           </select>
           <p className="text-xs text-muted-foreground">{t('lit.set.presenceCutHint')}</p>
         </Field>
+        {switchRow('lit-remote-note', t('lit.set.remoteNote'), t('lit.set.remoteNoteHint'), cfg.remoteNote !== false, (v) => save({ remoteNote: v }))}
+        {switchRow('lit-suspects', t('lit.set.suspects'), t('lit.set.suspectsHint'), cfg.suspects !== false, (v) => save({ suspects: v }))}
       </SettingsBlock>
 
       <SettingsBlock tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
         <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
+        <NeedsYouSwitch kind="growth" label="attn.set.growth" hint="attn.set.growthHint" />
+        <NeedsYouSwitch kind="habits" label="attn.set.habits" hint="attn.set.habitsHint" />
+        <NeedsYouSwitch kind="quests" label="attn.set.quests" hint="attn.set.questsHint" />
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
       </SettingsBlock>
 

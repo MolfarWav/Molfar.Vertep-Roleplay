@@ -4285,12 +4285,75 @@ export function leakCandidates({ facts, reply, userText, people, speakers, userN
  */
 function restrictedFacts(fsx, chatId) {
   const st = readJson(fsx, "litopys/chats/" + chatId + ".json", null);
-  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && f.type !== "belief" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length && !f.knownBy.some((k) => /^group:/i.test(str(k)))).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: f.knownBy.map(str) }));
+  // a suspect (#416) may hint at it: only someone who neither knows nor suspects it is checked
+  return arr(isObj(st) ? st.facts : []).filter((f) => isObj(f) && f.status === "active" && f.type !== "belief" && str(f.text) && Array.isArray(f.knownBy) && f.knownBy.length && !f.knownBy.some((k) => /^group:/i.test(str(k)))).map((f) => ({ id: str(f.id), text: str(f.text), knownBy: [...f.knownBy.map(str), ...arr(f.suspectedBy).map(str).filter(Boolean)] }));
+}
+
+// #415: someone in touch from elsewhere (text, letter, call, video) knows only what came through. Code cannot tell which
+// words of the player's message were sent, so there is no code step here: in a remote scene every reply is checked, with
+// the player's recent messages of that scene as what the far character must not react to beyond the channel.
+const REMOTE_CONTACTS = { text: "by text", letter: "by letters", call: "on a call", video: "on a video call" };
+const REMOTE_PASSES = { text: "only the text {user} sent", letter: "only the letters {user} sent", call: "only {user}'s voice and the sounds near the phone", video: "only what {user}'s camera showed and the sounds near it" };
+const REMOTE_MSGS = 3;
+const REMOTE_MSG_CHARS = 1500;
+const REMOTE_ALL_CHARS = 3500;
+
+/**
+ * The leak candidates of a remote scene: one per character the base snapshot has in touch from elsewhere (two at most),
+ * holding the player's messages of that scene up to the new reply (the last REMOTE_MSGS, newest first, cut to size).
+ * line: the active line [{key, msg}]; snaps: the Dashboard's snapshots; base: the snapshot before the new messages.
+ * factId "remote:<id of the newest player message>" (no Litopys fact: "found out" does not apply).
+ */
+export function remoteCandidates({ line, snaps, base, userName }) {
+  const B = base && isObj(base.snap) ? base.snap : null;
+  if (!B || !isObj(B.chars)) return [];
+  const far = arr(B.present).filter((n) => isObj(B.chars[n]) && REMOTE_CONTACTS[str(B.chars[n].contact)]).slice(0, 2);
+  if (!far.length) return [];
+  // the player's messages of the remote run, walking back from the newest; the run ends at a reply whose snapshot has nobody far
+  const mine = [];
+  for (let i = arr(line).length - 1; i >= 0 && mine.length < REMOTE_MSGS; i--) {
+    const m = line[i] && line[i].msg;
+    if (!m) continue;
+    if (m.role === "user") {
+      if (str(m.text)) mine.push(m);
+      continue;
+    }
+    if (m.role !== "char") continue;
+    const sn = isObj(snaps) ? snaps[line[i].key] : null;
+    if (isObj(sn) && isObj(sn.chars) && !arr(sn.present).some((n) => isObj(sn.chars[n]) && REMOTE_CONTACTS[str(sn.chars[n].contact)])) break;
+  }
+  if (!mine.length) return [];
+  let room = REMOTE_ALL_CHARS;
+  const texts = [];
+  for (const m of mine) {
+    if (room <= 0) break;
+    const t = cut(str(m.text), Math.min(REMOTE_MSG_CHARS, room));
+    room -= t.length;
+    texts.push("«" + t + "»");
+  }
+  const user = str(userName) || "the user's character";
+  return far.map((who) => {
+    const kind = str(B.chars[who].contact);
+    const passes = REMOTE_PASSES[kind].split("{user}").join(user);
+    return {
+      who,
+      factId: "remote:" + str(mine[0].id),
+      text: cut(str(mine[0].text), 200),
+      remote: kind,
+      line: who + " is elsewhere, in touch " + REMOTE_CONTACTS[kind] + ", and does not know what " + user + " did or said aloud there; " + who + " got " + passes + ". " + user + "'s messages, newest first: " + texts.join(" "),
+    };
+  });
 }
 
 /** The candidates of this update, [] when the check is off or nothing resembles a restricted fact. */
-function leakCandidatesOf(fsx, chatId, cfg, base, newMsgs, userNames, characters) {
+function leakCandidatesOf(fsx, chatId, cfg, base, newMsgs, userNames, characters, remote) {
   if (cfg.leakCheck === false) return [];
+  const far = remote ? remoteCandidates({ ...remote, base }) : [];
+  return [...far, ...leakFactCandidates(fsx, chatId, base, newMsgs, userNames, characters)].slice(0, LEAK_MAX);
+}
+
+/** The Litopys-fact candidates (#184 P3). */
+function leakFactCandidates(fsx, chatId, base, newMsgs, userNames, characters) {
   const facts = restrictedFacts(fsx, chatId);
   if (!facts.length) return [];
   const users = new Set(arr(userNames).map((n) => str(n).toLowerCase()));
@@ -4310,7 +4373,8 @@ function leakCheckText(ctx) {
   if (!c.length) return "";
   return [
     "Leak check: also add \"leaks\" to your JSON: [{\"id\": \"L1\", \"quote\": \"the shortest quote from the new messages\"}]. Each line below names a character and a fact that character does NOT know in the story. List a line only when the new messages show that character speaking, thinking or acting as if they knew that fact. A guess that only resembles it, or a fact told to the character in the new messages, is not a leak. Leave \"leaks\" out when there is none.",
-    ...c.map((x, i) => leakLabel(i) + ": " + x.who + " does not know: " + x.text),
+    ...(c.some((x) => x.remote) ? ["A line about someone elsewhere: list it only when that character says, writes or does something in the new messages that reacts to what the user's character did or said aloud and never sent (a wish said aloud, then offered by text). What was sent through the channel is known to them."] : []),
+    ...c.map((x, i) => leakLabel(i) + ": " + (x.line ? x.line : x.who + " does not know: " + x.text)),
   ].join("\n");
 }
 
@@ -4321,7 +4385,7 @@ export function cleanLeaks(raw, cands) {
     const m = isObj(l) ? /L(\d+)/i.exec(str(l.id) || str(l.fact)) : null;
     const c = m ? arr(cands)[Number(m[1]) - 1] : null;
     if (!c || out.some((x) => x.who === c.who && x.factId === c.factId)) continue;
-    out.push({ who: c.who, factId: c.factId, text: c.text, quote: cut(str(l.quote), 240), status: "open" });
+    out.push({ who: c.who, factId: c.factId, text: c.text, quote: cut(str(l.quote), 240), status: "open", ...(c.remote ? { remote: c.remote } : {}) });
   }
   return out.slice(0, LEAK_MAX);
 }
@@ -4352,7 +4416,7 @@ function openLeaks(state, keys) {
   for (const [key, rec] of Object.entries(isObj(state.leaks) ? state.leaks : {})) {
     if (!on.has(key) || !isObj(rec)) continue;
     const at = key.lastIndexOf("#");
-    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open") out.push({ key, msgId: key.slice(0, at), swipe: Number(key.slice(at + 1)) || 0, who: str(it.who), factId: str(it.factId), text: str(it.text), quote: str(it.quote) });
+    for (const it of arr(rec.items)) if (isObj(it) && it.status === "open") out.push({ key, msgId: key.slice(0, at), swipe: Number(key.slice(at + 1)) || 0, who: str(it.who), factId: str(it.factId), text: str(it.text), quote: str(it.quote), ...(str(it.remote) ? { remote: str(it.remote) } : {}) });
   }
   return out;
 }
@@ -7150,7 +7214,7 @@ function planUpdate(fsx, chatId, op) {
     vocab: loadVocab(fsx),
     backdrops: backdropChoices(fsx, chat.meta),
     backdropDraw: backdropDrawOn(chat.meta),
-    leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names),
+    leakCands: leakCandidatesOf(fsx, chatId, loadConfig(fsx), base, newMsgs, userNamesOf(fsx, chat), names, { line, snaps: state.snapshots, userName: userNameOf(fsx, chat.meta) }),
   };
   ensureRegistry(ctx);
   return ctx;

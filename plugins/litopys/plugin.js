@@ -1118,6 +1118,11 @@ export const DEFAULT_CONFIG = {
   // prompt, a run of them as one line "[Bram was not here: 6 messages]". "groups" (default): only a group's replies;
   // "all": a card chat too; "off". The chat's own switch is the Prompt board item `plugin:presence`.
   presenceCut: "groups",
+  // #415: in a scene where someone is in touch by text, call or video, a line after each player message in the prompt says
+  // what reached them (the text sent, the voice, the camera), so the far character does not react to the rest. On by default.
+  remoteNote: true,
+  // #416: the chapter worker also says who only suspects a fact and which facts their knowers keep secret
+  suspects: true,
   // #184 P1d: on top of the brief, ask a reply that voices several characters to open with a hidden plan, one "knows" line per
   // acting character (<vertep_plan>, cut by the engine plugin from every saved reply, with any preset). Off by default.
   hiddenPlan: false,
@@ -1250,6 +1255,16 @@ export const CAUSE_RULE = [
   '- When a new fact happened BECAUSE of a Known fact, add "because": that fact\'s id (one id, like "f3"). Only a cause the messages show; leave it out otherwise.',
 ].join("\n");
 export const CAUSE_SHAPE = ',"because":"f3"?';
+
+/** Added to the chapter prompt (#416): who only suspects a fact, and a fact its knowers keep secret. */
+export const KNOWING_RULE = [
+  "Suspicions and secrets (optional, usually none):",
+  "- suspectedBy: names who only suspect a fact (a hint, a clue, a guess) without knowing it. Never a name that is in knownBy.",
+  "- secret: true when those who know keep the fact hidden from the others (an affair, a crime, a hidden plan).",
+  '- When someone in the scene came to know or to suspect a Known fact, give {op:"knows", id, knownBy:[names]} or {op:"knows", id, suspectedBy:[names]}: only the new names.',
+].join("\n");
+export const KNOWING_SHAPE = ',"suspectedBy":["names"]?,"secret":true?';
+export const KNOWS_OP_SHAPE = ',{"op":"knows","id":"f5","knownBy":["names"]?,"suspectedBy":["names"]?}';
 
 /**
  * Added to the chapter prompt while search words are on (#184). The record is searched by words, and a question seldom uses the
@@ -1467,6 +1482,8 @@ export function loadConfig(fsx) {
   cfg.recollectChars = clamp(intOf(cfg.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   cfg.castKnowledge = cfg.castKnowledge !== false;
   cfg.presenceCut = PRESENCE_MODES.includes(cfg.presenceCut) ? cfg.presenceCut : "groups";
+  cfg.remoteNote = cfg.remoteNote !== false;
+  cfg.suspects = cfg.suspects !== false;
   cfg.hiddenPlan = cfg.hiddenPlan === true;
   cfg.verbatim = cfg.verbatim !== false;
   cfg.verbatimBudget = clamp(intOf(cfg.verbatimBudget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX);
@@ -1569,6 +1586,8 @@ export function patchConfig(fsx, body) {
   if (b.recollectChars !== undefined) next.recollectChars = clamp(intOf(b.recollectChars, VIEW_CHARS), VIEW_CHARS_MIN, VIEW_CHARS_MAX);
   if (b.castKnowledge !== undefined) next.castKnowledge = b.castKnowledge !== false && b.castKnowledge !== "off";
   if (b.presenceCut !== undefined) next.presenceCut = PRESENCE_MODES.includes(b.presenceCut) ? b.presenceCut : "groups";
+  if (b.remoteNote !== undefined) next.remoteNote = b.remoteNote !== false && b.remoteNote !== "off";
+  if (b.suspects !== undefined) next.suspects = b.suspects !== false && b.suspects !== "off";
   if (b.searchWords !== undefined) next.searchWords = b.searchWords !== false && b.searchWords !== "off";
   if (b.hiddenPlan !== undefined) next.hiddenPlan = b.hiddenPlan === true || b.hiddenPlan === "on";
   if (b.verbatim !== undefined) next.verbatim = b.verbatim === true || b.verbatim === "on";
@@ -2438,8 +2457,13 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
   const base = causesOn ? WORKER_SHAPE.replace('"weight":"everyday|important|key"}', '"weight":"everyday|important|key"' + CAUSE_SHAPE + "}") : WORKER_SHAPE;
   const alsoOn = cfg.searchWords !== false;
   const baseAlso = alsoOn ? base.replace(/("weight":"everyday\|important\|key"(?:,"because":"f3"\?)?)\}/, "$1" + SEARCH_SHAPE + "}").replace('"text":"3-6 sentences"', '"text":"3-6 sentences"' + SEARCH_SHAPE) : base;
-  const shape = baseAlso.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + (turnsOn ? TURNS_SHAPE : "") + "}");
-  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + recollectionsRule(cfg.recollectChars) : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + (turnsOn ? "\n\n" + TURNS_RULE : "") + "\n\nOutput shape\n" + shape;
+  // #416: who suspects, and secrets; the "knows" op only when there is a known fact to point at
+  const knowingOn = cfg.suspects !== false;
+  const baseKnowing = knowingOn
+    ? baseAlso.replace('"knownBy":["names"]|"all"', '"knownBy":["names"]|"all"' + KNOWING_SHAPE).replace(/\{"op":"retire","id":"f4","reason":""\}/, (m) => m + (factLines.length ? KNOWS_OP_SHAPE : ""))
+    : baseAlso;
+  const shape = baseKnowing.replace(/\}$/, (habitsOn ? HABITS_SHAPE : "") + (viewsOn ? RECOLLECTIONS_SHAPE : "") + (turnsOn ? TURNS_SHAPE : "") + "}");
+  let systemPrompt = (cfg.chapter || DEFAULT_PROMPTS.chapter) + (knowingOn ? "\n\n" + KNOWING_RULE : "") + (habitsOn ? "\n\n" + HABITS_RULE : "") + (causesOn ? "\n\n" + CAUSE_RULE : "") + (viewsOn ? "\n\n" + recollectionsRule(cfg.recollectChars) : "") + (alsoOn ? "\n\n" + SEARCH_RULE : "") + (turnsOn ? "\n\n" + TURNS_RULE : "") + "\n\nOutput shape\n" + shape;
   // the reader set this scene apart by hand: say why it is its own chapter
   if (scene.marked) systemPrompt += "\n\nThe reader marked this scene as important, a turning point. Keep what happened, who did what, and what changed for the characters because of it, even though the scene is short." + (turnsOn ? " Report it as a turning point (one add)." : "");
   // the first answer retold the scene at full length: ask again, shorter
@@ -2853,13 +2877,21 @@ export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = 
     }
     const who = people.filter((n) => by.has(kf(n)));
     if (who.length === people.length) continue;
-    const key = who.join("\u0000");
-    if (!groups.has(key)) groups.set(key, { who, texts: [] });
+    // #416: who only suspects it, and whether its knowers keep it secret
+    const susBy = new Set(arr(f.suspectedBy).map((k) => kf(k)));
+    const sus = people.filter((n) => !by.has(kf(n)) && susBy.has(kf(n)));
+    const secret = f.secret === true && who.length > 0;
+    const key = who.join("\u0000") + "\u0001" + sus.join("\u0000") + (secret ? "\u0002" : "");
+    if (!groups.has(key)) groups.set(key, { who, sus, secret, texts: [] });
     groups.get(key).texts.push(cut(str(f.text), 100));
   }
   if (!groups.size) return null;
-  const head = "[Who knows what (Litopys): a character acts only on what they know. Never let one use what only another knows.]";
-  const lineOf = (g) => (g.who.length ? "Only " + g.who.join(" and ") + (g.who.length > 1 ? " know" : " knows") : "None of them here knows, it is said elsewhere") + ": " + g.texts.slice(-4).join("; ");
+  const head = "[Who knows what (Litopys): a character acts only on what they know. Never let one use what only another knows; a suspect may hint or probe, never act as if certain.]";
+  const extra = (g) => {
+    const bits = [...(g.sus.length ? [g.sus.join(" and ") + (g.sus.length > 1 ? " suspect" : " suspects")] : []), ...(g.secret ? [(g.who.length > 1 ? "they keep" : "keeps") + " it secret"] : [])];
+    return bits.length ? " (" + bits.join("; ") + ")" : "";
+  };
+  const lineOf = (g) => (g.who.length ? "Only " + g.who.join(" and ") + (g.who.length > 1 ? " know" : " knows") : "None of them here knows, it is said elsewhere") + extra(g) + ": " + g.texts.slice(-4).join("; ");
   const rows = [...groups.values()].sort((a, b) => a.who.length - b.who.length).slice(0, 6);
   while (rows.length && estimateTokens([head, ...rows.map(lineOf)].join("\n")) > CAST_TOKENS) rows.pop();
   if (!rows.length) return null;
@@ -2893,13 +2925,17 @@ const TRACE_OUT = 15;
  * One fact as a line of the insert. A belief (#184 P4) reads as what its holder was told, not as a fact: in the holder's
  * own reply (`solo`) it is plain, since the holder takes it as true; a reply that voices several says it is untrue.
  */
-export function factLineOf(f, solo, groups) {
+export function factLineOf(f, solo, groups, suspicion) {
   if (isObj(f) && f.type === "belief") {
     const holder = str(f.holder);
     const from = str(isObj(f.prov) && isObj(f.prov[holder]) ? f.prov[holder].from : "");
     return "- " + (holder || "Someone") + " believes" + (from ? ", told by " + from : "") + ": " + str(f.text) + (solo ? "" : " (untrue)");
   }
-  return "- " + str(f.text) + (Array.isArray(f.knownBy) && f.knownBy.length ? " (known to: " + f.knownBy.map((k) => groupLabel(k, groups)).join(", ") + ")" : "");
+  // #416: who only suspects it, and whether it is kept secret, ride in the same bracket
+  const known = Array.isArray(f.knownBy) && f.knownBy.length ? ["known to: " + f.knownBy.map((k) => groupLabel(k, groups)).join(", ")] : [];
+  const sus = arr(f.suspectedBy).filter((n) => str(n));
+  const tail = [...known, ...(sus.length ? ["suspected by: " + sus.join(", ")] : []), ...(f.secret === true && known.length ? ["kept secret"] : [])];
+  return "- " + (suspicion ? "(only a suspicion, not known for sure) " : "") + str(f.text) + (tail.length ? " (" + tail.join("; ") + ")" : "");
 }
 
 export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut, voices: voices0, canon }) {
@@ -2930,8 +2966,10 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const noAudience = (f) => f.knownBy === undefined || f.knownBy === null;
   const inScene = !(voices instanceof Set && voices.size) || here.size === 0 || [...voices].some((v) => here.has(v));
   const known = (f) => f.knownBy === "all" || (Array.isArray(f.knownBy) && f.knownBy.some((k) => knowsAs.has(key(k)))) || (noAudience(f) && inScene);
+  // #416: a fact the reply's people only suspect goes in marked as a suspicion
+  const suspectOnly = (f) => !known(f) && Array.isArray(f.suspectedBy) && f.suspectedBy.some((k) => knowsAs.has(key(k)));
   const live = arr(st.facts).filter((f) => isObj(f) && f.status === "active" && str(f.text));
-  const active = live.filter(known);
+  const active = live.filter((f) => known(f) || suspectOnly(f));
   const ranges = new Map(arr(st.chapters).filter(isObj).map((ch) => [ch.id, rangeOf(ch, line)]));
   // a chapter the speaking character did not witness stays out, and so does an arc that holds one (its witnessed
   // chapters then ride by themselves)
@@ -2993,7 +3031,7 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   const headHeader = "[Story record (Litopys): what happened just before the messages below. " + (cfg.remembers || REMEMBERS) + "]";
   const tailHeader = "[Story record (Litopys): earlier chapters and what stays true. " + (cfg.remembers || REMEMBERS) + "]";
   const solo = voices instanceof Set && voices.size === 1;
-  const factLine = (f) => factLineOf(f, solo, groups);
+  const factLine = (f) => factLineOf(f, solo, groups, suspectOnly(f));
   const chapterLine = (ch) => "- " + (str(ch.label) ? str(ch.label) + ": " : "") + str(ch.text);
   const budget = clamp(cfg && cfg.budget, 200, BUDGET_MAX);
   const byStory = (list) => list.slice().sort((x, y) => ranges.get(x.id).fromIdx - ranges.get(y.id).fromIdx);
@@ -3400,6 +3438,88 @@ export function presenceCutFor({ messages, hist, line, dash, speakerName, voices
   return { messages: out, cut: runs.reduce((t, r) => t + r.n, 0), runs, lines: runs.map((r) => ({ n: r.n, text: r.text })) };
 }
 
+// ---------- #415: what reaches someone in touch from elsewhere ----------
+// The Dashboard marks a character who talks with the player's character by text, letter, call or video (`chars[n].contact`).
+// Its scene line says so once, far above; a model that reads the player's whole message (actions, words said aloud
+// alone, the text sent) still lets the far character react to all of it (a coffee machine wished for aloud, then
+// offered by text). So each player message of such a scene that is still in the prompt gets one line right after it.
+const REMOTE_KINDS = { text: "text", letter: "text", call: "call", video: "video" };
+const REMOTE_NOTES_MAX = 8;
+
+/** The far characters of a snapshot by kind of contact: Map("text" | "call" | "video" -> [names]), or null. */
+export function farOfSnap(snap) {
+  if (!isObj(snap) || !Array.isArray(snap.present) || !isObj(snap.chars)) return null;
+  const out = new Map();
+  for (const n of snap.present) {
+    const c = typeof n === "string" && isObj(snap.chars[n]) ? snap.chars[n] : null;
+    const kind = c ? REMOTE_KINDS[str(c.contact)] : null;
+    if (!kind) continue;
+    if (!out.has(kind)) out.set(kind, []);
+    out.get(kind).push(n);
+  }
+  return out.size ? out : null;
+}
+
+/** The line after a player's message for one kind of contact; names are written out (no pronouns). */
+export function remoteNoteText(kind, names, user) {
+  const who = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+  const one = names.length === 1;
+  const u = str(user) || "the user's character";
+  if (kind === "call") return who + (one ? " is" : " are") + " on a call with " + u + ": " + who + " only " + (one ? "hears " : "hear ") + u + "'s voice and the sounds near the phone, nothing done in silence.";
+  if (kind === "video") return who + (one ? " is" : " are") + " on a video call with " + u + ": " + who + " only " + (one ? "sees" : "see") + " what is in " + u + "'s camera and " + (one ? "hears" : "hear") + " what is near it.";
+  return who + (one ? " is" : " are") + " elsewhere, in touch by text: of this message " + who + " " + (one ? "gets" : "get") + " only the text " + u + " sends; what " + u + " does or says aloud there, " + who + " " + (one ? "does" : "do") + " not see or hear.";
+}
+
+/**
+ * Notes after the player's messages of a remote scene (#415). The scene of a player's message is the snapshot of the reply
+ * that answers it; the newest (not answered yet) takes the latest snapshot. Request messages are found as the presence cut
+ * finds them (the `hist` hashes), so a message the cut removed is simply not found. At most the last REMOTE_NOTES_MAX
+ * player messages get a note. Returns { messages, notes, lines }.
+ */
+export function remoteNotesFor({ messages, hist, line, dash }) {
+  const none = { messages, notes: 0, lines: [] };
+  if (!Array.isArray(messages) || !Array.isArray(hist) || !hist.length || !Array.isArray(line) || !line.length) return none;
+  if (!isObj(dash) || !isObj(dash.snapshots)) return none;
+  const farAt = new Array(line.length).fill(null);
+  let latest = null;
+  for (const m of line) if (m.role === "char") latest = snapOf(dash, m) || latest;
+  let next = latest;
+  for (let i = line.length - 1; i >= 0; i--) {
+    if (line[i].role === "char") next = snapOf(dash, line[i]);
+    else if (line[i].role === "user") farAt[i] = farOfSnap(next);
+  }
+  if (!farAt.some(Boolean)) return none;
+  const hashes = messages.map((m) => (m && typeof m.content === "string" ? promptHash(m.role, m.content) : null));
+  const lineAt = new Map(line.map((m, i) => [m.id, i]));
+  const at = new Map();
+  let from = 0;
+  for (const e of hist) {
+    if (!isObj(e) || typeof e.h !== "string") continue;
+    let j = -1;
+    for (let k = from; k < messages.length; k++) {
+      if (hashes[k] === e.h) {
+        j = k;
+        break;
+      }
+    }
+    if (j < 0) continue;
+    from = j + 1;
+    const li = lineAt.get(e.id);
+    if (li === undefined || line[li].role !== "user" || !farAt[li]) continue;
+    const user = str(line[li].name);
+    at.set(j, "[" + [...farAt[li]].map(([kind, names]) => remoteNoteText(kind, names, user)).join(" ") + "]");
+  }
+  const keep = [...at.keys()].sort((a, b) => a - b).slice(-REMOTE_NOTES_MAX);
+  if (!keep.length) return none;
+  const chosen = new Set(keep);
+  const out = [];
+  messages.forEach((m, j) => {
+    out.push(m);
+    if (chosen.has(j)) out.push({ role: "system", content: at.get(j) });
+  });
+  return { messages: out, notes: keep.length, lines: keep.map((j) => at.get(j)) };
+}
+
 export function llmRequest(ctx, host) {
   if (!ctx || ctx.key !== "reply" || !ctx.turn) return null;
   if (ctx.turn.op === "impersonate") return null;
@@ -3578,7 +3698,20 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim && !(presence && presence.cut > 0)) return null;
+    // #415: after each player message of a remote scene, what reached the one far away (on the presence cut's output);
+    // it follows the chat's Litopys switch like the story record
+    let remote = null;
+    if (cfg.remoteNote !== false && !litOff) {
+      try {
+        const rec = readJson(fsx, "litopys/prompt-cut/" + chatId + ".json", null);
+        remote = remoteNotesFor({ messages: presence && presence.cut > 0 ? presence.messages : req.messages, hist: isObj(rec) ? rec.hist : null, line, dash: readDash(fsx, chatId) });
+      } catch (e) {
+        try {
+          host.log("litopys remote: " + (e && e.message ? e.message : String(e)));
+        } catch {}
+      }
+    }
+    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim && !(presence && presence.cut > 0) && !(remote && remote.notes > 0)) return null;
     // #184 P6: the trace of the reply before this one moves into a short ring (the newest stays in the insert file)
     try {
       if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
@@ -3609,6 +3742,7 @@ export function llmRequest(ctx, host) {
           ...(recall ? { recollections: { tokens: recall.tokens, scenes: recall.scenes, who: recall.who } } : {}),
           ...(verbatim ? { verbatim: { tokens: verbatim.tokens, chunks: verbatim.chunks, chats: verbatim.chats, rows: verbatim.rows } } : {}),
           ...(presence && presence.cut > 0 ? { presence: { cut: presence.cut, runs: presence.runs.length, near: presence.runs.filter((r) => r.near).length, speaker: str(speakerName) } } : {}),
+          ...(remote && remote.notes > 0 ? { remote: { notes: remote.notes } } : {}),
         }),
       );
     } catch {}
@@ -3619,10 +3753,13 @@ export function llmRequest(ctx, host) {
       if ((insert && insert.trace) || farUsed || verbUsed) recordLitFired(fsx, chatId, str(ctx.turn.op), insert && insert.trace ? insert.trace.rows : [], farUsed, verbUsed);
     } catch {}
     // the backstory first (it is the older story), then the chat's own record
-    let messages = presence && presence.cut > 0 ? presence.messages : req.messages;
+    let messages = remote && remote.notes > 0 ? remote.messages : presence && presence.cut > 0 ? presence.messages : req.messages;
     const promptSources = { parts: [] };
     if (presence && presence.cut > 0) {
       for (const line of presence.lines || []) promptSources.parts.push({ kind: "memory", label: "Presence · " + line.n + (line.n === 1 ? " message" : " messages") + " left out", text: line.text });
+    }
+    if (remote && remote.notes > 0) {
+      for (const text of remote.lines) promptSources.parts.push({ kind: "memory", label: "Remote contact · what reached them", text });
     }
     // the language note rides once, on whichever block comes first
     let langLeft = true;
@@ -4066,11 +4203,25 @@ function undoProposal(st, p, now) {
 
 // ---------- applying the worker result ----------
 /** Models drop "op" on new facts or say "new": no id means add. */
+/** #416: the suspects of a fact, canonical, without its knowers (a knower knows, so does not merely suspect); at most 12. */
+export function suspectsOf(v, knownBy, canon) {
+  const c = typeof canon === "function" ? canon : (x) => x;
+  const knowers = Array.isArray(knownBy) ? knownBy : [];
+  const out = [];
+  for (const raw of Array.isArray(v) ? v : []) {
+    const n = str(c(str(raw)));
+    if (!n || isGroupToken(n) || knowers.some((k) => sameName(k, n)) || out.some((x) => sameName(x, n))) continue;
+    out.push(n);
+  }
+  return out.slice(0, 12);
+}
+
 function factOp(op) {
   const raw = str(op.op || op.action).toLowerCase();
   if (raw === "add" || raw === "new" || raw === "create" || raw === "insert") return "add";
   if (raw === "update" || raw === "edit" || raw === "change") return "update";
   if (raw === "retire" || raw === "remove" || raw === "delete") return "retire";
+  if (raw === "knows" || raw === "learn" || raw === "learns" || raw === "suspect" || raw === "suspects") return "knows";
   return raw || (op.id === undefined || op.id === null || op.id === "" ? "add" : "");
 }
 
@@ -4169,6 +4320,9 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       }
       // a character knows what is about them; models often list only the others
       if (Array.isArray(knownBy) && subject.toLowerCase() !== "world" && !knownBy.some((k) => k.toLowerCase() === subject.toLowerCase())) knownBy = [subject, ...knownBy];
+      // #416: who only suspects it (never a knower), and whether its knowers keep it secret
+      const suspectedBy = knownBy === "all" ? [] : suspectsOf(op.suspectedBy, knownBy, canon);
+      const secret = op.secret === true && knownBy !== "all";
       const typeMap = ["event", "trait", "change", "relation", "world", "plan"];
       const type = typeMap.includes(op.type) ? op.type : "event";
       const weightMap = ["everyday", "important", "key"];
@@ -4205,6 +4359,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         text,
         subject,
         knownBy,
+        ...(suspectedBy.length ? { suspectedBy } : {}),
+        ...(secret ? { secret: true } : {}),
         type,
         weight,
         pinned: false,
@@ -4223,6 +4379,38 @@ export function applyWorkerResult(st, work, parsed, ctx) {
         fact.pinProposed = true;
         st.proposals.push({ id: "p" + ++st.counters.proposal, op: "pin", targets: [fact.id], reason: "key fact", status: "pending", chapter: chapterId, at: now });
       }
+    } else if (opName === "knows") {
+      // #416: someone came to know or to suspect a Known fact; a name a flagged reply leaked is not taken (#184 P3)
+      const target = st.facts.find((f) => f.id === str(op.id) && f.status === "active");
+      if (!target) {
+        skip("gone", op, str(op.id));
+        continue;
+      }
+      const leaked = new Set(arr(ctx.held).filter((h) => h.texts.some((t) => saysHeld(target.text, t))).map((h) => canon(h.who).toLowerCase()));
+      const fresh = (v) => (Array.isArray(v) ? dedupeNames(v.map((x) => str(x)).filter(Boolean).map(canon)) : []).filter((n) => !leaked.has(n.toLowerCase()) && !isGroupToken(n));
+      const learn = fresh(op.knownBy);
+      let changed = false;
+      if (learn.length && target.knownBy !== "all") {
+        const was = arr(target.knownBy);
+        const add = learn.filter((n) => !was.some((k) => sameName(k, n)));
+        if (add.length) {
+          target.knownBy = [...was, ...add];
+          changed = true;
+        }
+      }
+      if (target.knownBy !== "all") {
+        const sus = suspectsOf([...arr(target.suspectedBy), ...fresh(op.suspectedBy)], target.knownBy, canon);
+        if (sus.length !== arr(target.suspectedBy).length || changed) {
+          if (sus.length) target.suspectedBy = sus;
+          else delete target.suspectedBy;
+          changed = true;
+        }
+      } else if (target.suspectedBy) {
+        delete target.suspectedBy;
+        changed = true;
+      }
+      if (changed) target.updatedAt = now;
+      else skip("same", op, target.id);
     } else if (opName === "update") {
       const id = str(op.id);
       const target = st.facts.find((f) => f.id === id && f.status === "active");
@@ -8073,11 +8261,15 @@ export function factRoute(fsx, body) {
       if (!FACT_TYPES.includes(type)) return bad("unknown type");
       const weight = b.weight === undefined ? "everyday" : str(b.weight);
       if (!FACT_WEIGHTS.includes(weight)) return bad("unknown weight");
+      // #416: who only suspects it (never a knower) and whether its knowers keep it secret
+      const suspectedBy = knownBy === "all" ? [] : suspectsOf(b.suspectedBy, knownBy);
       const fact = {
         id: "f" + ++st.counters.fact,
         text,
         subject: cut(str(b.subject), 80) || "world",
         knownBy,
+        ...(suspectedBy.length ? { suspectedBy } : {}),
+        ...(b.secret === true && knownBy !== "all" ? { secret: true } : {}),
         type,
         weight,
         pinned: false,
@@ -8116,7 +8308,11 @@ export function factRoute(fsx, body) {
         next.weight = str(b.weight);
         if (!FACT_WEIGHTS.includes(next.weight)) return bad("unknown weight");
       }
-      if (!Object.keys(next).length) return bad("nothing to change");
+      if (b.suspectedBy !== undefined && !Array.isArray(b.suspectedBy)) return bad("suspectedBy must be a list of names");
+      if (b.secret !== undefined && typeof b.secret !== "boolean") return bad("secret must be true or false");
+      const susIn = b.suspectedBy !== undefined;
+      const secIn = b.secret !== undefined;
+      if (!Object.keys(next).length && !susIn && !secIn) return bad("nothing to change");
       // a pinned fact moved to another subject must fit that subject's pins
       if (next.subject && fact.pinned === true && fact.status === "active" && !sameName(next.subject, fact.subject)) {
         const pinMax = withChatConfig(cfg, st).pinLimit;
@@ -8125,6 +8321,15 @@ export function factRoute(fsx, body) {
         }
       }
       Object.assign(fact, next);
+      // #416: the suspects follow the knowers (a knower is no suspect; a fact everyone knows has none, and no secret)
+      const sus = fact.knownBy === "all" ? [] : suspectsOf(susIn ? b.suspectedBy : fact.suspectedBy, fact.knownBy);
+      if (sus.length) fact.suspectedBy = sus;
+      else delete fact.suspectedBy;
+      if (secIn) {
+        if (b.secret === true) fact.secret = true;
+        else delete fact.secret;
+      }
+      if (fact.knownBy === "all") delete fact.secret;
       fact.edited = true;
       fact.updatedAt = now;
       addActivity(st, "user", "fact.edit", "Edited a fact: " + quote(fact.text), [fact.id], now, { text: fact.text });
@@ -8137,6 +8342,11 @@ export function factRoute(fsx, body) {
       if (!who) return bad("who is empty");
       if (fact.knownBy === "all" || arr(fact.knownBy).some((k) => sameName(k, who))) return;
       fact.knownBy = [...arr(fact.knownBy), who];
+      if (Array.isArray(fact.suspectedBy)) {
+        const sus = fact.suspectedBy.filter((n) => !sameName(n, who));
+        if (sus.length) fact.suspectedBy = sus;
+        else delete fact.suspectedBy;
+      }
       // how they came to know it: the user said so (#184 P4)
       fact.prov = { ...(isObj(fact.prov) ? fact.prov : {}), [who]: { how: "told", from: "user" } };
       fact.updatedAt = now;

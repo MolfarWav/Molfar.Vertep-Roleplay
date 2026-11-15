@@ -94,12 +94,12 @@ describe("entry panel", () => {
   });
 });
 
-describe("the five folds", () => {
-  it("are five sibling folds, each with its own id, and none inside another", () => {
+describe("the six folds", () => {
+  it("are six sibling folds, each with its own id, and none inside another", () => {
     const html = panel(entry());
     const folds = html.match(/data-slot="fold"/g) ?? [];
-    expect(folds.length).toBe(5);
-    for (const id of ["lore-entry-where", "lore-entry-only-when", "lore-entry-stays", "lore-entry-groups", "lore-entry-match"]) {
+    expect(folds.length).toBe(6);
+    for (const id of ["lore-entry-where", "lore-entry-only-when", "lore-entry-secret", "lore-entry-stays", "lore-entry-groups", "lore-entry-match"]) {
       expect(html).toContain(`data-testid="fold-${id}"`);
     }
   });

@@ -273,6 +273,8 @@ export interface LeakHit {
   factId: string
   text: string
   quote: string
+  /** #415: the character was in touch from elsewhere and reacted to what the player's character did not send (`factId` starts with `remote:`) */
+  remote?: 'text' | 'letter' | 'call' | 'video'
 }
 
 export interface DashResponse {

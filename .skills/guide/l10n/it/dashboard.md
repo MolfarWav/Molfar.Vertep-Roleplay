@@ -1,4 +1,4 @@
-<!-- source: 9a646049514e -->
+<!-- source: be6761336996 -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che tiene traccia della scena: chi è presente, come ogni personaggio si sente nei tuoi confronti, cosa indossa e cosa sa, i fili narrativi aperti. È per chiunque voglia che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo di aiuto *Scene dashboard* elenca i suoi campi.
@@ -42,6 +42,8 @@ Sotto il taccuino di una persona, la lista **Said** conserva le cose forti che h
 Quando un personaggio mente davanti agli altri, gli altri la prendono per vera. Le loro risposte successive la trattano come qualcosa che è stato detto loro e che non hanno motivo di dubitare, finché la storia non mostra il contrario. Solo le persone che erano nella scena vengono ingannate, e solo nelle loro risposte: qualcun altro che parla non ripete la bugia.
 
 Apri una bugia e vedi **Believe it:** con un pulsante per ogni persona che ci crede ancora. Premi un nome quando quella persona l'ha scoperto. Il menu della riga ha anche **This was a lie** per un'affermazione che il sensore non ha segnato come tale (le persone nella scena allora ci credono), e **Not a lie** quando il sensore ha sbagliato. Il sensore termina da solo la convinzione quando una risposta mostra che la verità viene a galla. Rimuovere la bugia dalla lista rimuove con essa ogni convinzione.
+
+**Una risposta che sa troppo.** Dopo una risposta, il sensore controlla anche se un personaggio ha agito in base a un segreto che non conosce (un fatto di Litopys noto solo ad altri), e, in una scena in cui qualcuno parla con te via messaggio o con una chiamata da altrove, se ha reagito a qualcosa che hai fatto o detto ad alta voce ma che non hai mai inviato. Una risposta del genere riceve una nota discreta sotto di sé: **Regenerate reply**, **Not a leak**, e per un segreto **found out** quando il personaggio l'ha davvero appreso. Finché non rispondi, il personaggio non impara nulla da quella risposta.
 
 > Il narratore dà voce a tutti in un'unica risposta, quindi conosce sempre la verità. Questo serve solo a impedire che un personaggio agisca in base a ciò che sa un altro personaggio.
 

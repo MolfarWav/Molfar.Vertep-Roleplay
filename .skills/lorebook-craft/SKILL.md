@@ -10,7 +10,7 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
 
 1. **Plan in the head before touching files.** Decide: new book or existing, which character links to it, and the entry list with purpose, anchors, and visibility. For a big world, show the user a short outline (entry titles only) and let them confirm. Never read app source code to do this.
 
-2. **Load format details only when needed.** The fields this procedure touches: `entries`, `settings`, `uid`, `keys`, `status`, `content`, `position`, `order`, `secondaryKeys`, `group`, `folder`, `sticky`, `cooldown`, recursion flags, `/studio/linkedLorebookIds` on the card. For any other field, or to check what one of these means, `read_file` `apps/roleplay/docs/DATA-FORMATS.md` once.
+2. **Load format details only when needed.** The fields this procedure touches: `entries`, `settings`, `uid`, `keys`, `status`, `content`, `position`, `order`, `secondaryKeys`, `group`, `folder`, `secret`, `sticky`, `cooldown`, recursion flags, `/studio/linkedLorebookIds` on the card. For any other field, or to check what one of these means, `read_file` `apps/roleplay/docs/DATA-FORMATS.md` once.
 
 3. **New book — write a small skeleton, then append entries.**
    - One `json_get` on `apps/roleplay/data/lorebooks/_example.json` for `/settings`.
@@ -40,6 +40,7 @@ Without a plan, lorebooks become a pile of isolated nouns: entries that never fi
 - Design keys for how people type. Ukrainian and Russian keys: one base form each, word forms match on their own (list extra forms only where the stem changes, and for words of 3 letters or fewer). Include the English or Latin name if the story uses one. Avoid broad common words that cause false positives.
 - Keep constant entries few and short. Use them only for load-bearing facts that must apply every message. Do not use probability to hide a structural dependency.
 - Separate knowledge layers: what is objectively true, who knows it, who believes a false version, and what evidence exists. Do not leak hidden truth through omniscient prose.
+- A hidden truth that a keyword would otherwise hand to everyone (a disguised person, an unidentified artifact, a secret affair) gets `secret: { knownBy: [who knows from the start], cover: "what everyone else sees", reveal: [the words that give it away] }`: `content` stays the truth, `cover` is the version the others live with. Keep `reveal` to the true name or a phrase only the reveal would use, not the common key.
 - Stable lore vs state. Lorebook content holds stable or slowly changing knowledge. Current location, inventory, relationship scores, and active conditions belong in chat state, not lorebook entries.
 - Respect the token budget. Entries compete for context. `order` decides what survives when the budget runs out; give higher order to entries that matter most in active scenes.
 - A flat book is not fixed by adding nouns. Diagnose the missing layer: no governing pressure, entries with no anchors, all facts equally visible, mechanics with no lived consequences.

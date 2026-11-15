@@ -621,6 +621,8 @@ export interface LoreEntry {
   /** The folder the entry sits in on the Entries tab (one level; missing or empty = no folder). Only the editor reads it:
    *  the prompt engine ignores it, and it is not the `group` field (one entry fires per group). */
   folder?: string
+  /** Present = a secret entry: who knows it from the start, what everyone else sees instead, and words that reveal it. */
+  secret?: { knownBy: string[]; cover: string; reveal: string[] }
   /** Engine fields the editor does not model (imported books), written back untouched */
   extra?: Record<string, unknown>
 }
@@ -841,7 +843,7 @@ export interface ConnectionProfile {
 // ── Settings ──
 export interface AppSettings {
   /** #55: "needs you" toasts and badges per kind (litopys, soul); a kind is on unless false. */
-  attention?: Partial<Record<'litopys' | 'soul' | 'failed', boolean>>
+  attention?: Partial<Record<'litopys' | 'soul' | 'failed' | 'growth' | 'habits' | 'quests', boolean>>
   /** 0.9.2: the old connection profiles were moved into the engine's quick switch once. */
   profilesMovedToFavorites?: boolean
   /** 0.9.2: the active preset's samplers were moved into the current model once (model-params.ts). */
