@@ -340,6 +340,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
 
       <SettingsBlock tone="plot" icon={Bell} title={t('lit.blk.notices')} hint={t('lit.blk.noticesHint')}>
         <NeedsYouSwitch kind="litopys" label="attn.set.litopys" hint="attn.set.litopysHint" />
+        <NeedsYouSwitch kind="growth" label="attn.set.growth" hint="attn.set.growthHint" />
+        <NeedsYouSwitch kind="habits" label="attn.set.habits" hint="attn.set.habitsHint" />
+        <NeedsYouSwitch kind="quests" label="attn.set.quests" hint="attn.set.questsHint" />
         <NeedsYouSwitch kind="failed" label="attn.set.failed" hint="attn.set.failedHint" />
       </SettingsBlock>
 

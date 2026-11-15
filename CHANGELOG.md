@@ -3,6 +3,7 @@
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
+- Added: **notices in the chat for what the story proposed, one per colour (Molfar.Vertep#420).** A block of a character's portrait ("How they changed"), a habit a character showed, and a quest the story wants to close or open with no room used to show only inside their own block, so they were seen late. Now a coloured notice appears in the chat, in the colour of its block: blue for portrait blocks, violet for habits, amber for quests, and the Library's fact suggestions turn green. One notice per colour, batched when several arrive together, told once per proposal. A notice with one short item has Accept and Reject in place (a quest to close: Close it, Keep open); a new quest that has no room asks which open quest it replaces, so its Open button goes to the Dashboard's quests. The open chat and its characters are checked when the chat opens, a few seconds after each reply and every minute. The Inbox lists the same things under a new filter "In this chat", and Home's Waiting block counts them. The Inbox rows of Library facts are green now (they were blue, which is the portrait's) and letters are teal. Settings, the Notices block of the Litopys settings: a switch for each of the three new kinds (on by default). Not tried against a real agent run or on a phone beyond the browser check; the Inbox only shows the chat you have open.
 
 ## 4.128.0 (2026-11-16)
 

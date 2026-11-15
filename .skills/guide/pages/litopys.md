@@ -60,6 +60,10 @@ The **Settings** tab of a chat's record (in the Record side panel and in the Lib
 
 "Suggestions" has three choices. "Ask me first": every suggestion waits for your yes. "Only risky ones" (the default for a new install): routine suggestions are applied at once, logged in Activity with an Undo, and only the risky ones wait, each with the reason on it: a merge that would tell more people a fact only some knew, a change to a fact you pinned, wrote, edited or marked key, a lasting change or a belief, and a new fact that may contradict one you pinned. The same reason shows in the Inbox. "Apply pins and rewrites quietly": only pins and rewrites go through; retiring and merging wait for you. "Tidy facts automatically" looks for duplicates and contradictions after 30 new facts, at one extra model call per 60 facts.
 
+### Notices in the chat
+
+When something waits for your answer, a coloured notice shows in the chat, one per colour, each in the colour of the block it points to. **Green**: the Library's fact suggestions. **Blue**: a block of a character's portrait ("How they changed", card Memory tab). **Violet**: a habit a character showed (Library, Habits). **Amber**: a quest the story wants to close, or open when there is no room (Dashboard, Quests). A notice with one short item has Accept and Reject in place (for a quest to close: Close it and Keep open); a new quest that has no room asks which open quest it replaces, so its notice opens the Dashboard instead. Several of one colour become one notice with a count. Each proposal is told once; what you left unanswered stays in its block and in the Inbox, under "In this chat". Notices cover the open chat and its characters; the Notices block of the Litopys settings has a switch for each colour.
+
 ## Rebuild
 
 "Rebuild from scratch" rewrites the chapters and facts from the messages in the background, about one model call every 30 seconds. Your own, edited and pinned facts and edited chapters stay, and the current record is used until the new one is ready. It refuses to start if no scene has closed.

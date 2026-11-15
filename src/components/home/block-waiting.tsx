@@ -21,14 +21,17 @@ export interface WaitingViewProps {
   failures: number
   onOpen: () => void
   /** what waits, by kind: failures and souls count rows, approvals count proposals */
-  kinds?: { failed: number; litopys: number; soul: number; letter: number }
+  kinds?: WaitingKinds
   /** the first rows, already drawn */
   rows?: ReactNode
   /** rows beyond the listed ones */
   more?: number
 }
 
-const KIND_TONE = { litopys: 'sky', soul: 'violet', letter: 'emerald' } as const
+/** What waits, by kind (the chips of Home's Waiting block); growth, habits and quests are what the story proposed in the open chat. */
+export type WaitingKinds = { failed: number; litopys: number; soul: number; letter: number; growth?: number; habits?: number; quests?: number }
+
+const KIND_TONE = { litopys: 'emerald', soul: 'violet', letter: 'teal', growth: 'sky', habits: 'violet', quests: 'amber' } as const
 
 export function WaitingView({ total, failures, onOpen, kinds, rows, more = 0 }: WaitingViewProps) {
   const t = useT()
@@ -49,6 +52,9 @@ export function WaitingView({ total, failures, onOpen, kinds, rows, more = 0 }: 
             {kinds.failed > 0 && <Chip className="border-destructive/40 bg-destructive/10 text-destructive">{kinds.failed} {t('inbox.kind.failed')}</Chip>}
             {kinds.litopys > 0 && <Chip tone={KIND_TONE.litopys}>{kinds.litopys} {t('inbox.kind.litopys')}</Chip>}
             {kinds.soul > 0 && <Chip tone={KIND_TONE.soul}>{kinds.soul} {t('inbox.kind.soul')}</Chip>}
+            {(kinds.growth ?? 0) > 0 && <Chip tone={KIND_TONE.growth}>{kinds.growth} {t('inbox.kind.growth')}</Chip>}
+            {(kinds.habits ?? 0) > 0 && <Chip tone={KIND_TONE.habits}>{kinds.habits} {t('inbox.kind.habits')}</Chip>}
+            {(kinds.quests ?? 0) > 0 && <Chip tone={KIND_TONE.quests}>{kinds.quests} {t('inbox.kind.quests')}</Chip>}
             {kinds.letter > 0 && <Chip tone={KIND_TONE.letter}>{kinds.letter} {t('inbox.kind.letter')}</Chip>}
           </div>
         )}
@@ -76,9 +82,12 @@ export function openInbox(): void {
 }
 
 /** The rows by kind for the chips: an approval row counts its proposals, as the badge does. */
-export function kindsOf(rows: readonly InboxRow[]): { failed: number; litopys: number; soul: number; letter: number } {
-  const k = { failed: 0, litopys: 0, soul: 0, letter: 0 }
-  for (const r of rows) k[r.kind] += r.kind === 'litopys' ? r.count : 1
+export function kindsOf(rows: readonly InboxRow[]): Required<WaitingKinds> {
+  const k = { failed: 0, litopys: 0, soul: 0, letter: 0, growth: 0, habits: 0, quests: 0 }
+  for (const r of rows) {
+    if (r.kind === 'proposal') k[r.what] += r.count
+    else k[r.kind] += r.kind === 'litopys' ? r.count : 1
+  }
   return k
 }
 
