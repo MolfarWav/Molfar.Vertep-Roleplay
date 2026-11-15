@@ -7,17 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Fold } from '@/components/ui/fold'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { MeaningCard } from '@/components/memory/meaning-card'
+import { LoreMeaningCard } from '@/components/memory/lore-meaning-card'
 import { DatabankFold, LitopysFolds, Summary, Who, type T } from '@/components/memory/trace-parts'
 import { WhyChips, blockedText, scoreText } from '@/components/lore/why-rows'
 import type { WIBlockedRow, WIFiredRow } from '@/lib/engine'
 import {
   constantTokens,
   loreGroups,
+  neverBooks,
+  neverTotal,
   repliesAgo,
   rowTokens,
   share,
   topBank,
   topLore,
+  type FiredBooks,
   type FiredLog,
   type LitFired,
 } from '@/lib/fired'
@@ -174,7 +178,51 @@ const Counted = ({ replies, since, t, date }: { replies: number; since: number; 
   </div>
 )
 
-export function LoreChat({ log, t, date }: { log: FiredLog; t: T; date: (ts: number) => string }) {
+/**
+ * Lorebook entries that went into none of the counted replies (#258), per book. Hidden while the plugin cannot say (an older one).
+ * The log keeps 300 entries at most: once it is full the list is only a hint, and says so.
+ */
+function NeverFired({ books, t }: { books: FiredBooks; t: T }) {
+  const list = neverBooks(books)
+  const total = neverTotal(books)
+  return (
+    <Fold
+      id="fired.chat.never"
+      title={t('fired.never.title')}
+      icon={Prohibit}
+      tone="slate"
+      count={total}
+      summary={total ? t('fired.never.sum', { n: total, books: list.length }) : undefined}
+      defaultOpen={false}
+    >
+      <p className="px-3 pb-2 pt-2 text-caption text-muted-foreground">{t('fired.never.hint', { n: books.replies })}</p>
+      {books.capped && <p className="px-3 pt-1 text-caption text-amber-600 dark:text-amber-400" data-testid="fired-never-capped">{t('fired.never.capped')}</p>}
+      {list.length ? (
+        list.map((b) => (
+          <div key={b.id} data-testid="fired-never-book">
+            <div className="flex items-baseline justify-between gap-3 border-t border-border bg-muted/40 px-3 py-1.5 first:border-t-0">
+              <p className="min-w-0 break-words text-sm font-semibold">{b.name}</p>
+              <span className="shrink-0 tabular-nums text-caption text-muted-foreground">{t('fired.never.book', { n: b.neverTotal, total: b.entries - b.constant })}</span>
+            </div>
+            <Rows>
+              {b.never.map((e, i) => (
+                <li key={`${b.id}:${e.uid ?? e.title}:${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                  <p className="min-w-0 flex-1 break-words text-body">{e.title}</p>
+                  {e.vectorized ? <Chip tone="violet">{t('lore.status.vectorized')}</Chip> : <span className="shrink-0 text-caption text-muted-foreground">{e.keys ? t('fired.never.keys', { n: e.keys }) : t('fired.never.noKeys')}</span>}
+                </li>
+              ))}
+            </Rows>
+            {b.neverTotal > b.never.length && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: b.neverTotal - b.never.length })}</p>}
+          </div>
+        ))
+      ) : (
+        <p className="px-3 py-3 text-sm text-muted-foreground">{t('fired.never.none')}</p>
+      )}
+    </Fold>
+  )
+}
+
+export function LoreChat({ log, books, t, date }: { log: FiredLog; books: FiredBooks | null; t: T; date: (ts: number) => string }) {
   const rows = topLore(log)
   const total = Object.keys(log.lore).length
   return (
@@ -208,6 +256,7 @@ export function LoreChat({ log, t, date }: { log: FiredLog; t: T; date: (ts: num
         )}
         {total > rows.length && <p className="px-3 pb-2 text-caption text-muted-foreground">{t('memtrace.more', { n: total - rows.length })}</p>}
       </Fold>
+      {books && <NeverFired books={books} t={t} />}
       <p className="px-1 text-caption text-muted-foreground">{t('fired.constantNote')}</p>
     </>
   )
@@ -356,6 +405,7 @@ export function VectorsTab({ chatId, all, refreshKey, t }: { chatId: string; all
       <p className="px-1 text-sm text-muted-foreground">{t('fired.vec.intro')}</p>
       <MeaningCard chatId={chatId} refreshKey={refreshKey} />
       <MeaningCard shelf refreshKey={refreshKey} />
+      <LoreMeaningCard books={all?.books.data ?? null} />
       <Fold id="fired.vec.last" title={t('fired.vec.last')} icon={LinkSimple} tone="emerald" summary={t('fired.vec.lastSum')} defaultOpen>
         <Rows>
           <li className="px-3 py-2 text-sm"><span className="font-medium">{t('fired.tab.lore')}:</span> {loreLine}</li>

@@ -156,7 +156,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
       if (all.log.down) return downNote('log')
       const log = all.log.data
       if (!log) return fresh
-      if (scope === 'chat') return <LoreChat log={log} t={t} date={date} />
+      if (scope === 'chat') return <LoreChat log={log} books={all.books.data} t={t} date={date} />
       if (!log.last) return fresh
       if (log.last.fired.length === 0 && log.last.blocked.length === 0 && log.last.skipped.length === 0) {
         return (

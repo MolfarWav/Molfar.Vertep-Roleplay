@@ -1,6 +1,6 @@
 // Loads the answers the "What fired" panel needs (#253). Kept apart from fired.ts, which is pure.
 import { j } from '@/lib/engine'
-import type { FiredLog, LitFired } from '@/lib/fired'
+import type { FiredBooks, FiredLog, LitFired } from '@/lib/fired'
 import { loadMemoryTrace } from '@/lib/memory-trace-load'
 import type { MemoryTrace } from '@/lib/memory-trace'
 
@@ -13,6 +13,8 @@ export interface Part<T> {
 export interface FiredAll {
   log: Part<FiredLog>
   lit: Part<LitFired>
+  /** the chat's lorebooks against the log and the entry vectors (#258, #259); `down` on an older plugin */
+  books: Part<FiredBooks>
   trace: MemoryTrace
 }
 
@@ -26,12 +28,13 @@ const settled = async <T>(p: Promise<T | null>): Promise<Part<T>> => {
 
 export async function loadFired(chatId: string): Promise<FiredAll> {
   const id = encodeURIComponent(chatId)
-  const [log, lit, trace] = await Promise.all([
+  const [log, lit, books, trace] = await Promise.all([
     settled(j<{ log: FiredLog | null }>(`/fired-log?chatId=${id}`).then((r) => r.log)),
     settled(j<{ log: LitFired | null }>(`/litopys/fired?chatId=${id}`).then((r) => r.log)),
+    settled(j<FiredBooks>(`/fired-books?chatId=${id}`)),
     loadMemoryTrace(chatId, 0),
   ])
-  return { log, lit, trace }
+  return { log, lit, books, trace }
 }
 
 /** The numbers the chat header shows: lorebook entries of the last real reply, replies counted. null = no record or an older plugin. */
