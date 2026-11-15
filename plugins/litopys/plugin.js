@@ -3716,6 +3716,9 @@ export function llmRequest(ctx, host) {
     try {
       if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
     } catch {}
+    try {
+      noteScanModel(fsx, scanModel, scanVec ? scanVec.length : 0);
+    } catch {}
     // never write the chat file here: the worker may be saving a chapter at the same time
     try {
       fsx.write(
@@ -4983,8 +4986,8 @@ export function forkFrom(fsx, parentSt, parentLine, parentMessageId, chatId, chi
  */
 export function vectorGaps(fsx, st, model, limit = 64) {
   const map = loadVectors(fsx, st.chatId);
-  const cur = model === undefined ? currentEmbedModel(fsx, st.chatId) : model;
-  const dim = model === undefined ? currentEmbedDim(fsx, st.chatId) : 0;
+  const cur = model === undefined ? currentEmbedModel(fsx) : model;
+  const dim = model === undefined ? currentEmbedDim(fsx) : 0;
   const out = [];
   const missing = (id, text) => {
     const entry = map[id];
@@ -5029,22 +5032,35 @@ export function finishEmbed(fsx, st, needed, vectors, model) {
   return stored;
 }
 
-/** The length of the vectors the engine makes now (from the last reply's scan vector, else the last good batch): 0 when unknown. */
-export function currentEmbedDim(fsx, chatId) {
-  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
-  const d = isObj(last) && isObj(last.trace) && isObj(last.trace.sem) ? Number(last.trace.sem.dim) : 0;
-  if (d > 0) return d;
+/**
+ * The length of the vectors the engine makes now on THIS device: 0 when unknown. It comes from the device's own `.cache`
+ * status file only. The last reply's trace (`litopys/insert/`) is synced, so after an import from another device it
+ * names that device's model and length, and every local vector looked like another model's (#419).
+ */
+export function currentEmbedDim(fsx) {
   const status = readJson(fsx, EMBED_STATUS_FILE, null);
   return isObj(status) && Number(status.dim) > 0 ? Number(status.dim) : 0;
 }
 
-/** The embeddings model the chat's vectors should be of now: the scan model of the last reply, else of the last good batch ("" when unknown). */
-export function currentEmbedModel(fsx, chatId) {
-  const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
-  const m = isObj(last) && isObj(last.trace) && isObj(last.trace.sem) ? str(last.trace.sem.model) : "";
-  if (m) return m;
+/** The embeddings model the vectors should be of now on THIS device ("" when unknown); see currentEmbedDim for why not the trace. */
+export function currentEmbedModel(fsx) {
   const status = readJson(fsx, EMBED_STATUS_FILE, null);
   return isObj(status) ? str(status.model) : "";
+}
+
+/**
+ * Keeps the model and vector length of the newest scan on this device in the local status file: a reply's scan vector is
+ * made without a batch, so no batch has written them. Nothing else in the file changes, and nothing is written when it
+ * already says so.
+ */
+export function noteScanModel(fsx, model, dim) {
+  const m = str(model);
+  const d = Number(dim) > 0 ? Number(dim) : 0;
+  if (!m && !d) return;
+  const before = readJson(fsx, EMBED_STATUS_FILE, null);
+  const prev = isObj(before) ? before : {};
+  if ((!m || str(prev.model) === m) && (!d || Number(prev.dim) === d)) return;
+  fsx.write(EMBED_STATUS_FILE, JSON.stringify({ ...prev, ...(m ? { model: m } : {}), ...(d ? { dim: d } : {}) }, null, 2));
 }
 
 export function embedAllowed(fsx) {
@@ -10403,7 +10419,7 @@ export function vectorsView(fsx, chatId) {
     other,
     // the usual rough measure: four characters a token
     tokens: Math.ceil(chars / 4),
-    model: currentEmbedModel(fsx, chatId),
+    model: currentEmbedModel(fsx),
     via: isObj(status) ? str(status.via) : "",
     failing: failing ? { at: checkedAt, retryAt: checkedAt + 3600000 } : null,
   };

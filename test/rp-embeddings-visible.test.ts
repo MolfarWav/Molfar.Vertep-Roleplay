@@ -66,6 +66,26 @@ describe("coverage view: GET /litopys/vectors", () => {
     expect(toEmbed(r)).toBe(4);
   });
 
+  it("a trace that came in a sync names another device's model and does not make this device's vectors 'other' (#419)", () => {
+    const m = seed("cov6");
+    writeJson(".cache/litopys/embed-status.json", { ok: true, checkedAt: Date.now(), model: "bge-m3", via: "Local", dim: 2 });
+    writeJson(".cache/litopys/vectors/cov6.json", { c1: stored("The mill burned down.", "bge-m3"), f1: stored("The mill wheel is broken.", "bge-m3") });
+    // the phone's last reply, synced: another name and another length
+    writeJson("litopys/insert/cov6.json", { at: 1, trace: { sem: { scan: true, have: 1, seen: 2, model: "phone-embed", dim: 4 } } });
+    expect(view("cov6", m).json).toMatchObject({ have: 2, other: 0, missing: 3, model: "bge-m3" });
+  });
+
+  it("a scan on this device records its model and length in the local status, and keeps the rest of it", () => {
+    const m = seed("cov7");
+    const file = ".cache/litopys/embed-status.json";
+    writeJson(file, { ok: false, checkedAt: 5, via: "Local" });
+    L.noteScanModel(m.host.fs, "bge-m3", 3);
+    expect(readJson(file)).toEqual({ ok: false, checkedAt: 5, via: "Local", model: "bge-m3", dim: 3 });
+    L.noteScanModel(m.host.fs, "", 0);
+    L.noteScanModel(m.host.fs, "bge-m3", 3);
+    expect(readJson(file)).toEqual({ ok: false, checkedAt: 5, via: "Local", model: "bge-m3", dim: 3 });
+  });
+
   it("an old vector with no model counts for any model, unless its length differs from what the engine makes now", () => {
     const m = seed("cov5");
     writeJson(".cache/litopys/vectors/cov5.json", { c1: stored("The mill burned down.", undefined, [1, 2, 3]), c2: stored("A duke arrived at dusk.", undefined, [1, 2]) });
