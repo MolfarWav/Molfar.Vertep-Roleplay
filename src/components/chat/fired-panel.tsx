@@ -17,6 +17,7 @@ import { useApp } from '@/lib/store'
 import { openMemoryTrace } from '@/lib/memory-trace-open'
 import { buildFiredReport } from '@/lib/fired'
 import { loadFired, type FiredAll } from '@/lib/fired-load'
+import { SecretsFold } from '@/components/chat/fired-secrets'
 import type { MsgKey } from '@/lib/i18n'
 import {
   BankChat, BankLast, ChronChat, ChronLast, LoreChat, LoreLast, Notice, TAB_ICON, TAB_TONE, VectorsTab,
@@ -152,7 +153,7 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
       <Notice title={t('fired.fresh.title')}>{t('fired.fresh.body')}</Notice>
     )
     if (tab === 'vec') return <VectorsTab chatId={chatId} all={all} refreshKey={refreshKey} t={t} />
-    if (tab === 'lore') {
+    const loreMain = () => {
       if (all.log.down) return downNote('log')
       const log = all.log.data
       if (!log) return fresh
@@ -170,6 +171,8 @@ export function FiredPanel({ chatId, title, open, onOpenChange, wantTab, onOpenC
       }
       return <LoreLast log={log} t={t} />
     }
+    // the chat's secret entries come under the rows, whatever the scope (and even when nothing fired yet)
+    if (tab === 'lore') return <>{loreMain()}<SecretsFold chatId={chatId} data={all.known.data} onChanged={load} t={t} /></>
     if (tab === 'chron') {
       if (scope === 'chat') {
         if (all.lit.down) return downNote('lit')

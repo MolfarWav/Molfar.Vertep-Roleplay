@@ -126,6 +126,20 @@ Date: 2026-11-05.
 - **Why / history:** #289 (the Presence extension for SillyTavern; #184 P2 cut only what was already summarized). Not done on purpose: the absent character's activity in the line ("he was in the kitchen") and doors between rooms; the engine still budgets the history as if nothing were cut, so a cut speaker's prompt is a little shorter than it could be.
 - **Trap:** a plugin that rewrites a history message before Litopys runs makes its hash miss: that message then stays (visible), which is the safe side. A new place that rebuilds history text in `assemble` must keep `hist` aligned with `history`.
 
+### Remote contact: the note after the player's message and the remote leak check (Molfar.Vertep#415)
+- **Touches:** `remoteNotesFor`, `farOfSnap`, `remoteNoteText` (`plugins/litopys`, called from `llmRequest` after the presence cut, on its output); the `hist` hashes of `litopys/prompt-cut/<chat>.json` (`plugins/engine` `assemble`); the Dashboard snapshot fields `present` and `chars[<name>].contact` (`plugins/relations` `contactOf`); `remoteCandidates`, `leakCandidatesOf`, `leakCheckText`, `cleanLeaks`, `openLeaks` (`plugins/relations`); `src/components/chat/leak-note.tsx` (the remote variant).
+- **Must stay true:** the contact words are one list in two plugins (Litopys `REMOTE_KINDS`, Dashboard `REMOTE_CONTACTS`: text, letter, call, video; `contactOf` writes them). A note goes only after a request message found by its hash, so a message the presence cut removed or a plugin rewrote gets none. A remote hit has `factId` `remote:<msgId>` and no Litopys fact: nothing may POST it to `/litopys/facts`.
+- **Enforced in:** `plugins/litopys/plugin.js` `remoteNotesFor`; `plugins/relations/plugin.js` `remoteCandidates`.
+- **Fails in:** `test/rp-knowledge-invariants.test.ts`.
+- **Trap:** a new contact kind in the sensor (`contactOf`) needs both lists, or the note and the check skip it silently.
+
+### Secret lorebook entries (Molfar.Vertep#416)
+- **Touches:** `secretOf`, `secretView`, `loreKnowers`, `presenceOfLine`, `loreContext`, `cardNameSet`, the `lore-known` routes and `activateWorldInfo` (its `contentOf`, the blocked reason `secret`, the fired row's `secret`/`knowers`) in `plugins/engine`; the Dashboard state file `dashboard/state/<chat>.json` (read, `snapshots[*].present`); `lore-known/<chat>.json`; the entry editor fold and the What fired Secrets fold (`src/`).
+- **Must stay true:** who knows is computed from the chat at every scan, never stored except the hand list, so a swipe or an edit leaves nothing stale. The cover replaces the content in the prompt AND in recursion. The voice rule mirrors Litopys `soleVoice`: several names on the card (`cardNameSet` = Litopys `cardNamesOf`), a group narrator or append turn = several voices = the truth, marked.
+- **Enforced in:** `plugins/engine/plugin.js` (the functions above).
+- **Fails in:** `test/rp-lore-secret.test.ts`.
+- **Trap:** a reveal word that the narrator itself writes in front of someone teaches them (the scan cannot tell narration from speech); keep reveal words to the true name. `cardNameSet` and Litopys `cardNamesOf` must change together.
+
 ### Who knows what (witnesses and Data Bank scope)
 - **Touches:** `witnessed`, `castKnowledgeFor`, `buildInsert`, `buildBackstory`, `soleVoice` (`plugins/litopys`); `carriesRoute` (same plugin, the preview route); `databankInScope` (engine plugin, Data Bank file `scope` and `scopeTargetId`); the card's `characterIds` of the scene.
 - **Must stay true:** a chapter that the speaking character did not witness stays out of that character's reply. The same rule holds in the story insert, in the backstory block and in the carries route, which uses the same `soleVoice` call. A Data Bank file with a character or chat scope is not injected outside that scope.

@@ -1166,6 +1166,28 @@ const HAND_TIPS: Tip[] = [
     },
     keywords: { en: 'keywords not firing debug why activation scan', uk: 'ключові слова не спрацьовує налагодження чому активація' },
   },
+  {
+    id: 'help.loreSecret',
+    open: { view: 'lorebooks', detail: true },
+    help: 'world',
+    title: { en: 'Secret lorebook entries', uk: 'Таємні записи лорбука' },
+    body: {
+      en: 'In an entry, open Secret and switch on "Not everyone knows this": name who knows it, write what the others see instead, and add words that reveal it. A character who does not know gets the cover text. In a chat, What fired > Lorebooks shows who knows each secret and lets you change it.',
+      uk: 'У записі відкрийте «Таємниця» і ввімкніть «Знають не всі»: вкажіть, хто знає, напишіть, що бачать інші, і додайте слова, які розкривають таємницю. Персонаж, який не знає, отримує текст-прикриття. У чаті What fired > Lorebooks показує, хто знає кожну таємницю, і дає це змінити.',
+    },
+    keywords: { en: 'secret hidden knows knowledge cover reveal who knows lorebook entry', uk: 'таємниця секрет знає прикриття розкрити хто знає запис лорбук' },
+  },
+  {
+    id: 'help.remoteNote',
+    open: { view: 'litopys' },
+    help: 'story',
+    title: { en: 'Characters in touch from elsewhere', uk: 'Персонажі на зв’язку здалеку' },
+    body: {
+      en: 'When someone is in touch by text, a call or video, a short line after each of your messages tells the model that only what you send reaches them, and the Dashboard flags a reply that uses more. Switch it off in Library > Litopys settings > "Note on remote contact".',
+      uk: 'Коли хтось на зв’язку текстом, дзвінком чи відео, короткий рядок після кожного вашого повідомлення каже моделі, що до нього доходить лише те, що ви надсилаєте, а Dashboard позначає відповідь, яка використовує більше. Вимкнути можна в Library > налаштування Litopys > «Примітка про віддалений зв’язок».',
+    },
+    keywords: { en: 'remote phone text call video letter elsewhere knows only what you send leak', uk: 'віддалено телефон текст дзвінок відео лист далеко знає лише що надсилаєш витік' },
+  },
 
   // ── Help list: setup
   {

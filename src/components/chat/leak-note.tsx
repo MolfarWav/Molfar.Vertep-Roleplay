@@ -9,6 +9,7 @@ import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useT } from '@/hooks/use-t'
 import { j } from '@/lib/engine'
 import type { LeakHit } from '@/lib/dashboard'
+import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import type { Message } from '@/lib/types'
 
@@ -19,10 +20,22 @@ export function leaksFor(all: LeakHit[] | undefined, message: Pick<Message, 'id'
   return (all ?? []).filter((l) => l.key === key)
 }
 
+/** What reaches someone who is in touch from elsewhere, by kind of contact. */
+const REMOTE_LINE: Record<NonNullable<LeakHit['remote']>, MsgKey> = {
+  text: 'leak.remoteText',
+  letter: 'leak.remoteText',
+  call: 'leak.remoteCall',
+  video: 'leak.remoteVideo',
+}
+
 export function LeakNote({ chatId, message, last }: { chatId: string; message: Message; last: boolean }) {
   const t = useT()
   const dash = useDashMaybe()
   const regenerate = useApp((s) => s.regenerate)
+  const personas = useApp((s) => s.personas)
+  const chats = useApp((s) => s.chats)
+  const chat = chats.find((c) => c.id === chatId)
+  const user = (personas.find((p) => p.id === chat?.personaId) ?? personas.find((p) => p.isDefault))?.name || t('leak.you')
   const [busy, setBusy] = useState('')
   // answered hits leave the screen at once; the server calls take a few seconds. A failed call brings the note back.
   const [gone, setGone] = useState<string[]>([])
@@ -52,14 +65,15 @@ export function LeakNote({ chatId, message, last }: { chatId: string; message: M
         <section
           key={`${hit.who}:${hit.factId}`}
           className="flex flex-col gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2"
-          aria-label={t('leak.title', { who: hit.who })}
+          aria-label={hit.remote ? t('leak.remoteTitle', { who: hit.who, user }) : t('leak.title', { who: hit.who })}
         >
           <p className="flex items-start gap-2 text-sm font-medium text-foreground">
             <Eye className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-            <span className="min-w-0 break-words">{t('leak.title', { who: hit.who })}</span>
+            <span className="min-w-0 break-words">{hit.remote ? t('leak.remoteTitle', { who: hit.who, user }) : t('leak.title', { who: hit.who })}</span>
           </p>
+          {hit.remote ? <p className="min-w-0 break-words pl-6 text-xs text-muted-foreground">{t(REMOTE_LINE[hit.remote] ?? 'leak.remoteText', { who: hit.who })}</p> : null}
           {hit.quote ? <p className="min-w-0 break-words pl-6 text-xs italic text-muted-foreground">“{hit.quote}”</p> : null}
-          <p className="min-w-0 break-words pl-6 text-xs text-muted-foreground">{t('leak.secret', { text: hit.text })}</p>
+          {hit.remote ? null : <p className="min-w-0 break-words pl-6 text-xs text-muted-foreground">{t('leak.secret', { text: hit.text })}</p>}
           <p className="pl-6 text-xs text-muted-foreground">{t('leak.hold', { who: hit.who })}</p>
           <div className="flex flex-wrap gap-2 pl-6 pt-0.5">
             {last && (
@@ -68,9 +82,11 @@ export function LeakNote({ chatId, message, last }: { chatId: string; message: M
                 {t('leak.regenerate')}
               </Button>
             )}
-            <Button size="sm" variant="outline" className="max-md:h-10" disabled={!!busy} onClick={() => void answer(hit, 'found')}>
-              {t('leak.found', { who: hit.who })}
-            </Button>
+            {!hit.remote && (
+              <Button size="sm" variant="outline" className="max-md:h-10" disabled={!!busy} onClick={() => void answer(hit, 'found')}>
+                {t('leak.found', { who: hit.who })}
+              </Button>
+            )}
             <Button size="sm" variant="ghost" className="max-md:h-10" disabled={!!busy} onClick={() => void answer(hit, 'ignore')}>
               {t('leak.ignore')}
             </Button>

@@ -621,6 +621,8 @@ export interface LoreEntry {
   /** The folder the entry sits in on the Entries tab (one level; missing or empty = no folder). Only the editor reads it:
    *  the prompt engine ignores it, and it is not the `group` field (one entry fires per group). */
   folder?: string
+  /** Present = a secret entry: who knows it from the start, what everyone else sees instead, and words that reveal it. */
+  secret?: { knownBy: string[]; cover: string; reveal: string[] }
   /** Engine fields the editor does not model (imported books), written back untouched */
   extra?: Record<string, unknown>
 }

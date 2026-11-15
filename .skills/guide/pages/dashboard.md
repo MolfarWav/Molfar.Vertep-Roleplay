@@ -42,6 +42,8 @@ When a character lies in front of others, the others take it as true. Their next
 
 Open a lie and you see **Believe it:** with a button for each person who still believes it. Press a name when that person has found out. The row's menu also has **This was a lie** for a statement the sensor did not call one (the people in the scene then believe it), and **Not a lie** when the sensor got it wrong. The sensor ends the belief by itself when a reply shows the truth coming out. Removing the lie from the list removes every belief with it.
 
+**A reply that knows too much.** After a reply, the sensor also checks whether a character acted on a secret they do not know (a Litopys fact only others know), and, in a scene where someone talks with you by text or a call from elsewhere, whether they reacted to something you did or said aloud that you never sent. Such a reply gets a quiet note under it: **Regenerate reply**, **Not a leak**, and for a secret **found out** when the character did learn it. Until you answer, the character learns nothing from that reply.
+
 > The narrator voices everyone in one reply, so it always knows the truth. This only keeps one character from acting on what another character knows.
 
 ## When it updates
