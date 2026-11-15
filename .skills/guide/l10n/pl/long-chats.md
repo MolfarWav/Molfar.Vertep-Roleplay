@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Długie czaty i koszt tokenów
 
 Czat, który trwa tygodniami, rośnie, a każda odpowiedź wysyła do modelu coraz więcej z niego. Ta strona jest dla każdego, czyje odpowiedzi stają się wolne lub drogie albo czyj model zapomina początek historii.
@@ -6,6 +6,8 @@ Czat, który trwa tygodniami, rośnie, a każda odpowiedź wysyła do modelu cor
 ## Przycisk "Request size"
 
 Domyślnie cały czat jest wysyłany, dopóki okno ma miejsce. Przy dużym oknie koszt stale rośnie, więc nagłówek czatu ma przycisk **Request size** obok narzędzi historii (na telefonie: w Menu). Pokazuje, ile tokenów wysłało ostatnie żądanie, cały prompt tak, jak policzył go dostawca, i który model go dostał. Naciśnij go, aby zobaczyć model, jego okno i twój limit. Jest turkusowy poniżej trzech czwartych limitu, od tego miejsca bursztynowy, a po przekroczeniu czerwony ze znakiem ostrzeżenia. Tablica Canvas Prompt wymienia każdą część żądania ([[canvas]]).
+
+Wyskakujące okno ma też sekcję **Prompt cache**. Dostawcy trzymają początek żądania w cache i liczą znacznie mniej za to, co z niego czytają, więc pokazuje, ile z ostatniego żądania przyszło z cache (pasek i liczby tokenów), ile zostało do niego zapisane i ile poszło w pełnej cenie, oraz ustawienie cache tego modelu (ustawiane w głównych Settings, Connections and models, model, Cache lifetime: patrz [[vertep:models]]). Przy włączonym Keep alive pokazuje też, ile żądań keep-alive wysłano i dlaczego nie działa, gdy nie działa. **Show where the cache ends** otwiera podgląd promptu z zaznaczonym cięciem: bloki obsłużone z cache są zielone, blok, w którym się kończy, bursztynowy, reszta jest w pełnej cenie, a każde źródło (karta, lorebook, historia...) mówi, czy było w cache. Cięcie jest szacunkiem, liczonym naszym własnym tokenizerem. Jeśli po drugiej odpowiedzi czatu nic nie jest w cache, model lub jego połączenie nie cachuje.
 
 Gdy odpowiedź wypchnie żądanie poza limit, otwiera się wyskakujące okno:
 

@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # Das Szenen-Dashboard
 
 Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend ist, wie jede Figur zu dir steht, was sie trägt und weiß, welche Handlungsfäden offen sind. Es ist für alle, die möchten, dass die Geschichte Beziehungen und Details zwischen den Antworten behält. Der Hilfe-Artikel *Scene dashboard* listet seine Felder auf.
@@ -26,6 +26,10 @@ Der Button "Story, move" neben Send armiert einen einmaligen Anstoß für die n�
 ## Was sich geändert hat, im Chat
 
 Unter der neuesten Antwort sagt eine gedämpfte Zeile, was das Dashboard dafür festgehalten hat: "Changed: Ada · trust fell, mood calm → tense, +2". Tippe darauf, um dieselben Chips wie in der Zeile "Since your last reply" des Dashboards aufzuklappen; ein Chip öffnet den passenden Dashboard-Tab (auf dem Handy dessen Bottom Sheet). Ältere Antworten zeigen nichts, und die Zeile wartet, während eine Antwort geschrieben wird oder das Dashboard noch aktualisiert. Um sie auszublenden, schalte "Show what changed under the newest reply" in Settings > Chat Behavior aus.
+
+## Wie viele Quests
+
+Die Dashboard-Einstellungen, Abschnitt Quests, legen fest, wie viele Quests offen bleiben: main quests von 1 bis 10 (standardmäßig 1), side quests von 1 bis 20 (standardmäßig 3), everyday quests von 1 bis 20 (standardmäßig 10; die ältesten enden zuerst), und Schritte pro main quest ab 1 ohne Obergrenze (standardmäßig 6). Everyday quests enden außerdem von selbst nach einer Anzahl von Zügen und werden nicht gegen die Limits für main und side gezählt. Mehr offene Quests bedeuten einen längeren Sensor-Prompt und einen längeren Quest-Insert in der Antwort, erhöhe sie also nur für Geschichten, die wirklich viele Fäden gleichzeitig laufen lassen.
 
 ## Verbindungen zwischen Figuren
 

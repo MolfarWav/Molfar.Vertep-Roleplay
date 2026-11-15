@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Chats largos y coste de tokens
 
 Un chat que dura semanas crece, y cada respuesta envía más de él al modelo. Esta página es para quien tiene respuestas lentas o caras, o cuyo modelo olvida el inicio de la historia.
@@ -6,6 +6,8 @@ Un chat que dura semanas crece, y cada respuesta envía más de él al modelo. E
 ## El botón "Request size"
 
 Por defecto se envía todo el chat mientras la ventana tenga espacio. En una ventana grande el coste no deja de crecer, así que la cabecera del chat tiene un botón **Request size** junto a las herramientas de la historia (en el móvil: en el Menu). Muestra cuántos tokens envió la última petición, el prompt completo tal como lo contó el proveedor, y qué modelo lo recibió. Púlsalo para ver el modelo, su ventana y tu límite. Está en turquesa por debajo de las tres cuartas partes del límite, en ámbar a partir de ahí, y en rojo con un signo de aviso al superarlo. El tablero Canvas Prompt lista cada parte de una petición ([[canvas]]).
+
+La ventana emergente también tiene una sección **Prompt cache**. Los proveedores guardan el inicio de una petición en una caché y cobran mucho menos por lo que leen de ella, así que muestra cuánto de la última petición vino de la caché (una barra y recuentos de tokens), cuánto se escribió en ella y cuánto fue a precio completo, y el ajuste de caché de este modelo (se configura en los Settings principales, Connections and models, el modelo, Cache lifetime: ver [[vertep:models]]). Con Keep alive activado, también muestra cuántas peticiones keep-alive se enviaron y por qué no está en marcha cuando no lo está. **Show where the cache ends** abre el prompt peek con el corte marcado: los bloques servidos desde la caché son verdes, el bloque donde termina es ámbar, el resto es a precio completo, y cada fuente (tarjeta, lorebook, historial...) dice si se cacheó. El corte es una estimación, contada con nuestro propio tokenizador. Si no hay nada en caché después de la segunda respuesta de un chat, el modelo o su conexión no cachean.
 
 Cuando una respuesta empuja la petición por encima del límite, se abre una ventana emergente:
 

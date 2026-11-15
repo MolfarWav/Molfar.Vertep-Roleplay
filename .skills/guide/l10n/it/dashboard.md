@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che tiene traccia della scena: chi è presente, come ogni personaggio si sente nei tuoi confronti, cosa indossa e cosa sa, i fili narrativi aperti. È per chiunque voglia che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo di aiuto *Scene dashboard* elenca i suoi campi.
@@ -26,6 +26,10 @@ Il pulsante "Story, move" accanto a Send prepara una spinta una tantum per la pr
 ## Cosa è cambiato, nella chat
 
 Sotto la risposta più recente, una riga attenuata dice cosa ha registrato la Dashboard per essa: "Changed: Ada · trust fell, mood calm → tense, +2". Toccarla per aprire gli stessi chip della riga "Since your last reply" della Dashboard; un chip apre la scheda corrispondente della Dashboard (sul telefono, il suo foglio in basso). Le risposte più vecchie non mostrano nulla, e la riga attende mentre una risposta viene scritta o la Dashboard si sta ancora aggiornando. Per nasconderla, disattiva "Show what changed under the newest reply" in Settings > Chat Behavior.
+
+## Quante quest
+
+Le impostazioni della Dashboard, sezione Quests, stabiliscono quante quest restano aperte: quest principali da 1 a 10 (1 per impostazione predefinita), quest secondarie da 1 a 20 (3 per impostazione predefinita), quest quotidiane da 1 a 20 (10 per impostazione predefinita; le più vecchie finiscono per prime), e passi per quest principale da 1 senza limite massimo (6 per impostazione predefinita). Anche le quest quotidiane finiscono da sole dopo un certo numero di turni, e non vengono conteggiate rispetto ai limiti di principali e secondarie. Più quest aperte significano un prompt del sensore più lungo e un insert delle quest più lungo nella risposta, quindi aumentali solo per storie che davvero portano avanti molte linee contemporaneamente.
 
 ## Legami tra i personaggi
 

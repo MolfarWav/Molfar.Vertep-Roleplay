@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # Sahne Panosu
 
 Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimler burada, her karakter senin hakkında ne hissediyor, ne giyiyorlar ve ne biliyorlar, açık hikâye konuları neler. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes için. *Sahne panosu* başlıklı Yardım makalesi alanlarını listeler.
@@ -26,6 +26,10 @@ Gönder'in yanındaki "Story, move" düğmesi bir sonraki yanıt için tek sefer
 ## Sohbette ne değişti
 
 En yeni yanıtın altında, soluk bir satır Pano'nun onun için ne kaydettiğini söyler: "Changed: Ada · trust fell, mood calm → tense, +2". Pano'nun "Since your last reply" satırındaki aynı etiketleri açmak için ona dokun; bir etiket ilgili Pano sekmesini açar (telefonda alt sayfasını). Eski yanıtlar hiçbir şey göstermez ve bir yanıt yazılırken veya Pano hâlâ güncellenirken satır bekler. Gizlemek için Ayarlar > Chat Behavior içinde "Show what changed under the newest reply" seçeneğini kapat.
+
+## Kaç görev
+
+Pano ayarlarında, Görevler bölümü kaç görevin açık kalacağını belirler: ana görevler 1 ile 10 arası (varsayılan 1), yan görevler 1 ile 20 arası (varsayılan 3), gündelik görevler 1 ile 20 arası (varsayılan 10; en eskiler önce biter) ve ana görev başına adımlar 1'den başlayıp üst sınır olmadan (varsayılan 6). Gündelik görevler ayrıca belirli sayıda turdan sonra kendiliğinden biter ve ana ile yan sınırlara sayılmaz. Daha fazla açık görev, daha uzun bir sensör istemi ve yanıtta daha uzun bir görev eki demektir, bu yüzden onları yalnızca gerçekten aynı anda birçok konuyu yürüten hikâyeler için yükselt.
 
 ## Karakterler arasındaki bağlar
 

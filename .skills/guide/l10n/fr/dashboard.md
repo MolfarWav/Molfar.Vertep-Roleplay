@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # Le tableau de bord de la scène
 
 Le tableau de bord est un panneau à côté du chat qui suit la scène : qui est présent, ce que chaque personnage ressent pour vous, ce qu'il porte et ce qu'il sait, les fils narratifs ouverts. Il s'adresse à quiconque veut que l'histoire se souvienne des relations et des détails entre les réponses. L'article d'aide *Tableau de bord de la scène* énumère ses champs.
@@ -26,6 +26,10 @@ Le bouton « Story, move » à côté de Send arme une impulsion unique pour la 
 ## Ce qui a changé, dans le chat
 
 Sous la réponse la plus récente, une ligne discrète indique ce que le tableau de bord a enregistré pour elle : « Changed: Ada · trust fell, mood calm → tense, +2 ». Touchez-la pour déplier les mêmes puces que la rangée « Since your last reply » du tableau de bord ; une puce ouvre l'onglet correspondant du tableau de bord (sur téléphone, sa feuille inférieure). Les réponses plus anciennes n'affichent rien, et la ligne attend pendant qu'une réponse est en cours d'écriture ou que le tableau de bord est encore en train de se mettre à jour. Pour la masquer, désactivez « Show what changed under the newest reply » dans Settings > Chat Behavior.
+
+## Combien de quêtes
+
+Les réglages du tableau de bord, section Quests, déterminent combien de quêtes restent ouvertes : quêtes principales de 1 à 10 (1 par défaut), quêtes secondaires de 1 à 20 (3 par défaut), quêtes quotidiennes de 1 à 20 (10 par défaut ; les plus anciennes se terminent en premier), et étapes par quête principale à partir de 1 sans limite supérieure (6 par défaut). Les quêtes quotidiennes se terminent aussi d'elles-mêmes après un certain nombre de tours, et ne sont pas comptées dans les limites des principales et des secondaires. Plus de quêtes ouvertes signifient un prompt de capteur plus long et un insert de quête plus long dans la réponse, alors ne les augmentez que pour des histoires qui mènent vraiment plusieurs intrigues de front.
 
 ## Les liens entre les personnages
 

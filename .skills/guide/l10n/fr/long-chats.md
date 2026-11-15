@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Conversations longues et coût en tokens
 
 Une conversation qui dure des semaines grandit, et chaque réponse en envoie davantage au modèle. Cette page s'adresse à ceux dont les réponses deviennent lentes ou coûteuses, ou dont le modèle oublie le début de l'histoire.
@@ -6,6 +6,8 @@ Une conversation qui dure des semaines grandit, et chaque réponse en envoie dav
 ## Le bouton "Request size"
 
 Par défaut, toute la conversation est envoyée tant que la fenêtre a de la place. Sur une grande fenêtre, le coût ne cesse de grimper, c'est pourquoi l'en-tête de la conversation a un bouton **Request size** à côté des outils d'histoire (sur téléphone : dans le Menu). Il indique combien de tokens la dernière requête a envoyés, l'intégralité du prompt tel que le fournisseur l'a compté, et quel modèle l'a reçu. Appuyez dessus pour voir le modèle, sa fenêtre et votre limite. Il est bleu-vert en dessous des trois quarts de la limite, ambre à partir de là, et rouge avec un signe d'avertissement au-delà. Le tableau Canvas Prompt liste chaque partie d'une requête ([[canvas]]).
+
+La fenêtre comporte aussi une section **Prompt cache**. Les fournisseurs gardent le début d'une requête dans un cache et facturent bien moins ce qu'ils en lisent, elle indique donc quelle part de la dernière requête venait du cache (une barre et des comptes de tokens), quelle part y a été écrite et quelle part est passée au prix plein, ainsi que le réglage de cache de ce modèle (défini dans les Settings principaux, Connections and models, le modèle, Cache lifetime : voir [[vertep:models]]). Avec Keep alive activé, elle indique aussi combien de requêtes keep-alive ont été envoyées et pourquoi cela ne tourne pas quand cela ne tourne pas. **Show where the cache ends** ouvre le prompt peek avec la coupure marquée : les blocs servis depuis le cache sont verts, le bloc où il se termine est ambre, le reste est au prix plein, et chaque source (carte, lorebook, historique...) dit si elle a été mise en cache. La coupure est une estimation, comptée avec notre propre tokenizer. Si rien n'est mis en cache après la deuxième réponse d'une conversation, le modèle ou sa connexion ne met pas en cache.
 
 Quand une réponse fait dépasser la limite à la requête, une fenêtre s'ouvre :
 

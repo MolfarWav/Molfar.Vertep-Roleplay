@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Lange chats en tokenkosten
 
 Een chat die weken meegaat groeit, en elk antwoord stuurt er meer van naar het model. Deze pagina is voor iedereen wiens antwoorden traag of duur worden, of wiens model het begin van het verhaal vergeet.
@@ -6,6 +6,8 @@ Een chat die weken meegaat groeit, en elk antwoord stuurt er meer van naar het m
 ## De knop "Request size"
 
 Standaard wordt de hele chat verstuurd zolang het venster ruimte heeft. Bij een groot venster blijft de kosten stijgen, dus de chatkop heeft een knop **Request size** naast de verhaalgereedschappen (op een telefoon: in het Menu). Hij toont hoeveel tokens het laatste verzoek verstuurde, de hele prompt zoals de provider die telde, en welk model hem kreeg. Druk erop voor het model, zijn venster en jouw limiet. Hij is blauwgroen onder driekwart van de limiet, amberkleurig vanaf daar, en rood met een waarschuwingsbord erboven. Het bord Canvas Prompt somt elk deel van een verzoek op ([[canvas]]).
+
+De popup heeft ook een sectie **Prompt cache**. Providers houden het begin van een verzoek in een cache en rekenen veel minder voor wat ze eruit lezen, dus hij toont hoeveel van het laatste verzoek uit de cache kwam (een balk en tokenaantallen), hoeveel erin werd geschreven en hoeveel tegen de volle prijs ging, en de cache-instelling van dit model (ingesteld in de hoofdinstellingen, Connections and models, het model, Cache lifetime: zie [[vertep:models]]). Met Keep alive aan toont hij ook hoeveel keep-alive-verzoeken er werden verstuurd en waarom het niet loopt wanneer het niet loopt. **Show where the cache ends** opent de prompt peek met de knip gemarkeerd: blokken die uit de cache worden bediend zijn groen, het blok waar hij eindigt is amberkleurig, de rest is volle prijs, en elke bron (card, lorebook, history...) zegt of hij gecachet was. De knip is een schatting, geteld met onze eigen tokenizer. Als er na het tweede antwoord van een chat niets gecachet is, cachet het model of zijn verbinding niet.
 
 Wanneer een antwoord het verzoek over de limiet duwt, opent een popup:
 

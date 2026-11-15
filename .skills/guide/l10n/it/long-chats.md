@@ -1,4 +1,4 @@
-<!-- source: 67addd68fb05 -->
+<!-- source: 72d71d17f26d -->
 # Chat lunghe e costo in token
 
 Una chat che va avanti per settimane cresce, e ogni risposta ne manda sempre di più al modello. Questa pagina è per chi ha risposte che diventano lente o costose, o per chi ha un modello che dimentica l'inizio della storia.
@@ -6,6 +6,8 @@ Una chat che va avanti per settimane cresce, e ogni risposta ne manda sempre di 
 ## Il pulsante "Request size"
 
 Per impostazione predefinita viene inviata tutta la chat finché la finestra ha spazio. Su una finestra grande il costo continua a crescere, quindi l'intestazione della chat ha un pulsante **Request size** accanto agli strumenti della storia (sul telefono: nel Menu). Mostra quanti token ha inviato l'ultima richiesta, l'intero prompt come lo ha contato il provider, e quale modello lo ha ricevuto. Premilo per vedere il modello, la sua finestra e il tuo limite. È color ottanio sotto i tre quarti del limite, ambra da lì in poi, e rosso con un segno di avvertimento oltre. La board Canvas Prompt elenca ogni parte di una richiesta ([[canvas]]).
+
+Il popup ha anche una sezione **Prompt cache**. I provider tengono l'inizio di una richiesta in una cache e fanno pagare molto meno ciò che ne leggono, quindi mostra quanto dell'ultima richiesta è venuto dalla cache (una barra e i conteggi dei token), quanto è stato scritto nella cache e quanto è andato a prezzo pieno, e l'impostazione della cache di questo modello (si imposta nelle impostazioni principali, Connections and models, il modello, Cache lifetime: vedi [[vertep:models]]). Con Keep alive attivo, mostra anche quante richieste keep-alive sono state inviate e perché non è in funzione quando non lo è. **Show where the cache ends** apre il prompt peek con il taglio segnato: i blocchi serviti dalla cache sono verdi, il blocco in cui finisce è ambra, il resto è a prezzo pieno, e ogni fonte (scheda, lorebook, cronologia...) dice se è stata messa in cache. Il taglio è una stima, contata con il nostro tokenizer. Se non c'è nulla in cache dopo la seconda risposta di una chat, il modello o la sua connessione non fa caching.
 
 Quando una risposta porta la richiesta oltre il limite, si apre un popup:
 

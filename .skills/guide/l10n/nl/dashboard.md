@@ -1,4 +1,4 @@
-<!-- source: b7813b790a68 -->
+<!-- source: 9a646049514e -->
 # Het scherm Dashboard
 
 Het Dashboard is een paneel naast de chat dat de scène bijhoudt: wie er aanwezig is, hoe elk personage jou vindt, wat ze dragen en weten, de open verhaallijnen. Het is voor iedereen die wil dat het verhaal relaties en details tussen antwoorden onthoudt. Het Help-artikel *Scene dashboard* somt de velden ervan op.
@@ -26,6 +26,10 @@ De knop "Story, move" naast Send zet een eenmalig duwtje klaar voor het volgende
 ## Wat er veranderd is, in de chat
 
 Onder het nieuwste antwoord staat een gedempte regel die zegt wat het Dashboard daarvoor heeft vastgelegd: "Changed: Ada · trust fell, mood calm → tense, +2". Tik erop om dezelfde chips uit te klappen als de rij "Since your last reply" van het Dashboard; een chip opent het bijbehorende Dashboard-tabblad (op een telefoon de bottom sheet). Oudere antwoorden tonen niets, en de regel wacht terwijl een antwoord wordt geschreven of het Dashboard nog bijwerkt. Om het te verbergen schakel je "Show what changed under the newest reply" uit in Settings > Chat Behavior.
+
+## Hoeveel quests
+
+De Dashboard-instellingen, sectie Quests, bepalen hoeveel quests open blijven: hoofdquests van 1 tot 10 (standaard 1), zijquests van 1 tot 20 (standaard 3), alledaagse quests van 1 tot 20 (standaard 10; de oudste eindigen eerst), en stappen per hoofdquest vanaf 1 zonder bovengrens (standaard 6). Alledaagse quests eindigen ook vanzelf na een aantal beurten, en tellen niet mee voor de hoofd- en zijlimieten. Meer open quests betekenen een langere sensorprompt en een langere quest-insert in het antwoord, dus verhoog ze alleen voor verhalen die echt veel lijnen tegelijk laten lopen.
 
 ## Banden tussen personages
 
