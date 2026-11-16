@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 El World DM es un director de juego para el mundo de un chat. Después de las respuestas lee la historia y guarda las personas, lugares y cosas que encuentra en el propio lorebook del chat, llamado el libro de mundo. En niveles más altos también mueve el mundo y envía eventos a la escena. Úsalo cuando quieras que el mundo se sienta vivo y coherente.
@@ -23,6 +23,10 @@ Se ejecuta después de las respuestas, cada N respuestas ("Run after every N rep
 Cuesta una llamada de modelo extra cuando toca, en el "DM model (all chats)"; basta un modelo pequeño y barato. Una ejecución fallida se muestra en la hoja y en la Inbox, y el DM lee los mismos mensajes de nuevo la próxima vez.
 
 Un perfil que juega desde un mazo de eventos muestra "New deck" cuando el mazo se agota. Al modelo se le piden de 8 a 12 eventos; si vuelven menos, el mazo se conserva tal como llegó y una advertencia dice que llegó corto, para que puedas construirlo de nuevo.
+
+## Personas que vuelven
+
+Un amigo o familiar del lorebook de una tarjeta puede permanecer fuera de la historia durante cien mensajes, porque una entrada solo aparece cuando alguien dice el nombre. El DM hace volver a esas personas. Cuenta las respuestas desde la última vez que la persona estuvo en la escena o fue mencionada y, cuando el silencio es largo (unas 15, 30 o 60 respuestas, según **People coming back > How often**; Normal es el valor por defecto en los chats nuevos), indica al modelo de escritura, con firmeza, que la persona debe aparecer en esa respuesta. Una tirada oculta de 2d6, junto con la duración del silencio y el peso de la persona, decide la magnitud del regreso: un mensaje, una llamada con una petición o alguien que llega con noticias. El modelo elige la forma; el DM comprueba que la persona haya aparecido y, si no, lo pide una vez más. Las personas de los lorebooks de las tarjetas se incorporan a la lista con **Take people from the cards' lorebooks** o mediante el interruptor de Start "People from the lorebooks". En el registro de una persona o facción puede establecer Relation, Weight y "Bring back automatically". Para verlo en funcionamiento, active **Show under the reply**: una pequeña marca indica quién volvió, por qué y cómo cayeron los dados; la tarjeta también muestra la lista con el silencio de cada persona y un historial de regresos.
 
 ## Borrar o deslizar una respuesta
 

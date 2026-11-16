@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -23,6 +23,10 @@ Yanıtlardan sonra, her N. yanıtta ("Run after every N replies") veya hemen "Wo
 Zamanı geldiğinde bir ekstra model çağrısına mal olur; "DM model (all chats)" üzerinde. Küçük, ucuz bir model yeterlidir. Başarısız bir çalıştırma sayfada ve Inbox'ta gösterilir ve DM bir dahaki sefere aynı mesajları yeniden okur.
 
 Olay destesinden oynayan bir profil, deste tükendiğinde "New deck" gösterir. Modelden 8 ila 12 olay istenir; daha azı dönerse deste geldiği haliyle korunur ve bir uyarı destenin kısa geldiğini söyler, böylece onu yeniden oluşturabilirsiniz.
+
+## Geri dönen kişiler
+
+Bir kartın lorebookundaki arkadaş ya da akraba, biri adını söylemedikçe bir giriş ortaya çıkmadığı için yüz mesaj boyunca hikâyenin dışında kalabilir. DM bu kişileri geri getirir. Bir kişinin sahnede en son bulunduğu ya da adının geçtiği andan itibaren yanıtları sayar ve sessizlik uzadığında (yaklaşık 15, 30 veya 60 yanıt; **People coming back > How often** ayarına göre; Normal yeni sohbetlerde varsayılandır) yazma modeline bu kişinin bu yanıta girmesi gerektiğini kesin bir dille söyler. Gizli bir 2d6 atışı, sessizliğin uzunluğu ve kişinin ağırlığı dönüşün ne kadar büyük olacağını belirler: bir mesaj, bir ricayla yapılan arama ya da haberlerle gelen biri. Biçimi model seçer; DM kişinin ortaya çıktığını kontrol eder ve çıkmadıysa bir kez daha ister. Kartların lorebooklarındaki kişiler **Take people from the cards' lorebooks** ile ya da Start anahtarı „People from the lorebooks” ile yedek listesine katılır. Bir kişi ya da grup kaydında Relation, Weight ve „Bring back automatically” ayarını yapabilirsiniz. Çalıştığını görmek için **Show under the reply** seçeneğini açın: küçük bir işaret kimin, neden ve zarların nasıl düştüğüyle döndüğünü söyler; kart ayrıca yedek listesini her kişinin sessizlik süresiyle ve dönüş kayıtlarıyla birlikte gösterir.
 
 ## Bir yanıtı silme ya da kaydırma
 

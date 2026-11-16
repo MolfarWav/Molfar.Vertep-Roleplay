@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.132.1 (2026-11-16)
+
+- Changed: **the guide pages "Dashboard" and "World DM" are translated again in all 13 languages**, with the paragraph on correcting things by hand and the section on people coming back (they showed English after 4.131.0 and 4.132.0). Only the new passages were translated, by a cheap model; the Ukrainian and Russian ones were read, the rest were checked by code for their labels and layout.
+
 ## 4.132.0 (2026-11-16)
 
 - Added: **worn and held things can be corrected by hand (Molfar.Vertep#410).** The "Outfit and things" card of the Dashboard has a pencil in its header. It turns the worn and held things into rows: the bin removes one (the toast has Undo), pressing a name corrects it (Enter or the tick saves, Esc cancels), Done leaves. It is for what the sensor got wrong: a garment that is long off, a second copy, a passing state glued to a name. The item is changed in every saved state that holds it, so a swipe does not bring it back, and the next sensor reading goes on from the corrected list; the story text is never touched. Not shown while the World DM keeps the lists; things lying nearby are not edited. New operations of `POST /dashboard/notes`: `item-remove`, `item-rename`, `item-put`. Guide page `dashboard` (its translations are not refreshed in this release: the reader shows English). Not checked in a browser before the release.

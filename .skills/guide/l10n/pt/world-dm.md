@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -23,6 +23,10 @@ Ele executa após as respostas, a cada N respostas ("Run after every N replies")
 Ele custa uma chamada extra de modelo sempre que é devido, no "DM model (all chats)"; um modelo pequeno e barato é suficiente. Uma execução com falha aparece na folha e na Inbox, e o DM lê as mesmas mensagens de novo na próxima vez.
 
 Um perfil que joga a partir de um baralho de eventos mostra "New deck" quando o baralho se esgota. O modelo é solicitado a gerar de 8 a 12 eventos; se voltarem menos, o baralho é mantido como veio e um aviso diz que ele voltou curto, para que você possa montá-lo de novo.
+
+## Pessoas que voltam
+
+Um amigo ou parente do lorebook de um cartão pode ficar fora da história por cem mensagens, porque uma entrada só aparece quando alguém diz o nome. O DM traz essas pessoas de volta. Ele conta as respostas desde que a pessoa esteve em cena pela última vez ou foi mencionada e, quando o silêncio é longo (cerca de 15, 30 ou 60 respostas, conforme **People coming back > How often**; Normal é o padrão em chats novos), ele diz com firmeza ao modelo de escrita que a pessoa deve entrar nesta resposta. Um teste oculto de 2d6, somado à duração do silêncio e ao peso da pessoa, decide o tamanho do retorno: uma mensagem, uma ligação com um pedido ou alguém chegando com notícias. O modelo escolhe a forma; o DM confere se a pessoa apareceu e pede mais uma vez se não. As pessoas dos lorebooks dos cartões entram no banco com **Take people from the cards' lorebooks** ou pelo interruptor Start „People from the lorebooks”. Em um registro de pessoa ou facção, você pode definir Relation, Weight e „Bring back automatically”. Para ver funcionando, ative **Show under the reply**: uma pequena marca diz quem voltou, por quê e como os dados caíram; o cartão também lista o banco com o silêncio de cada pessoa e um histórico de retornos.
 
 ## Ao apagar ou fazer swipe em uma resposta
 

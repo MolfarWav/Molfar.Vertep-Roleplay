@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 Der World DM ist ein Spielleiter für die Welt eines Chats. Nach Antworten liest er die Geschichte und hält die Personen, Orte und Dinge, die er trifft, im eigenen Lorebook des Chats fest, dem Weltbuch. Auf höheren Stufen bewegt er auch die Welt und sendet Ereignisse in die Szene. Nutze ihn, wenn die Welt lebendig und stimmig wirken soll.
@@ -23,6 +23,10 @@ Er läuft nach Antworten, bei jeder N-ten Antwort („Run after every N replies�
 Er kostet einen zusätzlichen Modellaufruf, wann immer er fällig ist, auf dem „DM model (all chats)“; ein kleines, günstiges Modell genügt. Ein fehlgeschlagener Lauf wird im Sheet und in der Inbox gezeigt, und der DM liest dieselben Nachrichten beim nächsten Mal erneut.
 
 Ein Profil, das aus einem Ereignisstapel spielt, zeigt „New deck“, wenn der Stapel aufgebraucht ist. Das Modell wird um 8 bis 12 Ereignisse gebeten; kommen weniger zurück, bleibt der Stapel, wie er kam, und eine Warnung sagt, dass er zu kurz ausgefallen ist, damit du ihn erneut erstellen kannst.
+
+## Menschen, die zurückkommen
+
+Ein Freund oder Verwandter aus dem Lorebook einer Karte kann hundert Nachrichten lang aus der Geschichte fernbleiben, weil ein Eintrag nur auftaucht, wenn jemand den Namen sagt. Der DM bringt solche Personen zurück. Er zählt die Antworten, seit eine Person zuletzt in der Szene war oder erwähnt wurde, und wenn das Schweigen lang ist (etwa 15, 30 oder 60 Antworten, je nach **People coming back > How often**; Normal ist der Standard für neue Chats), weist er das Schreibmodell nachdrücklich an, dass die Person in dieser Antwort auftritt. Ein verdeckter Wurf von 2d6 sowie die Länge des Schweigens und das Gewicht der Person entscheiden, wie groß die Rückkehr ausfällt: eine Nachricht, ein Anruf mit einer Bitte oder jemand, der mit Neuigkeiten eintrifft. Das Modell wählt die Form; der DM prüft, ob die Person erschienen ist, und fordert es notfalls erneut ein. Personen aus den Lorebooks von Karten kommen mit **Take people from the cards' lorebooks** auf die Bank oder über den Start-Schalter „People from the lorebooks“. Bei einem Personen- oder Fraktionseintrag können Sie Relation, Weight und „Bring back automatically“ festlegen. Um es in Aktion zu sehen, aktivieren Sie **Show under the reply**: Eine kleine Markierung zeigt, wer kam, warum und wie die Würfel fielen; die Karte führt außerdem die Bank mit dem jeweiligen Schweigen jeder Person und einem Verlauf der Rückkehren auf.
 
 ## Eine Antwort löschen oder swipen
 
