@@ -630,7 +630,8 @@ export function WorldControls({
         <DialogContent className="flex max-h-[85vh] flex-col gap-3 overflow-y-auto sm:max-w-[620px] max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0" data-testid="world-book-dialog">
           <DialogHeader>
             <DialogTitle>{t('world.book.title')}</DialogTitle>
-            <DialogDescription>{t('world.book.lead')}</DialogDescription>
+            {/* the list below has its own lead line; this one is for screen readers */}
+            <DialogDescription className="sr-only">{t('world.book.lead')}</DialogDescription>
           </DialogHeader>
           {where === 'sheet' && (
             <Button variant="ghost" size="sm" className="self-start max-md:h-10" onClick={() => { setBook(null); onNavigate?.(); useApp.getState().focusWorldChat(chatId) }} data-testid="book-open-world">
