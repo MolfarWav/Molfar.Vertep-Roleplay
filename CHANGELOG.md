@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.135.1 (2026-11-17)
+
+- Changed: **the guide page `world-dm` is translated again in all 13 languages** (the DM tab, Memory and rules in words from 4.135.0). Ukrainian and Russian were written and read by hand; the other eleven (de, es, fr, it, nl, pt, pl, tr, ja, ko, zh) were written by a cheap model and checked by code for labels, links and layout, not by a native reader. The labels of buttons and tabs stay in English where the app has no translation of its own, as in the other pages.
+
 ## 4.135.0 (2026-11-17)
 
 - Added: **the DM learns what you do not want, and asks first (Molfar.Vertep#425, step 5, first half).** The **Profiles** tab is now **DM** (Chats | Worlds | DM). Its list starts with a **Memory** row (rules in force, proposals waiting, a dot when one waits) that opens **What the DM learned**: proposals with the evidence (what you removed or rewrote, the share, the threshold) and three answers, **This chat**, **All chats** or **No**; the rules in force with Edit and Remove; a field to add a rule by hand; **Remembered exactly** (the names you deleted, Show list, Clear); Reset all. No model is called: a proposal is raised by code when it is a share of the records the DM wrote itself, per kind, in the last 30 days (5 deleted things and 60%; 3 texts rewritten at least 30% shorter and 30%; 3 people from the deck or the lorebooks deleted and 60%), and the answer moves one exact setting, never a line of prose: the new **things** setting (all, only with a reason, none), the length of a record's text, how often people come back. A rule for all chats reaches each chat the next time it is read, and new chats; a value you set by hand afterwards wins. The profile editor ends with a read-only card **Learned memory** (what is added to the DM's input), and the chat's World DM sheet gets the card **What the DM learns** (a switch, the things setting, the rules in force, a way to Memory, a log of every proposal and answer). A person drawn from the deck is marked `src: "deck"` so their deletes count. Rules do not travel with a saved world.
