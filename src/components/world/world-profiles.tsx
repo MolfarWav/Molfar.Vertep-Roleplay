@@ -202,6 +202,10 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         />
         <span className="text-xs text-muted-foreground">{t(`world.cast.freq.${options.cast ?? 'normal'}.hint` as MsgKey)} {t('world.prof.opt.castHint')}</span>
       </div>
+      <div className="flex items-center justify-between gap-3 text-sm" data-testid="profile-cast-deck">
+        <span className="min-w-0">{t('world.prof.opt.castDeck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.castDeckHint')}</span></span>
+        <Switch checked={options.castDeck !== false} onCheckedChange={(v) => onChange({ ...options, castDeck: v })} aria-label={t('world.prof.opt.castDeck')} />
+      </div>
       <div className="-mx-3 flex flex-col border-t border-border">
         <DiceFields
           mode={options.dice}
@@ -455,7 +459,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, cast: 'normal' })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, cast: 'normal', castDeck: true })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers

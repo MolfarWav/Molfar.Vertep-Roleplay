@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.133.0'
+export const APP_VERSION = '4.134.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.cast-deck',
+    since: '4.134.0',
+    help: 'world',
+    keywords: { en: 'cast deck new people cards faction tie want refill start draw world dm npc strangers enter story show the cards', uk: 'колода людей нові люди картки фракція зв’язок бажання поповнення старт витягнення світ dm нпс незнайомці входять в історію показати картки' },
+    title: { en: 'New people from a cast deck', uk: 'Нові люди з колоди' },
+    body: {
+      en: 'The world can now bring in people the story has not met. Each card of the cast deck names a faction, one person who already exists that the newcomer is tied to, what they want, and a short description. When nobody on the bench is due and the story has been quiet for a while, the DM picks a card and the writing model brings that person in through their tie. World sheet, "Cast deck": the switch, how many cards are left, "Add new people now" and a log of every draw. The cards are in the world book, under the chip "Cast deck", behind "Show the cards" because they spoil what is coming. A Start can write the deck too, and it refills itself when fewer than 3 cards are left.',
+      uk: 'Світ тепер може вводити людей, яких історія ще не зустріла. Кожна картка колоди називає фракцію, одну людину, що вже є і з якою пов’язаний новачок, чого він хоче, і короткий опис. Коли на лавці нікому йти і історія досить довго мовчала, майстер бере картку, а модель-автор вводить цю людину через її зв’язок. Аркуш World, «Колода людей»: перемикач, скільки карток лишилось, «Додати нових людей зараз» і журнал кожного витягнення. Самі картки лежать у книзі світу під чипом «Колода людей», за кнопкою «Показати картки», бо вони видають, що буде далі. Колоду може написати й Старт, а коли лишається менше 3 карток, вона поповнюється сама.',
+    },
+  },
   {
     id: 'new.book',
     since: '4.133.0',

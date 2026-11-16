@@ -1,4 +1,4 @@
-<!-- source: 49357def2936 -->
+<!-- source: 7f22fb579576 -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -29,6 +29,12 @@ Um perfil que joga a partir de um baralho de eventos mostra "New deck" quando o 
 ## Pessoas que voltam
 
 Um amigo ou parente do lorebook de um cartão pode ficar fora da história por cem mensagens, porque uma entrada só aparece quando alguém diz o nome. O DM traz essas pessoas de volta. Ele conta as respostas desde que a pessoa esteve em cena pela última vez ou foi mencionada (com o Dashboard ligado, um nome apenas no texto é só uma menção e não zera a contagem; um amigo distante que manda mensagem ou liga conta como estando em cena) e, quando o silêncio é longo (cerca de 15, 30 ou 60 respostas, conforme **People coming back > How often**; Normal é o padrão em chats novos), ele diz com firmeza ao modelo de escrita que a pessoa entra nesta resposta. Um teste oculto de 2d6, somado à duração do silêncio e ao peso da pessoa, decide o tamanho do retorno: uma mensagem, uma ligação com um pedido ou alguém chegando com notícias. O modelo escolhe a forma; o DM confere se a pessoa apareceu e pede mais uma vez se não. Se o redator apenas menciona a pessoa, o registro diz "only mentioned, not on stage" e não há segunda tentativa; depois de um retorno médio ou grande desse tipo, o seguinte vem após metade da pausa habitual e é pelo menos médio. As pessoas dos lorebooks dos cartões entram no banco com **Take people from the cards' lorebooks** ou pelo interruptor Start „People from the lorebooks”. Em um registro de pessoa ou facção, você pode definir Relation, Weight e „Bring back automatically”. Para ver funcionando, ative **Show under the reply**: uma pequena marca diz quem voltou, por quê e como os dados caíram; o cartão também lista o banco com o silêncio de cada pessoa e um histórico de retornos.
+
+## Pessoas novas do baralho de elenco
+
+O banco traz de volta pessoas que a história já tem. O **baralho de elenco** traz pessoas que ainda não foram conhecidas. Um baralho é uma pilha de cartões: um nome, uma facção (um grupo ou uma frente do mundo), uma pessoa que já existe e à qual esta nova pessoa está ligada (um primo, um devedor, um rival), o que ela quer, e cinco a dez frases sobre ela. O DM nunca vê os cartões; quando ninguém no banco está na vez e a história ficou em silêncio por quase o mesmo tempo que um retorno exigiria, o DM escolhe um cartão, dando preferência a um cuja ligação está na cena, depois a um cuja frente da facção foi agitada, depois a um cuja facção pertence a este lugar, e diz ao modelo de escrita, com firmeza, que esta nova pessoa entra na resposta por essa ligação. Quando ela aparece, o cartão vira uma pessoa do livro, membro da sua facção. Se não aparecer, o cartão espera.
+
+Um Start pode montar o baralho (o interruptor **New people for later**, com o número de facções, de pessoas por facção e o tamanho de cada cartão), e o baralho se completa sozinho quando restam menos de 3 cartões. No painel World do chat, o cartão **Cast deck** tem o interruptor, quantos cartões restam, **Add new people now** e um registro de cada sorteio e reposição. O livro tem um chip **Cast deck**: os cartões ficam atrás de **Show the cards** porque revelam o que vem pela frente; você pode editar ou remover um cartão, e um cartão sem ligação aparece marcado.
 
 ## O livro de mundo e sua arrumação
 

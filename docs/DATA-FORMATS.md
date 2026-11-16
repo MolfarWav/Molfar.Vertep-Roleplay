@@ -741,6 +741,39 @@ player switches it on for that chat. It writes:
     line `id · kind · name` followed by one sentence saying so. In full: records named in the new part of the story (name or alias), pinned ones, the scene's place
     with its parent and spots, things placed there or held by people in the scene, the people in the scene, and bench people due within one `everyN` of their
     threshold (`benchSoon`, on the silence on stage; nothing when the cast is off). The DM can still change or retire any record by id. No Set = every record in full.
+  - Cast deck (#424, step 4). Cards of people the story has not met. State `cast`: up to 24 cards `{ id: "c1", name, aliases (up to 4), faction, tie, want
+    (up to 200), text (up to 1200), relation? }`. `faction` is the name of a group record or an active front; `tie` is the name of ONE person who already
+    exists (an active person record, a card of the chat, or the user's character; empty = loose, the person then comes in on behalf of the faction); `want` is
+    their own want. A card is not in the prompt and not in the world book, and the DM never sees it, until it is drawn. A name is kept once (also against the
+    records). Also in the core keys: `castBuild { n }` (the reply count of the last refill try) and `castLog` (up to 40 lines `{ at, n, added, factions, error?,
+    forced? }`). The deck rides a saved world and a carry into a new chat (the run fields do not). Settings: `castDeck` (a switch; absent = off, so a file from
+    before stays off; a new chat starts on the profile's `options.castDeck`, default true), `castPer` (people per faction, 1 to 4, default 2), `castLen`
+    (`short` 5 to 6 sentences, `normal` 6 to 8, `long` 8 to 10, default normal).
+  - Building. A recipe has `cast: { factions (0 to 6, default 3), per (1 to 4, default 2), prompt }`. A Start (`POST /world/start` begin) takes `cast: false` or
+    `cast: { on?, factions?, per?, len? }` (on unless the profile's `castDeck` or the request says no) and plans `{ cast: true, part: i }` steps after the
+    fronts, one per four factions; the draft has `cast` (cards) and `castOpts { factions, per, len }` and accept takes `drop.cast` (card ids), keeps a name
+    once, turns `castDeck` on and stores `castPer` and `castLen`. A step with no faction to write for passes with no call. The factions are the active
+    groups first, then the active fronts. The answer is `{ cast: [{ faction, name, aliases, tie, want, text, relation }] }`; code skips a faction that was not
+    asked for, a name the world, the cards or the deck have, more than `per` for a faction, and leaves a `tie` nobody goes by empty.
+  - Refill. `GET /world/state` has `cast` (cards left) and `castRefill` (the switch and the cast are on, fewer than 3 cards, a faction exists, and the last try is
+    10 replies old or none): the app then calls `POST /world/cast/refill {chatId, force?, lang?}` once. One build call for the (at most four) factions with the fewest
+    cards; the cards are merged into the deck, never replace it; `force` (the button "Add new people now") skips the rule and keeps only the room (24). Answers
+    `{ ok, added, left }`, `skipped: "not due" | "full"`, or `ok: false` with `code` (`no-factions`, or the model's error). Every try is a line of `castLog`.
+  - Drawing. When nobody on the bench is due (`planEntrance` has the first call), `planDeckEntrance` starts a new person: the silence is the replies since the last
+    entrance of any kind, the threshold is the Frequency's (60/30/15 with the per-chat jitter), the roll is the same 2d6 + silence step (weight 0), the gap and
+    the guards are the bench's. The card is picked (`pickCard`): its tie is in the scene (+4), its faction has a front that is stirred or half full (+2), its
+    faction is among the scene's place record's `members` or named in its text (+1), then a seeded chance. The `entrance` is the bench's with `src: "deck"`,
+    `id` = the card's id, `faction`, `tie`, `pick` (`tie` | `front` | `place` | `random`); the note carries the card's text, want and tie. The judge (`came`
+    or `mentioned`) turns the card into a `person` record (id `n#`, the card's text cut to `textMax`, `relation`, a member of its faction's group record) and the
+    registry and the world book learn it; `missed` after the second try keeps the card. A name the world got meanwhile leaves no second record (the card goes).
+    `lastEntrance` has `src: "deck"`. The dice-log line has `src: "deck"`, `faction`, `tie` or `loose: true`, `pick`.
+  - Routes: `GET /world/cast/cards?chatId=` and `POST /world/cast/cards {chatId, op: "edit" | "delete", id, name?, aliases?, tie?, want?, text?}` (a name a card or a
+    record has: 409 `clash`; a tie nobody goes by: 409 `tie`). `GET /world/cast` has `deck` (`on`, `switch`, `left`, `factions`, `loose`, `per`, `len`, `silence`,
+    `threshold`, `wait`, `refill`, `refillAgo`, `log` newest first), never the cards.
+  - A reason to come back. A `person` record may carry `hook: { text (up to 200), at }`: the DM's own words for why this person comes back now. When a bench
+    person is within one `everyN` of the threshold, the DM's input says "May come back soon: n3 Mira (silent 27)" and how to answer; the reply may carry
+    `returns: [{ id, why }]` (only for those it was told about). The next return of that person uses the hook in place of the record's first sentence, and
+    the hook is spent when that return is judged (a second try keeps it). The system prompt does not change.
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.

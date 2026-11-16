@@ -2,15 +2,15 @@
 // world book at that type. Second row: the Archive (retired and tidied up), the old notes while any are left, the Fronts (only when the level
 // has events) and the Runs. A type with no records stays visible but dimmed, so the layout does not jump.
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
-import { Archive, Compass, GlobeHemisphereWest, MapPin, Package, Scroll, UsersFour, UserCircle } from '@phosphor-icons/react'
+import { Archive, Cards, Compass, GlobeHemisphereWest, MapPin, Package, Scroll, UsersFour, UserCircle } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { cn } from '@/lib/utils'
 import type { WorldKind } from '@/lib/world'
 import type { MsgKey } from '@/lib/i18n'
 
-/** What a tile opens: one kind, the old notes ('fact'), or the Archive. */
-export type TileKey = WorldKind | 'archive'
+/** What a tile opens: one kind, the old notes ('fact'), the Archive, or the cast deck. */
+export type TileKey = WorldKind | 'archive' | 'cast'
 
 interface Tile {
   id: string
@@ -23,12 +23,14 @@ interface Tile {
   dim?: boolean
 }
 
-export function SoFarTiles({ kinds, notes, archive, fronts, runs, onOpen }: {
+export function SoFarTiles({ kinds, notes, archive, cast = 0, fronts, runs, onOpen }: {
   kinds: { person: number; place: number; group: number; thing: number }
   /** old notes still in the book: their tile shows only while there are any */
   notes: number
   /** retired and tidied-up records: the tile shows only while there are any */
   archive: number
+  /** cards left in the cast deck: the tile shows only while there are any (the count, never who) */
+  cast?: number
   /** omitted when the level has no events: the tile is not shown */
   fronts?: number
   runs: number
@@ -45,6 +47,7 @@ export function SoFarTiles({ kinds, notes, archive, fronts, runs, onOpen }: {
   const second: Tile[] = [
     ...(archive > 0 ? [{ id: 'archive', tone: 'slate' as const, icon: Archive, label: kindLabel('archive'), value: archive, open: 'archive' as const }] : []),
     ...(notes > 0 ? [{ id: 'fact', tone: 'sky' as const, icon: Scroll, label: kindLabel('fact'), value: notes, open: 'fact' as const }] : []),
+    ...(cast > 0 ? [{ id: 'cast', tone: 'emerald' as const, icon: Cards, label: kindLabel('cast'), value: cast, open: 'cast' as const }] : []),
     ...(fronts === undefined ? [] : [{ id: 'fronts', tone: 'orange' as const, icon: Compass, label: t('world.tile.fronts'), value: fronts }]),
     { id: 'runs', tone: 'neutral', icon: GlobeHemisphereWest, label: t('world.tile.runs'), value: runs },
   ]

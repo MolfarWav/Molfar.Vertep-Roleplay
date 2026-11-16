@@ -13,6 +13,7 @@ import { TONES } from '@/components/ui/tone'
 import { DiceFields } from './dice-fields'
 import { DiceLog } from './dice-log'
 import { CastCard } from './world-cast'
+import { CastDeckCard } from './world-cast-deck'
 import { TidyCard } from './world-tidy'
 import { WorldRecords } from './world-records'
 import { SoFarTiles, type TileKey } from './world-so-far'
@@ -476,7 +477,10 @@ export function WorldControls({
   // Card 4: people coming back (#424). Every level has it; the DM off dims it.
   const castCard = <CastCard chatId={chatId} view={view} save={save} on={on} />
 
-  // Card 5: tidying the book (#424, step 3): things that played out go to the Archive by code; the switch, "Tidy now" and the log
+  // Card 5: the cast deck of new people (#424, step 4): the switch, the cards left, "Add new people now" and the log of every draw and refill
+  const deckCard = <CastDeckCard chatId={chatId} view={view} save={save} on={on} />
+
+  // Card 6: tidying the book (#424, step 3): things that played out go to the Archive by code; the switch, "Tidy now" and the log
   const tidyCard = <TidyCard chatId={chatId} view={view} save={save} on={on} />
 
   const soFarSection = (
@@ -485,7 +489,7 @@ export function WorldControls({
         <HeadingMark tone="sky" />
         {t('world.status')}
       </h3>
-      <SoFarTiles kinds={view.kinds} notes={view.notes} archive={view.archive} fronts={events ? view.fronts : undefined} runs={view.usage.runs} onOpen={openBook} />
+      <SoFarTiles kinds={view.kinds} notes={view.notes} archive={view.archive} cast={view.cast} fronts={events ? view.fronts : undefined} runs={view.usage.runs} onOpen={openBook} />
       {((view.direction) || (events && view.eventWaiting)) && (
         <div className="flex flex-wrap gap-1.5">
           {view.direction && <Chip tone="sky">{t('world.direction', { d: t(`world.dir.${view.direction}` as MsgKey) })}</Chip>}
@@ -611,6 +615,7 @@ export function WorldControls({
             {writesCard}
             {addsCard}
             {castCard}
+            {deckCard}
             {tidyCard}
           </div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{soFarSection}</div>

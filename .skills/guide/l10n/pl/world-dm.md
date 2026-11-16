@@ -1,4 +1,4 @@
-<!-- source: 49357def2936 -->
+<!-- source: 7f22fb579576 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -29,6 +29,12 @@ Profil, który gra z talii zdarzeń, pokazuje „New deck”, gdy talia się wyc
 ## Ludzie, którzy wracają
 
 Przyjaciel lub krewny z lorebooka karty może nie pojawiać się w opowieści przez sto wiadomości, bo wpis pojawia się tylko wtedy, gdy ktoś wypowie imię. DM sprowadza takie osoby z powrotem. Liczy odpowiedzi od chwili, gdy dana osoba ostatnio była w scenie (przy włączonym Pulpicie samo imię w tekście to tylko wzmianka i nie resetuje licznika; daleki przyjaciel, który pisze lub dzwoni, liczy się jako obecny w scenie), a gdy cisza trwa długo (około 15, 30 lub 60 odpowiedzi, według **People coming back > How often**; Normal to domyślne ustawienie w nowych czatach), stanowczo mówi modelowi piszącemu, że ta osoba ma pojawić się w tej odpowiedzi. Ukryty rzut 2d6 oraz długość ciszy i to, jak dużą wagę ma dana osoba, decydują o skali powrotu: wiadomość, telefon z prośbą albo ktoś, kto przybywa z nowinami. Model wybiera formę; DM sprawdza, czy osoba się pojawiła, a jeśli nie, prosi o to jeszcze raz. Jeśli pisarz tylko wspomina osobę, dziennik mówi "only mentioned, not on stage" (tylko wspomniana, nie na scenie) i nie ma drugiej próby; po takim średnim lub dużym powrocie następny przychodzi po połowie zwykłej przerwy i jest co najmniej średni. Osoby z lorebooków kart dołączają do ławki przez **Take people from the cards' lorebooks** lub przełącznik Start „People from the lorebooks”. Na karcie osoby lub frakcji możesz ustawić Relation, Weight i „Bring back automatically”. Aby zobaczyć, jak to działa, włącz **Show under the reply**: mały znacznik informuje, kto wrócił, dlaczego i jak padły kości; karta pokazuje też ławkę z ciszą każdej osoby i dziennikiem powrotów.
+
+## Nowe osoby z talii obsady
+
+Ławka przywraca osoby, które historia już zna. **Talia obsady** wprowadza osoby, których jeszcze nie poznała. Talia to stos kart: imię, frakcja (grupa albo front świata), jedna osoba, która już istnieje i z którą nowa osoba jest związana (kuzyn, dłużnik, rywal), czego ta osoba chce oraz pięć do dziesięciu zdań o niej. DM nigdy nie widzi kart. Gdy nikt z ławki nie jest w kolejce, a historia milczy tyle samo co przy powrocie, DM wybiera kartę: najpierw taką, której więź jest w scenie, potem taką, której front frakcji się porusza, a dalej taką, której frakcja należy do tego miejsca. Następnie stanowczo mówi modelowi piszącemu, że ta nowa osoba wchodzi do odpowiedzi przez tę więź. Kiedy się pojawi, karta staje się osobą w księdze, członkiem swojej frakcji. Jeśli się nie pojawi, karta czeka.
+
+Start może napisać talię (przełącznik **New people for later**, z liczbą frakcji, liczbą osób w każdej z nich i długością karty), a talia uzupełnia się sama, gdy zostaje mniej niż 3 karty. W panelu World czatu karta **Cast deck** ma przełącznik, liczbę pozostałych kart, **Add new people now** oraz dziennik każdego losowania i uzupełnienia. Księga ma znacznik **Cast deck**: karty są za **Show the cards**, bo zdradzają, co nadchodzi. Kartę można edytować lub usunąć, a kartę bez więzi oznaczono.
 
 ## Księga świata i jej porządkowanie
 

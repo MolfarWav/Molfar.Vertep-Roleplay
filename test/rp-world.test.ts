@@ -79,7 +79,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false, tidy: true });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false, tidy: true, castDeck: false, castPer: 2, castLen: "normal" });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -164,7 +164,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false, tidy: true });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false, tidy: true, castDeck: true, castPer: 2, castLen: "normal" });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -953,7 +953,7 @@ describe("P3 stage 2: profile options", () => {
     expect(after.fronts[0].clock).toBe(clockStep(d).by);
     expect(!!after.fronts[0].stirred).toBe(clockStep(d).stirred);
     expect(after.clockReplies).toBe(1);
-    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal" });
+    expect(route(m.host, "GET", "/world/profiles").json.profiles.find((p: any) => p.id === "living").options).toEqual({ clocks: "code", clockEvery: 2, eventByClock: true, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal", castDeck: true });
   });
 });
 

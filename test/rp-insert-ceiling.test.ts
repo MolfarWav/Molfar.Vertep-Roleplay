@@ -136,6 +136,26 @@ describe("each plugin's ceiling is the table's row for the same chat", () => {
     expect(byId(askAll("c1"))).toMatchObject({ "world here": 258, "world event": 115, "world dice": 60 });
     agree({ promptBoard: { off: ["plugin:world"] } });
   });
+  it("World: a cast deck with cards makes room for the card's text in the note of a new person", () => {
+    writeJson("world/state/c1.json", { settings: { level: "living", insert: true, cast: "normal" } });
+    agree({});
+    expect(byId(askAll("c1"))["world cast"]).toBe(160);
+    // the switch on but no cards: as before
+    writeJson("world/state/c1.json", { settings: { level: "living", insert: true, cast: "normal", castDeck: true } });
+    agree({});
+    expect(byId(askAll("c1"))["world cast"]).toBe(160);
+    // the longest card sets the room: (1200 + 200) / 3.5 + 110
+    writeJson("world/state/c1.json", { settings: { level: "living", insert: true, cast: "normal", castDeck: true }, cast: [{ id: "c1", name: "A", text: "x".repeat(300), want: "w" }, { id: "c2", name: "B", text: "y".repeat(1200), want: "w".repeat(200) }] });
+    agree({});
+    expect(byId(askAll("c1"))["world cast"]).toBe(510);
+    // the deck switched off, or the cast off: the card does not ride
+    writeJson("world/state/c1.json", { settings: { level: "living", insert: true, cast: "normal", castDeck: false }, cast: [{ id: "c1", name: "B", text: "y".repeat(1200), want: "" }] });
+    agree({});
+    expect(byId(askAll("c1"))["world cast"]).toBe(160);
+    writeJson("world/state/c1.json", { settings: { level: "living", insert: true, cast: "off", castDeck: true }, cast: [{ id: "c1", name: "B", text: "y".repeat(1200), want: "" }] });
+    agree({});
+    expect(byId(askAll("c1"))["world cast"]).toBeUndefined();
+  });
   it("agents: exactly what the chat's agents left for the next reply", () => {
     writeJson("agents/inserts/c1.json", { items: [{ agent: "a1", label: "Hint", text: "The hint the agent wrote for the next reply, a sentence or two long." }, { agent: "a2", text: "" }, { agent: "a3", text: "Ще одна підказка українською мовою." }] });
     agree({});

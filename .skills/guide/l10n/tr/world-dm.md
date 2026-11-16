@@ -1,4 +1,4 @@
-<!-- source: 49357def2936 -->
+<!-- source: 7f22fb579576 -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -29,6 +29,12 @@ Olay destesinden oynayan bir profil, deste tükendiğinde "New deck" gösterir. 
 ## Geri dönen kişiler
 
 Bir kartın lorebookundaki arkadaş ya da akraba, biri adını söylemedikçe bir giriş ortaya çıkmadığı için yüz mesaj boyunca hikâyenin dışında kalabilir. DM bu kişileri geri getirir. Bir kişinin sahnede en son bulunduğu ya da adının geçtiği andan itibaren yanıtları sayar (Dashboard açıkken, metinde yalnızca adın geçmesi bir anmadır ve sayacı sıfırlamaz; uzaktaki bir arkadaş mesaj atar ya da arar ise sahnedeymiş gibi sayılır) ve sessizlik uzadığında (yaklaşık 15, 30 veya 60 yanıt; **People coming back > How often** ayarına göre; yeni sohbetlerde varsayılan Normal'dir) yazma modeline bu kişinin bu yanıta girmesi gerektiğini kesin bir dille söyler. Gizli bir 2d6 atışı, sessizliğin uzunluğu ve kişinin ağırlığı dönüşün ne kadar büyük olacağını belirler: bir mesaj, bir ricayla yapılan arama ya da haberlerle gelen biri. Biçimi model seçer; DM kişinin ortaya çıktığını kontrol eder ve çıkmadıysa bir kez daha ister. Yazar kişiden yalnızca bahsederse, günlükte "only mentioned, not on stage" yazar ve ikinci deneme yapılmaz; böyle orta ya da büyük bir dönüşten sonra bir sonrakinin beklemesi her zamankinin yarısı kadardır ve en az orta olur. Kartların lorebooklarındaki kişiler **Take people from the cards' lorebooks** ile ya da Start anahtarı „People from the lorebooks” ile yedek listesine katılır. Bir kişi ya da grup kaydında Relation, Weight ve „Bring back automatically” ayarını yapabilirsiniz. Çalıştığını görmek için **Show under the reply** seçeneğini açın: küçük bir işaret kimin, neden ve zarların nasıl düştüğüyle döndüğünü söyler; kart ayrıca yedek listesini her kişinin sessizlik süresiyle ve dönüş kayıtlarıyla birlikte gösterir.
+
+## Kadro destesinden yeni kişiler
+
+Yedek listesi, hikâyenin zaten bildiği kişileri geri getirir. **Kadro destesi** ise henüz tanışılmamış kişileri içeri alır. Deste bir kart yığınıdır: bir ad, bir hizip (dünyanın bir grubu ya da cephesi), zaten var olan ve bu yeni kişinin bağlı olduğu bir kişi (bir kuzen, bir borçlu, bir rakip), ne istediği ve onun hakkında beş ila on cümle. DM kartları hiç görmez. Yedek listesinde sırası gelen kimse yoksa ve hikâye bir dönüş için olduğu kadar sessizse, DM bir kart seçer: önce bağı sahnede olanı, sonra hizbinin cephesi kıpırdamış olanı, sonra hizbi bu yere ait olanı tercih eder. Ardından yazma modeline, bu yeni kişinin cevaba o bağ üzerinden gireceğini kararlılıkla söyler. Ortaya çıktığında kart kitapta bir kişi olur, hizbinin bir üyesi. Çıkmazsa kart bekler.
+
+Start desteyi yazabilir (**New people for later** anahtarı, hizip sayısı, her hizipteki kişi sayısı ve bir kartın ne kadar uzun olacağıyla birlikte), ve deste üçten az kart kaldığında kendini doldurur. Sohbetin World panelinde **Cast deck** kartında anahtar, kalan kart sayısı, **Add new people now** ve her çekiliş ile her doldurmanın günlüğü bulunur. Kitapta bir **Cast deck** çipi var: kartlar, neyin geleceğini ele verdikleri için **Show the cards** arkasında. Bir kartı düzenleyebilir ya da kaldırabilirsiniz; bağı olmayan bir kart işaretlenir.
 
 ## Dünya kitabı ve düzenlenmesi
 

@@ -47,7 +47,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -81,10 +81,18 @@ export interface WorldView {
   draft: WorldDraft | null
   /** cards left in the events deck (their text stays the DM's) */
   deck: number
+  /** cards left in the cast deck of new people (who they are stays the DM's) */
+  cast: number
+  /** the deck is below its floor and due for a refill: the app calls refillWorldCast once after a run */
+  castRefill?: boolean
   origin: WorldOrigin | null
   /** the world's backgrounds: a folder of the Backgrounds library */
   backgroundFolderId: string | null
 }
+
+/** How long a card of the cast deck is: 5 to 6, 6 to 8 or 8 to 10 sentences. */
+export type WorldCastLen = 'short' | 'normal' | 'long'
+export const WORLD_CAST_LENS: WorldCastLen[] = ['short', 'normal', 'long']
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
 
@@ -151,6 +159,8 @@ export interface WorldRecord {
   link?: { book: string; uid: number; title: string }
   /** a person: "bring back automatically" is switched off */
   noReturn?: boolean
+  /** a person: why they may come back now, as the DM wrote it (what they were doing, what they want); the next return uses it once */
+  hook?: { text: string; at: number }
   /** a group or a place: the people who belong (names, up to 30, each up to 80 characters); [] clears it when saving. A fact told to the group is known to each of them */
   members?: string[]
   /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
@@ -234,7 +244,7 @@ export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'a
 /** 'auto' = the model takes the stat the attempted action leans on */
 export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
 export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number; cast: WorldCastFreq }
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number; cast: WorldCastFreq; /** a new chat on this profile draws new people from the cast deck */ castDeck: boolean }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -403,7 +413,26 @@ export async function readWholeChat(chatId: string, onRun: (left: number, done: 
 /** After a reply (once the dashboard has read it): a DM run if this chat's DM is due. `busy` = the next reply is already being written. */
 export async function triggerWorldUpdate(chatId: string, busy: () => boolean): Promise<void> {
   if (busy()) return
-  await runWorld(chatId, true)
+  const r = await runWorld(chatId, true)
+  // the cast deck is below its floor: one background call fills it (merge, never replace)
+  if (r && r.ok !== false && r.castRefill) void refillWorldCast(chatId)
+}
+
+const refilling = new Set<string>()
+/** A refill of the cast deck (one build call, resumes a pending call like the deck does). `force` = the button in the sheet: no rule, only the room. One at a time per chat. */
+export async function refillWorldCast(chatId: string, force = false, lang?: string): Promise<{ ok: boolean; added?: number; left?: number; none?: boolean; skipped?: string; error?: string; code?: WorldErrorCode | 'no-factions' }> {
+  if (refilling.has(chatId)) return { ok: true, skipped: 'busy' }
+  refilling.add(chatId)
+  try {
+    const r = await j<{ ok: boolean; added?: number; left?: number; none?: boolean; skipped?: string; error?: string; code?: WorldErrorCode | 'no-factions' }>('/world/cast/refill', { method: 'POST', body: JSON.stringify({ chatId, ...(force ? { force } : {}), ...(lang ? { lang } : {}) }) })
+    void loadWorld(chatId).catch(() => {})
+    return r
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return { ok: true, skipped: 'no world' }
+    return { ok: false, error: String((e as Error)?.message ?? e) }
+  } finally {
+    refilling.delete(chatId)
+  }
 }
 
 // ---------- Start (P3 stage 3): recipes, the draft, the deck, the library, carry, the chat's own opening ----------
@@ -415,6 +444,8 @@ export interface WorldRecipe {
   questions: WorldRecipeQuestion[]
   sections: { id: string; kinds: WorldKind[]; max: number; prompt: string }[]
   fronts: { count: number; prompt: string }
+  /** the cast deck: how many factions a Start writes new people for, how many each, the recipe's own words */
+  cast: { factions: number; per: number; prompt: string }
   builtin: boolean
 }
 export interface WorldDraftFront { id: string; name: string; goal: string; clock: number; size: number }
@@ -428,9 +459,16 @@ export interface WorldDraft {
   entities: WorldRecord[]
   fronts: WorldDraftFront[]
   deck: { id: string; text: string }[]
+  /** cards of new people the Start wrote (#424, step 4), and the numbers it asked for (null = the cast deck was off) */
+  cast: WorldCastCard[]
+  castOpts: { factions: number; per: number; len: WorldCastLen } | null
   at: number
   error: WorldError | null
 }
+/** A card of the cast deck: a person the story has not met, tied to someone who exists (empty tie = loose), belonging to a faction. */
+export interface WorldCastCard { id: string; name: string; aliases: string[]; faction: string; tie: string; want: string; text: string; relation?: WorldRelation }
+/** What a Start asks of the cast deck. `on: false` plans no call. */
+export interface WorldCastAsk { on: boolean; factions?: number; per?: number; len?: WorldCastLen }
 export type WorldOrigin =
   | { kind: 'cards' | 'recipe'; recipe: string; cardIds: string[]; at: number }
   | { kind: 'library'; worldId: string; name: string; at: number }
@@ -443,7 +481,7 @@ export async function listWorldRecipes(): Promise<WorldRecipe[]> {
 interface DraftReply { ok?: boolean; error?: string; code?: WorldErrorCode | 'no-text'; draft: WorldDraft }
 
 /** Begin a draft. 409 code 'no-text' = the chosen cards have nothing to learn from. */
-export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }): Promise<WorldDraft> {
+export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean; cast?: WorldCastAsk }): Promise<WorldDraft> {
   return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...o }) })).draft
 }
 
@@ -473,7 +511,7 @@ export async function buildWorldDraft(chatId: string, onStep: (d: WorldDraft) =>
 }
 
 /** Accept the draft into the world, minus the ids the player removed; or throw it away. */
-export async function finishWorldDraft(chatId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[] }): Promise<void> {
+export async function finishWorldDraft(chatId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[]; cast?: string[] }): Promise<void> {
   const r = await j<Partial<WorldView>>('/world/draft', { method: 'PUT', body: JSON.stringify({ chatId, op, ...(drop ? { drop } : {}) }) })
   if (r?.settings) keepView(chatId, r)
   else void loadWorld(chatId).catch(() => {})
@@ -490,7 +528,7 @@ export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok:
 export interface BuildingWorld { id: string; name: string; at: number; level: WorldLevel; done: number; total: number; error: WorldError | null }
 
 /** Begin a new world without a chat (user, 2026-10-19): from cards or an interview. Returns its id and draft. */
-export async function beginNewWorld(o: { name: string; description?: string; level?: WorldLevel; profile?: string; recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }): Promise<{ worldId: string; draft: WorldDraft }> {
+export async function beginNewWorld(o: { name: string; description?: string; level?: WorldLevel; profile?: string; recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean; cast?: WorldCastAsk }): Promise<{ worldId: string; draft: WorldDraft }> {
   const r = await j<DraftReply & { worldId: string }>('/world/start', { method: 'POST', body: JSON.stringify({ begin: true, newWorld: true, ...o }) })
   return { worldId: r.worldId, draft: r.draft }
 }
@@ -514,7 +552,7 @@ export async function buildNewWorld(worldId: string, onStep: (d: WorldDraft) => 
 }
 
 /** Accept a new world's draft into the library (minus what the player dropped), or discard it. 409 code "empty" = nothing left to keep. */
-export async function finishNewWorld(worldId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[] }): Promise<{ worlds: SavedWorld[]; building: BuildingWorld[] }> {
+export async function finishNewWorld(worldId: string, op: 'accept' | 'discard', drop?: { entities?: string[]; fronts?: string[]; deck?: string[]; cast?: string[] }): Promise<{ worlds: SavedWorld[]; building: BuildingWorld[] }> {
   return j('/world/draft', { method: 'PUT', body: JSON.stringify({ worldId, op, ...(drop ? { drop } : {}) }) })
 }
 
@@ -631,6 +669,12 @@ export interface WorldDiceRoll {
   d?: [number, number]
   retried?: boolean
   result?: 'came' | 'mentioned' | 'again' | 'missed'
+  /** cast: a person of the cast deck (a new one): its faction, who it ties to (loose = nobody), and why this card (the tie is in the scene, its front is hot, its faction belongs to the place, or chance) */
+  src?: 'deck'
+  faction?: string
+  tie?: string
+  loose?: boolean
+  pick?: 'tie' | 'front' | 'place' | 'random'
   /** cast: replies since she was last named, only when that differs from the silence on stage; floor = the die's band was raised to medium */
   seen?: number
   floor?: boolean
@@ -666,20 +710,57 @@ export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceR
 
 /** One person of the bench as GET /world/cast reads them. */
 export interface WorldCastPerson { id: string; name: string; silence: number; /** replies since last named or on stage */ named: number; threshold: number; weight: number; relation?: WorldRelation; linked: boolean; byId: boolean; off: boolean; due: boolean }
+/** One line of the refill log: when, at which reply, how many cards came, for which factions, an error code, whether the player asked. */
+export interface WorldCastLogLine { at: number; n: number; added: number; factions: string[]; error?: string; forced?: boolean }
+export interface WorldCastDeck {
+  on: boolean
+  switch: boolean
+  left: number
+  factions: { name: string; n: number }[]
+  /** cards with no tie */
+  loose: number
+  per: number
+  len: WorldCastLen
+  /** replies since the last entrance of any kind, and the silence that starts the next new person */
+  silence: number
+  threshold: number
+  wait: number
+  refill: boolean
+  refillAgo: number | null
+  log: WorldCastLogLine[]
+}
 /** GET /world/cast: the cast as the chat stands (for the panel and for testing). */
 export interface WorldCast {
   freq: WorldCastFreq
   replies: number
   /** replies still to wait before the next return can start */
   wait: number
-  entrance: { id: string; name: string; band: 'small' | 'medium' | 'big'; silence: number; via: 'silence' | 'life'; sent: number; retried: boolean; roll?: number; d?: [number, number]; mod?: number; weight?: number; threshold?: number; tier?: string } | null
-  last: { id: string; n: number; band: string; ok: boolean; res?: 'came' | 'mentioned' | 'missed' } | null
+  entrance: { src?: 'deck'; faction?: string; tie?: string; pick?: 'tie' | 'front' | 'place' | 'random'; id: string; name: string; band: 'small' | 'medium' | 'big'; silence: number; via: 'silence' | 'life'; sent: number; retried: boolean; roll?: number; d?: [number, number]; mod?: number; weight?: number; threshold?: number; tier?: string } | null
+  last: { id: string; n: number; band: string; ok: boolean; res?: 'came' | 'mentioned' | 'missed'; src?: 'deck' } | null
   people: WorldCastPerson[]
+  /** the cast deck of new people: how many cards are left (never who), when the next can start, the refill log */
+  deck: WorldCastDeck
   /** lorebook entries of the chat's cards the bench could be adopted from */
   lorePeople: number
 }
 export async function loadWorldCast(chatId: string): Promise<WorldCast> {
   return j<WorldCast>(`/world/cast?chatId=${encodeURIComponent(chatId)}`)
+}
+
+/** The cards of the cast deck (GET /world/cast/cards), for the book's Cast deck chip. */
+export async function loadCastCards(chatId: string): Promise<WorldCastCard[]> {
+  return (await j<{ cards: WorldCastCard[] }>(`/world/cast/cards?chatId=${encodeURIComponent(chatId)}`)).cards
+}
+/** Change one card: name, aliases, tie, want, text. A name another card or a record has answers 409 (code 'clash'); a tie nobody goes by 409 (code 'tie'). */
+export async function editCastCard(chatId: string, id: string, patch: Partial<Pick<WorldCastCard, 'name' | 'aliases' | 'tie' | 'want' | 'text'>>): Promise<WorldCastCard[]> {
+  const r = await j<{ cards: WorldCastCard[] }>('/world/cast/cards', { method: 'POST', body: JSON.stringify({ chatId, op: 'edit', id, ...patch }) })
+  void loadWorld(chatId).catch(() => {})
+  return r.cards
+}
+export async function deleteCastCard(chatId: string, id: string): Promise<WorldCastCard[]> {
+  const r = await j<{ cards: WorldCastCard[] }>('/world/cast/cards', { method: 'POST', body: JSON.stringify({ chatId, op: 'delete', id }) })
+  void loadWorld(chatId).catch(() => {})
+  return r.cards
 }
 
 /** One line of the tidy-up log: a thing put to rest or woken, and the count that decided it. */

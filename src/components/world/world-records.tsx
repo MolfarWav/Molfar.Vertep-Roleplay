@@ -15,10 +15,11 @@ import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT, type BookFilter } from '@/lib/world-records'
 import { addLitFact } from '@/components/library/litopys-api'
-import { editWorldRecord, fillWorldKeys, peekWorld, WORLD_RELATIONS, WORLD_WHYS, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef, type WorldRelation, type WorldWhy } from '@/lib/world'
+import { editWorldRecord, fillWorldKeys, peekWorld, useWorldLive, WORLD_RELATIONS, WORLD_WHYS, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef, type WorldRelation, type WorldWhy } from '@/lib/world'
 import { useWorldBook } from './use-world-book'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
+import { CAST_DECK_TONE, CastDeckList } from './world-cast-deck'
 
 /** The stripe on the left of a card, in its type's colour. */
 const STRIPE: Record<WorldKind, string> = {
@@ -394,6 +395,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
       ) : r.aliases.length === 0 && !past ? (
         <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="record-no-keys">{t('world.rec.noKeys')}</p>
       ) : null}
+      {r.kind === 'person' && r.hook && !past && <p className="mt-1 break-words text-xs text-muted-foreground" data-testid="record-hook">{t('world.rec.hook', { text: r.hook.text })}</p>}
       {r.aliases.length > 0 && (
         <ul className={cn('mt-1 flex flex-wrap items-center gap-1', past && 'opacity-70')} aria-label={t('world.rec.keys')} data-testid="record-keys">
           <li className="mr-0.5 text-caption text-muted-foreground">{t('world.rec.keys')}</li>
@@ -491,6 +493,8 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
   const [fillMsg, setFillMsg] = useState<string | null>(null)
   const [fillErr, setFillErr] = useState<string | null>(null)
 
+  // the cards of the cast deck are not records: their count rides the chat's view, and the chip shows only while there are cards (or while it is open)
+  const castLeft = useWorldLive((s) => (chatId ? s.views[chatId]?.cast ?? 0 : 0))
   const counts = useMemo(() => countByKind(records ?? []), [records])
   const shown = useMemo(() => filterRecords(records ?? [], kind, query), [records, kind, query])
 
@@ -585,6 +589,7 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">{t('world.rec.lead')}</p>
 
+      {kind !== 'cast' && (
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-40 flex-1">
           <MagnifyingGlass className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -594,6 +599,7 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
           <Plus className="size-4" aria-hidden="true" />{t('world.rec.add')}
         </Button>
       </div>
+      )}
 
       <div role="group" aria-label={t('world.rec.kind')} className="flex flex-wrap gap-1.5">
         {(['all', ...KINDS, 'fact', 'archive'] as const).map((k) => {
@@ -618,8 +624,22 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
             </button>
           )
         })}
+        {chatId && (castLeft > 0 || kind === 'cast') && (
+          <button
+            type="button"
+            aria-pressed={kind === 'cast'}
+            data-testid="chip-cast"
+            onClick={() => setKind('cast')}
+            className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-md:h-10', CAST_DECK_TONE, kind === 'cast' ? 'ring-1 ring-current font-semibold' : 'opacity-80 hover:opacity-100')}
+          >
+            {t('world.kinds.cast')}
+            <span className="tabular-nums opacity-80">{castLeft}</span>
+          </button>
+        )}
       </div>
 
+      {kind === 'cast' && chatId ? <CastDeckList chatId={chatId} left={castLeft} /> : (
+      <>
       {counts.fact > 0 && kind !== 'fact' && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-sky-500/30 bg-sky-500/5 p-3" data-testid="notes-banner">
           <span className="min-w-0 flex-1 text-sm">{t('world.notes.banner', { n: counts.fact })}</span>
@@ -645,7 +665,7 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
 
       {adding && (
         <RecordForm
-          initial={formOf({ name: '', kind: kind === 'all' || kind === 'archive' || kind === 'fact' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
+          initial={formOf({ name: '', kind: kind === 'all' || kind === 'archive' || kind === 'fact' || kind === 'cast' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
           placeNames={placeNames}
           past={false}
           busy={busy}
@@ -679,6 +699,8 @@ export function WorldRecords({ wref, gated, initial, initialKind }: {
           />
         ))}
       </ul>
+      </>
+      )}
       {book.confirmDialog}
       {confirmDialog}
     </div>

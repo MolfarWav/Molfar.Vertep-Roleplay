@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useConfirm } from '@/components/ui/confirm'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Segmented } from '@/components/ui/setting-row'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
@@ -22,7 +23,7 @@ import { useWorldProfiles } from '@/lib/world-profiles'
 import {
   beginNewWorld, beginWorldStart, buildNewWorld, buildWorldDraft, finishNewWorld, finishWorldDraft, listWorldRecipes, loadWorld, loadWorldConfig,
   newWorldDeck, peekNewWorld, useWorldLive, WORLD_CONFIG_EVENT,
-  type WorldConfig, type WorldDraft, type WorldLevel, type WorldRecipe, type WorldView,
+  WORLD_CAST_LENS, type WorldCastAsk, type WorldCastLen, type WorldConfig, type WorldDraft, type WorldLevel, type WorldRecipe, type WorldView,
 } from '@/lib/world'
 import { FROM_KEY, LevelChip, type OpenWorldSettings } from './world-common'
 import { refreshSavedWorlds, useSavedWorlds } from './world-library'
@@ -117,16 +118,18 @@ function useChatCards(chatId: string): { id: string; name: string }[] {
 // ---------- the setup form ----------
 
 /** What a begin sends, whatever it builds (a chat's world or a new one). */
-type BeginOpts = { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }
+type BeginOpts = { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean; cast?: WorldCastAsk }
 
 /** A long card list gets a search box and a scroll of its own. */
 const CARD_SEARCH_AT = 8
 
-function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, blocked, onBegin, onOpenSettings }: {
+function Setup({ cards, allTicked, profileDeck, profileCast, chronicler, configChatId, head, blocked, onBegin, onOpenSettings }: {
   cards: { id: string; name: string }[]
   /** every card ticked at first (a chat's own cards); a new world starts with none */
   allTicked: boolean
   profileDeck: boolean
+  /** the profile's option for new people from the cast deck (on unless it says no) */
+  profileCast: boolean
   chronicler: boolean
   configChatId?: string
   /** fields above the recipe (a new world's name and profile) */
@@ -151,6 +154,11 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
   const [deck, setDeck] = useState<boolean | null>(null)
   // the people of the cards' lorebooks become linked records (#424); on unless the player switches it off
   const [bench, setBench] = useState(true)
+  // the cast deck (#424, step 4): cards of new people for each faction, on unless the profile or the player says no; the numbers start from the recipe's
+  const [castOn, setCastOn] = useState<boolean | null>(null)
+  const [castFactions, setCastFactions] = useState<number | null>(null)
+  const [castPer, setCastPer] = useState<number | null>(null)
+  const [castLen, setCastLen] = useState<WorldCastLen>('normal')
   const [config, setConfig] = useState<WorldConfig | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -158,6 +166,10 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
   const recipe = recipes?.find((r) => r.id === recipeId) ?? recipes?.[0]
   const usesCards = recipe?.id === 'from-cards' || alsoCards
   const withDeck = deck ?? profileDeck
+  const withCast = castOn ?? profileCast
+  const factions = castFactions ?? recipe?.cast.factions ?? 3
+  const per = castPer ?? recipe?.cast.per ?? 2
+  const castAsk: WorldCastAsk = { on: withCast, factions, per, len: castLen }
 
   useEffect(() => {
     let live = true
@@ -201,6 +213,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
         ...(recipe.id !== 'from-cards' && alsoCards ? { fromCards: true } : {}),
         ...(langSent ? { lang: langSent } : {}),
         deck: withDeck,
+        cast: castAsk,
         ...(usesCards && !bench ? { bench: false } : {}),
       })
     } catch (e) {
@@ -213,7 +226,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
 
   if (!recipes) return <p className="text-sm text-muted-foreground">{t('chats.panel.loading')}</p>
 
-  const calls = plannedCalls(recipe, !chronicler, withDeck)
+  const calls = plannedCalls(recipe, !chronicler, withDeck, castAsk as { on: boolean; factions: number })
   const langLabel = (c: string) => t(`world.lang.${c}` as MsgKey)
 
   return (
@@ -328,6 +341,29 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
           <span className="min-w-0">{t('world.start.deck')}<span className="block text-xs text-muted-foreground">{t('world.start.deckHint')}</span></span>
           <Switch checked={withDeck} onCheckedChange={setDeck} aria-label={t('world.start.deck')} data-testid="start-deck" />
         </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">{t('world.start.cast')}<span className="block text-xs text-muted-foreground">{t('world.start.castHint')}</span></span>
+            <Switch checked={withCast} onCheckedChange={setCastOn} aria-label={t('world.start.cast')} data-testid="start-cast" />
+          </div>
+          {withCast && (
+            <div className="flex flex-col gap-2.5 rounded-md border border-border bg-muted/30 p-2.5 text-sm" data-testid="start-cast-opts">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span id="start-cast-factions" className="font-medium">{t('world.start.castFactions')}</span>
+                <Segmented label={t('world.start.castFactions')} value={String(factions)} options={[1, 2, 3, 4, 5, 6].map((n) => ({ id: String(n), label: String(n) }))} onChange={(v) => setCastFactions(Number(v))} />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">{t('world.start.castPer')}</span>
+                <Segmented label={t('world.start.castPer')} value={String(per)} options={[1, 2, 3, 4].map((n) => ({ id: String(n), label: String(n) }))} onChange={(v) => setCastPer(Number(v))} />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">{t('world.start.castLen')}</span>
+                <Segmented label={t('world.start.castLen')} value={castLen} options={WORLD_CAST_LENS.map((l) => ({ id: l, label: t(`world.start.castLen.${l}` as MsgKey) }))} onChange={setCastLen} />
+              </div>
+              <p className="text-xs text-muted-foreground">{t('world.start.castLenHint')}</p>
+            </div>
+          )}
+        </div>
         {usesCards && (
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="min-w-0">{t('world.start.bench')}<span className="block text-xs text-muted-foreground">{t('world.start.benchHint')}</span></span>
@@ -359,11 +395,13 @@ function ChatSetup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; 
   const cards = useChatCards(chatId)
   const profiles = useWorldProfiles((s) => s.list)
   const profileDeck = !!profiles?.find((p) => p.id === view.profile)?.options.deck
+  const profileCast = profiles?.find((p) => p.id === view.profile)?.options.castDeck !== false
   return (
     <Setup
       cards={cards}
       allTicked
       profileDeck={profileDeck}
+      profileCast={profileCast}
       chronicler={view.settings.level === 'chronicler'}
       configChatId={chatId}
       onOpenSettings={onOpenSettings}
@@ -423,6 +461,7 @@ export function NewWorldSetup({ onBegun, onOpenSettings }: { onBegun: (worldId: 
         cards={cards}
         allTicked={false}
         profileDeck={!!profile?.options.deck}
+        profileCast={profile?.options.castDeck !== false}
         chronicler={profile?.base === 'chronicler'}
         head={head}
         blocked={!name.trim() || !profile}
@@ -676,6 +715,26 @@ function DraftPanel({ finish, draft, busy, progress, onBuild, onStop, onAccepted
                       <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{t('world.draft.clock', { n: `${f.clock}/${f.size}` })}</span>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{f.goal}</p>
+                  </DraftItem>
+                ))}
+              </ul>
+            </section>
+          )}
+          {(draft.cast?.length ?? 0) > 0 && (
+            <section className="flex flex-col gap-2" data-testid="draft-cast">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('world.draft.cast')}</h4>
+              <ul className="flex flex-col gap-2">
+                {draft.cast.map((c) => (
+                  <DraftItem key={c.id} name={c.name} removed={removed.cast.has(c.id)} onToggle={() => setRemoved((cur) => ({ ...cur, cast: toggled(cur.cast, c.id) }))}>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="min-w-0 break-words font-medium">{c.name}</span>
+                      {c.faction && <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-1.5 py-0.5 text-caption leading-none text-violet-700 dark:text-violet-300">{c.faction}</span>}
+                      {c.tie
+                        ? <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground">{t('world.castdeck.tie', { name: c.tie })}</span>
+                        : <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-caption leading-none text-amber-700 dark:text-amber-300">{t('world.castdeck.loose.tag')}</span>}
+                    </div>
+                    {c.want && <p className="mt-1 break-words text-xs text-muted-foreground">{t('world.castdeck.wants', { want: c.want })}</p>}
+                    <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{c.text}</p>
                   </DraftItem>
                 ))}
               </ul>

@@ -118,8 +118,10 @@ export const RELATIONS = ["ally", "family", "rival", "enemy", "neutral"];
 export const WEIGHTS = [0, 1, 2];
 // how often a person who has been away is brought back (#424); a new chat starts on normal, a chat that had a state file before stays off until the player asks
 export const CAST_FREQ = ["off", "rare", "normal", "often"];
+// the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
+export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1130,6 +1132,10 @@ function cleanSettings(s) {
     castShow: b.castShow === true,
     // the code tidy-up of things that played out (#424, step 3); on unless the player switched it off
     tidy: typeof b.tidy === "boolean" ? b.tidy : DEFAULT_SETTINGS.tidy,
+    // the cast deck (#424, step 4): new people drawn from cards; a file from before it has no value and stays off
+    castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_SETTINGS.castDeck,
+    castPer: Number.isFinite(Number(b.castPer)) && Number(b.castPer) >= 1 ? clamp(Math.round(Number(b.castPer)), 1, CAST_PER_MAX) : DEFAULT_SETTINGS.castPer,
+    castLen: CAST_LENS.includes(b.castLen) ? b.castLen : DEFAULT_SETTINGS.castLen,
   };
 }
 
@@ -1163,6 +1169,9 @@ function cleanEvent(e) {
 }
 
 export const CAST_BANDS = ["small", "medium", "big"];
+// why a card of the deck was drawn: its tie is in the scene, its faction's front is stirred or half full, its faction belongs to the scene's place, or by chance
+const HOOK_MAX = 200;
+const CAST_PICKS = ["tie", "front", "place", "random"];
 const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
 
@@ -1223,6 +1232,11 @@ function cleanEntrance(e) {
     // the die's band was raised to medium because the last return only ended as a mention
     ...(e.floor === true ? { floor: true } : {}),
     via: e.via === "life" ? "life" : "silence",
+    // a person of the cast deck (#424, step 4): the id is the card's, the tie is who already exists, the pick says why this card
+    ...(e.src === "deck" ? { src: "deck" } : {}),
+    ...(e.src === "deck" && str(e.faction) ? { faction: cut(str(e.faction), NAME_MAX) } : {}),
+    ...(e.src === "deck" && str(e.tie) ? { tie: cut(str(e.tie), NAME_MAX) } : {}),
+    ...(e.src === "deck" && CAST_PICKS.includes(e.pick) ? { pick: e.pick } : {}),
     sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
     retried: e.retried === true,
     ...(Number.isInteger(e.n) && e.n >= 0 ? { n: e.n } : {}),
@@ -1236,7 +1250,7 @@ function cleanLastEntrance(e) {
   if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !Number.isInteger(e.n) || e.n < 0) return null;
   // res: came (on stage), mentioned (only named) or missed; an older record has ok only
   const res = CAST_RESULTS.includes(e.res) ? e.res : e.ok === true ? "came" : "missed";
-  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res };
+  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res, ...(e.src === "deck" ? { src: "deck" } : {}) };
 }
 
 function cleanAliases(v, name) {
@@ -1376,6 +1390,8 @@ function cleanEntity(e) {
     ...(link ? { link } : {}),
     // the player switched "bring back automatically" off for this person
     ...(kind === "person" && e.noReturn === true ? { noReturn: true } : {}),
+    // why this person may come back now (the DM wrote it in `returns`; the next entrance uses it once): what they were doing, what they want
+    ...(kind === "person" && isObj(e.hook) && str(e.hook.text) ? { hook: { text: cut(str(e.hook.text), HOOK_MAX), at: Number.isFinite(e.hook.at) ? e.hook.at : 0 } } : {}),
     uid: Number.isInteger(e.uid) && e.uid > 0 ? e.uid : 0,
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     // written or changed by the player by hand (the Records tab)
@@ -1454,6 +1470,12 @@ export function normalizeState(raw, chatId) {
   if (isObj(s.usage)) out.usage = cleanUsage(s.usage, true);
   const deck = cleanDeck(s.deck);
   if (deck.length) out.deck = deck;
+  // the cast deck (#424, step 4): cards of new people, when the last refill was tried, and a log of the refills
+  const cast = cleanCast(s.cast);
+  if (cast.length) out.cast = cast;
+  if (isObj(s.castBuild) && Number.isInteger(s.castBuild.n) && s.castBuild.n >= 0) out.castBuild = { n: s.castBuild.n };
+  const castLog = arr(s.castLog).map(cleanCastLine).filter(Boolean).slice(-CAST_LOG_MAX);
+  if (castLog.length) out.castLog = castLog;
   const draft = cleanDraft(s.draft);
   if (draft) out.draft = draft;
   if (isObj(s.origin) && str(s.origin.kind)) out.origin = s.origin;
@@ -1535,7 +1557,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance", "tidy", "tidyLog"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -2437,7 +2459,7 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
 // cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal" };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal", castDeck: true };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -2454,6 +2476,7 @@ function cleanOptions(o) {
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
     dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_OPTIONS.cast,
+    castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_OPTIONS.castDeck,
   };
 }
 
@@ -2579,7 +2602,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2597,6 +2620,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "World record so far" + (active.length ? "\n" + active.map((e) => (full instanceof Set && !full.has(e.id) ? entityBrief(e) : entityLine(e))).join("\n") : ": empty."),
     ...(full instanceof Set && active.some((e) => !full.has(e.id)) ? [BRIEF_NOTE] : []),
     ...(arr(removed).length ? ["Do not record (the player removed): " + arr(removed).join(", ") + "."] : []),
+    ...(arr(soon).length ? [returnsInput(soon)] : []),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
@@ -2763,7 +2787,7 @@ function firstObject(s, from = 0) {
   return null;
 }
 
-const REPLY_KEYS = ["add", "update", "retire", "carry", "summary", "fronts", "event", "delivered", "direction"];
+const REPLY_KEYS = ["add", "update", "retire", "carry", "summary", "fronts", "event", "delivered", "direction", "returns"];
 
 const tryObject = (body) => {
   try {
@@ -3414,16 +3438,45 @@ export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
  * The people of the bench who are due or will be within `within` replies (one DM cadence): their ids. The DM reads them in
  * full, so a person who is about to come back is not a bare name when the run is made. Nothing when Frequency is off.
  */
-export function benchSoon({ state, msgs, snaps, reg, personIds, freq, within }) {
+export function benchSoon(args) {
+  return benchSoonList(args).map((x) => x.id);
+}
+
+/** The same people with their names and the silence so far: [{ id, name, silence }], for the DM's input (it may say why they come back). */
+export function benchSoonList({ state, msgs, snaps, reg, personIds, freq, within }) {
   if (!CAST_SILENCE[freq]) return [];
-  const ids = [];
+  const out = [];
   for (const rec of state.entities) {
     if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
     const ident = castIdentity(state, reg, rec);
     if (ident.own) continue;
-    if (silenceOf(ident, rec, msgs, snaps, reg, personIds) >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) ids.push(rec.id);
+    const silence = silenceOf(ident, rec, msgs, snaps, reg, personIds);
+    if (silence >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) out.push({ id: rec.id, name: rec.name, silence });
   }
-  return ids;
+  return out;
+}
+
+/** What the DM is told about who may come back soon, and how to say why. Input only: the system prompt does not change. */
+export function returnsInput(soon) {
+  const who = arr(soon).map((x) => x.id + " " + x.name + " (silent " + x.silence + ")").join(", ");
+  return "May come back soon: " + who + '. If you can tell, add to your JSON "returns": [{"id": "n3", "why": "..."}] for them: one short sentence, at most ' + HOOK_MAX + " characters, on what that person was doing meanwhile and what they want now, tied to a front or an open thread. Leave a person out if you have nothing.";
+}
+
+/**
+ * The DM's `returns` become hooks on the people it was told about (and no one else): a person, still on the bench. A hook is a short
+ * plain sentence; the next entrance of that person uses it, once. Returns how many hooks were set.
+ */
+export function applyReturns(state, returns, allowed, now) {
+  let n = 0;
+  for (const raw of arr(returns)) {
+    if (!isObj(raw) || !allowed.has(str(raw.id))) continue;
+    const rec = state.entities.find((e) => e.id === str(raw.id));
+    const text = cut(str(raw.why).replace(/\s+/g, " "), HOOK_MAX);
+    if (!rec || rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true || !text) continue;
+    rec.hook = { text, at: now };
+    n++;
+  }
+  return n;
 }
 
 /**
@@ -3455,9 +3508,135 @@ export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, l
 
 /** The note for the writing model. Firm: the person comes in; the form is the writer's. A second try after a miss is shorter and stricter. */
 export function entranceInsert(en, rec) {
+  if (en.src === "deck" && rec && !en.retried) return deckEntranceInsert(en, rec);
   if (en.retried) return "[CAST: " + en.name + " was left out of the last reply and must appear in this one. The shortest form will do: a message or a call that names them. Never mention this note.]";
-  const line = rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
+  // the DM's reason for this return, when it gave one, stands in place of the record's first sentence
+  const line = rec && rec.hook && str(rec.hook.text) ? " (" + rec.hook.text + ")" : rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
   return "[CAST: " + en.name + line + " has not been around for " + en.silence + " replies. They come into the story in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. If they are far away, only what a message or a call can carry; they know only what they were told. Never mention this note.]";
+}
+
+/** The note for a person of the cast deck: nobody knows them yet; the card says who they are, what they want and who they come through. */
+export function deckEntranceInsert(en, card) {
+  const through = card.tie ? " They know " + card.tie + ", and that is how they come in: through them or because of them." : card.faction ? " They come on behalf of " + card.faction + "." : "";
+  const want = card.want ? " What they want: " + card.want : "";
+  return "[CAST: " + card.name + " is new to the story and comes into it in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". Who they are: " + card.text + want + through + " The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. Nobody has met them before; they know only what they have been told. Never mention this note.]";
+}
+
+/** A text cut at the end of a sentence when one lies in the second half of the room, else at the limit. */
+function cutSentence(text, max) {
+  const t = str(text);
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("… "));
+  return end >= max / 2 ? head.slice(0, end + 1) : head;
+}
+
+/**
+ * A card of the cast deck whose person has come into the story becomes a person record (and a member of its faction's group record), and
+ * the card leaves the deck. A name the world already has (the DM wrote the person meanwhile) is left alone: the card goes, no second record.
+ * Returns the new record or null.
+ */
+export function drawCard(state, card, now) {
+  state.cast = arr(state.cast).filter((c) => c.id !== card.id);
+  if (!state.cast.length) delete state.cast;
+  if (findEntity(state.entities, { name: card.name }) || state.entities.some((e) => namesOf(e).some((x) => card.aliases.some((a) => sameName(a, x)))) || state.entities.length >= ENTITIES_MAX) return null;
+  const rec = cleanEntity({ id: "n" + state.nextId, kind: "person", name: card.name, aliases: card.aliases, text: cutSentence(card.text, state.settings.textMax), status: "active", uid: 0, at: now, ...(card.relation ? { relation: card.relation } : {}) });
+  if (!rec) return null;
+  state.nextId++;
+  state.entities.push(rec);
+  const group = card.faction ? state.entities.find((e) => e.kind === "group" && e.status === "active" && sameName(e.name, card.faction)) : null;
+  if (group) group.members = cleanMembers([...arr(group.members), card.name]);
+  return rec;
+}
+
+/** Is the person a card ties to in the scene now: named in the Dashboard's scene, or a record the cast sees on stage in the newest message. */
+function tieOnStage(state, tie, { msgs, snaps, reg, personIds, present }) {
+  if (!tie) return false;
+  if (arr(present).some((p) => sameName(str(p), tie))) return true;
+  const rec = state.entities.find((e) => e.kind === "person" && e.status === "active" && namesOf(e).some((x) => sameName(x, tie)));
+  return !!rec && silencesOf(castIdentity(state, reg, rec), rec, msgs, snaps, reg, personIds).stage === 0;
+}
+
+/** Is the faction part of the scene's place: the place record lists it among its members or its text names it. */
+function factionAtPlace(place, faction) {
+  if (!place || !faction) return false;
+  if (arr(place.members).some((m) => sameName(str(m), faction))) return true;
+  const re = namesPattern([faction]);
+  return !!re && re.test(str(place.text));
+}
+
+/**
+ * Which card of the deck comes: the one whose tie is in the scene now, then the one whose faction has a front that is stirred or half
+ * full, then one whose faction belongs to the scene's place; what is left is chosen by the seed (a swipe picks the same). { card, pick }.
+ */
+export function pickCard(state, ctx) {
+  const rnd = seededRandom(ctx.seed + "|deckpick");
+  const hot = state.fronts.filter((f) => f.status === "active" && (f.stirred === true || f.clock * 2 >= f.size));
+  let best = null;
+  for (const card of arr(state.cast)) {
+    let score = 0;
+    let pick = "random";
+    if (tieOnStage(state, card.tie, ctx)) {
+      score += 4;
+      pick = "tie";
+    }
+    if (card.faction && hot.some((f) => sameName(f.name, card.faction))) {
+      score += 2;
+      if (pick === "random") pick = "front";
+    }
+    if (factionAtPlace(ctx.place, card.faction)) {
+      score += 1;
+      if (pick === "random") pick = "place";
+    }
+    score += rnd();
+    if (!best || score > best.score) best = { card, pick, score };
+  }
+  return best ? { card: best.card, pick: best.pick } : null;
+}
+
+/**
+ * A new person from the cast deck for this reply, or null. Same ladder as the bench: the Frequency's silence (counted from the last
+ * entrance of any kind), then the 2d6 for the scale; the bench has the first call (the caller asks planEntrance first). Never with the
+ * deck switched off, an empty deck, or while another entrance waits. A card whose name the world got meanwhile is let go here.
+ */
+export function planDeckEntrance({ state, msgs, snaps, reg, personIds, freq, seed, place, present }) {
+  if (state.entrance || !CAST_SILENCE[freq] || state.settings.castDeck !== true || !arr(state.cast).length) return null;
+  const replies = msgs.filter(isReply).length;
+  if (replies < CAST_FIRST) return null;
+  const last = state.lastEntrance;
+  if (last && replies - last.n < castGap(freq, last)) return null;
+  const known = (c) => findEntity(state.entities, { name: c.name }) || state.entities.some((e) => namesOf(e).some((x) => c.aliases.some((a) => sameName(a, x))));
+  if (state.cast.some(known)) {
+    state.cast = state.cast.filter((c) => !known(c));
+    if (!state.cast.length) delete state.cast;
+    if (!arr(state.cast).length) return null;
+  }
+  const silence = replies - (last ? last.n : 0);
+  const threshold = castThreshold(freq, state.chatId, "deck");
+  if (silence < threshold) return null;
+  const got = pickCard(state, { msgs, snaps, reg, personIds, place, present, seed });
+  if (!got) return null;
+  const roll = rollEntrance(seed + "|deck", silence, threshold, 0);
+  const floor = roll.band === "small" && lastWasMention(last);
+  return cleanEntrance({
+    id: got.card.id,
+    src: "deck",
+    name: got.card.name,
+    faction: got.card.faction,
+    tie: got.card.tie,
+    pick: got.pick,
+    band: floor ? "medium" : roll.band,
+    ...(floor ? { floor: true } : {}),
+    roll: roll.total,
+    d: roll.d,
+    mod: roll.mod,
+    weight: 0,
+    threshold,
+    silence,
+    via: "silence",
+    sent: 0,
+    n: replies,
+  });
 }
 
 /**
@@ -3474,8 +3653,10 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   if (i < 0) return null;
   const carrier = msgs.slice(i + 1).find(isReply);
   if (!carrier) return null;
-  const rec = state.entities.find((e) => e.id === en.id);
-  const ident = rec ? castIdentity(state, reg, rec) : null;
+  // a person of the cast deck is judged by their card: nobody of that name is in the book yet
+  const deck = en.src === "deck";
+  const rec = deck ? arr(state.cast).find((c) => c.id === en.id) : state.entities.find((e) => e.id === en.id);
+  const ident = rec ? castIdentity(state, reg, deck ? { id: "", name: rec.name, aliases: rec.aliases } : rec) : null;
   const res = ident && seenIn(ident, rec, carrier, snaps, reg, personIds) ? "came" : ident && namedIn(ident, carrier) ? "mentioned" : "missed";
   const ok = res === "came";
   const n = msgs.filter(isReply).length;
@@ -3484,9 +3665,14 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
     state.entrance = { ...rest, sent: 0, retried: true };
     return { ok, res, again: true, en, carrier: keyOf(carrier) };
   }
-  state.lastEntrance = { id: en.id, n, band: en.band, ok, res };
+  state.lastEntrance = { id: en.id, n, band: en.band, ok, res, ...(deck ? { src: "deck" } : {}) };
+  // the DM's reason for this return was used (or missed): the next one needs a new one
+  if (!deck && rec && rec.hook) delete rec.hook;
   delete state.entrance;
-  return { ok, res, again: false, en, carrier: keyOf(carrier) };
+  // the person is in the story now (on stage or named): the card becomes a record; a miss keeps the card in the deck
+  const drawn = deck && rec && res !== "missed" ? drawCard(state, rec, Date.now()) : null;
+  if (drawn) state.lastEntrance.id = drawn.id;
+  return { ok, res, again: false, en, carrier: keyOf(carrier), ...(drawn ? { drawn } : {}) };
 }
 
 /** Writes the result into the newest log line of this person's entrance that has none: "came" (on stage), "mentioned" (only named), "again" (a stricter second try is queued) or "missed". */
@@ -3504,7 +3690,7 @@ function markCastResult(fsx, chatId, en, result) {
 
 /** One line of the dice log for a person coming back (shown in the log and, with the chat's switch, under the reply): who, why, the dice, what came of it. */
 function castLog(en, extra) {
-  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
+  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.src === "deck" ? { src: "deck", ...(en.faction ? { faction: en.faction } : {}), ...(en.pick ? { pick: en.pick } : {}), ...(en.tie ? { tie: en.tie } : { loose: true }) } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
 }
 
 /** The seed of one reply: the chat, the newest message, how many there are, the op and the swipe; a swipe asks the same question and gets the same dice. */
@@ -3522,7 +3708,7 @@ function castContext(fsx, chatId) {
 function sendEntrance(fsx, state, msgs, op, parts) {
   const en = state.entrance;
   if (!en || en.sent > 0) return false;
-  const rec = state.entities.find((e) => e.id === en.id);
+  const rec = en.src === "deck" ? arr(state.cast).find((c) => c.id === en.id) : state.entities.find((e) => e.id === en.id);
   if (!rec) {
     delete state.entrance;
     saveState(fsx, state);
@@ -3571,6 +3757,34 @@ export function castStatus(fsx, chatId) {
     people,
     // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
     lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
+    // the cast deck: the switch, the cards left (not who they are), by faction, how many have no tie, and when the next new person can start
+    deck: deckStatus(state, freq, replies),
+  };
+}
+
+/** The cast deck as the chat stands: on, cards left by faction, loose cards (no tie), the silence since the last entrance and the one that starts the next, the replies still to wait. */
+export function deckStatus(state, freq, replies) {
+  const cards = arr(state.cast);
+  const by = new Map();
+  for (const c of cards) by.set(c.faction || "", (by.get(c.faction || "") || 0) + 1);
+  const on = state.settings.castDeck === true && freq !== "off";
+  const last = state.lastEntrance;
+  const f = freq === "off" ? "normal" : freq;
+  return {
+    on,
+    switch: state.settings.castDeck === true,
+    left: cards.length,
+    factions: [...by.entries()].map(([name, n]) => ({ name, n })),
+    loose: cards.filter((c) => !c.tie).length,
+    per: state.settings.castPer,
+    len: state.settings.castLen,
+    silence: replies - (last ? last.n : 0),
+    threshold: castThreshold(f, state.chatId, "deck"),
+    wait: on ? Math.max(0, CAST_FIRST - replies, last ? castGap(freq, last) - (replies - last.n) : 0) : 0,
+    // the refill: whether one is due now, the replies since the last try (null = none yet), and the log of tries (newest first)
+    refill: refillDue(state, replies),
+    refillAgo: state.castBuild ? replies - state.castBuild.n : null,
+    log: [...arr(state.castLog)].reverse(),
   };
 }
 
@@ -3607,6 +3821,98 @@ function tidyRoute(req, host) {
     return ok({ ...tidyStatus(fsx, chatId), archived: res.archived.map((e) => e.name), woken: res.woken.map((e) => e.name) });
   }
   return ok(tidyStatus(fsx, chatId));
+}
+
+/**
+ * POST {chatId, force?, lang?}: one build call adds cards to the cast deck (merge, never replace: what the player edited stays). The app calls it
+ * after a DM run when the view says castRefill; `force` is the button in the sheet (no rule, only the room: the deck holds CAST_CARDS_MAX).
+ * The factions with the fewest cards come first, at most CAST_PART of them, castPer people each.
+ */
+function castRefillRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+  const replies = chat.msgs.filter(isReply).length;
+  const force = b.force === true;
+  if (!force && !refillDue(state, replies)) return ok({ ok: true, skipped: "not due" });
+  const room = CAST_CARDS_MAX - arr(state.cast).length;
+  if (room <= 0) return ok({ ok: true, skipped: "full" });
+  const all = castFactions(state.entities, state.fronts);
+  if (!all.length) return ok({ ok: false, error: "the world has no faction to write people for: a group or a front is needed", code: "no-factions" });
+  const count = (f) => arr(state.cast).filter((c) => sameName(c.faction, f.name)).length;
+  const part = [...all].sort((x, y) => count(x) - count(y)).slice(0, CAST_PART);
+  const cfg = loadConfig(fsx);
+  const userName = userNameOf(fsx, chat.meta);
+  const index = tieIndex(state.entities, cardNames(fsx, chat.meta), userName);
+  const have = arr(state.cast).map((c) => c.name);
+  const per = state.settings.castPer;
+  const content = castInput({ entities: state.entities, fronts: state.fronts, factions: part, per, len: state.settings.castLen, index, have, prompt: "", lang: cut(str(b.lang), LANG_MAX) });
+  const built = buildResult(host, "world_cast", buildAsk(host, fsx, cfg, chat.meta, CAST_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  const line = { at: Date.now(), n: replies, factions: part.map((f) => f.name), ...(force ? { forced: true } : {}) };
+  state.castBuild = { n: replies };
+  if (built.error) {
+    state.castLog = [...arr(state.castLog), { ...line, added: 0, error: built.error.code }].slice(-CAST_LOG_MAX);
+    countBuild(state, built, "cast", 0);
+    saveState(fsx, state);
+    return ok({ ok: false, error: built.error.message, code: built.error.code });
+  }
+  const got = castFrom(built.out, { entities: state.entities, index, factions: part, per, have }).slice(0, room);
+  state.cast = cleanCast([...arr(state.cast), ...got]);
+  state.castLog = [...arr(state.castLog), { ...line, added: got.length }].slice(-CAST_LOG_MAX);
+  countBuild(state, built, "cast", got.length);
+  saveState(fsx, state);
+  return ok({ ok: true, added: got.length, left: state.cast.length, ...(got.length ? {} : { none: true }) });
+}
+
+/**
+ * The cards of the cast deck, for the book's "Cast deck" chip: GET lists them; POST {chatId, op: "edit" | "delete", id, ...} changes one.
+ * An edit may change the name, aliases, tie, want and text (a card keeps its faction): a name another card or a record has is refused
+ * (409, code "clash"), and so is a tie nobody goes by (409, code "tie"). The cards are the player's to read and change; the DM never sees them.
+ */
+function castCardsRoute(req, host) {
+  const fsx = host.fs;
+  const b = req.method === "POST" ? body(req) : req.query || {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state, existed } = loadState(fsx, chatId);
+  if (req.method !== "POST") return ok({ cards: cleanCast(state.cast), per: state.settings.castPer, len: state.settings.castLen });
+  if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+  const cards = cleanCast(state.cast);
+  const card = cards.find((c) => c.id === str(b.id));
+  if (!card) return ok({ error: "no such card" }, 404);
+  if (b.op === "delete") {
+    state.cast = cards.filter((c) => c !== card);
+    if (!state.cast.length) delete state.cast;
+    saveState(fsx, state);
+    return ok({ cards: arr(state.cast) });
+  }
+  if (b.op !== "edit") return ok({ error: "op must be edit or delete" }, 400);
+  const patch = {
+    ...(b.name !== undefined ? { name: b.name } : {}),
+    ...(b.aliases !== undefined ? { aliases: b.aliases } : {}),
+    ...(b.want !== undefined ? { want: b.want } : {}),
+    ...(b.text !== undefined ? { text: b.text } : {}),
+  };
+  if (b.tie !== undefined) {
+    const tie = str(b.tie) ? tieOf(tieIndex(state.entities, cardNames(fsx, chat.meta), userNameOf(fsx, chat.meta)), b.tie) : "";
+    if (str(b.tie) && !tie) return ok({ error: "nobody who exists goes by that name", code: "tie" }, 409);
+    patch.tie = tie;
+  }
+  const [next] = cleanCast([{ ...card, ...patch }]);
+  if (!next) return ok({ error: "a card needs a name and a text", code: "empty" }, 400);
+  const taken = cards.some((c) => c !== card && sameName(c.name, next.name)) || (!sameName(card.name, next.name) && !!findEntity(state.entities, { name: next.name }));
+  if (taken) return ok({ error: "that name is taken", code: "clash" }, 409);
+  state.cast = cards.map((c) => (c === card ? { ...next, id: card.id } : c));
+  saveState(fsx, state);
+  return ok({ cards: state.cast });
 }
 
 function castRoute(req, host) {
@@ -3860,6 +4166,12 @@ function diceRoute(req, host) {
  * note (at most HERE_MAX characters), the event (EVENT_MAX) and the dice line, when the chat has a world state. The rows and ids
  * are the ones plugins/engine `hookInsertBreakdown` keeps as its fallback: change them together.
  */
+/** The room the note of a new person from the cast deck can take: the longest card's text and want, plus the frame of the note. 0 with no deck. The engine plugin's table has the same rule: change both. */
+export function deckNoteTokens(set, cards) {
+  if (!isObj(set) || set.castDeck !== true || !Array.isArray(cards) || !cards.length) return 0;
+  return Math.ceil(Math.max(...cards.map((c) => (isObj(c) ? String(c.text || "").length + String(c.want || "").length : 0))) / 3.5) + 110;
+}
+
 export function insertCeiling(ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
@@ -3875,7 +4187,8 @@ export function insertCeiling(ctx, host) {
     rows.push({ id: "world event", tokens: Math.ceil(EVENT_MAX / 3.5) });
     if (set.dice) rows.push({ id: "world dice", tokens: 60 });
   }
-  if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: 160 });
+  // a person coming back: the note; with a deck that has cards, the note of a new person carries the card's text (the longest card's room)
+  if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: Math.max(160, deckNoteTokens(set, w.cast)) });
   return ceilingAnswer(rows);
 }
 /** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
@@ -3935,18 +4248,29 @@ export function llmRequest(ctx, host) {
     if (castCtx && eventsAllowed) {
       const judged = judgeEntrance(state, chat.msgs, castCtx.snaps, castCtx.reg, castCtx.personIds);
       if (judged) {
+        // a person of the cast deck who came is a record now: the registry and the world book learn them here
+        if (judged.drawn && chat) {
+          const rc = openRegistry(fsx, chatId, chat.meta);
+          joinPeople(state, rc);
+          regFlush(fsx, rc);
+          writeBook(fsx, state, str(chat.meta.title));
+          bindBook(fsx, chatId, chat.meta, state.bookId);
+        }
         saveState(fsx, state);
         // what came of it goes into the line the note made, so the log and the mark under the reply say who, why, the dice and the result together
         markCastResult(fsx, chatId, judged.en, judged.res === "missed" && judged.again ? "again" : judged.res);
       }
       // the person is in the scene now, or the player turned the switch off since: let it go
-      const waiting = state.entrance ? state.entities.find((e) => e.id === state.entrance.id) : null;
-      if (state.entrance && (!waiting || waiting.status !== "active" || waiting.noReturn === true)) {
+      const en0 = state.entrance;
+      const waiting = en0 ? (en0.src === "deck" ? arr(state.cast).find((c) => c.id === en0.id) : state.entities.find((e) => e.id === en0.id)) : null;
+      if (en0 && (!waiting || (en0.src === "deck" ? en0.sent === 0 && state.settings.castDeck !== true : waiting.status !== "active" || waiting.noReturn === true))) {
         delete state.entrance;
         saveState(fsx, state);
       }
       if (!eventText && !(state.event && state.event.sent === 0) && !state.entrance) {
-        const plan = planEntrance({ state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) });
+        const args = { state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) };
+        // the bench has the first call; a new person from the deck comes when nobody who exists is due
+        const plan = planEntrance(args) || planDeckEntrance({ ...args, place: scene ? placeRecordOf(state, scene, castCtx.reg) : null, present: scene ? arr(scene.present) : [] });
         if (plan) state.entrance = plan;
       }
       castSent = sendEntrance(fsx, state, chat.msgs, op, parts);
@@ -4117,6 +4441,7 @@ const BUILTIN_RECIPES = [
       { id: "trouble", kinds: ["group", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a threat, a secret or a danger, each as a group (who is behind it, what they hide), and at most one object that matters to the story, with its reason." },
     ],
     fronts: { count: 2, prompt: "Invent the powers that want something from these characters or this place and will move off screen." },
+    cast: { factions: 3, per: 2, prompt: "" },
   },
   {
     id: "interview",
@@ -4136,6 +4461,7 @@ const BUILTIN_RECIPES = [
       { id: "facts", kinds: ["thing"], max: 5, prompt: "Invent the few things this world's story can lean on (a clue, a weapon, a gift, a promise); each needs its reason. Customs, dangers and history belong in the text of the places and groups, not here." },
     ],
     fronts: { count: 3, prompt: "Invent the powers that want something in this world and will move off screen." },
+    cast: { factions: 3, per: 2, prompt: "" },
   },
 ];
 
@@ -4155,9 +4481,12 @@ function cleanRecipe(raw, id) {
   })).filter((s) => s.prompt);
   if (!sections.length) return null;
   const f = isObj(raw.fronts) ? raw.fronts : {};
+  const c = isObj(raw.cast) ? raw.cast : {};
   return {
     id, name: cut(str(raw.name), NAME_LEN) || id, description: cut(str(raw.description), DESC_LEN), mode: raw.mode === "invent" ? "invent" : "learn", questions, sections,
     fronts: { count: clamp(Math.round(num(f.count)), 0, FRONTS_MAX), prompt: cut(str(f.prompt), 1000) },
+    // the cast deck (#424, step 4): how many factions a Start writes new people for, how many each, and the recipe's own words for it
+    cast: { factions: c.factions === undefined ? 3 : clamp(Math.round(num(c.factions)), 0, CAST_FACTIONS_MAX), per: c.per === undefined ? DEFAULT_SETTINGS.castPer : clamp(Math.round(num(c.per)), 1, CAST_PER_MAX), prompt: cut(str(c.prompt), 1000) },
   };
 }
 
@@ -4389,8 +4718,8 @@ export function frontsInput({ entities, recipe, answers, lang }) {
   ].join("\n\n");
 }
 
-/** The calls a start makes, in order: one per (section, chunk), then the fronts call when the recipe asks for any. */
-export function startPlan(recipe, chunks, withFronts) {
+/** The calls a start makes, in order: one per (section, chunk), then the fronts call when the recipe asks for any, then the cast deck's calls (`castParts`). */
+export function startPlan(recipe, chunks, withFronts, castParts = 0) {
   const steps = [];
   for (const s of recipe.sections) {
     // an inventing recipe reads the brief once per section, not every chunk of the cards
@@ -4399,6 +4728,8 @@ export function startPlan(recipe, chunks, withFronts) {
     else steps.push({ section: s.id, chunk: -1 });
   }
   if (withFronts && recipe.fronts.count > 0) steps.push({ fronts: true });
+  // the cast deck's cards: one call per CAST_PART factions, after the fronts so the factions are there
+  for (let i = 0; i < castParts; i++) steps.push({ cast: true, part: i });
   return steps;
 }
 
@@ -4449,11 +4780,92 @@ export function cleanDeck(v) {
   return out;
 }
 
+// ---------- the cast deck (#424, step 4): cards of people the story has not met ----------
+// A card: who (name, aliases), the faction it belongs to, the one person who already exists that ties it to the story (tie),
+// what it wants, and its text (look, character, goals, a hook for how it comes in). It is not in the prompt until it is drawn.
+export const CAST_CARDS_MAX = 24;
+export const CAST_PER_MAX = 4;
+export const CAST_FACTIONS_MAX = 6;
+const CAST_TEXT_MAX = 1200;
+const CAST_WANT_MAX = 200;
+const CAST_ALIASES_MAX = 4;
+const CAST_ID = /^c\d{1,6}$/;
+const CAST_LOG_MAX = 40;
+
+function cleanCastCard(c) {
+  if (!isObj(c)) return null;
+  const name = cut(str(c.name), NAME_MAX);
+  const text = cut(str(c.text), CAST_TEXT_MAX);
+  if (!name || !text) return null;
+  return {
+    id: CAST_ID.test(str(c.id)) ? str(c.id) : "",
+    name,
+    aliases: cleanAliases(c.aliases, name).slice(0, CAST_ALIASES_MAX),
+    faction: cut(str(c.faction), NAME_MAX),
+    tie: cut(str(c.tie), NAME_MAX),
+    want: cut(str(c.want), CAST_WANT_MAX),
+    text,
+    ...(RELATIONS.includes(c.relation) ? { relation: c.relation } : {}),
+  };
+}
+
+/** The next free card id ("c1", "c2"...) of a list. */
+export const nextCastId = (list) => "c" + (arr(list).reduce((m, c) => Math.max(m, Number(str(c && c.id).slice(1)) || 0), 0) + 1);
+
+/** The cards of the cast deck: each with a name and a text, a name once, an id each (a missing or doubled id gets a new one), at most CAST_CARDS_MAX. */
+export function cleanCast(v) {
+  const out = [];
+  for (const raw of arr(v)) {
+    const c = cleanCastCard(raw);
+    if (!c || out.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) continue;
+    if (!c.id || out.some((x) => x.id === c.id)) c.id = nextCastId(out);
+    out.push(c);
+    if (out.length >= CAST_CARDS_MAX) break;
+  }
+  return out;
+}
+
+/** One line of the refill log: when, at which reply, how many cards came, for which factions, an error code if the call failed, and whether the player asked for it. */
+function cleanCastLine(l) {
+  if (!isObj(l) || !Number.isFinite(l.at)) return null;
+  return {
+    at: l.at,
+    n: Number.isInteger(l.n) && l.n >= 0 ? l.n : 0,
+    added: Number.isInteger(l.added) && l.added >= 0 ? l.added : 0,
+    factions: arr(l.factions).map((x) => cut(str(x), NAME_MAX)).filter(Boolean).slice(0, CAST_FACTIONS_MAX * 2),
+    ...(str(l.error) ? { error: cut(str(l.error), 40) } : {}),
+    ...(l.forced === true ? { forced: true } : {}),
+  };
+}
+
+// the refill (#424, step 4): below this many cards a DM run asks the app for one background build call; after a try, this many replies pass before the next
+const CAST_REFILL_MIN = 3;
+const CAST_REFILL_EVERY = 10;
+
+/** Is the deck due for a refill: the switch and the cast are on, fewer than CAST_REFILL_MIN cards are left, there is a faction to write for, and the last try is CAST_REFILL_EVERY replies old (or there was none). */
+export function refillDue(state, replies) {
+  const freq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+  if (freq === "off" || state.settings.castDeck !== true) return false;
+  if (arr(state.cast).length >= CAST_REFILL_MIN) return false;
+  if (!castFactions(state.entities, state.fronts).length) return false;
+  return !state.castBuild || replies - state.castBuild.n >= CAST_REFILL_EVERY;
+}
+
+/** What a Start asks of the cast deck: how many factions, how many people each, how long a card is. */
+export function cleanCastOpts(o) {
+  const b = isObj(o) ? o : {};
+  return {
+    factions: Number.isFinite(Number(b.factions)) ? clamp(Math.round(Number(b.factions)), 1, CAST_FACTIONS_MAX) : 3,
+    per: Number.isFinite(Number(b.per)) ? clamp(Math.round(Number(b.per)), 1, CAST_PER_MAX) : DEFAULT_SETTINGS.castPer,
+    len: CAST_LENS.includes(b.len) ? b.len : DEFAULT_SETTINGS.castLen,
+  };
+}
+
 function cleanDraft(d) {
   if (!isObj(d) || !str(d.recipe)) return null;
   const entities = arr(d.entities).map(cleanEntity).filter(Boolean);
   const fronts = arr(d.fronts).map(cleanFront).filter(Boolean);
-  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : s.bench ? { bench: true } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
+  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : s.bench ? { bench: true } : s.cast ? { cast: true, part: clamp(Math.round(num(s.part)), 0, CAST_FACTIONS_MAX) } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
   return {
     recipe: str(d.recipe),
     cardIds: arr(d.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id)),
@@ -4464,12 +4876,14 @@ function cleanDraft(d) {
     entities, nextId: Math.max(Number.isInteger(d.nextId) ? d.nextId : 1, entities.length + 1),
     fronts, nextFront: Math.max(Number.isInteger(d.nextFront) ? d.nextFront : 1, fronts.length + 1),
     deck: cleanDeck(d.deck),
+    cast: cleanCast(d.cast),
+    ...(isObj(d.castOpts) ? { castOpts: cleanCastOpts(d.castOpts) } : {}),
     at: num(d.at) || Date.now(),
     ...(isObj(d.error) && str(d.error.message) ? { error: cleanError(d.error) } : {}),
   };
 }
 
-const draftView = (d) => (d ? { recipe: d.recipe, cardIds: d.cardIds, lang: d.lang, total: d.steps.length, done: d.done, entities: d.entities, fronts: d.fronts, deck: d.deck, at: d.at, error: d.error || null } : null);
+const draftView = (d) => (d ? { recipe: d.recipe, cardIds: d.cardIds, lang: d.lang, total: d.steps.length, done: d.done, entities: d.entities, fronts: d.fronts, deck: d.deck, cast: d.cast, castOpts: d.castOpts || null, at: d.at, error: d.error || null } : null);
 
 /** The answer of a build call: the parsed object, or an error to keep (one retry on a rate limit or a reply all thinking). */
 function buildResult(host, key, ask, stash) {
@@ -4609,14 +5023,19 @@ function startRoute(req, host) {
     if (usesCards && !chunks.length) return ok({ error: "the chosen cards have nothing to learn from", code: "no-text" }, 409);
     const profile = profileFor(fsx, state.settings);
     const withDeck = b.deck === true || (b.deck !== false && !!(profile && profile.options && profile.options.deck));
-    const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler");
+    // the cast deck (#424, step 4): on unless the player or the profile says no; the numbers are the player's, else the recipe's
+    const castAsk = isObj(b.cast) ? b.cast : {};
+    const withCast = b.cast === false ? false : typeof castAsk.on === "boolean" ? castAsk.on : !(profile && profile.options && profile.options.castDeck === false);
+    const castOpts = cleanCastOpts({ factions: castAsk.factions !== undefined ? castAsk.factions : recipe.cast.factions, per: castAsk.per !== undefined ? castAsk.per : recipe.cast.per, len: castAsk.len });
+    const castParts = withCast && castOpts.factions > 0 ? Math.ceil(castOpts.factions / CAST_PART) : 0;
+    const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler", castParts);
     if (withDeck) steps.push({ deck: true });
     // the people the cards' lorebooks already have are adopted as linked records (#424); before the fronts, so they can use them
     if (usesCards && b.bench !== false && benchEntries(fsx, t.chat ? meta : { cardIds }).length) {
       const at = steps.findIndex((x) => x.fronts);
       steps.splice(at < 0 ? steps.length : at, 0, { bench: true });
     }
-    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, at: Date.now() });
+    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, ...(castParts ? { castOpts } : {}), at: Date.now() });
     t.save(state);
     return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
   }
@@ -4634,9 +5053,26 @@ function startRoute(req, host) {
   let system;
   let content;
   let benchEntriesNow = [];
-  if (step.fronts || step.deck || step.bench) {
+  let castNow = null;
+  if (step.fronts || step.deck || step.bench || step.cast) {
     const entities = [...state.entities, ...draft.entities];
-    if (step.bench) {
+    if (step.cast) {
+      // the factions of this part (groups first, then fronts, the first `factions` of them), with who already exists for the ties
+      const opts = draft.castOpts || cleanCastOpts({});
+      const fronts = [...state.fronts, ...draft.fronts];
+      const part = castFactions(entities, fronts).slice(0, opts.factions).slice(step.part * CAST_PART, (step.part + 1) * CAST_PART);
+      // a world with fewer factions than asked has nothing to write for this part: no call
+      if (!part.length) {
+        draft.done++;
+        delete draft.error;
+        state.draft = draft;
+        t.save(state);
+        return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(draft) });
+      }
+      castNow = { index: tieIndex(entities, cards, userName), factions: part, per: opts.per, have: [...arr(state.cast), ...draft.cast].map((c) => c.name), entities };
+      system = CAST_SYSTEM;
+      content = castInput({ entities, fronts, factions: part, per: opts.per, len: opts.len, index: castNow.index, have: castNow.have, prompt: recipe.cast.prompt, lang: draft.lang });
+    } else if (step.bench) {
       benchEntriesNow = benchEntries(fsx, chat.meta);
       system = BENCH_SYSTEM;
       content = benchInput({ entries: benchEntriesNow, userName, cards, lang: draft.lang });
@@ -4673,6 +5109,10 @@ function startRoute(req, host) {
       changes = applyLevel(pseudo, { fronts: adds }, { level: "living", catchingUp: true });
       draft.fronts = pseudo.fronts;
       draft.nextFront = pseudo.nextFront;
+    } else if (step.cast) {
+      const cardsOut = castFrom(built.out, castNow);
+      draft.cast = cleanCast([...draft.cast, ...cardsOut]);
+      changes = cardsOut.length;
     } else if (step.deck) {
       const cardsOut = deckFrom(built.out, DECK_MAX);
       if (cardsOut.length) draft.deck = cardsOut.map((c, i) => ({ id: "e" + (i + 1), text: c.text }));
@@ -4688,6 +5128,92 @@ function startRoute(req, host) {
   state.draft = draft;
   t.save(state);
   return ok({ ok: !built.error, ...(t.worldId ? { worldId: t.worldId } : {}), ...(built.error ? { error: draft.error.message, code: draft.error.code } : {}), draft: draftView(draft) });
+}
+
+// ---------- the cast deck's build (#424, step 4) ----------
+// One call writes the cards for up to CAST_PART factions. A faction is a group record or a front. Every card names one person who
+// already exists (its tie: a record, a card of the chat, the user's character) and wants something of its own. The code reads the
+// answer: a name the world already has is skipped, a faction that is not asked for is skipped, a tie that is not found is left empty.
+const CAST_PART = 4;
+const CAST_LEN_TEXT = { short: "5 to 6 sentences", normal: "6 to 8 sentences", long: "8 to 10 sentences" };
+
+export const CAST_SYSTEM = [
+  "You build the world of a roleplay story. Write cards for new people the story has not met yet: each one belongs to a faction of the world and can be brought in later, when the story needs someone new.",
+  "- Each person belongs to one of the factions you are asked for (write the faction exactly as given).",
+  "- Each person is tied to ONE person who already exists: write that person's name exactly as listed under 'Who already exists'. Say in the text how they know each other (a cousin, a debtor, a rival, a former pupil).",
+  "- Each person wants something of their own, besides what the faction wants: give it in 'want', a short phrase that goes after the word 'wants' (for example 'the pass closed before winter').",
+  "- 'text': the person's look, character, goals and fears, how they know the tie, and a hook for how they might first enter the story (an errand, a message, a visit). Plain sentences, no story, no lines of dialogue.",
+  "- Never contradict the world record or the cards; never reuse a name from the record or the deck. Names and the setting must fit the genre and the tone of the world.",
+  "- 'aliases': up to 3 short names or nicknames the story could use. 'relation' to the user's character: ally, family, rival, enemy or neutral.",
+  "- Only the JSON keys and the relation words are English.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"cast":[{"faction":"...","name":"...","aliases":["..."],"tie":"...","want":"...","text":"...","relation":"neutral"}]}',
+].join("\n");
+
+/** The factions the cast deck writes for: the active group records first, then the active fronts that are not named like one. [{ name, kind, text }] */
+export function castFactions(entities, fronts) {
+  const out = [];
+  const add = (name, kind, text) => {
+    if (name && !out.some((x) => sameName(x.name, name))) out.push({ name, kind, text: str(text) });
+  };
+  for (const e of arr(entities)) if (e.kind === "group" && e.status === "active") add(e.name, "group", e.text);
+  for (const f of arr(fronts)) if (f.status === "active") add(f.name, "front", f.goal);
+  return out;
+}
+
+/** Who already exists, for ties: the chat's cards, the user's character and the active person records. [{ name, names }] */
+export function tieIndex(entities, cards, userName) {
+  const list = [];
+  for (const c of arr(cards)) list.push({ name: c, names: [c] });
+  if (userName) list.push({ name: userName, names: [userName] });
+  for (const e of arr(entities)) if (e.kind === "person" && e.status === "active") list.push({ name: e.name, names: namesOf(e) });
+  return list;
+}
+
+/** The name a model wrote as a tie, as the world spells it; "" when nobody who exists goes by it. */
+export function tieOf(index, said) {
+  const t = str(said).toLowerCase();
+  if (!t) return "";
+  const hit = arr(index).find((x) => x.names.some((n) => n.toLowerCase() === t));
+  return hit ? hit.name : "";
+}
+
+/** The user message of a cast call: the record, the fronts, the factions asked for, who exists, who is in the deck, the task. */
+export function castInput({ entities, fronts, factions, per, len, index, have, prompt, lang }) {
+  const active = arr(fronts).filter((f) => f.status === "active");
+  return [
+    "World record\n" + (arr(entities).filter((e) => e.status === "active").map(entityLine).join("\n") || "empty"),
+    "Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none"),
+    "Factions to write people for\n" + factions.map((f) => "- " + f.name + " (" + f.kind + ")").join("\n"),
+    "Who already exists (a tie is one of these names, exactly)\n" + (arr(index).map((x) => x.name).join(", ") || "nobody"),
+    ...(arr(have).length ? ["Already in the deck (do not repeat)\n" + have.join(", ")] : []),
+    "Task: " + (prompt ? prompt + " " : "") + "For each faction above write " + per + " new " + (per === 1 ? "person" : "people") + ", " + (CAST_LEN_TEXT[len] || CAST_LEN_TEXT.normal) + " of text each.",
+    "Write names and text in " + (lang || "the language of the record") + ".",
+  ].join("\n\n");
+}
+
+/** The cards of a cast answer: only the factions asked for, at most `per` each, a name the world, the cards or the deck already have is skipped, a tie nobody goes by is left empty. No ids yet. */
+export function castFrom(out, ctx) {
+  const taken = new Set();
+  for (const e of arr(ctx.entities)) for (const x of namesOf(e)) taken.add(x.toLowerCase());
+  for (const x of arr(ctx.index)) for (const y of x.names) taken.add(y.toLowerCase());
+  for (const x of arr(ctx.have)) taken.add(str(x).toLowerCase());
+  const counts = new Map();
+  const cards = [];
+  for (const raw of arr(isObj(out) ? out.cast : null)) {
+    if (!isObj(raw) || cards.length >= ctx.factions.length * ctx.per) continue;
+    const said = str(raw.faction).toLowerCase();
+    const faction = said ? ctx.factions.find((f) => f.name.toLowerCase() === said) || ctx.factions.find((f) => f.name.toLowerCase().includes(said) || said.includes(f.name.toLowerCase())) : null;
+    const name = cut(str(raw.name), NAME_MAX);
+    if (!faction || !name || taken.has(name.toLowerCase()) || (counts.get(faction.name) || 0) >= ctx.per) continue;
+    const [card] = cleanCast([{ name, aliases: arr(raw.aliases).filter((a) => !taken.has(str(a).toLowerCase())), faction: faction.name, tie: tieOf(ctx.index, raw.tie), want: raw.want, text: raw.text, relation: raw.relation }]);
+    if (!card) continue;
+    card.id = "";
+    taken.add(name.toLowerCase());
+    counts.set(faction.name, (counts.get(faction.name) || 0) + 1);
+    cards.push(card);
+  }
+  return cards;
 }
 
 export function deckInput({ entities, fronts, lang }) {
@@ -4742,6 +5268,13 @@ function draftRoute(req, host) {
     let n = nextDeckId(kept);
     state.deck = [...kept, ...deck.map((c) => ({ id: "e" + n++, text: c.text }))].slice(-DECK_MAX * 2);
   }
+  // the cards of new people that were kept: new ids, a name once, never a person the world already has; the Start's numbers become the chat's
+  const castKept = draft.cast.filter((c) => !gone(drop.cast, c.id));
+  if (castKept.length) {
+    const have = cleanCast(state.cast);
+    state.cast = cleanCast([...have, ...castKept.filter((c) => !have.some((x) => sameName(x.name, c.name)) && !findEntity(state.entities, { name: c.name })).map((c) => ({ ...c, id: "" }))]);
+  }
+  if (draft.castOpts) state.settings = cleanSettings({ ...state.settings, castDeck: true, castPer: draft.castOpts.per, castLen: draft.castOpts.len });
   state.origin = { kind: draft.recipe === "from-cards" ? "cards" : "recipe", recipe: draft.recipe, cardIds: draft.cardIds, at: now };
   delete state.draft;
   if (t.worldId) {
@@ -4953,11 +5486,11 @@ function cleanWorld(raw, id) {
     v: 1, id, name: cut(str(raw.name), NAME_LEN) || "World", description: cut(str(raw.description), DESC_LEN),
     at: num(raw.at) || Date.now(),
     from: isObj(raw.from) ? { chatId: str(raw.from.chatId), title: cut(str(raw.from.title), 120) } : null,
-    settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck),
+    settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck), cast: cleanCast(raw.cast),
     ...(FOLDER_ID.test(str(raw.backgroundFolderId)) ? { backgroundFolderId: str(raw.backgroundFolderId) } : {}),
   };
 }
-const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, backgroundFolderId: w.backgroundFolderId || null, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length });
+const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, backgroundFolderId: w.backgroundFolderId || null, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length, cast: w.cast.length });
 
 export function listWorlds(fsx) {
   let files = [];
@@ -5031,7 +5564,7 @@ function carryRoute(req, host) {
     origin = src && { kind: "library", worldId: src.id, name: src.name };
   } else if (CHAT_ID.test(str(b.fromChatId)) && str(b.fromChatId) !== toChatId) {
     const { state: from, existed } = loadState(fsx, str(b.fromChatId));
-    src = existed ? { ...from, deck: cleanDeck(from.deck) } : null;
+    src = existed ? { ...from, deck: cleanDeck(from.deck), cast: cleanCast(from.cast) } : null;
     origin = src && { kind: "chat", chatId: str(b.fromChatId), title: str(readJson(fsx, "chats/" + str(b.fromChatId) + ".meta.json", {}).title) };
   }
   if (!src) return ok({ error: "no such world" }, 404);
@@ -5042,6 +5575,8 @@ function carryRoute(req, host) {
   state.entities = src.entities.map((e) => ({ ...e, uid: 0 }));
   state.fronts = src.fronts;
   state.deck = cleanDeck(src.deck);
+  // the cards of new people come along, as the world stands: the ones already drawn are records by now
+  state.cast = cleanCast(src.cast);
   const s = normalizeState(state, toChatId);
   s.deck = state.deck;
   s.origin = { ...origin, at: Date.now() };
@@ -5427,6 +5962,10 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     // Start: a draft in progress, how many deck cards are left (not their text), where the world came from
     draft: draftView(state.draft || null),
     deck: arr(state.deck).length,
+    // the cast deck: how many cards of new people are left (not who they are)
+    cast: arr(state.cast).length,
+    // the app calls POST /world/cast/refill once after a run when this is true
+    castRefill: refillDue(state, msgs.filter(isReply).length),
     origin: state.origin || null,
     backgroundFolderId: state.backgroundFolderId || null,
   };
@@ -5458,8 +5997,8 @@ export function startSettings(fsx, settings, cfg) {
   const id = (cfg || loadConfig(fsx)).defaultProfile;
   const p = id ? loadProfile(fsx, id) : null;
   // a new chat brings people back from the start (#424): the profile's Frequency, else Normal
-  if (!p) return { ...settings, level: "chronicler", cast: settings.cast === "off" ? DEFAULT_OPTIONS.cast : settings.cast };
-  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id, cast: p.options && CAST_FREQ.includes(p.options.cast) ? p.options.cast : DEFAULT_OPTIONS.cast });
+  if (!p) return { ...settings, level: "chronicler", cast: settings.cast === "off" ? DEFAULT_OPTIONS.cast : settings.cast, castDeck: DEFAULT_OPTIONS.castDeck };
+  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id, cast: p.options && CAST_FREQ.includes(p.options.cast) ? p.options.cast : DEFAULT_OPTIONS.cast, castDeck: p.options && typeof p.options.castDeck === "boolean" ? p.options.castDeck : DEFAULT_OPTIONS.castDeck });
 }
 
 /** Where a DM that starts now begins reading: the last few messages, not the whole story. */
@@ -5494,7 +6033,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}), ...(e.hook ? { hook: e.hook } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -5542,7 +6081,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -5559,8 +6098,10 @@ function settingsRoute(req, host) {
   if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) state.lastKey = startKeyOf(chat.msgs, next);
   // a DM switched on for the first time brings people back too, unless the request says otherwise
   if (fresh && next.level !== "off" && b.cast === undefined && next.cast === "off") next.cast = DEFAULT_OPTIONS.cast;
+  // and draws new people from the cast deck (the player's own word on the switch stays)
+  if (fresh && next.level !== "off" && b.castDeck === undefined) next.castDeck = DEFAULT_OPTIONS.castDeck;
   // switched off, or a level with no state worth carrying: nothing waits to be sent
-  if (next.cast === "off" || next.level === "off") delete state.entrance;
+  if (next.cast === "off" || next.level === "off" || (!next.castDeck && state.entrance && state.entrance.src === "deck" && !(state.entrance.sent > 0))) delete state.entrance;
   // a level with no events drops a waiting one
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
   state.settings = next;
@@ -5693,14 +6234,15 @@ function updateRoute(req, host) {
   // the records the DM reads in full this run; the others go in as one line (see fullRecordIds). The set is the same for a retry.
   const runFreq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
   const runCast = runFreq !== "off" ? castContext(fsx, chatId) : null;
-  const soon = runCast ? benchSoon({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const soonWho = runCast ? benchSoonList({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const soon = soonWho.map((x) => x.id);
   const fullIds = fullRecordIds(state, { story: take.msgs.map((m) => str(m.text)).join("\n"), scene, reg: runReg.reg, soon });
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -5752,6 +6294,8 @@ function updateRoute(req, host) {
   const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
   const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
   regFlush(fsx, rc);
+  // the reasons the DM gave for people who may come back soon (only for those it was told about)
+  applyReturns(state, out.returns, new Set(soon), Date.now());
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
   // a full run showed the DM the fronts stirred by the last ticks; they are let go before the new ticks
@@ -6099,6 +6643,8 @@ export function handleRoute(req, host) {
   if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
   if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
   if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
+  if (path === "/world/cast/refill" && req.method === "POST") return castRefillRoute(req, host);
+  if (path === "/world/cast/cards" && (req.method === "GET" || req.method === "POST")) return castCardsRoute(req, host);
   if (path === "/world/tidy" && (req.method === "GET" || req.method === "POST")) return tidyRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);

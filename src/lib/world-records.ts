@@ -4,12 +4,13 @@ import type { WorldKind, WorldRecord } from '@/lib/world'
 
 /** The kinds the form offers and the book writes; an old note ('fact') is read and moved, never written. */
 export const KINDS: WorldKind[] = ['person', 'place', 'group', 'thing']
-/** What the book list can show: every active record, one kind, the old notes, or what is not active (retired or tidied up). */
-export type BookFilter = WorldKind | 'all' | 'archive'
+/** What the book list can show: every active record, one kind, the old notes, what is not active (retired or tidied up), or the cards of the cast deck (not records: the list shows them itself). */
+export type BookFilter = WorldKind | 'all' | 'archive' | 'cast'
 /** The text limits the plugin enforces: an active record, a retired one. */
 export const TEXT_LIMIT = { active: 600, past: 240 } as const
 
 export function filterRecords(records: WorldRecord[], filter: BookFilter, query: string): WorldRecord[] {
+  if (filter === 'cast') return []
   const q = query.trim().toLowerCase()
   const hit = (r: WorldRecord) => !q || [r.name, ...r.aliases, r.text].some((n) => n.toLowerCase().includes(q))
   return records
