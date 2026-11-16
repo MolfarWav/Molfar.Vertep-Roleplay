@@ -702,19 +702,28 @@ player switches it on for that chat. It writes:
     off). `status` may be `dormant` (put to rest by the tidy-up of a later release: out of the book, off the bench; `restore` wakes it). Settings:
     `cast` (`off` | `rare` | `normal` | `often`; absent = `off`, so a file from before stays off; a new chat starts on the profile's `options.cast`,
     default `normal`) and `castShow` (a mark under the reply, for testing). State: `entrance` (a person coming back: `{ id, name, band: small | medium
-    | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, after?, sentAt? }`; one at a time, rides like the
+    | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, seen?, floor?, after?, sentAt? }`; one at a time, rides like the
     event: `sent` counts the replies that carried it, `after` is the message the carrier followed, a carrier that is gone sends it again) and
-    `lastEntrance` (`{ id, n, band, ok }`, the gap before the next one is counted from `n`, the number of replies then). Both are in the
-    rollback's core keys. A person is seen in a message when the Dashboard's scene for it names them (the registry id first, else the name) or the text
-    names them (a name or alias; a name the registry gives to someone else is dropped). Silence = replies since, looking back 400 messages.
+    `lastEntrance` (`{ id, n, band, ok, res }`, `res` = `came` | `mentioned` | `missed` and `ok` is true only for `came`; an older file with `ok` alone reads as came or missed; the gap before the next one is counted from `n`, the number of replies then). Both are in the
+    rollback's core keys. A person is on stage in a message when the Dashboard's scene for it names them (the registry id first, else the name; a far person who texts or calls is in
+    the scene too, with a `contact`). A message with no Dashboard snapshot counts by its text instead: a name or alias (a name the registry gives to someone else is
+    dropped). With a snapshot a name in the text is only a mention (4.132.2). Two silences, looking back 400 messages: `stage` = replies since the person was last on
+    stage (it drives the threshold and the roll) and `mentioned` = replies since they were last named or on stage (shown, never more than `stage`). Without a
+    Dashboard the two are the same. The judge reads the carrier reply: on stage = `came`; only named (needs a snapshot) = `mentioned`, no second try; neither = a
+    stricter second try, then `missed`. After a medium or big return that ended as `mentioned` the gap to the next one is half (rounded up) and its band is at
+    least medium (`floor: true` on the entrance; the die's own roll is kept).
     Threshold: Rare 60, Normal 30, Often 15, times 0.75 to 1.25 fixed per person and chat. Roll: 2d6 + 0 to 3 (a step per half threshold of
     silence past it) + weight; 6 or less small, 7 to 9 medium, 10 and more big; the Life die gives its tier's band (minor small, notable medium, major big).
     Each return is a line of `world/dice/<chatId>.json`: `{ kind: "cast", id, who, via, band, silence, threshold, weight, d, mod, total, tier?, retried?,
-    result?: came | again | missed, n, last, lastSwipes, op, inserted }`.
+    result?: came | mentioned | again | missed, seen?, floor?, n, last, lastSwipes, op, inserted }`.
   - Routes: `POST /world/bench {chatId, lang?}` (one build call over the enabled, non-secret entries of the chat's cards' books; `people: [{ entry, name,
     aliases, line, relation, weight }]`; adds linked records or the link to a record the world already has) and `GET /world/cast?chatId=` (Frequency, each
     person's silence and threshold, the entrance, the last one, how many entries could be adopted). The Start draft gets a step `{ bench: true }` (before the
     fronts) unless `bench: false` is sent.
+  - The DM's input (4.132.2). `dmInput` takes a Set of record ids (`full`, built by `fullRecordIds`) and sends only those in full; every other active record is one
+    line `id · kind · name` followed by one sentence saying so. In full: records named in the new part of the story (name or alias), pinned ones, the scene's place
+    with its parent and spots, things placed there or held by people in the scene, the people in the scene, and bench people due within one `everyN` of their
+    threshold (`benchSoon`, on the silence on stage; nothing when the cast is off). The DM can still change or retire any record by id. No Set = every record in full.
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.

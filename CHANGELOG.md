@@ -4,6 +4,9 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Changed: **the World DM reads only the records that matter in full (Molfar.Vertep#424, step 2.5).** Every run sent the whole world book, so a book of eighty records (most of them things) cost thousands of tokens each time. Now the DM gets full text only for records the new messages name, the scene's place and what lies there, the people in the scene, pinned records and people who are about to come back; every other record is one line (id, kind, name). The DM can still change or retire any record by its id.
+- Fixed: **a one-line mention no longer counts as a person coming back (#424).** With the Dashboard on, a name in the text is only a mention: the person is on stage when the Dashboard puts them in the scene (a far person who texts or calls is in it too). The silence the cast counts is the one on stage, so "Mira texted: hi" does not buy another thirty replies. The log, the card and the mark under the reply say **came** or **only mentioned**; a medium or big return that ended as a mention brings the next one after half the usual pause and at least medium. Without the Dashboard nothing changes. Not tried on a live model or in a browser yet.
+
 ## 4.132.1 (2026-11-16)
 
 - Changed: **the guide pages "Dashboard" and "World DM" are translated again in all 13 languages**, with the paragraph on correcting things by hand and the section on people coming back (they showed English after 4.131.0 and 4.132.0). Only the new passages were translated, by a cheap model; the Ukrainian and Russian ones were read, the rest were checked by code for their labels and layout.
