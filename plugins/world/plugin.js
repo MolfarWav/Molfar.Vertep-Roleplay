@@ -2443,13 +2443,16 @@ export function listProfiles(fsx) {
 
 const spaceNote = (e) => (e.kind === "place" && e.inside ? " [" + (e.size === "spot" ? "spot of " : "in ") + e.inside + "]" : e.kind === "thing" ? (e.holder ? " [held by " + e.holder + "]" : e.place ? " [at " + e.place + "]" : "") : "");
 const entityLine = (e) => e.id + " · " + e.kind + " · " + e.name + spaceNote(e) + (e.aliases.length ? " (" + e.aliases.join(", ") + ")" : "") + ": " + e.text;
+// a record the DM does not need to read in full this run: one line, enough to find it by id (#424, step 2.5)
+const entityBrief = (e) => e.id + " · " + e.kind + " · " + e.name;
+const BRIEF_NOTE = "Records listed by name only are known to you but not shown in full here; to change or retire one, use its id as usual.";
 const carryLine = (who, c) => who + ": wearing " + (c.wearing.join(", ") || "-") + "; carried " + (c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")).join(", ") || "-") + "; nearby " + (c.nearby.join(", ") || "-");
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2463,7 +2466,9 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
   return [
     "Characters with their own cards (do not record): " + (cards.length ? cards.join(", ") : "none") + ".",
     "The user's character (do not record): " + (userName || "the user") + ".",
-    "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
+    // `full` (a Set of ids, see fullRecordIds): only these are read in full, the others are one line each; no Set = all in full
+    "World record so far" + (active.length ? "\n" + active.map((e) => (full instanceof Set && !full.has(e.id) ? entityBrief(e) : entityLine(e))).join("\n") : ": empty."),
+    ...(full instanceof Set && active.some((e) => !full.has(e.id)) ? [BRIEF_NOTE] : []),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
@@ -2476,6 +2481,30 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
       : []),
     "New part of the story\n" + story,
   ].join("\n\n");
+}
+
+/**
+ * The records the DM reads in full on a run (the rest go in as one line each, see dmInput): named in the new part of the story
+ * (a name or an alias), pinned, the scene's place with its parent and spots, the things placed there or held by people in the scene,
+ * the people in the scene, and `soon` (bench people who are due soon, see benchSoon). A swipe or a retry makes the same set.
+ */
+export function fullRecordIds(state, { story, scene, reg, soon }) {
+  const text = str(story);
+  const present = scene ? arr(scene.present).map(str).filter(Boolean) : [];
+  const place = scene ? placeRecordOf(state, scene, reg) : null;
+  const parent = place && place.inside ? state.entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, place.inside)) : null;
+  const here = [place, parent].filter(Boolean);
+  const full = new Set(arr(soon));
+  for (const e of state.entities) {
+    if (e.status !== "active" || full.has(e.id)) continue;
+    const re = namesPattern(namesOf(e));
+    if (e.pinned === true || (re && re.test(text))) full.add(e.id);
+    else if (here.some((p) => p.id === e.id)) full.add(e.id);
+    else if (e.kind === "place" && e.inside && place && refersTo(place, e.inside)) full.add(e.id);
+    else if (e.kind === "thing" && ((e.place && here.some((p) => refersTo(p, e.place))) || (e.holder && present.some((n) => samePlace(n, e.holder))))) full.add(e.id);
+    else if (e.kind === "person" && present.some((n) => namesOf(e).some((x) => samePlace(x, n)))) full.add(e.id);
+  }
+  return full;
 }
 
 /** How far a front's clock is, as the wording its news should take. */
@@ -3212,6 +3241,22 @@ export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
     out.push({ rec, silence, threshold, weight, score: silence / threshold + weight * 0.5 });
   }
   return out.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * The people of the bench who are due or will be within `within` replies (one DM cadence): their ids. The DM reads them in
+ * full, so a person who is about to come back is not a bare name when the run is made. Nothing when Frequency is off.
+ */
+export function benchSoon({ state, msgs, snaps, reg, personIds, freq, within }) {
+  if (!CAST_SILENCE[freq]) return [];
+  const ids = [];
+  for (const rec of state.entities) {
+    if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
+    const ident = castIdentity(state, reg, rec);
+    if (ident.own) continue;
+    if (silenceOf(ident, rec, msgs, snaps, reg, personIds) >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) ids.push(rec.id);
+  }
+  return ids;
 }
 
 /**
@@ -5426,12 +5471,17 @@ function updateRoute(req, host) {
   const catchingUp = take.rest.length > 0;
   const profile = profileFor(fsx, state.settings);
   const options = (profile && profile.options) || DEFAULT_OPTIONS;
+  // the records the DM reads in full this run; the others go in as one line (see fullRecordIds). The set is the same for a retry.
+  const runFreq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+  const runCast = runFreq !== "off" ? castContext(fsx, chatId) : null;
+  const soon = runCast ? benchSoon({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const fullIds = fullRecordIds(state, { story: take.msgs.map((m) => str(m.text)).join("\n"), scene, reg: runReg.reg, soon });
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
