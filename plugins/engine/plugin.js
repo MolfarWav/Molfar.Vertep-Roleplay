@@ -1745,7 +1745,27 @@ export function wholeWordIn(scan, lk) {
   }
   return false;
 }
-function keyMatchDirect(scan, key, entry, rawScan) {
+/** The lowercased key that holds an apostrophe as a whole word, any apostrophe form standing for its own. The places
+ *  where its first part occurs are checked one by one: a `\p{L}` pattern over a long window cost tens of ms a key in
+ *  the sandbox (#422). Every apostrophe form is one character, so a match is as long as the key. */
+function aposWordIn(scan, lk) {
+  const parts = lk.split(MEM_APOS);
+  const core = parts.map(esc).join(WI_APOS_CLASS);
+  const at1 = parts[0] ? wiRe("^" + core + "$", "u") : null;
+  if (!at1) {
+    const re = wiRe("(^|[^\\p{L}\\p{N}])" + core + "([^\\p{L}\\p{N}]|$)", "u");
+    return re ? re.test(scan) : scan.indexOf(lk) >= 0;
+  }
+  for (let at = scan.indexOf(parts[0]); at >= 0; at = scan.indexOf(parts[0], at + 1)) {
+    const end = at + lk.length;
+    if (end > scan.length || !at1.test(scan.slice(at, end))) continue;
+    if (at > 0 && WI_EDGE_BEFORE.test(scan.slice(Math.max(0, at - 2), at))) continue;
+    if (end < scan.length && WI_EDGE_AFTER.test(scan.slice(end, end + 2))) continue;
+    return true;
+  }
+  return false;
+}
+function keyMatchDirect(scan, key, entry, rawScan, sc) {
   const k = String(key || "").trim();
   if (!k) return false;
   // case-sensitive books/entries match against the RAW text (the shared scan
@@ -1772,14 +1792,21 @@ function keyMatchDirect(scan, key, entry, rawScan) {
   // Cyrillic keys match any form of their words ("вежа" hits "вежі", "вежу"),
   // as a phrase: the key's words side by side, in order
   if (WI_CYR.test(k) && !(entry && entry.wordForms === false)) {
-    if (phraseMatch(wordIndex(scan), lk)) return true;
+    // a text with no Cyrillic letter holds no form of the key's Cyrillic word: nothing to index (#422)
+    if ((!sc || scanCyr(sc)) && phraseMatch(sc ? scanIdx(sc) : wordIndex(scan), lk)) return true;
     return !whole && scan.indexOf(lk) >= 0;
   }
   if (whole && WI_KEY_WORDS.test(k)) {
-    // no apostrophe: plain text, found by indexOf; with one, any apostrophe form matches (a pattern)
+    if (sc) {
+      // each run of letters and digits of the key must be a whole run of the text (see scanRuns)
+      const runs = lk.split(WI_RUN_SEP).filter(Boolean);
+      const have = scanRuns(sc);
+      if (!runs.every((r) => have.has(r))) return false;
+      if (runs.length === 1 && runs[0] === lk) return true;
+    }
+    // no apostrophe: plain text, found by indexOf; with one, any apostrophe form matches
     if (!WI_HAS_APOS.test(lk)) return wholeWordIn(scan, lk);
-    const re = wiRe("(^|[^\\p{L}\\p{N}])" + lk.split(MEM_APOS).map(esc).join(WI_APOS_CLASS) + "([^\\p{L}\\p{N}]|$)", "u");
-    return re ? re.test(scan) : scan.indexOf(lk) >= 0;
+    return aposWordIn(scan, lk);
   }
   return scan.indexOf(lk) >= 0;
 }
@@ -1800,26 +1827,59 @@ function wiWords(s) {
 function wordIndex(text) {
   const hit = wiIndexCache && wiIndexCache.get(text);
   if (hit) return hit;
-  const toks = wiWords(text);
+  const idx = buildWordIndex(text);
+  if (wiIndexCache) wiIndexCache.set(text, idx);
+  return idx;
+}
+/** A scan text, lowercased (`low`) and as written (`raw`), carrying what the key matcher derives from it, each made
+ *  once and only when a key needs it: the word index and whether the text holds a Cyrillic letter. The activation scan
+ *  passes these instead of looking the index up by the text: QuickJS keeps no hash on a string, so every key paid a
+ *  hash and a compare of the whole window, 2 s of a 7 s send with a 100-message window in the sandbox (#422). */
+function wiScan(low, raw) {
+  return { low, raw, idx: null, cyr: null, src: null };
+}
+function scanIdx(sc) {
+  if (!sc.idx) sc.idx = buildWordIndex(sc.low);
+  return sc.idx;
+}
+function scanCyr(sc) {
+  if (sc.cyr === null) sc.cyr = WI_CYR.test(sc.low);
+  return sc.cyr;
+}
+const WI_RUN_SEP = /[^\p{L}\p{N}]+/u;
+/** The runs of letters and digits of a scan text, as a set. A whole-word key occurs only where each of its own runs is
+ *  a whole run of the text, so a key missing one is answered without a pass over the window, and a key that is a
+ *  single run is answered by the set alone: a pass over a 300 KB window cost about 3 ms a key in the sandbox (#422). */
+function scanRuns(sc) {
+  if (!sc.runs) sc.runs = new Set(sc.low.split(WI_RUN_SEP));
+  return sc.runs;
+}
+/** The words of a scan text; the lookups by word, stem and stem prefix are made by `idxMaps` on the first phrase
+ *  lookup (the other script's names need the words alone, and stemming a long window cost about a second, #422). */
+function buildWordIndex(text) {
+  return { toks: wiWords(text), maps: null };
+}
+function idxMaps(idx) {
+  if (idx.maps) return idx.maps;
   const exact = new Map(), byStem = new Map(), byPrefix = new Map();
   const add = (m, k, i) => { const a = m.get(k); if (a) a.push(i); else m.set(k, [i]); };
-  toks.forEach((t, i) => {
+  idx.toks.forEach((t, i) => {
     add(exact, t, i);
     if (t.length <= 3) return; // short words only ever match exactly (sameWord)
     const s = stem(t);
     add(byStem, s, i);
     if (s.length >= 4) add(byPrefix, s.slice(0, 4), i);
   });
-  const idx = { toks, exact, byStem, byPrefix };
-  if (wiIndexCache) wiIndexCache.set(text, idx);
-  return idx;
+  idx.maps = { exact, byStem, byPrefix };
+  return idx.maps;
 }
 /** Positions of the scan words that are the same word as `w` (sameWord, through the index). */
 function wordPositions(idx, w) {
-  if (w.length <= 3) return new Set(idx.exact.get(w) || []);
+  const m = idxMaps(idx);
+  if (w.length <= 3) return new Set(m.exact.get(w) || []);
   const x = stem(w);
-  const out = new Set(idx.byStem.get(x) || []);
-  if (x.length >= 4) for (const i of idx.byPrefix.get(x.slice(0, 4)) || []) if (sameWord(w, idx.toks[i])) out.add(i);
+  const out = new Set(m.byStem.get(x) || []);
+  if (x.length >= 4) for (const i of m.byPrefix.get(x.slice(0, 4)) || []) if (sameWord(w, idx.toks[i])) out.add(i);
   return out;
 }
 /** Every word of the key, in order and side by side, each in any of its forms. */
@@ -1906,15 +1966,18 @@ function xsSide(idx, rawAll, cyr) {
   });
   return (idx[name] = m);
 }
-/** Every word of the key in the other script, side by side and in order (see the note above). */
-function crossScriptMatch(idx, key, rawAll) {
+/** Every word of the key in the other script, side by side and in order (see the note above). `idxOf` gives the scan's
+ *  word index, asked for only once the key qualifies (most keys are not names and stop before it, #422). */
+function crossScriptMatch(idxOf, key, rawAll) {
   const kw = xsRawWords(key).map((w) => w.replace(WI_APOS_ANY, ""));
   if (!kw.some((w) => w.length >= 4 && xsCapital(w))) return false;
   const sets = [];
+  let idx = null;
   for (const raw of kw) {
     const w = raw.toLowerCase();
     const isCyr = WI_CYR.test(w);
     if (isCyr ? /[a-z]/.test(w) : !XS_LAT.test(w)) return false; // mixed script, digits, other scripts: no
+    if (!idx) idx = idxOf();
     const side = xsSide(idx, rawAll, !isCyr);
     const pos = new Set();
     for (const [f, len] of xsForms(w, isCyr)) for (const [i, l] of side.get(f) || []) if (Math.abs(l - len) <= 1) pos.add(i);
@@ -1929,15 +1992,19 @@ function crossScriptMatch(idx, key, rawAll) {
   return false;
 }
 /** A key that found nothing as written: the same name in the other script (plain word keys only). */
-function crossScriptKey(scan, key, entry, rawAll) {
+function crossScriptKey(scan, key, entry, rawAll, sc) {
   if (entry && (entry.wordForms === false || entry.keysRegex === true || wiCaseSensitive(entry))) return false;
   const k = String(key || "").trim();
   if (k.length < 4 || k.charCodeAt(0) === 47 || !WI_KEY_WORDS.test(k)) return false;
-  return crossScriptMatch(wordIndex(scan), k, rawAll);
+  // a key with no Cyrillic letter looks only for Cyrillic words of the text: a text with none (an English chat and
+  // book) cannot answer, and the index and the other script's spellings of a long window are not built for it (#422)
+  if (sc && !WI_CYR.test(k) && !scanCyr(sc)) return false;
+  return crossScriptMatch(() => (sc ? scanIdx(sc) : wordIndex(scan)), k, rawAll);
 }
-/** One key against a scan text: as written, then the same name in the other script (#254). */
-function keyMatch(scan, key, entry, rawScan, rawAll) {
-  return keyMatchDirect(scan, key, entry, rawScan) || crossScriptKey(scan, key, entry, rawAll);
+/** One key against a scan text: as written, then the same name in the other script (#254). `sc`, when given, is the
+ *  scan text as a `wiScan` (its `low` is `scan`, its `raw` is `rawAll`): what it derives is kept on it. */
+function keyMatch(scan, key, entry, rawScan, rawAll, sc) {
+  return keyMatchDirect(scan, key, entry, rawScan, sc) || crossScriptKey(scan, key, entry, rawAll, sc);
 }
 /** Constant-ness: the `status` field is the source of truth; the `constant`
  *  boolean is a legacy mirror kept for old files. When both are present they
@@ -1950,18 +2017,18 @@ function isConstantEntry(entry) {
  *  `secondary` = the secondary keys that hit; `fail: "secondary"` when the
  *  primary hit but the selective logic did not hold. Probability is the
  *  caller's (rolled once per activation). */
-function wiEntryMatch(entry, scanText, rawText, countAll, skipPrimary) {
+function wiEntryMatch(entry, scanText, rawText, countAll, skipPrimary, sc) {
   const keys = entry.keys || [];
   const secondary = entry.secondaryKeys || [];
   const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
   const caseBlind = !(entry && wiCaseSensitive(entry));
   const raw = caseBlind ? null : rawText;
   // skipPrimary: a vector let the entry in, only the secondary keys are tested
-  const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw, rawText));
+  const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw, rawText, sc));
   if (key == null) return null;
-  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw, rawText));
+  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw, rawText, sc));
   // group scoring ranks members by how many of their keys hit
-  const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw, rawText)).length + hits.length : 0;
+  const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw, rawText, sc)).length + hits.length : 0;
   if (secondary.length) {
     const n = hits.length;
     const bad = (logic === 0 && n < 1) || (logic === 3 && n < secondary.length) || (logic === 2 && n > 0) || (logic === 1 && n === secondary.length);
@@ -2758,7 +2825,17 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const rolledOut = new Set(); // lost the probability roll: one roll per activation
   const windowOf = (n) => {
     const raw = dialogue.slice(-n).map((m) => (includeNames && m.name ? m.name + ": " : "") + m.text).join("\n");
-    return { raw, low: raw.toLowerCase() };
+    return wiScan(raw.toLowerCase(), raw);
+  };
+  // an entry's own scan depth: one window per depth, shared by every entry that asks for it (it was joined again per entry)
+  const ownWindows = new Map();
+  const ownWindow = (n) => {
+    let w = ownWindows.get(n);
+    if (!w) {
+      w = windowOf(n);
+      ownWindows.set(n, w);
+    }
+    return w;
   };
   // entries with matchSources key off the card fields too: per-entry flags
   // pick which sources (speaker description / personality / scenario, the
@@ -2781,22 +2858,26 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     if (bookSettings.caseSensitive === true) eff.caseSensitive = true;
     if (bookSettings.wholeWords === false) eff.matchWholeWords = eff.wholeWordsOverride == null ? false : eff.wholeWordsOverride;
     eff.wordForms = typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : bookSettings.wordForms !== false;
-    let text = win.low, raw = win.raw;
+    let sc = win;
     const own = typeof entry.scanDepthOverride === "number" && entry.scanDepthOverride > 0 ? Math.floor(entry.scanDepthOverride) : null;
-    if (own != null && own !== depthNow && firstPass) {
-      const w = windowOf(own);
-      text = w.low; raw = w.raw;
-    }
+    if (own != null && own !== depthNow && firstPass) sc = ownWindow(own);
     const ms = entry.matchSources && typeof entry.matchSources === "object" ? entry.matchSources : null;
     if (ms) {
-      const parts = [], partsRaw = [];
-      for (const srcKey of ["description", "personality", "scenario", "persona"]) {
-        const s = sourceTexts[srcKey];
-        if (ms[srcKey] === true && s) { parts.push(s.low); partsRaw.push(s.raw); }
+      const picked = ["description", "personality", "scenario", "persona"].filter((srcKey) => ms[srcKey] === true && sourceTexts[srcKey]);
+      if (picked.length) {
+        // the window with these sources appended, made once per window and set of sources
+        const tag = picked.join("|");
+        if (!sc.src) sc.src = new Map();
+        const memo = sc.src;
+        let withSrc = memo.get(tag);
+        if (!withSrc) {
+          withSrc = wiScan(sc.low + "\n" + picked.map((k) => sourceTexts[k].low).join("\n"), sc.raw + "\n" + picked.map((k) => sourceTexts[k].raw).join("\n"));
+          memo.set(tag, withSrc);
+        }
+        sc = withSrc;
       }
-      if (parts.length) { text = text + "\n" + parts.join("\n"); raw = raw + "\n" + partsRaw.join("\n"); }
     }
-    return wiEntryMatch(eff, text, raw, item.groupScoring && !!entry.group, viaVector === true);
+    return wiEntryMatch(eff, sc.low, sc.raw, item.groupScoring && !!entry.group, viaVector === true, sc);
   };
   const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
   // what an entry puts into the prompt and into recursion: a secret one its view for this speaker (#416)
@@ -2810,7 +2891,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       const base = windowOf(depthNow);
       // a deeper round still sees what earlier rounds pulled in by recursion
       const carried = activated.filter((x) => x.entry.preventFurtherRecursion !== true).map(contentOf);
-      let win = carried.length ? { raw: base.raw + "\n" + carried.join("\n"), low: base.low + "\n" + carried.join("\n").toLowerCase() } : base;
+      let win = carried.length ? wiScan(base.low + "\n" + carried.join("\n").toLowerCase(), base.raw + "\n" + carried.join("\n")) : base;
       for (let pass = 0; ; pass++) {
         let newly = [];
         const firstPass = pass === 0;
@@ -2888,7 +2969,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           .filter((x) => x.entry.preventFurtherRecursion !== true)
           .map(contentOf);
         if (!added.length) { passBase += pass + 1; break; }
-        win = { raw: win.raw + "\n" + added.join("\n"), low: win.low + "\n" + added.join("\n").toLowerCase() };
+        win = wiScan(win.low + "\n" + added.join("\n").toLowerCase(), win.raw + "\n" + added.join("\n"));
       }
       if (!(minActivations > 0) || activated.length >= minActivations) break;
       const limit = Math.min(dialogue.length, minDepthMax > 0 ? minDepthMax : dialogue.length);
