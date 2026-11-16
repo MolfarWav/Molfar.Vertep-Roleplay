@@ -830,10 +830,10 @@ export async function loadLearned(chatId?: string): Promise<WorldLearned> {
   return j<WorldLearned>(`/world/learned${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''}`)
 }
 /** Bumped after every answer, so the open views read the memory again. */
-export const useLearnedLive = create<{ stamp: number }>(() => ({ stamp: 0 }))
+export const useLearnedLive = create<{ stamp: number; /** the view an answer returned, shown at once while the next read is on its way */ last: WorldLearned | null }>(() => ({ stamp: 0, last: null }))
 async function learnedPost(sub: string, body: Record<string, unknown>): Promise<WorldLearned> {
   const r = await j<WorldLearned>(`/world/learned/${sub}`, { method: 'POST', body: JSON.stringify(body) })
-  useLearnedLive.setState({ stamp: Date.now() })
+  useLearnedLive.setState({ stamp: Date.now(), last: r })
   return r
 }
 export const answerLearned = (chatId: string, id: string, answer: 'all' | 'chat' | 'no') => learnedPost('answer', { chatId, id, answer })

@@ -4,7 +4,7 @@
 // editor ("Learned memory": exactly what reaches the DM's input) and the chat sheet's card ("What the DM learns": the switch, the
 // levers, the log of every proposal and answer). Half A moves exact settings; rules in prose come in half B.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Brain, Plus, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
@@ -65,11 +65,22 @@ export function learnLine(t: T, l: LearnLine): string {
 /** Reads the memory of a chat (or, with no chat, of all chats) and again after every answer and every 15 s. */
 export function useLearned(chatId?: string, refresh?: unknown) {
   const stamp = useLearnedLive((s) => s.stamp)
+  const last = useLearnedLive((s) => s.last)
   const [data, setData] = useState<WorldLearned | null>(null)
   const [error, setError] = useState('')
+  // a read that started before a newer one (or before an answer) must not overwrite it when it comes back late
+  const seq = useRef(0)
   const load = useCallback(() => {
-    loadLearned(chatId).then((d) => { setData(d); setError('') }).catch((e: unknown) => setError(errText(e)))
+    const mine = ++seq.current
+    loadLearned(chatId).then((d) => { if (mine === seq.current) { setData(d); setError('') } }).catch((e: unknown) => { if (mine === seq.current) setError(errText(e)) })
   }, [chatId])
+  // an answer returns the new view: show it now (a read takes a second or more), the read that follows confirms it
+  useEffect(() => {
+    if (!last || (chatId !== undefined && last.chatId !== chatId)) return
+    seq.current++
+    setData(last)
+    setError('')
+  }, [last, chatId])
   useEffect(() => {
     load()
     const id = setInterval(() => { if (!document.hidden) load() }, 15_000)
@@ -81,13 +92,14 @@ export function useLearned(chatId?: string, refresh?: unknown) {
 /** The DM tab's overview: the rules for all chats and how many proposals wait in any chat. */
 export function useMemoryOverview(): { rules: number; waiting: number } | null {
   const { data } = useLearned()
-  return data ? { rules: data.rules.length, waiting: data.waiting.length } : null
+  // the rules for all chats only (a chat's own rules show in its Memory view)
+  return data ? { rules: data.rules.filter((r) => r.scope === 'all').length, waiting: data.waiting.length } : null
 }
 
 /** A small dot that says "something waits for you" (not colour alone: the label is read aloud and shown on hover). */
 export function WaitingDot({ className }: { className?: string }) {
   const t = useT()
-  return <span role="img" aria-label={t('world.mem.dot')} title={t('world.mem.dot')} data-testid="memory-dot" className={cn('inline-block size-2 shrink-0 rounded-full bg-primary', className)} />
+  return <span role="img" aria-label={t('world.mem.dot')} title={t('world.mem.dot')} data-testid="memory-dot" className={cn('inline-block size-2 shrink-0 rounded-full bg-amber-500', className)} />
 }
 
 /** The row at the top of the DM tab's list. */
@@ -137,7 +149,7 @@ function ProposalCard({ p, disabled, onAnswer }: { p: LearnProposal; disabled: b
   const t = useT()
   const verb = p.key === 'textMax' ? t('world.mem.ev.rewritten') : t('world.mem.ev.removed')
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-primary/40 bg-primary/5 p-3" data-testid="memory-proposal">
+    <li className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3" data-testid="memory-proposal">
       <p className="text-body font-medium">{evidenceHead(t, p)}</p>
       {p.ev.names.length > 0 && <p className="text-caption text-muted-foreground">{verb}: {p.ev.names.join(', ')}</p>}
       <p className="text-caption text-muted-foreground">{t('world.mem.threshold', { min: p.ev.min, thr: p.ev.thr, days: p.ev.days })}</p>
@@ -211,7 +223,7 @@ function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat'
 /** The Memory view: the DM tab's detail for the row "Memory". `chats` are the chats that have a DM; `chatId` the one it is read for. */
 export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chatId: string | null; onChat: (id: string) => void }) {
   const t = useT()
-  const { data, error, reload } = useLearned(chatId ?? undefined)
+  const { data, error } = useLearned(chatId ?? undefined)
   const [confirm, confirmDialog] = useConfirm()
   const [busy, setBusy] = useState(false)
   // the chat has a world (an empty chatId in the answer means no state file yet): only then can an answer be saved
@@ -221,7 +233,6 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
     try {
       await fn()
       if (done) toast(done)
-      reload()
     } catch (e) {
       toast.error(errText(e))
     } finally {
@@ -266,7 +277,7 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
       {data && (
         <>
           <section className="flex flex-col gap-2" aria-label={t('world.mem.waiting')}>
-            <h3 className="flex items-center gap-2 text-heading font-semibold">{t('world.mem.waiting')}{data.proposals.length > 0 && <Chip tone="sky">{data.proposals.length}</Chip>}</h3>
+            <h3 className="flex items-center gap-2 px-1 text-heading font-semibold">{t('world.mem.waiting')}{data.proposals.length > 0 && <Chip tone="sky">{data.proposals.length}</Chip>}</h3>
             {data.proposals.length === 0 ? (
               <p className="text-caption text-muted-foreground">{nothing ? t('world.mem.empty') : t('world.mem.noneWaiting')}</p>
             ) : (
@@ -302,7 +313,7 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
           </Section>
 
           <Section title={t('world.mem.names')}>
-            <p className="px-4 pt-3 text-caption text-muted-foreground">{t('world.mem.names.hint')}</p>
+            <p className="px-4 py-3 text-caption text-muted-foreground">{t('world.mem.names.hint')}</p>
             <div className="flex flex-wrap items-center gap-2 px-4 py-3">
               <span className="text-body">{t('world.mem.names.count', { n: data.remembered.length })}</span>
               <Button variant="outline" size="sm" className="ml-auto max-md:h-10" disabled={busy || !live || data.remembered.length === 0} onClick={() => void clearNames()} data-testid="memory-clear-names">{t('world.mem.names.clear')}</Button>
