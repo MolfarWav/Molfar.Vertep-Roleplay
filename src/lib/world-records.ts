@@ -2,22 +2,28 @@
 
 import type { WorldKind, WorldRecord } from '@/lib/world'
 
-export const KINDS: WorldKind[] = ['person', 'place', 'group', 'thing', 'fact']
+/** The kinds the form offers and the book writes; an old note ('fact') is read and moved, never written. */
+export const KINDS: WorldKind[] = ['person', 'place', 'group', 'thing']
+/** What the book list can show: every active record, one kind, the old notes, or what is not active (retired or tidied up). */
+export type BookFilter = WorldKind | 'all' | 'archive'
 /** The text limits the plugin enforces: an active record, a retired one. */
 export const TEXT_LIMIT = { active: 600, past: 240 } as const
 
-export function filterRecords(records: WorldRecord[], kind: WorldKind | 'all', query: string): WorldRecord[] {
+export function filterRecords(records: WorldRecord[], filter: BookFilter, query: string): WorldRecord[] {
   const q = query.trim().toLowerCase()
-  const hit = (r: WorldRecord) => !q || [r.name, ...r.aliases].some((n) => n.toLowerCase().includes(q))
+  const hit = (r: WorldRecord) => !q || [r.name, ...r.aliases, r.text].some((n) => n.toLowerCase().includes(q))
   return records
-    .filter((r) => (kind === 'all' || r.kind === kind) && hit(r))
-    // active first; newest change first inside each group
-    .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === 'active' ? -1 : 1))
+    .filter((r) => (filter === 'archive' ? r.status !== 'active' : r.status === 'active' && (filter === 'all' || r.kind === filter)) && hit(r))
+    // the newest change first; old notes: the longest first, so what cannot go to the Litopys as it is comes up at once
+    .sort((x, y) => (filter === 'fact' ? y.text.length - x.text.length : y.at - x.at))
 }
 
-export function countByKind(records: WorldRecord[]): Record<WorldKind | 'all', number> {
-  const out: Record<WorldKind | 'all', number> = { all: records.length, person: 0, place: 0, group: 0, thing: 0, fact: 0 }
-  for (const r of records) out[r.kind] += 1
+export function countByKind(records: WorldRecord[]): Record<WorldKind | 'all' | 'archive', number> {
+  const out: Record<WorldKind | 'all' | 'archive', number> = { all: 0, archive: 0, person: 0, place: 0, group: 0, thing: 0, fact: 0 }
+  for (const r of records) {
+    if (r.status !== 'active') out.archive += 1
+    else { out.all += 1; out[r.kind] += 1 }
+  }
   return out
 }
 

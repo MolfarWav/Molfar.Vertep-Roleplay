@@ -15,33 +15,55 @@ const dice = (mode: "off" | "flavour" | "strict", extra: Partial<Parameters<type
     </DiceFields>
   );
 
+const kinds = { person: 12, place: 3, group: 2, thing: 0 };
+const tiles = (extra: Partial<Parameters<typeof SoFarTiles>[0]> = {}) =>
+  renderToStaticMarkup(<SoFarTiles kinds={kinds} notes={0} archive={0} runs={18} onOpen={() => {}} {...extra} />);
+// the opening tag of a tile (a button for the kinds, the archive and the notes; a div for fronts and runs)
+const tileTag = (html: string, id: string) => new RegExp(`<(?:button|div)[^>]*data-testid="tile-${id}"[^>]*>`).exec(html)?.[0] ?? "";
+
 describe("SoFarTiles", () => {
-  it("four tiles with their numbers, each with an id for the test hook", () => {
-    const html = renderToStaticMarkup(<SoFarTiles records={12} retired={2} fronts={3} runs={18} />);
-    for (const id of ["records", "retired", "fronts", "runs"]) expect(html).toContain(`data-testid="tile-${id}"`);
+  it("four type tiles in a row with their numbers, then the runs; each has an id for the test hook", () => {
+    const html = tiles({ fronts: 3 });
+    for (const id of ["person", "place", "group", "thing", "fronts", "runs"]) expect(html).toContain(`data-testid="tile-${id}"`);
     expect(html).toContain('data-testid="world-facts"');
-    expect(html).toContain(">12<");
-    expect(html).toContain(">2<");
-    expect(html).toContain(">3<");
-    expect(html).toContain(">18<");
+    for (const n of [">12<", ">3<", ">2<", ">0<", ">18<"]) expect(html).toContain(n);
     expect(html).toContain("tabular-nums");
-    expect(html).toContain("grid-cols-2 @sm:grid-cols-4");
+    expect(html).toContain("@sm:grid-cols-4");
   });
 
-  it("without fronts (no events at this level) there are three tiles and no fronts tile", () => {
-    const html = renderToStaticMarkup(<SoFarTiles records={4} retired={0} runs={1} />);
-    expect(html).not.toContain('data-testid="tile-fronts"');
-    expect(html).toContain('data-testid="tile-records"');
-    expect(html).toContain("grid-cols-3");
+  it("the archive and the old notes show only while there is something; fronts only when the level has events", () => {
+    const none = tiles();
+    for (const id of ["archive", "fact", "fronts"]) expect(none).not.toContain(`data-testid="tile-${id}"`);
+    const some = tiles({ archive: 5, notes: 2, fronts: 1 });
+    for (const id of ["archive", "fact", "fronts"]) expect(some).toContain(`data-testid="tile-${id}"`);
   });
 
-  it("the tiles take their tones: records emerald, fronts pink, runs sky", () => {
-    const html = renderToStaticMarkup(<SoFarTiles records={1} retired={1} fronts={1} runs={1} />);
-    const tile = (id: string) => new RegExp(`<div[^>]*data-testid="tile-${id}"[^>]*>`).exec(html)?.[0] ?? "";
-    expect(tile("records")).toContain("emerald");
-    expect(tile("fronts")).toContain("pink");
-    expect(tile("runs")).toContain("sky");
-    expect(tile("retired")).toContain("slate");
+  it("a type tile is a button that says what it opens; a plain count is not a button", () => {
+    const html = tiles({ fronts: 1 });
+    expect(tileTag(html, "person")).toContain("<button");
+    expect(tileTag(html, "person")).toContain("12");
+    expect(html).toMatch(/aria-label="[^"]*12[^"]*"/);
+    expect(tileTag(html, "runs").startsWith("<div")).toBe(true);
+    expect(tileTag(html, "fronts").startsWith("<div")).toBe(true);
+  });
+
+  it("a type with no records is dimmed, not hidden", () => {
+    const html = tiles();
+    expect(tileTag(html, "thing")).toContain("opacity-60");
+    expect(tileTag(html, "person")).not.toContain("opacity-60");
+  });
+
+  it("each type has its own tone, fronts are orange and runs neutral", () => {
+    const html = tiles({ fronts: 1, archive: 1, notes: 1 });
+    expect(tileTag(html, "person")).toContain("pink");
+    expect(tileTag(html, "place")).toContain("teal");
+    expect(tileTag(html, "group")).toContain("violet");
+    expect(tileTag(html, "thing")).toContain("amber");
+    expect(tileTag(html, "fact")).toContain("sky");
+    expect(tileTag(html, "archive")).toContain("slate");
+    expect(tileTag(html, "fronts")).toContain("orange");
+    expect(tileTag(html, "runs")).not.toContain("sky");
+    expect(tileTag(html, "runs")).not.toContain("pink");
   });
 });
 

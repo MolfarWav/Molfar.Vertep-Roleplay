@@ -3,7 +3,7 @@
 // Plain Tailwind palette classes (no hex), written out in full so the class scanner finds them. A tone is always
 // paired with an icon or a word, never colour alone. `Tone` in dashboard/dash-common.tsx is the older, kind-named map.
 
-export type ToneName = 'sky' | 'emerald' | 'violet' | 'pink' | 'teal' | 'amber' | 'slate'
+export type ToneName = 'sky' | 'emerald' | 'violet' | 'pink' | 'teal' | 'amber' | 'slate' | 'orange' | 'neutral'
 
 export interface ToneClasses {
   /** the small solid square before a heading */
@@ -23,5 +23,7 @@ export const TONES: Record<ToneName, ToneClasses> = {
   pink: { square: 'bg-pink-500', fill: 'border-pink-500/35 bg-pink-500/12', ink: 'text-pink-700 dark:text-pink-300', chip: 'border-pink-500/35 bg-pink-500/12 text-pink-700 dark:text-pink-300' },
   teal: { square: 'bg-teal-500', fill: 'border-teal-500/40 bg-teal-500/10', ink: 'text-teal-700 dark:text-teal-300', chip: 'border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300' },
   amber: { square: 'bg-amber-500', fill: 'border-amber-500/40 bg-amber-500/10', ink: 'text-amber-700 dark:text-amber-300', chip: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  orange: { square: 'bg-orange-500', fill: 'border-orange-500/40 bg-orange-500/10', ink: 'text-orange-700 dark:text-orange-300', chip: 'border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300' },
+  neutral: { square: 'bg-muted-foreground', fill: 'border-border bg-muted/50', ink: 'text-muted-foreground', chip: 'border-border bg-muted text-muted-foreground' },
   slate: { square: 'bg-slate-500', fill: 'border-slate-500/35 bg-slate-500/12', ink: 'text-slate-700 dark:text-slate-300', chip: 'border-slate-500/35 bg-slate-500/12 text-slate-700 dark:text-slate-300' },
 }

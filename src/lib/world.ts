@@ -47,7 +47,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -55,6 +55,10 @@ export interface WorldView {
   profile: string | null
   records: number
   retired: number
+  /** active records per kind, for the tiles; old notes still in the book; what is not active (retired or tidied up) */
+  kinds: { person: number; place: number; group: number; thing: number }
+  notes: number
+  archive: number
   dueIn: number
   lastRunAt: number | null
   lastSummary: string
@@ -132,7 +136,11 @@ export const WORLD_CAST_FREQS: WorldCastFreq[] = ['off', 'rare', 'normal', 'ofte
 export type WorldRelation = 'ally' | 'family' | 'rival' | 'enemy' | 'neutral'
 export const WORLD_RELATIONS: WorldRelation[] = ['ally', 'family', 'rival', 'enemy', 'neutral']
 
+/** 'fact' is read only: the DM and the form no longer write notes (they belong in a place's or a faction's text, or in the Litopys) */
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
+/** why a thing is in the book; a clue, a hidden thing and a promise are never tidied away */
+export type WorldWhy = 'clue' | 'hidden' | 'promise' | 'gift' | 'weapon' | 'contested'
+export const WORLD_WHYS: WorldWhy[] = ['clue', 'hidden', 'promise', 'gift', 'weapon', 'contested']
 /** by: 'player' = written or changed by hand in the Records tab */
 export interface WorldRecord {
   id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past' | 'dormant'; at: number; by?: 'player'; pinned?: boolean
@@ -148,6 +156,8 @@ export interface WorldRecord {
   /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
   size?: 'spot' | ''
   inside?: string
+  /** a thing: why it is in the book ('' clears it when saving) */
+  why?: WorldWhy | ''
   /** a thing: held by a person or lying in a place, never both (names) */
   holder?: string
   place?: string
@@ -670,6 +680,18 @@ export interface WorldCast {
 }
 export async function loadWorldCast(chatId: string): Promise<WorldCast> {
   return j<WorldCast>(`/world/cast?chatId=${encodeURIComponent(chatId)}`)
+}
+
+/** One line of the tidy-up log: a thing put to rest or woken, and the count that decided it. */
+export interface WorldTidyLine { at: number; n: number; id: string; name: string; act: 'archive' | 'wake'; count: number; via: 'code' | 'dm'; why?: WorldWhy }
+/** GET /world/tidy: the switch, how many replies to the next pass, the counts and the log (newest first). */
+export interface WorldTidy { on: boolean; every: number; replies: number; next: number; first: boolean; active: number; asleep: number; log: WorldTidyLine[] }
+export async function loadWorldTidy(chatId: string): Promise<WorldTidy> {
+  return j<WorldTidy>(`/world/tidy?chatId=${encodeURIComponent(chatId)}`)
+}
+/** A pass now ("Tidy now"): answers with the new status and the names archived and woken. */
+export async function runWorldTidy(chatId: string): Promise<WorldTidy & { archived: string[]; woken: string[] }> {
+  return j('/world/tidy', { method: 'POST', body: JSON.stringify({ chatId }) })
 }
 
 /** Adopt the people of the cards' lorebooks (one build call); the cast is switched on if it was off. Resumes a pending call like the deck does. */

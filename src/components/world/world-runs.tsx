@@ -7,6 +7,7 @@ import { useRelativeTime, useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { loadWorldRuns, useWorldLive, type WorldRun, type WorldUsage } from '@/lib/world'
+import { isRevealed, markRevealed, needsGate } from '@/lib/world-reveal'
 import { formatK, formatMoney, formatSeconds } from './world-common'
 
 const REASONS = ['every', 'records', 'place', 'stagnation', 'transition', 'manual', 'start', 'deck', 'keys'] as const
@@ -101,6 +102,9 @@ export function WorldRuns({ chatId }: { chatId: string }) {
 
   const reqRef = useRef(0)
   const lastRunAt = useWorldLive((s) => s.views[chatId]?.lastRunAt)
+  // a played chat shows what the DM did at once; a world built by Start before the story asks once (the same rule as the world book)
+  const view = useWorldLive((s) => s.views[chatId])
+  const visible = shown || needsGate({ chatId }, view ? { origin: view.origin } : null) === false || isRevealed({ chatId })
   // a failed run does not move lastRunAt: its error time does
   const lastErrorAt = useWorldLive((s) => s.views[chatId]?.lastError?.at)
 
@@ -139,7 +143,10 @@ export function WorldRuns({ chatId }: { chatId: string }) {
       actionLabel: t('world.peekGo'),
       destructive: false,
     })
-    if (yes) setShown(true)
+    if (yes) {
+      markRevealed({ chatId })
+      setShown(true)
+    }
   }
 
   return (
@@ -166,7 +173,7 @@ export function WorldRuns({ chatId }: { chatId: string }) {
             {usage.cost > 0 && <Stat value={formatMoney(usage.cost)} label={t('world.runs.statCost')} />}
           </div>
 
-          {!shown && (
+          {!visible && (
             <div className="rounded-md border border-border bg-card p-3">
               <p className="text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
               <Button
@@ -182,7 +189,7 @@ export function WorldRuns({ chatId }: { chatId: string }) {
 
           <div className="flex flex-col gap-2">
             {runs.map((run) => (
-              <RunRow key={`${run.at}-${run.reason}`} run={run} shown={shown} />
+              <RunRow key={`${run.at}-${run.reason}`} run={run} shown={visible} />
             ))}
           </div>
         </>

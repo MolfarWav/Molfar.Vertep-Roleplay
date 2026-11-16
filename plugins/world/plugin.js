@@ -5404,6 +5404,10 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     bookId: state.bookId,
     records: state.entities.filter((e) => e.status === "active").length,
     retired: state.entities.filter((e) => e.status === "past").length,
+    // the chat panel's tiles (#424, step 3): active records per kind, old notes still in the book, and what is not active (retired or tidied up)
+    kinds: Object.fromEntries(WRITE_KINDS.map((k) => [k, state.entities.filter((e) => e.kind === k && e.status === "active").length])),
+    notes: state.entities.filter((e) => e.kind === "fact" && e.status === "active").length,
+    archive: state.entities.filter((e) => e.status !== "active").length,
     dueIn: dueIn(state, msgs),
     lastRunAt: state.lastRunAt ?? null,
     lastSummary: state.log.length ? str(state.log[state.log.length - 1].summary) : "",
