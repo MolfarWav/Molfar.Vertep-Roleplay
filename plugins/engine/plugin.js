@@ -2283,6 +2283,13 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
         const deck = cards.length ? Math.ceil(Math.max(...cards.map((c) => (c && typeof c === "object" ? String(c.text || "").length + String(c.want || "").length : 0))) / 3.5) + 110 : 0;
         add("world cast", Math.max(160, deck));
       }
+      // the player's wishes for the writer (#428): a rule about the story in this chat or for all chats, learning and its writer switch on
+      // (the world plugin's WRITER_TOKENS: 320 characters plus a frame; change them together)
+      if (set.level !== "off" && set.learn !== false && set.learnWriter !== false) {
+        const g = jsonAt(fsx, "world/learned.json");
+        const story = (list) => Array.isArray(list) && list.some((r) => r && r.about === "story" && typeof r.text === "string" && r.text);
+        if (story(w.learned && w.learned.rules) || story(g && g.rules)) add("world wishes", Math.ceil(320 / 3.5) + 30);
+      }
     }
   }
 
@@ -2677,6 +2684,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const cfg = options.config && typeof options.config === "object" ? options.config : {};
   let budget = budgetChars && budgetChars > 0 ? budgetChars : 8192;
   let books = [];
+  const muted = new Set();
   // the books in this chat's scope, those switched off included (the prompt board lists them)
   let scope = null;
   if (Array.isArray(options.books)) {
@@ -2690,6 +2698,10 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     const bound = new Set([...(meta.lorebookIds || []), ...(extraBookIds || []), ...worldBookOf(meta)]);
     // only the bound books are read: a library of a thousand books must not be parsed for every send
     books = readBoundBooks(fsx, bound);
+    // the chat's world book names card entries of people who left the story for good (plugins/world `bookMutes`, #428): skipped here
+    for (const b of books) {
+      if (b && b.ownerChatId && b.ownerChatId === meta.id && Array.isArray(b.mutes)) for (const m of b.mutes) if (typeof m === "string") muted.add(m);
+    }
     // a group can leave members' books out (opts.excludeBookIds); a global or persona book stays
     const extra = new Set(extraBookIds || []);
     const excluded = new Set(Array.isArray(opts && opts.excludeBookIds) ? opts.excludeBookIds : []);
@@ -2761,6 +2773,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     entries.forEach((entry, i) => {
       if (entry.enabled === false) return;
       const id = (book.id || book.name) + "#" + (entry.uid ?? i);
+      if (muted.has(id)) return;
       // a secret entry (#416): what this reply gets of it, decided once per scan
       const sec = secretOf(entry);
       let secretV = null;

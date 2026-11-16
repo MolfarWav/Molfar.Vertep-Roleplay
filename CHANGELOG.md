@@ -4,6 +4,14 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.136.0 (2026-11-17)
+
+- Changed: **a person who dies or leaves the story for good takes what hangs on them (Molfar.Vertep#428).** When the DM or you retire a record, the events deck's cards that name it and the cast deck's cards tied to the person (or belonging to a destroyed group) are dropped, and the person leaves a group's Members. A person adopted from a card's lorebook has that card entry muted in this chat, so the card's text of a living person no longer speaks over the note of how they ended (before, it even won when the lorebook budget ran out). The note in the world book now says the record is gone from the story, also when the DM retired it without a new text. The record's card lists what retiring took; Bring back puts the person back into the groups and unmutes the entry. Retire has a tooltip saying what it means.
+- Added: **the DM learns from events you swipe away.** Swiping away the reply that carried a DM event twice drops the event; three such events (a third or more of those sent) raise a proposal for a rule about the story. Story rules have their own block in the DM's input and, with the new switch **Tell the reply model too** (on by default), the newest three also reach the reply model as one short line. A rule in words added by hand can be about the book or the story.
+- Added: **positive signals.** Records you pinned, wrote or brought back by hand are named to the DM as examples of what you want, and to the call that writes a rule; Memory lists them under **Kept on purpose**.
+- Changed: the guide page `world-dm` is translated in all 13 languages again (only the new passages; Ukrainian written by hand, Russian read by hand, the other eleven by a cheap model, checked by code for headings, paragraphs and links). A "What's new" tip points to the change.
+- Fixed: two tests in `test/rp-world.test.ts` expected the World settings without `things` and `learn` (they failed on main since 4.135.0).
+
 ## 4.135.2 (2026-11-17)
 
 - Fixed: **the Dashboard, Litopys, World DM and Agents plugins ask for 30 s per call, like the chat engine (Molfar.Vertep#422).** Before each reply these plugins add their part to the request, one call each. On a phone those calls are several times slower than on a computer: the World DM's took 3.3 s on a laptop. With only the engine's default of 10 s, one of them could stop and its part would be missing. Their manifests now carry `limits.executionMs: 30000`. It takes effect with engine 1.16.9, which applies a plugin's own limit to its hooks and to apps installed from their repository. Before 1.16.9 the engine kept every installed Roleplay plugin at 10 s, the chat engine's own send included, because it marks an installed app's plugins as imported. That is why a phone still saw "exceeded the maximum allowed time limit" after engine 1.16.7.

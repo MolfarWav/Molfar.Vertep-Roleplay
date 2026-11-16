@@ -46,8 +46,9 @@ export function leverText(t: T, key: LearnKey, to: string | number): string {
 
 /** The sentence a proposal opens with: what the player did, as a count and a share. */
 function evidenceHead(t: T, p: { key: LearnAbout; ev: LearnProposal['ev'] }): string {
-  const v = { n: p.ev.n, total: p.ev.total, share: p.ev.share, kind: t(`world.kind.${p.ev.kind ?? 'thing'}` as MsgKey) }
+  const v = { n: p.ev.n, total: p.ev.total, share: p.ev.share, kind: p.ev.kind === 'event' ? '' : t(`world.kind.${p.ev.kind ?? 'thing'}` as MsgKey) }
   if (p.key === 'words' && p.ev.manual) return t('world.mem.p.manual', v)
+  if (p.key === 'words' && p.ev.kind === 'event') return t('world.mem.p.events', v)
   return t(`world.mem.p.${p.key}` as MsgKey, v)
 }
 
@@ -155,7 +156,8 @@ function ProposalCard({ p, disabled, writing, onAnswer, onWrite }: { p: LearnPro
   const t = useT()
   const words = p.key === 'words'
   const ready = !words || p.state === 'ready'
-  const verb = p.key === 'textMax' ? t('world.mem.ev.rewritten') : p.ev.manual ? t('world.mem.ev.touched') : t('world.mem.ev.removed')
+  const events = p.ev.kind === 'event'
+  const verb = p.key === 'textMax' ? t('world.mem.ev.rewritten') : p.ev.manual ? t('world.mem.ev.touched') : events ? t('world.mem.ev.swiped') : t('world.mem.ev.removed')
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3" data-testid="memory-proposal" data-kind={p.key}>
       <p className="text-body font-medium">{evidenceHead(t, p)}</p>
@@ -172,6 +174,7 @@ function ProposalCard({ p, disabled, writing, onAnswer, onWrite }: { p: LearnPro
           {!writing && <Button size="sm" variant="outline" className="max-md:h-10" onClick={onWrite} data-testid="memory-retry">{t('world.mem.words.retry')}</Button>}
         </div>
       )}
+      {events && <p className="text-caption text-muted-foreground" data-testid="memory-story-hint">{t('world.mem.story.hint')}</p>}
       {ready && <p className="text-body">{proposalAsk(t, p)}</p>}
       <div className="flex flex-wrap gap-2">
         <Button className="max-md:h-11" disabled={disabled || !ready} onClick={() => onAnswer('chat')} data-testid="memory-answer-chat">{t('world.mem.thisChat')}</Button>
@@ -195,6 +198,7 @@ function RuleRow({ r, disabled, onEdit, onRemove }: { r: LearnRule; disabled: bo
         <span className="min-w-0 flex-[1_1_12rem] text-body font-medium">{head}</span>
         <Chip tone={r.scope === 'all' ? 'sky' : undefined}>{t(`world.mem.scope.${r.scope}` as MsgKey)}</Chip>
         {r.scope === 'all' && !r.here && <Chip tone="amber">{t('world.mem.differs')}</Chip>}
+        {r.about === 'story' && <Chip tone="violet">{t('world.mem.tag.story')}</Chip>}
         {words && r.inPrompt === false && <Chip tone="amber">{t('world.mem.leftOut.tag')}</Chip>}
       </div>
       <p className="text-caption text-muted-foreground">
@@ -225,9 +229,10 @@ function RuleRow({ r, disabled, onEdit, onRemove }: { r: LearnRule; disabled: bo
   )
 }
 
-function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat' | 'all', key: LearnAbout, to: string | number) => void }) {
+function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat' | 'all', key: LearnAbout, to: string | number, about?: 'story') => void }) {
   const t = useT()
   const [key, setKey] = useState<LearnAbout>('words')
+  const [about, setAbout] = useState<'book' | 'story'>('book')
   const [to, setTo] = useState<string | number>('')
   const [scope, setScope] = useState<'chat' | 'all'>('chat')
   const pick = (k: LearnAbout) => { setKey(k); setTo(k === 'words' ? '' : DEFAULT_VALUE[k]) }
@@ -245,12 +250,17 @@ function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat'
         <div className="flex flex-col gap-1">
           <Textarea value={String(to)} maxLength={RULE_MAX} rows={2} placeholder={t('world.mem.words.placeholder')} aria-label={t('world.mem.words.input')} onChange={(e) => setTo(e.target.value)} data-testid="memory-add-text" />
           <p className="text-caption text-muted-foreground">{t('world.mem.words.count', { n: String(to).length, max: RULE_MAX })}</p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-body font-medium">{t('world.mem.about')}</span>
+            <Segmented label={t('world.mem.about')} value={about} onChange={setAbout} options={[{ id: 'book' as const, label: t('world.mem.about.book') }, { id: 'story' as const, label: t('world.mem.about.story') }]} />
+          </div>
+          <p className="text-caption text-muted-foreground">{t('world.mem.about.hint')}</p>
         </div>
       ) : (
         <LeverValue lever={key} value={to} onChange={setTo} label={t('world.mem.add.value')} />
       )}
       <Segmented label={t('world.mem.add.scope')} value={scope} onChange={setScope} options={[{ id: 'chat' as const, label: t('world.mem.scope.chat') }, { id: 'all' as const, label: t('world.mem.scope.all') }]} />
-      <Button variant="outline" className="self-start max-md:h-11" disabled={disabled || empty} onClick={() => { onAdd(scope, key, to); if (key === 'words') setTo('') }}>
+      <Button variant="outline" className="self-start max-md:h-11" disabled={disabled || empty} onClick={() => { onAdd(scope, key, to, key === 'words' && about === 'story' ? 'story' : undefined); if (key === 'words') setTo('') }}>
         <Plus className="size-4" aria-hidden="true" />{t('world.mem.add.go')}
       </Button>
     </div>
@@ -306,9 +316,9 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
     if (p.key === 'words' && a === 'all' && !(await askAll(p.text ?? ''))) return
     await run(() => answerLearned(cid, p.id, a, p.key === 'words' && a === 'all'))
   }
-  const addRule = async (scope: 'chat' | 'all', key: LearnAbout, to: string | number) => {
+  const addRule = async (scope: 'chat' | 'all', key: LearnAbout, to: string | number, about?: 'story') => {
     if (key === 'words' && scope === 'all' && !(await askAll(String(to)))) return
-    await run(() => addLearnedRule(cid, scope, key, to, key === 'words' && scope === 'all'), t('world.mem.add.done'))
+    await run(() => addLearnedRule(cid, scope, key, to, key === 'words' && scope === 'all', about), t('world.mem.add.done'))
   }
   const reset = async () => {
     if (!(await confirm({ title: t('world.mem.reset.title'), description: t('world.mem.reset.warn'), actionLabel: t('world.mem.reset') }))) return
@@ -388,7 +398,12 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
           </Section>
 
           <Section title={t('world.mem.add')}>
-            <AddRule disabled={busy || !live} onAdd={(scope, key, to) => void addRule(scope, key, to)} />
+            <AddRule disabled={busy || !live} onAdd={(scope, key, to, about) => void addRule(scope, key, to, about)} />
+          </Section>
+
+          <Section title={t('world.mem.kept')} aside={data.kept?.length ? String(data.kept.length) : undefined}>
+            <p className="px-4 py-3 text-caption text-muted-foreground">{t('world.mem.kept.hint')}</p>
+            <p className="px-4 pb-3 text-body" data-testid="memory-kept">{data.kept?.length ? data.kept.map((k) => k.name).join(', ') : t('world.mem.kept.none')}</p>
           </Section>
 
           <Section title={t('world.mem.names')}>
@@ -456,6 +471,9 @@ export function LearningCard({ chatId, view, save, on }: {
     <Section variant="tinted" tone="violet" icon={Brain} id="learn" title={t('world.learn.title')} dimmed={!on}>
       <SettingRow label={t('world.learn.switch')} info={t('world.learn.hint')}>
         <Switch checked={enabled} onCheckedChange={(v) => void save({ learn: v })} aria-label={t('world.learn.switch')} />
+      </SettingRow>
+      <SettingRow label={t('world.learn.writer')} info={t('world.learn.writer.hint')}>
+        <Switch checked={view.settings.learnWriter !== false} disabled={!enabled} onCheckedChange={(v) => void save({ learnWriter: v })} aria-label={t('world.learn.writer')} data-testid="learn-writer" />
       </SettingRow>
       <SettingRow label={t('world.learn.things')} info={t('world.learn.things.hint')}>
         <Segmented label={t('world.learn.things')} value={view.settings.things} onChange={(v) => void save({ things: v })} options={(['all', 'reasons', 'off'] as WorldThings[]).map((v) => ({ id: v, label: t(`world.things.${v}` as MsgKey) }))} />

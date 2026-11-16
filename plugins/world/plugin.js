@@ -122,7 +122,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1141,6 +1141,8 @@ function cleanSettings(s) {
     things: THINGS_STEPS.includes(b.things) ? b.things : DEFAULT_SETTINGS.things,
     // the DM may raise proposals from what the player removes and rewrites (the chat's switch; the log shows every one)
     learn: typeof b.learn === "boolean" ? b.learn : DEFAULT_SETTINGS.learn,
+    // the rules about the story (from events the player swiped away, or written so) also reach the writing model (#428)
+    learnWriter: typeof b.learnWriter === "boolean" ? b.learnWriter : DEFAULT_SETTINGS.learnWriter,
   };
 }
 
@@ -1163,6 +1165,8 @@ function cleanEvent(e) {
     hard: e.hard === true,
     sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
     retried: e.retried === true,
+    // how many times the player swiped away the reply that carried it (#428): at EVENT_SWIPES the event is dropped
+    ...(Number.isInteger(e.swiped) && e.swiped > 0 ? { swiped: e.swiped } : {}),
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     ...(Number.isFinite(e.sentAt) ? { sentAt: e.sentAt } : {}),
     // the message the reply that carried it followed (a key), so a deleted or swiped reply can be told from a kept one (#75)
@@ -1182,7 +1186,11 @@ const RECORD_ID = /^[a-z]\d{1,6}$/;
 
 const TIDY_LOG_MAX = 60;
 const SIGNALS_MAX = 200;
-const SIGNAL_OPS = ["delete", "retire", "restore", "pin", "add", "edit"];
+// swipe / reject / kept are about the DM's events (#428): a swipe of the reply that carried one, the event dropped after EVENT_SWIPES swipes, an event the story took
+const SIGNAL_OPS = ["delete", "retire", "restore", "pin", "add", "edit", "swipe", "reject", "kept"];
+const EVENT_SIGNALS = ["swipe", "reject", "kept"];
+/** Swipes of the carrying reply after which the event is dropped as unwanted. */
+export const EVENT_SWIPES = 2;
 
 /** One line of the tidy-up log: which thing, archived or woken, by whom (code or the DM naming it again), and the count that decided it. */
 function cleanTidyLine(l) {
@@ -1195,7 +1203,7 @@ function cleanSignal(g) {
   if (!isObj(g) || !SIGNAL_OPS.includes(g.op) || !Number.isFinite(g.at)) return null;
   const name = cut(str(g.name), NAME_MAX);
   if (!name) return null;
-  return { at: g.at, op: g.op, kind: KINDS.includes(g.kind) ? g.kind : "thing", name, madeBy: g.madeBy === "player" ? "player" : "dm", ...(g.src === "deck" || g.src === "bench" ? { src: g.src } : {}), ...(str(g.text) ? { text: cut(str(g.text), 120) } : {}), ...(Number.isInteger(g.lenBefore) && g.lenBefore >= 0 ? { lenBefore: g.lenBefore } : {}), ...(Number.isInteger(g.lenAfter) && g.lenAfter >= 0 ? { lenAfter: g.lenAfter } : {}) };
+  return { at: g.at, op: g.op, kind: EVENT_SIGNALS.includes(g.op) ? "event" : KINDS.includes(g.kind) ? g.kind : "thing", name, madeBy: g.madeBy === "player" ? "player" : "dm", ...(g.src === "deck" || g.src === "bench" ? { src: g.src } : {}), ...(str(g.text) ? { text: cut(str(g.text), 120) } : {}), ...(Number.isInteger(g.lenBefore) && g.lenBefore >= 0 ? { lenBefore: g.lenBefore } : {}), ...(Number.isInteger(g.lenAfter) && g.lenAfter >= 0 ? { lenAfter: g.lenAfter } : {}) };
 }
 
 /** Writes a signal into the state (the player's own action: not in CORE_KEYS). */
@@ -1408,7 +1416,17 @@ function cleanEntity(e) {
     ...spaceFields(kind, e),
     // how many times the story came to this place (counted by code when the Dashboard's place changes)
     ...(Number.isInteger(e.visits) && e.visits > 0 ? { visits: e.visits } : {}),
+    // what retiring it took with it (#428, see retireEffects): shown on the record; a restore puts the person back into the groups
+    ...(past && cleanGone(e.gone) ? { gone: cleanGone(e.gone) } : {}),
   };
+}
+
+/** `gone` of a retired record: event cards dropped (a count), cast deck cards dropped and groups left (names). Null when empty. */
+function cleanGone(g) {
+  if (!isObj(g)) return null;
+  const names = (v) => arr(v).map((x) => cut(str(x), NAME_MAX)).filter(Boolean).slice(0, CAST_CARDS_MAX);
+  const out = { events: Number.isInteger(g.events) && g.events > 0 ? g.events : 0, cards: names(g.cards), groups: names(g.groups) };
+  return out.events || out.cards.length || out.groups.length ? out : null;
 }
 
 /** The state file as code trusts it: anything unknown or malformed is dropped. */
@@ -1653,6 +1671,19 @@ export function eventLost(event, msgs, drop) {
   return !carrier || (!!drop && String(carrier.id) === String(drop));
 }
 
+/** Was the reply that carried the event swiped (the reply `drop` names is the carrier). A deleted reply or a failed one is not counted. */
+export function swipedAway(event, msgs, drop) {
+  if (!drop || !event || !event.after) return false;
+  const id = String(event.after).split("#")[0];
+  const i = msgs.findIndex((m) => String(m.id) === id);
+  if (i < 0) return false;
+  const carrier = msgs.slice(i + 1).find(isReply);
+  return !!carrier && String(carrier.id) === String(drop);
+}
+
+/** A short name for an event in the signals and the log: its first words. */
+const eventLabel = (text) => cutSentence(str(text), 60) || "event";
+
 /** Puts snapshot `i` back, and drops it and every later one from the list. Edits made by hand since stay. */
 function undoFrom(state, snaps, i) {
   const snap = snaps[i];
@@ -1701,7 +1732,16 @@ export function reconcile(fsx, state, msgs, { drop = "" } = {}) {
   }
   if (eventLost(state.event, msgs, drop)) {
     const { after, sentAt, ...rest } = state.event;
-    state.event = { ...rest, sent: 0 };
+    const swiped = swipedAway(state.event, msgs, drop);
+    const n = (rest.swiped || 0) + (swiped ? 1 : 0);
+    if (swiped) noteSignal(state, { op: "swipe", kind: "event", name: eventLabel(rest.text), madeBy: "dm", text: cut(rest.text, 120) });
+    if (swiped && n >= EVENT_SWIPES) {
+      // swiped away again and again: the player does not want it (and the memory learns from it)
+      noteSignal(state, { op: "reject", kind: "event", name: eventLabel(rest.text), madeBy: "dm", text: cut(rest.text, 120) });
+      learnLog(learnedOf(state), { at: Date.now(), act: "reject", key: "words", text: rest.text });
+      state.event = null;
+      out.rejected = true;
+    } else state.event = { ...rest, sent: 0, ...(n ? { swiped: n } : {}) };
     out.event = true;
   }
   // a person's entrance rides the same way: a reply that carried it and is gone (deleted, swiped) sends it again
@@ -2970,10 +3010,59 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     e.status = "past";
     e.text = shortText(str(raw.text) || e.text, pastMax);
     e.at = at;
+    retireEffects(state, e);
     if (touched) touched.add(e.id);
     changes++;
   }
   return changes;
+}
+
+/**
+ * What a record that leaves the story for good (dead, destroyed, gone) takes with it (#428): the events deck's cards that name it
+ * (written before it left), the cast deck's cards tied to the person or belonging to the group, and the person's place among the
+ * groups' members. The pending event stays (the DM chose it knowing). Kept on the record as `gone`, which the book shows; a restore
+ * puts the person back into those groups, the cards stay dropped. The card lorebook entry a person is linked to is muted by
+ * `writeBook` (the book's `mutes`). Returns `gone` or null.
+ */
+export function retireEffects(state, e) {
+  const names = namesOf(e);
+  const named = (n) => !!str(n) && names.some((x) => sameName(x, str(n)));
+  const re = namesPattern(names);
+  const deck = arr(state.deck);
+  if (re && deck.length) state.deck = deck.filter((c) => !re.test(str(c.text)));
+  const events = deck.length - arr(state.deck).length;
+  const cards = [];
+  if (Array.isArray(state.cast) && (e.kind === "person" || e.kind === "group")) {
+    state.cast = state.cast.filter((c) => {
+      const hit = e.kind === "person" ? named(c.tie) : named(c.faction);
+      if (hit) cards.push(c.name);
+      return !hit;
+    });
+    if (!state.cast.length) delete state.cast;
+  }
+  const groups = [];
+  if (e.kind === "person") {
+    for (const g of state.entities) {
+      if (g.kind !== "group" || g.status !== "active" || !Array.isArray(g.members)) continue;
+      const left = g.members.filter((m) => !named(m));
+      if (left.length === g.members.length) continue;
+      g.members = left;
+      groups.push(g.name);
+    }
+  }
+  const gone = cleanGone({ events, cards, groups });
+  if (gone) e.gone = gone;
+  else delete e.gone;
+  return gone;
+}
+
+/** A record brought back by the player: a person goes back into the groups retiring took them out of. */
+function restoreEffects(state, e) {
+  for (const name of arr(e.gone && e.gone.groups)) {
+    const g = state.entities.find((x) => x.kind === "group" && x.status === "active" && sameName(x.name, name));
+    if (g) g.members = cleanMembers([...arr(g.members), e.name]);
+  }
+  delete e.gone;
 }
 
 /**
@@ -3078,7 +3167,10 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
   }
   // the pending event first: one shot, one retry
   if (state.event && state.event.sent > 0) {
-    if (out.delivered === true) state.event = null;
+    if (out.delivered === true) {
+      noteSignal(state, { op: "kept", kind: "event", name: eventLabel(state.event.text), madeBy: "dm", text: cut(state.event.text, 120) });
+      state.event = null;
+    }
     else if (out.delivered === false && !state.event.retried) state.event = { ...state.event, sent: 0, retried: true };
     else if (out.delivered === false) state.event = null;
   }
@@ -4207,6 +4299,8 @@ export function insertCeiling(ctx, host) {
   }
   // a person coming back: the note; with a deck that has cards, the note of a new person carries the card's text (the longest card's room)
   if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: Math.max(160, deckNoteTokens(set, w.cast)) });
+  // the player's wishes for the writer (#428): only when a rule about the story is in force (the engine plugin's table has the same rule)
+  if (set.level !== "off" && writerRules(set, cleanLearned(w.learned), loadLearned(fsx)).length) rows.push({ id: "world wishes", tokens: WRITER_TOKENS });
   return ceilingAnswer(rows);
 }
 /** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
@@ -4250,6 +4344,9 @@ export function llmRequest(ctx, host) {
     const parts = [];
     const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : [], regView(fsx, chatId)));
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
+    // the player's wishes for the story (#428): rules about the story, learned from swiped events or written so, reach the writer too
+    const wishes = lv !== "off" ? writerInsert(writerRules(state.settings, state.learned, loadLearned(fsx))) : "";
+    if (wishes) parts.push({ kind: "plugin", label: "World · wishes", text: wishes });
     const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
       // the message the reply follows: a swipe writes the last reply again, so it follows the one before that
@@ -4370,7 +4467,8 @@ function entryOf(e, uid, old, constant) {
     // a pinned living record is always in the prompt; the rest come up by their keys
     // (a bench stub of a weighty person is too: see benchConstant)
     status: (e.pinned || constant) && e.status === "active" ? "constant" : "normal",
-    content: e.name + (spaceNote(e) ? spaceNote(e).replace(" [", " (").replace(/\]$/, ")") : "") + ": " + e.text,
+    // a retired record says so itself: the DM may retire one without a new text, and the old one still reads as alive (#428)
+    content: e.name + (e.status === "past" ? " (gone from the story)" : spaceNote(e) ? spaceNote(e).replace(" [", " (").replace(/\]$/, ")") : "") + ": " + e.text,
     position: "after_char",
     depth: 4,
     role: "system",
@@ -4414,8 +4512,13 @@ export function writeBook(fsx, state, title) {
     if (!e.uid) e.uid = next++;
     return entryOf(e, e.uid, own.get(e.id), constant.has(e.id));
   });
+  // the card lorebook entries of people who left the story for good: the engine plugin skips them in this chat (#428), so the
+  // card's text of a living person does not speak over the record that says how they ended
+  const mutes = bookMutes(state);
+  const { mutes: _old, ...rest } = book;
   writeJson(fsx, path, {
-    ...book,
+    ...rest,
+    ...(mutes.length ? { mutes } : {}),
     id: state.bookId,
     name: str(book.name) || "World" + (title ? ": " + title : ""),
     ownerChatId: state.chatId,
@@ -4425,6 +4528,11 @@ export function writeBook(fsx, state, title) {
     formatTemplate: typeof book.formatTemplate === "string" ? book.formatTemplate : "",
     entries: [...others, ...ours],
   });
+}
+
+/** `<book id>#<uid>` of the lorebook entries linked to retired people: plugins/engine `activateWorldInfo` skips them for the chat that owns the world book. */
+export function bookMutes(state) {
+  return state.entities.filter((e) => e.kind === "person" && e.status === "past" && e.link).map((e) => e.link.book + "#" + e.link.uid);
 }
 
 /** The chat's meta names its world book (the engine plugin scans it from there). */
@@ -5519,12 +5627,21 @@ export const LEARN_LEVERS = ["things", "textMax", "cast"];
 /** What a proposal, an answer or a log line can be about: a lever, or a rule in words. */
 export const LEARN_KEYS = [...LEARN_LEVERS, "words"];
 const LEARN_WORD_KINDS = ["person", "place", "group"];
+/** What a proposal's evidence can be about: a kind of record, or the DM's events (#428). */
+const LEARN_EV_KINDS = [...KINDS, "event"];
+/** What a rule in words is about: the book (what the DM records) or the story (what happens; the writer sees it too when learnWriter is on). */
+export const RULE_ABOUT = ["book", "story"];
+/** The rules about the story the writing model gets, and their characters. */
+const WRITER_RULES_MAX = 3;
+const WRITER_CHARS_MAX = 320;
+/** Records the player keeps on purpose (pinned, written or brought back by hand) named to the DM as examples. */
+const KEPT_MAX = 5;
 /** A rule in words: one line of at most this many characters; the block of them in the DM's input holds this many rules and this many characters of rule text. */
 const RULE_TEXT_MAX = 160;
 const PROMPT_RULES_MAX = 10;
 const PROMPT_CHARS_MAX = 600;
 /** First guesses (owner, 2026-11-16): min = how many, share = percent of the DM's records of that kind, cut = how much shorter a rewrite is. */
-export const LEARN_THRESHOLDS = { things: { min: 5, share: 60 }, text: { min: 3, share: 30, cut: 30 }, cast: { min: 3, share: 60 }, words: { min: 5, share: 60 } };
+export const LEARN_THRESHOLDS = { things: { min: 5, share: 60 }, text: { min: 3, share: 30, cut: 30 }, cast: { min: 3, share: 60 }, words: { min: 5, share: 60 }, events: { min: 3, share: 30 } };
 
 const nint = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
 
@@ -5562,7 +5679,7 @@ function cleanEv(ev) {
     thr: clamp(nint(ev.thr), 0, 100),
     days: nint(ev.days),
     names: arr(ev.names).map((x) => cut(str(x), NAME_MAX)).filter(Boolean).slice(0, LEARN_NAMES_MAX),
-    ...(KINDS.includes(ev.kind) ? { kind: ev.kind } : {}),
+    ...(LEARN_EV_KINDS.includes(ev.kind) ? { kind: ev.kind } : {}),
     ...(nint(ev.len) ? { len: nint(ev.len) } : {}),
     ...(ev.manual === true ? { manual: true } : {}),
   };
@@ -5581,7 +5698,7 @@ function cleanRule(r) {
   if (lever) return { ...base, lever: { key: lever.key, to: lever.to }, ...(r.was !== undefined && leverValid(lever.key, r.was) ? { was: r.was } : {}), ...(ev ? { ev } : {}) };
   // a rule in words (half B): one line the DM reads in the block "what this player prefers"
   const text = cleanRuleText(r.text);
-  return text ? { ...base, text, ...(ev ? { ev } : {}) } : null;
+  return text ? { ...base, text, ...(r.about === "story" ? { about: "story" } : {}), ...(ev ? { ev } : {}) } : null;
 }
 
 function cleanProposal(p) {
@@ -5599,7 +5716,7 @@ function cleanProposal(p) {
   return { id: str(p.id), key: lever.key, lever, ev, at: p.at };
 }
 
-const LEARN_ACTS = ["raise", "answer", "remove", "edit", "add", "reset", "phrase"];
+const LEARN_ACTS = ["raise", "answer", "remove", "edit", "add", "reset", "phrase", "reject"];
 
 const LEARN_ANSWERS = ["all", "chat", "no", "removed"];
 
@@ -5626,7 +5743,7 @@ export function cleanLearned(l) {
   const proposals = arr(l.proposals).map(cleanProposal).filter(Boolean).slice(-LEARN_PROPOSALS_MAX);
   const answered = arr(l.answered)
     .filter((a) => isObj(a) && LEARN_KEYS.includes(a.key) && Number.isFinite(a.at) && LEARN_ANSWERS.includes(a.answer))
-    .map((a) => ({ key: a.key, at: a.at, answer: a.answer, ...(KINDS.includes(a.kind) ? { kind: a.kind } : {}) }))
+    .map((a) => ({ key: a.key, at: a.at, answer: a.answer, ...(LEARN_EV_KINDS.includes(a.kind) ? { kind: a.kind } : {}) }))
     .slice(-LEARN_ANSWERED_MAX);
   const applied = arr(l.applied)
     .filter((a) => isObj(a) && /^g\d{1,6}$/.test(str(a.id)) && LEARN_LEVERS.includes(a.key) && leverValid(a.key, a.to))
@@ -5806,6 +5923,17 @@ export function learnEvidence(state, now) {
       }
     }
   }
+  // events: the DM's events the player swiped away until they were dropped, as a share of those and the ones the story took (#428)
+  {
+    const th = LEARN_THRESHOLDS.events;
+    const since = learnSince(state, "words", now, "event");
+    const gone = sigs.filter((g) => g.op === "reject" && g.kind === "event" && g.at >= since);
+    const kept = sigs.filter((g) => g.op === "kept" && g.kind === "event" && g.at >= since);
+    const total = gone.length + kept.length;
+    if (gone.length >= th.min && pct(gone.length, total) >= th.share) {
+      out.push({ key: "words", kind: "event", ev: { n: gone.length, total, share: pct(gone.length, total), min: th.min, thr: th.share, days: LEARN_DAYS, names: uniqNames([...gone].reverse()).slice(0, LEARN_NAMES_MAX), kind: "event" } });
+    }
+  }
   return out;
 }
 
@@ -5861,10 +5989,11 @@ export function answerProposal(fsx, state, id, answer, now, confirm) {
   L.answered = [...L.answered, { key: p.key, at: now, answer, ...(words && p.ev.kind ? { kind: p.ev.kind } : {}) }].slice(-LEARN_ANSWERED_MAX);
   learnLog(L, { at: now, act: "answer", key: p.key, ...(words ? { text: p.text } : { to: p.lever.to }), answer, ev: p.ev });
   if (words) {
-    if (answer === "chat") L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text: p.text, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
+    const about = p.ev.kind === "event" ? { about: "story" } : {};
+    if (answer === "chat") L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text: p.text, ...about, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
     else if (answer === "all") {
       const g = loadLearned(fsx);
-      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text: p.text, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
+      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text: p.text, ...about, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
       saveLearned(fsx, g);
     }
     return "";
@@ -5887,17 +6016,18 @@ export function answerProposal(fsx, state, id, answer, now, confirm) {
  * Add a rule by hand: one lever and a value, or a rule in words (key "words", `to` is the text). The chat takes a setting exactly; other
  * chats only where it tightens. A rule in words for all chats needs `confirm: true`.
  */
-export function addRule(fsx, state, scope, key, to, now, confirm) {
+export function addRule(fsx, state, scope, key, to, now, confirm, about) {
   const L = learnedOf(state);
   if (key === "words") {
     const text = cleanRuleText(to);
+    const ab = about === "story" ? { about: "story" } : {};
     if (!text) return "a rule needs words";
     if (scope === "all") {
       if (confirm !== true) return "confirm needed";
       const g = loadLearned(fsx);
-      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text, source: "player", at: now }].slice(-LEARN_RULES_MAX);
+      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text, ...ab, source: "player", at: now }].slice(-LEARN_RULES_MAX);
       saveLearned(fsx, g);
-    } else L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text, source: "player", at: now }].slice(-LEARN_RULES_MAX);
+    } else L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text, ...ab, source: "player", at: now }].slice(-LEARN_RULES_MAX);
     learnLog(L, { at: now, act: "add", key: "words", text, scope: scope === "all" ? "all" : "chat" });
     return "";
   }
@@ -6023,7 +6153,9 @@ export function learnedView(fsx, state) {
     log: [...arr(L && L.log)].reverse(),
     remembered: state ? removedNames(state, SIGNALS_MAX) : [],
     waiting,
-    note: learnedInput(set, L, g),
+    note: learnedInput(set, L, g, state),
+    kept: state && state.settings.learn !== false ? keptRecords(state).map((e) => ({ id: e.id, kind: e.kind, name: e.name })) : [],
+    writer: state ? state.settings.learnWriter !== false : true,
     thresholds: LEARN_THRESHOLDS,
     days: LEARN_DAYS,
     limits: { rules: PROMPT_RULES_MAX, chars: PROMPT_CHARS_MAX, text: RULE_TEXT_MAX },
@@ -6061,12 +6193,61 @@ export function learnTextRules(learned, g) {
   return { all, used };
 }
 
-const learnBlock = (rules) => (rules.length ? "What this player prefers (learned from what they removed and rewrote in the book; follow it when you record):\n" + rules.map((r) => "- " + r.text).join("\n") : "");
+const learnBlock = (rules) => {
+  const book = rules.filter((r) => r.about !== "story");
+  const story = rules.filter((r) => r.about === "story");
+  return [
+    book.length ? "What this player prefers (learned from what they removed and rewrote in the book; follow it when you record):\n" + book.map((r) => "- " + r.text).join("\n") : "",
+    story.length ? "What this player wants in the story (learned from events they swiped away; follow it when you choose events and the direction):\n" + story.map((r) => "- " + r.text).join("\n") : "",
+  ].filter(Boolean).join("\n");
+};
 
-/** Exactly what the memory adds to the DM's input: the words for the levers in force, then the block of rules in words. */
-export function learnedInput(settings, learned, g) {
-  return [learnNote(settings), learnBlock(learnTextRules(learned, g).used)].filter(Boolean).join("\n");
+/**
+ * The records the player keeps on purpose, newest first (#428, positive signals): pinned, written or brought back by hand and still in
+ * the book. The DM gets their names as examples of what this player wants recorded; the rule call gets them too.
+ */
+export function keptRecords(state, max = KEPT_MAX) {
+  const out = [];
+  const done = new Set();
+  const list = arr(state.signals);
+  for (let i = list.length - 1; i >= 0 && out.length < max; i--) {
+    const g = list[i];
+    if (!["pin", "add", "restore"].includes(g.op)) continue;
+    const e = state.entities.find((x) => x.status === "active" && x.kind === g.kind && namesOf(x).some((n) => sameName(n, g.name)));
+    if (!e || done.has(e.id)) continue;
+    done.add(e.id);
+    out.push(e);
+  }
+  return out;
 }
+
+const keptLine = (kept) => (kept.length ? "Records this player keeps on purpose (pinned, written or brought back by hand), examples of what they want recorded: " + kept.map((e) => e.name).join(", ") + "." : "");
+
+/** Exactly what the memory adds to the DM's input: the words for the levers in force, the block of rules in words, the records kept on purpose. */
+export function learnedInput(settings, learned, g, state) {
+  return [learnNote(settings), learnBlock(learnTextRules(learned, g).used), state && settings.learn !== false ? keptLine(keptRecords(state)) : ""].filter(Boolean).join("\n");
+}
+
+/** The rules about the story the writing model gets (#428): newest first, at most WRITER_RULES_MAX and WRITER_CHARS_MAX characters. */
+export function writerRules(settings, learned, g) {
+  if (!isObj(settings) || settings.learn === false || settings.learnWriter === false) return [];
+  const out = [];
+  let chars = 0;
+  for (const r of learnTextRules(learned, g).used.filter((x) => x.about === "story")) {
+    if (out.length >= WRITER_RULES_MAX || chars + r.text.length > WRITER_CHARS_MAX) break;
+    out.push(r);
+    chars += r.text.length;
+  }
+  return out;
+}
+
+/** The writer's line: the player's wishes for the story, one rule a line. "" with none. */
+export function writerInsert(rules) {
+  return rules.length ? "[The player's wishes for this story, learned from replies they swiped away. Keep to them:\n" + rules.map((r) => "- " + r.text).join("\n") + "]" : "";
+}
+
+/** The room the writer's line can take (both insert-ceiling tables use this rule: change them together). */
+export const WRITER_TOKENS = Math.ceil(WRITER_CHARS_MAX / 3.5) + 30;
 
 export const LEARN_SYSTEM = [
   "You help the game master (the DM) of a roleplay story learn what one player does not want in the story's world book.",
@@ -6076,6 +6257,28 @@ export const LEARN_SYSTEM = [
   "If there is no clear pattern, return an empty rule.",
   'Output only one JSON object: {"rule": "..."} or {"rule": ""}.',
 ].join("\n");
+
+export const LEARN_EVENTS_SYSTEM = [
+  "You help the game master (the DM) of a roleplay story learn what one player does not want to happen in the story.",
+  "You get events the DM sent into the story that the player swiped away (they wrote the reply again, twice), and events the story took.",
+  "If the swiped events share a clear pattern that the kept ones do not, write ONE rule: a single plain sentence of at most 140 characters, in the imperative, about which events to bring or leave out (for example: Do not interrupt quiet scenes with sudden attacks).",
+  "Do not name people or places from the events and do not quote them.",
+  "If there is no clear pattern, return an empty rule.",
+  'Output only one JSON object: {"rule": "..."} or {"rule": ""}.',
+].join("\n");
+
+/** The user message of the call that writes a rule from swiped events: the events dropped, the events kept. */
+function learnEventsInput(state, now) {
+  const sigs = arr(state.signals).filter((g) => g.kind === "event" && g.at >= now - LEARN_DAYS * 86400000);
+  const lines = (op) => sigs.filter((g) => g.op === op).slice(-LEARN_NAMES_MAX).reverse().map((g) => "- " + (str(g.text) || g.name));
+  const gone = lines("reject");
+  const kept = lines("kept");
+  return [
+    gone.length ? "Events the player swiped away:\n" + gone.join("\n") : "",
+    kept.length ? "Events the story took:\n" + kept.join("\n") : "",
+    "Write the rule.",
+  ].filter(Boolean).join("\n\n");
+}
 
 /** The evidence for a rule the player asks for by hand ("Suggest a rule from my edits"): the DM's records removed or cut short in the window, any kind. Null when there are none. */
 function manualEvidence(state, now) {
@@ -6108,10 +6311,13 @@ function learnInput(state, ev, now) {
       return line(g, "from " + g.lenBefore + " to " + g.lenAfter + " characters");
     });
   const kept = state.entities.filter((e) => e.by !== "player" && e.status !== "past" && (all || e.kind === ev.kind)).slice(-4).map((e) => line(e, cut(str(e.text), 100)));
+  // positive signals (#428): what the player pinned, wrote or brought back by hand
+  const mine = keptRecords(state).filter((e) => all || e.kind === ev.kind).map((e) => line(e, cut(str(e.text), 100)));
   return [
     delLines.length ? "The player deleted these records the DM wrote:\n" + delLines.join("\n") : "",
     cutLines.length ? "The player rewrote these records much shorter:\n" + cutLines.join("\n") : "",
     kept.length ? "Records the DM wrote that the player kept:\n" + kept.join("\n") : "",
+    mine.length ? "Records the player pinned, wrote or brought back by hand (they want these):\n" + mine.join("\n") : "",
     "Write the rule.",
   ].filter(Boolean).join("\n\n");
 }
@@ -6131,7 +6337,8 @@ function phraseLearn(req, host, state, chat, b, now) {
   const ev = p ? p.ev : manualEvidence(state, now);
   if (!ev) return ok({ error: "Nothing to learn from yet: delete or rewrite something the DM wrote first." }, 409);
   const cfg = loadConfig(fsx);
-  const built = buildResult(host, "world_learn", buildAsk(host, fsx, cfg, chat.meta, LEARN_SYSTEM, learnInput(state, ev, now)), isObj(req.stash) ? req.stash : {});
+  const events = ev.kind === "event" && ev.manual !== true;
+  const built = buildResult(host, "world_learn", buildAsk(host, fsx, cfg, chat.meta, events ? LEARN_EVENTS_SYSTEM : LEARN_SYSTEM, events ? learnEventsInput(state, now) : learnInput(state, ev, now)), isObj(req.stash) ? req.stash : {});
   if (built.pending) return built.pending;
   countBuild(state, built, "learn", 0);
   const finish = (extra) => {
@@ -6189,7 +6396,7 @@ function learnedRoute(req, host, sub) {
   if (sub === "phrase") return phraseLearn(req, host, state, chat, b, now);
   let err = "";
   if (sub === "answer") err = answerProposal(fsx, state, str(b.id), str(b.answer), now, b.confirm === true);
-  else if (sub === "rule") err = addRule(fsx, state, b.scope === "all" ? "all" : "chat", str(b.key), b.to, now, b.confirm === true);
+  else if (sub === "rule") err = addRule(fsx, state, b.scope === "all" ? "all" : "chat", str(b.key), b.to, now, b.confirm === true, str(b.about));
   else if (sub === "remove") err = removeRule(fsx, state, str(b.id), now);
   else if (sub === "edit") err = editRule(fsx, state, str(b.id), b.to, now);
   else if (sub === "clear") delete state.signals;
@@ -6758,7 +6965,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.src ? { src: e.src } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}), ...(e.hook ? { hook: e.hook } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.src ? { src: e.src } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}), ...(e.hook ? { hook: e.hook } : {}), ...(e.gone ? { gone: e.gone } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -6806,7 +7013,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen", "things", "learn"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -6972,7 +7179,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnedInput(state.settings, state.learned, loadLearned(fsx)), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnedInput(state.settings, state.learned, loadLearned(fsx), state), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -7256,8 +7463,10 @@ function recordsRoute(req, host) {
       if (!lib) noteSignal(state, { op: "retire", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", text: cut(e.text, 120) });
       e.status = "past";
       e.text = shortText(text || e.text, pastMaxOf(state.settings));
+      if (!lib) retireEffects(state, e);
     } else if (op === "restore") {
       if (!lib) noteSignal(state, { op: "restore", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm" });
+      if (e.status === "past") restoreEffects(state, e);
       e.status = "active";
       // a thing the player woke is judged again only after a full pass, not at once
       if (state.tidy) state.tidy = { ...state.tidy, seen: state.tidy.seen.filter((id) => id !== e.id) };

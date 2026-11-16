@@ -47,7 +47,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -162,6 +162,8 @@ export interface WorldRecord {
   link?: { book: string; uid: number; title: string }
   /** a person: "bring back automatically" is switched off */
   noReturn?: boolean
+  /** a retired record: what leaving took with it (#428): event cards dropped, cast deck cards dropped, groups left */
+  gone?: { events: number; cards: string[]; groups: string[] }
   /** a person: why they may come back now, as the DM wrote it (what they were doing, what they want); the next return uses it once */
   hook?: { text: string; at: number }
   /** a group or a place: the people who belong (names, up to 30, each up to 80 characters); [] clears it when saving. A fact told to the group is known to each of them */
@@ -805,11 +807,11 @@ export async function refreshDice(chatId: string, force = false): Promise<void> 
 export type LearnKey = 'things' | 'textMax' | 'cast'
 /** What a proposal, a rule or a log line is about: a lever, or a rule in words. */
 export type LearnAbout = LearnKey | 'words'
-export interface LearnEvidence { n: number; total: number; share: number; min: number; thr: number; days: number; names: string[]; kind?: WorldKind; len?: number; /** asked for by hand ("Suggest a rule"), no threshold */ manual?: boolean }
+export interface LearnEvidence { n: number; total: number; share: number; min: number; thr: number; days: number; names: string[]; /** a kind of record, or `event`: events the player swiped away (#428) */ kind?: WorldKind | 'event'; len?: number; /** asked for by hand ("Suggest a rule"), no threshold */ manual?: boolean }
 /** A proposal moves a lever (`lever`), or is a rule in words (`key: 'words'`): `text` is written by a small model call, `state` says how far it is. */
 export interface LearnProposal { id: string; key: LearnAbout; lever?: { key: LearnKey; from?: string | number; to: string | number }; text?: string; state?: 'pending' | 'ready' | 'error'; err?: string; ev: LearnEvidence; at: number }
-export interface LearnRule { id: string; scope: 'chat' | 'all'; /** a rule that sets a lever */ lever?: { key: LearnKey; to: string | number }; /** a rule in words */ text?: string; /** a rule in words: it fits in the block the DM reads (10 rules, 600 characters) */ inPrompt?: boolean; was?: string | number; source: 'proposal' | 'player'; ev?: LearnEvidence; at: number; /** this chat holds the rule (a chat rule always; an all-chats rule when the chat took it) */ here: boolean }
-export interface LearnLine { at: number; act: 'raise' | 'answer' | 'remove' | 'edit' | 'add' | 'reset' | 'phrase'; key: LearnAbout; to?: string | number; text?: string; result?: 'ok' | 'none' | 'error'; answer?: 'all' | 'chat' | 'no' | 'removed'; scope?: 'all' | 'chat'; ev?: LearnEvidence }
+export interface LearnRule { id: string; scope: 'chat' | 'all'; /** a rule that sets a lever */ lever?: { key: LearnKey; to: string | number }; /** a rule in words */ text?: string; /** a rule in words about the story (#428): the DM keeps to it when it picks events, and the reply model reads it too */ about?: 'story'; /** a rule in words: it fits in the block the DM reads (10 rules, 600 characters) */ inPrompt?: boolean; was?: string | number; source: 'proposal' | 'player'; ev?: LearnEvidence; at: number; /** this chat holds the rule (a chat rule always; an all-chats rule when the chat took it) */ here: boolean }
+export interface LearnLine { at: number; act: 'raise' | 'answer' | 'remove' | 'edit' | 'add' | 'reset' | 'phrase' | 'reject'; key: LearnAbout; to?: string | number; text?: string; result?: 'ok' | 'none' | 'error'; answer?: 'all' | 'chat' | 'no' | 'removed'; scope?: 'all' | 'chat'; ev?: LearnEvidence }
 export interface LearnWaiting { chatId: string; id: string; key: LearnAbout; at: number }
 /** GET /world/learned: the memory of a chat (with a chatId) or the rules for all chats and who waits (without). */
 export interface WorldLearned {
@@ -822,6 +824,10 @@ export interface WorldLearned {
   log: LearnLine[]
   /** names the player removed, newest first */
   remembered: string[]
+  /** records the player keeps on purpose (pinned, written, brought back), newest first: the DM's examples (#428) */
+  kept?: { id: string; kind: WorldKind; name: string }[]
+  /** rules about the story also reach the reply model */
+  writer?: boolean
   /** proposals waiting in any chat */
   waiting: LearnWaiting[]
   /** the words the levers add to the DM's input */
@@ -842,7 +848,7 @@ async function learnedPost(sub: string, body: Record<string, unknown>): Promise<
   return r
 }
 export const answerLearned = (chatId: string, id: string, answer: 'all' | 'chat' | 'no', confirm = false) => learnedPost('answer', { chatId, id, answer, ...(confirm ? { confirm: true } : {}) })
-export const addLearnedRule = (chatId: string, scope: 'all' | 'chat', key: LearnAbout, to: string | number, confirm = false) => learnedPost('rule', { chatId, scope, key, to, ...(confirm ? { confirm: true } : {}) })
+export const addLearnedRule = (chatId: string, scope: 'all' | 'chat', key: LearnAbout, to: string | number, confirm = false, about?: 'story') => learnedPost('rule', { chatId, scope, key, to, ...(confirm ? { confirm: true } : {}), ...(about ? { about } : {}) })
 /** The small call that writes a rule in words (the build model): for a proposal waiting for its text, or `manual` for "Suggest a rule". The answer is the new view, or says why not. */
 export async function phraseLearned(chatId: string, opts: { manual?: boolean; retry?: boolean } = {}): Promise<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }> {
   const r = await j<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }>('/world/learned/phrase', { method: 'POST', body: JSON.stringify({ chatId, ...opts }) })
