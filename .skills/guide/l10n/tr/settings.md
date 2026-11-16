@@ -1,4 +1,4 @@
-<!-- source: f55b4fcd16f5 -->
+<!-- source: 324954b86949 -->
 # Roleplay'in ayarları nerede
 
 Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikleri şeyin yanında durur ve ikisi ana Molfar Vertep Settings'tedir. Bu sayfa bir bulucudur.
@@ -19,7 +19,7 @@ Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişl
 - **Prompt ve sampling**: **Presets** bölümü (değiştirebileceğiniz bölümler, değişkenler, örnekleyiciler ve son isteğin önizlemesi) ve tek bir sohbet için Canvas'ın Prompt panosu. Bir sohbetin Preset paneli, preset'in adının altında bir "Works with" satırı gösterir: bu sohbetin preset'in kuralları olduğu özellikleri (Dashboard, Litopys, World DM, zarlar...) ve bunlardan hangilerinin bu sohbette kapalı olduğu.
 - **Bir kartın kendine ait**: düzenleyici sekmeleri; renkler, regex ve gelişmiş seçenekler dahil. Bkz. [[characters]].
 - **Lorebook'lar**: her kitabın kendi kuralları vardır (tarama derinliği, boyut sınırı, Global anahtarı). Bkz. [[memory]].
-- **Inbox**, sizi bekleyen sayılan şeyler için tür başına anahtarlara sahiptir.
+- **Inbox**, seni bekleyen sayılan şeyler için türe göre anahtarlara sahiptir: Litopys ayarlarındaki Notices bloğu (olgular, portre blokları, alışkanlıklar, görevler, hatalar); ruhlar için olan anahtar Soul sekmesindedir. Sohbet bildirimlerinde her türün kendi rengi vardır (bkz. [[litopys]]).
 
 ## Tools
 

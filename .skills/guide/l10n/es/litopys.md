@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys: el registro de la historia
 
 Litopys (la crónica) es la memoria larga de un chat. Lee la historia en segundo plano y escribe un capítulo por cada escena terminada, además de los hechos que la historia ha establecido. Cuando un chat se hace demasiado largo para la ventana del modelo, el registro lleva la historia hacia adelante. Úsalo para historias largas; no necesitas iniciarlo.
@@ -60,6 +60,10 @@ La pestaña **Settings** del registro de un chat (en el panel lateral Record y e
 ## Sugerencias y orden
 
 "Suggestions" tiene tres opciones. "Ask me first": cada sugerencia espera tu sí. "Only risky ones" (lo predeterminado en una instalación nueva): las sugerencias rutinarias se aplican de inmediato, quedan registradas en Activity con un Undo, y solo esperan las arriesgadas, cada una con su motivo: una fusión que contaría un hecho a más gente de la que lo conocía, un cambio en un hecho que fijaste, escribiste, editaste o marcaste como clave, un cambio duradero o una creencia, y un hecho nuevo que puede contradecir uno que fijaste. El mismo motivo aparece en el Inbox. "Apply pins and rewrites quietly": solo pasan las fijaciones y las reescrituras; retirar y fusionar esperan a que decidas. "Tidy facts automatically" busca duplicados y contradicciones después de 30 hechos nuevos, con una llamada extra al modelo por cada 60 hechos.
+
+### Avisos en el chat
+
+Cuando algo espera tu respuesta, aparece en el chat un aviso de color, uno por color, cada uno del color del bloque al que apunta. **Verde**: las sugerencias de hechos de la Biblioteca. **Azul**: un bloque del retrato de un personaje («How they changed», pestaña Memory de la tarjeta). **Violeta**: un hábito que mostró un personaje (Biblioteca, Habits). **Ámbar**: una misión que la historia quiere cerrar, o abrir cuando no hay sitio (Dashboard, Quests). Un aviso con un solo elemento corto trae Accept y Reject en el propio aviso (para una misión que se cierra: Close it y Keep open); una misión nueva sin sitio pregunta qué misión abierta sustituye, así que su aviso abre el Dashboard. Varios avisos del mismo color se juntan en uno con un número. Cada propuesta se avisa una sola vez; lo que dejes sin responder queda en su bloque y en la Inbox, bajo «In this chat». Los avisos cubren el chat abierto y sus personajes; el bloque Notices de los ajustes de Litopys tiene un interruptor para cada color.
 
 ## Rebuild
 

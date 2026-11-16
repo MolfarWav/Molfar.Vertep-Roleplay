@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys: die Chronik der Geschichte
 
 Litopys (die Chronik) ist das Langzeitgedächtnis eines Chats. Sie liest die Geschichte im Hintergrund mit und schreibt für jede abgeschlossene Szene ein Kapitel, dazu die Fakten, die die Geschichte etabliert hat. Wenn ein Chat zu lang für das Fenster des Modells wird, trägt die Chronik die Geschichte weiter. Nutze sie für lange Geschichten; du musst sie nicht selbst starten.
@@ -60,6 +60,10 @@ Der **Settings**-Tab der Chronik eines Chats (im Record-Seitenpanel und in der L
 ## Vorschläge und Aufräumen
 
 "Suggestions" hat drei Möglichkeiten. "Ask me first": Jeder Vorschlag wartet auf dein Ja. "Only risky ones" (der Standard bei einer neuen Installation): Routine-Vorschläge werden sofort angewendet, im Activity-Tab mit einem Undo protokolliert, und nur die riskanten warten, jeder mit dem Grund darauf: ein Merge, der mehr Leuten einen Fakt verraten würde, den nur einige kannten, eine Änderung an einem Fakt, den du angepinnt, geschrieben, bearbeitet oder als Key markiert hast, eine dauerhafte Änderung oder ein Glaube, und ein neuer Fakt, der einem von dir angepinnten widersprechen könnte. Derselbe Grund erscheint im Inbox. "Apply pins and rewrites quietly": Nur Pins und Rewrites gehen durch; Zurückziehen und Mergen warten auf dich. "Tidy facts automatically" sucht nach 30 neuen Fakten nach Duplikaten und Widersprüchen, mit einem zusätzlichen Modellaufruf pro 60 Fakten.
+
+### Hinweise im Chat
+
+Wartet etwas auf deine Antwort, erscheint im Chat ein farbiger Hinweis, einer pro Farbe, jeweils in der Farbe des Blocks, auf den er zeigt. **Grün**: die Vorschläge der Bibliothek zu Fakten. **Blau**: ein Block aus dem Porträt einer Figur („How they changed“, Reiter Memory der Karte). **Violett**: eine Gewohnheit, die eine Figur gezeigt hat (Bibliothek, Habits). **Bernstein**: ein Quest, den die Geschichte schließen will, oder einen neuen, wenn kein Platz ist (Dashboard, Quests). Ein Hinweis mit einem kurzen Eintrag hat Accept und Reject direkt darin (bei einem Quest, der geschlossen werden soll: Close it und Keep open); ein neuer Quest ohne freien Platz fragt, welchen offenen Quest er ersetzt, darum öffnet sein Hinweis das Dashboard. Mehrere Hinweise einer Farbe werden zu einem mit Zähler. Jeder Vorschlag wird nur einmal gemeldet; was du unbeantwortet lässt, bleibt in seinem Block und in der Inbox unter „In this chat“. Die Hinweise gelten für den offenen Chat und seine Figuren; der Block Notices in den Litopys-Einstellungen hat für jede Farbe einen Schalter.
 
 ## Rebuild
 

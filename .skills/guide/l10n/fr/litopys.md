@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys : les archives de l'histoire
 
 Litopys (la chronique) est la mémoire longue d'un seul chat. Elle lit l'histoire en arrière-plan et écrit un chapitre pour chaque scène terminée, ainsi que les faits que l'histoire a établis. Quand un chat devient trop long pour la fenêtre du modèle, les archives font avancer l'histoire. Utilisez-la pour les longues histoires ; vous n'avez pas besoin de la démarrer.
@@ -60,6 +60,10 @@ L'onglet **Settings** des archives d'un chat (dans le panneau latéral Record et
 ## Suggestions et rangement
 
 "Suggestions" a trois choix. "Ask me first" : chaque suggestion attend votre oui. "Only risky ones" (le défaut d'une nouvelle installation) : les suggestions de routine sont appliquées aussitôt, consignées dans Activity avec un Undo, et seules les risquées attendent, chacune avec sa raison : une fusion qui révélerait à plus de gens un fait que seuls certains connaissaient, un changement à un fait que vous avez épinglé, écrit, modifié ou marqué key, un changement durable ou une croyance, et un nouveau fait qui pourrait contredire un fait que vous avez épinglé. La même raison s'affiche dans l'Inbox. "Apply pins and rewrites quietly" : seuls les épinglages et les réécritures passent ; le retrait et la fusion attendent votre accord. "Tidy facts automatically" cherche les doublons et les contradictions après 30 nouveaux faits, à un appel de modèle supplémentaire par 60 faits.
+
+### Notifications dans le chat
+
+Quand quelque chose attend ta réponse, une notification colorée apparaît dans le chat, une par couleur, chacune dans la couleur du bloc vers lequel elle mène. **Vert** : les suggestions de faits de la Bibliothèque. **Bleu** : un bloc du portrait d’un personnage (« How they changed », onglet Memory de la fiche). **Violet** : une habitude qu’un personnage a montrée (Bibliothèque, Habits). **Ambre** : une quête que l’histoire veut clore, ou ouvrir quand il n’y a plus de place (Dashboard, Quests). Une notification avec un seul élément court a Accept et Reject directement dedans (pour une quête à clore : Close it et Keep open) ; une nouvelle quête sans place demande quelle quête ouverte elle remplace, donc sa notification ouvre le Dashboard. Plusieurs notifications d’une même couleur n’en font qu’une, avec un nombre. Chaque proposition n’est signalée qu’une fois ; ce que tu laisses sans réponse reste dans son bloc et dans la Inbox, sous « In this chat ». Les notifications couvrent le chat ouvert et ses personnages ; le bloc Notices des réglages de Litopys a un interrupteur pour chaque couleur.
 
 ## Rebuild
 

@@ -1,4 +1,4 @@
-<!-- source: f55b4fcd16f5 -->
+<!-- source: 324954b86949 -->
 # Où sont les réglages de Roleplay
 
 Roleplay n'a pas une seule page de réglages pour tout. Les réglages se trouvent près de ce qu'ils changent, et deux d'entre eux sont dans les Réglages principaux de Molfar Vertep. Cette page est un index.
@@ -19,7 +19,7 @@ Ce que font les sections, en bref : Appearance règle la langue, les polices, la
 - **Requête et échantillonnage** : la section **Presets** (sections que vous pouvez changer, variables, échantillonneurs, et un aperçu de la requête finale) et le tableau Prompt du Canvas pour une discussion. Le panneau Preset d'une discussion affiche, sous le nom du préréglage, une ligne « Works with » : les fonctions de cette discussion pour lesquelles le préréglage a des règles (Dashboard, Litopys, World DM, dés...), et lesquelles sont désactivées dans cette discussion.
 - **Ce qui est propre à une carte** : ses onglets d'éditeur, y compris couleurs, regex et options avancées. Voir [[characters]].
 - **Livres de connaissances** : chaque livre a ses propres règles (profondeur d'analyse, plafond de taille, interrupteur Global). Voir [[memory]].
-- **La Inbox** a des interrupteurs par sorte pour ce qui compte comme en attente de vous.
+- **La Inbox** a des interrupteurs par type pour ce qui compte comme t’attendant : le bloc Notices des réglages de Litopys (faits, blocs du portrait, habitudes, quêtes, échecs) ; celui des âmes est dans l’onglet Soul. Chaque type a sa propre couleur dans les notifications du chat (voir [[litopys]]).
 
 ## Tools
 
