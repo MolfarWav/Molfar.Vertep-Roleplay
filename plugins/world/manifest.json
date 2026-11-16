@@ -9,5 +9,8 @@
     "fs",
     "hooks"
   ],
-  "priority": 30
+  "priority": 30,
+  "limits": {
+    "executionMs": 30000
+  }
 }

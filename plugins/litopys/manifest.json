@@ -6,5 +6,6 @@
   "permissions": ["routes", "llm", "fs", "schedule", "hooks"],
   "schedule": { "intervalMs": 60000 },
   "priority": 10,
-  "replaces": ["archivarius"]
+  "replaces": ["archivarius"],
+  "limits": { "executionMs": 30000 }
 }

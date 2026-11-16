@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.135.2 (2026-11-17)
+
+- Fixed: **the Dashboard, Litopys, World DM and Agents plugins ask for 30 s per call, like the chat engine (Molfar.Vertep#422).** Before each reply these plugins add their part to the request, one call each. On a phone those calls are several times slower than on a computer: the World DM's took 3.3 s on a laptop. With only the engine's default of 10 s, one of them could stop and its part would be missing. Their manifests now carry `limits.executionMs: 30000`. It takes effect with engine 1.16.9, which applies a plugin's own limit to its hooks and to apps installed from their repository. Before 1.16.9 the engine kept every installed Roleplay plugin at 10 s, the chat engine's own send included, because it marks an installed app's plugins as imported. That is why a phone still saw "exceeded the maximum allowed time limit" after engine 1.16.7.
+
 ## 4.135.1 (2026-11-17)
 
 - Changed: **the guide page `world-dm` is translated again in all 13 languages** (the DM tab, Memory and rules in words from 4.135.0). Ukrainian and Russian were written and read by hand; the other eleven (de, es, fr, it, nl, pt, pl, tr, ja, ko, zh) were written by a cheap model and checked by code for labels, links and layout, not by a native reader. The labels of buttons and tabs stay in English where the app has no translation of its own, as in the other pages.
