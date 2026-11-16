@@ -3834,6 +3834,51 @@ function castRefillRoute(req, host) {
   return ok({ ok: true, added: got.length, left: state.cast.length, ...(got.length ? {} : { none: true }) });
 }
 
+/**
+ * The cards of the cast deck, for the book's "Cast deck" chip: GET lists them; POST {chatId, op: "edit" | "delete", id, ...} changes one.
+ * An edit may change the name, aliases, tie, want and text (a card keeps its faction): a name another card or a record has is refused
+ * (409, code "clash"), and so is a tie nobody goes by (409, code "tie"). The cards are the player's to read and change; the DM never sees them.
+ */
+function castCardsRoute(req, host) {
+  const fsx = host.fs;
+  const b = req.method === "POST" ? body(req) : req.query || {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state, existed } = loadState(fsx, chatId);
+  if (req.method !== "POST") return ok({ cards: cleanCast(state.cast), per: state.settings.castPer, len: state.settings.castLen });
+  if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+  const cards = cleanCast(state.cast);
+  const card = cards.find((c) => c.id === str(b.id));
+  if (!card) return ok({ error: "no such card" }, 404);
+  if (b.op === "delete") {
+    state.cast = cards.filter((c) => c !== card);
+    if (!state.cast.length) delete state.cast;
+    saveState(fsx, state);
+    return ok({ cards: arr(state.cast) });
+  }
+  if (b.op !== "edit") return ok({ error: "op must be edit or delete" }, 400);
+  const patch = {
+    ...(b.name !== undefined ? { name: b.name } : {}),
+    ...(b.aliases !== undefined ? { aliases: b.aliases } : {}),
+    ...(b.want !== undefined ? { want: b.want } : {}),
+    ...(b.text !== undefined ? { text: b.text } : {}),
+  };
+  if (b.tie !== undefined) {
+    const tie = str(b.tie) ? tieOf(tieIndex(state.entities, cardNames(fsx, chat.meta), userNameOf(fsx, chat.meta)), b.tie) : "";
+    if (str(b.tie) && !tie) return ok({ error: "nobody who exists goes by that name", code: "tie" }, 409);
+    patch.tie = tie;
+  }
+  const [next] = cleanCast([{ ...card, ...patch }]);
+  if (!next) return ok({ error: "a card needs a name and a text", code: "empty" }, 400);
+  const taken = cards.some((c) => c !== card && sameName(c.name, next.name)) || (!sameName(card.name, next.name) && !!findEntity(state.entities, { name: next.name }));
+  if (taken) return ok({ error: "that name is taken", code: "clash" }, 409);
+  state.cast = cards.map((c) => (c === card ? { ...next, id: card.id } : c));
+  saveState(fsx, state);
+  return ok({ cards: state.cast });
+}
+
 function castRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -6553,6 +6598,7 @@ export function handleRoute(req, host) {
   if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
   if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
   if (path === "/world/cast/refill" && req.method === "POST") return castRefillRoute(req, host);
+  if (path === "/world/cast/cards" && (req.method === "GET" || req.method === "POST")) return castCardsRoute(req, host);
   if (path === "/world/tidy" && (req.method === "GET" || req.method === "POST")) return tidyRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);

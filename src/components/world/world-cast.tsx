@@ -36,6 +36,12 @@ export function castLine(t: T, r: WorldDiceRoll): string {
   if (r.via === 'life') return t('world.cast.roll.life', { who: r.who, band, tier: r.tier ? t(`world.dice.tier.${r.tier}` as MsgKey) : '', silence: r.silence ?? 0 }) + seen + ` · ${result}`
   const [d1, d2] = r.d ?? [0, 0]
   const mods = (r.mod ? ` +${r.mod} ${t('world.cast.mod.silence')}` : '') + (r.weight ? ` +${r.weight} ${t('world.cast.mod.weight')}` : '')
+  // a new person from the cast deck: who, which faction, the dice, who they tie to (or that nobody) and why this card
+  if (r.src === 'deck') {
+    const tie = r.tie ? t('world.castdeck.tie', { name: r.tie }) : t('world.castdeck.loose.tag')
+    const pick = r.pick ? ` · ${t(`world.castdeck.pick.${r.pick}` as MsgKey)}` : ''
+    return t('world.castdeck.roll', { who: r.who, band, silence: r.silence ?? 0, threshold: r.threshold ?? 0, d1, d2, mods, total: r.total ?? d1 + d2 }) + (r.faction ? ` · ${r.faction}` : '') + ` · ${tie}` + pick + (r.floor ? ` · ${t('world.cast.floor')}` : '') + ` · ${result}`
+  }
   return t('world.cast.roll.silence', { who: r.who, band, silence: r.silence ?? 0, threshold: r.threshold ?? 0, d1, d2, mods, total: r.total ?? d1 + d2 }) + seen + (r.floor ? ` · ${t('world.cast.floor')}` : '') + ` · ${result}`
 }
 
@@ -58,7 +64,7 @@ function CastStatus({ chatId, stamp, lore }: { chatId: string; stamp: string; lo
   return (
     <Fold id="cast-bench" title={t('world.cast.bench')} summary={summary} flat>
       <div className="flex flex-col gap-2 px-4 py-2" data-testid="cast-status">
-        {cast.entrance && (
+        {cast.entrance && cast.entrance.src !== 'deck' && (
           <p className="text-caption text-foreground" data-testid="cast-entrance">
             {cast.entrance.sent > 0
               ? t('world.cast.sent', { name: cast.entrance.name, band: band(cast.entrance.band) })
@@ -66,7 +72,7 @@ function CastStatus({ chatId, stamp, lore }: { chatId: string; stamp: string; lo
             {cast.entrance.retried ? ` · ${t('world.cast.retried')}` : ''}
           </p>
         )}
-        {cast.last && (
+        {cast.last && cast.last.src !== 'deck' && (
           <p className="text-caption text-muted-foreground">
             {t(cast.last.res === 'mentioned' ? 'world.cast.lastMentioned' : cast.last.ok ? 'world.cast.lastCame' : 'world.cast.lastMissed', { name: cast.people.find((p) => p.id === cast.last?.id)?.name ?? cast.last.id })}
           </p>
@@ -109,7 +115,7 @@ function CastLog({ chatId, stamp }: { chatId: string; stamp: string }) {
   const relativeTime = useRelativeTime()
   const [rolls, setRolls] = useState<WorldDiceRoll[] | null>(null)
   const load = useCallback(() => {
-    loadWorldDice(chatId).then((r) => setRolls(r.rolls.filter((x) => x.kind === 'cast').slice(-SHOWN).reverse())).catch(() => setRolls([]))
+    loadWorldDice(chatId).then((r) => setRolls(r.rolls.filter((x) => x.kind === 'cast' && x.src !== 'deck').slice(-SHOWN).reverse())).catch(() => setRolls([]))
   }, [chatId])
   useEffect(() => { load() }, [load, stamp])
   const summary = rolls === null ? t('chats.panel.loading') : rolls.length ? castLine(t, rolls[0]!) : t('world.cast.log.empty')

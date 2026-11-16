@@ -67,3 +67,24 @@ describe("a refill", () => {
     expect(await refillWorldCast("c1")).toMatchObject({ ok: true, skipped: "no world" });
   });
 });
+
+describe("the Start's numbers", () => {
+  it("count the draft's cards, what the player took out and the planned calls", async () => {
+    const { acceptCount, castCalls, draftTotal, dropOf, noneRemoved, plannedCalls } = await import("../src/lib/world-start");
+    const draft = { entities: [{}, {}], fronts: [{}], deck: [], cast: [{ id: "c1" }, { id: "c2" }, { id: "c3" }] } as never;
+    expect(draftTotal(draft)).toBe(6);
+    const removed = noneRemoved();
+    expect(dropOf(removed)).toBeUndefined();
+    removed.cast.add("c2");
+    expect(acceptCount(draft, removed)).toBe(5);
+    expect(dropOf(removed)).toEqual({ cast: ["c2"] });
+    // one call per four factions; none when it is off
+    expect(castCalls({ on: true, factions: 3 })).toBe(1);
+    expect(castCalls({ on: true, factions: 5 })).toBe(2);
+    expect(castCalls({ on: false, factions: 3 })).toBe(0);
+    expect(castCalls(undefined)).toBe(0);
+    const recipe = { sections: [{}, {}, {}], fronts: { count: 2 } } as never;
+    expect(plannedCalls(recipe, true, false)).toBe(4);
+    expect(plannedCalls(recipe, true, true, { on: true, factions: 6 })).toBe(7);
+  });
+});

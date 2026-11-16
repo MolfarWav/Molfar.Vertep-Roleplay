@@ -202,6 +202,10 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         />
         <span className="text-xs text-muted-foreground">{t(`world.cast.freq.${options.cast ?? 'normal'}.hint` as MsgKey)} {t('world.prof.opt.castHint')}</span>
       </div>
+      <div className="flex items-center justify-between gap-3 text-sm" data-testid="profile-cast-deck">
+        <span className="min-w-0">{t('world.prof.opt.castDeck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.castDeckHint')}</span></span>
+        <Switch checked={options.castDeck !== false} onCheckedChange={(v) => onChange({ ...options, castDeck: v })} aria-label={t('world.prof.opt.castDeck')} />
+      </div>
       <div className="-mx-3 flex flex-col border-t border-border">
         <DiceFields
           mode={options.dice}

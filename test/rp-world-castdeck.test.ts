@@ -456,3 +456,51 @@ describe("the refill", () => {
     expect(refill(fresh)).toMatchObject({ error: "this chat has no world yet" });
   });
 });
+
+// ---------- the player's own view of the cards ----------
+
+describe("reading and changing the cards", () => {
+  const maksym = { id: "n3", kind: "person", name: "Maksym", aliases: [], text: "The toll keeper.", status: "active", uid: 0 };
+  const seeded = () => {
+    const id = newChat();
+    writeState(id, { settings: { level: "living", cast: "normal", castDeck: true }, entities: [maksym], nextId: 4, cast: [card(), card({ id: "c2", name: "Zoya", aliases: [], tie: "" })] });
+    return id;
+  };
+  const cards = (chatId: string, body?: Record<string, unknown>) => (body ? world("POST", "/world/cast/cards", { chatId, ...body }) : world("GET", "/world/cast/cards", undefined, { chatId }));
+
+  it("lists the cards with the deck's numbers", () => {
+    const id = seeded();
+    const r = cards(id);
+    expect(r.cards.map((c: any) => c.name)).toEqual(["Halyna", "Zoya"]);
+    expect(r).toMatchObject({ per: 2, len: "normal" });
+  });
+
+  it("edits the name, aliases, tie, want and text; the faction and the id stay", () => {
+    const id = seeded();
+    const r = cards(id, { op: "edit", id: "c2", name: "Zoya K", aliases: ["Zo"], tie: "maksym", want: "A new want.", text: "A new text.", faction: "Hacked", extra: 1 });
+    const c = r.cards.find((x: any) => x.id === "c2");
+    expect(c).toMatchObject({ name: "Zoya K", aliases: ["Zo"], tie: "Maksym", want: "A new want.", text: "A new text.", faction: "Toll guild" });
+    expect(readRel("world/state/" + id + ".json").cast.find((x: any) => x.id === "c2").name).toBe("Zoya K");
+    // the tie can be cleared
+    expect(cards(id, { op: "edit", id: "c2", tie: "" }).cards.find((x: any) => x.id === "c2").tie).toBe("");
+  });
+
+  it("refuses a name a card or a record has, a tie nobody goes by, and an empty card", () => {
+    const id = seeded();
+    expect(cards(id, { op: "edit", id: "c2", name: "halyna" })).toMatchObject({ code: "clash" });
+    expect(cards(id, { op: "edit", id: "c2", name: "Maksym" })).toMatchObject({ code: "clash" });
+    expect(cards(id, { op: "edit", id: "c2", tie: "A stranger" })).toMatchObject({ code: "tie" });
+    expect(cards(id, { op: "edit", id: "c2", text: "  " })).toMatchObject({ code: "empty" });
+    expect(readRel("world/state/" + id + ".json").cast.find((x: any) => x.id === "c2").name).toBe("Zoya");
+  });
+
+  it("deletes a card; the last one leaves no empty list; an unknown card or op is refused", () => {
+    const id = seeded();
+    expect(cards(id, { op: "delete", id: "c1" }).cards.map((c: any) => c.id)).toEqual(["c2"]);
+    expect(cards(id, { op: "delete", id: "c2" }).cards).toEqual([]);
+    expect(readRel("world/state/" + id + ".json").cast).toBeUndefined();
+    expect(cards(id, { op: "delete", id: "c9" }).error).toBe("no such card");
+    const id2 = seeded();
+    expect(cards(id2, { op: "burn", id: "c1" }).error).toBe("op must be edit or delete");
+  });
+});

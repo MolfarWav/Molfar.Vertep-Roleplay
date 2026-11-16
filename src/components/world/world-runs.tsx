@@ -10,7 +10,7 @@ import { loadWorldRuns, useWorldLive, type WorldRun, type WorldUsage } from '@/l
 import { isRevealed, markRevealed, needsGate } from '@/lib/world-reveal'
 import { formatK, formatMoney, formatSeconds } from './world-common'
 
-const REASONS = ['every', 'records', 'place', 'stagnation', 'transition', 'manual', 'start', 'deck', 'keys'] as const
+const REASONS = ['every', 'records', 'place', 'stagnation', 'transition', 'manual', 'start', 'deck', 'keys', 'cast'] as const
 
 function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (

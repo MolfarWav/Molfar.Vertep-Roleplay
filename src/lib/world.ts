@@ -92,6 +92,7 @@ export interface WorldView {
 
 /** How long a card of the cast deck is: 5 to 6, 6 to 8 or 8 to 10 sentences. */
 export type WorldCastLen = 'short' | 'normal' | 'long'
+export const WORLD_CAST_LENS: WorldCastLen[] = ['short', 'normal', 'long']
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
 
@@ -742,6 +743,22 @@ export interface WorldCast {
 }
 export async function loadWorldCast(chatId: string): Promise<WorldCast> {
   return j<WorldCast>(`/world/cast?chatId=${encodeURIComponent(chatId)}`)
+}
+
+/** The cards of the cast deck (GET /world/cast/cards), for the book's Cast deck chip. */
+export async function loadCastCards(chatId: string): Promise<WorldCastCard[]> {
+  return (await j<{ cards: WorldCastCard[] }>(`/world/cast/cards?chatId=${encodeURIComponent(chatId)}`)).cards
+}
+/** Change one card: name, aliases, tie, want, text. A name another card or a record has answers 409 (code 'clash'); a tie nobody goes by 409 (code 'tie'). */
+export async function editCastCard(chatId: string, id: string, patch: Partial<Pick<WorldCastCard, 'name' | 'aliases' | 'tie' | 'want' | 'text'>>): Promise<WorldCastCard[]> {
+  const r = await j<{ cards: WorldCastCard[] }>('/world/cast/cards', { method: 'POST', body: JSON.stringify({ chatId, op: 'edit', id, ...patch }) })
+  void loadWorld(chatId).catch(() => {})
+  return r.cards
+}
+export async function deleteCastCard(chatId: string, id: string): Promise<WorldCastCard[]> {
+  const r = await j<{ cards: WorldCastCard[] }>('/world/cast/cards', { method: 'POST', body: JSON.stringify({ chatId, op: 'delete', id }) })
+  void loadWorld(chatId).catch(() => {})
+  return r.cards
 }
 
 /** One line of the tidy-up log: a thing put to rest or woken, and the count that decided it. */
