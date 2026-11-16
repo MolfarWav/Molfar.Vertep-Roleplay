@@ -1169,6 +1169,8 @@ function cleanEvent(e) {
 }
 
 export const CAST_BANDS = ["small", "medium", "big"];
+// why a card of the deck was drawn: its tie is in the scene, its faction's front is stirred or half full, its faction belongs to the scene's place, or by chance
+const CAST_PICKS = ["tie", "front", "place", "random"];
 const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
 
@@ -1229,6 +1231,11 @@ function cleanEntrance(e) {
     // the die's band was raised to medium because the last return only ended as a mention
     ...(e.floor === true ? { floor: true } : {}),
     via: e.via === "life" ? "life" : "silence",
+    // a person of the cast deck (#424, step 4): the id is the card's, the tie is who already exists, the pick says why this card
+    ...(e.src === "deck" ? { src: "deck" } : {}),
+    ...(e.src === "deck" && str(e.faction) ? { faction: cut(str(e.faction), NAME_MAX) } : {}),
+    ...(e.src === "deck" && str(e.tie) ? { tie: cut(str(e.tie), NAME_MAX) } : {}),
+    ...(e.src === "deck" && CAST_PICKS.includes(e.pick) ? { pick: e.pick } : {}),
     sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
     retried: e.retried === true,
     ...(Number.isInteger(e.n) && e.n >= 0 ? { n: e.n } : {}),
@@ -1242,7 +1249,7 @@ function cleanLastEntrance(e) {
   if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !Number.isInteger(e.n) || e.n < 0) return null;
   // res: came (on stage), mentioned (only named) or missed; an older record has ok only
   const res = CAST_RESULTS.includes(e.res) ? e.res : e.ok === true ? "came" : "missed";
-  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res };
+  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res, ...(e.src === "deck" ? { src: "deck" } : {}) };
 }
 
 function cleanAliases(v, name) {
@@ -3468,9 +3475,134 @@ export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, l
 
 /** The note for the writing model. Firm: the person comes in; the form is the writer's. A second try after a miss is shorter and stricter. */
 export function entranceInsert(en, rec) {
+  if (en.src === "deck" && rec && !en.retried) return deckEntranceInsert(en, rec);
   if (en.retried) return "[CAST: " + en.name + " was left out of the last reply and must appear in this one. The shortest form will do: a message or a call that names them. Never mention this note.]";
   const line = rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
   return "[CAST: " + en.name + line + " has not been around for " + en.silence + " replies. They come into the story in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. If they are far away, only what a message or a call can carry; they know only what they were told. Never mention this note.]";
+}
+
+/** The note for a person of the cast deck: nobody knows them yet; the card says who they are, what they want and who they come through. */
+export function deckEntranceInsert(en, card) {
+  const through = card.tie ? " They know " + card.tie + ", and that is how they come in: through them or because of them." : card.faction ? " They come on behalf of " + card.faction + "." : "";
+  const want = card.want ? " What they want: " + card.want : "";
+  return "[CAST: " + card.name + " is new to the story and comes into it in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". Who they are: " + card.text + want + through + " The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. Nobody has met them before; they know only what they have been told. Never mention this note.]";
+}
+
+/** A text cut at the end of a sentence when one lies in the second half of the room, else at the limit. */
+function cutSentence(text, max) {
+  const t = str(text);
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("… "));
+  return end >= max / 2 ? head.slice(0, end + 1) : head;
+}
+
+/**
+ * A card of the cast deck whose person has come into the story becomes a person record (and a member of its faction's group record), and
+ * the card leaves the deck. A name the world already has (the DM wrote the person meanwhile) is left alone: the card goes, no second record.
+ * Returns the new record or null.
+ */
+export function drawCard(state, card, now) {
+  state.cast = arr(state.cast).filter((c) => c.id !== card.id);
+  if (!state.cast.length) delete state.cast;
+  if (findEntity(state.entities, { name: card.name }) || state.entities.some((e) => namesOf(e).some((x) => card.aliases.some((a) => sameName(a, x)))) || state.entities.length >= ENTITIES_MAX) return null;
+  const rec = cleanEntity({ id: "n" + state.nextId, kind: "person", name: card.name, aliases: card.aliases, text: cutSentence(card.text, state.settings.textMax), status: "active", uid: 0, at: now, ...(card.relation ? { relation: card.relation } : {}) });
+  if (!rec) return null;
+  state.nextId++;
+  state.entities.push(rec);
+  const group = card.faction ? state.entities.find((e) => e.kind === "group" && e.status === "active" && sameName(e.name, card.faction)) : null;
+  if (group) group.members = cleanMembers([...arr(group.members), card.name]);
+  return rec;
+}
+
+/** Is the person a card ties to in the scene now: named in the Dashboard's scene, or a record the cast sees on stage in the newest message. */
+function tieOnStage(state, tie, { msgs, snaps, reg, personIds, present }) {
+  if (!tie) return false;
+  if (arr(present).some((p) => sameName(str(p), tie))) return true;
+  const rec = state.entities.find((e) => e.kind === "person" && e.status === "active" && namesOf(e).some((x) => sameName(x, tie)));
+  return !!rec && silencesOf(castIdentity(state, reg, rec), rec, msgs, snaps, reg, personIds).stage === 0;
+}
+
+/** Is the faction part of the scene's place: the place record lists it among its members or its text names it. */
+function factionAtPlace(place, faction) {
+  if (!place || !faction) return false;
+  if (arr(place.members).some((m) => sameName(str(m), faction))) return true;
+  const re = namesPattern([faction]);
+  return !!re && re.test(str(place.text));
+}
+
+/**
+ * Which card of the deck comes: the one whose tie is in the scene now, then the one whose faction has a front that is stirred or half
+ * full, then one whose faction belongs to the scene's place; what is left is chosen by the seed (a swipe picks the same). { card, pick }.
+ */
+export function pickCard(state, ctx) {
+  const rnd = seededRandom(ctx.seed + "|deckpick");
+  const hot = state.fronts.filter((f) => f.status === "active" && (f.stirred === true || f.clock * 2 >= f.size));
+  let best = null;
+  for (const card of arr(state.cast)) {
+    let score = 0;
+    let pick = "random";
+    if (tieOnStage(state, card.tie, ctx)) {
+      score += 4;
+      pick = "tie";
+    }
+    if (card.faction && hot.some((f) => sameName(f.name, card.faction))) {
+      score += 2;
+      if (pick === "random") pick = "front";
+    }
+    if (factionAtPlace(ctx.place, card.faction)) {
+      score += 1;
+      if (pick === "random") pick = "place";
+    }
+    score += rnd();
+    if (!best || score > best.score) best = { card, pick, score };
+  }
+  return best ? { card: best.card, pick: best.pick } : null;
+}
+
+/**
+ * A new person from the cast deck for this reply, or null. Same ladder as the bench: the Frequency's silence (counted from the last
+ * entrance of any kind), then the 2d6 for the scale; the bench has the first call (the caller asks planEntrance first). Never with the
+ * deck switched off, an empty deck, or while another entrance waits. A card whose name the world got meanwhile is let go here.
+ */
+export function planDeckEntrance({ state, msgs, snaps, reg, personIds, freq, seed, place, present }) {
+  if (state.entrance || !CAST_SILENCE[freq] || state.settings.castDeck !== true || !arr(state.cast).length) return null;
+  const replies = msgs.filter(isReply).length;
+  if (replies < CAST_FIRST) return null;
+  const last = state.lastEntrance;
+  if (last && replies - last.n < castGap(freq, last)) return null;
+  const known = (c) => findEntity(state.entities, { name: c.name }) || state.entities.some((e) => namesOf(e).some((x) => c.aliases.some((a) => sameName(a, x))));
+  if (state.cast.some(known)) {
+    state.cast = state.cast.filter((c) => !known(c));
+    if (!state.cast.length) delete state.cast;
+    if (!arr(state.cast).length) return null;
+  }
+  const silence = replies - (last ? last.n : 0);
+  const threshold = castThreshold(freq, state.chatId, "deck");
+  if (silence < threshold) return null;
+  const got = pickCard(state, { msgs, snaps, reg, personIds, place, present, seed });
+  if (!got) return null;
+  const roll = rollEntrance(seed + "|deck", silence, threshold, 0);
+  const floor = roll.band === "small" && lastWasMention(last);
+  return cleanEntrance({
+    id: got.card.id,
+    src: "deck",
+    name: got.card.name,
+    faction: got.card.faction,
+    tie: got.card.tie,
+    pick: got.pick,
+    band: floor ? "medium" : roll.band,
+    ...(floor ? { floor: true } : {}),
+    roll: roll.total,
+    d: roll.d,
+    mod: roll.mod,
+    weight: 0,
+    threshold,
+    silence,
+    via: "silence",
+    sent: 0,
+    n: replies,
+  });
 }
 
 /**
@@ -3487,8 +3619,10 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   if (i < 0) return null;
   const carrier = msgs.slice(i + 1).find(isReply);
   if (!carrier) return null;
-  const rec = state.entities.find((e) => e.id === en.id);
-  const ident = rec ? castIdentity(state, reg, rec) : null;
+  // a person of the cast deck is judged by their card: nobody of that name is in the book yet
+  const deck = en.src === "deck";
+  const rec = deck ? arr(state.cast).find((c) => c.id === en.id) : state.entities.find((e) => e.id === en.id);
+  const ident = rec ? castIdentity(state, reg, deck ? { id: "", name: rec.name, aliases: rec.aliases } : rec) : null;
   const res = ident && seenIn(ident, rec, carrier, snaps, reg, personIds) ? "came" : ident && namedIn(ident, carrier) ? "mentioned" : "missed";
   const ok = res === "came";
   const n = msgs.filter(isReply).length;
@@ -3497,9 +3631,12 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
     state.entrance = { ...rest, sent: 0, retried: true };
     return { ok, res, again: true, en, carrier: keyOf(carrier) };
   }
-  state.lastEntrance = { id: en.id, n, band: en.band, ok, res };
+  state.lastEntrance = { id: en.id, n, band: en.band, ok, res, ...(deck ? { src: "deck" } : {}) };
   delete state.entrance;
-  return { ok, res, again: false, en, carrier: keyOf(carrier) };
+  // the person is in the story now (on stage or named): the card becomes a record; a miss keeps the card in the deck
+  const drawn = deck && rec && res !== "missed" ? drawCard(state, rec, Date.now()) : null;
+  if (drawn) state.lastEntrance.id = drawn.id;
+  return { ok, res, again: false, en, carrier: keyOf(carrier), ...(drawn ? { drawn } : {}) };
 }
 
 /** Writes the result into the newest log line of this person's entrance that has none: "came" (on stage), "mentioned" (only named), "again" (a stricter second try is queued) or "missed". */
@@ -3517,7 +3654,7 @@ function markCastResult(fsx, chatId, en, result) {
 
 /** One line of the dice log for a person coming back (shown in the log and, with the chat's switch, under the reply): who, why, the dice, what came of it. */
 function castLog(en, extra) {
-  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
+  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.src === "deck" ? { src: "deck", ...(en.faction ? { faction: en.faction } : {}), ...(en.pick ? { pick: en.pick } : {}), ...(en.tie ? { tie: en.tie } : { loose: true }) } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
 }
 
 /** The seed of one reply: the chat, the newest message, how many there are, the op and the swipe; a swipe asks the same question and gets the same dice. */
@@ -3535,7 +3672,7 @@ function castContext(fsx, chatId) {
 function sendEntrance(fsx, state, msgs, op, parts) {
   const en = state.entrance;
   if (!en || en.sent > 0) return false;
-  const rec = state.entities.find((e) => e.id === en.id);
+  const rec = en.src === "deck" ? arr(state.cast).find((c) => c.id === en.id) : state.entities.find((e) => e.id === en.id);
   if (!rec) {
     delete state.entrance;
     saveState(fsx, state);
@@ -3584,6 +3721,30 @@ export function castStatus(fsx, chatId) {
     people,
     // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
     lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
+    // the cast deck: the switch, the cards left (not who they are), by faction, how many have no tie, and when the next new person can start
+    deck: deckStatus(state, freq, replies),
+  };
+}
+
+/** The cast deck as the chat stands: on, cards left by faction, loose cards (no tie), the silence since the last entrance and the one that starts the next, the replies still to wait. */
+export function deckStatus(state, freq, replies) {
+  const cards = arr(state.cast);
+  const by = new Map();
+  for (const c of cards) by.set(c.faction || "", (by.get(c.faction || "") || 0) + 1);
+  const on = state.settings.castDeck === true && freq !== "off";
+  const last = state.lastEntrance;
+  const f = freq === "off" ? "normal" : freq;
+  return {
+    on,
+    switch: state.settings.castDeck === true,
+    left: cards.length,
+    factions: [...by.entries()].map(([name, n]) => ({ name, n })),
+    loose: cards.filter((c) => !c.tie).length,
+    per: state.settings.castPer,
+    len: state.settings.castLen,
+    silence: replies - (last ? last.n : 0),
+    threshold: castThreshold(f, state.chatId, "deck"),
+    wait: on ? Math.max(0, CAST_FIRST - replies, last ? castGap(freq, last) - (replies - last.n) : 0) : 0,
   };
 }
 
@@ -3948,18 +4109,29 @@ export function llmRequest(ctx, host) {
     if (castCtx && eventsAllowed) {
       const judged = judgeEntrance(state, chat.msgs, castCtx.snaps, castCtx.reg, castCtx.personIds);
       if (judged) {
+        // a person of the cast deck who came is a record now: the registry and the world book learn them here
+        if (judged.drawn && chat) {
+          const rc = openRegistry(fsx, chatId, chat.meta);
+          joinPeople(state, rc);
+          regFlush(fsx, rc);
+          writeBook(fsx, state, str(chat.meta.title));
+          bindBook(fsx, chatId, chat.meta, state.bookId);
+        }
         saveState(fsx, state);
         // what came of it goes into the line the note made, so the log and the mark under the reply say who, why, the dice and the result together
         markCastResult(fsx, chatId, judged.en, judged.res === "missed" && judged.again ? "again" : judged.res);
       }
       // the person is in the scene now, or the player turned the switch off since: let it go
-      const waiting = state.entrance ? state.entities.find((e) => e.id === state.entrance.id) : null;
-      if (state.entrance && (!waiting || waiting.status !== "active" || waiting.noReturn === true)) {
+      const en0 = state.entrance;
+      const waiting = en0 ? (en0.src === "deck" ? arr(state.cast).find((c) => c.id === en0.id) : state.entities.find((e) => e.id === en0.id)) : null;
+      if (en0 && (!waiting || (en0.src === "deck" ? en0.sent === 0 && state.settings.castDeck !== true : waiting.status !== "active" || waiting.noReturn === true))) {
         delete state.entrance;
         saveState(fsx, state);
       }
       if (!eventText && !(state.event && state.event.sent === 0) && !state.entrance) {
-        const plan = planEntrance({ state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) });
+        const args = { state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) };
+        // the bench has the first call; a new person from the deck comes when nobody who exists is due
+        const plan = planEntrance(args) || planDeckEntrance({ ...args, place: scene ? placeRecordOf(state, scene, castCtx.reg) : null, present: scene ? arr(scene.present) : [] });
         if (plan) state.entrance = plan;
       }
       castSent = sendEntrance(fsx, state, chat.msgs, op, parts);
@@ -5775,7 +5947,7 @@ function settingsRoute(req, host) {
   // and draws new people from the cast deck (the player's own word on the switch stays)
   if (fresh && next.level !== "off" && b.castDeck === undefined) next.castDeck = DEFAULT_OPTIONS.castDeck;
   // switched off, or a level with no state worth carrying: nothing waits to be sent
-  if (next.cast === "off" || next.level === "off") delete state.entrance;
+  if (next.cast === "off" || next.level === "off" || (!next.castDeck && state.entrance && state.entrance.src === "deck" && !(state.entrance.sent > 0))) delete state.entrance;
   // a level with no events drops a waiting one
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
   state.settings = next;
