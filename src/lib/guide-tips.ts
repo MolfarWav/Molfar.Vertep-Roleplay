@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.131.0'
+export const APP_VERSION = '4.132.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.outfit-edit',
+    since: '4.132.0',
+    help: 'story',
+    keywords: { en: 'dashboard outfit things clothes wearing holding remove delete correct rename wrong duplicate pencil edit by hand', uk: 'дашборд панель одяг речі одягнено у руках прибрати видалити виправити перейменувати помилка дубль олівець вручну' },
+    title: { en: 'Correct the outfit by hand', uk: 'Виправте одяг вручну' },
+    body: {
+      en: 'The Dashboard kept a skirt that is long off, or listed one top twice? Press the pencil in the header of "Outfit and things": the bin removes a thing (with Undo), pressing a name corrects it. The story text is not changed, and the next replies go on from the corrected list.',
+      uk: 'Панель досі показує давно зняту спідницю або двічі той самий топ? Натисніть олівець у заголовку «Одяг і речі»: кошик прибирає річ (зі «Скасувати»), натиск на назву дає її виправити. Текст історії не змінюється, а наступні відповіді йдуть уже від виправленого списку.',
+    },
+  },
   {
     id: 'new.cast',
     since: '4.131.0',
