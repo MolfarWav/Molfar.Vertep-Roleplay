@@ -250,7 +250,10 @@ function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat'
         <div className="flex flex-col gap-1">
           <Textarea value={String(to)} maxLength={RULE_MAX} rows={2} placeholder={t('world.mem.words.placeholder')} aria-label={t('world.mem.words.input')} onChange={(e) => setTo(e.target.value)} data-testid="memory-add-text" />
           <p className="text-caption text-muted-foreground">{t('world.mem.words.count', { n: String(to).length, max: RULE_MAX })}</p>
-          <Segmented label={t('world.mem.about')} value={about} onChange={setAbout} options={[{ id: 'book' as const, label: t('world.mem.about.book') }, { id: 'story' as const, label: t('world.mem.about.story') }]} />
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-body font-medium">{t('world.mem.about')}</span>
+            <Segmented label={t('world.mem.about')} value={about} onChange={setAbout} options={[{ id: 'book' as const, label: t('world.mem.about.book') }, { id: 'story' as const, label: t('world.mem.about.story') }]} />
+          </div>
           <p className="text-caption text-muted-foreground">{t('world.mem.about.hint')}</p>
         </div>
       ) : (
