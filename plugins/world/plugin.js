@@ -1156,6 +1156,7 @@ function cleanEvent(e) {
 }
 
 export const CAST_BANDS = ["small", "medium", "big"];
+const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
 
 /** A person coming back (#424), waiting to be judged: who, how big, how long they were away, sent (how many replies carried it), retried once. */
@@ -1173,6 +1174,10 @@ function cleanEntrance(e) {
     ...(Number.isInteger(e.threshold) && e.threshold >= 0 ? { threshold: e.threshold } : {}),
     ...(typeof e.tier === "string" && LIFE_BAND[e.tier] ? { tier: e.tier } : {}),
     silence: Number.isInteger(e.silence) && e.silence >= 0 ? e.silence : 0,
+    // replies since the person was last named (never more than the silence on stage), shown in the log when it differs
+    ...(Number.isInteger(e.seen) && e.seen >= 0 ? { seen: e.seen } : {}),
+    // the die's band was raised to medium because the last return only ended as a mention
+    ...(e.floor === true ? { floor: true } : {}),
     via: e.via === "life" ? "life" : "silence",
     sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
     retried: e.retried === true,
@@ -1185,7 +1190,9 @@ function cleanEntrance(e) {
 /** The last entrance that was judged: the number of replies then (the gap between two is counted from it) and whether the person came. */
 function cleanLastEntrance(e) {
   if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !Number.isInteger(e.n) || e.n < 0) return null;
-  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: e.ok === true };
+  // res: came (on stage), mentioned (only named) or missed; an older record has ok only
+  const res = CAST_RESULTS.includes(e.res) ? e.res : e.ok === true ? "came" : "missed";
+  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res };
 }
 
 function cleanAliases(v, name) {
@@ -3182,30 +3189,49 @@ function presentId(reg, personIds, name) {
   return r && r.id ? (regGet(reg, r.id) || {}).id || "" : "";
 }
 
-/** Was this person in this message: put in the scene by the Dashboard (id first, else the name) or named in the text. */
-function seenIn(ident, rec, m, snaps, reg, personIds) {
-  const sn = isObj(snaps) ? snaps[keyOf(m)] : null;
-  if (isObj(sn)) {
-    for (const n of arr(sn.present)) {
-      const name = str(n);
-      if (!name) continue;
-      const id = presentId(reg, personIds, name);
-      if (ident.id && id) {
-        if (id === ident.id) return true;
-      } else if (namesOf(rec).some((x) => x.toLowerCase() === name.toLowerCase())) return true;
-    }
-  }
+/** Is the person named in the text of this message (a name or an alias). */
+function namedIn(ident, m) {
   return !!ident.re && ident.re.test(str(m.text));
 }
 
-/** Replies since the person was last seen; looks back CAST_SCAN messages, so a long silence reads as at least that. */
-export function silenceOf(ident, rec, msgs, snaps, reg, personIds) {
+/**
+ * Was this person on stage in this message. A message with a Dashboard snapshot: only when the Dashboard put them in the scene
+ * (`present`, a far person who texts or calls is in it too, with a contact), by id first, else the name; a name in the text
+ * alone is a mention, not the stage. A message with no snapshot (no Dashboard, or it came later): the name in the text counts, as before.
+ */
+function seenIn(ident, rec, m, snaps, reg, personIds) {
+  const sn = isObj(snaps) ? snaps[keyOf(m)] : null;
+  if (!isObj(sn)) return namedIn(ident, m);
+  for (const n of arr(sn.present)) {
+    const name = str(n);
+    if (!name) continue;
+    const id = presentId(reg, personIds, name);
+    if (ident.id && id) {
+      if (id === ident.id) return true;
+    } else if (namesOf(rec).some((x) => x.toLowerCase() === name.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
+ * Replies since the person was last on stage (`stage`) and since they were last named or on stage (`mentioned`, never more than
+ * `stage`). Looks back CAST_SCAN messages, so a long silence reads as at least that. Without a Dashboard the two are the same.
+ */
+export function silencesOf(ident, rec, msgs, snaps, reg, personIds) {
   let replies = 0;
+  let mentioned = -1;
   for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - CAST_SCAN); i--) {
-    if (seenIn(ident, rec, msgs[i], snaps, reg, personIds)) return replies;
+    const on = seenIn(ident, rec, msgs[i], snaps, reg, personIds);
+    if (on) return { stage: replies, mentioned: mentioned >= 0 ? mentioned : replies };
+    if (mentioned < 0 && namedIn(ident, msgs[i])) mentioned = replies;
     if (isReply(msgs[i])) replies++;
   }
-  return replies;
+  return { stage: replies, mentioned: mentioned >= 0 ? mentioned : replies };
+}
+
+/** Replies since the person was last on stage (see silencesOf). */
+export function silenceOf(ident, rec, msgs, snaps, reg, personIds) {
+  return silencesOf(ident, rec, msgs, snaps, reg, personIds).stage;
 }
 
 /** The silence that makes a person due: Frequency's number, a quarter more or less, fixed for this person in this chat (a swipe does not move it). */
@@ -3223,22 +3249,29 @@ export function rollEntrance(seed, silence, threshold, weight) {
   return { d, mod, weight, total, band: total <= 6 ? "small" : total <= 9 ? "medium" : "big" };
 }
 
-/** The people who could come back, most overdue first: { rec, silence, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
+/** A medium or big return that ended as a mention does not count as one: the next comes after half the usual gap and is at least medium. */
+const lastWasMention = (last) => !!last && last.res === "mentioned" && last.band !== "small";
+/** Replies to wait after the last return before the next can start. */
+export function castGap(freq, last) {
+  return lastWasMention(last) ? Math.ceil(CAST_GAP[freq] / 2) : CAST_GAP[freq];
+}
+
+/** The people who could come back, most overdue first: { rec, silence, seen, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
 export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
   if (!CAST_SILENCE[freq]) return [];
   const replies = msgs.filter(isReply).length;
   if (replies < CAST_FIRST) return [];
-  if (state.lastEntrance && replies - state.lastEntrance.n < CAST_GAP[freq]) return [];
+  if (state.lastEntrance && replies - state.lastEntrance.n < castGap(freq, state.lastEntrance)) return [];
   const out = [];
   for (const rec of state.entities) {
     if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
     const ident = castIdentity(state, reg, rec);
     if (ident.own) continue;
-    const silence = silenceOf(ident, rec, msgs, snaps, reg, personIds);
+    const { stage: silence, mentioned: seen } = silencesOf(ident, rec, msgs, snaps, reg, personIds);
     const threshold = castThreshold(freq, state.chatId, rec.id);
     if (silence < threshold) continue;
     const weight = weightOf(rec);
-    out.push({ rec, silence, threshold, weight, score: silence / threshold + weight * 0.5 });
+    out.push({ rec, silence, seen, threshold, weight, score: silence / threshold + weight * 0.5 });
   }
   return out.sort((a, b) => b.score - a.score);
 }
@@ -3268,10 +3301,14 @@ export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, l
   const best = benchDue({ state, msgs, snaps, reg, personIds, freq })[0];
   if (!best) return null;
   const roll = lifeTier ? null : rollEntrance(seed, best.silence, best.threshold, best.weight);
+  // after a medium or big return that was only a mention, the next is at least medium (the die's own band is kept in `roll`)
+  const floor = !lifeTier && roll.band === "small" && lastWasMention(state.lastEntrance);
   return cleanEntrance({
     id: best.rec.id,
     name: best.rec.name,
-    band: lifeTier ? LIFE_BAND[lifeTier] : roll.band,
+    band: lifeTier ? LIFE_BAND[lifeTier] : floor ? "medium" : roll.band,
+    ...(floor ? { floor: true } : {}),
+    seen: best.seen,
     ...(roll ? { roll: roll.total, d: roll.d, mod: roll.mod } : { tier: lifeTier }),
     weight: best.weight,
     threshold: best.threshold,
@@ -3290,9 +3327,10 @@ export function entranceInsert(en, rec) {
 }
 
 /**
- * Judges an entrance that a reply carried: the reply after the message `after` is the carrier. The person came (seen in it) =
- * done; missed once = sent again, stricter; missed twice = given up. Either way the gap before the next entrance starts.
- * Returns null when there was nothing to judge, else { ok, again } (again = a stricter second try is queued).
+ * Judges an entrance that a reply carried: the reply after the message `after` is the carrier. The person on stage in it =
+ * "came"; only named in its text (with a Dashboard) = "mentioned", done too (see castGap and planEntrance for what follows a medium
+ * or big one); in neither = missed once, sent again, stricter; missed twice, given up. Either way the gap before the next entrance starts.
+ * Returns null when there was nothing to judge, else { ok (came), res, again } (again = a stricter second try is queued).
  */
 export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   const en = state.entrance;
@@ -3303,19 +3341,21 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   const carrier = msgs.slice(i + 1).find(isReply);
   if (!carrier) return null;
   const rec = state.entities.find((e) => e.id === en.id);
-  const ok = !!rec && seenIn(castIdentity(state, reg, rec), rec, carrier, snaps, reg, personIds);
+  const ident = rec ? castIdentity(state, reg, rec) : null;
+  const res = ident && seenIn(ident, rec, carrier, snaps, reg, personIds) ? "came" : ident && namedIn(ident, carrier) ? "mentioned" : "missed";
+  const ok = res === "came";
   const n = msgs.filter(isReply).length;
-  if (!ok && rec && !en.retried) {
+  if (res === "missed" && rec && !en.retried) {
     const { after, sentAt, ...rest } = en;
     state.entrance = { ...rest, sent: 0, retried: true };
-    return { ok, again: true, en, carrier: keyOf(carrier) };
+    return { ok, res, again: true, en, carrier: keyOf(carrier) };
   }
-  state.lastEntrance = { id: en.id, n, band: en.band, ok };
+  state.lastEntrance = { id: en.id, n, band: en.band, ok, res };
   delete state.entrance;
-  return { ok, again: false, en, carrier: keyOf(carrier) };
+  return { ok, res, again: false, en, carrier: keyOf(carrier) };
 }
 
-/** Writes the result into the newest log line of this person's entrance that has none: "came", "again" (a stricter second try is queued) or "missed". */
+/** Writes the result into the newest log line of this person's entrance that has none: "came" (on stage), "mentioned" (only named), "again" (a stricter second try is queued) or "missed". */
 function markCastResult(fsx, chatId, en, result) {
   const old = readJson(fsx, dicePath(chatId), null);
   const rolls = isObj(old) ? arr(old.rolls).filter(isObj) : [];
@@ -3330,7 +3370,7 @@ function markCastResult(fsx, chatId, en, result) {
 
 /** One line of the dice log for a person coming back (shown in the log and, with the chat's switch, under the reply): who, why, the dice, what came of it. */
 function castLog(en, extra) {
-  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
+  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
 }
 
 /** The seed of one reply: the chat, the newest message, how many there are, the op and the swipe; a swipe asks the same question and gets the same dice. */
@@ -3380,9 +3420,9 @@ export function castStatus(fsx, chatId) {
       if (rec.kind !== "person" || rec.status !== "active") continue;
       const ident = castIdentity(state, ctx.reg, rec);
       if (ident.own) continue;
-      const silence = silenceOf(ident, rec, msgs, ctx.snaps, ctx.reg, ctx.personIds);
+      const { stage: silence, mentioned: named } = silencesOf(ident, rec, msgs, ctx.snaps, ctx.reg, ctx.personIds);
       const threshold = castThreshold(freq === "off" ? "normal" : freq, chatId, rec.id);
-      people.push({ id: rec.id, name: rec.name, silence, threshold, weight: weightOf(rec), ...(rec.relation ? { relation: rec.relation } : {}), linked: !!rec.link, byId: !!ident.id, off: rec.noReturn === true, due: freq !== "off" && rec.noReturn !== true && silence >= threshold });
+      people.push({ id: rec.id, name: rec.name, silence, named, threshold, weight: weightOf(rec), ...(rec.relation ? { relation: rec.relation } : {}), linked: !!rec.link, byId: !!ident.id, off: rec.noReturn === true, due: freq !== "off" && rec.noReturn !== true && silence >= threshold });
     }
   }
   people.sort((a, b) => b.silence / (b.threshold || 1) - a.silence / (a.threshold || 1));
@@ -3391,7 +3431,7 @@ export function castStatus(fsx, chatId) {
     freq,
     replies,
     // the replies still to wait before the next return can start (the gap after the last one), and before the chat is old enough
-    wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? CAST_GAP[freq] - (replies - state.lastEntrance.n) : 0),
+    wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? castGap(freq, state.lastEntrance) - (replies - state.lastEntrance.n) : 0),
     entrance: state.entrance || null,
     last: state.lastEntrance || null,
     people,
@@ -3728,7 +3768,7 @@ export function llmRequest(ctx, host) {
       if (judged) {
         saveState(fsx, state);
         // what came of it goes into the line the note made, so the log and the mark under the reply say who, why, the dice and the result together
-        markCastResult(fsx, chatId, judged.en, judged.ok ? "came" : judged.again ? "again" : "missed");
+        markCastResult(fsx, chatId, judged.en, judged.res === "missed" && judged.again ? "again" : judged.res);
       }
       // the person is in the scene now, or the player turned the switch off since: let it go
       const waiting = state.entrance ? state.entities.find((e) => e.id === state.entrance.id) : null;

@@ -620,7 +620,10 @@ export interface WorldDiceRoll {
   weight?: number
   d?: [number, number]
   retried?: boolean
-  result?: 'came' | 'again' | 'missed'
+  result?: 'came' | 'mentioned' | 'again' | 'missed'
+  /** cast: replies since she was last named, only when that differs from the silence on stage; floor = the die's band was raised to medium */
+  seen?: number
+  floor?: boolean
   tier?: 'minor' | 'notable' | 'major'
   /** where in the chat the roll was made: messages so far, the key of the last one (id#swipe) and its swipe count */
   n?: number
@@ -652,7 +655,7 @@ export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceR
 }
 
 /** One person of the bench as GET /world/cast reads them. */
-export interface WorldCastPerson { id: string; name: string; silence: number; threshold: number; weight: number; relation?: WorldRelation; linked: boolean; byId: boolean; off: boolean; due: boolean }
+export interface WorldCastPerson { id: string; name: string; silence: number; /** replies since last named or on stage */ named: number; threshold: number; weight: number; relation?: WorldRelation; linked: boolean; byId: boolean; off: boolean; due: boolean }
 /** GET /world/cast: the cast as the chat stands (for the panel and for testing). */
 export interface WorldCast {
   freq: WorldCastFreq
@@ -660,7 +663,7 @@ export interface WorldCast {
   /** replies still to wait before the next return can start */
   wait: number
   entrance: { id: string; name: string; band: 'small' | 'medium' | 'big'; silence: number; via: 'silence' | 'life'; sent: number; retried: boolean; roll?: number; d?: [number, number]; mod?: number; weight?: number; threshold?: number; tier?: string } | null
-  last: { id: string; n: number; band: string; ok: boolean } | null
+  last: { id: string; n: number; band: string; ok: boolean; res?: 'came' | 'mentioned' | 'missed' } | null
   people: WorldCastPerson[]
   /** lorebook entries of the chat's cards the bench could be adopted from */
   lorePeople: number
