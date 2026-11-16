@@ -1544,12 +1544,12 @@
         "uk": "профіль світу майстер профіль промпт вбудований хроніст режисер антагоніст хаос"
       },
       "short": {
-        "en": "The Profiles tab holds the five built-in DM profiles and any custom ones. Open one, change its prompts, roll a block back to default. A chat picks its profile in the DM sheet.",
-        "uk": "Вкладка «Профілі» містить п’ять вбудованих профілів майстра й ваші власні. Відкрийте будь-який, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра."
+        "en": "The DM tab holds the five built-in DM profiles and any custom ones. Open one, change its prompts, roll a block back to default. A chat picks its profile in the DM sheet. Its Memory row shows what the DM learned from your edits and asks before it changes anything.",
+        "uk": "Вкладка «ДМ» містить п’ять вбудованих профілів майстра й ваші власні. Відкрийте будь-який, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра. Рядок «Пам’ять» показує, чого ДМ навчився з ваших правок, і питає, перш ніж щось змінити."
       },
       "where": {
-        "en": "World → Profiles tab.",
-        "uk": "Світ → вкладка Профілі."
+        "en": "World → DM tab.",
+        "uk": "Світ → вкладка ДМ."
       },
       "details": {
         "en": "A profile defines how the DM behaves at its level: what it reads, what it writes, and how it picks events. Built-in profiles are named after their level: Chronicler, Living world, Director, Antagonist and Total chaos. Each profile has blocks (prompts) that you can edit by hand.\n\nIf you change a block, the profile saves the edit; a small indicator shows it is no longer the default. To restore the original, use the rollback option in that block. Custom profiles work the same way: you can create your own from a copy of a built-in one and set its name, description and prompts.\n\nA chat picks one profile in its DM sheet; that profile’s prompts reach the model for every DM run in that chat.\n\nNew chats start with the Chronicler. To start them with another profile, open it and press “Make default”: the profile gets a Default tag, and every new chat starts with its level, numbers and prompts. Chats you already have keep their own profile.",
