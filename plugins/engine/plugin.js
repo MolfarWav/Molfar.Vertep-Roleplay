@@ -2210,7 +2210,12 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
         if (set.dice) add("world dice", 60);
       }
       // a person who has been away comes back (#424): the note, at every level but off (the world plugin has the same row: change them together)
-      if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) add("world cast", 160);
+      // with a cast deck that has cards, the note of a new person carries the longest card's text and want plus about 110 tokens of frame (the world plugin has the same rule)
+      if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) {
+        const cards = set.castDeck === true && Array.isArray(w.cast) ? w.cast : [];
+        const deck = cards.length ? Math.ceil(Math.max(...cards.map((c) => (c && typeof c === "object" ? String(c.text || "").length + String(c.want || "").length : 0))) / 3.5) + 110 : 0;
+        add("world cast", Math.max(160, deck));
+      }
     }
   }
 

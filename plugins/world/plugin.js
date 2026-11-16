@@ -4166,6 +4166,12 @@ function diceRoute(req, host) {
  * note (at most HERE_MAX characters), the event (EVENT_MAX) and the dice line, when the chat has a world state. The rows and ids
  * are the ones plugins/engine `hookInsertBreakdown` keeps as its fallback: change them together.
  */
+/** The room the note of a new person from the cast deck can take: the longest card's text and want, plus the frame of the note. 0 with no deck. The engine plugin's table has the same rule: change both. */
+export function deckNoteTokens(set, cards) {
+  if (!isObj(set) || set.castDeck !== true || !Array.isArray(cards) || !cards.length) return 0;
+  return Math.ceil(Math.max(...cards.map((c) => (isObj(c) ? String(c.text || "").length + String(c.want || "").length : 0))) / 3.5) + 110;
+}
+
 export function insertCeiling(ctx, host) {
   const fsx = host && host.fs ? host.fs : null;
   const chatId = ctx && typeof ctx.chatId === "string" ? ctx.chatId : "";
@@ -4181,7 +4187,8 @@ export function insertCeiling(ctx, host) {
     rows.push({ id: "world event", tokens: Math.ceil(EVENT_MAX / 3.5) });
     if (set.dice) rows.push({ id: "world dice", tokens: 60 });
   }
-  if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: 160 });
+  // a person coming back: the note; with a deck that has cards, the note of a new person carries the card's text (the longest card's room)
+  if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: Math.max(160, deckNoteTokens(set, w.cast)) });
   return ceilingAnswer(rows);
 }
 /** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
