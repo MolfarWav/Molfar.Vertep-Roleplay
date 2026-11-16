@@ -117,7 +117,7 @@ function useChatCards(chatId: string): { id: string; name: string }[] {
 // ---------- the setup form ----------
 
 /** What a begin sends, whatever it builds (a chat's world or a new one). */
-type BeginOpts = { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }
+type BeginOpts = { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }
 
 /** A long card list gets a search box and a scroll of its own. */
 const CARD_SEARCH_AT = 8
@@ -149,6 +149,8 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
   const [alsoCards, setAlsoCards] = useState(false)
   const [lang, setLang] = useState<string>('app')
   const [deck, setDeck] = useState<boolean | null>(null)
+  // the people of the cards' lorebooks become linked records (#424); on unless the player switches it off
+  const [bench, setBench] = useState(true)
   const [config, setConfig] = useState<WorldConfig | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -199,6 +201,7 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
         ...(recipe.id !== 'from-cards' && alsoCards ? { fromCards: true } : {}),
         ...(langSent ? { lang: langSent } : {}),
         deck: withDeck,
+        ...(usesCards && !bench ? { bench: false } : {}),
       })
     } catch (e) {
       setErr(e instanceof ApiError && e.status === 409
@@ -325,6 +328,12 @@ function Setup({ cards, allTicked, profileDeck, chronicler, configChatId, head, 
           <span className="min-w-0">{t('world.start.deck')}<span className="block text-xs text-muted-foreground">{t('world.start.deckHint')}</span></span>
           <Switch checked={withDeck} onCheckedChange={setDeck} aria-label={t('world.start.deck')} data-testid="start-deck" />
         </div>
+        {usesCards && (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">{t('world.start.bench')}<span className="block text-xs text-muted-foreground">{t('world.start.benchHint')}</span></span>
+            <Switch checked={bench} onCheckedChange={setBench} aria-label={t('world.start.bench')} data-testid="start-bench" />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

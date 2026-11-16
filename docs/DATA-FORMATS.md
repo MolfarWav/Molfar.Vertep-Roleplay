@@ -695,6 +695,26 @@ player switches it on for that chat. It writes:
     dropped by the `llmRequest` hook when the Dashboard's place is another one (`retryStale`).
   - `direction`: the scene direction the DM named last (used when the Dashboard has none); `transitionKey`: the
     Dashboard snapshot of the last time skip it ran on.
+  - Cast (#424, 4.131). A `person` or `group` record may carry `relation` (`ally`, `family`, `rival`, `enemy`, `neutral`) and `weight`
+    (0 acquaintance, 1 friend or rival, 2 family, partner or central; no weight = what the relation says: family 2, ally, rival and enemy 1,
+    else 0). A `person` may also carry `link: { book, uid, title }` (the lorebook entry it is: a link, not a copy; the entry keeps firing by its
+    keys; a stub of weight 1 or more is always in the prompt, the heaviest 8) and `noReturn: true` (the player switched "bring back automatically"
+    off). `status` may be `dormant` (put to rest by the tidy-up of a later release: out of the book, off the bench; `restore` wakes it). Settings:
+    `cast` (`off` | `rare` | `normal` | `often`; absent = `off`, so a file from before stays off; a new chat starts on the profile's `options.cast`,
+    default `normal`) and `castShow` (a mark under the reply, for testing). State: `entrance` (a person coming back: `{ id, name, band: small | medium
+    | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, after?, sentAt? }`; one at a time, rides like the
+    event: `sent` counts the replies that carried it, `after` is the message the carrier followed, a carrier that is gone sends it again) and
+    `lastEntrance` (`{ id, n, band, ok }`, the gap before the next one is counted from `n`, the number of replies then). Both are in the
+    rollback's core keys. A person is seen in a message when the Dashboard's scene for it names them (the registry id first, else the name) or the text
+    names them (a name or alias; a name the registry gives to someone else is dropped). Silence = replies since, looking back 400 messages.
+    Threshold: Rare 60, Normal 30, Often 15, times 0.75 to 1.25 fixed per person and chat. Roll: 2d6 + 0 to 3 (a step per half threshold of
+    silence past it) + weight; 6 or less small, 7 to 9 medium, 10 and more big; the Life die gives its tier's band (minor small, notable medium, major big).
+    Each return is a line of `world/dice/<chatId>.json`: `{ kind: "cast", id, who, via, band, silence, threshold, weight, d, mod, total, tier?, retried?,
+    result?: came | again | missed, n, last, lastSwipes, op, inserted }`.
+  - Routes: `POST /world/bench {chatId, lang?}` (one build call over the enabled, non-secret entries of the chat's cards' books; `people: [{ entry, name,
+    aliases, line, relation, weight }]`; adds linked records or the link to a record the world already has) and `GET /world/cast?chatId=` (Frequency, each
+    person's silence and threshold, the entrance, the last one, how many entries could be adopted). The Start draft gets a step `{ bench: true }` (before the
+    fronts) unless `bench: false` is sent.
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.

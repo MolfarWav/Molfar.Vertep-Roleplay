@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { TONES } from '@/components/ui/tone'
 import { DiceFields } from './dice-fields'
 import { DiceLog } from './dice-log'
+import { CastCard } from './world-cast'
 import { SoFarTiles } from './world-so-far'
 import { addsChips, limitsSummary, scheduleChips, writesChips } from './world-summaries'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
@@ -476,6 +477,9 @@ export function WorldControls({
     </Section>
   )
 
+  // Card 4: people coming back (#424). Every level has it; the DM off dims it.
+  const castCard = <CastCard chatId={chatId} view={view} save={save} on={on} />
+
   const soFarSection = (
     <section className="flex flex-col gap-3" aria-live="polite">
       <h3 className="flex items-center gap-2 text-heading font-semibold">
@@ -607,6 +611,7 @@ export function WorldControls({
             {whenCard}
             {writesCard}
             {addsCard}
+            {castCard}
           </div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{soFarSection}</div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{modelSection}</div>

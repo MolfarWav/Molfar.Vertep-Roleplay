@@ -176,7 +176,7 @@ describe("world start: draft from the cards", () => {
   it("begins a draft, builds it step by step, accepts it minus what the player dropped", () => {
     const id = newChat();
     world("PUT", "/world/settings", { chatId: id, level: "living" });
-    const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", lang: "Ukrainian" });
+    const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", lang: "Ukrainian", bench: false });
     expect(begun.draft).toMatchObject({ recipe: "from-cards", total: 4, done: 0 });
     // the first pass asks the build model to invent, from the card (cut short) and only the titles of its book
     const pending = world("POST", "/world/start", { chatId: id });
@@ -237,7 +237,7 @@ describe("world start: the events deck", () => {
   it("is built at start when asked, and a run's event comes only from it, used up once sent", () => {
     const id = newChat();
     world("PUT", "/world/settings", { chatId: id, level: "director" });
-    world("POST", "/world/start", { chatId: id, begin: true, deck: true });
+    world("POST", "/world/start", { chatId: id, begin: true, deck: true, bench: false });
     runStart(id, [
       J({ add: [{ kind: "place", name: "Red Tower", text: "A tower." }] }),
       J({ add: [] }),
@@ -297,7 +297,7 @@ describe("a world built without a chat", () => {
     return world("POST", "/world/start", { worldId });
   };
   it("builds from chosen cards into the library, lists it while building, and a new chat carries it", () => {
-    const begun = world("POST", "/world/start", { begin: true, newWorld: true, name: "The pass", level: "living", recipe: "from-cards", cardIds: ["odarka"] });
+    const begun = world("POST", "/world/start", { begin: true, newWorld: true, name: "The pass", level: "living", recipe: "from-cards", cardIds: ["odarka"], bench: false });
     const wid = begun.worldId as string;
     expect(wid).toMatch(/^w-/);
     expect(begun.draft).toMatchObject({ total: 4, done: 0, cardIds: ["odarka"] });

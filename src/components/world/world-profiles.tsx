@@ -20,8 +20,8 @@ import {
   createProfile, draftOf, eventBlockOk, isDirty, makeDefaultProfile, refreshWorldProfiles, removeProfile, resetProfileBlock, saveProfileDraft, useWorldProfiles,
   type ProfileDraft,
 } from '@/lib/world-profiles'
-import { type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
-import { NumControl } from '@/components/ui/setting-row'
+import { WORLD_CAST_FREQS, type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
+import { NumControl, Segmented } from '@/components/ui/setting-row'
 import { DiceFields } from './dice-fields'
 import { LEVEL_ICON, LEVEL_TONE, LevelChip, useProfileHint, useProfileName } from './world-common'
 import { OwnMark } from './world-profile-picker'
@@ -190,6 +190,17 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
         <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
+      </div>
+      <div className="flex flex-col gap-1.5 text-sm" data-testid="profile-cast">
+        <span className="font-medium">{t('world.prof.opt.cast')}</span>
+        <Segmented
+          label={t('world.prof.opt.cast')}
+          value={options.cast ?? 'normal'}
+          className="w-full [&>button]:flex-1"
+          options={WORLD_CAST_FREQS.map((f) => ({ id: f, label: t(`world.cast.freq.${f}` as MsgKey) }))}
+          onChange={(v) => onChange({ ...options, cast: v })}
+        />
+        <span className="text-xs text-muted-foreground">{t(`world.cast.freq.${options.cast ?? 'normal'}.hint` as MsgKey)} {t('world.prof.opt.castHint')}</span>
       </div>
       <div className="-mx-3 flex flex-col border-t border-border">
         <DiceFields
@@ -444,7 +455,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0 })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, cast: 'normal' })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers

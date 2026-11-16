@@ -8,12 +8,13 @@ import { ArrowCounterClockwise, Archive, CircleNotch, MagnifyingGlass, PencilSim
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
 import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT } from '@/lib/world-records'
-import { editWorldRecord, fillWorldKeys, peekWorld, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef } from '@/lib/world'
+import { editWorldRecord, fillWorldKeys, peekWorld, WORLD_RELATIONS, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef, type WorldRelation } from '@/lib/world'
 import { useWorldBook } from './use-world-book'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
@@ -41,6 +42,10 @@ interface Form {
   where: 'place' | 'holder' | 'none'
   place: string
   holder: string
+  /** a person or a faction: what they are to the player's character ('' = not set), their weight ('auto' = the relation decides), and (a person) whether the DM brings them back */
+  relation: WorldRelation | ''
+  weight: 'auto' | 0 | 1 | 2
+  bring: boolean
 }
 
 const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Partial<WorldRecord>): Form => ({
@@ -54,12 +59,19 @@ const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Par
   where: r.holder ? 'holder' : 'place',
   place: r.place ?? '',
   holder: r.holder ?? '',
+  relation: r.relation ?? '',
+  weight: r.weight === 0 || r.weight === 1 || r.weight === 2 ? r.weight : 'auto',
+  bring: r.noReturn !== true,
 })
 
 /** The space fields to send with a save: "" clears a field the engine would otherwise keep. */
 function spaceOf(f: Form): Partial<WorldRecord> {
   // members belong to groups and places only; [] clears them
   const members = hasMembers(f.kind) ? { members: f.members.slice(0, MEMBERS_MAX).map((m) => m.slice(0, MEMBER_LEN)) } : {}
+  if (f.kind === 'person' || f.kind === 'group') {
+    // people and factions: relation and weight ('' and null clear them); a person also carries the "bring back" switch
+    return { ...members, relation: f.relation, weight: f.weight === 'auto' ? null : f.weight, ...(f.kind === 'person' ? { noReturn: !f.bring } : {}) }
+  }
   if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '', ...members }
   if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '' }
   return members
@@ -223,6 +235,52 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
           )}
         </div>
       )}
+      {(f.kind === 'person' || f.kind === 'group') && (
+        <div className="flex flex-col gap-3" data-testid="record-folk">
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.relation')}>
+            <span className="font-medium">{t('world.rec.relation')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['', ...WORLD_RELATIONS] as const).map((v) => (
+                <button
+                  key={v || 'none'}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.relation === v}
+                  onClick={() => setF({ ...f, relation: v })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.relation === v ? cn(KIND_TONE[f.kind], 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {v ? t(`world.relation.${v}` as MsgKey) : t('world.rec.relation.none')}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">{t('world.rec.relationHint')}</span>
+          </div>
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.weight')}>
+            <span className="font-medium">{t('world.rec.weight')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['auto', 0, 1, 2] as const).map((v) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.weight === v}
+                  onClick={() => setF({ ...f, weight: v })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.weight === v ? cn(KIND_TONE[f.kind], 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {t(`world.rec.weight.${v}` as MsgKey)}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">{t('world.rec.weightHint')}</span>
+          </div>
+          {f.kind === 'person' && (
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0">{t('world.rec.bring')}<span className="block text-xs text-muted-foreground">{t('world.rec.bringHint')}</span></span>
+              <Switch checked={f.bring} onCheckedChange={(bring) => setF({ ...f, bring })} aria-label={t('world.rec.bring')} />
+            </label>
+          )}
+        </div>
+      )}
       <datalist id="world-place-names">{placeNames.map((n) => <option key={n} value={n} />)}</datalist>
       <KeysInput value={f.aliases} onChange={(aliases) => setF({ ...f, aliases })} />
       {hasMembers(f.kind) && (
@@ -275,13 +333,18 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
     return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} onDelete={() => onOp('delete')} placeNames={placeNames} />
   }
   const past = r.status === 'past'
+  const dormant = r.status === 'dormant'
   return (
-    <li className={cn('rounded-md border border-border bg-card p-3 text-sm', past && 'bg-muted/40')} data-testid="world-record" data-status={r.status}>
+    <li className={cn('rounded-md border border-border bg-card p-3 text-sm', (past || dormant) && 'bg-muted/40')} data-testid="world-record" data-status={r.status}>
       <div className={cn('flex flex-wrap items-center gap-x-2 gap-y-1', past && 'opacity-70')}>
         <span className="min-w-0 break-words font-medium">{r.name}</span>
         <KindChip kind={r.kind} />
         {past && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{t('world.past')}</span>}
         {r.by === 'player' && <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] leading-none text-primary">{t('world.rec.byYou')}</span>}
+        {r.status === 'dormant' && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" data-testid="record-dormant">{t('world.rec.tag.dormant')}</span>}
+        {(r.kind === 'person' || r.kind === 'group') && r.relation && <span className={cn('rounded-full border px-1.5 py-0.5 text-caption leading-none', KIND_TONE[r.kind])} data-testid="record-relation">{t(`world.relation.${r.relation}` as MsgKey)}</span>}
+        {r.link && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" title={t('world.rec.tag.linkedTip', { title: r.link.title })} data-testid="record-linked">{t('world.rec.tag.linked')}</span>}
+        {r.kind === 'person' && r.noReturn && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" data-testid="record-no-return">{t('world.rec.tag.noReturn')}</span>}
       </div>
       {r.pinned && !past ? (
         <p className="mt-1 flex items-center gap-1.5 text-xs text-primary" data-testid="record-pinned">
@@ -315,9 +378,9 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
         <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={onEdit}>
           <PencilSimple className="size-4" aria-hidden="true" />{t('world.rec.edit')}
         </Button>
-        {past ? (
+        {past || dormant ? (
           <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={() => onOp('restore')}>
-            <ArrowCounterClockwise className="size-4" aria-hidden="true" />{t('world.rec.restore')}
+            <ArrowCounterClockwise className="size-4" aria-hidden="true" />{dormant ? t('world.rec.wake') : t('world.rec.restore')}
           </Button>
         ) : (
           <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={() => onOp('retire')}>

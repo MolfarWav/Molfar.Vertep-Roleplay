@@ -47,7 +47,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -125,10 +125,24 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
   return v
 }
 
+/** How often a person who has been away is brought back: off, rare (about 60 replies of silence), normal (about 30), often (about 15). */
+export type WorldCastFreq = 'off' | 'rare' | 'normal' | 'often'
+export const WORLD_CAST_FREQS: WorldCastFreq[] = ['off', 'rare', 'normal', 'often']
+/** Who a person or a faction is to the player's character; the weight (0 acquaintance, 1 friend or rival, 2 family or central) is how much they weigh in the story. */
+export type WorldRelation = 'ally' | 'family' | 'rival' | 'enemy' | 'neutral'
+export const WORLD_RELATIONS: WorldRelation[] = ['ally', 'family', 'rival', 'enemy', 'neutral']
+
 export type WorldKind = 'person' | 'place' | 'group' | 'thing' | 'fact'
 /** by: 'player' = written or changed by hand in the Records tab */
 export interface WorldRecord {
-  id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past'; at: number; by?: 'player'; pinned?: boolean
+  id: string; kind: WorldKind; name: string; aliases: string[]; text: string; status: 'active' | 'past' | 'dormant'; at: number; by?: 'player'; pinned?: boolean
+  /** a person or a faction: what they are to the player's character, and how much they weigh (null clears it when saving, so the relation decides again) */
+  relation?: WorldRelation | ''
+  weight?: 0 | 1 | 2 | null
+  /** a person: the lorebook entry this is (a link, not a copy) */
+  link?: { book: string; uid: number; title: string }
+  /** a person: "bring back automatically" is switched off */
+  noReturn?: boolean
   /** a group or a place: the people who belong (names, up to 30, each up to 80 characters); [] clears it when saving. A fact told to the group is known to each of them */
   members?: string[]
   /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */
@@ -210,7 +224,7 @@ export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'a
 /** 'auto' = the model takes the stat the attempted action leans on */
 export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
 export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number }
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number; cast: WorldCastFreq }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string
@@ -419,7 +433,7 @@ export async function listWorldRecipes(): Promise<WorldRecipe[]> {
 interface DraftReply { ok?: boolean; error?: string; code?: WorldErrorCode | 'no-text'; draft: WorldDraft }
 
 /** Begin a draft. 409 code 'no-text' = the chosen cards have nothing to learn from. */
-export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }): Promise<WorldDraft> {
+export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }): Promise<WorldDraft> {
   return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...o }) })).draft
 }
 
@@ -466,7 +480,7 @@ export async function newWorldDeck(chatId: string, lang?: string): Promise<{ ok:
 export interface BuildingWorld { id: string; name: string; at: number; level: WorldLevel; done: number; total: number; error: WorldError | null }
 
 /** Begin a new world without a chat (user, 2026-10-19): from cards or an interview. Returns its id and draft. */
-export async function beginNewWorld(o: { name: string; description?: string; level?: WorldLevel; profile?: string; recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean }): Promise<{ worldId: string; draft: WorldDraft }> {
+export async function beginNewWorld(o: { name: string; description?: string; level?: WorldLevel; profile?: string; recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean }): Promise<{ worldId: string; draft: WorldDraft }> {
   const r = await j<DraftReply & { worldId: string }>('/world/start', { method: 'POST', body: JSON.stringify({ begin: true, newWorld: true, ...o }) })
   return { worldId: r.worldId, draft: r.draft }
 }
@@ -595,8 +609,18 @@ export async function nameBackgroundImage(image: { data: string; mimeType: strin
 /** One entry of the chat's roll log (`GET /world/dice`): a quiet roll has gated false and no dice. */
 export interface WorldDiceRoll {
   at: number
-  /** 'life' = the world-intervenes roll (tier says how big); 'pace' = the pacing check (readiness in `value`); otherwise the action's roll */
-  kind?: 'life' | 'pace'
+  /** 'life' = the world-intervenes roll (tier says how big); 'pace' = the pacing check (readiness in `value`); 'cast' = a person came back (#424); otherwise the action's roll */
+  kind?: 'life' | 'pace' | 'cast'
+  /** cast: who, which record, how big (small, medium, big), why (the silence, or the Life die), the silence so far and the one that made them due, the weight, what came of it */
+  id?: string
+  band?: 'small' | 'medium' | 'big'
+  via?: 'silence' | 'life'
+  silence?: number
+  threshold?: number
+  weight?: number
+  d?: [number, number]
+  retried?: boolean
+  result?: 'came' | 'again' | 'missed'
   tier?: 'minor' | 'notable' | 'major'
   /** where in the chat the roll was made: messages so far, the key of the last one (id#swipe) and its swipe count */
   n?: number
@@ -621,20 +645,43 @@ export interface WorldDiceRoll {
   inserted: boolean
 }
 
-/** The chat's last rolls, oldest first, and whether the chat shows them under the replies. */
-export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceRoll[]; show: boolean }> {
-  const r = await j<{ rolls: WorldDiceRoll[]; show?: boolean }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)
-  return { rolls: r.rolls, show: r.show === true }
+/** The chat's last rolls, oldest first, and whether the chat shows them under the replies (dice, and the cast's own switch). */
+export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceRoll[]; show: boolean; castShow: boolean }> {
+  const r = await j<{ rolls: WorldDiceRoll[]; show?: boolean; castShow?: boolean }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)
+  return { rolls: r.rolls, show: r.show === true, castShow: r.castShow === true }
 }
 
-interface DiceLiveState { chats: Record<string, { rolls: WorldDiceRoll[]; show: boolean }> }
+/** One person of the bench as GET /world/cast reads them. */
+export interface WorldCastPerson { id: string; name: string; silence: number; threshold: number; weight: number; relation?: WorldRelation; linked: boolean; byId: boolean; off: boolean; due: boolean }
+/** GET /world/cast: the cast as the chat stands (for the panel and for testing). */
+export interface WorldCast {
+  freq: WorldCastFreq
+  replies: number
+  /** replies still to wait before the next return can start */
+  wait: number
+  entrance: { id: string; name: string; band: 'small' | 'medium' | 'big'; silence: number; via: 'silence' | 'life'; sent: number; retried: boolean; roll?: number; d?: [number, number]; mod?: number; weight?: number; threshold?: number; tier?: string } | null
+  last: { id: string; n: number; band: string; ok: boolean } | null
+  people: WorldCastPerson[]
+  /** lorebook entries of the chat's cards the bench could be adopted from */
+  lorePeople: number
+}
+export async function loadWorldCast(chatId: string): Promise<WorldCast> {
+  return j<WorldCast>(`/world/cast?chatId=${encodeURIComponent(chatId)}`)
+}
+
+/** Adopt the people of the cards' lorebooks (one build call); the cast is switched on if it was off. Resumes a pending call like the deck does. */
+export async function adoptWorldBench(chatId: string, lang?: string): Promise<{ ok: boolean; added?: string[]; linked?: string[]; none?: boolean; error?: string; code?: WorldErrorCode }> {
+  return j('/world/bench', { method: 'POST', body: JSON.stringify({ chatId, ...(lang ? { lang } : {}) }) })
+}
+
+interface DiceLiveState { chats: Record<string, { rolls: WorldDiceRoll[]; show: boolean; castShow: boolean }> }
 /** The newest read of each chat's rolls, for the marks under the replies. */
 export const useDiceLive = create<DiceLiveState>(() => ({ chats: {} }))
 
 /** Read the chat's rolls into the live store; a chat that does not show them is not read again until it is opened. */
 export async function refreshDice(chatId: string, force = false): Promise<void> {
   const known = useDiceLive.getState().chats[chatId]
-  if (known && !known.show && !force) return
+  if (known && !known.show && !known.castShow && !force) return
   try {
     const r = await loadWorldDice(chatId)
     useDiceLive.setState((s) => ({ chats: { ...s.chats, [chatId]: r } }))
