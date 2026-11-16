@@ -19,8 +19,8 @@ describe("castLine", () => {
   });
 
   it("how long ago she was last named is in the line only when the log has it", () => {
-    expect(line({ seen: 3, result: "mentioned" })).toContain("last named 3 replies ago");
-    expect(line({ result: "came" })).not.toContain("last named");
+    expect(line({ seen: 3, result: "mentioned" })).toContain("since last named: 3");
+    expect(line({ result: "came" })).not.toContain("since last named");
   });
 
   it("a die that was raised to medium says why", () => {
@@ -29,10 +29,10 @@ describe("castLine", () => {
   });
 
   it("the Life die's line carries the same marks, and Ukrainian has every new string", () => {
-    expect(line({ via: "life", tier: "notable", seen: 2, result: "mentioned" })).toContain("last named 2 replies ago");
+    expect(line({ via: "life", tier: "notable", seen: 2, result: "mentioned" })).toContain("since last named: 2");
     const uk = line({ seen: 3, floor: true, result: "mentioned" }, "uk");
     expect(uk).toContain("лише згадали");
-    expect(uk).toContain("остання згадка 3");
+    expect(uk).toContain("від останньої згадки: 3");
     expect(uk).toContain("піднято до середнього");
   });
 });
