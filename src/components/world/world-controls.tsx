@@ -15,6 +15,7 @@ import { DiceLog } from './dice-log'
 import { CastCard } from './world-cast'
 import { CastDeckCard } from './world-cast-deck'
 import { TidyCard } from './world-tidy'
+import { LearningCard } from './world-memory'
 import { WorldRecords } from './world-records'
 import { SoFarTiles, type TileKey } from './world-so-far'
 import { addsChips, limitsSummary, scheduleChips, writesChips } from './world-summaries'
@@ -483,6 +484,9 @@ export function WorldControls({
   // Card 6: tidying the book (#424, step 3): things that played out go to the Archive by code; the switch, "Tidy now" and the log
   const tidyCard = <TidyCard chatId={chatId} view={view} save={save} on={on} />
 
+  // Card 7: what the DM learns (#425): the switch, the things lever, the rules in force, a way to Memory and the log of every proposal and answer
+  const learnCard = <LearningCard chatId={chatId} view={view} save={save} on={on} />
+
   const soFarSection = (
     <section className="flex flex-col gap-3" aria-live="polite">
       <h3 className="flex items-center gap-2 text-heading font-semibold">
@@ -617,6 +621,7 @@ export function WorldControls({
             {castCard}
             {deckCard}
             {tidyCard}
+            {learnCard}
           </div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{soFarSection}</div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{modelSection}</div>
