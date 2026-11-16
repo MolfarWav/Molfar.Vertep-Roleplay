@@ -27,7 +27,7 @@
  * Routes (under /v1/apps/roleplay/):
  *  GET  /world/state?chatId=          the chat's DM: settings, counts, when it runs next, last error
  *  PUT  /world/settings {chatId, level?, everyN?, stagnation?, onTransition?, insert?}   the chat's DM settings
- *  GET  /world/learned?chatId=        the DM's memory: rules, proposals waiting, the log, the names kept (#425); POST /world/learned/answer|rule|remove|edit|clear|reset
+ *  GET  /world/learned?chatId=        the DM's memory: rules, proposals waiting, the log, the names kept (#425); POST /world/learned/answer|rule|remove|edit|phrase|clear|reset
  *  GET  /world/peek?chatId=           the world book's records, for the player who asks (fronts and events stay hidden)
  *  GET  /world/here?chatId=           the Dashboard's Here and Outfit and things: the scene's place, the things here and asleep, what people carry, what the last run changed
  *  GET  /world/config?chatId=         the DM's models and reply limit (all chats), with the models in force
@@ -5516,8 +5516,15 @@ export const THINGS_STEPS = ["all", "reasons", "off"];
 export const THINGS_REASONS = ["clue", "hidden", "promise"];
 /** The levers a rule can set, each an exact setting of the chat. */
 export const LEARN_LEVERS = ["things", "textMax", "cast"];
+/** What a proposal, an answer or a log line can be about: a lever, or a rule in words. */
+export const LEARN_KEYS = [...LEARN_LEVERS, "words"];
+const LEARN_WORD_KINDS = ["person", "place", "group"];
+/** A rule in words: one line of at most this many characters; the block of them in the DM's input holds this many rules and this many characters of rule text. */
+const RULE_TEXT_MAX = 160;
+const PROMPT_RULES_MAX = 10;
+const PROMPT_CHARS_MAX = 600;
 /** First guesses (owner, 2026-11-16): min = how many, share = percent of the DM's records of that kind, cut = how much shorter a rewrite is. */
-export const LEARN_THRESHOLDS = { things: { min: 5, share: 60 }, text: { min: 3, share: 30, cut: 30 }, cast: { min: 3, share: 60 } };
+export const LEARN_THRESHOLDS = { things: { min: 5, share: 60 }, text: { min: 3, share: 30, cut: 30 }, cast: { min: 3, share: 60 }, words: { min: 5, share: 60 } };
 
 const nint = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
 
@@ -5557,6 +5564,7 @@ function cleanEv(ev) {
     names: arr(ev.names).map((x) => cut(str(x), NAME_MAX)).filter(Boolean).slice(0, LEARN_NAMES_MAX),
     ...(KINDS.includes(ev.kind) ? { kind: ev.kind } : {}),
     ...(nint(ev.len) ? { len: nint(ev.len) } : {}),
+    ...(ev.manual === true ? { manual: true } : {}),
   };
 }
 
@@ -5567,35 +5575,48 @@ function cleanLever(l) {
 
 function cleanRule(r) {
   if (!isObj(r) || !/^[rg]\d{1,6}$/.test(str(r.id)) || !Number.isFinite(r.at)) return null;
-  const lever = cleanLever(r.lever);
-  if (!lever) return null;
   const ev = cleanEv(r.ev);
-  return {
-    id: str(r.id),
-    scope: r.scope === "all" ? "all" : "chat",
-    lever: { key: lever.key, to: lever.to },
-    source: r.source === "player" ? "player" : "proposal",
-    at: r.at,
-    ...(r.was !== undefined && leverValid(lever.key, r.was) ? { was: r.was } : {}),
-    ...(ev ? { ev } : {}),
-  };
+  const base = { id: str(r.id), scope: r.scope === "all" ? "all" : "chat", source: r.source === "player" ? "player" : "proposal", at: r.at };
+  const lever = cleanLever(r.lever);
+  if (lever) return { ...base, lever: { key: lever.key, to: lever.to }, ...(r.was !== undefined && leverValid(lever.key, r.was) ? { was: r.was } : {}), ...(ev ? { ev } : {}) };
+  // a rule in words (half B): one line the DM reads in the block "what this player prefers"
+  const text = cleanRuleText(r.text);
+  return text ? { ...base, text, ...(ev ? { ev } : {}) } : null;
 }
 
 function cleanProposal(p) {
   if (!isObj(p) || !/^q\d{1,6}$/.test(str(p.id)) || !Number.isFinite(p.at)) return null;
-  const lever = cleanLever(p.lever);
   const ev = cleanEv(p.ev);
-  if (!lever || !ev) return null;
+  if (!ev) return null;
+  if (str(p.key) === "words") {
+    // a rule in words waits for the small model call that writes it: pending, then ready (or error, to try again)
+    const text = cleanRuleText(p.text);
+    const state = text ? "ready" : p.state === "error" ? "error" : "pending";
+    return { id: str(p.id), key: "words", ev, text, state, ...(state === "error" && str(p.err) ? { err: cut(str(p.err), 40) } : {}), at: p.at };
+  }
+  const lever = cleanLever(p.lever);
+  if (!lever) return null;
   return { id: str(p.id), key: lever.key, lever, ev, at: p.at };
 }
 
-const LEARN_ACTS = ["raise", "answer", "remove", "edit", "add", "reset"];
+const LEARN_ACTS = ["raise", "answer", "remove", "edit", "add", "reset", "phrase"];
+
 const LEARN_ANSWERS = ["all", "chat", "no", "removed"];
 
 function cleanLearnLog(l) {
-  if (!isObj(l) || !LEARN_ACTS.includes(l.act) || !Number.isFinite(l.at) || !LEARN_LEVERS.includes(l.key)) return null;
+  if (!isObj(l) || !LEARN_ACTS.includes(l.act) || !Number.isFinite(l.at) || !LEARN_KEYS.includes(l.key)) return null;
   const ev = cleanEv(l.ev);
-  return { at: l.at, act: l.act, key: l.key, ...(leverValid(l.key, l.to) ? { to: l.to } : {}), ...(LEARN_ANSWERS.includes(l.answer) ? { answer: l.answer } : {}), ...(l.scope === "all" || l.scope === "chat" ? { scope: l.scope } : {}), ...(ev ? { ev } : {}) };
+  return {
+    at: l.at,
+    act: l.act,
+    key: l.key,
+    ...(leverValid(l.key, l.to) ? { to: l.to } : {}),
+    ...(str(l.text) ? { text: cleanRuleText(l.text) } : {}),
+    ...(LEARN_ANSWERS.includes(l.answer) ? { answer: l.answer } : {}),
+    ...(["ok", "none", "error"].includes(l.result) ? { result: l.result } : {}),
+    ...(l.scope === "all" || l.scope === "chat" ? { scope: l.scope } : {}),
+    ...(ev ? { ev } : {}),
+  };
 }
 
 /** The chat's part of the memory: rules for this chat, proposals waiting, answers (so a "no" is not asked again soon), what a global rule changed here, the log. */
@@ -5603,7 +5624,10 @@ export function cleanLearned(l) {
   if (!isObj(l)) return null;
   const rules = arr(l.rules).map(cleanRule).filter((r) => r && r.scope === "chat").slice(-LEARN_RULES_MAX);
   const proposals = arr(l.proposals).map(cleanProposal).filter(Boolean).slice(-LEARN_PROPOSALS_MAX);
-  const answered = arr(l.answered).filter((a) => isObj(a) && LEARN_LEVERS.includes(a.key) && Number.isFinite(a.at) && LEARN_ANSWERS.includes(a.answer)).map((a) => ({ key: a.key, at: a.at, answer: a.answer })).slice(-LEARN_ANSWERED_MAX);
+  const answered = arr(l.answered)
+    .filter((a) => isObj(a) && LEARN_KEYS.includes(a.key) && Number.isFinite(a.at) && LEARN_ANSWERS.includes(a.answer))
+    .map((a) => ({ key: a.key, at: a.at, answer: a.answer, ...(KINDS.includes(a.kind) ? { kind: a.kind } : {}) }))
+    .slice(-LEARN_ANSWERED_MAX);
   const applied = arr(l.applied)
     .filter((a) => isObj(a) && /^g\d{1,6}$/.test(str(a.id)) && LEARN_LEVERS.includes(a.key) && leverValid(a.key, a.to))
     .map((a) => ({ id: str(a.id), key: a.key, to: a.to, ...(a.was !== undefined && leverValid(a.key, a.was) ? { was: a.was } : {}) }));
@@ -5626,7 +5650,7 @@ const learnLog = (L, line) => {
 // ---- the file of rules for every chat ----
 
 function cleanQueue(q) {
-  if (!isObj(q) || !CHAT_ID.test(str(q.chatId)) || !/^q\d{1,6}$/.test(str(q.id)) || !LEARN_LEVERS.includes(q.key) || !Number.isFinite(q.at)) return null;
+  if (!isObj(q) || !CHAT_ID.test(str(q.chatId)) || !/^q\d{1,6}$/.test(str(q.id)) || !LEARN_KEYS.includes(q.key) || !Number.isFinite(q.at)) return null;
   return { chatId: str(q.chatId), id: str(q.id), key: q.key, at: q.at };
 }
 
@@ -5666,10 +5690,10 @@ function syncQueue(fsx, state) {
  * Brings the chat's settings in line with the rules for all chats, in memory (a save then keeps it): a rule not applied here yet and
  * stricter than the chat's value is applied and remembered with the value it replaced; a rule whose value was edited moves the chat
  * if the chat still held the old value; a rule that is gone gives the old value back if the chat still holds the rule's. A value
- * the player changed by hand after the rule is never touched.
+ * the player changed by hand after the rule is never touched. Rules in words are not settings: they reach the DM through the prompt block.
  */
 export function syncGlobalRules(state, g) {
-  const rules = arr(g && g.rules);
+  const rules = arr(g && g.rules).filter((r) => r.lever);
   const have = arr(state.learned && state.learned.applied);
   if (!rules.length && !have.length) return;
   const settings = { ...state.settings };
@@ -5700,8 +5724,6 @@ export function syncGlobalRules(state, g) {
   learnedOf(state).applied = applied;
 }
 
-// ---- the proposals ----
-
 const uniqNames = (list) => {
   const seen = new Set();
   const out = [];
@@ -5715,14 +5737,15 @@ const uniqNames = (list) => {
 };
 const pct = (a, b) => (b > 0 ? Math.round((100 * a) / b) : 0);
 
-/** The start of the window for one lever: 30 days back, or the last answer about it (a "no" is asked again only after fresh signals). */
-function learnSince(state, key, now) {
-  const last = arr(state.learned && state.learned.answered).filter((a) => a.key === key).reduce((m, a) => Math.max(m, a.at), 0);
+/** The start of the window for one lever (or one kind of prose rule): 30 days back, or the last answer about it (a "no" is asked again only after fresh signals). */
+function learnSince(state, key, now, kind) {
+  const last = arr(state.learned && state.learned.answered).filter((a) => a.key === key && (kind === undefined || a.kind === kind)).reduce((m, a) => Math.max(m, a.at), 0);
   return Math.max(now - LEARN_DAYS * 86400000, last);
 }
 
 /**
- * What the player's signals say right now: a list of { key, lever: { key, from, to }, ev }. Pure: no state is changed.
+ * What the player's signals say right now: a list of { key, lever: { key, from, to }, ev } for a setting, or { key: "words", kind, ev } for
+ * a rule in words (people, places and groups have no setting to flip: a model writes the rule, later). Pure: no state is changed.
  * Only records the DM wrote (no `by: "player"`), by kind, as a SHARE of what the DM wrote (deleted and still there), inside the window.
  */
 export function learnEvidence(state, now) {
@@ -5771,32 +5794,49 @@ export function learnEvidence(state, now) {
       out.push({ key: "cast", lever: { key: "cast", from: set.cast, to: next }, ev: { n: gone.length, total, share: pct(gone.length, total), min: th.min, thr: th.share, days: LEARN_DAYS, names: gone.slice(0, LEARN_NAMES_MAX), kind: "person" } });
     }
   }
+  // words: people, places and groups the DM wrote on its own (the deck's and the lorebooks' people have their own lever) and the player deleted
+  {
+    const th = LEARN_THRESHOLDS.words;
+    for (const kind of LEARN_WORD_KINDS) {
+      const since = learnSince(state, "words", now, kind);
+      const gone = uniqNames(sigs.filter((g) => g.op === "delete" && g.kind === kind && g.madeBy === "dm" && !g.src && g.at >= since).reverse());
+      const total = gone.length + state.entities.filter((e) => e.kind === kind && dm(e) && !(e.src === "deck" || e.link)).length;
+      if (gone.length >= th.min && pct(gone.length, total) >= th.share) {
+        out.push({ key: "words", kind, ev: { n: gone.length, total, share: pct(gone.length, total), min: th.min, thr: th.share, days: LEARN_DAYS, names: gone.slice(0, LEARN_NAMES_MAX), kind } });
+      }
+    }
+  }
   return out;
 }
 
 /**
  * Raises what the signals call for and drops a proposal that no longer tightens anything (the setting changed by hand since).
- * Every raise is a line in the chat's learned log: which signals, what share, which threshold. True when the state changed.
+ * Every raise is a line in the chat's learned log: which signals, what share, which threshold. A rule in words is raised as "pending":
+ * the model call that writes it comes when the player opens Memory (or presses "Suggest a rule"), not here. True when the state changed.
  */
 export function raiseProposals(state, now) {
   if (state.settings.learn === false) return false;
   let changed = false;
-  const kept = arr(state.learned && state.learned.proposals).filter((p) => leverStricter(p.key, state.settings[p.key], p.lever.to));
-  if (kept.length !== arr(state.learned && state.learned.proposals).length) {
+  const before = arr(state.learned && state.learned.proposals);
+  const kept = before.filter((p) => p.key === "words" || leverStricter(p.key, state.settings[p.key], p.lever.to));
+  if (kept.length !== before.length) {
     learnedOf(state).proposals = kept;
     changed = true;
   }
   for (const c of learnEvidence(state, now)) {
     const L = learnedOf(state);
     if (L.proposals.some((p) => p.key === c.key) || L.proposals.length >= LEARN_PROPOSALS_MAX) continue;
-    L.proposals = [...L.proposals, { id: "q" + L.next++, key: c.key, lever: c.lever, ev: c.ev, at: now }];
-    learnLog(L, { at: now, act: "raise", key: c.key, to: c.lever.to, ev: c.ev });
+    if (c.key === "words") {
+      L.proposals = [...L.proposals, { id: "q" + L.next++, key: "words", ev: c.ev, text: "", state: "pending", at: now }];
+      learnLog(L, { at: now, act: "raise", key: "words", ev: c.ev });
+    } else {
+      L.proposals = [...L.proposals, { id: "q" + L.next++, key: c.key, lever: c.lever, ev: c.ev, at: now }];
+      learnLog(L, { at: now, act: "raise", key: c.key, to: c.lever.to, ev: c.ev });
+    }
     changed = true;
   }
   return changed;
 }
-
-// ---- the player's answers ----
 
 const setLever = (state, key, to) => {
   state.settings = cleanSettings({ ...state.settings, [key]: to });
@@ -5805,15 +5845,30 @@ const giveBack = (state, a) => {
   if (a.was !== undefined && state.settings[a.key] === a.to) setLever(state, a.key, a.was);
 };
 
-/** Answer one proposal: "chat" (a rule here), "all" (a rule for every chat), "no". Returns an error text or "". */
-export function answerProposal(fsx, state, id, answer, now) {
+/**
+ * Answer one proposal: "chat" (a rule here), "all" (a rule for every chat), "no". A rule in words for all chats needs `confirm: true`
+ * (the second confirmation, asked by the app in a dialog and checked here). Returns an error text or "".
+ */
+export function answerProposal(fsx, state, id, answer, now, confirm) {
   const L = learnedOf(state);
   const p = L.proposals.find((x) => x.id === id);
   if (!p) return "no such proposal";
   if (!["chat", "all", "no"].includes(answer)) return "unknown answer";
+  const words = p.key === "words";
+  if (words && answer !== "no" && p.state !== "ready") return "the rule is not written yet";
+  if (words && answer === "all" && confirm !== true) return "confirm needed";
   L.proposals = L.proposals.filter((x) => x !== p);
-  L.answered = [...L.answered, { key: p.key, at: now, answer }].slice(-LEARN_ANSWERED_MAX);
-  learnLog(L, { at: now, act: "answer", key: p.key, to: p.lever.to, answer, ev: p.ev });
+  L.answered = [...L.answered, { key: p.key, at: now, answer, ...(words && p.ev.kind ? { kind: p.ev.kind } : {}) }].slice(-LEARN_ANSWERED_MAX);
+  learnLog(L, { at: now, act: "answer", key: p.key, ...(words ? { text: p.text } : { to: p.lever.to }), answer, ev: p.ev });
+  if (words) {
+    if (answer === "chat") L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text: p.text, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
+    else if (answer === "all") {
+      const g = loadLearned(fsx);
+      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text: p.text, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
+      saveLearned(fsx, g);
+    }
+    return "";
+  }
   if (answer === "chat") {
     L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", lever: { key: p.key, to: p.lever.to }, was: p.lever.from, source: "proposal", ev: p.ev, at: now }].slice(-LEARN_RULES_MAX);
     setLever(state, p.key, p.lever.to);
@@ -5828,10 +5883,25 @@ export function answerProposal(fsx, state, id, answer, now) {
   return "";
 }
 
-/** Add a rule by hand: one lever, one value, for this chat or for all. The chat takes it exactly; other chats only where it tightens. */
-export function addRule(fsx, state, scope, key, to, now) {
-  if (!LEARN_LEVERS.includes(key) || !leverValid(key, to)) return "unknown lever or value";
+/**
+ * Add a rule by hand: one lever and a value, or a rule in words (key "words", `to` is the text). The chat takes a setting exactly; other
+ * chats only where it tightens. A rule in words for all chats needs `confirm: true`.
+ */
+export function addRule(fsx, state, scope, key, to, now, confirm) {
   const L = learnedOf(state);
+  if (key === "words") {
+    const text = cleanRuleText(to);
+    if (!text) return "a rule needs words";
+    if (scope === "all") {
+      if (confirm !== true) return "confirm needed";
+      const g = loadLearned(fsx);
+      g.rules = [...g.rules, { id: "g" + g.next++, scope: "all", text, source: "player", at: now }].slice(-LEARN_RULES_MAX);
+      saveLearned(fsx, g);
+    } else L.rules = [...L.rules, { id: "r" + L.next++, scope: "chat", text, source: "player", at: now }].slice(-LEARN_RULES_MAX);
+    learnLog(L, { at: now, act: "add", key: "words", text, scope: scope === "all" ? "all" : "chat" });
+    return "";
+  }
+  if (!LEARN_LEVERS.includes(key) || !leverValid(key, to)) return "unknown lever or value";
   const was = state.settings[key];
   if (scope === "all") {
     const g = loadLearned(fsx);
@@ -5845,12 +5915,12 @@ export function addRule(fsx, state, scope, key, to, now) {
   return "";
 }
 
-/** Remove a rule: the lever goes back to what it replaced, where the setting still holds the rule's value. */
+/** Remove a rule: a lever goes back to what it replaced, where the setting still holds the rule's value; a rule in words just stops reaching the DM. */
 export function removeRule(fsx, state, id, now) {
   const L = learnedOf(state);
   let r = L.rules.find((x) => x.id === id);
   if (r) {
-    giveBack(state, { key: r.lever.key, to: r.lever.to, was: r.was });
+    if (r.lever) giveBack(state, { key: r.lever.key, to: r.lever.to, was: r.was });
     L.rules = L.rules.filter((x) => x !== r);
   } else {
     const g = loadLearned(fsx);
@@ -5864,15 +5934,23 @@ export function removeRule(fsx, state, id, now) {
       L.applied = L.applied.filter((x) => x !== a);
     }
   }
-  L.answered = [...L.answered, { key: r.lever.key, at: now, answer: "removed" }].slice(-LEARN_ANSWERED_MAX);
-  learnLog(L, { at: now, act: "remove", key: r.lever.key, to: r.lever.to, scope: r.scope });
+  const key = r.lever ? r.lever.key : "words";
+  L.answered = [...L.answered, { key, at: now, answer: "removed", ...(r.ev && r.ev.kind && !r.lever ? { kind: r.ev.kind } : {}) }].slice(-LEARN_ANSWERED_MAX);
+  learnLog(L, { at: now, act: "remove", key, ...(r.lever ? { to: r.lever.to } : { text: r.text }), scope: r.scope });
   return "";
 }
 
-/** Change the value of a rule. This chat takes it exactly, the others follow where they still held the old value. */
+/** Change the value of a rule (or the words of a rule in words). This chat takes a setting exactly, the others follow where they still held the old value. */
 export function editRule(fsx, state, id, to, now) {
   const L = learnedOf(state);
   const mine = L.rules.find((x) => x.id === id);
+  if (mine && mine.text !== undefined) {
+    const text = cleanRuleText(to);
+    if (!text) return "a rule needs words";
+    mine.text = text;
+    learnLog(L, { at: now, act: "edit", key: "words", text, scope: "chat" });
+    return "";
+  }
   if (mine) {
     if (!leverValid(mine.lever.key, to)) return "unknown value";
     mine.lever = { key: mine.lever.key, to };
@@ -5883,6 +5961,14 @@ export function editRule(fsx, state, id, to, now) {
   const g = loadLearned(fsx);
   const r = g.rules.find((x) => x.id === id);
   if (!r) return "no such rule";
+  if (r.text !== undefined) {
+    const text = cleanRuleText(to);
+    if (!text) return "a rule needs words";
+    r.text = text;
+    saveLearned(fsx, g);
+    learnLog(L, { at: now, act: "edit", key: "words", text, scope: "all" });
+    return "";
+  }
   if (!leverValid(r.lever.key, to)) return "unknown value";
   r.lever = { key: r.lever.key, to };
   saveLearned(fsx, g);
@@ -5899,7 +5985,7 @@ export function editRule(fsx, state, id, to, now) {
 export function resetLearned(fsx, state) {
   const L = state.learned;
   if (L) {
-    for (const r of L.rules) giveBack(state, { key: r.lever.key, to: r.lever.to, was: r.was });
+    for (const r of L.rules) if (r.lever) giveBack(state, { key: r.lever.key, to: r.lever.to, was: r.was });
     for (const a of L.applied) giveBack(state, a);
     delete state.learned;
   }
@@ -5917,39 +6003,174 @@ function defaultsWithRules(g) {
   return state.settings;
 }
 
-/** What the DM tab and the chat's card read: the rules, the proposals, the log, the names kept, and the words the levers add to the DM's input. */
+/** What the DM tab and the chat's card read: the rules, the proposals, the log, the names kept, and the words the memory adds to the DM's input. */
 export function learnedView(fsx, state) {
   const g = loadLearned(fsx);
   const L = state ? state.learned : null;
   const applied = arr(L && L.applied);
   const waiting = g.queue.filter((q) => readJson(fsx, "chats/" + q.chatId + ".meta.json", null));
   const set = state ? state.settings : defaultsWithRules(g);
+  const text = learnTextRules(L, g);
   return {
     chatId: state ? state.chatId : "",
     on: state ? state.settings.learn !== false : true,
     settings: { things: set.things, textMax: set.textMax, cast: set.cast },
-    rules: [...arr(L && L.rules).map((r) => ({ ...r, here: true })), ...g.rules.map((r) => ({ ...r, here: !!state && (applied.some((a) => a.id === r.id) || state.settings[r.lever.key] === r.lever.to) }))],
+    rules: [
+      ...arr(L && L.rules).map((r) => ({ ...r, here: true, ...(r.text ? { inPrompt: text.used.some((u) => u.id === r.id) } : {}) })),
+      ...g.rules.map((r) => ({ ...r, here: r.text ? true : !!state && (applied.some((a) => a.id === r.id) || state.settings[r.lever.key] === r.lever.to), ...(r.text ? { inPrompt: text.used.some((u) => u.id === r.id) } : {}) })),
+    ],
     proposals: arr(L && L.proposals),
     log: [...arr(L && L.log)].reverse(),
     remembered: state ? removedNames(state, SIGNALS_MAX) : [],
     waiting,
-    note: learnNote(set),
+    note: learnedInput(set, L, g),
     thresholds: LEARN_THRESHOLDS,
     days: LEARN_DAYS,
+    limits: { rules: PROMPT_RULES_MAX, chars: PROMPT_CHARS_MAX, text: RULE_TEXT_MAX },
   };
 }
 
-/** The chat panel's line: rules in force here (this chat's and all chats'), proposals waiting. */
+/** The chat panel's line: rules in force here (this chat's and all chats'), proposals waiting, rules in words being written. */
 export function learnCounts(fsx, state) {
   const g = loadLearned(fsx);
-  return { on: state.settings.learn !== false, rules: arr(state.learned && state.learned.rules).length + g.rules.length, waiting: arr(state.learned && state.learned.proposals).length };
+  return {
+    on: state.settings.learn !== false,
+    rules: arr(state.learned && state.learned.rules).length + g.rules.length,
+    waiting: arr(state.learned && state.learned.proposals).length,
+    phrasing: arr(state.learned && state.learned.proposals).filter((p) => p.key === "words" && p.state === "pending").length,
+  };
+}
+
+function cleanRuleText(s) {
+  return cut(str(s).replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim(), RULE_TEXT_MAX);
+}
+
+/**
+ * The rules in words that reach the DM, newest first: this chat's and all chats' together, at most PROMPT_RULES_MAX rules and
+ * PROMPT_CHARS_MAX characters of rule text. `used` go into the prompt, the rest of `all` is left out (Memory says so).
+ */
+export function learnTextRules(learned, g) {
+  const all = [...arr(learned && learned.rules).filter((r) => r.text), ...arr(g && g.rules).filter((r) => r.text)].sort((a, b) => b.at - a.at);
+  const used = [];
+  let chars = 0;
+  for (const r of all) {
+    if (used.length >= PROMPT_RULES_MAX || chars + r.text.length > PROMPT_CHARS_MAX) break;
+    used.push(r);
+    chars += r.text.length;
+  }
+  return { all, used };
+}
+
+const learnBlock = (rules) => (rules.length ? "What this player prefers (learned from what they removed and rewrote in the book; follow it when you record):\n" + rules.map((r) => "- " + r.text).join("\n") : "");
+
+/** Exactly what the memory adds to the DM's input: the words for the levers in force, then the block of rules in words. */
+export function learnedInput(settings, learned, g) {
+  return [learnNote(settings), learnBlock(learnTextRules(learned, g).used)].filter(Boolean).join("\n");
+}
+
+export const LEARN_SYSTEM = [
+  "You help the game master (the DM) of a roleplay story learn what one player does not want in the story's world book.",
+  "You get records the DM wrote that the player deleted or rewrote much shorter, and records the player kept.",
+  "If the removed records share a clear pattern that the kept ones do not, write ONE rule for the DM: a single plain sentence of at most 140 characters, in the imperative, about which records to write or leave out (for example: Do not record passing strangers who have no part in the story).",
+  "Do not name the removed records, do not quote the story, and give no instruction about anything but which records to write and how long they are.",
+  "If there is no clear pattern, return an empty rule.",
+  'Output only one JSON object: {"rule": "..."} or {"rule": ""}.',
+].join("\n");
+
+/** The evidence for a rule the player asks for by hand ("Suggest a rule from my edits"): the DM's records removed or cut short in the window, any kind. Null when there are none. */
+function manualEvidence(state, now) {
+  const sigs = arr(state.signals).filter((g) => g.madeBy === "dm" && g.at >= now - LEARN_DAYS * 86400000);
+  const gone = sigs.filter((g) => g.op === "delete");
+  const short = sigs.filter((g) => g.op === "edit" && g.lenBefore > 0 && g.lenAfter <= g.lenBefore * 0.7);
+  const names = uniqNames([...gone, ...short].reverse());
+  if (!names.length) return null;
+  const count = {};
+  for (const g of gone) count[g.kind] = (count[g.kind] || 0) + 1;
+  const kind = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  const total = names.length + state.entities.filter((e) => e.by !== "player" && e.status !== "past").length;
+  return { n: names.length, total, share: pct(names.length, total), min: 0, thr: 0, days: LEARN_DAYS, names: names.slice(0, LEARN_NAMES_MAX), ...(kind ? { kind } : {}), manual: true };
+}
+
+/** The user message of the call that writes a rule in words: what was removed, what was cut short, what was kept. */
+function learnInput(state, ev, now) {
+  const all = ev.manual === true || !ev.kind;
+  const sigs = arr(state.signals).filter((g) => g.madeBy === "dm" && g.at >= now - LEARN_DAYS * 86400000 && (all || g.kind === ev.kind));
+  const line = (g, text) => "- " + g.kind + " " + g.name + (text ? ": " + text : "");
+  const del = uniqNames([...sigs.filter((g) => g.op === "delete")].reverse()).slice(0, LEARN_NAMES_MAX);
+  const delLines = del.map((n) => {
+    const g = sigs.find((x) => x.op === "delete" && x.name === n);
+    return line(g, cut(str(g.text), 120));
+  });
+  const cutLines = uniqNames([...sigs.filter((g) => g.op === "edit" && g.lenBefore > 0 && g.lenAfter <= g.lenBefore * 0.7)].reverse())
+    .slice(0, LEARN_NAMES_MAX)
+    .map((n) => {
+      const g = sigs.find((x) => x.op === "edit" && x.name === n);
+      return line(g, "from " + g.lenBefore + " to " + g.lenAfter + " characters");
+    });
+  const kept = state.entities.filter((e) => e.by !== "player" && e.status !== "past" && (all || e.kind === ev.kind)).slice(-4).map((e) => line(e, cut(str(e.text), 100)));
+  return [
+    delLines.length ? "The player deleted these records the DM wrote:\n" + delLines.join("\n") : "",
+    cutLines.length ? "The player rewrote these records much shorter:\n" + cutLines.join("\n") : "",
+    kept.length ? "Records the DM wrote that the player kept:\n" + kept.join("\n") : "",
+    "Write the rule.",
+  ].filter(Boolean).join("\n\n");
+}
+
+/**
+ * The small call that writes a rule in words (#425, half B): one call of its own on the build model, not part of a DM run. It fills the first
+ * pending proposal (or an errored one with `retry`), or, for `manual`, makes a new proposal from the signals. The rule is only a proposal:
+ * nothing reaches the DM until the player answers.
+ */
+function phraseLearn(req, host, state, chat, b, now) {
+  const fsx = host.fs;
+  const L = learnedOf(state);
+  const p = L.proposals.find((x) => x.key === "words" && (x.state === "pending" || (b.retry === true && x.state === "error")));
+  if (!p && b.manual !== true) return ok({ ok: true, skipped: "nothing to write" });
+  if (!p && L.proposals.some((x) => x.key === "words")) return ok({ error: "A rule in words is already waiting for your answer." }, 409);
+  if (!p && L.proposals.length >= LEARN_PROPOSALS_MAX) return ok({ error: "Answer the waiting proposals first." }, 409);
+  const ev = p ? p.ev : manualEvidence(state, now);
+  if (!ev) return ok({ error: "Nothing to learn from yet: delete or rewrite something the DM wrote first." }, 409);
+  const cfg = loadConfig(fsx);
+  const built = buildResult(host, "world_learn", buildAsk(host, fsx, cfg, chat.meta, LEARN_SYSTEM, learnInput(state, ev, now)), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  countBuild(state, built, "learn", 0);
+  const finish = (extra) => {
+    saveState(fsx, state);
+    syncQueue(fsx, state);
+    return ok({ ...learnedView(fsx, state), ...extra });
+  };
+  if (built.error) {
+    if (p) {
+      p.state = "error";
+      p.err = built.error.code;
+    }
+    learnLog(L, { at: now, act: "phrase", key: "words", result: "error", ev });
+    return finish({ phraseError: built.error.message, phraseCode: built.error.code });
+  }
+  const rule = cleanRuleText(isObj(built.out) ? built.out.rule : "");
+  if (!rule) {
+    if (p) {
+      L.proposals = L.proposals.filter((x) => x !== p);
+      L.answered = [...L.answered, { key: "words", at: now, answer: "no", ...(ev.kind ? { kind: ev.kind } : {}) }].slice(-LEARN_ANSWERED_MAX);
+    }
+    learnLog(L, { at: now, act: "phrase", key: "words", result: "none", ev });
+    return finish({ phraseNone: true });
+  }
+  if (p) {
+    p.text = rule;
+    p.state = "ready";
+    delete p.err;
+  } else L.proposals = [...L.proposals, { id: "q" + L.next++, key: "words", ev, text: rule, state: "ready", at: now }];
+  learnLog(L, { at: now, act: "phrase", key: "words", result: "ok", text: rule, ev });
+  return finish({});
 }
 
 /**
  * GET /world/learned?chatId=   the memory (without a chatId: the rules for all chats and who waits)
- * POST /world/learned/answer {chatId, id, answer}   chat | all | no
- * POST /world/learned/rule {chatId, scope, key, to}   write a rule by hand
+ * POST /world/learned/answer {chatId, id, answer, confirm?}   chat | all | no (a rule in words for all chats needs confirm: true)
+ * POST /world/learned/rule {chatId, scope, key, to, confirm?}   write a rule by hand (key words: `to` is the text)
  * POST /world/learned/remove {chatId, id}, /edit {chatId, id, to}
+ * POST /world/learned/phrase {chatId, manual?, retry?}   the small call that writes a rule in words (build model)
  * POST /world/learned/clear {chatId}   forget the names the player removed (the signals)
  * POST /world/learned/reset {chatId}   rules for this chat and for all, proposals, log and names
  */
@@ -5958,21 +6179,23 @@ function learnedRoute(req, host, sub) {
   const b = req.method === "POST" ? body(req) : req.query || {};
   const chatId = String(b.chatId || "");
   if (chatId && !CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  if (chatId && !readChat(fsx, chatId)) return ok({ error: "no such chat" }, 404);
+  const chat = chatId ? readChat(fsx, chatId) : null;
+  if (chatId && !chat) return ok({ error: "no such chat" }, 404);
   const loaded = chatId ? loadState(fsx, chatId) : null;
   if (req.method === "GET") return ok(learnedView(fsx, loaded && loaded.existed ? loaded.state : null));
   if (!loaded || !loaded.existed) return ok({ error: "this chat has no world yet" }, 409);
   const state = loaded.state;
   const now = Date.now();
+  if (sub === "phrase") return phraseLearn(req, host, state, chat, b, now);
   let err = "";
-  if (sub === "answer") err = answerProposal(fsx, state, str(b.id), str(b.answer), now);
-  else if (sub === "rule") err = addRule(fsx, state, b.scope === "all" ? "all" : "chat", str(b.key), b.to, now);
+  if (sub === "answer") err = answerProposal(fsx, state, str(b.id), str(b.answer), now, b.confirm === true);
+  else if (sub === "rule") err = addRule(fsx, state, b.scope === "all" ? "all" : "chat", str(b.key), b.to, now, b.confirm === true);
   else if (sub === "remove") err = removeRule(fsx, state, str(b.id), now);
   else if (sub === "edit") err = editRule(fsx, state, str(b.id), b.to, now);
   else if (sub === "clear") delete state.signals;
   else if (sub === "reset") resetLearned(fsx, state);
   else return ok({ error: "not found" }, 404);
-  if (err) return ok({ error: err }, 400);
+  if (err) return ok({ error: err }, err === "confirm needed" ? 409 : 400);
   saveState(fsx, state);
   syncQueue(fsx, state);
   return ok(learnedView(fsx, state));
@@ -6749,7 +6972,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnNote(state.settings), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnedInput(state.settings, state.learned, loadLearned(fsx)), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),

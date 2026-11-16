@@ -109,7 +109,9 @@ describe("what the player's signals say", () => {
     const old = gone(["O1", "O2", "O3", "O4", "O5"], {}, NOW - 40 * DAY);
     const player = gone(["P1", "P2", "P3", "P4", "P5"], { madeBy: "player" });
     const places = gone(["L1", "L2", "L3", "L4", "L5"], { kind: "place" });
-    expect(learnEvidence(st([], { signals: [...old, ...player, ...places] }), NOW)).toEqual([]);
+    // five deleted places is a rule in words, not a thing
+    const ev = learnEvidence(st([], { signals: [...old, ...player, ...places] }), NOW);
+    expect(ev.map((e: any) => [e.key, e.kind])).toEqual([["words", "place"]]);
     // a record the player wrote does not dilute the share either
     const mine = Array.from({ length: 20 }, (_, i) => rec("n" + (i + 1), "thing", "M" + i, "x", { by: "player" }));
     expect(learnEvidence(st(mine, { signals: gone(["T1", "T2", "T3", "T4", "T5"]) }), NOW)).toHaveLength(1);

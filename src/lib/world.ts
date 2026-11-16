@@ -76,7 +76,7 @@ export interface WorldView {
   /** the chat's total so far */
   usage: WorldUsage & { runs: number }
   /** the DM's memory for the chat panel's line and the dots: rules in force here, proposals waiting (#425) */
-  learn: { on: boolean; rules: number; waiting: number }
+  learn: { on: boolean; rules: number; waiting: number; /** rules in words waiting for the model call that writes them */ phrasing: number }
   /** unread text one run cannot read: "Read the whole chat" takes `runs` runs */
   behind: { messages: number; runs: number }
   /** a Start in progress or waiting to be accepted */
@@ -803,11 +803,14 @@ export async function refreshDice(chatId: string, force = false): Promise<void> 
 
 /** The settings a rule can move: the exact levers. */
 export type LearnKey = 'things' | 'textMax' | 'cast'
-export interface LearnEvidence { n: number; total: number; share: number; min: number; thr: number; days: number; names: string[]; kind?: WorldKind; len?: number }
-export interface LearnProposal { id: string; key: LearnKey; lever: { key: LearnKey; from?: string | number; to: string | number }; ev: LearnEvidence; at: number }
-export interface LearnRule { id: string; scope: 'chat' | 'all'; lever: { key: LearnKey; to: string | number }; was?: string | number; source: 'proposal' | 'player'; ev?: LearnEvidence; at: number; /** this chat holds the rule (a chat rule always; an all-chats rule when the chat took it) */ here: boolean }
-export interface LearnLine { at: number; act: 'raise' | 'answer' | 'remove' | 'edit' | 'add' | 'reset'; key: LearnKey; to?: string | number; answer?: 'all' | 'chat' | 'no' | 'removed'; scope?: 'all' | 'chat'; ev?: LearnEvidence }
-export interface LearnWaiting { chatId: string; id: string; key: LearnKey; at: number }
+/** What a proposal, a rule or a log line is about: a lever, or a rule in words. */
+export type LearnAbout = LearnKey | 'words'
+export interface LearnEvidence { n: number; total: number; share: number; min: number; thr: number; days: number; names: string[]; kind?: WorldKind; len?: number; /** asked for by hand ("Suggest a rule"), no threshold */ manual?: boolean }
+/** A proposal moves a lever (`lever`), or is a rule in words (`key: 'words'`): `text` is written by a small model call, `state` says how far it is. */
+export interface LearnProposal { id: string; key: LearnAbout; lever?: { key: LearnKey; from?: string | number; to: string | number }; text?: string; state?: 'pending' | 'ready' | 'error'; err?: string; ev: LearnEvidence; at: number }
+export interface LearnRule { id: string; scope: 'chat' | 'all'; /** a rule that sets a lever */ lever?: { key: LearnKey; to: string | number }; /** a rule in words */ text?: string; /** a rule in words: it fits in the block the DM reads (10 rules, 600 characters) */ inPrompt?: boolean; was?: string | number; source: 'proposal' | 'player'; ev?: LearnEvidence; at: number; /** this chat holds the rule (a chat rule always; an all-chats rule when the chat took it) */ here: boolean }
+export interface LearnLine { at: number; act: 'raise' | 'answer' | 'remove' | 'edit' | 'add' | 'reset' | 'phrase'; key: LearnAbout; to?: string | number; text?: string; result?: 'ok' | 'none' | 'error'; answer?: 'all' | 'chat' | 'no' | 'removed'; scope?: 'all' | 'chat'; ev?: LearnEvidence }
+export interface LearnWaiting { chatId: string; id: string; key: LearnAbout; at: number }
 /** GET /world/learned: the memory of a chat (with a chatId) or the rules for all chats and who waits (without). */
 export interface WorldLearned {
   chatId: string
@@ -823,8 +826,10 @@ export interface WorldLearned {
   waiting: LearnWaiting[]
   /** the words the levers add to the DM's input */
   note: string
-  thresholds: { things: { min: number; share: number }; text: { min: number; share: number; cut: number }; cast: { min: number; share: number } }
+  thresholds: { things: { min: number; share: number }; text: { min: number; share: number; cut: number }; cast: { min: number; share: number }; words: { min: number; share: number } }
   days: number
+  /** the block of rules in words the DM reads: how many rules, how many characters of rule text; and the longest rule */
+  limits: { rules: number; chars: number; text: number }
 }
 export async function loadLearned(chatId?: string): Promise<WorldLearned> {
   return j<WorldLearned>(`/world/learned${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''}`)
@@ -836,8 +841,14 @@ async function learnedPost(sub: string, body: Record<string, unknown>): Promise<
   useLearnedLive.setState({ stamp: Date.now(), last: r })
   return r
 }
-export const answerLearned = (chatId: string, id: string, answer: 'all' | 'chat' | 'no') => learnedPost('answer', { chatId, id, answer })
-export const addLearnedRule = (chatId: string, scope: 'all' | 'chat', key: LearnKey, to: string | number) => learnedPost('rule', { chatId, scope, key, to })
+export const answerLearned = (chatId: string, id: string, answer: 'all' | 'chat' | 'no', confirm = false) => learnedPost('answer', { chatId, id, answer, ...(confirm ? { confirm: true } : {}) })
+export const addLearnedRule = (chatId: string, scope: 'all' | 'chat', key: LearnAbout, to: string | number, confirm = false) => learnedPost('rule', { chatId, scope, key, to, ...(confirm ? { confirm: true } : {}) })
+/** The small call that writes a rule in words (the build model): for a proposal waiting for its text, or `manual` for "Suggest a rule". The answer is the new view, or says why not. */
+export async function phraseLearned(chatId: string, opts: { manual?: boolean; retry?: boolean } = {}): Promise<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }> {
+  const r = await j<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }>('/world/learned/phrase', { method: 'POST', body: JSON.stringify({ chatId, ...opts }) })
+  if (Array.isArray(r.rules)) useLearnedLive.setState({ stamp: Date.now(), last: r as WorldLearned })
+  return r
+}
 export const removeLearnedRule = (chatId: string, id: string) => learnedPost('remove', { chatId, id })
 export const editLearnedRule = (chatId: string, id: string, to: string | number) => learnedPost('edit', { chatId, id, to })
 export const clearLearnedNames = (chatId: string) => learnedPost('clear', { chatId })

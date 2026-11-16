@@ -75,6 +75,11 @@ describe("every word the lines ask for exists, in English and in Ukrainian", () 
     }
     for (const answer of ["chat", "all", "no", "removed"] as const) learnLine(t as never, { at: 1, act: "answer", key: "things", to: "off", answer });
     learnLine(t as never, { at: 1, act: "edit", key: "cast" });
+    // rules in words: proposed, written (or not), answered, added, removed
+    for (const result of ["ok", "none", "error"] as const) learnLine(t as never, { at: 1, act: "phrase", key: "words", result, text: result === "ok" ? "Leave out strangers." : undefined, ev });
+    learnLine(t as never, { at: 1, act: "raise", key: "words", ev });
+    for (const answer of ["chat", "all", "no"] as const) learnLine(t as never, { at: 1, act: "answer", key: "words", answer, text: "Leave out strangers." });
+    for (const act of ["add", "remove", "edit"] as const) learnLine(t as never, { at: 1, act, key: "words", text: "Leave out strangers.", scope: "chat" });
     expect(seen.size).toBeGreaterThan(10);
     for (const key of seen) {
       expect(en[key], key).toBeTruthy();
@@ -83,7 +88,7 @@ describe("every word the lines ask for exists, in English and in Ukrainian", () 
   });
 
   it("the proposal sentences exist for every lever", () => {
-    for (const key of ["world.mem.p.things", "world.mem.p.textMax", "world.mem.p.cast", "world.mem.q.things.reasons", "world.mem.q.things.off", "world.mem.q.text", "world.mem.q.cast", "world.mem.rowStat", "world.mem.elsewhere"]) {
+    for (const key of ["world.mem.p.things", "world.mem.p.textMax", "world.mem.p.cast", "world.mem.q.things.reasons", "world.mem.q.things.off", "world.mem.q.text", "world.mem.q.cast", "world.mem.q.words", "world.mem.p.words", "world.mem.p.manual", "world.mem.confirm.warn", "world.mem.leftOut", "world.mem.rowStat", "world.mem.elsewhere"]) {
       expect(en[key], key).toBeTruthy();
       expect(uk[key], key).toBeTruthy();
     }

@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Brain, Plus, Trash } from '@phosphor-icons/react'
+import { Brain, CircleNotch, Plus, Sparkle, Trash } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Fold } from '@/components/ui/fold'
@@ -15,13 +15,14 @@ import { Section, Chip } from '@/components/ui/section'
 import { Segmented, SettingRow } from '@/components/ui/setting-row'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import {
-  addLearnedRule, answerLearned, clearLearnedNames, editLearnedRule, loadLearned, removeLearnedRule, resetLearned, useLearnedLive,
-  type LearnKey, type LearnLine, type LearnProposal, type LearnRule, type WorldChat, type WorldLearned, type WorldThings, type WorldView,
+  addLearnedRule, answerLearned, clearLearnedNames, editLearnedRule, loadLearned, phraseLearned, removeLearnedRule, resetLearned, useLearnedLive,
+  type LearnAbout, type LearnKey, type LearnLine, type LearnProposal, type LearnRule, type WorldChat, type WorldLearned, type WorldThings, type WorldView,
 } from '@/lib/world'
 
 /** The row's id in the DM tab's list (a profile id can never look like this). */
@@ -31,6 +32,8 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const THINGS_RULE: WorldThings[] = ['reasons', 'off']
 const CAST_RULE = ['normal', 'rare', 'off'] as const
 const LEVER_KEYS: LearnKey[] = ['things', 'textMax', 'cast']
+/** The longest rule in words (the plugin cuts at the same number). */
+const RULE_MAX = 160
 
 type T = ReturnType<typeof useT>
 
@@ -42,13 +45,15 @@ export function leverText(t: T, key: LearnKey, to: string | number): string {
 }
 
 /** The sentence a proposal opens with: what the player did, as a count and a share. */
-function evidenceHead(t: T, p: { key: LearnKey; ev: LearnProposal['ev'] }): string {
+function evidenceHead(t: T, p: { key: LearnAbout; ev: LearnProposal['ev'] }): string {
   const v = { n: p.ev.n, total: p.ev.total, share: p.ev.share, kind: t(`world.kind.${p.ev.kind ?? 'thing'}` as MsgKey) }
+  if (p.key === 'words' && p.ev.manual) return t('world.mem.p.manual', v)
   return t(`world.mem.p.${p.key}` as MsgKey, v)
 }
 
 /** The question: the exact lever the answer flips. */
 function proposalAsk(t: T, p: LearnProposal): string {
+  if (p.key === 'words' || !p.lever) return t('world.mem.q.words')
   if (p.key === 'things') return t(`world.mem.q.things.${p.lever.to}` as MsgKey)
   if (p.key === 'cast') return t('world.mem.q.cast', { v: t(`world.cast.freq.${p.lever.to}` as MsgKey) })
   return t('world.mem.q.text', { n: Number(p.lever.to) })
@@ -56,7 +61,8 @@ function proposalAsk(t: T, p: LearnProposal): string {
 
 /** One line of the log: what was proposed or answered, with the share and the threshold that raised it. */
 export function learnLine(t: T, l: LearnLine): string {
-  const what = l.to !== undefined ? leverText(t, l.key, l.to) : t(`world.mem.lever.${l.key}` as MsgKey)
+  const what = l.text !== undefined ? `“${l.text}”` : l.to !== undefined && l.key !== 'words' ? leverText(t, l.key, l.to) : t(`world.mem.lever.${l.key}` as MsgKey)
+  if (l.act === 'phrase') return t(`world.learn.line.phrase.${l.result ?? 'ok'}` as MsgKey, { what })
   if (l.act === 'raise') return t('world.learn.line.raise', { what, n: l.ev?.n ?? 0, total: l.ev?.total ?? 0, share: l.ev?.share ?? 0, thr: l.ev?.thr ?? 0 })
   if (l.act === 'answer') return t(`world.learn.line.answer.${l.answer ?? 'no'}` as MsgKey, { what })
   return t(`world.learn.line.${l.act}` as MsgKey, { what, scope: l.scope ? t(`world.mem.scope.${l.scope}` as MsgKey) : '' })
@@ -145,18 +151,31 @@ const DEFAULT_VALUE: Record<LearnKey, string | number> = { things: 'reasons', te
 
 // ---------- the Memory view (the DM tab's detail) ----------
 
-function ProposalCard({ p, disabled, onAnswer }: { p: LearnProposal; disabled: boolean; onAnswer: (a: 'all' | 'chat' | 'no') => void }) {
+function ProposalCard({ p, disabled, writing, onAnswer, onWrite }: { p: LearnProposal; disabled: boolean; writing: boolean; onAnswer: (a: 'all' | 'chat' | 'no') => void; onWrite: () => void }) {
   const t = useT()
-  const verb = p.key === 'textMax' ? t('world.mem.ev.rewritten') : t('world.mem.ev.removed')
+  const words = p.key === 'words'
+  const ready = !words || p.state === 'ready'
+  const verb = p.key === 'textMax' ? t('world.mem.ev.rewritten') : p.ev.manual ? t('world.mem.ev.touched') : t('world.mem.ev.removed')
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3" data-testid="memory-proposal">
+    <li className="flex flex-col gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3" data-testid="memory-proposal" data-kind={p.key}>
       <p className="text-body font-medium">{evidenceHead(t, p)}</p>
       {p.ev.names.length > 0 && <p className="text-caption text-muted-foreground">{verb}: {p.ev.names.join(', ')}</p>}
-      <p className="text-caption text-muted-foreground">{t('world.mem.threshold', { min: p.ev.min, thr: p.ev.thr, days: p.ev.days })}</p>
-      <p className="text-body">{proposalAsk(t, p)}</p>
+      <p className="text-caption text-muted-foreground">{p.ev.manual ? t('world.mem.threshold.manual', { days: p.ev.days }) : t('world.mem.threshold', { min: p.ev.min, thr: p.ev.thr, days: p.ev.days })}</p>
+      {words && p.state === 'ready' && <blockquote className="rounded-md border-l-2 border-amber-500/60 bg-background/50 px-3 py-2 text-body" data-testid="memory-rule-text">{p.text}</blockquote>}
+      {words && p.state !== 'ready' && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="memory-writing" aria-live="polite">
+          {writing || p.state === 'pending' ? (
+            <span className="flex items-center gap-1.5 text-body text-muted-foreground"><CircleNotch className="size-4 animate-spin" aria-hidden="true" />{t('world.mem.words.writing')}</span>
+          ) : (
+            <span className="text-body text-destructive">{t('world.mem.words.error')}</span>
+          )}
+          {!writing && <Button size="sm" variant="outline" className="max-md:h-10" onClick={onWrite} data-testid="memory-retry">{t('world.mem.words.retry')}</Button>}
+        </div>
+      )}
+      {ready && <p className="text-body">{proposalAsk(t, p)}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button className="max-md:h-11" disabled={disabled} onClick={() => onAnswer('chat')} data-testid="memory-answer-chat">{t('world.mem.thisChat')}</Button>
-        <Button variant="outline" className="max-md:h-11" disabled={disabled} onClick={() => onAnswer('all')} data-testid="memory-answer-all">{t('world.mem.allChats')}</Button>
+        <Button className="max-md:h-11" disabled={disabled || !ready} onClick={() => onAnswer('chat')} data-testid="memory-answer-chat">{t('world.mem.thisChat')}</Button>
+        <Button variant="outline" className="max-md:h-11" disabled={disabled || !ready} onClick={() => onAnswer('all')} data-testid="memory-answer-all">{t('world.mem.allChats')}</Button>
         <Button variant="ghost" className="max-md:h-11" disabled={disabled} onClick={() => onAnswer('no')} data-testid="memory-answer-no">{t('world.mem.no')}</Button>
       </div>
     </li>
@@ -166,23 +185,33 @@ function ProposalCard({ p, disabled, onAnswer }: { p: LearnProposal; disabled: b
 function RuleRow({ r, disabled, onEdit, onRemove }: { r: LearnRule; disabled: boolean; onEdit: (to: string | number) => void; onRemove: () => void }) {
   const t = useT()
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState<string | number>(r.lever.to)
+  const words = r.text !== undefined
+  const [draft, setDraft] = useState<string | number>(words ? r.text! : r.lever!.to)
+  const head = words ? r.text! : leverText(t, r.lever!.key, r.lever!.to)
+  const ev = r.ev ? evidenceHead(t, { key: r.lever?.key ?? 'words', ev: r.ev }) : ''
   return (
-    <li className="flex flex-col gap-2 px-4 py-3" data-testid="memory-rule">
+    <li className="flex flex-col gap-2 px-4 py-3" data-testid="memory-rule" data-words={words ? '1' : undefined}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 flex-[1_1_12rem] text-body font-medium">{leverText(t, r.lever.key, r.lever.to)}</span>
+        <span className="min-w-0 flex-[1_1_12rem] text-body font-medium">{head}</span>
         <Chip tone={r.scope === 'all' ? 'sky' : undefined}>{t(`world.mem.scope.${r.scope}` as MsgKey)}</Chip>
         {r.scope === 'all' && !r.here && <Chip tone="amber">{t('world.mem.differs')}</Chip>}
+        {words && r.inPrompt === false && <Chip tone="amber">{t('world.mem.leftOut.tag')}</Chip>}
       </div>
       <p className="text-caption text-muted-foreground">
         {t(`world.mem.src.${r.source}` as MsgKey)}
-        {r.ev ? ` · ${evidenceHead(t, { key: r.lever.key, ev: r.ev })}` : ''}
+        {ev && !r.ev?.manual ? ` · ${ev}` : ''}
       </p>
       {editing ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <LeverValue lever={r.lever.key} value={draft} onChange={setDraft} label={t('world.mem.edit')} />
-          <Button size="sm" className="max-md:h-10" disabled={disabled} onClick={() => { onEdit(draft); setEditing(false) }}>{t('world.prof.save')}</Button>
-          <Button size="sm" variant="ghost" className="max-md:h-10" onClick={() => { setDraft(r.lever.to); setEditing(false) }}>{t('world.mem.cancel')}</Button>
+        <div className="flex flex-col gap-2">
+          {words ? (
+            <Textarea value={String(draft)} maxLength={RULE_MAX} rows={2} aria-label={t('world.mem.words.input')} onChange={(e) => setDraft(e.target.value)} data-testid="memory-rule-edit" />
+          ) : (
+            <LeverValue lever={r.lever!.key} value={draft} onChange={setDraft} label={t('world.mem.edit')} />
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" className="max-md:h-10" disabled={disabled || (words && !String(draft).trim())} onClick={() => { onEdit(draft); setEditing(false) }}>{t('world.prof.save')}</Button>
+            <Button size="sm" variant="ghost" className="max-md:h-10" onClick={() => { setDraft(words ? r.text! : r.lever!.to); setEditing(false) }}>{t('world.mem.cancel')}</Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -196,24 +225,32 @@ function RuleRow({ r, disabled, onEdit, onRemove }: { r: LearnRule; disabled: bo
   )
 }
 
-function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat' | 'all', key: LearnKey, to: string | number) => void }) {
+function AddRule({ disabled, onAdd }: { disabled: boolean; onAdd: (scope: 'chat' | 'all', key: LearnAbout, to: string | number) => void }) {
   const t = useT()
-  const [key, setKey] = useState<LearnKey>('things')
-  const [to, setTo] = useState<string | number>(DEFAULT_VALUE.things)
+  const [key, setKey] = useState<LearnAbout>('words')
+  const [to, setTo] = useState<string | number>('')
   const [scope, setScope] = useState<'chat' | 'all'>('chat')
-  const pick = (k: LearnKey) => { setKey(k); setTo(DEFAULT_VALUE[k]) }
+  const pick = (k: LearnAbout) => { setKey(k); setTo(k === 'words' ? '' : DEFAULT_VALUE[k]) }
+  const empty = key === 'words' && !String(to).trim()
   return (
     <div className="flex flex-col gap-3 px-4 py-3" data-testid="memory-add">
       <p className="text-caption text-muted-foreground">{t('world.mem.add.hint')}</p>
-      <Select value={key} onValueChange={(v) => pick(v as LearnKey)}>
+      <Select value={key} onValueChange={(v) => { if (v) pick(v as LearnAbout) }}>
         <SelectTrigger className="h-10 w-full md:h-9" aria-label={t('world.mem.add.lever')}><SelectValue /></SelectTrigger>
         <SelectContent>
-          {LEVER_KEYS.map((k) => <SelectItem key={k} value={k}>{t(`world.mem.lever.${k}` as MsgKey)}</SelectItem>)}
+          {[...LEVER_KEYS, 'words' as const].map((k) => <SelectItem key={k} value={k}>{t(`world.mem.lever.${k}` as MsgKey)}</SelectItem>)}
         </SelectContent>
       </Select>
-      <LeverValue lever={key} value={to} onChange={setTo} label={t('world.mem.add.value')} />
+      {key === 'words' ? (
+        <div className="flex flex-col gap-1">
+          <Textarea value={String(to)} maxLength={RULE_MAX} rows={2} placeholder={t('world.mem.words.placeholder')} aria-label={t('world.mem.words.input')} onChange={(e) => setTo(e.target.value)} data-testid="memory-add-text" />
+          <p className="text-caption text-muted-foreground">{t('world.mem.words.count', { n: String(to).length, max: RULE_MAX })}</p>
+        </div>
+      ) : (
+        <LeverValue lever={key} value={to} onChange={setTo} label={t('world.mem.add.value')} />
+      )}
       <Segmented label={t('world.mem.add.scope')} value={scope} onChange={setScope} options={[{ id: 'chat' as const, label: t('world.mem.scope.chat') }, { id: 'all' as const, label: t('world.mem.scope.all') }]} />
-      <Button variant="outline" className="self-start max-md:h-11" disabled={disabled} onClick={() => onAdd(scope, key, to)}>
+      <Button variant="outline" className="self-start max-md:h-11" disabled={disabled || empty} onClick={() => { onAdd(scope, key, to); if (key === 'words') setTo('') }}>
         <Plus className="size-4" aria-hidden="true" />{t('world.mem.add.go')}
       </Button>
     </div>
@@ -226,6 +263,10 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
   const { data, error } = useLearned(chatId ?? undefined)
   const [confirm, confirmDialog] = useConfirm()
   const [busy, setBusy] = useState(false)
+  // the small call that writes a rule in words is on its way
+  const [writing, setWriting] = useState(false)
+  // proposals whose rule was asked for already (a failed one shows "Try again", it is not asked again by itself)
+  const asked = useRef(new Set<string>())
   // the chat has a world (an empty chatId in the answer means no state file yet): only then can an answer be saved
   const live = !!data && !!data.chatId
   const run = async (fn: () => Promise<unknown>, done?: string) => {
@@ -240,6 +281,35 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
     }
   }
   const cid = chatId ?? ''
+  const write = useCallback(async (opts: { manual?: boolean; retry?: boolean }) => {
+    setWriting(true)
+    try {
+      const r = await phraseLearned(cid, opts)
+      if (r.phraseError) toast.error(t('world.mem.words.errorWhy', { error: r.phraseError }))
+      else if (r.phraseNone) toast(t('world.mem.words.none'))
+    } catch (e) {
+      toast.error(errText(e))
+    } finally {
+      setWriting(false)
+    }
+  }, [cid, t])
+  // a rule in words waits for its text: ask for it once when the player is looking
+  useEffect(() => {
+    if (!data || !data.chatId) return
+    const p = data.proposals.find((x) => x.key === 'words' && x.state === 'pending' && !asked.current.has(x.id))
+    if (!p) return
+    asked.current.add(p.id)
+    void write({})
+  }, [data, write])
+  const askAll = async (text: string) => confirm({ title: t('world.mem.confirm.title'), description: t('world.mem.confirm.warn', { text }), actionLabel: t('world.mem.confirm.go'), destructive: false })
+  const answer = async (p: LearnProposal, a: 'all' | 'chat' | 'no') => {
+    if (p.key === 'words' && a === 'all' && !(await askAll(p.text ?? ''))) return
+    await run(() => answerLearned(cid, p.id, a, p.key === 'words' && a === 'all'))
+  }
+  const addRule = async (scope: 'chat' | 'all', key: LearnAbout, to: string | number) => {
+    if (key === 'words' && scope === 'all' && !(await askAll(String(to)))) return
+    await run(() => addLearnedRule(cid, scope, key, to, key === 'words' && scope === 'all'), t('world.mem.add.done'))
+  }
   const reset = async () => {
     if (!(await confirm({ title: t('world.mem.reset.title'), description: t('world.mem.reset.warn'), actionLabel: t('world.mem.reset') }))) return
     await run(() => resetLearned(cid), t('world.mem.reset.done'))
@@ -249,6 +319,8 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
     await run(() => clearLearnedNames(cid))
   }
   const nothing = !!data && !data.proposals.length && !data.rules.length
+  const leftOut = data ? data.rules.filter((r) => r.inPrompt === false).length : 0
+  const rulesIn = data ? data.limits : null
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4" data-testid="memory-view">
@@ -283,11 +355,17 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
             ) : (
               <ul className="flex flex-col gap-2">
                 {data.proposals.map((p) => (
-                  <ProposalCard key={p.id} p={p} disabled={busy || !live} onAnswer={(a) => void run(() => answerLearned(cid, p.id, a))} />
+                  <ProposalCard key={p.id} p={p} disabled={busy || !live} writing={writing} onAnswer={(a) => void answer(p, a)} onWrite={() => void write({ retry: true })} />
                 ))}
               </ul>
             )}
             {data.waiting.some((w) => w.chatId !== cid) && <p className="text-caption text-muted-foreground">{t('world.mem.elsewhere', { n: data.waiting.filter((w) => w.chatId !== cid).length })}</p>}
+            <div className="flex flex-col gap-1 pt-1">
+              <Button variant="outline" className="self-start max-md:h-11" disabled={busy || writing || !live || data.proposals.some((p) => p.key === 'words')} onClick={() => void write({ manual: true })} data-testid="memory-suggest">
+                {writing ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Sparkle className="size-4" aria-hidden="true" />}{t('world.mem.suggest')}
+              </Button>
+              <p className="text-caption text-muted-foreground">{t('world.mem.suggest.hint')}</p>
+            </div>
           </section>
 
           <Section title={t('world.mem.rules')} aside={data.rules.length ? String(data.rules.length) : undefined}>
@@ -306,10 +384,11 @@ export function MemoryView({ chats, chatId, onChat }: { chats: WorldChat[]; chat
                 ))}
               </ul>
             )}
+            {leftOut > 0 && rulesIn && <p className="px-4 py-3 text-caption text-muted-foreground" data-testid="memory-leftout">{t('world.mem.leftOut', { n: leftOut, rules: rulesIn.rules, chars: rulesIn.chars })}</p>}
           </Section>
 
           <Section title={t('world.mem.add')}>
-            <AddRule disabled={busy || !live} onAdd={(scope, key, to) => void run(() => addLearnedRule(cid, scope, key, to), t('world.mem.add.done'))} />
+            <AddRule disabled={busy || !live} onAdd={(scope, key, to) => void addRule(scope, key, to)} />
           </Section>
 
           <Section title={t('world.mem.names')}>
@@ -349,7 +428,7 @@ export function LearnedMemoryCard() {
       <p className="text-caption text-muted-foreground">{t('world.mem.card.lead')}</p>
       {data && data.rules.length > 0 && (
         <ul className="flex flex-col gap-0.5 text-caption">
-          {data.rules.map((r) => <li key={r.id}>{leverText(t, r.lever.key, r.lever.to)} <span className="text-muted-foreground">· {t('world.mem.scope.all')}</span></li>)}
+          {data.rules.map((r) => <li key={r.id}>{r.text ?? leverText(t, r.lever!.key, r.lever!.to)} <span className="text-muted-foreground">· {t(`world.mem.scope.${r.scope}` as MsgKey)}</span></li>)}
         </ul>
       )}
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/60 p-2 font-mono text-caption text-muted-foreground" data-testid="learned-note">{data?.note || t('world.mem.card.none')}</pre>
