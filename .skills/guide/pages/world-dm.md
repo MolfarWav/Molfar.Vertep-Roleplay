@@ -39,6 +39,6 @@ On the chosen chat: Overview (the same controls as the sheet), Places (a tree of
 
 ## World profiles
 
-Each level is a built-in profile: the five of them hold the DM's prompts, and you can open one, change a prompt block and roll it back to the default. You can also make profiles of your own on top of a level. A chat picks its profile in the DM sheet. "Saved worlds" holds worlds you built and start new chats in; "New world" builds one before any chat, from cards or a short interview.
+Each level is a built-in profile: the five of them hold the DM's prompts, and you can open one, change a prompt block and roll it back to the default. You can also make profiles of your own on top of a level. A chat picks its profile in the DM sheet. New chats start with the Chronicler unless you press **Make default** on another profile (the Profiles tab, in the profile's header): it gets a *Default* tag and every new chat starts with its level, numbers and prompts; chats you already have keep their own, and the DM "off" is chosen per chat and cannot be the default. "Saved worlds" holds worlds you built and start new chats in; "New world" builds one before any chat, from cards or a short interview.
 
 Related: [[memory]], [[dashboard]]. The Help articles *World profiles* and *Starting a world* have the screens.
