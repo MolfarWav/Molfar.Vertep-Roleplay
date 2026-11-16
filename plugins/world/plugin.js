@@ -2319,12 +2319,13 @@ export function castOf(rc, cards) {
 
 // ---------- the DM call ----------
 const CHRONICLER_RULES = [
-  "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups, things and facts that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
+  "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups and things that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
   "Rules:",
   "- The story text is canon. Record only what it shows or plainly says. Never invent events, and never contradict the story.",
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
   "- Skip what does not matter beyond this scene: a nameless passer-by, the furniture, a passing mood. What a character wears and carries goes to carry, not to the records. Record a thing only when the story makes it matter: a clue, a weapon, a gift, a promise, something people fight over.",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
+  "- A custom, a law or a piece of history is not a record of its own: when the story shows one that belongs to a place or a group, say it in that record's text (an update).",
   "- Update a record only when the story changed something about it (it moved, was hurt, a secret came out). Never update a record just to reword it.",
   "- Retire a record when it is finished for good (dead, destroyed, gone from the story for good). Its text then says in one or two sentences who or what it was and how it ended.",
   "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
@@ -2336,14 +2337,14 @@ const CHRONICLER_RULES = [
 const SPACE_RULES = [
   "Places, things and what characters carry:",
   "- places: record each place the story visits and may come back to (a home, a cafe, a party house) as a record of kind place. A room or a corner of a bigger place is a spot: size \"spot\" and inside = the name of the place it belongs to. A whole place needs no size.",
-  "- things: record a thing when it was bought, taken, given, hidden, left somewhere or used in a way that matters. Give it holder (the name of the person who has it) or place (the name of the place where it is, a spot when the story says where): one of them. When it is put down, picked up, handed over or moved, update it with the new holder or place, and \"\" for the one it no longer has. A bag, a phone or a key ring stays out unless the story makes it matter.",
+  "- things: record a thing only when it has a reason, and give the reason in why: clue, hidden, promise, gift, weapon or contested (something people fight over). A thing the story only passes by (a cup, a bag, the furniture) stays out. Give it holder (the name of the person who has it) or place (the name of the place where it is, a spot when the story says where): one of them. When it is put down, picked up, handed over or moved, update it with the new holder or place, and \"\" for the one it no longer has. A bag, a phone or a key ring stays out unless the story makes it matter.",
   "- carry: for the user's character and the characters with their own cards, keep what each one wears and carries now: { who, wearing, carried: [{what, where}], nearby }. wearing = clothes and worn things; carried = what is on them or in their bag (where = the pocket or bag, optional); nearby = things close to them, not on them. Send a person only when the story changed something, and send each list you include complete: it replaces the old one. At most 12 items in a list.",
 ];
 // the reply's shape: locked, parseReply and applyReport depend on it
 const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
-  "size, inside, holder and place are only for places and things; leave out what does not apply.",
+  '{"add":[{"kind":"person|place|group|thing","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","why":"clue|hidden|promise|gift|weapon|contested","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","why":"clue|hidden|promise|gift|weapon|contested","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
+  "size, inside, holder and place are only for places and things; why is only for things; leave out what does not apply.",
   "ref: the scene tracker's id of that thing (o3) or place (l2), when the input shows one before its name; the same thing or place keeps that id however you name it. Leave it out otherwise, never make one up.",
 ];
 const CARRY_JSON = '"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],';
@@ -4111,9 +4112,9 @@ const BUILTIN_RECIPES = [
     mode: "invent",
     questions: [],
     sections: [
-      { id: "setting", kinds: ["place", "group", "fact"], max: 6, prompt: "Invent the setting these characters live in: the main places where their days go, the groups and powers around them (families, schools, guilds, gangs, authorities) and the customs or history that shape daily life." },
+      { id: "setting", kinds: ["place", "group"], max: 6, prompt: "Invent the setting these characters live in: the main places where their days go and the groups and powers around them (families, schools, guilds, gangs, authorities). Put the customs and history that shape daily life into the text of the place or group they belong to." },
       { id: "people", kinds: ["person"], max: 5, prompt: "Invent the other people of this world who will meet these characters: allies, rivals, someone who owes or fears them. Each one wants something." },
-      { id: "trouble", kinds: ["fact", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a secret, a rumour, a danger, and at most one object that matters to the story." },
+      { id: "trouble", kinds: ["group", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a threat, a secret or a danger, each as a group (who is behind it, what they hide), and at most one object that matters to the story, with its reason." },
     ],
     fronts: { count: 2, prompt: "Invent the powers that want something from these characters or this place and will move off screen." },
   },
@@ -4132,7 +4133,7 @@ const BUILTIN_RECIPES = [
     sections: [
       { id: "places", kinds: ["place"], max: 5, prompt: "Invent the places of this world that the story will need, fitting the answers and the cards." },
       { id: "people", kinds: ["person", "group"], max: 6, prompt: "Invent the people and groups who live in this world and matter to the characters, fitting the answers and the cards." },
-      { id: "facts", kinds: ["thing", "fact"], max: 5, prompt: "Invent the things and facts of this world (customs, dangers, history) the story can lean on." },
+      { id: "facts", kinds: ["thing"], max: 5, prompt: "Invent the few things this world's story can lean on (a clue, a weapon, a gift, a promise); each needs its reason. Customs, dangers and history belong in the text of the places and groups, not here." },
     ],
     fronts: { count: 3, prompt: "Invent the powers that want something in this world and will move off screen." },
   },
@@ -4148,7 +4149,7 @@ function cleanRecipe(raw, id) {
   })).filter((q) => q.text);
   const sections = arr(raw.sections).filter(isObj).slice(0, SECTIONS_MAX).map((s, i) => ({
     id: RECIPE_ID.test(str(s.id)) ? str(s.id) : "s" + (i + 1),
-    kinds: arr(s.kinds).filter((k) => KINDS.includes(k)).length ? arr(s.kinds).filter((k) => KINDS.includes(k)) : KINDS,
+    kinds: arr(s.kinds).filter((k) => WRITE_KINDS.includes(k)).length ? arr(s.kinds).filter((k) => WRITE_KINDS.includes(k)) : WRITE_KINDS,
     max: clamp(Math.round(num(s.max)) || SECTION_MAX, 1, SECTION_MAX),
     prompt: cut(str(s.prompt), 1000),
   })).filter((s) => s.prompt);
@@ -4313,14 +4314,16 @@ const BUILD_RULES = [
   "Rules:",
   "- Learn from the texts you are given; write each record in your own short words. Never copy a text whole.",
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
+  "- A custom, a law, a piece of history, a secret or a rumour is not a record of its own: say it in the text of the place, group or person it belongs to.",
   "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
   "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
   "- Only the JSON keys and kind values are English.",
 ];
 const BUILD_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"..."}],"summary":"one short line"}',
+  '{"add":[{"kind":"person|place|group|thing","name":"...","aliases":["..."],"text":"...","why":"clue|hidden|promise|gift|weapon|contested"}],"summary":"one short line"}',
+  "why is only for things.",
 ];
 const FRONTS_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
@@ -4338,7 +4341,8 @@ const INVENT_RULES = [
   "- Every record must touch at least one character: someone goes there, belongs to it, fears it, owes it or is hunted by it. Its text says how.",
   "- Give each record something to play with: a want, a secret, a danger or a rule. Not a bare description.",
   "- No trivia: not furniture, clothes or things a character just carries, unless the thing is the point (a clue, a weapon, a promise).",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense.",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense.",
+  "- A custom, a law, a piece of history, a secret or a rumour is not a record of its own: say it in the text of the place, group or person it belongs to.",
   "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
   BUILD_RULES.find((r) => r.startsWith("- aliases:")),
   "- Only the JSON keys and kind values are English.",
