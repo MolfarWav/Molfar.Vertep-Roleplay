@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Copy, Eye, EyeSlash, FloppyDisk, Lock, Plus, Star, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { CircleNotch, Copy, Eye, EyeSlash, FloppyDisk, Lock, Plus, Star, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Input } from '@/components/ui/input'
@@ -377,7 +377,7 @@ export function ProfileEditor({ profile, onDirty, onGone, onOpenProfile }: { pro
             aria-label={t('world.prof.makeDefaultTitle', { name: nameOf(profile) })}
             data-testid="profile-make-default"
           >
-            <Star className="size-4" aria-hidden="true" />{t('world.prof.makeDefault')}
+            {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Star className="size-4" aria-hidden="true" />}{t('world.prof.makeDefault')}
           </Button>
         )}
         {dirty && <span className="text-xs font-medium text-amber-700 dark:text-amber-300" role="status">{t('world.prof.dirty')}</span>}

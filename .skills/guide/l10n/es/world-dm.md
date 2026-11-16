@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # World DM
 
 El World DM es un director de juego para el mundo de un chat. Después de las respuestas lee la historia y guarda las personas, lugares y cosas que encuentra en el propio lorebook del chat, llamado el libro de mundo. En niveles más altos también mueve el mundo y envía eventos a la escena. Úsalo cuando quieras que el mundo se sienta vivo y coherente.
@@ -40,6 +40,6 @@ En el chat elegido: Overview (los mismos controles que la hoja), Places (un árb
 
 ## Perfiles de mundo
 
-Cada nivel es un perfil incorporado: los cinco guardan los prompts del DM, y puedes abrir uno, cambiar un bloque de prompt y revertirlo al valor por defecto. También puedes crear perfiles propios sobre un nivel. Un chat elige su perfil en la hoja DM. "Saved worlds" guarda los mundos que construiste y en los que inicias chats nuevos; "New world" construye uno antes de cualquier chat, desde tarjetas o una entrevista corta.
+Cada nivel es un perfil incorporado: los cinco guardan los prompts del DM, y puedes abrir uno, cambiar un bloque de prompt y revertirlo al valor por defecto. También puedes crear perfiles propios sobre un nivel. Un chat elige su perfil en la hoja DM. Los chats nuevos empiezan con el Chronicler a menos que pulses **Make default** en otro perfil (la pestaña Profiles, en la cabecera del perfil): obtiene una etiqueta *Default* y cada chat nuevo empieza con su nivel, sus números y sus prompts; los chats que ya tienes conservan los suyos, y el DM "off" se elige por chat y no puede ser el valor por defecto. "Saved worlds" guarda los mundos que construiste y en los que inicias chats nuevos; "New world" construye uno antes de cualquier chat, desde tarjetas o una entrevista corta.
 
 Relacionado: [[memory]], [[dashboard]]. Los artículos de Help *World profiles* y *Starting a world* tienen las pantallas.
