@@ -226,6 +226,8 @@ export interface WorldProfile {
   changed: boolean
   /** chats on this profile */
   chats: number
+  /** the profile a new chat starts with (the chronicler when none was chosen) */
+  default: boolean
 }
 
 export async function listWorldProfiles(): Promise<WorldProfile[]> {
@@ -253,7 +255,7 @@ export async function peekWorld(target: string | WorldRef): Promise<WorldRecord[
 
 /** All chats: the play model (runs after replies) and the build model (makes worlds); empty = the fallback in `play`/`build`. */
 /** imageModel: the backgrounds' image model ('' = the app's, Settings > Images); autoBackground: new chats in a world switch backgrounds by scene */
-export interface WorldConfig { model: string; buildModel: string; maxTokens: number; imageModel: string; autoBackground: boolean; play: WorldModelPick; build: WorldModelPick }
+export interface WorldConfig { model: string; buildModel: string; maxTokens: number; imageModel: string; autoBackground: boolean; /** the profile new chats start with: '' = the chronicler */ defaultProfile: string; play: WorldModelPick; build: WorldModelPick }
 
 const chatQuery = (chatId?: string) => (chatId ? `?chatId=${encodeURIComponent(chatId)}` : '')
 
@@ -261,7 +263,7 @@ export async function loadWorldConfig(chatId?: string): Promise<WorldConfig> {
   return j(`/world/config${chatQuery(chatId)}`)
 }
 
-export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number; imageModel?: string; autoBackground?: boolean }, chatId?: string): Promise<WorldConfig> {
+export async function saveWorldConfig(patch: { model?: string; buildModel?: string; maxTokens?: number; imageModel?: string; autoBackground?: boolean; defaultProfile?: string }, chatId?: string): Promise<WorldConfig> {
   const saved = await j<WorldConfig>(`/world/config${chatQuery(chatId)}`, { method: 'PUT', body: JSON.stringify(patch) })
   // whoever shows the config (the Make a set line, a dialog) re-reads it
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<WorldConfig>(WORLD_CONFIG_EVENT, { detail: saved }))

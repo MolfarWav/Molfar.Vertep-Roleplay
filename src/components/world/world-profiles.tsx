@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Copy, Eye, EyeSlash, FloppyDisk, Lock, Plus, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { Copy, Eye, EyeSlash, FloppyDisk, Lock, Plus, Star, Trash, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import type { MsgKey } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import {
-  createProfile, draftOf, eventBlockOk, isDirty, refreshWorldProfiles, removeProfile, resetProfileBlock, saveProfileDraft, useWorldProfiles,
+  createProfile, draftOf, eventBlockOk, isDirty, makeDefaultProfile, refreshWorldProfiles, removeProfile, resetProfileBlock, saveProfileDraft, useWorldProfiles,
   type ProfileDraft,
 } from '@/lib/world-profiles'
 import { type WorldBlockKey, type WorldLevel, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
@@ -30,6 +30,17 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
 const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'chaos']
 export const NEW_PROFILE = '__new__'
+
+/** "Default": the profile a new chat starts with. In the list it is the short word; in the editor's header the longer one. */
+function DefaultMark({ long = false }: { long?: boolean }) {
+  const t = useT()
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-1.5 text-caption font-medium leading-4 text-primary" data-testid="profile-default-mark">
+      <Star className="size-3" weight="fill" aria-hidden="true" />
+      {t(long ? 'world.prof.defaultFor' : 'world.prof.default')}
+    </span>
+  )
+}
 
 const BLOCK_TITLE: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper', level: 'world.block.level', shared: 'world.block.shared', event: 'world.block.event' }
 const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.hint', level: 'world.block.level.hint', shared: 'world.block.shared.hint', event: 'world.block.event.hint' }
@@ -57,6 +68,7 @@ export function ProfileList({ selectedId, onSelect, onNew }: { selectedId: strin
             <Icon className={cn('size-4 shrink-0', LEVEL_TONE[p.base].icon)} aria-hidden="true" />
             <span className="min-w-0 truncate">{nameOf(p)}</span>
             {!p.builtIn && <OwnMark />}
+            {p.default && <DefaultMark />}
             {p.changed && <span className="ml-auto shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-medium leading-4 text-amber-700 dark:text-amber-300">{t('world.block.changed')}</span>}
           </span>
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -309,9 +321,21 @@ export function ProfileEditor({ profile, onDirty, onGone, onOpenProfile }: { pro
     }
   }
 
+  const makeDefault = async () => {
+    setBusy(true)
+    try {
+      await makeDefaultProfile(profile.id)
+      toast.success(t('world.prof.defaultSet', { name: nameOf(profile) }))
+    } catch (e) {
+      toast.error(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const remove = async () => {
     const level = t(`world.level.${profile.base}` as MsgKey)
-    const warn = profile.chats > 0 ? t('world.prof.deleteWarn', { n: profile.chats, level }) : t('world.prof.deleteWarn0')
+    const warn = (profile.chats > 0 ? t('world.prof.deleteWarn', { n: profile.chats, level }) : t('world.prof.deleteWarn0')) + (profile.default ? ` ${t('world.prof.deleteDefault')}` : '')
     if (!(await confirm({ title: t('world.prof.deleteTitle', { name: profile.name }), description: warn, actionLabel: t('world.prof.delete') }))) return
     try {
       await removeProfile(profile.id)
@@ -329,6 +353,22 @@ export function ProfileEditor({ profile, onDirty, onGone, onOpenProfile }: { pro
       <div className="sticky top-0 z-10 -mx-3 -mt-3 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur md:-mx-5 md:-mt-5 md:px-5">
         <Icon className={cn('size-5 shrink-0', LEVEL_TONE[profile.base].icon)} aria-hidden="true" />
         <h2 className="min-w-0 flex-1 truncate font-heading text-lg">{nameOf(profile)}</h2>
+        {profile.default ? (
+          <DefaultMark long />
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-md:h-10"
+            disabled={busy}
+            onClick={() => void makeDefault()}
+            title={t('world.prof.makeDefaultTitle', { name: nameOf(profile) })}
+            aria-label={t('world.prof.makeDefaultTitle', { name: nameOf(profile) })}
+            data-testid="profile-make-default"
+          >
+            <Star className="size-4" aria-hidden="true" />{t('world.prof.makeDefault')}
+          </Button>
+        )}
         {dirty && <span className="text-xs font-medium text-amber-700 dark:text-amber-300" role="status">{t('world.prof.dirty')}</span>}
         {dirty && (
           <Button variant="ghost" size="sm" className="max-md:h-10" disabled={busy} onClick={() => setDraft(draftOf(profile))}>{t('world.prof.discard')}</Button>

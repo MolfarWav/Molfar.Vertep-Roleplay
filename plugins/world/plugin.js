@@ -30,11 +30,11 @@
  *  GET  /world/peek?chatId=           the world book's records, for the player who asks (fronts and events stay hidden)
  *  GET  /world/here?chatId=           the Dashboard's Here and Outfit and things: the scene's place, the things here and asleep, what people carry, what the last run changed
  *  GET  /world/config?chatId=         the DM's models and reply limit (all chats), with the models in force
- *  PUT  /world/config {model?, buildModel?, maxTokens?}
+ *  PUT  /world/config {model?, buildModel?, maxTokens?, imageModel?, autoBackground?, defaultProfile?}   defaultProfile: the profile a new chat starts with ("" = the chronicler)
  *  GET  /world/chats                  every chat with a DM, for the World section's list
  *  GET  /world/runs?chatId=           the chat's run history, newest first (tokens, time, errors)
  *  POST /world/test {chatId?, which?}  one tiny call to the play (or build) model: works, or why not
- *  GET  /world/profiles               the DM profiles: five built in (the levels), the player's own; prompt blocks with defaults
+ *  GET  /world/profiles               the DM profiles: five built in (the levels), the player's own; prompt blocks with defaults; `default` marks the one new chats start with
  *  PUT  /world/profiles {id?, name?, description?, base?, blocks?, defaults?}   change one (a block set to null goes back
  *                                     to its default), or make a new one (no id, or an id not in use)
  *  DELETE /world/profiles?id=         remove one of the player's own (chats on it fall back to its base)
@@ -110,7 +110,9 @@ export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, sta
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
-export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500, imageModel: "", autoBackground: false };
+// defaultProfile: the profile a new chat starts with (a built-in level above the chronicler or one of the player's own);
+// "" = the chronicler, the lowest level. The DM "off" is never a default: it is a choice for one chat.
+export const DEFAULT_CONFIG = { model: "", buildModel: "", maxTokens: 1500, imageModel: "", autoBackground: false, defaultProfile: "" };
 
 // what a run reads and writes, kept small for small context windows
 const NEW_TEXT_MAX = 12000;
@@ -1059,6 +1061,8 @@ function cleanConfig(c) {
     maxTokens: Number.isFinite(n) ? clamp(Math.round(n), 500, 8000) : DEFAULT_CONFIG.maxTokens,
     imageModel: MODEL_REF.test(str(c.imageModel)) ? str(c.imageModel) : "",
     autoBackground: c.autoBackground === true,
+    // the chronicler is what "" means; an id that no longer exists is dealt with when it is used (startSettings)
+    defaultProfile: str(c.defaultProfile) !== "chronicler" && (PROFILE_LEVELS.includes(str(c.defaultProfile)) || OWN_PROFILE_ID.test(str(c.defaultProfile))) ? str(c.defaultProfile) : "",
   };
 }
 
@@ -2322,10 +2326,12 @@ export function systemFor(levelOrProfile, settings, recordsOnly) {
   return fin([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n"));
 }
 
-function profileView(fsx, p, used) {
+function profileView(fsx, p, used, defaultId) {
   const dflt = defaultBlocks(p.base);
   return {
     id: p.id, builtIn: p.builtIn, base: p.base, name: p.name, description: p.description,
+    // the profile a new chat starts with (the chronicler when none was chosen or the chosen one is gone)
+    default: p.id === defaultId,
     defaults: p.defaults,
     options: p.options,
     blocks: Object.keys(dflt).map((key) => ({ key, text: p.blocks[key] || dflt[key], default: dflt[key], changed: !!p.blocks[key] })),
@@ -2362,7 +2368,9 @@ export function listProfiles(fsx) {
     if (p) own.push(p);
   }
   own.sort((a, b) => a.name.localeCompare(b.name));
-  return [...PROFILE_LEVELS.map((id) => loadProfile(fsx, id)), ...own].map((p) => profileView(fsx, p, used));
+  const chosen = loadConfig(fsx).defaultProfile;
+  const defaultId = chosen && (PROFILE_LEVELS.includes(chosen) || own.some((p) => p.id === chosen)) ? chosen : "chronicler";
+  return [...PROFILE_LEVELS.map((id) => loadProfile(fsx, id)), ...own].map((p) => profileView(fsx, p, used, defaultId));
 }
 
 const spaceNote = (e) => (e.kind === "place" && e.inside ? " [" + (e.size === "spot" ? "spot of " : "in ") + e.inside + "]" : e.kind === "thing" ? (e.holder ? " [held by " + e.holder + "]" : e.place ? " [at " + e.place + "]" : "") : "");
@@ -4592,6 +4600,19 @@ export function autoOn(fsx, meta) {
   });
 }
 
+/**
+ * The settings of a chat the DM switches itself on for (autoOn): the default profile's level, its own profile and its
+ * numbers (every N, still, transition, insert), else the chronicler as before. A default that was deleted since falls
+ * back to the chronicler, and a chat that is already on keeps what it has: this runs only for a chat with no state file.
+ * The DM "off" is never a default (config.defaultProfile holds a profile, and "off" is not one).
+ */
+export function startSettings(fsx, settings, cfg) {
+  const id = (cfg || loadConfig(fsx)).defaultProfile;
+  const p = id ? loadProfile(fsx, id) : null;
+  if (!p) return { ...settings, level: "chronicler" };
+  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id });
+}
+
 /** Where a DM that starts now begins reading: the last few messages, not the whole story. */
 function startKeyOf(msgs, settings) {
   const unread = msgs.slice(-Math.max(2, settings.everyN * 2));
@@ -4606,7 +4627,7 @@ function stateRoute(req, host) {
   if (!chat) return ok({ error: "no such chat" }, 404);
   const cfg = loadConfig(host.fs);
   const { state, existed } = loadState(host.fs, chatId);
-  if (!existed && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
+  if (!existed && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings, cfg);
   return ok(stateView(state, chat.msgs, cfg, sceneOf(host.fs, chatId, chat.msgs), playModel(host.fs, cfg, chat.meta), host.fs));
 }
 
@@ -4670,7 +4691,7 @@ function settingsRoute(req, host) {
   if (b.level !== undefined && !READY_LEVELS.includes(b.level)) return ok({ error: "unknown or unfinished level" }, 400);
   const { state, existed } = loadState(host.fs, chatId);
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
-  if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = { ...state.settings, level: "chronicler" };
+  if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
   for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
@@ -4708,17 +4729,24 @@ function configRoute(req, host) {
   const b = body(req);
   const cur = loadConfig(host.fs);
   const patch = {};
-  for (const k of ["model", "buildModel", "maxTokens", "imageModel", "autoBackground"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["model", "buildModel", "maxTokens", "imageModel", "autoBackground", "defaultProfile"]) if (b[k] !== undefined) patch[k] = b[k];
+  // only a profile that exists can be the default ("" and "chronicler" both mean the chronicler)
+  if (patch.defaultProfile !== undefined && str(patch.defaultProfile) && !loadProfile(host.fs, str(patch.defaultProfile))) return ok({ error: "no such profile" }, 400);
   const next = cleanConfig({ ...cur, ...patch });
+  saveConfig(host.fs, next);
+  return ok(configView(host.fs, next, chatId));
+}
+
+/** Writes only what differs from the defaults; the file goes away when nothing does. */
+function saveConfig(fsx, next) {
   const diff = {};
   for (const k of Object.keys(DEFAULT_CONFIG)) if (next[k] !== DEFAULT_CONFIG[k]) diff[k] = next[k];
-  if (Object.keys(diff).length) writeJson(host.fs, CONFIG_FILE, diff);
+  if (Object.keys(diff).length) writeJson(fsx, CONFIG_FILE, diff);
   else {
     try {
-      host.fs.remove(CONFIG_FILE);
+      fsx.remove(CONFIG_FILE);
     } catch {}
   }
-  return ok(configView(host.fs, next, chatId));
 }
 
 const isRateLimit = (r) => /429|rate.?limit/i.test(String(r.error || ""));
@@ -4767,7 +4795,7 @@ function updateRoute(req, host) {
   const cfg = loadConfig(fsx);
   // the first run of a chat that never had a state file: the DM switches itself on (see autoOn)
   if (!existed && autoOn(fsx, chat.meta)) {
-    state.settings = { ...state.settings, level: "chronicler" };
+    state.settings = startSettings(fsx, state.settings, cfg);
     if (chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
     saveState(fsx, state);
   }
@@ -4963,6 +4991,9 @@ function profilesRoute(req, host) {
     try {
       fsx.remove(PROFILE_DIR + id + ".json");
     } catch {}
+    // the default profile was deleted: new chats start with the chronicler again
+    const cfg = loadConfig(fsx);
+    if (cfg.defaultProfile === id) saveConfig(fsx, { ...cfg, defaultProfile: "" });
     return ok({ profiles: listProfiles(fsx) });
   }
   const b = body(req);

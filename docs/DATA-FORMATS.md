@@ -699,7 +699,10 @@ player switches it on for that chat. It writes:
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.
 - `world/config.json`: only what differs from `{ model: "", buildModel: "", maxTokens: 1500, imageModel: "",
-  autoBackground: false }` (`model` = the play model after replies, `buildModel` = the model of a Start, empty = the
+  autoBackground: false, defaultProfile: "" }` (`defaultProfile` = the profile a new chat starts with: a built-in
+  level above the chronicler (`living`, `director`, `antagonist`, `chaos`) or one of the player's own (`p-...`); empty =
+  the chronicler; the DM "off" is never a default; a chat takes the profile's level, own id and `defaults` when the DM
+  switches itself on for it, and a chat that already has a state file keeps its own; `model` = the play model after replies, `buildModel` = the model of a Start, empty = the
   fallbacks the World section shows; `imageModel` = the backgrounds' image model, empty = the app's; `autoBackground`
   = new chats in a world switch backgrounds by scene).
 - Backgrounds of a world: a folder of the app's Backgrounds library (`library.json`, `backgrounds`: `{ id, name,

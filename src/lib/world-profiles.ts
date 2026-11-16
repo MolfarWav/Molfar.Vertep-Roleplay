@@ -2,7 +2,7 @@
 // so the chat's picker, the hub's Profiles tab and the sheet agree after any save.
 
 import { create } from 'zustand'
-import { deleteWorldProfile, listWorldProfiles, saveWorldProfile, type WorldBlockKey, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
+import { deleteWorldProfile, listWorldProfiles, saveWorldConfig, saveWorldProfile, type WorldBlockKey, type WorldProfile, type WorldProfileDefaults, type WorldProfileOptions } from '@/lib/world'
 
 interface ProfilesState {
   list: WorldProfile[] | null
@@ -76,6 +76,12 @@ export async function saveProfileDraft(p: WorldProfile, d: ProfileDraft): Promis
   })
   useWorldProfiles.setState({ list: res.profiles, error: '' })
   return res.profiles
+}
+
+/** New chats start with this profile ('chronicler' puts the lowest level back); the list is read again so every tag follows. */
+export async function makeDefaultProfile(id: string): Promise<WorldProfile[] | null> {
+  await saveWorldConfig({ defaultProfile: id === 'chronicler' ? '' : id })
+  return refreshWorldProfiles()
 }
 
 /** One block back to its default, at once (the other typed blocks stay as they are). */
