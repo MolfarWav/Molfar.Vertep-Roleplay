@@ -12,6 +12,14 @@ describe("the marks under the replies", () => {
     expect(rollsFor(rolls, "r1", 3, 0)).toEqual([]);
   });
 
+  it("a return of the cast follows the message it was sent after, whether or not the player's line was saved yet", () => {
+    const rolls = [roll({ at: 1, kind: "cast", n: 100, last: "s99#0" })];
+    // reply right after s99 (the player's line was saved after the request) or after the player's line that follows it
+    expect(rollsFor(rolls, "r", 101, 0, ["s99"]).map((r) => r.at)).toEqual([1]);
+    expect(rollsFor(rolls, "r", 102, 0, ["u", "s99"]).map((r) => r.at)).toEqual([1]);
+    expect(rollsFor(rolls, "r", 103, 0, ["x", "u"])).toEqual([]);
+  });
+
   it("each swipe takes its own roll, found by the swipe count at the time", () => {
     const rolls = [
       roll({ at: 1, op: "send", n: 2, last: "u#0" }),

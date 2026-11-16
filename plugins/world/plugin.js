@@ -49,6 +49,8 @@
  *  PUT  /world/draft {chatId | worldId, op: accept|discard, drop?: {entities, fronts, deck}}   the draft into
  *                                     the world (a worldId's draft becomes a saved world)
  *  POST /world/deck {chatId, lang?}   a new events deck (profile option deck)
+ *  POST /world/bench {chatId, lang?}  adopt the people of the cards' lorebooks as linked records (cast, #424)
+ *  GET  /world/cast?chatId=           the cast as the chat stands: Frequency, who is due, the entrance, the last one
  *  GET|POST|PUT|DELETE /world/library  saved worlds: list, save a chat's world {chatId, name?, description?},
  *                                     rename {id, name?, description?}, remove ?id=
  *  POST /world/carry {toChatId, fromChatId? | worldId?, replace?}   a world into a chat (records, fronts, clocks)
@@ -105,8 +107,14 @@ export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "t
 /** Stagnation threshold per direction: x2 slow, x0.5 fast, 0 = the counter is paused. */
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
 export const KINDS = ["person", "place", "group", "thing", "fact"];
+// a person or a group stands to the player's character as one of these (colour, and where the weight comes from)
+export const RELATIONS = ["ally", "family", "rival", "enemy", "neutral"];
+// how much a person weighs in the story: 0 an acquaintance, 1 a friend or a rival, 2 family, a partner or a central figure
+export const WEIGHTS = [0, 1, 2];
+// how often a person who has been away is brought back (#424); a new chat starts on normal, a chat that had a state file before stays off until the player asks
+export const CAST_FREQ = ["off", "rare", "normal", "often"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1111,6 +1119,10 @@ function cleanSettings(s) {
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
+    // how often people who have been away come back (#424); a file from before it has no value and stays off
+    cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_SETTINGS.cast,
+    // a small mark under each reply that had a person come back, with who, why and the dice (the chat's own; for testing)
+    castShow: b.castShow === true,
   };
 }
 
@@ -1141,6 +1153,39 @@ function cleanEvent(e) {
     ...(typeof e.place === "string" && e.place ? { place: cut(e.place, NAME_MAX * 2) } : {}),
     ...(REF_ID.test(str(e.placeId)) ? { placeId: str(e.placeId) } : {}),
   };
+}
+
+export const CAST_BANDS = ["small", "medium", "big"];
+const RECORD_ID = /^[a-z]\d{1,6}$/;
+
+/** A person coming back (#424), waiting to be judged: who, how big, how long they were away, sent (how many replies carried it), retried once. */
+function cleanEntrance(e) {
+  if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !CAST_BANDS.includes(e.band)) return null;
+  return {
+    id: str(e.id),
+    name: cut(str(e.name), NAME_MAX),
+    band: e.band,
+    // why: the 2d6 total and its parts, when a die made it (the Life die picks a band by its own tier), and the silence that was needed
+    ...(Number.isFinite(e.roll) ? { roll: e.roll } : {}),
+    ...(Array.isArray(e.d) && e.d.length === 2 && e.d.every((x) => Number.isInteger(x) && x >= 1 && x <= 6) ? { d: e.d } : {}),
+    ...(Number.isInteger(e.mod) ? { mod: e.mod } : {}),
+    ...(WEIGHTS.includes(e.weight) ? { weight: e.weight } : {}),
+    ...(Number.isInteger(e.threshold) && e.threshold >= 0 ? { threshold: e.threshold } : {}),
+    ...(typeof e.tier === "string" && LIFE_BAND[e.tier] ? { tier: e.tier } : {}),
+    silence: Number.isInteger(e.silence) && e.silence >= 0 ? e.silence : 0,
+    via: e.via === "life" ? "life" : "silence",
+    sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
+    retried: e.retried === true,
+    ...(Number.isInteger(e.n) && e.n >= 0 ? { n: e.n } : {}),
+    ...(Number.isFinite(e.sentAt) ? { sentAt: e.sentAt } : {}),
+    ...(typeof e.after === "string" && e.after ? { after: cut(e.after, 80) } : {}),
+  };
+}
+
+/** The last entrance that was judged: the number of replies then (the gap between two is counted from it) and whether the person came. */
+function cleanLastEntrance(e) {
+  if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !Number.isInteger(e.n) || e.n < 0) return null;
+  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: e.ok === true };
 }
 
 function cleanAliases(v, name) {
@@ -1260,13 +1305,24 @@ function cleanEntity(e) {
   if (!name || !/^[a-z]\d{1,6}$/.test(id)) return null;
   const past = e.status === "past";
   const text = cut(str(e.text), past ? PAST_HARD : TEXT_BOUNDS[1]);
+  const kind = KINDS.includes(e.kind) ? e.kind : "fact";
+  const folk = kind === "person" || kind === "group";
+  const link = kind === "person" && isObj(e.link) && str(e.link.book) && Number.isInteger(e.link.uid) ? { book: cut(str(e.link.book), 80), uid: e.link.uid, title: cut(str(e.link.title), NAME_MAX) } : null;
   return {
     id,
-    kind: KINDS.includes(e.kind) ? e.kind : "fact",
+    kind,
     name,
     aliases: cleanAliases(e.aliases, name),
     text,
-    status: past ? "past" : "active",
+    // "dormant": put to rest by the code's tidy-up (a later release writes it); it is out of the book and off the bench, and the player can wake it
+    status: past ? "past" : e.status === "dormant" ? "dormant" : "active",
+    // who a person or a faction is to the player's character, and how much they weigh in the story (no weight = what the relation says)
+    ...(folk && RELATIONS.includes(e.relation) ? { relation: e.relation } : {}),
+    ...(folk && e.weight !== undefined && e.weight !== null && WEIGHTS.includes(Number(e.weight)) ? { weight: Number(e.weight) } : {}),
+    // the lorebook entry this person is (a link, not a copy; the entry keeps firing by its keys)
+    ...(link ? { link } : {}),
+    // the player switched "bring back automatically" off for this person
+    ...(kind === "person" && e.noReturn === true ? { noReturn: true } : {}),
     uid: Number.isInteger(e.uid) && e.uid > 0 ? e.uid : 0,
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     // written or changed by the player by hand (the Records tab)
@@ -1302,6 +1358,10 @@ export function normalizeState(raw, chatId) {
   out.fronts = fronts.slice(-FRONTS_MAX * 3);
   out.nextFront = Math.max(Number.isInteger(s.nextFront) ? s.nextFront : 1, fronts.reduce((m, f) => Math.max(m, Number(f.id.slice(1)) || 0), 0) + 1);
   out.event = cleanEvent(s.event);
+  const entrance = cleanEntrance(s.entrance);
+  if (entrance) out.entrance = entrance;
+  const lastEntrance = cleanLastEntrance(s.lastEntrance);
+  if (lastEntrance) out.lastEntrance = lastEntrance;
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
@@ -1415,7 +1475,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -1547,6 +1607,12 @@ export function reconcile(fsx, state, msgs, { drop = "" } = {}) {
   if (eventLost(state.event, msgs, drop)) {
     const { after, sentAt, ...rest } = state.event;
     state.event = { ...rest, sent: 0 };
+    out.event = true;
+  }
+  // a person's entrance rides the same way: a reply that carried it and is gone (deleted, swiped) sends it again
+  if (eventLost(state.entrance, msgs, drop)) {
+    const { after, sentAt, ...rest } = state.entrance;
+    state.entrance = { ...rest, sent: 0 };
     out.event = true;
   }
   return out;
@@ -2243,7 +2309,8 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 // how kind the dice are: the totals up to each limit are miss / no but / yes but, above the last one a full success
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0 };
+// cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal" };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -2259,6 +2326,7 @@ function cleanOptions(o) {
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
     dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
+    cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_OPTIONS.cast,
   };
 }
 
@@ -3001,6 +3069,299 @@ export function eventInsert(event, template) {
   return t.split("{event}").join(event.text);
 }
 
+// ---------- cast (#424): people who have been away come back ----------
+// A person is "seen" in a message when the Dashboard put them in the scene (matched by registry id first) or the message
+// names them (by a name or alias; a name that belongs to another person in the registry does not count: the id decides).
+// Silence = the replies since. Past a threshold (Frequency, with a per-person jitter) the person is due. 2d6 plus the length
+// of the silence and the person's weight sets how big the return is; the writing model is told firmly that they come in
+// and only the form is left to it. Code checks that the person showed up in the next reply; once missed, the note is stricter.
+const CAST_SILENCE = { rare: 60, normal: 30, often: 15 };
+const CAST_GAP = { rare: 20, normal: 10, often: 5 };
+// no return in the first replies of a chat; the reads look back at most this many messages
+const CAST_FIRST = 6;
+const CAST_SCAN = 400;
+// at most this many bench stubs are always in the prompt (the heaviest); the rest come up by their keys
+export const BENCH_CONSTANT_MAX = 8;
+const CAST_BAND_TEXT = {
+  small: "something small: a message, a mention, a short call",
+  medium: "something that asks for an answer: a call with a request, an invitation, a visit",
+  big: "something that matters: they arrive with news, a demand or a crisis the scene must answer",
+};
+const LIFE_BAND = { minor: "small", notable: "medium", major: "big" };
+
+/** How much a person weighs: the number set by the DM or the player, else what the relation says (family 2, ally, rival or enemy 1, else 0). */
+export function weightOf(rec) {
+  if (!rec) return 0;
+  if (WEIGHTS.includes(rec.weight)) return rec.weight;
+  return rec.relation === "family" ? 2 : rec.relation === "ally" || rec.relation === "rival" || rec.relation === "enemy" ? 1 : 0;
+}
+
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * One pattern for a person's names: whole words, case-insensitive. A name of 4+ letters may carry a short ending, and one of 5+
+ * may also change its last letter (a case ending: Oksana, Oksanu); shorter names match exactly. Other forms come from the
+ * registry's aliases and the Dashboard's scene.
+ */
+function namesPattern(names) {
+  const parts = names.map((n) => {
+    const letters = Array.from(n);
+    if (letters.length < 4) return escRe(n);
+    return letters.length >= 5 ? escRe(n) + "\\p{L}{0,2}|" + escRe(letters.slice(0, -1).join("")) + "\\p{L}{1,2}" : escRe(n) + "\\p{L}{0,2}";
+  });
+  return parts.length ? new RegExp("(?<![\\p{L}\\p{N}])(?:" + parts.join("|") + ")(?![\\p{L}\\p{N}])", "iu") : null;
+}
+
+/**
+ * Who a person record is, for telling when the story named them: the registry id (state.regIds, merges followed) and the
+ * names that stand for them. A name the registry gives to another person (or to the player's character) is dropped, so
+ * a shared nickname never counts for the wrong one. `own` = the registry says this is a card, the persona or a group member.
+ */
+export function castIdentity(state, reg, rec) {
+  const links = isObj(state.regIds) ? state.regIds : {};
+  let e = reg && links[rec.id] ? regGet(reg, links[rec.id]) : null;
+  // an older record has no registry id yet: the person the registry knows under one of its names is it (read only, nothing is learned)
+  if (!e && reg) {
+    for (const n of [rec.name, ...rec.aliases]) {
+      const r = resolveName(reg, n, "person");
+      const found = r && r.id ? regGet(reg, r.id) : null;
+      if (found) {
+        e = found;
+        break;
+      }
+    }
+  }
+  const names = [rec.name, ...rec.aliases];
+  if (e) names.push(e.name, ...arr(e.aliases).map((a) => str(isObj(a) ? a.text : a)));
+  const others = new Set();
+  if (reg) for (const x of arr(reg.entities)) if (isObj(x) && !x.merged && x.kind === "person" && (!e || x.id !== e.id)) for (const n of [x.name, ...arr(x.aliases).map((a) => str(isObj(a) ? a.text : a))]) others.add(str(n).toLowerCase().trim());
+  const mine = [];
+  for (const n of names) {
+    const s = str(n).trim();
+    if (s && !others.has(s.toLowerCase()) && !mine.some((m) => m.toLowerCase() === s.toLowerCase())) mine.push(s);
+  }
+  return { id: e ? e.id : "", own: !!e && REG_OWN_SRC.includes(e.src), re: namesPattern(mine) };
+}
+
+/** The registry id a Dashboard name stands for (the Dashboard's own table first, merges followed, else the registry's reading), or "". */
+function presentId(reg, personIds, name) {
+  const direct = isObj(personIds) ? personIds[name] : null;
+  if (typeof direct === "string" && reg) {
+    const e = regGet(reg, direct);
+    if (e) return e.id;
+  }
+  const r = reg ? resolveName(reg, name, "person") : null;
+  return r && r.id ? (regGet(reg, r.id) || {}).id || "" : "";
+}
+
+/** Was this person in this message: put in the scene by the Dashboard (id first, else the name) or named in the text. */
+function seenIn(ident, rec, m, snaps, reg, personIds) {
+  const sn = isObj(snaps) ? snaps[keyOf(m)] : null;
+  if (isObj(sn)) {
+    for (const n of arr(sn.present)) {
+      const name = str(n);
+      if (!name) continue;
+      const id = presentId(reg, personIds, name);
+      if (ident.id && id) {
+        if (id === ident.id) return true;
+      } else if (namesOf(rec).some((x) => x.toLowerCase() === name.toLowerCase())) return true;
+    }
+  }
+  return !!ident.re && ident.re.test(str(m.text));
+}
+
+/** Replies since the person was last seen; looks back CAST_SCAN messages, so a long silence reads as at least that. */
+export function silenceOf(ident, rec, msgs, snaps, reg, personIds) {
+  let replies = 0;
+  for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - CAST_SCAN); i--) {
+    if (seenIn(ident, rec, msgs[i], snaps, reg, personIds)) return replies;
+    if (isReply(msgs[i])) replies++;
+  }
+  return replies;
+}
+
+/** The silence that makes a person due: Frequency's number, a quarter more or less, fixed for this person in this chat (a swipe does not move it). */
+export function castThreshold(freq, chatId, recId) {
+  const base = CAST_SILENCE[freq];
+  return base ? Math.max(3, Math.round(base * (0.75 + 0.5 * seededRandom(chatId + "|" + recId + "|cast")()))) : 0;
+}
+
+/** 2d6 plus 0..3 for the silence (a step per half threshold past it) plus the weight; up to 6 small, 7 to 9 medium, 10 and more big. */
+export function rollEntrance(seed, silence, threshold, weight) {
+  const rnd = seededRandom(seed + "|cast");
+  const d = [Math.floor(rnd() * 6) + 1, Math.floor(rnd() * 6) + 1];
+  const mod = threshold > 0 ? clamp(Math.floor((silence - threshold) / (threshold / 2)), 0, 3) : 0;
+  const total = d[0] + d[1] + mod + weight;
+  return { d, mod, weight, total, band: total <= 6 ? "small" : total <= 9 ? "medium" : "big" };
+}
+
+/** The people who could come back, most overdue first: { rec, silence, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
+export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
+  if (!CAST_SILENCE[freq]) return [];
+  const replies = msgs.filter(isReply).length;
+  if (replies < CAST_FIRST) return [];
+  if (state.lastEntrance && replies - state.lastEntrance.n < CAST_GAP[freq]) return [];
+  const out = [];
+  for (const rec of state.entities) {
+    if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
+    const ident = castIdentity(state, reg, rec);
+    if (ident.own) continue;
+    const silence = silenceOf(ident, rec, msgs, snaps, reg, personIds);
+    const threshold = castThreshold(freq, state.chatId, rec.id);
+    if (silence < threshold) continue;
+    const weight = weightOf(rec);
+    out.push({ rec, silence, threshold, weight, score: silence / threshold + weight * 0.5 });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * A new entrance for this reply, or null: the most overdue person, with a band from 2d6 (or from the Life die's tier when
+ * Life broke in). `seed` is the reply's seed, so a swipe rolls the same.
+ */
+export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, lifeTier }) {
+  if (state.entrance) return null;
+  const best = benchDue({ state, msgs, snaps, reg, personIds, freq })[0];
+  if (!best) return null;
+  const roll = lifeTier ? null : rollEntrance(seed, best.silence, best.threshold, best.weight);
+  return cleanEntrance({
+    id: best.rec.id,
+    name: best.rec.name,
+    band: lifeTier ? LIFE_BAND[lifeTier] : roll.band,
+    ...(roll ? { roll: roll.total, d: roll.d, mod: roll.mod } : { tier: lifeTier }),
+    weight: best.weight,
+    threshold: best.threshold,
+    silence: best.silence,
+    via: lifeTier ? "life" : "silence",
+    sent: 0,
+    n: msgs.filter(isReply).length,
+  });
+}
+
+/** The note for the writing model. Firm: the person comes in; the form is the writer's. A second try after a miss is shorter and stricter. */
+export function entranceInsert(en, rec) {
+  if (en.retried) return "[CAST: " + en.name + " was left out of the last reply and must appear in this one. The shortest form will do: a message or a call that names them. Never mention this note.]";
+  const line = rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
+  return "[CAST: " + en.name + line + " has not been around for " + en.silence + " replies. They come into the story in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. If they are far away, only what a message or a call can carry; they know only what they were told. Never mention this note.]";
+}
+
+/**
+ * Judges an entrance that a reply carried: the reply after the message `after` is the carrier. The person came (seen in it) =
+ * done; missed once = sent again, stricter; missed twice = given up. Either way the gap before the next entrance starts.
+ * Returns null when there was nothing to judge, else { ok, again } (again = a stricter second try is queued).
+ */
+export function judgeEntrance(state, msgs, snaps, reg, personIds) {
+  const en = state.entrance;
+  if (!en || !(en.sent > 0) || !en.after) return null;
+  const id = String(en.after).split("#")[0];
+  const i = msgs.findIndex((m) => String(m.id) === id);
+  if (i < 0) return null;
+  const carrier = msgs.slice(i + 1).find(isReply);
+  if (!carrier) return null;
+  const rec = state.entities.find((e) => e.id === en.id);
+  const ok = !!rec && seenIn(castIdentity(state, reg, rec), rec, carrier, snaps, reg, personIds);
+  const n = msgs.filter(isReply).length;
+  if (!ok && rec && !en.retried) {
+    const { after, sentAt, ...rest } = en;
+    state.entrance = { ...rest, sent: 0, retried: true };
+    return { ok, again: true, en, carrier: keyOf(carrier) };
+  }
+  state.lastEntrance = { id: en.id, n, band: en.band, ok };
+  delete state.entrance;
+  return { ok, again: false, en, carrier: keyOf(carrier) };
+}
+
+/** Writes the result into the newest log line of this person's entrance that has none: "came", "again" (a stricter second try is queued) or "missed". */
+function markCastResult(fsx, chatId, en, result) {
+  const old = readJson(fsx, dicePath(chatId), null);
+  const rolls = isObj(old) ? arr(old.rolls).filter(isObj) : [];
+  for (let i = rolls.length - 1; i >= 0; i--) {
+    if (rolls[i].kind === "cast" && rolls[i].id === en.id && !rolls[i].result) {
+      rolls[i] = { ...rolls[i], result };
+      writeJson(fsx, dicePath(chatId), { v: 1, rolls });
+      return;
+    }
+  }
+}
+
+/** One line of the dice log for a person coming back (shown in the log and, with the chat's switch, under the reply): who, why, the dice, what came of it. */
+function castLog(en, extra) {
+  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
+}
+
+/** The seed of one reply: the chat, the newest message, how many there are, the op and the swipe; a swipe asks the same question and gets the same dice. */
+function replySeed(chatId, msgs, turn) {
+  return chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
+}
+
+/** What the cast reads of the chat: the Dashboard's snapshots (who was in each scene), its name table and the registry (read only). */
+function castContext(fsx, chatId) {
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  return { snaps: isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : {}, personIds: isObj(dash) && isObj(dash.personIds) ? dash.personIds : {}, reg: regView(fsx, chatId) };
+}
+
+/** Puts the waiting entrance into this reply's request and marks it sent after the message the reply follows. True when it went in. */
+function sendEntrance(fsx, state, msgs, op, parts) {
+  const en = state.entrance;
+  if (!en || en.sent > 0) return false;
+  const rec = state.entities.find((e) => e.id === en.id);
+  if (!rec) {
+    delete state.entrance;
+    saveState(fsx, state);
+    return false;
+  }
+  // the message the reply follows: a swipe writes the last reply again, so it follows the one before that
+  const anchor = msgs[msgs.length - (op === "swipe" ? 2 : 1)];
+  state.entrance = { ...en, sent: 1, sentAt: Date.now(), ...(anchor ? { after: keyOf(anchor) } : {}) };
+  saveState(fsx, state);
+  parts.push({ kind: "plugin", label: "Cast", text: entranceInsert(en, rec) });
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  logDice(fsx, state.chatId, { at: Date.now(), n: msgs.length, last: last ? keyOf(last) : "", lastSwipes: last && Array.isArray(last.swipes) ? last.swipes.length : 0, op, inserted: true, ...castLog(en) });
+  return true;
+}
+
+/**
+ * The cast as the chat stands (for testing and for the panel): Frequency, every person of the bench with the silence so far
+ * and the silence that makes them due, the entrance waiting or sent, and the last one judged. Read only.
+ */
+export function castStatus(fsx, chatId) {
+  const { state } = loadState(fsx, chatId);
+  const chat = readChat(fsx, chatId);
+  const freq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+  const ctx = chat ? castContext(fsx, chatId) : null;
+  const msgs = chat ? chat.msgs : [];
+  const people = [];
+  if (ctx) {
+    for (const rec of state.entities) {
+      if (rec.kind !== "person" || rec.status !== "active") continue;
+      const ident = castIdentity(state, ctx.reg, rec);
+      if (ident.own) continue;
+      const silence = silenceOf(ident, rec, msgs, ctx.snaps, ctx.reg, ctx.personIds);
+      const threshold = castThreshold(freq === "off" ? "normal" : freq, chatId, rec.id);
+      people.push({ id: rec.id, name: rec.name, silence, threshold, weight: weightOf(rec), ...(rec.relation ? { relation: rec.relation } : {}), linked: !!rec.link, byId: !!ident.id, off: rec.noReturn === true, due: freq !== "off" && rec.noReturn !== true && silence >= threshold });
+    }
+  }
+  people.sort((a, b) => b.silence / (b.threshold || 1) - a.silence / (a.threshold || 1));
+  const replies = msgs.filter(isReply).length;
+  return {
+    freq,
+    replies,
+    // the replies still to wait before the next return can start (the gap after the last one), and before the chat is old enough
+    wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? CAST_GAP[freq] - (replies - state.lastEntrance.n) : 0),
+    entrance: state.entrance || null,
+    last: state.lastEntrance || null,
+    people,
+    // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
+    lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
+  };
+}
+
+function castRoute(req, host) {
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  if (!readChat(host.fs, chatId)) return ok({ error: "no such chat" }, 404);
+  return ok(castStatus(host.fs, chatId));
+}
+
 function withLast(messages, text) {
   const last = messages[messages.length - 1];
   if (last && last.role === "user" && typeof last.content === "string") return [...messages.slice(0, -1), { ...last, content: last.content + "\n\n" + text }];
@@ -3237,7 +3598,7 @@ function diceRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const raw = readJson(host.fs, dicePath(chatId), null);
   const { state } = loadState(host.fs, chatId);
-  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true });
+  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true, castShow: state.settings.castShow === true });
 }
 
 /**
@@ -3260,6 +3621,7 @@ export function insertCeiling(ctx, host) {
     rows.push({ id: "world event", tokens: Math.ceil(EVENT_MAX / 3.5) });
     if (set.dice) rows.push({ id: "world dice", tokens: 60 });
   }
+  if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: 160 });
   return ceilingAnswer(rows);
 }
 /** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */
@@ -3312,12 +3674,35 @@ export function llmRequest(ctx, host) {
       saveState(fsx, state);
       parts.push({ kind: "plugin", label: "World DM", text: eventText });
     }
+    // a person who has been away comes back (#424): works at every level but off, with no events or fronts needed; one at a time, and not while a DM event waits
+    const castFreq = lv !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+    const castCtx = castFreq !== "off" && chat ? castContext(fsx, chatId) : null;
+    let castSent = false;
+    if (castCtx && eventsAllowed) {
+      const judged = judgeEntrance(state, chat.msgs, castCtx.snaps, castCtx.reg, castCtx.personIds);
+      if (judged) {
+        saveState(fsx, state);
+        // what came of it goes into the line the note made, so the log and the mark under the reply say who, why, the dice and the result together
+        markCastResult(fsx, chatId, judged.en, judged.ok ? "came" : judged.again ? "again" : "missed");
+      }
+      // the person is in the scene now, or the player turned the switch off since: let it go
+      const waiting = state.entrance ? state.entities.find((e) => e.id === state.entrance.id) : null;
+      if (state.entrance && (!waiting || waiting.status !== "active" || waiting.noReturn === true)) {
+        delete state.entrance;
+        saveState(fsx, state);
+      }
+      if (!eventText && !(state.event && state.event.sent === 0) && !state.entrance) {
+        const plan = planEntrance({ state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) });
+        if (plan) state.entrance = plan;
+      }
+      castSent = sendEntrance(fsx, state, chat.msgs, op, parts);
+    }
     if (eventsAllowed && diceMode !== "off") {
       const opt = { diceStat: dice.stat, diceChance: dice.chance };
       const bands = DICE_TILTS[dice.tilt] || DICE_BANDS;
       // the chat's own last message, not the request: other plugins rewrite the request text before or after this hook
       const msgs = chat ? chat.msgs : [];
-      const seed = chatId + "|" + (msgs.length ? keyOf(msgs[msgs.length - 1]) : "") + "|" + msgs.length + "|" + str(turn.op) + "|" + (Number.isFinite(turn.swipe) ? turn.swipe : 0);
+      const seed = replySeed(chatId, msgs, turn);
       // where in the chat this roll belongs, so a mark can sit under the reply it shaped
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
       const place = { n: msgs.length, last: lastMsg ? keyOf(lastMsg) : "", lastSwipes: lastMsg && Array.isArray(lastMsg.swipes) ? lastMsg.swipes.length : 0 };
@@ -3345,8 +3730,17 @@ export function llmRequest(ctx, host) {
       // the world may break in on its own; a waiting DM event is that already
       if (dice.life > 0 && !eventText) {
         const life = rollLife(seed, dice.life);
-        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated });
-        if (life.gated) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+        // cast-aware (#424): when the world breaks in and someone has been away long enough, the intrusion is that person (the tier sets how big)
+        let cast = castSent;
+        if (life.gated && castCtx && !castSent && !state.entrance) {
+          const plan = planEntrance({ state, msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed, lifeTier: life.tier });
+          if (plan) {
+            state.entrance = plan;
+            cast = sendEntrance(fsx, state, msgs, str(turn.op), parts);
+          }
+        }
+        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast, ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
+        if (life.gated && !cast) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
       }
     }
     if (!parts.length) return null;
@@ -3367,7 +3761,7 @@ export const BOOK_SETTINGS = {
 };
 
 /** One entry of the world book for one record (uid assigned by the caller). */
-function entryOf(e, uid, old) {
+function entryOf(e, uid, old, constant) {
   return {
     ...(isObj(old) ? old : {}),
     uid,
@@ -3378,15 +3772,28 @@ function entryOf(e, uid, old) {
     secondaryKeys: [],
     selectiveLogic: "AND_ANY",
     // a pinned living record is always in the prompt; the rest come up by their keys
-    status: e.pinned && e.status !== "past" ? "constant" : "normal",
+    // (a bench stub of a weighty person is too: see benchConstant)
+    status: (e.pinned || constant) && e.status === "active" ? "constant" : "normal",
     content: e.name + (spaceNote(e) ? spaceNote(e).replace(" [", " (").replace(/\]$/, ")") : "") + ": " + e.text,
     position: "after_char",
     depth: 4,
     role: "system",
     // retired records lose to living ones when the budget runs out
     order: e.status === "past" ? 50 : 100,
-    enabled: true,
+    // a dormant record (put to rest by the tidy-up) is out of the prompt until it is woken
+    enabled: e.status !== "dormant",
   };
+}
+
+/** The ids of the bench stubs that stay in the prompt all the time: linked people who weigh something, the heaviest BENCH_CONSTANT_MAX (a light one comes up by its keys). */
+export function benchConstant(state) {
+  return new Set(
+    state.entities
+      .filter((e) => e.kind === "person" && e.status === "active" && e.link && !e.noReturn && weightOf(e) >= 1)
+      .sort((a, b) => weightOf(b) - weightOf(a) || (b.at || 0) - (a.at || 0))
+      .slice(0, BENCH_CONSTANT_MAX)
+      .map((e) => e.id),
+  );
 }
 
 /**
@@ -3406,9 +3813,10 @@ export function writeBook(fsx, state, title) {
     else others.push(en);
   }
   let next = entries.reduce((n, en) => Math.max(n, Number.isInteger(en.uid) ? en.uid : 0), 0) + 1;
+  const constant = benchConstant(state);
   const ours = state.entities.map((e) => {
     if (!e.uid) e.uid = next++;
-    return entryOf(e, e.uid, own.get(e.id));
+    return entryOf(e, e.uid, own.get(e.id), constant.has(e.id));
   });
   writeJson(fsx, path, {
     ...book,
@@ -3788,7 +4196,7 @@ function cleanDraft(d) {
   if (!isObj(d) || !str(d.recipe)) return null;
   const entities = arr(d.entities).map(cleanEntity).filter(Boolean);
   const fronts = arr(d.fronts).map(cleanFront).filter(Boolean);
-  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
+  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : s.bench ? { bench: true } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
   return {
     recipe: str(d.recipe),
     cardIds: arr(d.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id)),
@@ -3946,6 +4354,11 @@ function startRoute(req, host) {
     const withDeck = b.deck === true || (b.deck !== false && !!(profile && profile.options && profile.options.deck));
     const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler");
     if (withDeck) steps.push({ deck: true });
+    // the people the cards' lorebooks already have are adopted as linked records (#424); before the fronts, so they can use them
+    if (usesCards && b.bench !== false && benchEntries(fsx, t.chat ? meta : { cardIds }).length) {
+      const at = steps.findIndex((x) => x.fronts);
+      steps.splice(at < 0 ? steps.length : at, 0, { bench: true });
+    }
     state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, at: Date.now() });
     t.save(state);
     return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
@@ -3963,9 +4376,14 @@ function startRoute(req, host) {
   const stash = isObj(req.stash) ? req.stash : {};
   let system;
   let content;
-  if (step.fronts || step.deck) {
+  let benchEntriesNow = [];
+  if (step.fronts || step.deck || step.bench) {
     const entities = [...state.entities, ...draft.entities];
-    if (step.fronts) {
+    if (step.bench) {
+      benchEntriesNow = benchEntries(fsx, chat.meta);
+      system = BENCH_SYSTEM;
+      content = benchInput({ entries: benchEntriesNow, userName, cards, lang: draft.lang });
+    } else if (step.fronts) {
       system = FRONTS_SYSTEM;
       content = frontsInput({ entities, recipe, answers: draft.answers, lang: draft.lang });
     } else {
@@ -3983,7 +4401,15 @@ function startRoute(req, host) {
   if (built.pending) return built.pending;
   let changes = 0;
   if (!built.error) {
-    if (step.fronts) {
+    if (step.bench) {
+      // people the world already has are left to it; the rest are drafted as linked records and join the registry when the draft is accepted
+      const people = arr(built.out.people).filter((x) => isObj(x) && !findEntity(state.entities, { name: cut(str(x.name), NAME_MAX) }));
+      const pseudo = { entities: draft.entities, nextId: draft.nextId };
+      const res = applyBench(pseudo, null, benchEntriesNow, { people }, { textMax: state.settings.textMax, skip: [...cards, ...(userName ? [userName] : [])] });
+      draft.entities = pseudo.entities.map((e) => (/^n\d/.test(e.id) ? { ...e, id: "d" + e.id.slice(1) } : e));
+      draft.nextId = pseudo.nextId;
+      changes = res.added.length;
+    } else if (step.fronts) {
       const pseudo = { fronts: draft.fronts, nextFront: draft.nextFront, event: null, entities: [] };
       const adds = arr(built.out.fronts).filter((f) => isObj(f) && !state.fronts.some((x) => x.status === "active" && sameName(x.name, str(f.name))))
         .map((f) => ({ ...f, op: "add" })).slice(0, recipe.fronts.count || FRONTS_MAX);
@@ -4071,6 +4497,9 @@ function draftRoute(req, host) {
     return ok({ ok: true, added, id: t.worldId, worlds: listWorlds(fsx).map(worldRow), building: listBuilding(fsx) });
   }
   if (state.entities.length) {
+    const rc = openRegistry(fsx, chatId, chat.meta);
+    joinPeople(state, rc);
+    regFlush(fsx, rc);
     writeBook(fsx, state, str(chat.meta.title));
     bindBook(fsx, chatId, chat.meta, state.bookId);
   }
@@ -4099,6 +4528,164 @@ function deckRoute(req, host) {
   if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
   // fewer than the prompt asked for: kept as is (no retry, no second call), but flagged so the app can offer a rebuild
   return ok({ ok: true, deck: cards.length, ...(cards.length < DECK_MIN ? { short: true, min: DECK_MIN } : {}) });
+}
+
+// ---------- the bench (#424): people the cards' lorebooks already have ----------
+// One build call reads the lorebook entries of the chat's cards and picks the named people who can come back. Code makes
+// each one a record that LINKS to its entry (book and uid): the record keeps a short line, a relation and a weight, and the
+// entry keeps firing by its keys. Entries with a secret are never offered. A person the book already has gets the link, not a copy.
+const BENCH_MAX = 12;
+const BENCH_ENTRIES_MAX = 60;
+const BENCH_ENTRY_TEXT = 500;
+const BENCH_TEXT_MAX = 24000;
+
+export const BENCH_SYSTEM = [
+  "You read the lorebook entries of a roleplay and pick the named people who can come back into the story: friends, family, rivals, enemies, colleagues, neighbours, patrons.",
+  "Skip the user's character, the characters that have their own cards, places, groups, things, rules, and anyone the entry says is hidden, dead or never met.",
+  "For each person give:",
+  "- entry: the number of the entry in the input.",
+  "- name: how the story writes the name.",
+  "- aliases: 2 to 4 short names, nicknames or other spellings, exactly as the story would write them (both scripts when the story switches).",
+  "- line: one or two short sentences in the present tense: who they are and how they stand toward the user's character.",
+  "- relation: ally, family, rival, enemy or neutral.",
+  "- weight: 0 an acquaintance, 1 a friend or a rival, 2 family, a partner or a central figure.",
+  "Write in the language and script of the entries. Only the JSON keys and the relation words are English. At most " + BENCH_MAX + " people. Nobody fits: an empty list.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"people":[{"entry":1,"name":"...","aliases":["..."],"line":"...","relation":"ally","weight":1}]}',
+].join("\n");
+
+/** The lorebook entries of the chat's cards and group that could name a person: enabled, with text, not secret, not the chat's own world book. [{ book, uid, title, text }]. */
+export function benchEntries(fsx, meta) {
+  const seen = new Set([str(meta.worldBookId)]);
+  const books = [];
+  const addBooks = (list) => {
+    for (const id of list) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      books.push(id);
+    }
+  };
+  for (const id of memberIds(fsx, meta)) {
+    const card = cardOf(fsx, id);
+    if (card) addBooks(booksOf(card));
+  }
+  if (meta.groupId) {
+    const group = readJson(fsx, "groups/" + meta.groupId + ".json", null);
+    if (isObj(group)) addBooks(booksOf(group));
+  }
+  const out = [];
+  let total = 0;
+  for (const id of books) {
+    const book = readJson(fsx, "lorebooks/" + id + ".json", null);
+    if (!isObj(book) || str(book.ownerChatId)) continue;
+    for (const e of arr(book.entries)) {
+      if (!isObj(e) || e.enabled === false || e.secret || !Number.isInteger(e.uid) || !str(e.content)) continue;
+      const title = cut(str(e.title) || arr(e.keys).map(str).filter(Boolean).slice(0, 3).join(", "), NAME_MAX);
+      const text = cut(str(e.content), BENCH_ENTRY_TEXT);
+      if (out.length >= BENCH_ENTRIES_MAX || (total += text.length) > BENCH_TEXT_MAX) return out;
+      out.push({ book: id, uid: e.uid, title, text });
+    }
+  }
+  return out;
+}
+
+export function benchInput({ entries, userName, cards, lang }) {
+  return [
+    "User's character: " + (userName || "unknown"),
+    "Characters with their own cards (skip them): " + (cards.length ? cards.join(", ") : "none"),
+    "Entries:\n" + entries.map((e, i) => "[" + (i + 1) + "] " + (e.title ? e.title + ": " : "") + e.text.replace(/\s+/g, " ")).join("\n"),
+    "Write in " + (lang || "the language of the entries") + ".",
+  ].join("\n\n");
+}
+
+/**
+ * Turns the model's people into records on `state` (the chat's, or a Start draft's). `rc` = the registry context (null in a
+ * draft: the people join the registry when the draft is accepted). Returns { added, linked } as lists of names.
+ */
+export function applyBench(state, rc, entries, out, { textMax = TEXT_BOUNDS[1], now = Date.now(), skip = [] } = {}) {
+  const res = { added: [], linked: [] };
+  const isSkipped = (name) => skip.some((n) => sameName(n, name));
+  for (const raw of arr(out && out.people).filter(isObj).slice(0, BENCH_MAX)) {
+    const entry = entries[Math.round(num(raw.entry)) - 1];
+    const name = cut(str(raw.name), NAME_MAX);
+    if (!entry || !name || isSkipped(name)) continue;
+    const link = { book: entry.book, uid: entry.uid, title: entry.title };
+    const extra = { ...(RELATIONS.includes(raw.relation) ? { relation: raw.relation } : {}), ...(WEIGHTS.includes(Number(raw.weight)) ? { weight: Number(raw.weight) } : {}) };
+    let known = findEntity(state.entities, { name });
+    if (!known && rc) known = npcRecordOf(state, rc, name);
+    if (known) {
+      // one record per person: the existing one takes the link and what it lacks
+      if (known.kind !== "person" || known.status === "past" || known.link) continue;
+      known.link = link;
+      if (!known.relation && extra.relation) known.relation = extra.relation;
+      if (known.weight === undefined && extra.weight !== undefined) known.weight = extra.weight;
+      known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases)], known.name);
+      res.linked.push(known.name);
+      continue;
+    }
+    const text = cut(str(raw.line), textMax);
+    if (!text || state.entities.length >= ENTITIES_MAX) continue;
+    if (rc && regPersonOf(rc, name) && REG_OWN_SRC.includes((regPersonOf(rc, name) || {}).src)) continue;
+    const rec = cleanEntity({ id: "n" + state.nextId, kind: "person", name, aliases: arr(raw.aliases), text, status: "active", uid: 0, at: now, link, ...extra });
+    if (!rec) continue;
+    state.nextId++;
+    state.entities.push(rec);
+    res.added.push(name);
+  }
+  return res;
+}
+
+/** Every living person record with no registry id joins the registry (the person the story already made there, else a new one), so the cast can follow them by id. */
+function joinPeople(state, rc) {
+  if (!rc) return;
+  for (const rec of state.entities) {
+    if (rec.kind !== "person" || rec.status !== "active" || (isObj(state.regIds) && state.regIds[rec.id])) continue;
+    const seen = regPersonOf(rc, rec.name);
+    if (seen && seen.id === "user") continue;
+    const pe = seen || regAdd(rc.reg, { kind: "person", name: rec.name, src: "world" });
+    if (!pe) continue;
+    for (const n of rec.aliases) if (regAlias(rc.reg, pe.id, n, "world")) rc.dirty = true;
+    if (!seen) rc.dirty = true;
+    (state.regIds ||= {})[rec.id] = pe.id;
+  }
+}
+
+/** POST {chatId, lang?}: the bench of this chat's cards is adopted (one build call); the cast is switched on if it was off. */
+function benchRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const cfg = loadConfig(fsx);
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed && autoOn(fsx, chat.meta)) state.settings = startSettings(fsx, state.settings, cfg);
+  const entries = benchEntries(fsx, chat.meta);
+  if (!entries.length) return ok({ ok: true, added: [], linked: [], none: true });
+  const userName = userNameOf(fsx, chat.meta);
+  const cards = cardNames(fsx, chat.meta);
+  const content = benchInput({ entries, userName, cards, lang: cut(str(b.lang), LANG_MAX) });
+  const built = buildResult(host, "world_bench", buildAsk(host, fsx, cfg, chat.meta, BENCH_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  if (built.error) {
+    countBuild(state, built, "bench", 0);
+    saveState(fsx, state);
+    return ok({ ok: false, error: built.error.message, code: built.error.code });
+  }
+  const rc = openRegistry(fsx, chatId, chat.meta);
+  const res = applyBench(state, rc, entries, built.out, { textMax: state.settings.textMax, skip: [...cards, ...(userName ? [userName] : [])] });
+  joinPeople(state, rc);
+  regFlush(fsx, rc);
+  // pressing the button is asking for people to come back: a chat that was off starts on normal
+  if (state.settings.level !== "off" && state.settings.cast === "off") state.settings = { ...state.settings, cast: DEFAULT_OPTIONS.cast };
+  countBuild(state, built, "bench", res.added.length + res.linked.length);
+  if (state.entities.length) {
+    writeBook(fsx, state, str(chat.meta.title));
+    bindBook(fsx, chatId, chat.meta, state.bookId);
+  }
+  saveState(fsx, state);
+  return ok({ ok: true, ...res, cast: state.settings.cast });
 }
 
 // ---------- the library of saved worlds ----------
@@ -4609,8 +5196,9 @@ export function autoOn(fsx, meta) {
 export function startSettings(fsx, settings, cfg) {
   const id = (cfg || loadConfig(fsx)).defaultProfile;
   const p = id ? loadProfile(fsx, id) : null;
-  if (!p) return { ...settings, level: "chronicler" };
-  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id });
+  // a new chat brings people back from the start (#424): the profile's Frequency, else Normal
+  if (!p) return { ...settings, level: "chronicler", cast: settings.cast === "off" ? DEFAULT_OPTIONS.cast : settings.cast };
+  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id, cast: p.options && CAST_FREQ.includes(p.options.cast) ? p.options.cast : DEFAULT_OPTIONS.cast });
 }
 
 /** Where a DM that starts now begins reading: the last few messages, not the whole story. */
@@ -4645,7 +5233,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -4693,7 +5281,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -4708,6 +5296,10 @@ function settingsRoute(req, host) {
   // (also when a state file was saved with the DM off and it never ran: lastKey is still null)
   const fresh = !existed || (state.settings.level === "off" && state.lastKey === null && !state.lastRunAt);
   if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) state.lastKey = startKeyOf(chat.msgs, next);
+  // a DM switched on for the first time brings people back too, unless the request says otherwise
+  if (fresh && next.level !== "off" && b.cast === undefined && next.cast === "off") next.cast = DEFAULT_OPTIONS.cast;
+  // switched off, or a level with no state worth carrying: nothing waits to be sent
+  if (next.cast === "off" || next.level === "off") delete state.entrance;
   // a level with no events drops a waiting one
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
   state.settings = next;
@@ -5034,6 +5626,32 @@ function profilesRoute(req, host) {
 }
 
 /** The player edits the world book by hand: add, change, retire, bring back or delete a record. */
+/**
+ * The player's edits of who a person or a faction is to the story (#424): relation and weight (null or "" clears the choice, so the
+ * relation decides the weight again) and the switch "bring back automatically" (noReturn). Other kinds carry none of these.
+ */
+function applyFolk(e, r) {
+  const folk = e.kind === "person" || e.kind === "group";
+  if (!folk) {
+    delete e.relation;
+    delete e.weight;
+  }
+  if (e.kind !== "person") {
+    delete e.link;
+    delete e.noReturn;
+  }
+  if (folk && r.relation !== undefined) {
+    if (RELATIONS.includes(r.relation)) e.relation = r.relation;
+    else delete e.relation;
+  }
+  if (folk && r.weight !== undefined) {
+    if (r.weight !== null && r.weight !== "" && WEIGHTS.includes(Number(r.weight))) e.weight = Number(r.weight);
+    else delete e.weight;
+  }
+  if (e.kind === "person" && r.noReturn === true) e.noReturn = true;
+  else if (r.noReturn === false) delete e.noReturn;
+}
+
 function recordsRoute(req, host) {
   const fsx = host.fs;
   const b = body(req);
@@ -5065,7 +5683,9 @@ function recordsRoute(req, host) {
     if (clash(null)) return ok({ error: "a record with this name exists" }, 409);
     if (state.entities.length >= ENTITIES_MAX) return ok({ error: "the world book is full" }, 400);
     const kind = KINDS.includes(r.kind) ? r.kind : "fact";
-    state.entities.push({ id: "n" + state.nextId++, kind, name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player", ...(r.pinned === true ? { pinned: true } : {}), ...spaceFields(kind, r) });
+    const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player", ...(r.pinned === true ? { pinned: true } : {}), ...spaceFields(kind, r) };
+    applyFolk(fresh, r);
+    state.entities.push(fresh);
   } else {
     const e = state.entities.find((x) => x.id === str(r.id));
     if (!e) return ok({ error: "no such record" }, 404);
@@ -5081,6 +5701,7 @@ function recordsRoute(req, host) {
       if (r.pinned === true) e.pinned = true;
       else if (r.pinned === false) delete e.pinned;
       applySpace(e, r);
+      applyFolk(e, r);
     } else if (op === "retire") {
       e.status = "past";
       e.text = shortText(text || e.text, pastMaxOf(state.settings));
@@ -5194,6 +5815,8 @@ export function handleRoute(req, host) {
   if (path === "/world/start" && req.method === "POST") return startRoute(req, host);
   if (path === "/world/draft" && req.method === "PUT") return draftRoute(req, host);
   if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
+  if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
+  if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
   if (path === "/world/opening" && req.method === "POST") return openingRoute(req, host);

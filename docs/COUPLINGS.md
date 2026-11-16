@@ -37,6 +37,7 @@ Date: 2026-11-05.
 - **Fails in:** `test/rp-world-rollback.test.ts`.
 - **Why / history:** #75 (prior art: Game Manager ST and Arbiter keep a snapshot per message).
 - **Trap:** a new state field added to `normalizeState` and a run, but not to `CORE_KEYS`, is left behind when a reply is swiped. The entity registry (`data/registry/<chatId>.json`) is not rolled back.
+- **Cast (#424):** `entrance` and `lastEntrance` are in `CORE_KEYS`; `reconcile` treats `entrance` like `event` (a carrier reply that is gone sends it again with `sent: 0`, the dice kept). The silence is never stored: it is read from the chat and the Dashboard's snapshots, so a swipe or a delete cannot corrupt it. The insert ceiling row `world cast` (160 tokens, when `settings.cast` is not off and the level is not off) is written twice, in `plugins/world/plugin.js` `insertCeiling` and in `plugins/engine/plugin.js` `hookInsertBreakdown`: change both.
 
 ### World DM and Dashboard shared ids
 - **Touches:** the World DM records (`n#` ids, `ref` on a record); the scene tracker's `state.regIds` in `plugins/relations` and `plugins/world`; `src/lib/entity-registry.js`.

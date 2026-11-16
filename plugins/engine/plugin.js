@@ -2209,6 +2209,8 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
         add("world event", Math.ceil(400 / 3.5));
         if (set.dice) add("world dice", 60);
       }
+      // a person who has been away comes back (#424): the note, at every level but off (the world plugin has the same row: change them together)
+      if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) add("world cast", 160);
     }
   }
 

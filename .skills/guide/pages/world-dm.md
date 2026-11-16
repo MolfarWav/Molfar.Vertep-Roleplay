@@ -23,6 +23,10 @@ It costs one extra model call whenever it is due, on the "DM model (all chats)";
 
 A profile that plays from an events deck shows "New deck" when the deck is used up. The model is asked for 8 to 12 events; if fewer come back, the deck is kept as it came and a warning says it came back short, so you can build it again.
 
+## People coming back
+
+A friend or a relative from a card's lorebook can stay out of the story for a hundred messages, because an entry comes up only when somebody says the name. The DM brings such people back. It counts the replies since a person was last in the scene or mentioned, and when the silence is long (about 15, 30 or 60 replies, by **People coming back > How often**; Normal is the default for new chats) it tells the writing model, firmly, that the person comes into this reply. A hidden roll of 2d6, plus the length of the silence and how much the person weighs, decides how big the return is: a message, a call with a request, or someone arriving with news. The model chooses the form; the DM checks that the person showed up and asks once more if not. A card's lorebook people join the bench with **Take people from the cards' lorebooks**, or by the Start switch "People from the lorebooks". On a person or faction record you can set Relation, Weight and "Bring back automatically". To see it work, turn on **Show under the reply**: a small mark says who came, why and how the dice fell; the card also lists the bench with each person's silence and a log of returns.
+
 ## Deleting or swiping a reply
 
 Delete a reply, or swipe to another one, and the DM takes back what it learned from the old one: records, clocks and a waiting event return to how they were, the world book is written again, and the DM reads the story again from there.

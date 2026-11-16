@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.130.1'
+export const APP_VERSION = '4.131.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.cast',
+    since: '4.131.0',
+    help: 'world',
+    keywords: { en: 'people coming back friend away silent comes back lorebook people bench cast world dm relation weight entrance dice mark under reply frequency', uk: 'люди повертаються друг не було мовчить повертається люди з лорбука лавка cast світ dm стосунок вага поява кубик позначка під відповіддю частота' },
+    title: { en: 'People who have been away come back', uk: 'Люди, яких довго не було, повертаються' },
+    body: {
+      en: 'A best friend from a lorebook no longer stays out of the story for a hundred messages. The World DM counts how long someone has been away and, past a threshold, tells the model that they come into the next reply: a message, a call or a visit, as big as a hidden 2d6 roll says. World sheet, "People coming back": how often (Normal by default), the bench with each person\'s silence, a log, and "Take people from the cards\' lorebooks". Switch on "Show under the reply" to see who came, why and how the dice fell.',
+      uk: 'Найкращий друг із лорбука більше не мовчить у історії по сто повідомлень. World DM рахує, скільки людини не було, і після порогу каже моделі, що вона заходить у наступну відповідь: повідомленням, дзвінком чи візитом, настільки великим, як покаже прихований кидок 2d6. Аркуш World, «Люди, що повертаються»: як часто (за замовчуванням Звичайно), лавка з тишею кожного, журнал і «Взяти людей з лорбуків карток». Увімкніть «Показувати під відповіддю», щоб бачити, хто прийшов, чому і як випав кубик.',
+    },
+  },
   {
     id: 'new.secrets',
     since: '4.128.0',

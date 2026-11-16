@@ -1,6 +1,6 @@
 {
   "name": "Vertep",
-  "version": "4.130.1",
+  "version": "4.131.0",
   "engine": ">=1.0.0",
   "kind": "app",
   "settingsView": "settings",
