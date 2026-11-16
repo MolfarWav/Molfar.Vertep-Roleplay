@@ -47,7 +47,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -75,6 +75,8 @@ export interface WorldView {
   lastRun: WorldRun | null
   /** the chat's total so far */
   usage: WorldUsage & { runs: number }
+  /** the DM's memory for the chat panel's line and the dots: rules in force here, proposals waiting (#425) */
+  learn: { on: boolean; rules: number; waiting: number; /** rules in words waiting for the model call that writes them */ phrasing: number }
   /** unread text one run cannot read: "Read the whole chat" takes `runs` runs */
   behind: { messages: number; runs: number }
   /** a Start in progress or waiting to be accepted */
@@ -92,6 +94,7 @@ export interface WorldView {
 
 /** How long a card of the cast deck is: 5 to 6, 6 to 8 or 8 to 10 sentences. */
 export type WorldCastLen = 'short' | 'normal' | 'long'
+export type WorldThings = 'all' | 'reasons' | 'off'
 export const WORLD_CAST_LENS: WorldCastLen[] = ['short', 'normal', 'long']
 
 interface WorldReply extends Partial<WorldView> { ok?: boolean; error?: string; code?: WorldErrorCode; skipped?: string; changes?: number }
@@ -795,3 +798,58 @@ export async function refreshDice(chatId: string, force = false): Promise<void> 
     // an app with no World DM has no rolls
   }
 }
+
+// ---------- the DM's memory (#425) ----------
+
+/** The settings a rule can move: the exact levers. */
+export type LearnKey = 'things' | 'textMax' | 'cast'
+/** What a proposal, a rule or a log line is about: a lever, or a rule in words. */
+export type LearnAbout = LearnKey | 'words'
+export interface LearnEvidence { n: number; total: number; share: number; min: number; thr: number; days: number; names: string[]; kind?: WorldKind; len?: number; /** asked for by hand ("Suggest a rule"), no threshold */ manual?: boolean }
+/** A proposal moves a lever (`lever`), or is a rule in words (`key: 'words'`): `text` is written by a small model call, `state` says how far it is. */
+export interface LearnProposal { id: string; key: LearnAbout; lever?: { key: LearnKey; from?: string | number; to: string | number }; text?: string; state?: 'pending' | 'ready' | 'error'; err?: string; ev: LearnEvidence; at: number }
+export interface LearnRule { id: string; scope: 'chat' | 'all'; /** a rule that sets a lever */ lever?: { key: LearnKey; to: string | number }; /** a rule in words */ text?: string; /** a rule in words: it fits in the block the DM reads (10 rules, 600 characters) */ inPrompt?: boolean; was?: string | number; source: 'proposal' | 'player'; ev?: LearnEvidence; at: number; /** this chat holds the rule (a chat rule always; an all-chats rule when the chat took it) */ here: boolean }
+export interface LearnLine { at: number; act: 'raise' | 'answer' | 'remove' | 'edit' | 'add' | 'reset' | 'phrase'; key: LearnAbout; to?: string | number; text?: string; result?: 'ok' | 'none' | 'error'; answer?: 'all' | 'chat' | 'no' | 'removed'; scope?: 'all' | 'chat'; ev?: LearnEvidence }
+export interface LearnWaiting { chatId: string; id: string; key: LearnAbout; at: number }
+/** GET /world/learned: the memory of a chat (with a chatId) or the rules for all chats and who waits (without). */
+export interface WorldLearned {
+  chatId: string
+  on: boolean
+  settings: { things: WorldThings; textMax: number; cast: WorldCastFreq }
+  rules: LearnRule[]
+  proposals: LearnProposal[]
+  /** newest first */
+  log: LearnLine[]
+  /** names the player removed, newest first */
+  remembered: string[]
+  /** proposals waiting in any chat */
+  waiting: LearnWaiting[]
+  /** the words the levers add to the DM's input */
+  note: string
+  thresholds: { things: { min: number; share: number }; text: { min: number; share: number; cut: number }; cast: { min: number; share: number }; words: { min: number; share: number } }
+  days: number
+  /** the block of rules in words the DM reads: how many rules, how many characters of rule text; and the longest rule */
+  limits: { rules: number; chars: number; text: number }
+}
+export async function loadLearned(chatId?: string): Promise<WorldLearned> {
+  return j<WorldLearned>(`/world/learned${chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''}`)
+}
+/** Bumped after every answer, so the open views read the memory again. */
+export const useLearnedLive = create<{ stamp: number; /** the view an answer returned, shown at once while the next read is on its way */ last: WorldLearned | null }>(() => ({ stamp: 0, last: null }))
+async function learnedPost(sub: string, body: Record<string, unknown>): Promise<WorldLearned> {
+  const r = await j<WorldLearned>(`/world/learned/${sub}`, { method: 'POST', body: JSON.stringify(body) })
+  useLearnedLive.setState({ stamp: Date.now(), last: r })
+  return r
+}
+export const answerLearned = (chatId: string, id: string, answer: 'all' | 'chat' | 'no', confirm = false) => learnedPost('answer', { chatId, id, answer, ...(confirm ? { confirm: true } : {}) })
+export const addLearnedRule = (chatId: string, scope: 'all' | 'chat', key: LearnAbout, to: string | number, confirm = false) => learnedPost('rule', { chatId, scope, key, to, ...(confirm ? { confirm: true } : {}) })
+/** The small call that writes a rule in words (the build model): for a proposal waiting for its text, or `manual` for "Suggest a rule". The answer is the new view, or says why not. */
+export async function phraseLearned(chatId: string, opts: { manual?: boolean; retry?: boolean } = {}): Promise<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }> {
+  const r = await j<Partial<WorldLearned> & { phraseError?: string; phraseNone?: boolean; skipped?: string }>('/world/learned/phrase', { method: 'POST', body: JSON.stringify({ chatId, ...opts }) })
+  if (Array.isArray(r.rules)) useLearnedLive.setState({ stamp: Date.now(), last: r as WorldLearned })
+  return r
+}
+export const removeLearnedRule = (chatId: string, id: string) => learnedPost('remove', { chatId, id })
+export const editLearnedRule = (chatId: string, id: string, to: string | number) => learnedPost('edit', { chatId, id, to })
+export const clearLearnedNames = (chatId: string) => learnedPost('clear', { chatId })
+export const resetLearned = (chatId: string) => learnedPost('reset', { chatId })

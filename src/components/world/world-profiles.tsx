@@ -25,6 +25,7 @@ import { NumControl, Segmented } from '@/components/ui/setting-row'
 import { DiceFields } from './dice-fields'
 import { LEVEL_ICON, LEVEL_TONE, LevelChip, useProfileHint, useProfileName } from './world-common'
 import { OwnMark } from './world-profile-picker'
+import { LearnedMemoryCard, MEMORY_ID, MemoryRow } from './world-memory'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
@@ -47,7 +48,7 @@ const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.
 
 // ---------- the list (left pane) ----------
 
-export function ProfileList({ selectedId, onSelect, onNew }: { selectedId: string | null; onSelect: (id: string) => void; onNew: () => void }) {
+export function ProfileList({ selectedId, onSelect, onNew, memory }: { selectedId: string | null; onSelect: (id: string) => void; onNew: () => void; memory: { rules: number; waiting: number } | null }) {
   const t = useT()
   const list = useWorldProfiles((s) => s.list)
   const error = useWorldProfiles((s) => s.error)
@@ -84,6 +85,7 @@ export function ProfileList({ selectedId, onSelect, onNew }: { selectedId: strin
   return (
     <ScrollArea className="min-h-0 flex-1">
       <div className="p-1.5">
+        <MemoryRow selected={selectedId === MEMORY_ID} onSelect={() => onSelect(MEMORY_ID)} overview={memory} />
         {error && <p className="p-2 text-xs text-destructive">{t('world.list.loadError', { error })}</p>}
         {!list && !error && <p className="p-2 text-xs text-muted-foreground">{t('chats.panel.loading')}</p>}
         <Button variant="outline" size="sm" className="mb-1 w-full max-md:h-10" onClick={onNew} aria-current={selectedId === NEW_PROFILE ? 'true' : undefined}>
@@ -432,6 +434,7 @@ export function ProfileEditor({ profile, onDirty, onGone, onOpenProfile }: { pro
         />
       ))}
       <OutputCard text={profile.output} />
+      <LearnedMemoryCard />
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button variant="outline" className="max-md:h-10" disabled={busy} onClick={() => void duplicate()}>

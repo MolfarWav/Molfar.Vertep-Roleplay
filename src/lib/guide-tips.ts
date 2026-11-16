@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.134.1'
+export const APP_VERSION = '4.135.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.dm-memory',
+    since: '4.135.0',
+    help: 'world',
+    keywords: { en: 'dm memory learn learned rules proposals memory tab things reason delete rewrite shorter suggest rule words all chats this chat reset remembered names', uk: 'пам’ять дм навчання правила пропозиції вкладка речі причина видалення переписати коротше запропонувати правило слова усі чати цей чат скинути запам’ятані імена' },
+    title: { en: 'The DM learns what you do not want, and asks first', uk: 'ДМ вчиться тому, чого ви не хочете, і питає' },
+    body: {
+      en: 'The Profiles tab is now DM, and it starts with Memory. When you delete or rewrite many of the records the DM wrote, Memory shows a proposal with the evidence and three answers: this chat, all chats or no. Code raises it, no model is called, and the answer changes one exact setting: whether the DM writes things (all, only with a reason, none), how long a record may be, or how often people come back. For people, places and groups a small model call writes one rule in words for you to accept; Suggest a rule from my edits asks for one by hand. The DM reads your rules as a short block in its input, and a rule for all chats asks twice. Nothing changes until you answer, and everything can be removed or reset in Memory.',
+      uk: 'Вкладка «Профілі» тепер «ДМ» і починається з «Пам’яті». Коли ви видаляєте чи переписуєте багато записів, які написав ДМ, у «Пам’яті» з’являється пропозиція з доказами й трьома відповідями: цей чат, усі чати або ні. Її піднімає код, модель не викликається, а відповідь міняє одне точне налаштування: чи пише ДМ речі (усі, лише з причиною, жодних), якою може бути довжина запису або як часто повертаються люди. Для людей, місць і груп малий виклик моделі пише одне правило словами, яке ви приймаєте; «Запропонувати правило за моїми правками» просить його вручну. ДМ читає ваші правила як короткий блок у своїх вхідних даних, а правило для всіх чатів питає двічі. Нічого не змінюється, доки ви не відповісте, і все можна прибрати чи скинути в «Пам’яті».',
+    },
+  },
   {
     id: 'new.cast-deck',
     since: '4.134.0',

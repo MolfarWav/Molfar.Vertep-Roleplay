@@ -27,6 +27,7 @@ import { NewWorldChatDialog, type WorldSource } from '@/components/world/world-n
 import { NEW_PROFILE, NewProfileEditor, ProfileEditor, ProfileList, useFocusedProfile } from '@/components/world/world-profiles'
 import { useConfirm } from '@/components/ui/confirm'
 import { refreshWorldProfiles, useWorldProfiles } from '@/lib/world-profiles'
+import { MEMORY_ID, MemoryView, WaitingDot, useMemoryOverview } from '@/components/world/world-memory'
 import { WorldSettingsDialog } from '@/components/world/world-settings'
 
 const TAB_KEY = WORLD_TAB_KEY
@@ -58,10 +59,10 @@ type ChatListProps = {
   onSelect: (id: string) => void
 }
 
-type Top = 'chats' | 'worlds' | 'profiles'
+type Top = 'chats' | 'worlds' | 'dm'
 
-/** The left pane's head: the section title, World settings, and the switch Chats | Profiles. */
-function PaneHeader({ top, onTop, onOpenSettings }: { top: Top; onTop: (v: Top) => void; onOpenSettings: () => void }) {
+/** The left pane's head: the section title, World settings, and the switch Chats | Worlds | DM (a dot on DM when a proposal waits). */
+function PaneHeader({ top, onTop, onOpenSettings, waiting }: { top: Top; onTop: (v: Top) => void; onOpenSettings: () => void; waiting: boolean }) {
   const t = useT()
   return (
     <div className="flex flex-col gap-2 border-b border-border px-3 py-2">
@@ -78,11 +79,11 @@ function PaneHeader({ top, onTop, onOpenSettings }: { top: Top; onTop: (v: Top) 
           <GearSix className="size-4" aria-hidden="true" />
         </Button>
       </div>
-      <Tabs value={top} onValueChange={(v) => { if (v === 'chats' || v === 'worlds' || v === 'profiles') onTop(v) }}>
+      <Tabs value={top} onValueChange={(v) => { if (v === 'chats' || v === 'worlds' || v === 'dm') onTop(v) }}>
         <TabsList className="w-full max-md:h-10">
           <TabsTrigger value="chats" className="flex-1 max-md:h-10" data-testid="world-top-chats">{t('world.top.chats')}</TabsTrigger>
           <TabsTrigger value="worlds" className="flex-1 max-md:h-10" data-testid="world-top-worlds">{t('world.top.worlds')}</TabsTrigger>
-          <TabsTrigger value="profiles" className="flex-1 max-md:h-10" data-testid="world-top-profiles">{t('world.top.profiles')}</TabsTrigger>
+          <TabsTrigger value="dm" className="flex-1 gap-1.5 max-md:h-10" data-testid="world-top-dm">{t('world.top.dm')}{waiting && <WaitingDot />}</TabsTrigger>
         </TabsList>
       </Tabs>
     </div>
@@ -216,12 +217,16 @@ export function WorldView() {
   const [tab, setTab] = useState<Tab>(readTab)
   const [top, setTop] = useState<Top>('chats')
   const [profileId, setProfileId] = useState<string | null>(null)
+  // the chat the Memory view is read for: the one asked for, else the chat open in the Chats tab
+  const [memoryPick, setMemoryPick] = useState<string | null>(null)
+  const memoryChat = memoryPick ?? selectedId
   const [worldId, setWorldId] = useState<string | null>(null)
   const [newChatFor, setNewChatFor] = useState<{ source: WorldSource; charId: string | null } | null>(null)
   const saved = useSavedWorlds((s) => s.list)
   const building = useSavedWorlds((s) => s.building)
   const focusWorld = useApp((s) => s.focusWorldWorldId)
   const profiles = useWorldProfiles((s) => s.list)
+  const memory = useMemoryOverview()
   const [confirm, confirmDialog] = useConfirm()
   const dirtyRef = useRef(false)
   const onDirty = useCallback((d: boolean) => { dirtyRef.current = d }, [])
@@ -318,7 +323,16 @@ export function WorldView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusWorld])
   // "Edit profile" in the Overview or the chat's sheet lands here
-  useFocusedProfile((id) => void guard(() => { setTop('profiles'); setProfileId(id); setDetailOpen(true) }))
+  // the id may be MEMORY_ID or MEMORY_ID#<chatId> (the chat's card asks for Memory read for that chat)
+  useFocusedProfile((id) => void guard(() => {
+    setTop('dm')
+    if (id.startsWith(MEMORY_ID)) {
+      setProfileId(MEMORY_ID)
+      const at = id.indexOf('#')
+      if (at > 0) setMemoryPick(id.slice(at + 1))
+    } else setProfileId(id)
+    setDetailOpen(true)
+  }))
 
   const changeTop = (v: Top) => void guard(() => { setTop(v); setDetailOpen(false) })
   const selectProfile = (id: string) => void guard(() => { setProfileId(id); setDetailOpen(true) })
@@ -327,6 +341,7 @@ export function WorldView() {
   const buildingWorld = world ? undefined : building.find((w) => w.id === worldId)
   const selectWorld = (id: string) => void guard(() => { setWorldId(id); setDetailOpen(true) })
   const hasSelection = top === 'chats' ? !!selectedId : top === 'worlds' ? !!world || !!buildingWorld || worldId === NEW_WORLD : !!profileId
+  const onMemory = top === 'dm' && profileId === MEMORY_ID
 
   const handleTabChange = (v: Tab) => {
     setTab(v)
@@ -338,17 +353,17 @@ export function WorldView() {
       <MasterDetail
         detailOpen={detailOpen && hasSelection}
         onBack={() => void guard(() => setDetailOpen(false))}
-        detailTitle={top === 'chats' ? current?.title || storeTitle : top === 'worlds' ? (worldId === NEW_WORLD ? t('world.new.title') : world?.name ?? buildingWorld?.name) : profileId === NEW_PROFILE ? t('world.prof.new') : profile ? (profile.builtIn ? t(`world.level.${profile.id}` as MsgKey) : profile.name) : undefined}
+        detailTitle={top === 'chats' ? current?.title || storeTitle : top === 'worlds' ? (worldId === NEW_WORLD ? t('world.new.title') : world?.name ?? buildingWorld?.name) : onMemory ? t('world.mem.row') : profileId === NEW_PROFILE ? t('world.prof.new') : profile ? (profile.builtIn ? t(`world.level.${profile.id}` as MsgKey) : profile.name) : undefined}
         masterWidth="w-72"
         master={
           <aside aria-label={t('world.list.aria')} className="flex h-full min-h-0 flex-col">
-            <PaneHeader top={top} onTop={changeTop} onOpenSettings={() => openSettings()} />
+            <PaneHeader top={top} onTop={changeTop} onOpenSettings={() => openSettings()} waiting={!!memory && memory.waiting > 0} />
             {top === 'chats' ? (
               <ChatList items={items} listError={listError} selectedId={selectedId} onSelect={(id) => void guard(() => selectChat(id))} />
             ) : top === 'worlds' ? (
               <WorldList selectedId={worldId} onSelect={selectWorld} />
             ) : (
-              <ProfileList selectedId={profileId} onSelect={selectProfile} onNew={() => selectProfile(NEW_PROFILE)} />
+              <ProfileList selectedId={profileId} onSelect={selectProfile} onNew={() => selectProfile(NEW_PROFILE)} memory={memory} />
             )}
           </aside>
         }
@@ -380,8 +395,12 @@ export function WorldView() {
             ) : (
               <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">{t('world.lib.pick')}</div>
             )
-          ) : top === 'profiles' ? (
-            profileId === NEW_PROFILE ? (
+          ) : top === 'dm' ? (
+            onMemory ? (
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                <MemoryView chats={Array.isArray(items) ? items : []} chatId={memoryChat} onChat={setMemoryPick} />
+              </div>
+            ) : profileId === NEW_PROFILE ? (
               <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
                 <NewProfileEditor key="new" onDirty={onDirty} onCancel={() => void guard(() => { setProfileId(null); setDetailOpen(false) })} onCreated={(id) => { setProfileId(id) }} />
               </div>
