@@ -399,6 +399,7 @@ describe("the refill", () => {
     expect(refill(id).__llmPending).toBe(true);
     const asked = requests.find((r) => r.key === "world_cast")!.spec;
     expect(asked.systemPrompt).toContain("tied to ONE person who already exists");
+    expect(asked.systemPrompt).toContain("a short phrase that goes after the word 'wants'");
     const content = asked.messages[0].content as string;
     expect(content).toContain("- Crows (group)\n- Toll guild (group)");
     expect(content).toContain("Already in the deck (do not repeat)\nPavlo");

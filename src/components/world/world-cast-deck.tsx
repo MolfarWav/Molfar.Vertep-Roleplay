@@ -325,6 +325,7 @@ export function CastDeckList({ chatId, left }: { chatId: string; /** cards left 
         </div>
       )}
       {left === 0 && <p className="py-4 text-center text-sm text-muted-foreground" data-testid="deck-list-empty">{t('world.castdeck.empty')}</p>}
+      {shown && left > 0 && cards === null && <p className="text-sm text-muted-foreground" role="status">…</p>}
       {shown && left > 0 && cards && cards.length > 0 && (
         <ul className="flex flex-col gap-2">
           {cards.map((c) => (

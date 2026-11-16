@@ -5141,7 +5141,7 @@ export const CAST_SYSTEM = [
   "You build the world of a roleplay story. Write cards for new people the story has not met yet: each one belongs to a faction of the world and can be brought in later, when the story needs someone new.",
   "- Each person belongs to one of the factions you are asked for (write the faction exactly as given).",
   "- Each person is tied to ONE person who already exists: write that person's name exactly as listed under 'Who already exists'. Say in the text how they know each other (a cousin, a debtor, a rival, a former pupil).",
-  "- Each person wants something of their own, besides what the faction wants: give it in 'want', one short sentence.",
+  "- Each person wants something of their own, besides what the faction wants: give it in 'want', a short phrase that goes after the word 'wants' (for example 'the pass closed before winter').",
   "- 'text': the person's look, character, goals and fears, how they know the tie, and a hook for how they might first enter the story (an errand, a message, a visit). Plain sentences, no story, no lines of dialogue.",
   "- Never contradict the world record or the cards; never reuse a name from the record or the deck. Names and the setting must fit the genre and the tone of the world.",
   "- 'aliases': up to 3 short names or nicknames the story could use. 'relation' to the user's character: ally, family, rival, enemy or neutral.",
