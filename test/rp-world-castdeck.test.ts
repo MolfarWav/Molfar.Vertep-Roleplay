@@ -357,3 +357,102 @@ describe("a Start writes the cards", () => {
     expect(readRel("world/state/" + id + ".json").cast.map((c: any) => c.name)).toEqual(["Halyna", "Pavlo"]);
   });
 });
+
+// ---------- the refill ----------
+
+describe("the refill", () => {
+  const guild = { id: "n1", kind: "group", name: "Toll guild", aliases: [], text: "Keeps the tolls.", status: "active", uid: 0 };
+  const crows = { id: "n2", kind: "group", name: "Crows", aliases: [], text: "Thieves.", status: "active", uid: 0 };
+  const maksym = { id: "n3", kind: "person", name: "Maksym", aliases: [], text: "The toll keeper.", status: "active", uid: 0 };
+  const on = { level: "living", cast: "normal", castDeck: true, castPer: 2, castLen: "normal" };
+  const refillReply = J({ cast: [
+    { faction: "Crows", name: "Zoya", tie: "Maksym", want: "A debt.", text: "A thief with a limp." },
+    { faction: "Crows", name: "Yarema", tie: "Odarka", want: "A map.", text: "A fence." },
+    { faction: "Toll guild", name: "Halyna", tie: "", want: "Coin.", text: "A clerk." },
+  ] });
+  const refill = (id: string, body: Record<string, unknown> = {}) => world("POST", "/world/cast/refill", { chatId: id, ...body });
+  const answer = (id: string, text: string, body: Record<string, unknown> = {}) => {
+    for (const k of Object.keys(results)) delete results[k];
+    results.world_cast = { text, model: "b/build", genTimeMs: 10 };
+    return refill(id, body);
+  };
+  const seeded = (over: Record<string, unknown> = {}) => {
+    const id = newChat();
+    writeState(id, { settings: on, entities: [guild, crows, maksym], nextId: 4, ...over });
+    return id;
+  };
+
+  it("the view says a refill is due only when the deck is low, on, has a faction to write for and has not just been tried", () => {
+    const view = (id: string) => world("GET", "/world/state", undefined, { chatId: id }).castRefill;
+    expect(view(seeded())).toBe(true);
+    expect(view(seeded({ cast: [card(), card({ id: "c2", name: "A", aliases: [] }), card({ id: "c3", name: "B", aliases: [] })] }))).toBe(false);
+    expect(view(seeded({ settings: { ...on, castDeck: false } }))).toBe(false);
+    expect(view(seeded({ settings: { ...on, cast: "off" } }))).toBe(false);
+    expect(view(seeded({ entities: [maksym] }))).toBe(false);
+    expect(view(seeded({ castBuild: { n: 0 } }))).toBe(false);
+  });
+
+  it("one call writes for the factions with the fewest cards; the cards merge with what the player has", () => {
+    const id = seeded({ cast: [card({ id: "c1", name: "Pavlo", aliases: [], faction: "Toll guild", text: "My own edit." })] });
+    requests = [];
+    for (const k of Object.keys(results)) delete results[k];
+    expect(refill(id).__llmPending).toBe(true);
+    const asked = requests.find((r) => r.key === "world_cast")!.spec;
+    expect(asked.systemPrompt).toContain("tied to ONE person who already exists");
+    const content = asked.messages[0].content as string;
+    expect(content).toContain("- Crows (group)\n- Toll guild (group)");
+    expect(content).toContain("Already in the deck (do not repeat)\nPavlo");
+    expect(content).toContain("write 2 new people");
+    const r = answer(id, refillReply);
+    expect(r).toMatchObject({ ok: true, added: 3, left: 4 });
+    const s = readRel("world/state/" + id + ".json");
+    expect(s.cast.map((c: any) => [c.id, c.name, c.tie])).toEqual([["c1", "Pavlo", "Maksym"], ["c2", "Zoya", "Maksym"], ["c3", "Yarema", "Odarka"], ["c4", "Halyna", ""]]);
+    expect(s.cast[0].text).toBe("My own edit.");
+    // a new chat has its first message: one reply
+    expect(s.castBuild).toEqual({ n: 1 });
+    expect(s.castLog).toHaveLength(1);
+    expect(s.castLog[0]).toMatchObject({ added: 3, factions: ["Crows", "Toll guild"] });
+    expect(s.castLog[0].forced).toBeUndefined();
+    expect(s.log.at(-1)).toMatchObject({ reason: "cast", changes: 3 });
+    // tried just now: not due again, and the route says so
+    expect(world("GET", "/world/state", undefined, { chatId: id }).castRefill).toBe(false);
+    expect(refill(id)).toMatchObject({ ok: true, skipped: "not due" });
+  });
+
+  it("a card is never over the deck's room; a full deck is skipped", () => {
+    const many = Array.from({ length: 23 }, (_, i) => card({ id: "c" + (i + 1), name: "Person " + i, aliases: [] }));
+    const id = seeded({ cast: many });
+    expect(answer(id, refillReply, { force: true })).toMatchObject({ ok: true, added: 1, left: 24 });
+    expect(refill(id, { force: true })).toMatchObject({ ok: true, skipped: "full" });
+  });
+
+  it("the button forces it, and the log says so", () => {
+    const id = seeded({ cast: [card(), card({ id: "c2", name: "A", aliases: [] }), card({ id: "c3", name: "B", aliases: [] })] });
+    expect(refill(id)).toMatchObject({ skipped: "not due" });
+    // Halyna is in the deck already: her card in the answer is a repeat
+    expect(answer(id, refillReply, { force: true })).toMatchObject({ ok: true, added: 2, left: 5 });
+    expect(readRel("world/state/" + id + ".json").castLog[0].forced).toBe(true);
+  });
+
+  it("a failed call is logged with its code and waits as a try; the deck stays as it was", () => {
+    const id = seeded();
+    const r = answer(id, "not json at all");
+    expect(r).toMatchObject({ ok: false, code: "not-json" });
+    const s = readRel("world/state/" + id + ".json");
+    expect(s.cast).toBeUndefined();
+    expect(s.castBuild).toEqual({ n: 1 });
+    expect(s.castLog[0]).toMatchObject({ added: 0, error: "not-json" });
+  });
+
+  it("an answer with nothing usable adds nothing and says so", () => {
+    const id = seeded();
+    expect(answer(id, J({ cast: [{ faction: "Nobody", name: "X", text: "y" }] }))).toMatchObject({ ok: true, added: 0, none: true });
+  });
+
+  it("no faction: the button says what is missing; no world: refused", () => {
+    const id = seeded({ entities: [maksym] });
+    expect(refill(id, { force: true })).toMatchObject({ ok: false, code: "no-factions" });
+    const fresh = newChat();
+    expect(refill(fresh)).toMatchObject({ error: "this chat has no world yet" });
+  });
+});

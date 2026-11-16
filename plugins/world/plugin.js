@@ -3745,6 +3745,10 @@ export function deckStatus(state, freq, replies) {
     silence: replies - (last ? last.n : 0),
     threshold: castThreshold(f, state.chatId, "deck"),
     wait: on ? Math.max(0, CAST_FIRST - replies, last ? castGap(freq, last) - (replies - last.n) : 0) : 0,
+    // the refill: whether one is due now, the replies since the last try (null = none yet), and the log of tries (newest first)
+    refill: refillDue(state, replies),
+    refillAgo: state.castBuild ? replies - state.castBuild.n : null,
+    log: [...arr(state.castLog)].reverse(),
   };
 }
 
@@ -3781,6 +3785,53 @@ function tidyRoute(req, host) {
     return ok({ ...tidyStatus(fsx, chatId), archived: res.archived.map((e) => e.name), woken: res.woken.map((e) => e.name) });
   }
   return ok(tidyStatus(fsx, chatId));
+}
+
+/**
+ * POST {chatId, force?, lang?}: one build call adds cards to the cast deck (merge, never replace: what the player edited stays). The app calls it
+ * after a DM run when the view says castRefill; `force` is the button in the sheet (no rule, only the room: the deck holds CAST_CARDS_MAX).
+ * The factions with the fewest cards come first, at most CAST_PART of them, castPer people each.
+ */
+function castRefillRoute(req, host) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state, existed } = loadState(fsx, chatId);
+  if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+  const replies = chat.msgs.filter(isReply).length;
+  const force = b.force === true;
+  if (!force && !refillDue(state, replies)) return ok({ ok: true, skipped: "not due" });
+  const room = CAST_CARDS_MAX - arr(state.cast).length;
+  if (room <= 0) return ok({ ok: true, skipped: "full" });
+  const all = castFactions(state.entities, state.fronts);
+  if (!all.length) return ok({ ok: false, error: "the world has no faction to write people for: a group or a front is needed", code: "no-factions" });
+  const count = (f) => arr(state.cast).filter((c) => sameName(c.faction, f.name)).length;
+  const part = [...all].sort((x, y) => count(x) - count(y)).slice(0, CAST_PART);
+  const cfg = loadConfig(fsx);
+  const userName = userNameOf(fsx, chat.meta);
+  const index = tieIndex(state.entities, cardNames(fsx, chat.meta), userName);
+  const have = arr(state.cast).map((c) => c.name);
+  const per = state.settings.castPer;
+  const content = castInput({ entities: state.entities, fronts: state.fronts, factions: part, per, len: state.settings.castLen, index, have, prompt: "", lang: cut(str(b.lang), LANG_MAX) });
+  const built = buildResult(host, "world_cast", buildAsk(host, fsx, cfg, chat.meta, CAST_SYSTEM, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  const line = { at: Date.now(), n: replies, factions: part.map((f) => f.name), ...(force ? { forced: true } : {}) };
+  state.castBuild = { n: replies };
+  if (built.error) {
+    state.castLog = [...arr(state.castLog), { ...line, added: 0, error: built.error.code }].slice(-CAST_LOG_MAX);
+    countBuild(state, built, "cast", 0);
+    saveState(fsx, state);
+    return ok({ ok: false, error: built.error.message, code: built.error.code });
+  }
+  const got = castFrom(built.out, { entities: state.entities, index, factions: part, per, have }).slice(0, room);
+  state.cast = cleanCast([...arr(state.cast), ...got]);
+  state.castLog = [...arr(state.castLog), { ...line, added: got.length }].slice(-CAST_LOG_MAX);
+  countBuild(state, built, "cast", got.length);
+  saveState(fsx, state);
+  return ok({ ok: true, added: got.length, left: state.cast.length, ...(got.length ? {} : { none: true }) });
 }
 
 function castRoute(req, host) {
@@ -4697,6 +4748,19 @@ function cleanCastLine(l) {
     ...(str(l.error) ? { error: cut(str(l.error), 40) } : {}),
     ...(l.forced === true ? { forced: true } : {}),
   };
+}
+
+// the refill (#424, step 4): below this many cards a DM run asks the app for one background build call; after a try, this many replies pass before the next
+const CAST_REFILL_MIN = 3;
+const CAST_REFILL_EVERY = 10;
+
+/** Is the deck due for a refill: the switch and the cast are on, fewer than CAST_REFILL_MIN cards are left, there is a faction to write for, and the last try is CAST_REFILL_EVERY replies old (or there was none). */
+export function refillDue(state, replies) {
+  const freq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+  if (freq === "off" || state.settings.castDeck !== true) return false;
+  if (arr(state.cast).length >= CAST_REFILL_MIN) return false;
+  if (!castFactions(state.entities, state.fronts).length) return false;
+  return !state.castBuild || replies - state.castBuild.n >= CAST_REFILL_EVERY;
 }
 
 /** What a Start asks of the cast deck: how many factions, how many people each, how long a card is. */
@@ -5812,6 +5876,8 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     deck: arr(state.deck).length,
     // the cast deck: how many cards of new people are left (not who they are)
     cast: arr(state.cast).length,
+    // the app calls POST /world/cast/refill once after a run when this is true
+    castRefill: refillDue(state, msgs.filter(isReply).length),
     origin: state.origin || null,
     backgroundFolderId: state.backgroundFolderId || null,
   };
@@ -6486,6 +6552,7 @@ export function handleRoute(req, host) {
   if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
   if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
   if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
+  if (path === "/world/cast/refill" && req.method === "POST") return castRefillRoute(req, host);
   if (path === "/world/tidy" && (req.method === "GET" || req.method === "POST")) return tidyRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
