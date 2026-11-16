@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.130.1 (2026-11-16)
+- Changed: **"Make default" shows a spinner while it saves.** The profile list and header follow a moment after the click (the engine answers in a second or two), and the button used to look frozen. Checked in a real browser: Director made the default, a new chat started on Director, the Chronicler put back; dark, light and a 390 px screen.
+- Changed: **the guide page "World DM" is translated again in all 13 languages**, with the paragraph about the default profile (it showed English after 4.130.0).
+
 ## 4.130.0 (2026-11-16)
 - Added: **a default profile for new chats (Molfar.Vertep#425).** In World, Profiles, any profile (a built-in one above the Chronicler, or one of your own) has a "Make default" button; the default carries a "Default" tag in the list and "Default for new chats" in its header. A new chat now starts with that profile's level, numbers and prompts instead of the Chronicler, so someone who always plays with the Director no longer switches it in every chat. Chats that already exist keep what they have. The DM "off" is still a choice for one chat and is not offered as a default. Deleting the default profile puts the Chronicler back, and so does a default that has gone missing. It is stored in `world/config.json` as `defaultProfile`.
 

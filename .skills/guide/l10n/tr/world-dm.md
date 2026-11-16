@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -40,6 +40,6 @@ Seçilen sohbette: Overview (sayfayla aynı kontroller), Places (her yer için b
 
 ## Dünya profilleri
 
-Her düzey yerleşik bir profildir: bu beşi DM'in istemlerini tutar ve birini açıp bir istem bloğunu değiştirebilir ve varsayılana geri alabilirsiniz. Bir düzeyin üzerine kendi profillerinizi de yapabilirsiniz. Bir sohbet profilini DM sayfasında seçer. "Saved worlds" kurduğunuz ve yeni sohbetler başlattığınız dünyaları tutar; "New world" herhangi bir sohbetten önce, kartlardan veya kısa bir görüşmeden bir dünya kurar.
+Her düzey yerleşik bir profildir: bu beşi DM'in istemlerini tutar ve birini açıp bir istem bloğunu değiştirebilir ve varsayılana geri alabilirsiniz. Bir düzeyin üzerine kendi profillerinizi de yapabilirsiniz. Bir sohbet profilini DM sayfasında seçer. Yeni sohbetler, başka bir profilde **Make default** düğmesine basmadığınız sürece Chronicler ile başlar (Profiles sekmesi, profilin başlığında): o profil bir *Default* etiketi alır ve her yeni sohbet onun düzeyi, sayıları ve istemleriyle başlar; hâlihazırda sahip olduğunuz sohbetler kendilerininkini korur ve DM "off" her sohbet için seçilir ve varsayılan olamaz. "Saved worlds" kurduğunuz ve yeni sohbetler başlattığınız dünyaları tutar; "New world" herhangi bir sohbetten önce, kartlardan veya kısa bir görüşmeden bir dünya kurar.
 
 İlgili: [[memory]], [[dashboard]]. *World profiles* ve *Starting a world* Yardım makaleleri ekranları içerir.

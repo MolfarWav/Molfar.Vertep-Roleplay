@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # World DM
 
 Le World DM est un maître de jeu pour le monde d'une discussion. Après les réponses, il lit l'histoire et garde les personnes, lieux et choses qu'il rencontre dans le livre de connaissances propre à la discussion, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde semble vivant et cohérent.
@@ -40,6 +40,6 @@ Sur la discussion choisie : Overview (les mêmes commandes que la feuille), Plac
 
 ## Profils de monde
 
-Chaque niveau est un profil intégré : les cinq contiennent les requêtes du DM, et vous pouvez en ouvrir un, changer un bloc de requête et le remettre au défaut. Vous pouvez aussi créer vos propres profils par-dessus un niveau. Une discussion choisit son profil dans la feuille DM. « Saved worlds » contient les mondes que vous avez construits et dans lesquels vous commencez de nouvelles discussions ; « New world » en construit un avant toute discussion, depuis des cartes ou un court entretien.
+Chaque niveau est un profil intégré : les cinq contiennent les requêtes du DM, et vous pouvez en ouvrir un, changer un bloc de requête et le remettre au défaut. Vous pouvez aussi créer vos propres profils par-dessus un niveau. Une discussion choisit son profil dans la feuille DM. Les nouvelles discussions commencent avec le Chronicler sauf si vous appuyez sur **Make default** sur un autre profil (l'onglet Profiles, dans l'en-tête du profil) : il obtient une étiquette *Default* et chaque nouvelle discussion commence avec son niveau, ses nombres et ses requêtes ; les discussions que vous avez déjà gardent les leurs, et le DM « off » est choisi par discussion et ne peut pas être le défaut. « Saved worlds » contient les mondes que vous avez construits et dans lesquels vous commencez de nouvelles discussions ; « New world » en construit un avant toute discussion, depuis des cartes ou un court entretien.
 
 Liés : [[memory]], [[dashboard]]. Les articles d'aide *World profiles* et *Starting a world* présentent les écrans.
