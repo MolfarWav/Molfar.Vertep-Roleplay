@@ -1,4 +1,4 @@
-<!-- source: f55b4fcd16f5 -->
+<!-- source: 324954b86949 -->
 # Onde ficam as configurações do Roleplay
 
 O Roleplay não tem uma única página de configurações para tudo. As configurações ficam perto do que mudam, e duas delas estão nas Configurações principais do Molfar Vertep. Esta página é um localizador.
@@ -19,7 +19,7 @@ O que as seções fazem, em resumo: Appearance é idioma, fontes, largura do cha
 - **Prompt e amostragem**: a seção **Presets** (seções que você pode alternar, variáveis, amostradores e uma espiada na solicitação final) e o quadro Prompt do Canvas para um chat. O painel Preset de um chat mostra, sob o nome da predefinição, uma linha "Works with": os recursos deste chat para os quais a predefinição tem regras (Dashboard, Litopys, World DM, dice...), e quais deles estão desligados neste chat.
 - **O próprio de um cartão**: suas abas do editor, incluindo cores, regex e opções avançadas. Veja [[characters]].
 - **Lorebooks**: cada livro tem suas próprias regras (profundidade de varredura, limite de tamanho, interruptor Global). Veja [[memory]].
-- **A Inbox** tem interruptores por tipo para o que conta como esperando por você.
+- **A Inbox** tem interruptores por tipo para o que conta como à tua espera: o bloco Notices das definições do Litopys (factos, blocos do retrato, hábitos, missões, falhas); o das almas está no separador Soul. Cada tipo tem a sua própria cor nos avisos do chat (ver [[litopys]]).
 
 ## Tools
 

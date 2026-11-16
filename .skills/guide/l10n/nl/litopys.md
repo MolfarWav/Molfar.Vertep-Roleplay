@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys: het verhaalverslag
 
 Litopys (de kroniek) is het langetermijngeheugen van één chat. Het leest het verhaal op de achtergrond en schrijft een hoofdstuk voor elke afgeronde scène, plus de feiten die het verhaal heeft vastgelegd. Wanneer een chat te lang wordt voor het venster van het model, draagt het verslag het verhaal verder. Gebruik het voor lange verhalen; je hoeft het niet zelf te starten.
@@ -60,6 +60,10 @@ De **Settings**-tab van het verslag van een chat (in het Record-zijpaneel en in 
 ## Suggesties en opruimen
 
 "Suggestions" heeft drie keuzes. "Ask me first": elk voorstel wacht op jouw ja. "Only risky ones" (de standaard voor een nieuwe installatie): routinevoorstellen worden meteen toegepast, gelogd in Activity met een Undo, en alleen de riskante wachten, elk met de reden erop: een samenvoeging waardoor meer mensen een feit te weten komen dat slechts sommigen kenden, een wijziging aan een feit dat je hebt vastgepind, geschreven, bewerkt of als key gemarkeerd, een blijvende verandering of een overtuiging, en een nieuw feit dat een feit dat je hebt vastgepind kan tegenspreken. Dezelfde reden verschijnt in de Inbox. "Apply pins and rewrites quietly": alleen pins en herschrijvingen gaan door; laten vervallen en samenvoegen wachten op jou. "Tidy facts automatically" zoekt naar duplicaten en tegenstrijdigheden na 30 nieuwe feiten, tegen één extra modelaanroep per 60 feiten.
+
+### Meldingen in de chat
+
+Wacht er iets op je antwoord, dan verschijnt er in de chat een gekleurde melding, één per kleur, elk in de kleur van het blok waar hij naar wijst. **Groen**: de voorstellen over feiten van de Bibliotheek. **Blauw**: een blok uit het portret van een personage (“How they changed”, tabblad Memory van de kaart). **Violet**: een gewoonte die een personage liet zien (Bibliotheek, Habits). **Amber**: een quest die het verhaal wil sluiten, of openen als er geen plek is (Dashboard, Quests). Een melding met één kort onderdeel heeft Accept en Reject er direct in (voor een quest die gesloten wordt: Close it en Keep open); een nieuwe quest zonder plek vraagt welke open quest hij vervangt, dus zijn melding opent het Dashboard. Meerdere meldingen van één kleur worden één melding met een aantal. Elk voorstel wordt maar één keer gemeld; wat je onbeantwoord laat, blijft in zijn blok en in de Inbox, onder “In this chat”. De meldingen gelden voor de geopende chat en zijn personages; het blok Notices in de Litopys-instellingen heeft een schakelaar per kleur.
 
 ## Rebuild
 

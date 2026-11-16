@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys: hikâyenin kaydı
 
 Litopys (vakayname), bir sohbetin uzun hafızasıdır. Hikâyeyi arka planda okur ve tamamlanan her sahne için bir bölüm, ayrıca hikâyenin yerleştirdiği olguları yazar. Bir sohbet modelin penceresi için fazla uzadığında, kayıt hikâyeyi ileri taşır. Uzun hikâyeler için kullanın; başlatmanıza gerek yok.
@@ -60,6 +60,10 @@ Bir sohbetin kaydının **Settings** sekmesi (Record yan panelinde ve Kütüphan
 ## Öneriler ve düzenleme
 
 "Suggestions"ın üç seçeneği vardır. "Ask me first": her öneri sizin evetinizi bekler. "Only risky ones" (yeni bir kurulum için varsayılan): rutin öneriler hemen uygulanır, Activity'de bir Undo ile kaydedilir ve yalnızca riskli olanlar bekler, her birinin üzerinde gerekçesiyle: yalnızca bazılarının bildiği bir olguyu daha çok kişiye söyleyecek bir birleştirme, sabitlediğiniz, yazdığınız, düzenlediğiniz ya da anahtar olarak işaretlediğiniz bir olguda bir değişiklik, kalıcı bir değişiklik ya da bir inanç ve sabitlediğiniz bir olguyla çelişebilecek yeni bir olgu. Aynı gerekçe Inbox'ta görünür. "Apply pins and rewrites quietly": yalnızca sabitlemeler ve yeniden yazmalar geçer; emekliye ayırma ve birleştirme sizi bekler. "Tidy facts automatically" 30 yeni olgudan sonra kopyaları ve çelişkileri arar, her 60 olgu için bir ek model çağrısıyla.
+
+### Sohbetteki bildirimler
+
+Cevabını bekleyen bir şey olduğunda sohbette renkli bir bildirim görünür; her renk için bir tane, her biri işaret ettiği bloğun renginde. **Yeşil**: Kütüphane’nin olgu önerileri. **Mavi**: bir karakterin portresinden bir blok (“How they changed”, kartın Memory sekmesi). **Mor**: bir karakterin gösterdiği alışkanlık (Kütüphane, Habits). **Amber**: hikâyenin kapatmak istediği ya da yer yokken açmak istediği görev (Dashboard, Quests). Tek ve kısa bir öğesi olan bildirimde Accept ve Reject doğrudan yer alır (kapatılacak görev için: Close it ve Keep open); yeri olmayan yeni görev hangi açık görevin yerini alacağını sorar, bu yüzden bildirimi Dashboard’u açar. Aynı renkteki birkaç bildirim, sayı gösteren tek bir bildirim olur. Her öneri yalnızca bir kez bildirilir; yanıtlamadıkların kendi bloğunda ve Inbox’ta “In this chat” altında kalır. Bildirimler açık sohbeti ve karakterlerini kapsar; Litopys ayarlarındaki Notices bloğunda her renk için bir anahtar vardır.
 
 ## Rebuild
 

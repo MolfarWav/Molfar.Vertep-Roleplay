@@ -1,4 +1,4 @@
-<!-- source: f55b4fcd16f5 -->
+<!-- source: 324954b86949 -->
 # Gdzie są ustawienia Roleplay
 
 Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blisko tego, co zmieniają, a dwa z nich są w głównych Ustawieniach Molfar Vertep. Ta strona to wyszukiwarka.
@@ -19,7 +19,7 @@ Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu 
 - **Prompt i próbkowanie**: sekcja **Presets** (sekcje, które możesz przełączać, zmienne, samplery i podgląd końcowego zapytania) oraz plansza Prompt w Canvas dla jednego czatu. Panel Preset czatu pokazuje pod nazwą presetu wiersz „Works with”: funkcje tego czatu, dla których preset ma reguły (Dashboard, Litopys, World DM, kości...), oraz które z nich są w tym czacie wyłączone.
 - **Własne karty**: jej karty edytora, w tym kolory, regex i opcje zaawansowane. Zobacz [[characters]].
 - **Księgi wiedzy**: każda księga ma własne reguły (głębokość skanowania, limit rozmiaru, przełącznik Global). Zobacz [[memory]].
-- **Skrzynka odbiorcza** ma przełączniki dla każdego rodzaju tego, co liczy się jako czekające na ciebie.
+- **Inbox** ma przełączniki dla rodzajów rzeczy, które liczą się jako czekające na ciebie: blok Notices w ustawieniach Litopys (fakty, bloki portretu, nawyki, zadania, błędy); przełącznik dla dusz jest na zakładce Soul. Każdy rodzaj ma w powiadomieniach czatu własny kolor (zob. [[litopys]]).
 
 ## Narzędzia
 

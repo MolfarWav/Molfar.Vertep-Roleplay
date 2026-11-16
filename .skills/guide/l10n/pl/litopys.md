@@ -1,4 +1,4 @@
-<!-- source: 8cdaffb3bd51 -->
+<!-- source: dfb12d87c851 -->
 # Litopys: zapis opowieści
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta opowieść w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które opowieść ustaliła. Gdy czat staje się zbyt długi dla okna modelu, zapis prowadzi opowieść dalej. Używaj go do długich historii; nie musisz go włączać.
@@ -60,6 +60,10 @@ Zakładka **Settings** zapisu czatu (w panelu bocznym Record i w Bibliotece, obo
 ## Sugestie i porządkowanie
 
 "Suggestions" ma trzy opcje. "Ask me first": każda sugestia czeka na twoje tak. "Only risky ones" (domyślne dla nowej instalacji): rutynowe sugestie są stosowane od razu, rejestrowane w Activity z Undo, a czekają tylko ryzykowne, każda z powodem na sobie: scalenie, które powiedziałoby więcej osobom fakt znany tylko niektórym, zmiana faktu, który przypiąłeś, napisałeś, edytowałeś lub oznaczyłeś jako key, trwała zmiana albo przekonanie, oraz nowy fakt, który może przeczyć temu, który przypiąłeś. Ten sam powód pokazuje się w Inboxie. "Apply pins and rewrites quietly": przechodzą tylko przypięcia i przepisania; wycofywanie i scalanie czekają na ciebie. "Tidy facts automatically" szuka duplikatów i sprzeczności po 30 nowych faktach, po jednym dodatkowym wywołaniu modelu na 60 faktów.
+
+### Powiadomienia w czacie
+
+Gdy coś czeka na twoją odpowiedź, w czacie pojawia się kolorowe powiadomienie, po jednym na kolor, każde w kolorze bloku, do którego prowadzi. **Zielony**: propozycje dotyczące faktów z Biblioteki. **Niebieski**: blok portretu postaci („How they changed”, zakładka Memory karty). **Fioletowy**: nawyk, który pokazała postać (Biblioteka, Habits). **Bursztynowy**: zadanie, które historia chce zamknąć albo otworzyć, gdy brakuje miejsca (Dashboard, Quests). Powiadomienie z jedną krótką pozycją ma Accept i Reject od razu w sobie (dla zadania do zamknięcia: Close it i Keep open); nowe zadanie bez miejsca pyta, które otwarte zadanie zastępuje, więc jego powiadomienie otwiera Dashboard. Kilka powiadomień jednego koloru łączy się w jedno z liczbą. Każda propozycja jest zgłaszana tylko raz; to, na co nie odpowiesz, zostaje w swoim bloku i w Inbox, pod „In this chat”. Powiadomienia dotyczą otwartego czatu i jego postaci; blok Notices w ustawieniach Litopys ma przełącznik dla każdego koloru.
 
 ## Rebuild
 

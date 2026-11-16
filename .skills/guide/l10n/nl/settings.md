@@ -1,4 +1,4 @@
-<!-- source: f55b4fcd16f5 -->
+<!-- source: 324954b86949 -->
 # Waar de instellingen van Roleplay zijn
 
 Roleplay heeft geen enkele instellingenpagina voor alles. Instellingen staan dicht bij wat ze wijzigen, en twee ervan zitten in de hoofdinstellingen van Molfar Vertep. Deze pagina is een wegwijzer.
@@ -19,7 +19,7 @@ Wat de secties kort doen: Appearance is taal, lettertypen, chatbreedte en avatar
 - **Prompt en sampling**: de sectie **Presets** (secties die je kunt wisselen, variabelen, samplers, en een blik op de uiteindelijke aanvraag) en het Prompt-bord van het Canvas voor één chat. Het Preset-paneel van een chat toont onder de naam van de preset een regel "Works with": de functies van deze chat waarvoor de preset regels heeft (Dashboard, Litopys, World DM, dice...), en welke daarvan in deze chat uit staan.
 - **De eigen instellingen van een kaart**: zijn editortabbladen, inclusief kleuren, regex en geavanceerde opties. Zie [[characters]].
 - **Lorebooks**: elk boek heeft eigen regels (scan depth, size cap, Global-schakelaar). Zie [[memory]].
-- **De Inbox** heeft schakelaars per soort voor wat telt als wachtend op jou.
+- **De Inbox** heeft schakelaars per soort voor wat geldt als wachtend op jou: het blok Notices in de Litopys-instellingen (feiten, portretblokken, gewoontes, quests, mislukkingen); die voor zielen staat op het tabblad Soul. Elke soort heeft zijn eigen kleur in de meldingen van de chat (zie [[litopys]]).
 
 ## Tools
 
