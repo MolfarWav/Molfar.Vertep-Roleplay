@@ -415,3 +415,43 @@ describe("clothes do not pile up", () => {
     expect(r.items[0].text).toBe("torn white dress");
   });
 });
+
+describe("the user corrects worn and held items by hand", () => {
+  const act = (mock: Mock, body: Record<string, unknown>) => drive(mock, { method: "POST", path: "/dashboard/notes", body: { chatId: "c1", ...body } });
+
+  it("remove takes the item out of every snapshot, the sensor no longer sees its id, and put brings it back", () => {
+    const { mock, play, lastPrompt } = story();
+    play({ chars: { Aria: { outfit: { see: [{ text: "white top" }, { text: "grey wool skirt" }] }, holding: { see: [{ text: "phone" }] } } } });
+    let snap = play({ chars: { Aria: { mood: "calm" } } });
+    expect(itemsOf(snap, "Aria")).toEqual(["o1 white top", "o2 grey wool skirt", "o3 phone"]);
+    let out = act(mock, { op: "item-remove", name: "Aria", id: "o2" });
+    expect(out.json.ok).toBe(true);
+    expect(out.json.view.chars.Aria.outfit).toBe("white top");
+    expect(snaps("c1").map((s: any) => itemsOf(s, "Aria").join(" | "))).toEqual(["o1 white top | o3 phone", "o1 white top | o3 phone"]);
+    play({ chars: { Aria: { mood: "calm" } } });
+    expect(lastPrompt()).toContain("Wearing: o1 white top.");
+    expect(lastPrompt()).not.toContain("grey wool skirt");
+    out = act(mock, { op: "item-put", name: "Aria", id: "o2", kind: "wear", text: "grey wool skirt" });
+    expect(out.json.view.chars.Aria.outfit).toBe("white top, grey wool skirt");
+    expect(act(mock, { op: "item-put", name: "Aria", id: "o2", kind: "wear", text: "grey wool skirt" }).status).toBe(409);
+  });
+
+  it("rename keeps the id and the kind", () => {
+    const { mock, play } = story();
+    play({ chars: { Aria: { outfit: { see: [{ text: "dark blue knit cardigan sleeves pulled down over her hands" }] } } } });
+    const out = act(mock, { op: "item-rename", name: "Aria", id: "o1", text: "dark blue knit cardigan" });
+    expect(out.json.ok).toBe(true);
+    expect(itemsOf(lastSnap("c1"), "Aria")).toEqual(["o1 dark blue knit cardigan"]);
+    expect(lastSnap("c1").chars.Aria.items[0].kind).toBe("wear");
+  });
+
+  it("refuses an unknown character, an unknown item and an empty name", () => {
+    const { mock, play } = story();
+    play({ chars: { Aria: { outfit: { see: [{ text: "white top" }] } } } });
+    expect(act(mock, { op: "item-remove", name: "Nobody", id: "o1" }).status).toBe(404);
+    expect(act(mock, { op: "item-remove", name: "Aria", id: "o9" }).status).toBe(404);
+    expect(act(mock, { op: "item-remove", name: "Aria", id: "x" }).status).toBe(400);
+    expect(act(mock, { op: "item-rename", name: "Aria", id: "o1", text: "  " }).status).toBe(400);
+    expect(itemsOf(lastSnap("c1"), "Aria")).toEqual(["o1 white top"]);
+  });
+});

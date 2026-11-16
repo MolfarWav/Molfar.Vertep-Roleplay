@@ -4,17 +4,19 @@
 
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Compass, Flag, Hand, Handbag, Heart, MapPin, Package, Pulse, TShirt, type Icon } from '@phosphor-icons/react'
+import { Check, Compass, Flag, Hand, Handbag, Heart, MapPin, Package, PencilSimple, Pulse, Trash, TShirt, X, type Icon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Constellation } from './constellation'
 import { HostilityBar, PulseBar, SignedBar } from './dash-bars'
 import { AvatarImg, Box, ChangeBadge, CLASS_MARK, GOLD_TEXT, MARK, useTx } from './dash-common'
 import { ManagePerson } from './dash-merge'
+import { useDashMaybe, type NotesAct } from './dash-context'
 import { cn } from '@/lib/utils'
 import { withKeys } from '@/lib/unique-keys'
 import { useT } from '@/hooks/use-t'
-import { DISPOSITION, PULSE, type DashChar, type DashView } from '@/lib/dashboard'
+import { DISPOSITION, PULSE, type DashChar, type DashItem, type DashView } from '@/lib/dashboard'
 import { outfitEmpty, outfitOf, sensorDifference, thingCount } from '@/lib/dash-outfit'
 import { personChanges, tally, type ChangeCount } from '@/lib/dash-changes'
 import { saveWorldSettings, type WorldHere } from '@/lib/world'
@@ -220,11 +222,126 @@ export function OutfitBody({ name, char, here, chatId, onReload }: { name: strin
   )
 }
 
+/** The worn and held items the Dashboard keeps for a character, with their ids (absent on an older plugin). */
+const ledgerOf = (char: DashChar): DashItem[] => (char.items ?? []).filter((i) => i && i.id && i.text && (i.kind === 'wear' || i.kind === 'hold'))
+
+const ITEM_MAX = 120
+
+/** One item in the card's edit mode: its name (press to correct it) and a remove button. Removing can be undone from the toast. */
+function ItemRow({ name, item, act }: { name: string; item: DashItem; act: NotesAct }) {
+  const t = useT()
+  const [text, setText] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const run = async (body: { op: string } & Record<string, unknown>) => {
+    setBusy(true)
+    try { return await act(body) } finally { setBusy(false) }
+  }
+  const save = async () => {
+    const next = (text ?? '').trim()
+    if (!next || next === item.text) { setText(null); return }
+    if (await run({ op: 'item-rename', name, id: item.id, text: next })) setText(null)
+  }
+  const remove = async () => {
+    if (!(await run({ op: 'item-remove', name, id: item.id }))) return
+    toast.success(t('dash.outfit.removed', { item: item.text }), {
+      action: { label: t('dash.scene.undo'), onClick: () => void act({ op: 'item-put', name, id: item.id, kind: item.kind, text: item.text }) },
+    })
+  }
+  if (text !== null) {
+    return (
+      <li className="flex min-w-0 items-center gap-1" data-testid="dash-item-edit">
+        <Input
+          autoFocus
+          value={text}
+          maxLength={ITEM_MAX}
+          disabled={busy}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void save() }
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setText(null) }
+          }}
+          aria-label={t('dash.outfit.nameLabel')}
+          className="h-9 min-w-0 flex-1 text-[13px] max-md:h-10"
+        />
+        <Button variant="secondary" size="icon" className="shrink-0 max-md:size-10" disabled={busy || !text.trim()} onClick={() => void save()} aria-label={t('dash.outfit.save')} title={t('dash.outfit.save')}>
+          <Check weight="bold" aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" size="icon" className="shrink-0 max-md:size-10" disabled={busy} onClick={() => setText(null)} aria-label={t('dash.outfit.cancel')} title={t('dash.outfit.cancel')}>
+          <X aria-hidden="true" />
+        </Button>
+      </li>
+    )
+  }
+  return (
+    <li className="flex min-w-0 items-stretch border border-border bg-card" data-testid="dash-item-row">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => setText(item.text)}
+        aria-label={t('dash.outfit.rename', { item: item.text })}
+        className="flex min-h-9 min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left text-[13px] leading-snug outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring max-md:min-h-10"
+      >
+        <span className="min-w-0 flex-1 break-words">{item.text}</span>
+        <PencilSimple className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </button>
+      <Button variant="ghost" size="icon" className="h-auto min-h-9 shrink-0 rounded-none border-l border-border text-muted-foreground hover:text-destructive max-md:min-h-10 max-md:w-10" disabled={busy} onClick={() => void remove()} aria-label={t('dash.outfit.remove', { item: item.text })} title={t('dash.outfit.remove', { item: item.text })}>
+        <Trash aria-hidden="true" />
+      </Button>
+    </li>
+  )
+}
+
+/** The card's edit mode: the worn and held items as rows the user can correct or remove. The story text is never touched. */
+function OutfitEdit({ name, items, act }: { name: string; items: DashItem[]; act: NotesAct }) {
+  const t = useT()
+  const groups = [
+    { kind: 'wear' as const, icon: TShirt, label: t('dash.outfit.wearing') },
+    { kind: 'hold' as const, icon: Hand, label: t('dash.outfit.hands') },
+  ]
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5" data-testid="dash-outfit-edit">
+      <p className="text-[12px] leading-snug text-muted-foreground">{t('dash.outfit.editHint')}</p>
+      {items.length === 0 && <p className="border border-dashed border-border px-2.5 py-2 text-[12px] text-muted-foreground">{t('dash.outfit.editEmpty')}</p>}
+      {groups.map((g) => {
+        const mine = items.filter((i) => i.kind === g.kind)
+        if (!mine.length) return null
+        return (
+          <div key={g.kind} className="flex min-w-0 flex-col gap-1">
+            <GroupLabel icon={g.icon}>{g.label}</GroupLabel>
+            <ul className="flex min-w-0 flex-col gap-1">
+              {mine.map((i) => <ItemRow key={i.id} name={name} item={i} act={act} />)}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function OutfitCard({ name, char, here, chatId, onReload, count }: { name: string; char: DashChar; here: WorldHere | null; chatId: string; onReload: () => void; count?: ChangeCount | null }) {
   const t = useT()
+  const dash = useDashMaybe()
+  // the edit mode belongs to one character: looking at another closes it
+  const [editFor, setEditFor] = useState<string | null>(null)
+  const items = ledgerOf(char)
+  // with the World DM as the source the lists are the DM's records, not the Dashboard's items
+  const canEdit = !!dash && here?.carrySource !== 'dm' && (items.length > 0 || editFor === name)
+  const edit = canEdit && editFor === name
+  const toggle = canEdit ? (
+    edit ? (
+      <Button variant="secondary" size="sm" className="max-md:h-10" onClick={() => setEditFor(null)} data-testid="dash-outfit-done">
+        <Check weight="bold" aria-hidden="true" />
+        {t('dash.outfit.done')}
+      </Button>
+    ) : (
+      <Button variant="ghost" size="icon-sm" className="max-md:size-10" onClick={() => setEditFor(name)} aria-label={t('dash.outfit.edit')} title={t('dash.outfit.edit')} data-testid="dash-outfit-edit-toggle">
+        <PencilSimple aria-hidden="true" />
+      </Button>
+    )
+  ) : undefined
   return (
-    <Box title={t('dash.outfit.title')} tone="thing" icon={TShirt} count={count}>
-      <OutfitBody name={name} char={char} here={here} chatId={chatId} onReload={onReload} />
+    <Box title={t('dash.outfit.title')} tone="thing" icon={TShirt} count={count} right={toggle}>
+      {edit && dash ? <OutfitEdit name={name} items={items} act={dash.act} /> : <OutfitBody name={name} char={char} here={here} chatId={chatId} onReload={onReload} />}
     </Box>
   )
 }

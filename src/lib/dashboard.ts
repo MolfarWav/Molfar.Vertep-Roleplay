@@ -123,6 +123,13 @@ export type HistoryLine =
   /** the soul's start values changed after the character entered: the stats shifted by to - from */
   | { turn: number; kind: 'seed'; from: Record<string, number>; to: Record<string, number> }
 
+/** One worn or held item of a character, with the thing's id. */
+export interface DashItem {
+  id: string
+  kind: 'wear' | 'hold'
+  text: string
+}
+
 export interface DashChar {
   cls: SoulClass
   stats: Stats
@@ -136,6 +143,8 @@ export interface DashChar {
   condition: string | null
   outfit: string | null
   holding: string | null
+  /** the items behind `outfit` and `holding`, each with its id; absent on an older plugin, which also means they cannot be corrected by hand */
+  items?: DashItem[]
   goal: string | null
   leads: string | null
   blindSpot: string | null

@@ -9262,6 +9262,38 @@ function notesRoute(req, fsx) {
       state.notHere = notHereOf(state).filter((n) => n.toLowerCase() !== key.toLowerCase());
     }
     fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  } else if (op === "item-remove" || op === "item-rename" || op === "item-put") {
+    // a worn or held item the sensor got wrong (a garment that is long off, a second copy, a state glued to the name):
+    // the user takes it out or corrects its name. The id stays the thing's id, so the sensor goes on from the corrected list.
+    const name = str(b.name);
+    const id = str(b.id);
+    if (!existed || !snap || !isObj(snap.chars) || !ownKey(snap.chars, name) || !isObj(snap.chars[name])) return bad("no such character in the scene state", 404);
+    if (!THING_ID.test(id) && !LEGACY_ID.test(id)) return bad("id required");
+    const text = op === "item-remove" ? "" : itemText(b.text);
+    if (op !== "item-remove" && (!text || !outfitWords(text).length)) return bad("text required");
+    const mine = itemsOf(snap.chars[name]).find((i) => i.id === id);
+    if (op === "item-put") {
+      // the undo of a removal: back into the newest snapshot under the same id
+      if (b.kind !== "wear" && b.kind !== "hold") return bad("kind must be wear or hold");
+      if (mine) return bad("the item is already there", 409);
+      const c = snap.chars[name];
+      c.items = [...itemsOf(c), { id, kind: b.kind, text }];
+      setItemTexts(c);
+    } else {
+      if (!mine) return bad("no such item", 404);
+      // every snapshot that holds it: a swipe reads the turn again from the snapshot before, and the item must not come back from there
+      for (const sn of Object.values(state.snapshots)) {
+        const c = isObj(sn) && isObj(sn.chars) && ownKey(sn.chars, name) ? sn.chars[name] : null;
+        if (!isObj(c)) continue;
+        const its = itemsOf(c);
+        if (!its.some((i) => i.id === id)) continue;
+        c.items = op === "item-remove" ? its.filter((i) => i.id !== id) : its.map((i) => (i.id === id ? { ...i, text } : i));
+        setItemTexts(c);
+        // an outfit emptied by hand is known, not "not described yet"
+        c.outfitSet = true;
+      }
+    }
+    fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
   } else if (op === "merge-character" || op === "apart-characters") {
     if (!existed) return bad("no Dashboard state yet", 404);
     const refused = peopleOp(fsx, chatId, state, ov, op, b);
