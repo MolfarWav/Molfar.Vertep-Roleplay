@@ -13,11 +13,14 @@ import { TONES } from '@/components/ui/tone'
 import { DiceFields } from './dice-fields'
 import { DiceLog } from './dice-log'
 import { CastCard } from './world-cast'
-import { SoFarTiles } from './world-so-far'
+import { TidyCard } from './world-tidy'
+import { WorldRecords } from './world-records'
+import { SoFarTiles, type TileKey } from './world-so-far'
 import { addsChips, limitsSummary, scheduleChips, writesChips } from './world-summaries'
 import { SoulModelPicker } from '@/components/dashboard/soul-model-picker'
 import { useRelativeTime, useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
+import type { BookFilter } from '@/lib/world-records'
 import { useApp } from '@/lib/store'
 import { useWorldProfiles } from '@/lib/world-profiles'
 import { WorldProfilePicker } from './world-profile-picker'
@@ -36,7 +39,6 @@ import {
 import {
   loadWorld,
   loadWorldScenario,
-  peekWorld,
   refreshDice,
   readWholeChat,
   runWorld,
@@ -46,7 +48,6 @@ import {
   useWorldLive,
   type WorldError,
   type WorldLevel,
-  type WorldRecord,
   type WorldScenario,
   type WorldView,
 } from '@/lib/world'
@@ -181,7 +182,8 @@ export function WorldControls({
   const profiles = useWorldProfiles((s) => s.list)
   const running = useWorldLive((s) => !!s.running[chatId])
   const [missing, setMissing] = useState(false)
-  const [records, setRecords] = useState<WorldRecord[] | null>(null)
+  // the world book dialog: open at a kind (a tile of "So far") or at All ("Look at the world"); null = closed
+  const [book, setBook] = useState<{ kind: BookFilter } | null>(null)
   const [confirm, confirmDialog] = useConfirm()
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
@@ -297,14 +299,8 @@ export function WorldControls({
     }
   }
 
-  const lookAtWorld = async () => {
-    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo'), destructive: false }))) return
-    try {
-      setRecords(await peekWorld(chatId))
-    } catch (e) {
-      toast.error(errText(e))
-    }
-  }
+  // the spoiler question lives in WorldRecords (useWorldBook): a played chat opens at once, a world built by Start before the story asks
+  const openBook = (kind: TileKey | 'all') => setBook({ kind })
 
   const level = view.settings.level
   const on = level !== 'off'
@@ -480,13 +476,16 @@ export function WorldControls({
   // Card 4: people coming back (#424). Every level has it; the DM off dims it.
   const castCard = <CastCard chatId={chatId} view={view} save={save} on={on} />
 
+  // Card 5: tidying the book (#424, step 3): things that played out go to the Archive by code; the switch, "Tidy now" and the log
+  const tidyCard = <TidyCard chatId={chatId} view={view} save={save} on={on} />
+
   const soFarSection = (
     <section className="flex flex-col gap-3" aria-live="polite">
       <h3 className="flex items-center gap-2 text-heading font-semibold">
         <HeadingMark tone="sky" />
         {t('world.status')}
       </h3>
-      <SoFarTiles records={view.records} retired={view.retired} fronts={events ? view.fronts : undefined} runs={view.usage.runs} />
+      <SoFarTiles kinds={view.kinds} notes={view.notes} archive={view.archive} fronts={events ? view.fronts : undefined} runs={view.usage.runs} onOpen={openBook} />
       {((view.direction) || (events && view.eventWaiting)) && (
         <div className="flex flex-wrap gap-1.5">
           {view.direction && <Chip tone="sky">{t('world.direction', { d: t(`world.dir.${view.direction}` as MsgKey) })}</Chip>}
@@ -538,8 +537,8 @@ export function WorldControls({
             {t('world.save.btn')}
           </Button>
         )}
-        {view.records + view.retired > 0 && (
-          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => void lookAtWorld()}>
+        {view.records + view.archive > 0 && (
+          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => openBook('all')} data-testid="look-at-world">
             {t('world.peek')}
           </Button>
         )}
@@ -612,6 +611,7 @@ export function WorldControls({
             {writesCard}
             {addsCard}
             {castCard}
+            {tidyCard}
           </div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{soFarSection}</div>
           <div className={cn('flex flex-col', wide && 'lg:col-start-1 lg:row-start-auto')}>{modelSection}</div>
@@ -626,27 +626,19 @@ export function WorldControls({
         defaultCharId={chatCharId}
         onCreate={onNavigate}
       />
-      <Dialog open={records !== null} onOpenChange={(o) => { if (!o) setRecords(null) }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <Dialog open={book !== null} onOpenChange={(o) => { if (!o) setBook(null) }}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-3 overflow-y-auto sm:max-w-[620px] max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0" data-testid="world-book-dialog">
           <DialogHeader>
-            <DialogTitle>{t('world.peekTitle')}</DialogTitle>
-            <DialogDescription>{t('world.peekLead')}</DialogDescription>
+            <DialogTitle>{t('world.book.title')}</DialogTitle>
+            {/* the list below has its own lead line; this one is for screen readers */}
+            <DialogDescription className="sr-only">{t('world.book.lead')}</DialogDescription>
           </DialogHeader>
-          <ul className="flex flex-col gap-3">
-            {(records ?? []).map((r) => (
-              <li key={r.id} className={cn('rounded-md border border-border p-2.5 text-body', r.status === 'past' && 'opacity-70')}>
-                <p className="font-medium">
-                  {r.name}
-                  <span className="ml-2 text-caption font-normal text-muted-foreground">
-                    {t(`world.kind.${r.kind}` as MsgKey)}
-                    {r.status === 'past' ? ` · ${t('world.past')}` : ''}
-                  </span>
-                </p>
-                {r.aliases.length > 0 && <p className="text-caption text-muted-foreground">{r.aliases.join(', ')}</p>}
-                <p className="mt-1 text-muted-foreground">{r.text}</p>
-              </li>
-            ))}
-          </ul>
+          {where === 'sheet' && (
+            <Button variant="ghost" size="sm" className="self-start max-md:h-10" onClick={() => { setBook(null); onNavigate?.(); useApp.getState().focusWorldChat(chatId) }} data-testid="book-open-world">
+              {t('world.book.openWorld')}
+            </Button>
+          )}
+          {book && <WorldRecords wref={{ chatId }} initialKind={book.kind} />}
         </DialogContent>
       </Dialog>
     </>

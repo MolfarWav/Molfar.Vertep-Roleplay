@@ -32,10 +32,11 @@ const SHOWN = 10
 export function castLine(t: T, r: WorldDiceRoll): string {
   const band = t(`world.cast.band.${r.band ?? 'small'}` as MsgKey)
   const result = r.result ? t(`world.cast.result.${r.result}` as MsgKey) : t('world.cast.result.waiting')
-  if (r.via === 'life') return t('world.cast.roll.life', { who: r.who, band, tier: r.tier ? t(`world.dice.tier.${r.tier}` as MsgKey) : '', silence: r.silence ?? 0 }) + ` · ${result}`
+  const seen = r.seen !== undefined ? ` · ${t('world.cast.named', { n: r.seen })}` : ''
+  if (r.via === 'life') return t('world.cast.roll.life', { who: r.who, band, tier: r.tier ? t(`world.dice.tier.${r.tier}` as MsgKey) : '', silence: r.silence ?? 0 }) + seen + ` · ${result}`
   const [d1, d2] = r.d ?? [0, 0]
   const mods = (r.mod ? ` +${r.mod} ${t('world.cast.mod.silence')}` : '') + (r.weight ? ` +${r.weight} ${t('world.cast.mod.weight')}` : '')
-  return t('world.cast.roll.silence', { who: r.who, band, silence: r.silence ?? 0, threshold: r.threshold ?? 0, d1, d2, mods, total: r.total ?? d1 + d2 }) + ` · ${result}`
+  return t('world.cast.roll.silence', { who: r.who, band, silence: r.silence ?? 0, threshold: r.threshold ?? 0, d1, d2, mods, total: r.total ?? d1 + d2 }) + seen + (r.floor ? ` · ${t('world.cast.floor')}` : '') + ` · ${result}`
 }
 
 /** The bench and the entrance as the chat stands now (GET /world/cast); read on mount and whenever `stamp` changes (a run, a settings save) or on Refresh. */
@@ -67,7 +68,7 @@ function CastStatus({ chatId, stamp, lore }: { chatId: string; stamp: string; lo
         )}
         {cast.last && (
           <p className="text-caption text-muted-foreground">
-            {t(cast.last.ok ? 'world.cast.lastCame' : 'world.cast.lastMissed', { name: cast.people.find((p) => p.id === cast.last?.id)?.name ?? cast.last.id })}
+            {t(cast.last.res === 'mentioned' ? 'world.cast.lastMentioned' : cast.last.ok ? 'world.cast.lastCame' : 'world.cast.lastMissed', { name: cast.people.find((p) => p.id === cast.last?.id)?.name ?? cast.last.id })}
           </p>
         )}
         {cast.freq !== 'off' && cast.wait > 0 && <p className="text-caption text-muted-foreground">{t('world.cast.wait', { n: cast.wait })}</p>}
@@ -78,7 +79,7 @@ function CastStatus({ chatId, stamp, lore }: { chatId: string; stamp: string; lo
               <li key={p.id} className="flex flex-col gap-0.5 text-caption" data-testid="cast-person">
                 <span className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5', p.due ? 'text-foreground' : 'text-muted-foreground')}>
                   <span className="font-medium">{p.name}</span>
-                  <span>{t('world.cast.silent', { silence: p.silence, threshold: p.threshold })}</span>
+                  <span>{t('world.cast.silent', { silence: p.silence, threshold: p.threshold })}{p.named < p.silence ? ` · ${t('world.cast.named', { n: p.named })}` : ''}</span>
                   {p.due && <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-caption leading-none text-amber-700 dark:text-amber-300">{t('world.cast.tag.due')}</span>}
                 </span>
                 <span className="text-caption text-muted-foreground">

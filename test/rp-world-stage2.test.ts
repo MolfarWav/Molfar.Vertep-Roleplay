@@ -64,16 +64,29 @@ describe('world records: the list', () => {
     rec({ id: 'b', name: 'Old Mill', kind: 'place', status: 'past', at: 9 }),
     rec({ id: 'c', name: 'Guild', kind: 'group', at: 7 }),
   ]
-  it('active first, newest first; retired last', () => {
-    expect(filterRecords(list, 'all', '').map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  it('All lists the active records, newest first; the retired ones are in the Archive', () => {
+    expect(filterRecords(list, 'all', '').map((r) => r.id)).toEqual(['c', 'a'])
+    expect(filterRecords(list, 'archive', '').map((r) => r.id)).toEqual(['b'])
   })
-  it('filters by kind and searches names and aliases', () => {
-    expect(filterRecords(list, 'place', '').map((r) => r.id)).toEqual(['b'])
+  it('a tidied-up thing is in the Archive too', () => {
+    const more = [...list, rec({ id: 'd', name: 'Cup', kind: 'thing', status: 'dormant', at: 2 })]
+    expect(filterRecords(more, 'archive', '').map((r) => r.id)).toEqual(['b', 'd'])
+    expect(filterRecords(more, 'thing', '')).toEqual([])
+  })
+  it('filters by kind and searches names, aliases and text', () => {
+    expect(filterRecords(list, 'group', '').map((r) => r.id)).toEqual(['c'])
     expect(filterRecords(list, 'all', 'miller').map((r) => r.id)).toEqual(['a'])
-    expect(filterRecords(list, 'all', 'MILL').map((r) => r.id)).toEqual(['a', 'b'])
+    expect(filterRecords(list, 'all', 'GUILD').map((r) => r.id)).toEqual(['c'])
+    // the text is searched too
+    const texty = [rec({ id: 'x', name: 'Tavern', kind: 'place', text: 'Everybody pays a toll at the door.' })]
+    expect(filterRecords(texty, 'all', 'toll').map((r) => r.id)).toEqual(['x'])
   })
-  it('counts per kind', () => {
-    expect(countByKind(list)).toEqual({ all: 3, person: 1, place: 1, group: 1, thing: 0, fact: 0 })
+  it('old notes: the longest first, so what cannot go to the Litopys as it is comes up at once', () => {
+    const notes = [rec({ id: 'n1', name: 'A', kind: 'fact', text: 'short', at: 9 }), rec({ id: 'n2', name: 'B', kind: 'fact', text: 'a much longer note than the other', at: 1 })]
+    expect(filterRecords(notes, 'fact', '').map((r) => r.id)).toEqual(['n2', 'n1'])
+  })
+  it('counts the active records per kind, and the Archive apart', () => {
+    expect(countByKind(list)).toEqual({ all: 2, archive: 1, person: 1, place: 0, group: 1, thing: 0, fact: 0 })
   })
   it('parses aliases: trimmed, no empties, no repeats', () => {
     expect(parseAliases(' Mira, mira ,, the miller;Mirka\n')).toEqual(['Mira', 'the miller', 'Mirka'])

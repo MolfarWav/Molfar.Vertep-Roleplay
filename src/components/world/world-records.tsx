@@ -13,16 +13,27 @@ import { Textarea } from '@/components/ui/textarea'
 import { useT } from '@/hooks/use-t'
 import { ApiError } from '@/lib/engine'
 import { cn } from '@/lib/utils'
-import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT } from '@/lib/world-records'
-import { editWorldRecord, fillWorldKeys, peekWorld, WORLD_RELATIONS, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef, type WorldRelation } from '@/lib/world'
+import { countByKind, filterRecords, KINDS, parseAliases, TEXT_LIMIT, type BookFilter } from '@/lib/world-records'
+import { addLitFact } from '@/components/library/litopys-api'
+import { editWorldRecord, fillWorldKeys, peekWorld, WORLD_RELATIONS, WORLD_WHYS, type WorldKind, type WorldRecord, type WorldRecordOp, type WorldRef, type WorldRelation, type WorldWhy } from '@/lib/world'
 import { useWorldBook } from './use-world-book'
 import type { MsgKey } from '@/lib/i18n'
 import { KIND_TONE } from './world-common'
 
+/** The stripe on the left of a card, in its type's colour. */
+const STRIPE: Record<WorldKind, string> = {
+  person: 'border-l-pink-500',
+  place: 'border-l-teal-500',
+  group: 'border-l-violet-500',
+  thing: 'border-l-amber-500',
+  fact: 'border-l-sky-500',
+}
+const ARCHIVE_TONE = 'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300'
+
 export function KindChip({ kind, className }: { kind: WorldKind; className?: string }) {
   const t = useT()
   return (
-    <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[11px] font-medium leading-none', KIND_TONE[kind], className)}>
+    <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-caption font-medium leading-none', KIND_TONE[kind], className)}>
       {t(`world.kind.${kind}` as MsgKey)}
     </span>
   )
@@ -42,6 +53,8 @@ interface Form {
   where: 'place' | 'holder' | 'none'
   place: string
   holder: string
+  /** a thing: why it is in the book ('' = no reason) */
+  why: WorldWhy | ''
   /** a person or a faction: what they are to the player's character ('' = not set), their weight ('auto' = the relation decides), and (a person) whether the DM brings them back */
   relation: WorldRelation | ''
   weight: 'auto' | 0 | 1 | 2
@@ -59,6 +72,7 @@ const formOf = (r: Pick<WorldRecord, 'name' | 'kind' | 'aliases' | 'text'> & Par
   where: r.holder ? 'holder' : 'place',
   place: r.place ?? '',
   holder: r.holder ?? '',
+  why: r.why ?? '',
   relation: r.relation ?? '',
   weight: r.weight === 0 || r.weight === 1 || r.weight === 2 ? r.weight : 'auto',
   bring: r.noReturn !== true,
@@ -73,7 +87,7 @@ function spaceOf(f: Form): Partial<WorldRecord> {
     return { ...members, relation: f.relation, weight: f.weight === 'auto' ? null : f.weight, ...(f.kind === 'person' ? { noReturn: !f.bring } : {}) }
   }
   if (f.kind === 'place') return { size: f.spot ? 'spot' : '', inside: f.spot ? f.inside.trim() : '', ...members }
-  if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '' }
+  if (f.kind === 'thing') return { holder: f.where === 'holder' ? f.holder.trim() : '', place: f.where === 'place' ? f.place.trim() : '', why: f.why }
   return members
 }
 
@@ -164,7 +178,7 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
       <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.kind')}>
         <span className="font-medium">{t('world.rec.kind')}</span>
         <div className="flex flex-wrap gap-1.5">
-          {KINDS.map((k) => (
+          {(initial.kind === 'fact' ? [...KINDS, 'fact' as WorldKind] : KINDS).map((k) => (
             <button
               key={k}
               type="button"
@@ -233,6 +247,24 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
           {f.where === 'holder' && (
             <Input value={f.holder} maxLength={80} placeholder={t('world.rec.holderPh')} aria-label={t('world.rec.where.holder')} onChange={(e) => setF({ ...f, holder: e.target.value })} className="h-10 md:h-9" />
           )}
+          <div className="flex flex-col gap-1 text-sm" role="radiogroup" aria-label={t('world.rec.why')} data-testid="record-why-pick">
+            <span className="font-medium">{t('world.rec.why')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {(['', ...WORLD_WHYS] as const).map((v) => (
+                <button
+                  key={v || 'none'}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.why === v}
+                  onClick={() => setF({ ...f, why: v })}
+                  className={cn('inline-flex h-9 items-center rounded-full border px-3 text-xs font-medium transition-colors max-md:h-10', f.why === v ? cn(KIND_TONE.thing, 'ring-1 ring-current') : 'border-border text-muted-foreground hover:bg-accent')}
+                >
+                  {v ? t(`world.why.${v}` as MsgKey) : t('world.rec.why.none')}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">{t('world.rec.whyHint')}</span>
+          </div>
         </div>
       )}
       {(f.kind === 'person' || f.kind === 'group') && (
@@ -317,8 +349,13 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
   )
 }
 
-function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, placeNames }: {
+function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, placeNames, foldTargets, canLit, onFold, onToLit }: {
   placeNames: string[]
+  /** old notes: the places and factions a note can be folded into, and whether the chat has a Litopys to move it to */
+  foldTargets: WorldRecord[]
+  canLit: boolean
+  onFold: (targetId: string) => void
+  onToLit: () => void
   r: WorldRecord
   editing: boolean
   busy: boolean
@@ -329,20 +366,23 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
   onPin: (pinned: boolean) => void
 }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
+  const [target, setTarget] = useState('')
   if (editing) {
     return <RecordForm initial={formOf(r)} past={r.status === 'past'} busy={busy} onSave={onSave} onCancel={onCancel} onDelete={() => onOp('delete')} placeNames={placeNames} />
   }
   const past = r.status === 'past'
   const dormant = r.status === 'dormant'
   return (
-    <li className={cn('rounded-md border border-border bg-card p-3 text-sm', (past || dormant) && 'bg-muted/40')} data-testid="world-record" data-status={r.status}>
+    <li className={cn('rounded-md border border-l-4 border-border bg-card p-3 text-sm', STRIPE[r.kind], (past || dormant) && 'bg-muted/40')} data-testid="world-record" data-status={r.status}>
       <div className={cn('flex flex-wrap items-center gap-x-2 gap-y-1', past && 'opacity-70')}>
         <span className="min-w-0 break-words font-medium">{r.name}</span>
         <KindChip kind={r.kind} />
-        {past && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{t('world.past')}</span>}
-        {r.by === 'player' && <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] leading-none text-primary">{t('world.rec.byYou')}</span>}
+        {past && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground">{t('world.past')}</span>}
+        {r.by === 'player' && <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-caption leading-none text-primary">{t('world.rec.byYou')}</span>}
         {r.status === 'dormant' && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" data-testid="record-dormant">{t('world.rec.tag.dormant')}</span>}
         {(r.kind === 'person' || r.kind === 'group') && r.relation && <span className={cn('rounded-full border px-1.5 py-0.5 text-caption leading-none', KIND_TONE[r.kind])} data-testid="record-relation">{t(`world.relation.${r.relation}` as MsgKey)}</span>}
+        {r.kind === 'thing' && r.why && <span className={cn('rounded-full border px-1.5 py-0.5 text-caption leading-none', KIND_TONE.thing)} data-testid="record-why">{t(`world.why.${r.why}` as MsgKey)}</span>}
         {r.link && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" title={t('world.rec.tag.linkedTip', { title: r.link.title })} data-testid="record-linked">{t('world.rec.tag.linked')}</span>}
         {r.kind === 'person' && r.noReturn && <span className="rounded-full border border-border bg-muted px-1.5 py-0.5 text-caption leading-none text-muted-foreground" data-testid="record-no-return">{t('world.rec.tag.noReturn')}</span>}
       </div>
@@ -356,7 +396,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
       ) : null}
       {r.aliases.length > 0 && (
         <ul className={cn('mt-1 flex flex-wrap items-center gap-1', past && 'opacity-70')} aria-label={t('world.rec.keys')} data-testid="record-keys">
-          <li className="mr-0.5 text-[11px] text-muted-foreground">{t('world.rec.keys')}</li>
+          <li className="mr-0.5 text-caption text-muted-foreground">{t('world.rec.keys')}</li>
           {r.aliases.map((k) => (
             <li key={k} className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{k}</li>
           ))}
@@ -372,8 +412,35 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
           {r.kind === 'place' ? t('world.rec.spotOf', { name: r.inside ?? '' }) : r.holder ? t('world.rec.heldBy', { name: r.holder }) : t('world.rec.at', { name: r.place ?? '' })}
         </p>
       ) : null}
-      <p className={cn('mt-1.5 whitespace-pre-wrap break-words text-muted-foreground', past && 'opacity-70')}>{r.text}</p>
+      <p className={cn('mt-1.5 whitespace-pre-wrap break-words text-muted-foreground', past && 'opacity-70', !open && 'line-clamp-2')} data-testid="record-text">{r.text}</p>
+      {r.text.length > 140 && (
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-0.5 text-caption text-primary underline-offset-2 hover:underline max-md:min-h-10">
+          {open ? t('world.rec.less') : t('world.rec.more')}
+        </button>
+      )}
       {r.pinned && !past && <p className="mt-1 text-xs text-muted-foreground">{t('world.rec.pinHint')}</p>}
+      {r.kind === 'fact' && !past && !dormant && (
+        <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-sky-500/30 bg-sky-500/5 p-2" data-testid="note-actions">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              aria-label={t('world.notes.foldPick')}
+              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-sm max-md:h-10"
+            >
+              <option value="">{t('world.notes.foldPick')}</option>
+              {foldTargets.map((x) => <option key={x.id} value={x.id}>{x.name} · {t(`world.kind.${x.kind}` as MsgKey)}</option>)}
+            </select>
+            <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy || !target} onClick={() => onFold(target)} data-testid="note-fold">{t('world.notes.foldGo')}</Button>
+          </div>
+          {canLit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy || r.text.length > 300} onClick={onToLit} data-testid="note-lit">{t('world.notes.toLit')}</Button>
+              {r.text.length > 300 && <span className="text-caption text-muted-foreground">{t('world.notes.tooLongLit')}</span>}
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={onEdit}>
           <PencilSimple className="size-4" aria-hidden="true" />{t('world.rec.edit')}
@@ -400,20 +467,22 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
   )
 }
 
-export function WorldRecords({ wref, gated, initial }: {
+export function WorldRecords({ wref, gated, initial, initialKind }: {
   /** a chat's world or a saved world */
   wref: WorldRef
   /** a saved world: whether it asks the spoiler question (a chat's world reads that itself) */
   gated?: boolean
   /** records already read (another tab did), the one to edit first, or a new place or thing to add */
   initial?: { records: WorldRecord[]; editId?: string; add?: 'place' | 'thing' }
+  /** the chip the list opens on (a tile of the chat panel opens it at its kind) */
+  initialKind?: BookFilter
 }) {
   const t = useT()
   const chatId = 'chatId' in wref ? wref.chatId : null
   const [confirm, confirmDialog] = useConfirm()
   const book = useWorldBook(wref, { gated, initial: initial?.records })
   const { records, setRecords } = book
-  const [kind, setKind] = useState<WorldKind | 'all'>('all')
+  const [kind, setKind] = useState<BookFilter>(initialKind ?? 'all')
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(initial?.editId ?? null)
   const [adding, setAdding] = useState(!!initial?.add)
@@ -459,6 +528,34 @@ export function WorldRecords({ wref, gated, initial }: {
     }
   }
 
+  const foldTargets = useMemo(() => (records ?? []).filter((r) => r.status === 'active' && (r.kind === 'place' || r.kind === 'group')), [records])
+
+  /** An old note joins the text of a place or a faction, and leaves the book. */
+  const fold = async (note: WorldRecord, targetId: string) => {
+    const target = (records ?? []).find((r) => r.id === targetId)
+    if (!target) return
+    const joined = `${target.text.trim()} ${note.text.trim()}`.trim()
+    if (joined.length > TEXT_LIMIT.active) { toast.error(t('world.notes.long', { name: target.name, max: TEXT_LIMIT.active })); return }
+    if (!(await confirm({ title: t('world.notes.foldTitle', { note: note.name, target: target.name }), description: t('world.notes.foldWarn'), actionLabel: t('world.notes.foldGo'), destructive: false }))) return
+    if (await run('update', { id: target.id, text: joined }) && (await run('delete', { id: note.id }))) toast.success(t('world.notes.foldDone'))
+  }
+
+  /** An old note becomes a fact of the Litopys that everybody knows, and leaves the book. */
+  const toLit = async (note: WorldRecord) => {
+    if (!chatId) return
+    if (!(await confirm({ title: t('world.notes.litTitle', { note: note.name }), description: t('world.notes.litWarn'), actionLabel: t('world.notes.toLit'), destructive: false }))) return
+    setBusy(true)
+    try {
+      await addLitFact(chatId, { text: note.text.trim().slice(0, 300), subject: note.name, knownBy: 'all' })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    if (await run('delete', { id: note.id })) toast.success(t('world.notes.litDone'))
+  }
+
   const onOp = async (r: WorldRecord, op: 'retire' | 'restore' | 'delete') => {
     if (op === 'delete' && !(await confirm({ title: t('world.rec.deleteTitle', { name: r.name }), description: t('world.rec.deleteWarn'), actionLabel: t('world.rec.delete') }))) return
     await run(op, { id: r.id })
@@ -499,26 +596,36 @@ export function WorldRecords({ wref, gated, initial }: {
       </div>
 
       <div role="group" aria-label={t('world.rec.kind')} className="flex flex-wrap gap-1.5">
-        {(['all', ...KINDS] as const).map((k) => {
+        {(['all', ...KINDS, 'fact', 'archive'] as const).map((k) => {
           const on = kind === k
+          // an empty kind is hidden; the old notes and the Archive only while there is something (or while they are the open chip)
           if (k !== 'all' && counts[k] === 0 && !on) return null
+          const tone = k === 'all' ? '' : k === 'archive' ? ARCHIVE_TONE : KIND_TONE[k]
           return (
             <button
               key={k}
               type="button"
               aria-pressed={on}
+              data-testid={`chip-${k}`}
               onClick={() => setKind(k)}
               className={cn(
                 'inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors max-md:h-10',
-                on ? (k === 'all' ? 'border-primary bg-primary text-primary-foreground' : cn(KIND_TONE[k], 'ring-1 ring-current')) : 'border-border text-muted-foreground hover:bg-accent',
+                k === 'all' ? (on ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-accent') : cn(tone, on ? 'ring-1 ring-current font-semibold' : 'opacity-80 hover:opacity-100'),
               )}
             >
-              {k === 'all' ? t('world.rec.all') : t(`world.kind.${k}` as MsgKey)}
+              {k === 'all' ? t('world.rec.all') : t(`world.kinds.${k}` as MsgKey)}
               <span className="tabular-nums opacity-80">{counts[k]}</span>
             </button>
           )
         })}
       </div>
+
+      {counts.fact > 0 && kind !== 'fact' && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-sky-500/30 bg-sky-500/5 p-3" data-testid="notes-banner">
+          <span className="min-w-0 flex-1 text-sm">{t('world.notes.banner', { n: counts.fact })}</span>
+          <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => setKind('fact')}>{t('world.notes.review')}</Button>
+        </div>
+      )}
 
       {chatId && (keyless > 0 || fillMsg || fillErr) && (
         <div className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-3" data-testid="records-fill">
@@ -538,7 +645,7 @@ export function WorldRecords({ wref, gated, initial }: {
 
       {adding && (
         <RecordForm
-          initial={formOf({ name: '', kind: kind === 'all' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
+          initial={formOf({ name: '', kind: kind === 'all' || kind === 'archive' || kind === 'fact' ? (initial?.add ?? 'person') : kind, aliases: [], text: '' })}
           placeNames={placeNames}
           past={false}
           busy={busy}
@@ -548,7 +655,7 @@ export function WorldRecords({ wref, gated, initial }: {
       )}
 
       {records.length === 0 && !adding && <p className="py-6 text-center text-sm text-muted-foreground">{t('world.rec.empty')}</p>}
-      {records.length > 0 && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">{t('world.rec.noMatch')}</p>}
+      {records.length > 0 && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">{kind === 'archive' && !query.trim() ? t('world.rec.archiveEmpty') : t('world.rec.noMatch')}</p>}
 
       <ul className="flex flex-col gap-2">
         {shown.map((r) => (
@@ -565,6 +672,10 @@ export function WorldRecords({ wref, gated, initial }: {
             }}
             onOp={(op) => void onOp(r, op)}
             onPin={(pinned) => void run('update', { id: r.id, pinned })}
+            foldTargets={foldTargets}
+            canLit={!!chatId}
+            onFold={(targetId) => void fold(r, targetId)}
+            onToLit={() => void toLit(r)}
           />
         ))}
       </ul>

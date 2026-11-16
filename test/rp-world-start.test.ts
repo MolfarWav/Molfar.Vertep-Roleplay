@@ -35,7 +35,8 @@ describe("world start: recipes", () => {
     const heist = recipeOf(fsx, "heist")!;
     expect(heist.builtin).toBe(false);
     expect(heist.fronts.count).toBe(8);
-    expect(heist.sections[0]!.kinds).toEqual(["person", "place", "group", "thing", "fact"]);
+    // a recipe with no kinds writes the four kinds; facts are not records any more (#424, step 3)
+    expect(heist.sections[0]!.kinds).toEqual(["person", "place", "group", "thing"]);
   });
 });
 

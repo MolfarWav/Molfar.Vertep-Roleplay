@@ -73,11 +73,13 @@ describe("world state", () => {
         { id: "n1", kind: "person", name: "A", text: "x", status: "active" },
         { id: "n1", kind: "person", name: "dup", text: "y" },
         { id: "bad", name: "B" },
-        { id: "n7", kind: "weird", name: "C", text: "z", status: "past", aliases: ["C", "Cee", ""] },
+        // an old note is still read; a kind nobody knows is dropped, not turned into a note (#424, step 3)
+        { id: "n7", kind: "fact", name: "C", text: "z", status: "past", aliases: ["C", "Cee", ""] },
+        { id: "n8", kind: "weird", name: "D", text: "w" },
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false, tidy: true });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -162,7 +164,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false, tidy: true });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -1242,10 +1244,8 @@ describe("step 2 on the routes and the hook", () => {
     const c = sweepCandidates(state, scene as any);
     // "School" is in the book; the corridor and the changing room are not; two words of a name count as the same name
     expect(c.places).toEqual(["school corridor", "the locked changing room"]);
-    expect(c.things).toEqual([
-      { name: "pink soft knit cardigan", where: "on the bench", place: "school corridor" },
-      { name: "gym bag", where: "by the door", place: "the locked changing room" },
-    ]);
+    // things are not offered any more (#424, step 3): the DM records a thing that has a reason
+    expect(c.things).toEqual([]);
     const msgs = [msg(1, "user", "Hi"), msg(2, "char", "Hello"), msg(3, "user", "Go"), msg(4, "char", "Here.")];
     expect(dueReason(state, msgs as any, scene as any)).toBe("sweep");
     // nothing to offer: nothing is due
@@ -1258,7 +1258,7 @@ describe("step 2 on the routes and the hook", () => {
     const input = dmInput({ cards: [], userName: "You", entities: state.entities, msgs: [], level: "chronicler", sweep: c } as any);
     expect(input).toContain("Named in the story by the scene tracker, with no record yet");
     expect(input).toContain("Places: school corridor; the locked changing room.");
-    expect(input).toContain("Things: pink soft knit cardigan (on the bench, in school corridor); gym bag (by the door, in the locked changing room).");
+    expect(input).not.toContain("Things:");
     const asked = { ...state, sweepAsked: ["school corridor", "the locked changing room", "pink soft knit cardigan", "gym bag"] };
     expect(sweepCandidates(asked as any, scene as any)).toEqual({ places: [], things: [] });
     expect(normalizeState({ ...asked }, "c1").sweepAsked).toEqual(asked.sweepAsked);

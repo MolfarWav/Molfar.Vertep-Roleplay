@@ -106,7 +106,12 @@ const HARD_LEVELS = ["director", "antagonist", "chaos"];
 export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
 /** Stagnation threshold per direction: x2 slow, x0.5 fast, 0 = the counter is paused. */
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
+// every kind a record may have when it is read (an old "fact" still shows); WRITE_KINDS = what the DM and the player may write now:
+// facts live in the Litopys, a world fact is folded into the text of its place or group (#424, step 3)
 export const KINDS = ["person", "place", "group", "thing", "fact"];
+export const WRITE_KINDS = ["person", "place", "group", "thing"];
+// why a thing is in the book: a clue, a hidden thing, a promise, a gift, a weapon, something people fight over (clue, hidden and promise are never tidied away)
+export const WHYS = ["clue", "hidden", "promise", "gift", "weapon", "contested"];
 // a person or a group stands to the player's character as one of these (colour, and where the weight comes from)
 export const RELATIONS = ["ally", "family", "rival", "enemy", "neutral"];
 // how much a person weighs in the story: 0 an acquaintance, 1 a friend or a rival, 2 family, a partner or a central figure
@@ -114,7 +119,7 @@ export const WEIGHTS = [0, 1, 2];
 // how often a person who has been away is brought back (#424); a new chat starts on normal, a chat that had a state file before stays off until the player asks
 export const CAST_FREQ = ["off", "rare", "normal", "often"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off" };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1123,6 +1128,8 @@ function cleanSettings(s) {
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_SETTINGS.cast,
     // a small mark under each reply that had a person come back, with who, why and the dice (the chat's own; for testing)
     castShow: b.castShow === true,
+    // the code tidy-up of things that played out (#424, step 3); on unless the player switched it off
+    tidy: typeof b.tidy === "boolean" ? b.tidy : DEFAULT_SETTINGS.tidy,
   };
 }
 
@@ -1156,7 +1163,45 @@ function cleanEvent(e) {
 }
 
 export const CAST_BANDS = ["small", "medium", "big"];
+const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
+
+const TIDY_LOG_MAX = 60;
+const SIGNALS_MAX = 200;
+const SIGNAL_OPS = ["delete", "retire", "restore", "pin", "add", "edit"];
+
+/** One line of the tidy-up log: which thing, archived or woken, by whom (code or the DM naming it again), and the count that decided it. */
+function cleanTidyLine(l) {
+  if (!isObj(l) || !RECORD_ID.test(str(l.id)) || !["archive", "wake"].includes(l.act) || !Number.isFinite(l.at)) return null;
+  return { at: l.at, n: Number.isInteger(l.n) && l.n >= 0 ? l.n : 0, id: str(l.id), name: cut(str(l.name), NAME_MAX), act: l.act, count: Number.isInteger(l.count) && l.count >= 0 ? l.count : 0, via: l.via === "dm" ? "dm" : "code", ...(WHYS.includes(l.why) ? { why: l.why } : {}) };
+}
+
+/** One thing the player did to the book: what, which record (its name and a short text), who made it, and for an edit the text's length before and after. */
+function cleanSignal(g) {
+  if (!isObj(g) || !SIGNAL_OPS.includes(g.op) || !Number.isFinite(g.at)) return null;
+  const name = cut(str(g.name), NAME_MAX);
+  if (!name) return null;
+  return { at: g.at, op: g.op, kind: KINDS.includes(g.kind) ? g.kind : "thing", name, madeBy: g.madeBy === "player" ? "player" : "dm", ...(str(g.text) ? { text: cut(str(g.text), 120) } : {}), ...(Number.isInteger(g.lenBefore) && g.lenBefore >= 0 ? { lenBefore: g.lenBefore } : {}), ...(Number.isInteger(g.lenAfter) && g.lenAfter >= 0 ? { lenAfter: g.lenAfter } : {}) };
+}
+
+/** Writes a signal into the state (the player's own action: not in CORE_KEYS). */
+function noteSignal(state, sig) {
+  state.signals = [...arr(state.signals), { at: Date.now(), ...sig }].slice(-SIGNALS_MAX);
+}
+
+/** The names the player deleted and did not bring back, newest first: the DM does not record them again (and is told so). */
+export function removedNames(state, max = 30) {
+  const out = [];
+  const done = new Set();
+  const list = arr(state.signals);
+  for (let i = list.length - 1; i >= 0 && out.length < max; i--) {
+    const key = str(list[i].name).toLowerCase();
+    if (done.has(key)) continue;
+    done.add(key);
+    if (list[i].op === "delete") out.push(list[i].name);
+  }
+  return out;
+}
 
 /** A person coming back (#424), waiting to be judged: who, how big, how long they were away, sent (how many replies carried it), retried once. */
 function cleanEntrance(e) {
@@ -1173,6 +1218,10 @@ function cleanEntrance(e) {
     ...(Number.isInteger(e.threshold) && e.threshold >= 0 ? { threshold: e.threshold } : {}),
     ...(typeof e.tier === "string" && LIFE_BAND[e.tier] ? { tier: e.tier } : {}),
     silence: Number.isInteger(e.silence) && e.silence >= 0 ? e.silence : 0,
+    // replies since the person was last named (never more than the silence on stage), shown in the log when it differs
+    ...(Number.isInteger(e.seen) && e.seen >= 0 ? { seen: e.seen } : {}),
+    // the die's band was raised to medium because the last return only ended as a mention
+    ...(e.floor === true ? { floor: true } : {}),
     via: e.via === "life" ? "life" : "silence",
     sent: Number.isInteger(e.sent) && e.sent > 0 ? e.sent : 0,
     retried: e.retried === true,
@@ -1185,7 +1234,9 @@ function cleanEntrance(e) {
 /** The last entrance that was judged: the number of replies then (the gap between two is counted from it) and whether the person came. */
 function cleanLastEntrance(e) {
   if (!isObj(e) || !RECORD_ID.test(str(e.id)) || !Number.isInteger(e.n) || e.n < 0) return null;
-  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: e.ok === true };
+  // res: came (on stage), mentioned (only named) or missed; an older record has ok only
+  const res = CAST_RESULTS.includes(e.res) ? e.res : e.ok === true ? "came" : "missed";
+  return { id: str(e.id), n: e.n, band: CAST_BANDS.includes(e.band) ? e.band : "small", ok: res === "came", res };
 }
 
 function cleanAliases(v, name) {
@@ -1231,13 +1282,14 @@ function spaceFields(kind, raw) {
   } else if (kind === "thing") {
     if (str(raw.holder)) out.holder = cut(str(raw.holder), NAME_MAX);
     else if (str(raw.place)) out.place = cut(str(raw.place), NAME_MAX);
+    if (WHYS.includes(raw.why)) out.why = raw.why;
   }
   return out;
 }
 
 /** The DM's update of a record's space fields (in place): a key that is sent changes it, "" clears it. True when something changed. */
 function applySpace(e, raw) {
-  const keys = e.kind === "place" ? ["size", "inside", "background", "members"] : e.kind === "thing" ? ["holder", "place"] : e.kind === "group" ? ["members"] : [];
+  const keys = e.kind === "place" ? ["size", "inside", "background", "members"] : e.kind === "thing" ? ["holder", "place", "why"] : e.kind === "group" ? ["members"] : [];
   let changed = false;
   for (const k of keys) {
     if (raw[k] === undefined) continue;
@@ -1250,7 +1302,7 @@ function applySpace(e, raw) {
       changed = true;
       continue;
     }
-    const v = k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
+    const v = k === "why" ? (WHYS.includes(raw.why) ? raw.why : "") : k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
     if ((e[k] || "") === v) continue;
     if (v) e[k] = v;
     else delete e[k];
@@ -1305,7 +1357,8 @@ function cleanEntity(e) {
   if (!name || !/^[a-z]\d{1,6}$/.test(id)) return null;
   const past = e.status === "past";
   const text = cut(str(e.text), past ? PAST_HARD : TEXT_BOUNDS[1]);
-  const kind = KINDS.includes(e.kind) ? e.kind : "fact";
+  if (!KINDS.includes(e.kind)) return null;
+  const kind = e.kind;
   const folk = kind === "person" || kind === "group";
   const link = kind === "person" && isObj(e.link) && str(e.link.book) && Number.isInteger(e.link.uid) ? { book: cut(str(e.link.book), 80), uid: e.link.uid, title: cut(str(e.link.title), NAME_MAX) } : null;
   return {
@@ -1329,7 +1382,7 @@ function cleanEntity(e) {
     ...(e.by === "player" ? { by: "player" } : {}),
     // always in the prompt, no keys needed (the player pins it in the Records tab)
     ...(e.pinned === true ? { pinned: true } : {}),
-    ...spaceFields(KINDS.includes(e.kind) ? e.kind : "fact", e),
+    ...spaceFields(kind, e),
     // how many times the story came to this place (counted by code when the Dashboard's place changes)
     ...(Number.isInteger(e.visits) && e.visits > 0 ? { visits: e.visits } : {}),
   };
@@ -1387,6 +1440,13 @@ export function normalizeState(raw, chatId) {
   // records the player deleted by hand, so a rollback does not bring them back (#75)
   const dropped = arr(s.dropped).filter((d) => isObj(d) && /^[a-z]\d{1,6}$/.test(str(d.id)) && Number.isFinite(d.at)).map((d) => ({ id: str(d.id), at: d.at })).slice(-DROPPED_MAX);
   if (dropped.length) out.dropped = dropped;
+  // the tidy-up (#424, step 3): the reply count of the last pass and the things it saw; a log of every archive and wake
+  if (isObj(s.tidy) && Number.isInteger(s.tidy.n) && s.tidy.n >= 0) out.tidy = { n: s.tidy.n, seen: arr(s.tidy.seen).map(str).filter((id) => RECORD_ID.test(id)).slice(0, ENTITIES_MAX) };
+  const tidyLog = arr(s.tidyLog).map(cleanTidyLine).filter(Boolean).slice(-TIDY_LOG_MAX);
+  if (tidyLog.length) out.tidyLog = tidyLog;
+  // what the player did to the DM's book (step 0 of the DM's memory): never rewound, a swipe does not undo a hand
+  const signals = arr(s.signals).map(cleanSignal).filter(Boolean).slice(-SIGNALS_MAX);
+  if (signals.length) out.signals = signals;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
@@ -1475,7 +1535,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -1780,7 +1840,6 @@ function placesAlong(snaps, line) {
   return out;
 }
 const SWEEP_PLACES = 6;
-const SWEEP_THINGS = 8;
 const SWEEP_ASKED_MAX = 100;
 /**
  * Places and things the scene tracker named that the book has no record of and that no earlier sweep offered.
@@ -1790,7 +1849,6 @@ export function sweepCandidates(state, scene) {
   const out = { places: [], things: [] };
   if (!scene) return out;
   const asked = arr(state.sweepAsked);
-  const linked = new Set(Object.values(isObj(state.regIds) ? state.regIds : {}));
   const seen = (kind, name) => state.entities.some((e) => e.kind === kind && namesOf(e).some((n) => covered(n, name))) || asked.some((k) => covered(k, name));
   for (const name of arr(scene.places)) {
     if (out.places.length >= SWEEP_PLACES) break;
@@ -1799,16 +1857,7 @@ export function sweepCandidates(state, scene) {
   // the scene's own place has the tracker's id: the DM's record of it carries that id (ref) whatever language it is named in
   const here = scene.placeId ? out.places.find((n) => looseSame(n, str(scene.place))) : "";
   if (here) out.placeIds = { [here]: scene.placeId };
-  const lying = [
-    ...arr(scene.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.place })),
-    ...arr(scene.left && scene.left.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.left.place })),
-  ];
-  for (const t of lying) {
-    if (out.things.length >= SWEEP_THINGS) break;
-    // a thing the World already linked by its registry id is on record, whatever it is called now
-    if (t.id && linked.has(t.id)) continue;
-    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ ...(t.id ? { id: str(t.id) } : {}), name: t.name, where: str(t.where), place: str(t.place) });
-  }
+  // things are not offered any more (#424, step 3): a cup of noodles in a guard's hands is not a record; the DM records a thing that has a reason
   return out;
 }
 /** A sweep is due: there is something to offer the DM and at least one reply came since its last run. */
@@ -1860,7 +1909,84 @@ function sweepInput(c) {
   const ids = isObj(c.placeIds) ? c.placeIds : {};
   if (c.places.length) rows.push("Places: " + c.places.map((n) => (ids[n] ? ids[n] + " " : "") + n).join("; ") + ".");
   if (c.things.length) rows.push("Things: " + c.things.map((t) => (t.id ? t.id + " " : "") + t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
-  return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it) and each thing that matters or lies somewhere it can be found again. Leave out what is only passing. Name them as the story does.";
+  return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it). Leave out what is only passing. Name them as the story does.";
+}
+
+// ---------- the tidy-up (#424, step 3): things that played out leave the book, in code, no model call ----------
+// Every TIDY_EVERY replies: a thing named in fewer than TIDY_NAMED_MIN of the last TIDY_EVERY replies, that belongs to nobody named and is not
+// pinned or kept for a reason (clue, hidden, promise), is put to rest (status "dormant": out of the book and the DM's input, restorable). A
+// thing that existed at the last pass is judged; a younger one waits for the next. An archived thing named in TIDY_WAKE_NAMED of the last
+// TIDY_EVERY replies, or named again by the DM, is active again. People, places and groups are never put to rest by this pass.
+export const TIDY_EVERY = 10;
+const TIDY_NAMED_MIN = 3;
+const TIDY_WAKE_NAMED = 2;
+const TIDY_EXEMPT = ["clue", "hidden", "promise"];
+
+function tidyNote(state, line) {
+  state.tidyLog = [...arr(state.tidyLog), line].slice(-TIDY_LOG_MAX);
+}
+
+/**
+ * One pass. state is changed in place. msgs = the chat, scene = what sceneOf read (or null), cards = the cards' character names,
+ * userName = the player's character. force = "Tidy now": runs at once, and a chat with no earlier pass judges every thing.
+ * Returns { ran, archived: [records], woken: [records] }.
+ */
+export function tidyBook(state, { msgs, scene, cards, userName, now, force }) {
+  const out = { ran: false, archived: [], woken: [] };
+  if (!force && state.settings.tidy === false) return out;
+  const replies = msgs.filter(isReply);
+  const n = replies.length;
+  if (!force && (n < TIDY_EVERY || (state.tidy && n - state.tidy.n < TIDY_EVERY))) return out;
+  const texts = replies.slice(-TIDY_EVERY).map((m) => str(m.text));
+  const seen = new Set(state.tidy ? state.tidy.seen : []);
+  // no earlier pass: the first automatic pass only takes the list, "Tidy now" judges everything
+  if (!state.tidy && !force) {
+    state.tidy = { n, seen: state.entities.filter((e) => e.kind === "thing" && e.status === "active").map((e) => e.id) };
+    out.ran = true;
+    return out;
+  }
+  const judged = (id) => (state.tidy ? seen.has(id) : true);
+  const owners = new Set(
+    [...arr(cards), userName, ...state.entities.filter((e) => e.kind === "person" && e.status === "active").flatMap(namesOf)].map((x) => str(x).toLowerCase()).filter(Boolean),
+  );
+  const chars = isObj(scene && scene.chars) ? Object.values(scene.chars) : [];
+  const belongs = (rec, re) => (rec.holder && owners.has(rec.holder.toLowerCase())) || (!!re && chars.some((c) => re.test(str(c.holding)) || arr(c.items).some((i) => re.test(str(i.text)))));
+  const at = now || Date.now();
+  for (const rec of state.entities) {
+    if (rec.kind !== "thing") continue;
+    const re = namesPattern(namesOf(rec));
+    const count = re ? texts.filter((t) => re.test(t)).length : 0;
+    if (rec.status === "dormant") {
+      if (count >= TIDY_WAKE_NAMED) {
+        rec.status = "active";
+        out.woken.push(rec);
+        tidyNote(state, { at, n, id: rec.id, name: rec.name, act: "wake", count, via: "code", ...(rec.why ? { why: rec.why } : {}) });
+      }
+      continue;
+    }
+    if (rec.status !== "active" || !judged(rec.id)) continue;
+    if (rec.pinned === true || TIDY_EXEMPT.includes(rec.why) || count >= TIDY_NAMED_MIN || belongs(rec, re)) continue;
+    rec.status = "dormant";
+    out.archived.push(rec);
+    tidyNote(state, { at, n, id: rec.id, name: rec.name, act: "archive", count, via: "code", ...(rec.why ? { why: rec.why } : {}) });
+  }
+  state.tidy = { n, seen: state.entities.filter((e) => e.kind === "thing" && e.status === "active").map((e) => e.id) };
+  out.ran = true;
+  return out;
+}
+
+/** Runs a pass for a chat and saves the state and the book when it changed something. Returns what tidyBook returned. */
+function runTidy(fsx, state, chat, force) {
+  const scene = sceneOf(fsx, state.chatId, chat.msgs);
+  const res = tidyBook(state, { msgs: chat.msgs, scene, cards: cardNames(fsx, chat.meta), userName: userNameOf(fsx, chat.meta), force });
+  if (res.ran) {
+    saveState(fsx, state);
+    if (res.archived.length || res.woken.length) {
+      writeBook(fsx, state, str(chat.meta.title));
+      bindBook(fsx, state.chatId, chat.meta, state.bookId);
+    }
+  }
+  return res;
 }
 
 /** The direction the DM goes by: the sensor's, else what the DM said last time. */
@@ -2193,12 +2319,13 @@ export function castOf(rc, cards) {
 
 // ---------- the DM call ----------
 const CHRONICLER_RULES = [
-  "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups, things and facts that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
+  "You are the world keeper of an ongoing roleplay story. You read the newest part of the story and keep the record of its world: people, places, groups and things that matter beyond this one scene. Another model writes the story; it reads your record when a name comes up again.",
   "Rules:",
   "- The story text is canon. Record only what it shows or plainly says. Never invent events, and never contradict the story.",
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
   "- Skip what does not matter beyond this scene: a nameless passer-by, the furniture, a passing mood. What a character wears and carries goes to carry, not to the records. Record a thing only when the story makes it matter: a clue, a weapon, a gift, a promise, something people fight over.",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up again (who or what it is, where, how it stands toward the characters).",
+  "- A custom, a law or a piece of history is not a record of its own: when the story shows one that belongs to a place or a group, say it in that record's text (an update).",
   "- Update a record only when the story changed something about it (it moved, was hurt, a secret came out). Never update a record just to reword it.",
   "- Retire a record when it is finished for good (dead, destroyed, gone from the story for good). Its text then says in one or two sentences who or what it was and how it ended.",
   "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
@@ -2210,14 +2337,14 @@ const CHRONICLER_RULES = [
 const SPACE_RULES = [
   "Places, things and what characters carry:",
   "- places: record each place the story visits and may come back to (a home, a cafe, a party house) as a record of kind place. A room or a corner of a bigger place is a spot: size \"spot\" and inside = the name of the place it belongs to. A whole place needs no size.",
-  "- things: record a thing when it was bought, taken, given, hidden, left somewhere or used in a way that matters. Give it holder (the name of the person who has it) or place (the name of the place where it is, a spot when the story says where): one of them. When it is put down, picked up, handed over or moved, update it with the new holder or place, and \"\" for the one it no longer has. A bag, a phone or a key ring stays out unless the story makes it matter.",
+  "- things: record a thing only when it has a reason, and give the reason in why: clue, hidden, promise, gift, weapon or contested (something people fight over). A thing the story only passes by (a cup, a bag, the furniture) stays out. Give it holder (the name of the person who has it) or place (the name of the place where it is, a spot when the story says where): one of them. When it is put down, picked up, handed over or moved, update it with the new holder or place, and \"\" for the one it no longer has. A bag, a phone or a key ring stays out unless the story makes it matter.",
   "- carry: for the user's character and the characters with their own cards, keep what each one wears and carries now: { who, wearing, carried: [{what, where}], nearby }. wearing = clothes and worn things; carried = what is on them or in their bag (where = the pocket or bag, optional); nearby = things close to them, not on them. Send a person only when the story changed something, and send each list you include complete: it replaces the old one. At most 12 items in a list.",
 ];
 // the reply's shape: locked, parseReply and applyReport depend on it
 const CHRONICLER_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
-  "size, inside, holder and place are only for places and things; leave out what does not apply.",
+  '{"add":[{"kind":"person|place|group|thing","name":"...","aliases":["..."],"text":"...","size":"spot","inside":"...","holder":"...","place":"...","why":"clue|hidden|promise|gift|weapon|contested","ref":"o3"}],"update":[{"id":"n3","text":"...","aliases":["..."],"holder":"...","place":"...","why":"clue|hidden|promise|gift|weapon|contested","ref":"o3"}],"retire":[{"id":"n3","text":"..."}],"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],"summary":"one short line: what changed in the world"}',
+  "size, inside, holder and place are only for places and things; why is only for things; leave out what does not apply.",
   "ref: the scene tracker's id of that thing (o3) or place (l2), when the input shows one before its name; the same thing or place keeps that id however you name it. Leave it out otherwise, never make one up.",
 ];
 const CARRY_JSON = '"carry":[{"who":"...","wearing":["..."],"carried":[{"what":"...","where":"..."}],"nearby":["..."]}],';
@@ -2443,13 +2570,16 @@ export function listProfiles(fsx) {
 
 const spaceNote = (e) => (e.kind === "place" && e.inside ? " [" + (e.size === "spot" ? "spot of " : "in ") + e.inside + "]" : e.kind === "thing" ? (e.holder ? " [held by " + e.holder + "]" : e.place ? " [at " + e.place + "]" : "") : "");
 const entityLine = (e) => e.id + " · " + e.kind + " · " + e.name + spaceNote(e) + (e.aliases.length ? " (" + e.aliases.join(", ") + ")" : "") + ": " + e.text;
+// a record the DM does not need to read in full this run: one line, enough to find it by id (#424, step 2.5)
+const entityBrief = (e) => e.id + " · " + e.kind + " · " + e.name;
+const BRIEF_NOTE = "Records listed by name only are known to you but not shown in full here; to change or retire one, use its id as usual.";
 const carryLine = (who, c) => who + ": wearing " + (c.wearing.join(", ") || "-") + "; carried " + (c.carried.map((x) => x.what + (x.where ? " (" + x.where + ")" : "")).join(", ") || "-") + "; nearby " + (c.nearby.join(", ") || "-");
 const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max - 3) / 2)) + " … " + s.slice(s.length - Math.floor((max - 3) / 2)));
 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2463,7 +2593,10 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
   return [
     "Characters with their own cards (do not record): " + (cards.length ? cards.join(", ") : "none") + ".",
     "The user's character (do not record): " + (userName || "the user") + ".",
-    "World record so far" + (active.length ? "\n" + active.map(entityLine).join("\n") : ": empty."),
+    // `full` (a Set of ids, see fullRecordIds): only these are read in full, the others are one line each; no Set = all in full
+    "World record so far" + (active.length ? "\n" + active.map((e) => (full instanceof Set && !full.has(e.id) ? entityBrief(e) : entityLine(e))).join("\n") : ": empty."),
+    ...(full instanceof Set && active.some((e) => !full.has(e.id)) ? [BRIEF_NOTE] : []),
+    ...(arr(removed).length ? ["Do not record (the player removed): " + arr(removed).join(", ") + "."] : []),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
@@ -2476,6 +2609,30 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
       : []),
     "New part of the story\n" + story,
   ].join("\n\n");
+}
+
+/**
+ * The records the DM reads in full on a run (the rest go in as one line each, see dmInput): named in the new part of the story
+ * (a name or an alias), pinned, the scene's place with its parent and spots, the things placed there or held by people in the scene,
+ * the people in the scene, and `soon` (bench people who are due soon, see benchSoon). A swipe or a retry makes the same set.
+ */
+export function fullRecordIds(state, { story, scene, reg, soon }) {
+  const text = str(story);
+  const present = scene ? arr(scene.present).map(str).filter(Boolean) : [];
+  const place = scene ? placeRecordOf(state, scene, reg) : null;
+  const parent = place && place.inside ? state.entities.find((e) => e.kind === "place" && e.status === "active" && refersTo(e, place.inside)) : null;
+  const here = [place, parent].filter(Boolean);
+  const full = new Set(arr(soon));
+  for (const e of state.entities) {
+    if (e.status !== "active" || full.has(e.id)) continue;
+    const re = namesPattern(namesOf(e));
+    if (e.pinned === true || (re && re.test(text))) full.add(e.id);
+    else if (here.some((p) => p.id === e.id)) full.add(e.id);
+    else if (e.kind === "place" && e.inside && place && refersTo(place, e.inside)) full.add(e.id);
+    else if (e.kind === "thing" && ((e.place && here.some((p) => refersTo(p, e.place))) || (e.holder && present.some((n) => samePlace(n, e.holder))))) full.add(e.id);
+    else if (e.kind === "person" && present.some((n) => namesOf(e).some((x) => samePlace(x, n)))) full.add(e.id);
+  }
+  return full;
 }
 
 /** How far a front's clock is, as the wording its news should take. */
@@ -2687,6 +2844,7 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     return out;
   };
   let changes = 0;
+  const removed = removedNames(state, SIGNALS_MAX);
   // a draft (a world built without a chat) has no settings of its own: the defaults
   const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
   const textMax = set.textMax;
@@ -2696,7 +2854,11 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!room() || !isObj(raw)) continue;
     const name = cut(str(raw.name), NAME_MAX);
     if (!name || isSkipped(name)) continue;
-    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
+    // facts are not records any more, and an unknown kind is not a note (#424, step 3)
+    if (!WRITE_KINDS.includes(raw.kind)) continue;
+    const kind = raw.kind;
+    // the player deleted a record of this name: it is not written again (the DM is told so in its input)
+    if (removed.some((x) => sameName(x, name))) continue;
     if (kind === "person" && isOwn(name)) continue;
     const text = cut(str(raw.text), textMax);
     const ref = kind === "thing" || kind === "place" ? refEntity(rc, raw.ref, kind) : null;
@@ -2706,6 +2868,14 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
     if (known && ref && known.status === "active") linkToRef(state, rc, known, ref);
     if (known) {
+      // the DM names a thing that was put to rest: it is active again (the tidy-up log says so)
+      if (known.status === "dormant") {
+        known.status = "active";
+        known.at = at;
+        if (touched) touched.add(known.id);
+        tidyNote(state, { at, n: 0, id: known.id, name: known.name, act: "wake", count: 0, via: "dm", ...(known.why ? { why: known.why } : {}) });
+        changes++;
+      }
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
       known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases), ...(sameName(known.name, name) ? [] : [name])], known.name);
@@ -3153,30 +3323,49 @@ function presentId(reg, personIds, name) {
   return r && r.id ? (regGet(reg, r.id) || {}).id || "" : "";
 }
 
-/** Was this person in this message: put in the scene by the Dashboard (id first, else the name) or named in the text. */
-function seenIn(ident, rec, m, snaps, reg, personIds) {
-  const sn = isObj(snaps) ? snaps[keyOf(m)] : null;
-  if (isObj(sn)) {
-    for (const n of arr(sn.present)) {
-      const name = str(n);
-      if (!name) continue;
-      const id = presentId(reg, personIds, name);
-      if (ident.id && id) {
-        if (id === ident.id) return true;
-      } else if (namesOf(rec).some((x) => x.toLowerCase() === name.toLowerCase())) return true;
-    }
-  }
+/** Is the person named in the text of this message (a name or an alias). */
+function namedIn(ident, m) {
   return !!ident.re && ident.re.test(str(m.text));
 }
 
-/** Replies since the person was last seen; looks back CAST_SCAN messages, so a long silence reads as at least that. */
-export function silenceOf(ident, rec, msgs, snaps, reg, personIds) {
+/**
+ * Was this person on stage in this message. A message with a Dashboard snapshot: only when the Dashboard put them in the scene
+ * (`present`, a far person who texts or calls is in it too, with a contact), by id first, else the name; a name in the text
+ * alone is a mention, not the stage. A message with no snapshot (no Dashboard, or it came later): the name in the text counts, as before.
+ */
+function seenIn(ident, rec, m, snaps, reg, personIds) {
+  const sn = isObj(snaps) ? snaps[keyOf(m)] : null;
+  if (!isObj(sn)) return namedIn(ident, m);
+  for (const n of arr(sn.present)) {
+    const name = str(n);
+    if (!name) continue;
+    const id = presentId(reg, personIds, name);
+    if (ident.id && id) {
+      if (id === ident.id) return true;
+    } else if (namesOf(rec).some((x) => x.toLowerCase() === name.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
+ * Replies since the person was last on stage (`stage`) and since they were last named or on stage (`mentioned`, never more than
+ * `stage`). Looks back CAST_SCAN messages, so a long silence reads as at least that. Without a Dashboard the two are the same.
+ */
+export function silencesOf(ident, rec, msgs, snaps, reg, personIds) {
   let replies = 0;
+  let mentioned = -1;
   for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - CAST_SCAN); i--) {
-    if (seenIn(ident, rec, msgs[i], snaps, reg, personIds)) return replies;
+    const on = seenIn(ident, rec, msgs[i], snaps, reg, personIds);
+    if (on) return { stage: replies, mentioned: mentioned >= 0 ? mentioned : replies };
+    if (mentioned < 0 && namedIn(ident, msgs[i])) mentioned = replies;
     if (isReply(msgs[i])) replies++;
   }
-  return replies;
+  return { stage: replies, mentioned: mentioned >= 0 ? mentioned : replies };
+}
+
+/** Replies since the person was last on stage (see silencesOf). */
+export function silenceOf(ident, rec, msgs, snaps, reg, personIds) {
+  return silencesOf(ident, rec, msgs, snaps, reg, personIds).stage;
 }
 
 /** The silence that makes a person due: Frequency's number, a quarter more or less, fixed for this person in this chat (a swipe does not move it). */
@@ -3194,24 +3383,47 @@ export function rollEntrance(seed, silence, threshold, weight) {
   return { d, mod, weight, total, band: total <= 6 ? "small" : total <= 9 ? "medium" : "big" };
 }
 
-/** The people who could come back, most overdue first: { rec, silence, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
+/** A medium or big return that ended as a mention does not count as one: the next comes after half the usual gap and is at least medium. */
+const lastWasMention = (last) => !!last && last.res === "mentioned" && last.band !== "small";
+/** Replies to wait after the last return before the next can start. */
+export function castGap(freq, last) {
+  return lastWasMention(last) ? Math.ceil(CAST_GAP[freq] / 2) : CAST_GAP[freq];
+}
+
+/** The people who could come back, most overdue first: { rec, silence, seen, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
 export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
   if (!CAST_SILENCE[freq]) return [];
   const replies = msgs.filter(isReply).length;
   if (replies < CAST_FIRST) return [];
-  if (state.lastEntrance && replies - state.lastEntrance.n < CAST_GAP[freq]) return [];
+  if (state.lastEntrance && replies - state.lastEntrance.n < castGap(freq, state.lastEntrance)) return [];
   const out = [];
   for (const rec of state.entities) {
     if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
     const ident = castIdentity(state, reg, rec);
     if (ident.own) continue;
-    const silence = silenceOf(ident, rec, msgs, snaps, reg, personIds);
+    const { stage: silence, mentioned: seen } = silencesOf(ident, rec, msgs, snaps, reg, personIds);
     const threshold = castThreshold(freq, state.chatId, rec.id);
     if (silence < threshold) continue;
     const weight = weightOf(rec);
-    out.push({ rec, silence, threshold, weight, score: silence / threshold + weight * 0.5 });
+    out.push({ rec, silence, seen, threshold, weight, score: silence / threshold + weight * 0.5 });
   }
   return out.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * The people of the bench who are due or will be within `within` replies (one DM cadence): their ids. The DM reads them in
+ * full, so a person who is about to come back is not a bare name when the run is made. Nothing when Frequency is off.
+ */
+export function benchSoon({ state, msgs, snaps, reg, personIds, freq, within }) {
+  if (!CAST_SILENCE[freq]) return [];
+  const ids = [];
+  for (const rec of state.entities) {
+    if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
+    const ident = castIdentity(state, reg, rec);
+    if (ident.own) continue;
+    if (silenceOf(ident, rec, msgs, snaps, reg, personIds) >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) ids.push(rec.id);
+  }
+  return ids;
 }
 
 /**
@@ -3223,10 +3435,14 @@ export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, l
   const best = benchDue({ state, msgs, snaps, reg, personIds, freq })[0];
   if (!best) return null;
   const roll = lifeTier ? null : rollEntrance(seed, best.silence, best.threshold, best.weight);
+  // after a medium or big return that was only a mention, the next is at least medium (the die's own band is kept in `roll`)
+  const floor = !lifeTier && roll.band === "small" && lastWasMention(state.lastEntrance);
   return cleanEntrance({
     id: best.rec.id,
     name: best.rec.name,
-    band: lifeTier ? LIFE_BAND[lifeTier] : roll.band,
+    band: lifeTier ? LIFE_BAND[lifeTier] : floor ? "medium" : roll.band,
+    ...(floor ? { floor: true } : {}),
+    seen: best.seen,
     ...(roll ? { roll: roll.total, d: roll.d, mod: roll.mod } : { tier: lifeTier }),
     weight: best.weight,
     threshold: best.threshold,
@@ -3245,9 +3461,10 @@ export function entranceInsert(en, rec) {
 }
 
 /**
- * Judges an entrance that a reply carried: the reply after the message `after` is the carrier. The person came (seen in it) =
- * done; missed once = sent again, stricter; missed twice = given up. Either way the gap before the next entrance starts.
- * Returns null when there was nothing to judge, else { ok, again } (again = a stricter second try is queued).
+ * Judges an entrance that a reply carried: the reply after the message `after` is the carrier. The person on stage in it =
+ * "came"; only named in its text (with a Dashboard) = "mentioned", done too (see castGap and planEntrance for what follows a medium
+ * or big one); in neither = missed once, sent again, stricter; missed twice, given up. Either way the gap before the next entrance starts.
+ * Returns null when there was nothing to judge, else { ok (came), res, again } (again = a stricter second try is queued).
  */
 export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   const en = state.entrance;
@@ -3258,19 +3475,21 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
   const carrier = msgs.slice(i + 1).find(isReply);
   if (!carrier) return null;
   const rec = state.entities.find((e) => e.id === en.id);
-  const ok = !!rec && seenIn(castIdentity(state, reg, rec), rec, carrier, snaps, reg, personIds);
+  const ident = rec ? castIdentity(state, reg, rec) : null;
+  const res = ident && seenIn(ident, rec, carrier, snaps, reg, personIds) ? "came" : ident && namedIn(ident, carrier) ? "mentioned" : "missed";
+  const ok = res === "came";
   const n = msgs.filter(isReply).length;
-  if (!ok && rec && !en.retried) {
+  if (res === "missed" && rec && !en.retried) {
     const { after, sentAt, ...rest } = en;
     state.entrance = { ...rest, sent: 0, retried: true };
-    return { ok, again: true, en, carrier: keyOf(carrier) };
+    return { ok, res, again: true, en, carrier: keyOf(carrier) };
   }
-  state.lastEntrance = { id: en.id, n, band: en.band, ok };
+  state.lastEntrance = { id: en.id, n, band: en.band, ok, res };
   delete state.entrance;
-  return { ok, again: false, en, carrier: keyOf(carrier) };
+  return { ok, res, again: false, en, carrier: keyOf(carrier) };
 }
 
-/** Writes the result into the newest log line of this person's entrance that has none: "came", "again" (a stricter second try is queued) or "missed". */
+/** Writes the result into the newest log line of this person's entrance that has none: "came" (on stage), "mentioned" (only named), "again" (a stricter second try is queued) or "missed". */
 function markCastResult(fsx, chatId, en, result) {
   const old = readJson(fsx, dicePath(chatId), null);
   const rolls = isObj(old) ? arr(old.rolls).filter(isObj) : [];
@@ -3285,7 +3504,7 @@ function markCastResult(fsx, chatId, en, result) {
 
 /** One line of the dice log for a person coming back (shown in the log and, with the chat's switch, under the reply): who, why, the dice, what came of it. */
 function castLog(en, extra) {
-  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
+  return { kind: "cast", id: en.id, who: en.name, via: en.via, band: en.band, silence: en.silence, ...(Number.isInteger(en.seen) && en.seen < en.silence ? { seen: en.seen } : {}), ...(en.floor ? { floor: true } : {}), ...(Number.isInteger(en.threshold) ? { threshold: en.threshold } : {}), ...(en.weight !== undefined ? { weight: en.weight } : {}), ...(Array.isArray(en.d) ? { d: en.d, mod: en.mod, total: en.roll } : {}), ...(en.tier ? { tier: en.tier } : {}), ...(en.retried ? { retried: true } : {}), ...extra };
 }
 
 /** The seed of one reply: the chat, the newest message, how many there are, the op and the swipe; a swipe asks the same question and gets the same dice. */
@@ -3335,9 +3554,9 @@ export function castStatus(fsx, chatId) {
       if (rec.kind !== "person" || rec.status !== "active") continue;
       const ident = castIdentity(state, ctx.reg, rec);
       if (ident.own) continue;
-      const silence = silenceOf(ident, rec, msgs, ctx.snaps, ctx.reg, ctx.personIds);
+      const { stage: silence, mentioned: named } = silencesOf(ident, rec, msgs, ctx.snaps, ctx.reg, ctx.personIds);
       const threshold = castThreshold(freq === "off" ? "normal" : freq, chatId, rec.id);
-      people.push({ id: rec.id, name: rec.name, silence, threshold, weight: weightOf(rec), ...(rec.relation ? { relation: rec.relation } : {}), linked: !!rec.link, byId: !!ident.id, off: rec.noReturn === true, due: freq !== "off" && rec.noReturn !== true && silence >= threshold });
+      people.push({ id: rec.id, name: rec.name, silence, named, threshold, weight: weightOf(rec), ...(rec.relation ? { relation: rec.relation } : {}), linked: !!rec.link, byId: !!ident.id, off: rec.noReturn === true, due: freq !== "off" && rec.noReturn !== true && silence >= threshold });
     }
   }
   people.sort((a, b) => b.silence / (b.threshold || 1) - a.silence / (a.threshold || 1));
@@ -3346,13 +3565,48 @@ export function castStatus(fsx, chatId) {
     freq,
     replies,
     // the replies still to wait before the next return can start (the gap after the last one), and before the chat is old enough
-    wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? CAST_GAP[freq] - (replies - state.lastEntrance.n) : 0),
+    wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? castGap(freq, state.lastEntrance) - (replies - state.lastEntrance.n) : 0),
     entrance: state.entrance || null,
     last: state.lastEntrance || null,
     people,
     // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
     lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
   };
+}
+
+/** The tidy-up as the chat stands (for the panel and for testing): the switch, the log (newest first), how many things sleep, and the replies to the next pass. */
+export function tidyStatus(fsx, chatId) {
+  const { state } = loadState(fsx, chatId);
+  const chat = readChat(fsx, chatId);
+  const replies = chat ? chat.msgs.filter(isReply).length : 0;
+  const things = state.entities.filter((e) => e.kind === "thing");
+  return {
+    on: state.settings.tidy !== false,
+    every: TIDY_EVERY,
+    replies,
+    // 0 = the next reply starts a pass (or the first pass only takes the list)
+    next: state.tidy ? Math.max(0, TIDY_EVERY - (replies - state.tidy.n)) : Math.max(0, TIDY_EVERY - replies),
+    first: !state.tidy,
+    active: things.filter((e) => e.status === "active").length,
+    asleep: things.filter((e) => e.status === "dormant").length,
+    log: [...arr(state.tidyLog)].reverse(),
+  };
+}
+
+function tidyRoute(req, host) {
+  const fsx = host.fs;
+  const b = req.method === "POST" ? body(req) : req.query || {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  if (req.method === "POST") {
+    const { state, existed } = loadState(fsx, chatId);
+    if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+    const res = runTidy(fsx, state, chat, true);
+    return ok({ ...tidyStatus(fsx, chatId), archived: res.archived.map((e) => e.name), woken: res.woken.map((e) => e.name) });
+  }
+  return ok(tidyStatus(fsx, chatId));
 }
 
 function castRoute(req, host) {
@@ -3683,7 +3937,7 @@ export function llmRequest(ctx, host) {
       if (judged) {
         saveState(fsx, state);
         // what came of it goes into the line the note made, so the log and the mark under the reply say who, why, the dice and the result together
-        markCastResult(fsx, chatId, judged.en, judged.ok ? "came" : judged.again ? "again" : "missed");
+        markCastResult(fsx, chatId, judged.en, judged.res === "missed" && judged.again ? "again" : judged.res);
       }
       // the person is in the scene now, or the player turned the switch off since: let it go
       const waiting = state.entrance ? state.entities.find((e) => e.id === state.entrance.id) : null;
@@ -3858,9 +4112,9 @@ const BUILTIN_RECIPES = [
     mode: "invent",
     questions: [],
     sections: [
-      { id: "setting", kinds: ["place", "group", "fact"], max: 6, prompt: "Invent the setting these characters live in: the main places where their days go, the groups and powers around them (families, schools, guilds, gangs, authorities) and the customs or history that shape daily life." },
+      { id: "setting", kinds: ["place", "group"], max: 6, prompt: "Invent the setting these characters live in: the main places where their days go and the groups and powers around them (families, schools, guilds, gangs, authorities). Put the customs and history that shape daily life into the text of the place or group they belong to." },
       { id: "people", kinds: ["person"], max: 5, prompt: "Invent the other people of this world who will meet these characters: allies, rivals, someone who owes or fears them. Each one wants something." },
-      { id: "trouble", kinds: ["fact", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a secret, a rumour, a danger, and at most one object that matters to the story." },
+      { id: "trouble", kinds: ["group", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a threat, a secret or a danger, each as a group (who is behind it, what they hide), and at most one object that matters to the story, with its reason." },
     ],
     fronts: { count: 2, prompt: "Invent the powers that want something from these characters or this place and will move off screen." },
   },
@@ -3879,7 +4133,7 @@ const BUILTIN_RECIPES = [
     sections: [
       { id: "places", kinds: ["place"], max: 5, prompt: "Invent the places of this world that the story will need, fitting the answers and the cards." },
       { id: "people", kinds: ["person", "group"], max: 6, prompt: "Invent the people and groups who live in this world and matter to the characters, fitting the answers and the cards." },
-      { id: "facts", kinds: ["thing", "fact"], max: 5, prompt: "Invent the things and facts of this world (customs, dangers, history) the story can lean on." },
+      { id: "facts", kinds: ["thing"], max: 5, prompt: "Invent the few things this world's story can lean on (a clue, a weapon, a gift, a promise); each needs its reason. Customs, dangers and history belong in the text of the places and groups, not here." },
     ],
     fronts: { count: 3, prompt: "Invent the powers that want something in this world and will move off screen." },
   },
@@ -3895,7 +4149,7 @@ function cleanRecipe(raw, id) {
   })).filter((q) => q.text);
   const sections = arr(raw.sections).filter(isObj).slice(0, SECTIONS_MAX).map((s, i) => ({
     id: RECIPE_ID.test(str(s.id)) ? str(s.id) : "s" + (i + 1),
-    kinds: arr(s.kinds).filter((k) => KINDS.includes(k)).length ? arr(s.kinds).filter((k) => KINDS.includes(k)) : KINDS,
+    kinds: arr(s.kinds).filter((k) => WRITE_KINDS.includes(k)).length ? arr(s.kinds).filter((k) => WRITE_KINDS.includes(k)) : WRITE_KINDS,
     max: clamp(Math.round(num(s.max)) || SECTION_MAX, 1, SECTION_MAX),
     prompt: cut(str(s.prompt), 1000),
   })).filter((s) => s.prompt);
@@ -4060,14 +4314,16 @@ const BUILD_RULES = [
   "Rules:",
   "- Learn from the texts you are given; write each record in your own short words. Never copy a text whole.",
   "- Do not record the user's character or the characters listed as having their own cards: they are kept elsewhere.",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense: what someone needs to know when the name comes up (who or what it is, where, how it stands toward the characters).",
+  "- A custom, a law, a piece of history, a secret or a rumour is not a record of its own: say it in the text of the place, group or person it belongs to.",
   "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
   "- aliases: the keys that bring this record into the story: 2 to 5 short words or phrases the story will use when it comes up again: a short name, how the characters call it, its main word (for \"IKEA dresser\": \"dresser\"; for \"Ava's house\": \"Ava's place\", \"Ava's home\"), exactly as the story would spell them. Never a word that comes up in every scene (room, door, day, man).",
   "- Only the JSON keys and kind values are English.",
 ];
 const BUILD_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
-  '{"add":[{"kind":"person|place|group|thing|fact","name":"...","aliases":["..."],"text":"..."}],"summary":"one short line"}',
+  '{"add":[{"kind":"person|place|group|thing","name":"...","aliases":["..."],"text":"...","why":"clue|hidden|promise|gift|weapon|contested"}],"summary":"one short line"}',
+  "why is only for things.",
 ];
 const FRONTS_OUTPUT = [
   "Output: one JSON object and nothing else, no code fences:",
@@ -4085,7 +4341,8 @@ const INVENT_RULES = [
   "- Every record must touch at least one character: someone goes there, belongs to it, fears it, owes it or is hunted by it. Its text says how.",
   "- Give each record something to play with: a want, a secret, a danger or a rule. Not a bare description.",
   "- No trivia: not furniture, clothes or things a character just carries, unless the thing is the point (a clue, a weapon, a promise).",
-  "- One record per person, place, group, thing or fact. Its text is one to three short sentences in the present tense.",
+  "- One record per person, place, group or thing. Its text is one to three short sentences in the present tense.",
+  "- A custom, a law, a piece of history, a secret or a rumour is not a record of its own: say it in the text of the place, group or person it belongs to.",
   "- Never repeat a record that is already in the world record; to add to one, use its exact name.",
   BUILD_RULES.find((r) => r.startsWith("- aliases:")),
   "- Only the JSON keys and kind values are English.",
@@ -5147,6 +5404,10 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     bookId: state.bookId,
     records: state.entities.filter((e) => e.status === "active").length,
     retired: state.entities.filter((e) => e.status === "past").length,
+    // the chat panel's tiles (#424, step 3): active records per kind, old notes still in the book, and what is not active (retired or tidied up)
+    kinds: Object.fromEntries(WRITE_KINDS.map((k) => [k, state.entities.filter((e) => e.kind === k && e.status === "active").length])),
+    notes: state.entities.filter((e) => e.kind === "fact" && e.status === "active").length,
+    archive: state.entities.filter((e) => e.status !== "active").length,
     dueIn: dueIn(state, msgs),
     lastRunAt: state.lastRunAt ?? null,
     lastSummary: state.log.length ? str(state.log[state.log.length - 1].summary) : "",
@@ -5233,7 +5494,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -5281,7 +5542,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -5392,7 +5653,10 @@ function updateRoute(req, host) {
     saveState(fsx, state);
   }
   // a reply deleted or swiped since the last run takes its changes with it (#75); the run then reads from the older point
-  if (existed) settle(fsx, state, chat, "");
+  if (existed) {
+    settle(fsx, state, chat, "");
+    runTidy(fsx, state, chat, false);
+  }
   const auto = b.auto === true || b.auto === "true";
   // the DM off: the book still fills, but only by the sweep after a reply, and not in a chat that never had a world (an assistant)
   if (state.settings.level === "off" && (!auto || (!existed && !autoOn(fsx, chat.meta)))) return ok({ ok: true, skipped: "off" });
@@ -5426,12 +5690,17 @@ function updateRoute(req, host) {
   const catchingUp = take.rest.length > 0;
   const profile = profileFor(fsx, state.settings);
   const options = (profile && profile.options) || DEFAULT_OPTIONS;
+  // the records the DM reads in full this run; the others go in as one line (see fullRecordIds). The set is the same for a retry.
+  const runFreq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
+  const runCast = runFreq !== "off" ? castContext(fsx, chatId) : null;
+  const soon = runCast ? benchSoon({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const fullIds = fullRecordIds(state, { story: take.msgs.map((m) => str(m.text)).join("\n"), scene, reg: runReg.reg, soon });
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -5682,31 +5951,44 @@ function recordsRoute(req, host) {
     if (!name || !text) return ok({ error: "a record needs a name and a text" }, 400);
     if (clash(null)) return ok({ error: "a record with this name exists" }, 409);
     if (state.entities.length >= ENTITIES_MAX) return ok({ error: "the world book is full" }, 400);
-    const kind = KINDS.includes(r.kind) ? r.kind : "fact";
+    if (!WRITE_KINDS.includes(r.kind)) return ok({ error: "unknown kind" }, 400);
+    const kind = r.kind;
     const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player", ...(r.pinned === true ? { pinned: true } : {}), ...spaceFields(kind, r) };
     applyFolk(fresh, r);
     state.entities.push(fresh);
+    if (!lib) noteSignal(state, { op: "add", kind, name, madeBy: "player", text: cut(text, 120) });
   } else {
     const e = state.entities.find((x) => x.id === str(r.id));
     if (!e) return ok({ error: "no such record" }, 404);
     if (op === "update") {
       if (name && clash(e.id)) return ok({ error: "a record with this name exists" }, 409);
+      const before = { len: e.text.length, pinned: e.pinned === true };
       if (name) e.name = name;
       if (r.text !== undefined) {
         if (!text) return ok({ error: "a record needs a text" }, 400);
         e.text = e.status === "past" ? cut(text, pastMaxOf(state.settings)) : text;
       }
-      if (KINDS.includes(r.kind)) e.kind = r.kind;
+      if (WRITE_KINDS.includes(r.kind)) e.kind = r.kind;
       if (r.aliases !== undefined) e.aliases = cleanAliases(r.aliases, e.name);
       if (r.pinned === true) e.pinned = true;
       else if (r.pinned === false) delete e.pinned;
       applySpace(e, r);
       applyFolk(e, r);
+      if (!lib) {
+        if (e.text.length !== before.len || r.text !== undefined) noteSignal(state, { op: "edit", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", lenBefore: before.len, lenAfter: e.text.length });
+        if (e.pinned === true && !before.pinned) noteSignal(state, { op: "pin", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm" });
+      }
     } else if (op === "retire") {
+      if (!lib) noteSignal(state, { op: "retire", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", text: cut(e.text, 120) });
       e.status = "past";
       e.text = shortText(text || e.text, pastMaxOf(state.settings));
-    } else if (op === "restore") e.status = "active";
-    else if (op === "delete") {
+    } else if (op === "restore") {
+      if (!lib) noteSignal(state, { op: "restore", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm" });
+      e.status = "active";
+      // a thing the player woke is judged again only after a full pass, not at once
+      if (state.tidy) state.tidy = { ...state.tidy, seen: state.tidy.seen.filter((id) => id !== e.id) };
+    } else if (op === "delete") {
+      if (!lib) noteSignal(state, { op: "delete", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", text: cut(e.text, 120) });
       state.entities = state.entities.filter((x) => x !== e);
       state.dropped = [...arr(state.dropped), { id: e.id, at: now }].slice(-DROPPED_MAX);
     } else return ok({ error: "unknown op" }, 400);
@@ -5817,6 +6099,7 @@ export function handleRoute(req, host) {
   if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
   if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
   if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
+  if (path === "/world/tidy" && (req.method === "GET" || req.method === "POST")) return tidyRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
   if (path === "/world/opening" && req.method === "POST") return openingRoute(req, host);

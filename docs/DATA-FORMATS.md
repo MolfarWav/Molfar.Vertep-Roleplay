@@ -684,8 +684,9 @@ player switches it on for that chat. It writes:
   - `insert`: `false` keeps the DM running but sends the story model no events (also the chat's prompt board key
     `plugin:world`).
   - `lastKey` = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`,
-    `thing` or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in
-    the world book.
+    `thing` (4.133: `fact` is read only, so an old note still shows; the DM, the Start recipes and the form no longer write one, and a kind
+    nobody knows drops the record instead of making a note); `status` `active`, `past` (retired: kept, text cut to two sentences) or
+    `dormant` (put to rest by the tidy-up; out of the book and the DM's input, `restore` wakes it); `uid` = its entry in the world book.
   - A front: `id` f1.., a goal and a clock `clock`/`size` (`size` 4, 6 or 8; full = the goal comes true).
   - `event`: `{ text, hard, sent, retried, at?, sentAt?, after?, place?, placeId? }` or null: added after the chat history
     of the next reply (`sent` counts the replies that carried it); the next run checks the story, sends a missed one
@@ -702,19 +703,44 @@ player switches it on for that chat. It writes:
     off). `status` may be `dormant` (put to rest by the tidy-up of a later release: out of the book, off the bench; `restore` wakes it). Settings:
     `cast` (`off` | `rare` | `normal` | `often`; absent = `off`, so a file from before stays off; a new chat starts on the profile's `options.cast`,
     default `normal`) and `castShow` (a mark under the reply, for testing). State: `entrance` (a person coming back: `{ id, name, band: small | medium
-    | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, after?, sentAt? }`; one at a time, rides like the
+    | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, seen?, floor?, after?, sentAt? }`; one at a time, rides like the
     event: `sent` counts the replies that carried it, `after` is the message the carrier followed, a carrier that is gone sends it again) and
-    `lastEntrance` (`{ id, n, band, ok }`, the gap before the next one is counted from `n`, the number of replies then). Both are in the
-    rollback's core keys. A person is seen in a message when the Dashboard's scene for it names them (the registry id first, else the name) or the text
-    names them (a name or alias; a name the registry gives to someone else is dropped). Silence = replies since, looking back 400 messages.
+    `lastEntrance` (`{ id, n, band, ok, res }`, `res` = `came` | `mentioned` | `missed` and `ok` is true only for `came`; an older file with `ok` alone reads as came or missed; the gap before the next one is counted from `n`, the number of replies then). Both are in the
+    rollback's core keys. A person is on stage in a message when the Dashboard's scene for it names them (the registry id first, else the name; a far person who texts or calls is in
+    the scene too, with a `contact`). A message with no Dashboard snapshot counts by its text instead: a name or alias (a name the registry gives to someone else is
+    dropped). With a snapshot a name in the text is only a mention (4.132.2). Two silences, looking back 400 messages: `stage` = replies since the person was last on
+    stage (it drives the threshold and the roll) and `mentioned` = replies since they were last named or on stage (shown, never more than `stage`). Without a
+    Dashboard the two are the same. The judge reads the carrier reply: on stage = `came`; only named (needs a snapshot) = `mentioned`, no second try; neither = a
+    stricter second try, then `missed`. After a medium or big return that ended as `mentioned` the gap to the next one is half (rounded up) and its band is at
+    least medium (`floor: true` on the entrance; the die's own roll is kept).
     Threshold: Rare 60, Normal 30, Often 15, times 0.75 to 1.25 fixed per person and chat. Roll: 2d6 + 0 to 3 (a step per half threshold of
     silence past it) + weight; 6 or less small, 7 to 9 medium, 10 and more big; the Life die gives its tier's band (minor small, notable medium, major big).
     Each return is a line of `world/dice/<chatId>.json`: `{ kind: "cast", id, who, via, band, silence, threshold, weight, d, mod, total, tier?, retried?,
-    result?: came | again | missed, n, last, lastSwipes, op, inserted }`.
+    result?: came | mentioned | again | missed, seen?, floor?, n, last, lastSwipes, op, inserted }`.
   - Routes: `POST /world/bench {chatId, lang?}` (one build call over the enabled, non-secret entries of the chat's cards' books; `people: [{ entry, name,
     aliases, line, relation, weight }]`; adds linked records or the link to a record the world already has) and `GET /world/cast?chatId=` (Frequency, each
     person's silence and threshold, the entrance, the last one, how many entries could be adopted). The Start draft gets a step `{ bench: true }` (before the
     fronts) unless `bench: false` is sent.
+  - Book (#424, 4.133). A `thing` may carry `why`: `clue`, `hidden`, `promise`, `gift`, `weapon` or `contested` (the DM writes it in `add` and
+    `update`, "" clears it; the form has it). The tidy-up (`tidyBook`, setting `tidy`, default true; a switch in the chat's World DM panel) runs
+    from `updateRoute` after settle, at most every 10 replies and not in a chat under 10 replies: an active thing that was in the last pass's
+    list (`state.tidy.seen`; a younger one is judged next time), is named by fewer than 3 of the last 10 replies (its name or an alias, read
+    from the chat), is not pinned, has no `why` of `clue`, `hidden` or `promise`, and does not belong to a named character (its `holder` is the
+    player's character, a card character or an active person record, or the Dashboard has it in `scene.chars[..]` holding or items) goes to
+    `dormant`. A `dormant` thing named by 2 of the last 10 replies, or named again by the DM, is `active` again. The first pass of a chat only
+    takes the list; "Tidy now" (`POST /world/tidy`) runs at once and, with no earlier pass, judges every thing. People, places and groups are never
+    put to rest. State: `tidy { n, seen }` (the reply count of the last pass and the things it saw) and `tidyLog` (up to 60 lines `{ at, n, id,
+    name, act: archive | wake, count, via: code | dm, why? }`), both in the rollback's core keys. The sweep no longer offers the objects lying
+    around (only places). Step 0 of the DM's memory: `signals` (up to 200 lines `{ at, op: add | edit | pin | retire | restore | delete, kind, name,
+    madeBy, text?, lenBefore?, lenAfter? }`), written by the records route for a chat (not for a saved world), never rewound. A name whose newest
+    signal is `delete` is not recorded again by the DM (`removedNames`; code drops the add) and the newest 30 are told to it as "Do not
+    record (the player removed): …". Routes: `GET /world/tidy?chatId=` (`on`, `every`, `replies`, `next`, `first`, `active`, `asleep`, `log` newest
+    first), `POST /world/tidy {chatId}` (a pass now; also `archived` and `woken` names). `GET /world/state` also has `kinds` (active records per
+    kind), `notes` (active old notes) and `archive` (every record that is not active).
+  - The DM's input (4.132.2). `dmInput` takes a Set of record ids (`full`, built by `fullRecordIds`) and sends only those in full; every other active record is one
+    line `id · kind · name` followed by one sentence saying so. In full: records named in the new part of the story (name or alias), pinned ones, the scene's place
+    with its parent and spots, things placed there or held by people in the scene, the people in the scene, and bench people due within one `everyN` of their
+    threshold (`benchSoon`, on the silence on stage; nothing when the cast is off). The DM can still change or retire any record by id. No Set = every record in full.
 - The Relationship dashboard's snapshot has `scene.direction` (`domestic`, `social`, `intrigue`, `investigation`,
   `travel`, `combat`, `explicit`, `transition`) and, in an explicit scene, `scene.before` (the direction it
   interrupted). The DM reads them from `dashboard/state/<chatId>.json`.

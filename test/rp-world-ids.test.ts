@@ -250,7 +250,10 @@ describe("the DM names the tracker's id (ref)", () => {
     const text = W.dmInput({ cards: [], userName: "Taras", entities: [], msgs: [{ role: "assistant", name: "N", text: "Ember picks up the vial." }], place: scene.place, placeId: scene.placeId, sweep });
     expect(text).toContain("Where the scene is now (from the scene tracker): l3 forest clearing.");
     expect(text).toContain("Places: l3 forest clearing.");
-    expect(text).toContain("Things: o5 a vial (at Ember's feet");
+    // things are not offered any more (#424, step 3)
+    expect(sweep.things).toEqual([]);
+    expect(text).not.toContain("Things:");
+    expect(text).not.toContain("Things: o5 a vial (at Ember's feet");
     expect(W.CHRONICLER_SYSTEM).toContain('"ref":"o3"');
   });
 });

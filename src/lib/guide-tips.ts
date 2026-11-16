@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.132.1'
+export const APP_VERSION = '4.133.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.book',
+    since: '4.133.0',
+    help: 'world',
+    keywords: { en: 'world book tiles people places factions things archive tidy up tidying clean litter old notes facts litopys reason clue hidden promise tidy now log', uk: 'книга світу плитки люди місця фракції речі архів прибирання чистка сміття старі нотатки факти літопис причина підказка схована обіцянка прибрати зараз журнал' },
+    title: { en: 'The world book tidies itself', uk: 'Книга світу сама прибирається' },
+    body: {
+      en: 'The chat\'s World panel has tiles for People, Places, Factions and Things: press one to open the world book at that type, with a search over names, keys and text. Every 10 replies a thing the story stopped naming goes to the Archive (a clue, a hidden thing and a promise stay) and comes back when it is named again. "Tidying the book" in the same panel has the switch, "Tidy now" and a log of every archive and wake. Facts are no longer records: old notes show a banner, and each can be folded into a place or faction or moved to the Litopys.',
+      uk: 'В аркуші World чату тепер є плитки Люди, Місця, Фракції й Речі: натисніть одну, щоб відкрити книгу світу на цьому типі, із пошуком за назвою, ключами й текстом. Кожні 10 відповідей річ, яку історія перестала називати, іде в Архів (підказка, схована річ і обіцянка лишаються) і повертається, коли її назвуть знову. «Прибирання книги» в тому ж аркуші має перемикач, «Прибрати зараз» і журнал кожної архівації та повернення. Факти більше не записи: старі нотатки показують банер, і кожну можна додати до місця чи фракції або перенести в Літопис.',
+    },
+  },
   {
     id: 'new.outfit-edit',
     since: '4.132.0',
