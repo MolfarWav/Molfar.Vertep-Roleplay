@@ -159,6 +159,8 @@ export interface WorldRecord {
   link?: { book: string; uid: number; title: string }
   /** a person: "bring back automatically" is switched off */
   noReturn?: boolean
+  /** a person: why they may come back now, as the DM wrote it (what they were doing, what they want); the next return uses it once */
+  hook?: { text: string; at: number }
   /** a group or a place: the people who belong (names, up to 30, each up to 80 characters); [] clears it when saving. A fact told to the group is known to each of them */
   members?: string[]
   /** a place: 'spot' = a room or corner of the place named by `inside`; absent = a whole place */

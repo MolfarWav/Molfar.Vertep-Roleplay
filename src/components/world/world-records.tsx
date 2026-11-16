@@ -395,6 +395,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
       ) : r.aliases.length === 0 && !past ? (
         <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid="record-no-keys">{t('world.rec.noKeys')}</p>
       ) : null}
+      {r.kind === 'person' && r.hook && !past && <p className="mt-1 break-words text-xs text-muted-foreground" data-testid="record-hook">{t('world.rec.hook', { text: r.hook.text })}</p>}
       {r.aliases.length > 0 && (
         <ul className={cn('mt-1 flex flex-wrap items-center gap-1', past && 'opacity-70')} aria-label={t('world.rec.keys')} data-testid="record-keys">
           <li className="mr-0.5 text-caption text-muted-foreground">{t('world.rec.keys')}</li>

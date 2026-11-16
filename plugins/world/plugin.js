@@ -1170,6 +1170,7 @@ function cleanEvent(e) {
 
 export const CAST_BANDS = ["small", "medium", "big"];
 // why a card of the deck was drawn: its tie is in the scene, its faction's front is stirred or half full, its faction belongs to the scene's place, or by chance
+const HOOK_MAX = 200;
 const CAST_PICKS = ["tie", "front", "place", "random"];
 const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
@@ -1389,6 +1390,8 @@ function cleanEntity(e) {
     ...(link ? { link } : {}),
     // the player switched "bring back automatically" off for this person
     ...(kind === "person" && e.noReturn === true ? { noReturn: true } : {}),
+    // why this person may come back now (the DM wrote it in `returns`; the next entrance uses it once): what they were doing, what they want
+    ...(kind === "person" && isObj(e.hook) && str(e.hook.text) ? { hook: { text: cut(str(e.hook.text), HOOK_MAX), at: Number.isFinite(e.hook.at) ? e.hook.at : 0 } } : {}),
     uid: Number.isInteger(e.uid) && e.uid > 0 ? e.uid : 0,
     ...(Number.isFinite(e.at) ? { at: e.at } : {}),
     // written or changed by the player by hand (the Records tab)
@@ -2599,7 +2602,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2617,6 +2620,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     "World record so far" + (active.length ? "\n" + active.map((e) => (full instanceof Set && !full.has(e.id) ? entityBrief(e) : entityLine(e))).join("\n") : ": empty."),
     ...(full instanceof Set && active.some((e) => !full.has(e.id)) ? [BRIEF_NOTE] : []),
     ...(arr(removed).length ? ["Do not record (the player removed): " + arr(removed).join(", ") + "."] : []),
+    ...(arr(soon).length ? [returnsInput(soon)] : []),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
@@ -2783,7 +2787,7 @@ function firstObject(s, from = 0) {
   return null;
 }
 
-const REPLY_KEYS = ["add", "update", "retire", "carry", "summary", "fronts", "event", "delivered", "direction"];
+const REPLY_KEYS = ["add", "update", "retire", "carry", "summary", "fronts", "event", "delivered", "direction", "returns"];
 
 const tryObject = (body) => {
   try {
@@ -3434,16 +3438,45 @@ export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
  * The people of the bench who are due or will be within `within` replies (one DM cadence): their ids. The DM reads them in
  * full, so a person who is about to come back is not a bare name when the run is made. Nothing when Frequency is off.
  */
-export function benchSoon({ state, msgs, snaps, reg, personIds, freq, within }) {
+export function benchSoon(args) {
+  return benchSoonList(args).map((x) => x.id);
+}
+
+/** The same people with their names and the silence so far: [{ id, name, silence }], for the DM's input (it may say why they come back). */
+export function benchSoonList({ state, msgs, snaps, reg, personIds, freq, within }) {
   if (!CAST_SILENCE[freq]) return [];
-  const ids = [];
+  const out = [];
   for (const rec of state.entities) {
     if (rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true) continue;
     const ident = castIdentity(state, reg, rec);
     if (ident.own) continue;
-    if (silenceOf(ident, rec, msgs, snaps, reg, personIds) >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) ids.push(rec.id);
+    const silence = silenceOf(ident, rec, msgs, snaps, reg, personIds);
+    if (silence >= castThreshold(freq, state.chatId, rec.id) - Math.max(0, within || 0)) out.push({ id: rec.id, name: rec.name, silence });
   }
-  return ids;
+  return out;
+}
+
+/** What the DM is told about who may come back soon, and how to say why. Input only: the system prompt does not change. */
+export function returnsInput(soon) {
+  const who = arr(soon).map((x) => x.id + " " + x.name + " (silent " + x.silence + ")").join(", ");
+  return "May come back soon: " + who + '. If you can tell, add to your JSON "returns": [{"id": "n3", "why": "..."}] for them: one short sentence, at most ' + HOOK_MAX + " characters, on what that person was doing meanwhile and what they want now, tied to a front or an open thread. Leave a person out if you have nothing.";
+}
+
+/**
+ * The DM's `returns` become hooks on the people it was told about (and no one else): a person, still on the bench. A hook is a short
+ * plain sentence; the next entrance of that person uses it, once. Returns how many hooks were set.
+ */
+export function applyReturns(state, returns, allowed, now) {
+  let n = 0;
+  for (const raw of arr(returns)) {
+    if (!isObj(raw) || !allowed.has(str(raw.id))) continue;
+    const rec = state.entities.find((e) => e.id === str(raw.id));
+    const text = cut(str(raw.why).replace(/\s+/g, " "), HOOK_MAX);
+    if (!rec || rec.kind !== "person" || rec.status !== "active" || rec.noReturn === true || !text) continue;
+    rec.hook = { text, at: now };
+    n++;
+  }
+  return n;
 }
 
 /**
@@ -3477,7 +3510,8 @@ export function planEntrance({ state, msgs, snaps, reg, personIds, freq, seed, l
 export function entranceInsert(en, rec) {
   if (en.src === "deck" && rec && !en.retried) return deckEntranceInsert(en, rec);
   if (en.retried) return "[CAST: " + en.name + " was left out of the last reply and must appear in this one. The shortest form will do: a message or a call that names them. Never mention this note.]";
-  const line = rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
+  // the DM's reason for this return, when it gave one, stands in place of the record's first sentence
+  const line = rec && rec.hook && str(rec.hook.text) ? " (" + rec.hook.text + ")" : rec && str(rec.text) ? " (" + shorten(firstSentence(rec.text), 140) + ")" : "";
   return "[CAST: " + en.name + line + " has not been around for " + en.silence + " replies. They come into the story in this reply, at this scale: " + CAST_BAND_TEXT[en.band] + ". The form is yours (a message, a call, a visit, an invitation, or someone present bringing them up), but they do appear, and the others react. If they are far away, only what a message or a call can carry; they know only what they were told. Never mention this note.]";
 }
 
@@ -3632,6 +3666,8 @@ export function judgeEntrance(state, msgs, snaps, reg, personIds) {
     return { ok, res, again: true, en, carrier: keyOf(carrier) };
   }
   state.lastEntrance = { id: en.id, n, band: en.band, ok, res, ...(deck ? { src: "deck" } : {}) };
+  // the DM's reason for this return was used (or missed): the next one needs a new one
+  if (!deck && rec && rec.hook) delete rec.hook;
   delete state.entrance;
   // the person is in the story now (on stage or named): the card becomes a record; a miss keeps the card in the deck
   const drawn = deck && rec && res !== "missed" ? drawCard(state, rec, Date.now()) : null;
@@ -5990,7 +6026,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}), ...(e.hook ? { hook: e.hook } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -6191,14 +6227,15 @@ function updateRoute(req, host) {
   // the records the DM reads in full this run; the others go in as one line (see fullRecordIds). The set is the same for a retry.
   const runFreq = state.settings.level !== "off" && CAST_FREQ.includes(state.settings.cast) ? state.settings.cast : "off";
   const runCast = runFreq !== "off" ? castContext(fsx, chatId) : null;
-  const soon = runCast ? benchSoon({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const soonWho = runCast ? benchSoonList({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
+  const soon = soonWho.map((x) => x.id);
   const fullIds = fullRecordIds(state, { story: take.msgs.map((m) => str(m.text)).join("\n"), scene, reg: runReg.reg, soon });
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -6250,6 +6287,8 @@ function updateRoute(req, host) {
   const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
   const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
   regFlush(fsx, rc);
+  // the reasons the DM gave for people who may come back soon (only for those it was told about)
+  applyReturns(state, out.returns, new Set(soon), Date.now());
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
   // a full run showed the DM the fronts stirred by the last ticks; they are let go before the new ticks
