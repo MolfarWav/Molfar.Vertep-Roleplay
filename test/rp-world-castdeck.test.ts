@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CAST_CARDS_MAX, DEFAULT_OPTIONS, cleanCast, cleanCastOpts, coreOf, emptyState, handleRoute, nextCastId, normalizeState, startSettings } from "../plugins/world/plugin.js";
+import { CAST_CARDS_MAX, CAST_SYSTEM, DEFAULT_OPTIONS, castFactions, castFrom, castInput, cleanCast, cleanCastOpts, coreOf, emptyState, handleRoute, listRecipes, nextCastId, normalizeState, recipeOf, startPlan, startSettings, tieIndex, tieOf } from "../plugins/world/plugin.js";
 
 const J = (v: unknown) => JSON.stringify(v);
 const card = (over: Record<string, unknown> = {}) => ({ id: "c1", name: "Halyna", aliases: ["Hala"], faction: "Toll guild", tie: "Maksym", want: "Wants the pass closed.", text: "A tall woman with a ledger. She counts everything.", ...over });
@@ -81,7 +81,9 @@ const eng = (await import(engineUrl)) as { handleRoute: Function };
 
 let root: string;
 const results: Record<string, unknown> = {};
+let requests: { key: string; spec: Record<string, any> }[] = [];
 beforeEach(() => {
+  requests = [];
   root = fs.mkdtempSync(path.join(os.tmpdir(), "world-castdeck-"));
   for (const d of ["characters/odarka", "personas", "presets", "regex", "groups", "lorebooks", "chats"]) fs.mkdirSync(path.join(root, d), { recursive: true });
   fs.writeFileSync(path.join(root, "presets", "default.json"), J({ id: "default", name: "Default", prompts: [], prompt_order: [] }));
@@ -106,7 +108,7 @@ function host() {
       remove: (rel: string) => fs.rmSync(path.resolve(root, rel), { recursive: true, force: true }),
     },
     store: { get: () => null, put: () => {}, delete: () => {}, keys: () => [] },
-    llm: { request: () => {}, results, embed: () => {}, embedResults: {} },
+    llm: { request: (key: string, spec: Record<string, any>) => { requests.push({ key, spec }); }, results, embed: () => {}, embedResults: {} },
     net: { request: () => {}, results: {} },
     log: () => {},
   };
@@ -171,5 +173,187 @@ describe("the deck travels with the world", () => {
     expect(peeked.draft.cast.map((c: any) => c.name)).toEqual(["Halyna"]);
     expect(peeked.draft.castOpts).toEqual({ factions: 2, per: 3, len: "short" });
     expect(peeked.draft.total).toBe(3);
+  });
+});
+
+// ---------- the build: factions, ties, the Start step ----------
+
+const rec = (id: string, kind: string, name: string, text: string, extra: Record<string, unknown> = {}) => ({ id, kind, name, aliases: [] as string[], text, status: "active", uid: 0, at: 1, ...extra });
+const front = (id: string, name: string, goal = "A goal.", status = "active") => ({ id, name, goal, clock: 1, size: 6, status });
+
+describe("the factions and the ties", () => {
+  it("factions are the active groups first, then the active fronts, each name once", () => {
+    const list = castFactions(
+      [rec("n1", "group", "Toll guild", "Keeps the tolls."), rec("n2", "person", "Maksym", "x"), rec("n3", "group", "Old guild", "gone", { status: "past" }), rec("n4", "group", "Crows", "Thieves.")],
+      [front("f1", "The toll"), front("f2", "toll GUILD"), front("f3", "Dead front", "x", "past")],
+    );
+    expect(list.map((f) => [f.name, f.kind])).toEqual([["Toll guild", "group"], ["Crows", "group"], ["The toll", "front"]]);
+  });
+
+  it("who exists: the cards, the user's character and the active people; a tie is read by name or alias, case aside", () => {
+    const index = tieIndex([rec("n1", "person", "Maksym", "x", { aliases: ["Max"] }), rec("n2", "person", "Gone", "x", { status: "past" }), rec("n3", "place", "Tower", "x")], ["Odarka"], "Taras");
+    expect(index.map((x) => x.name)).toEqual(["Odarka", "Taras", "Maksym"]);
+    expect(tieOf(index, "max")).toBe("Maksym");
+    expect(tieOf(index, "ODARKA")).toBe("Odarka");
+    expect(tieOf(index, "Gone")).toBe("");
+    expect(tieOf(index, "")).toBe("");
+  });
+});
+
+describe("reading a cast answer", () => {
+  const entities = [rec("n1", "group", "Toll guild", "Keeps the tolls."), rec("n2", "person", "Maksym", "The toll keeper.", { aliases: ["Max"] }), rec("n3", "place", "Red Tower", "A tower.")];
+  const factions = [{ name: "Toll guild", kind: "group", text: "" }, { name: "Crows", kind: "group", text: "" }];
+  const ctx = { entities, index: tieIndex(entities, ["Odarka"], "Taras"), factions, per: 2, have: ["Ivan"] };
+  const raw = (over: Record<string, unknown>) => ({ faction: "Toll guild", name: "Halyna", aliases: ["Hala", "Max"], tie: "Maksym", want: "Wants the pass shut.", text: "A tall woman with a ledger.", relation: "rival", ...over });
+
+  it("keeps a card with its faction, its tie and its want; an alias the world already owns is dropped", () => {
+    const [c] = castFrom({ cast: [raw({})] }, ctx);
+    expect(c).toMatchObject({ id: "", name: "Halyna", faction: "Toll guild", tie: "Maksym", want: "Wants the pass shut.", relation: "rival" });
+    expect(c!.aliases).toEqual(["Hala"]);
+  });
+
+  it("a tie nobody goes by stays empty; the faction may be a part of the name", () => {
+    const cards = castFrom({ cast: [raw({ tie: "A stranger", faction: "the Crows" })] }, ctx);
+    expect(cards[0]).toMatchObject({ tie: "", faction: "Crows" });
+  });
+
+  it("skips a faction that was not asked for, a name the world, the cards or the deck have, a card with no text, and more than per for a faction", () => {
+    const out = {
+      cast: [
+        raw({ faction: "Merchants", name: "Wrong faction" }),
+        raw({ name: "Maksym" }),
+        raw({ name: "max" }),
+        raw({ name: "Odarka" }),
+        raw({ name: "Taras" }),
+        raw({ name: "Ivan" }),
+        raw({ name: "Red Tower" }),
+        raw({ name: "No text", text: "" }),
+        raw({ name: "One" }),
+        raw({ name: "Two" }),
+        raw({ name: "Three" }),
+        "junk",
+      ],
+    };
+    expect(castFrom(out, ctx).map((c) => c.name)).toEqual(["One", "Two"]);
+    expect(castFrom({ cast: "x" }, ctx)).toEqual([]);
+    expect(castFrom(null, ctx)).toEqual([]);
+  });
+
+  it("the call tells the model the factions, who exists, who is in the deck and how long a card is", () => {
+    const text = castInput({ entities, fronts: [front("f1", "The toll")], factions, per: 2, len: "long", index: ctx.index, have: ["Ivan"], prompt: "", lang: "Ukrainian" });
+    expect(text).toContain("n2 · person · Maksym");
+    expect(text).toContain("- Toll guild (group)\n- Crows (group)");
+    expect(text).toContain("Odarka, Taras, Maksym");
+    expect(text).toContain("Already in the deck (do not repeat)\nIvan");
+    expect(text).toContain("write 2 new people, 8 to 10 sentences");
+    expect(text).toContain("Write names and text in Ukrainian.");
+    expect(CAST_SYSTEM).toContain("tied to ONE person who already exists");
+  });
+});
+
+describe("the plan and the recipe", () => {
+  it("cast calls come after the fronts, one per part", () => {
+    const recipe = recipeOf({ read: () => { throw new Error("none"); }, write() {}, list: () => [], remove() {} } as any, "from-cards")!;
+    expect(recipe.cast).toEqual({ factions: 3, per: 2, prompt: "" });
+    const steps = startPlan(recipe, [], true, 2);
+    expect(steps.slice(-3)).toEqual([{ fronts: true }, { cast: true, part: 0 }, { cast: true, part: 1 }]);
+    expect(startPlan(recipe, [], true).some((x: any) => x.cast)).toBe(false);
+    expect(startPlan(recipe, [], false, 1).slice(-1)).toEqual([{ cast: true, part: 0 }]);
+  });
+
+  it("a recipe file sets its own numbers, kept within bounds", () => {
+    const fsx = { read: (p: string) => (p === "world/recipes/heist.json" ? J({ name: "Heist", sections: [{ prompt: "Crew." }], cast: { factions: 40, per: 0, prompt: "Mind the guards." } }) : (() => { throw new Error("none"); })()), write() {}, list: (d: string) => (d === "world/recipes" ? ["heist.json"] : []), remove() {} } as any;
+    expect(listRecipes(fsx).find((r: any) => r.id === "heist")!.cast).toEqual({ factions: 6, per: 1, prompt: "Mind the guards." });
+  });
+});
+
+describe("a Start writes the cards", () => {
+  const step = (chatId: string, text: string) => {
+    for (const k of Object.keys(results)) delete results[k];
+    results.world_build = { text, model: "b/build", genTimeMs: 10 };
+    return world("POST", "/world/start", { chatId });
+  };
+  const sections = [
+    J({ add: [{ kind: "group", name: "Toll guild", text: "Keeps the tolls." }, { kind: "group", name: "Crows", text: "Thieves of the road." }] }),
+    J({ add: [{ kind: "person", name: "Maksym", text: "The toll keeper." }] }),
+    J({ add: [] }),
+    J({ fronts: [{ name: "The toll", goal: "Close the pass.", size: 4 }] }),
+  ];
+  const castReply = J({
+    cast: [
+      { faction: "Toll guild", name: "Halyna", aliases: ["Hala"], tie: "Maksym", want: "Wants the pass shut.", text: "A tall woman with a ledger.", relation: "rival" },
+      { faction: "Toll guild", name: "Pavlo", tie: "Nobody", want: "Wants coin.", text: "A clerk." },
+      { faction: "Crows", name: "Zoya", tie: "Odarka", want: "Wants a debt paid.", text: "A thief with a limp." },
+    ],
+  });
+
+  it("by default, one call for the factions after the fronts; the cards wait in the draft with ids, and accept keeps what the player left", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "living" });
+    const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false });
+    expect(begun.draft).toMatchObject({ total: 5, castOpts: { factions: 3, per: 2, len: "normal" } });
+    world("POST", "/world/start", { chatId: id });
+    let out: any;
+    for (const r of sections) out = step(id, r);
+    // the first pass of the cast step asks the build model; the second reads its answer
+    requests = [];
+    for (const k of Object.keys(results)) delete results[k];
+    expect(world("POST", "/world/start", { chatId: id }).__llmPending).toBe(true);
+    const asked = requests.find((r) => r.key.startsWith("world_build"))!.spec.messages[0].content as string;
+    out = step(id, castReply);
+    expect(out.draft.done).toBe(5);
+    expect(asked).toContain("- Toll guild (group)");
+    expect(asked).toContain("- Crows (group)");
+    expect(asked).toContain("- The toll (front)");
+    expect(asked).toContain("Odarka, User, Maksym");
+    expect(out.draft.cast.map((c: any) => [c.id, c.name, c.faction, c.tie])).toEqual([["c1", "Halyna", "Toll guild", "Maksym"], ["c2", "Pavlo", "Toll guild", ""], ["c3", "Zoya", "Crows", "Odarka"]]);
+    // nothing is in the world, and the deck has no say in the prompt, until accept
+    expect(world("GET", "/world/state", undefined, { chatId: id }).cast).toBe(0);
+    const done = world("PUT", "/world/draft", { chatId: id, op: "accept", drop: { cast: ["c2"] } });
+    expect(done.cast).toBe(2);
+    const s = readRel("world/state/" + id + ".json");
+    expect(s.cast.map((c: any) => [c.id, c.name])).toEqual([["c1", "Halyna"], ["c2", "Zoya"]]);
+    expect(s.settings).toMatchObject({ castDeck: true, castPer: 2, castLen: "normal" });
+    expect(s.draft).toBeUndefined();
+  });
+
+  it("the player's numbers reach the call and the settings; cast: false plans no call", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "living" });
+    const begun = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false, cast: { on: true, factions: 6, per: 3, len: "short" } });
+    expect(begun.draft).toMatchObject({ total: 6, castOpts: { factions: 6, per: 3, len: "short" } });
+    const off = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false, cast: false });
+    expect(off.draft).toMatchObject({ total: 4, castOpts: null });
+    const off2 = world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false, cast: { on: false } });
+    expect(off2.draft.total).toBe(4);
+  });
+
+  it("a world with no faction has nothing to write for: the step passes with no call", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "living" });
+    world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false });
+    world("POST", "/world/start", { chatId: id });
+    for (const r of [J({ add: [{ kind: "place", name: "Salt Road", text: "A road." }] }), J({ add: [] }), J({ add: [] }), J({ fronts: [] })]) step(id, r);
+    requests = [];
+    for (const k of Object.keys(results)) delete results[k];
+    const out = world("POST", "/world/start", { chatId: id });
+    expect(out.__llmPending).toBeUndefined();
+    expect(out.draft.done).toBe(5);
+    expect(requests.length).toBe(0);
+  });
+
+  it("a card of a name the world got meanwhile is not accepted", () => {
+    const id = newChat();
+    world("PUT", "/world/settings", { chatId: id, level: "living" });
+    world("POST", "/world/start", { chatId: id, begin: true, recipe: "from-cards", bench: false });
+    world("POST", "/world/start", { chatId: id });
+    for (const r of sections) step(id, r);
+    step(id, castReply);
+    const raw = readRel("world/state/" + id + ".json");
+    raw.entities = [rec("n1", "person", "Zoya", "Already here.")];
+    raw.nextId = 2;
+    fs.writeFileSync(path.join(root, "world", "state", id + ".json"), J(raw));
+    world("PUT", "/world/draft", { chatId: id, op: "accept", drop: {} });
+    expect(readRel("world/state/" + id + ".json").cast.map((c: any) => c.name)).toEqual(["Halyna", "Pavlo"]);
   });
 });

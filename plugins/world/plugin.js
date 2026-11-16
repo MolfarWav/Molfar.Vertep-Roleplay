@@ -4130,6 +4130,7 @@ const BUILTIN_RECIPES = [
       { id: "trouble", kinds: ["group", "thing"], max: 4, prompt: "Invent what can go wrong for these characters: a threat, a secret or a danger, each as a group (who is behind it, what they hide), and at most one object that matters to the story, with its reason." },
     ],
     fronts: { count: 2, prompt: "Invent the powers that want something from these characters or this place and will move off screen." },
+    cast: { factions: 3, per: 2, prompt: "" },
   },
   {
     id: "interview",
@@ -4149,6 +4150,7 @@ const BUILTIN_RECIPES = [
       { id: "facts", kinds: ["thing"], max: 5, prompt: "Invent the few things this world's story can lean on (a clue, a weapon, a gift, a promise); each needs its reason. Customs, dangers and history belong in the text of the places and groups, not here." },
     ],
     fronts: { count: 3, prompt: "Invent the powers that want something in this world and will move off screen." },
+    cast: { factions: 3, per: 2, prompt: "" },
   },
 ];
 
@@ -4168,9 +4170,12 @@ function cleanRecipe(raw, id) {
   })).filter((s) => s.prompt);
   if (!sections.length) return null;
   const f = isObj(raw.fronts) ? raw.fronts : {};
+  const c = isObj(raw.cast) ? raw.cast : {};
   return {
     id, name: cut(str(raw.name), NAME_LEN) || id, description: cut(str(raw.description), DESC_LEN), mode: raw.mode === "invent" ? "invent" : "learn", questions, sections,
     fronts: { count: clamp(Math.round(num(f.count)), 0, FRONTS_MAX), prompt: cut(str(f.prompt), 1000) },
+    // the cast deck (#424, step 4): how many factions a Start writes new people for, how many each, and the recipe's own words for it
+    cast: { factions: c.factions === undefined ? 3 : clamp(Math.round(num(c.factions)), 0, CAST_FACTIONS_MAX), per: c.per === undefined ? DEFAULT_SETTINGS.castPer : clamp(Math.round(num(c.per)), 1, CAST_PER_MAX), prompt: cut(str(c.prompt), 1000) },
   };
 }
 
@@ -4402,8 +4407,8 @@ export function frontsInput({ entities, recipe, answers, lang }) {
   ].join("\n\n");
 }
 
-/** The calls a start makes, in order: one per (section, chunk), then the fronts call when the recipe asks for any. */
-export function startPlan(recipe, chunks, withFronts) {
+/** The calls a start makes, in order: one per (section, chunk), then the fronts call when the recipe asks for any, then the cast deck's calls (`castParts`). */
+export function startPlan(recipe, chunks, withFronts, castParts = 0) {
   const steps = [];
   for (const s of recipe.sections) {
     // an inventing recipe reads the brief once per section, not every chunk of the cards
@@ -4412,6 +4417,8 @@ export function startPlan(recipe, chunks, withFronts) {
     else steps.push({ section: s.id, chunk: -1 });
   }
   if (withFronts && recipe.fronts.count > 0) steps.push({ fronts: true });
+  // the cast deck's cards: one call per CAST_PART factions, after the fronts so the factions are there
+  for (let i = 0; i < castParts; i++) steps.push({ cast: true, part: i });
   return steps;
 }
 
@@ -4692,14 +4699,19 @@ function startRoute(req, host) {
     if (usesCards && !chunks.length) return ok({ error: "the chosen cards have nothing to learn from", code: "no-text" }, 409);
     const profile = profileFor(fsx, state.settings);
     const withDeck = b.deck === true || (b.deck !== false && !!(profile && profile.options && profile.options.deck));
-    const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler");
+    // the cast deck (#424, step 4): on unless the player or the profile says no; the numbers are the player's, else the recipe's
+    const castAsk = isObj(b.cast) ? b.cast : {};
+    const withCast = b.cast === false ? false : typeof castAsk.on === "boolean" ? castAsk.on : !(profile && profile.options && profile.options.castDeck === false);
+    const castOpts = cleanCastOpts({ factions: castAsk.factions !== undefined ? castAsk.factions : recipe.cast.factions, per: castAsk.per !== undefined ? castAsk.per : recipe.cast.per, len: castAsk.len });
+    const castParts = withCast && castOpts.factions > 0 ? Math.ceil(castOpts.factions / CAST_PART) : 0;
+    const steps = startPlan(recipe, chunks, state.settings.level !== "chronicler", castParts);
     if (withDeck) steps.push({ deck: true });
     // the people the cards' lorebooks already have are adopted as linked records (#424); before the fronts, so they can use them
     if (usesCards && b.bench !== false && benchEntries(fsx, t.chat ? meta : { cardIds }).length) {
       const at = steps.findIndex((x) => x.fronts);
       steps.splice(at < 0 ? steps.length : at, 0, { bench: true });
     }
-    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, at: Date.now() });
+    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, ...(castParts ? { castOpts } : {}), at: Date.now() });
     t.save(state);
     return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
   }
@@ -4717,9 +4729,26 @@ function startRoute(req, host) {
   let system;
   let content;
   let benchEntriesNow = [];
-  if (step.fronts || step.deck || step.bench) {
+  let castNow = null;
+  if (step.fronts || step.deck || step.bench || step.cast) {
     const entities = [...state.entities, ...draft.entities];
-    if (step.bench) {
+    if (step.cast) {
+      // the factions of this part (groups first, then fronts, the first `factions` of them), with who already exists for the ties
+      const opts = draft.castOpts || cleanCastOpts({});
+      const fronts = [...state.fronts, ...draft.fronts];
+      const part = castFactions(entities, fronts).slice(0, opts.factions).slice(step.part * CAST_PART, (step.part + 1) * CAST_PART);
+      // a world with fewer factions than asked has nothing to write for this part: no call
+      if (!part.length) {
+        draft.done++;
+        delete draft.error;
+        state.draft = draft;
+        t.save(state);
+        return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(draft) });
+      }
+      castNow = { index: tieIndex(entities, cards, userName), factions: part, per: opts.per, have: [...arr(state.cast), ...draft.cast].map((c) => c.name), entities };
+      system = CAST_SYSTEM;
+      content = castInput({ entities, fronts, factions: part, per: opts.per, len: opts.len, index: castNow.index, have: castNow.have, prompt: recipe.cast.prompt, lang: draft.lang });
+    } else if (step.bench) {
       benchEntriesNow = benchEntries(fsx, chat.meta);
       system = BENCH_SYSTEM;
       content = benchInput({ entries: benchEntriesNow, userName, cards, lang: draft.lang });
@@ -4756,6 +4785,10 @@ function startRoute(req, host) {
       changes = applyLevel(pseudo, { fronts: adds }, { level: "living", catchingUp: true });
       draft.fronts = pseudo.fronts;
       draft.nextFront = pseudo.nextFront;
+    } else if (step.cast) {
+      const cardsOut = castFrom(built.out, castNow);
+      draft.cast = cleanCast([...draft.cast, ...cardsOut]);
+      changes = cardsOut.length;
     } else if (step.deck) {
       const cardsOut = deckFrom(built.out, DECK_MAX);
       if (cardsOut.length) draft.deck = cardsOut.map((c, i) => ({ id: "e" + (i + 1), text: c.text }));
@@ -4771,6 +4804,92 @@ function startRoute(req, host) {
   state.draft = draft;
   t.save(state);
   return ok({ ok: !built.error, ...(t.worldId ? { worldId: t.worldId } : {}), ...(built.error ? { error: draft.error.message, code: draft.error.code } : {}), draft: draftView(draft) });
+}
+
+// ---------- the cast deck's build (#424, step 4) ----------
+// One call writes the cards for up to CAST_PART factions. A faction is a group record or a front. Every card names one person who
+// already exists (its tie: a record, a card of the chat, the user's character) and wants something of its own. The code reads the
+// answer: a name the world already has is skipped, a faction that is not asked for is skipped, a tie that is not found is left empty.
+const CAST_PART = 4;
+const CAST_LEN_TEXT = { short: "5 to 6 sentences", normal: "6 to 8 sentences", long: "8 to 10 sentences" };
+
+export const CAST_SYSTEM = [
+  "You build the world of a roleplay story. Write cards for new people the story has not met yet: each one belongs to a faction of the world and can be brought in later, when the story needs someone new.",
+  "- Each person belongs to one of the factions you are asked for (write the faction exactly as given).",
+  "- Each person is tied to ONE person who already exists: write that person's name exactly as listed under 'Who already exists'. Say in the text how they know each other (a cousin, a debtor, a rival, a former pupil).",
+  "- Each person wants something of their own, besides what the faction wants: give it in 'want', one short sentence.",
+  "- 'text': the person's look, character, goals and fears, how they know the tie, and a hook for how they might first enter the story (an errand, a message, a visit). Plain sentences, no story, no lines of dialogue.",
+  "- Never contradict the world record or the cards; never reuse a name from the record or the deck. Names and the setting must fit the genre and the tone of the world.",
+  "- 'aliases': up to 3 short names or nicknames the story could use. 'relation' to the user's character: ally, family, rival, enemy or neutral.",
+  "- Only the JSON keys and the relation words are English.",
+  "Output: one JSON object and nothing else, no code fences:",
+  '{"cast":[{"faction":"...","name":"...","aliases":["..."],"tie":"...","want":"...","text":"...","relation":"neutral"}]}',
+].join("\n");
+
+/** The factions the cast deck writes for: the active group records first, then the active fronts that are not named like one. [{ name, kind, text }] */
+export function castFactions(entities, fronts) {
+  const out = [];
+  const add = (name, kind, text) => {
+    if (name && !out.some((x) => sameName(x.name, name))) out.push({ name, kind, text: str(text) });
+  };
+  for (const e of arr(entities)) if (e.kind === "group" && e.status === "active") add(e.name, "group", e.text);
+  for (const f of arr(fronts)) if (f.status === "active") add(f.name, "front", f.goal);
+  return out;
+}
+
+/** Who already exists, for ties: the chat's cards, the user's character and the active person records. [{ name, names }] */
+export function tieIndex(entities, cards, userName) {
+  const list = [];
+  for (const c of arr(cards)) list.push({ name: c, names: [c] });
+  if (userName) list.push({ name: userName, names: [userName] });
+  for (const e of arr(entities)) if (e.kind === "person" && e.status === "active") list.push({ name: e.name, names: namesOf(e) });
+  return list;
+}
+
+/** The name a model wrote as a tie, as the world spells it; "" when nobody who exists goes by it. */
+export function tieOf(index, said) {
+  const t = str(said).toLowerCase();
+  if (!t) return "";
+  const hit = arr(index).find((x) => x.names.some((n) => n.toLowerCase() === t));
+  return hit ? hit.name : "";
+}
+
+/** The user message of a cast call: the record, the fronts, the factions asked for, who exists, who is in the deck, the task. */
+export function castInput({ entities, fronts, factions, per, len, index, have, prompt, lang }) {
+  const active = arr(fronts).filter((f) => f.status === "active");
+  return [
+    "World record\n" + (arr(entities).filter((e) => e.status === "active").map(entityLine).join("\n") || "empty"),
+    "Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none"),
+    "Factions to write people for\n" + factions.map((f) => "- " + f.name + " (" + f.kind + ")").join("\n"),
+    "Who already exists (a tie is one of these names, exactly)\n" + (arr(index).map((x) => x.name).join(", ") || "nobody"),
+    ...(arr(have).length ? ["Already in the deck (do not repeat)\n" + have.join(", ")] : []),
+    "Task: " + (prompt ? prompt + " " : "") + "For each faction above write " + per + " new " + (per === 1 ? "person" : "people") + ", " + (CAST_LEN_TEXT[len] || CAST_LEN_TEXT.normal) + " of text each.",
+    "Write names and text in " + (lang || "the language of the record") + ".",
+  ].join("\n\n");
+}
+
+/** The cards of a cast answer: only the factions asked for, at most `per` each, a name the world, the cards or the deck already have is skipped, a tie nobody goes by is left empty. No ids yet. */
+export function castFrom(out, ctx) {
+  const taken = new Set();
+  for (const e of arr(ctx.entities)) for (const x of namesOf(e)) taken.add(x.toLowerCase());
+  for (const x of arr(ctx.index)) for (const y of x.names) taken.add(y.toLowerCase());
+  for (const x of arr(ctx.have)) taken.add(str(x).toLowerCase());
+  const counts = new Map();
+  const cards = [];
+  for (const raw of arr(isObj(out) ? out.cast : null)) {
+    if (!isObj(raw) || cards.length >= ctx.factions.length * ctx.per) continue;
+    const said = str(raw.faction).toLowerCase();
+    const faction = said ? ctx.factions.find((f) => f.name.toLowerCase() === said) || ctx.factions.find((f) => f.name.toLowerCase().includes(said) || said.includes(f.name.toLowerCase())) : null;
+    const name = cut(str(raw.name), NAME_MAX);
+    if (!faction || !name || taken.has(name.toLowerCase()) || (counts.get(faction.name) || 0) >= ctx.per) continue;
+    const [card] = cleanCast([{ name, aliases: arr(raw.aliases).filter((a) => !taken.has(str(a).toLowerCase())), faction: faction.name, tie: tieOf(ctx.index, raw.tie), want: raw.want, text: raw.text, relation: raw.relation }]);
+    if (!card) continue;
+    card.id = "";
+    taken.add(name.toLowerCase());
+    counts.set(faction.name, (counts.get(faction.name) || 0) + 1);
+    cards.push(card);
+  }
+  return cards;
 }
 
 export function deckInput({ entities, fronts, lang }) {
@@ -4825,6 +4944,13 @@ function draftRoute(req, host) {
     let n = nextDeckId(kept);
     state.deck = [...kept, ...deck.map((c) => ({ id: "e" + n++, text: c.text }))].slice(-DECK_MAX * 2);
   }
+  // the cards of new people that were kept: new ids, a name once, never a person the world already has; the Start's numbers become the chat's
+  const castKept = draft.cast.filter((c) => !gone(drop.cast, c.id));
+  if (castKept.length) {
+    const have = cleanCast(state.cast);
+    state.cast = cleanCast([...have, ...castKept.filter((c) => !have.some((x) => sameName(x.name, c.name)) && !findEntity(state.entities, { name: c.name })).map((c) => ({ ...c, id: "" }))]);
+  }
+  if (draft.castOpts) state.settings = cleanSettings({ ...state.settings, castDeck: true, castPer: draft.castOpts.per, castLen: draft.castOpts.len });
   state.origin = { kind: draft.recipe === "from-cards" ? "cards" : "recipe", recipe: draft.recipe, cardIds: draft.cardIds, at: now };
   delete state.draft;
   if (t.worldId) {
