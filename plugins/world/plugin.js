@@ -118,8 +118,10 @@ export const RELATIONS = ["ally", "family", "rival", "enemy", "neutral"];
 export const WEIGHTS = [0, 1, 2];
 // how often a person who has been away is brought back (#424); a new chat starts on normal, a chat that had a state file before stays off until the player asks
 export const CAST_FREQ = ["off", "rare", "normal", "often"];
+// the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
+export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal" };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1130,6 +1132,10 @@ function cleanSettings(s) {
     castShow: b.castShow === true,
     // the code tidy-up of things that played out (#424, step 3); on unless the player switched it off
     tidy: typeof b.tidy === "boolean" ? b.tidy : DEFAULT_SETTINGS.tidy,
+    // the cast deck (#424, step 4): new people drawn from cards; a file from before it has no value and stays off
+    castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_SETTINGS.castDeck,
+    castPer: Number.isFinite(Number(b.castPer)) && Number(b.castPer) >= 1 ? clamp(Math.round(Number(b.castPer)), 1, CAST_PER_MAX) : DEFAULT_SETTINGS.castPer,
+    castLen: CAST_LENS.includes(b.castLen) ? b.castLen : DEFAULT_SETTINGS.castLen,
   };
 }
 
@@ -1454,6 +1460,12 @@ export function normalizeState(raw, chatId) {
   if (isObj(s.usage)) out.usage = cleanUsage(s.usage, true);
   const deck = cleanDeck(s.deck);
   if (deck.length) out.deck = deck;
+  // the cast deck (#424, step 4): cards of new people, when the last refill was tried, and a log of the refills
+  const cast = cleanCast(s.cast);
+  if (cast.length) out.cast = cast;
+  if (isObj(s.castBuild) && Number.isInteger(s.castBuild.n) && s.castBuild.n >= 0) out.castBuild = { n: s.castBuild.n };
+  const castLog = arr(s.castLog).map(cleanCastLine).filter(Boolean).slice(-CAST_LOG_MAX);
+  if (castLog.length) out.castLog = castLog;
   const draft = cleanDraft(s.draft);
   if (draft) out.draft = draft;
   if (isObj(s.origin) && str(s.origin.kind)) out.origin = s.origin;
@@ -1535,7 +1547,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance", "tidy", "tidyLog"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -2437,7 +2449,7 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
 // cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal" };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal", castDeck: true };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -2454,6 +2466,7 @@ function cleanOptions(o) {
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
     dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_OPTIONS.cast,
+    castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_OPTIONS.castDeck,
   };
 }
 
@@ -4449,11 +4462,79 @@ export function cleanDeck(v) {
   return out;
 }
 
+// ---------- the cast deck (#424, step 4): cards of people the story has not met ----------
+// A card: who (name, aliases), the faction it belongs to, the one person who already exists that ties it to the story (tie),
+// what it wants, and its text (look, character, goals, a hook for how it comes in). It is not in the prompt until it is drawn.
+export const CAST_CARDS_MAX = 24;
+export const CAST_PER_MAX = 4;
+export const CAST_FACTIONS_MAX = 6;
+const CAST_TEXT_MAX = 1200;
+const CAST_WANT_MAX = 200;
+const CAST_ALIASES_MAX = 4;
+const CAST_ID = /^c\d{1,6}$/;
+const CAST_LOG_MAX = 40;
+
+function cleanCastCard(c) {
+  if (!isObj(c)) return null;
+  const name = cut(str(c.name), NAME_MAX);
+  const text = cut(str(c.text), CAST_TEXT_MAX);
+  if (!name || !text) return null;
+  return {
+    id: CAST_ID.test(str(c.id)) ? str(c.id) : "",
+    name,
+    aliases: cleanAliases(c.aliases, name).slice(0, CAST_ALIASES_MAX),
+    faction: cut(str(c.faction), NAME_MAX),
+    tie: cut(str(c.tie), NAME_MAX),
+    want: cut(str(c.want), CAST_WANT_MAX),
+    text,
+    ...(RELATIONS.includes(c.relation) ? { relation: c.relation } : {}),
+  };
+}
+
+/** The next free card id ("c1", "c2"...) of a list. */
+export const nextCastId = (list) => "c" + (arr(list).reduce((m, c) => Math.max(m, Number(str(c && c.id).slice(1)) || 0), 0) + 1);
+
+/** The cards of the cast deck: each with a name and a text, a name once, an id each (a missing or doubled id gets a new one), at most CAST_CARDS_MAX. */
+export function cleanCast(v) {
+  const out = [];
+  for (const raw of arr(v)) {
+    const c = cleanCastCard(raw);
+    if (!c || out.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) continue;
+    if (!c.id || out.some((x) => x.id === c.id)) c.id = nextCastId(out);
+    out.push(c);
+    if (out.length >= CAST_CARDS_MAX) break;
+  }
+  return out;
+}
+
+/** One line of the refill log: when, at which reply, how many cards came, for which factions, an error code if the call failed, and whether the player asked for it. */
+function cleanCastLine(l) {
+  if (!isObj(l) || !Number.isFinite(l.at)) return null;
+  return {
+    at: l.at,
+    n: Number.isInteger(l.n) && l.n >= 0 ? l.n : 0,
+    added: Number.isInteger(l.added) && l.added >= 0 ? l.added : 0,
+    factions: arr(l.factions).map((x) => cut(str(x), NAME_MAX)).filter(Boolean).slice(0, CAST_FACTIONS_MAX * 2),
+    ...(str(l.error) ? { error: cut(str(l.error), 40) } : {}),
+    ...(l.forced === true ? { forced: true } : {}),
+  };
+}
+
+/** What a Start asks of the cast deck: how many factions, how many people each, how long a card is. */
+export function cleanCastOpts(o) {
+  const b = isObj(o) ? o : {};
+  return {
+    factions: Number.isFinite(Number(b.factions)) ? clamp(Math.round(Number(b.factions)), 1, CAST_FACTIONS_MAX) : 3,
+    per: Number.isFinite(Number(b.per)) ? clamp(Math.round(Number(b.per)), 1, CAST_PER_MAX) : DEFAULT_SETTINGS.castPer,
+    len: CAST_LENS.includes(b.len) ? b.len : DEFAULT_SETTINGS.castLen,
+  };
+}
+
 function cleanDraft(d) {
   if (!isObj(d) || !str(d.recipe)) return null;
   const entities = arr(d.entities).map(cleanEntity).filter(Boolean);
   const fronts = arr(d.fronts).map(cleanFront).filter(Boolean);
-  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : s.bench ? { bench: true } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
+  const steps = arr(d.steps).filter(isObj).slice(0, 60).map((s) => (s.fronts ? { fronts: true } : s.deck ? { deck: true } : s.bench ? { bench: true } : s.cast ? { cast: true, part: clamp(Math.round(num(s.part)), 0, CAST_FACTIONS_MAX) } : { section: str(s.section), chunk: Math.round(Number(s.chunk)) }));
   return {
     recipe: str(d.recipe),
     cardIds: arr(d.cardIds).filter((id) => typeof id === "string" && CHAT_ID.test(id)),
@@ -4464,12 +4545,14 @@ function cleanDraft(d) {
     entities, nextId: Math.max(Number.isInteger(d.nextId) ? d.nextId : 1, entities.length + 1),
     fronts, nextFront: Math.max(Number.isInteger(d.nextFront) ? d.nextFront : 1, fronts.length + 1),
     deck: cleanDeck(d.deck),
+    cast: cleanCast(d.cast),
+    ...(isObj(d.castOpts) ? { castOpts: cleanCastOpts(d.castOpts) } : {}),
     at: num(d.at) || Date.now(),
     ...(isObj(d.error) && str(d.error.message) ? { error: cleanError(d.error) } : {}),
   };
 }
 
-const draftView = (d) => (d ? { recipe: d.recipe, cardIds: d.cardIds, lang: d.lang, total: d.steps.length, done: d.done, entities: d.entities, fronts: d.fronts, deck: d.deck, at: d.at, error: d.error || null } : null);
+const draftView = (d) => (d ? { recipe: d.recipe, cardIds: d.cardIds, lang: d.lang, total: d.steps.length, done: d.done, entities: d.entities, fronts: d.fronts, deck: d.deck, cast: d.cast, castOpts: d.castOpts || null, at: d.at, error: d.error || null } : null);
 
 /** The answer of a build call: the parsed object, or an error to keep (one retry on a rate limit or a reply all thinking). */
 function buildResult(host, key, ask, stash) {
@@ -4953,11 +5036,11 @@ function cleanWorld(raw, id) {
     v: 1, id, name: cut(str(raw.name), NAME_LEN) || "World", description: cut(str(raw.description), DESC_LEN),
     at: num(raw.at) || Date.now(),
     from: isObj(raw.from) ? { chatId: str(raw.from.chatId), title: cut(str(raw.from.title), 120) } : null,
-    settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck),
+    settings: s.settings, entities: s.entities.map((e) => ({ ...e, uid: 0 })), fronts: s.fronts, deck: cleanDeck(raw.deck), cast: cleanCast(raw.cast),
     ...(FOLDER_ID.test(str(raw.backgroundFolderId)) ? { backgroundFolderId: str(raw.backgroundFolderId) } : {}),
   };
 }
-const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, backgroundFolderId: w.backgroundFolderId || null, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length });
+const worldRow = (w) => ({ id: w.id, name: w.name, description: w.description, at: w.at, from: w.from, backgroundFolderId: w.backgroundFolderId || null, level: w.settings.level, records: w.entities.filter((e) => e.status === "active").length, fronts: w.fronts.filter((f) => f.status === "active").length, deck: w.deck.length, cast: w.cast.length });
 
 export function listWorlds(fsx) {
   let files = [];
@@ -5031,7 +5114,7 @@ function carryRoute(req, host) {
     origin = src && { kind: "library", worldId: src.id, name: src.name };
   } else if (CHAT_ID.test(str(b.fromChatId)) && str(b.fromChatId) !== toChatId) {
     const { state: from, existed } = loadState(fsx, str(b.fromChatId));
-    src = existed ? { ...from, deck: cleanDeck(from.deck) } : null;
+    src = existed ? { ...from, deck: cleanDeck(from.deck), cast: cleanCast(from.cast) } : null;
     origin = src && { kind: "chat", chatId: str(b.fromChatId), title: str(readJson(fsx, "chats/" + str(b.fromChatId) + ".meta.json", {}).title) };
   }
   if (!src) return ok({ error: "no such world" }, 404);
@@ -5042,6 +5125,8 @@ function carryRoute(req, host) {
   state.entities = src.entities.map((e) => ({ ...e, uid: 0 }));
   state.fronts = src.fronts;
   state.deck = cleanDeck(src.deck);
+  // the cards of new people come along, as the world stands: the ones already drawn are records by now
+  state.cast = cleanCast(src.cast);
   const s = normalizeState(state, toChatId);
   s.deck = state.deck;
   s.origin = { ...origin, at: Date.now() };
@@ -5427,6 +5512,8 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     // Start: a draft in progress, how many deck cards are left (not their text), where the world came from
     draft: draftView(state.draft || null),
     deck: arr(state.deck).length,
+    // the cast deck: how many cards of new people are left (not who they are)
+    cast: arr(state.cast).length,
     origin: state.origin || null,
     backgroundFolderId: state.backgroundFolderId || null,
   };
@@ -5458,8 +5545,8 @@ export function startSettings(fsx, settings, cfg) {
   const id = (cfg || loadConfig(fsx)).defaultProfile;
   const p = id ? loadProfile(fsx, id) : null;
   // a new chat brings people back from the start (#424): the profile's Frequency, else Normal
-  if (!p) return { ...settings, level: "chronicler", cast: settings.cast === "off" ? DEFAULT_OPTIONS.cast : settings.cast };
-  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id, cast: p.options && CAST_FREQ.includes(p.options.cast) ? p.options.cast : DEFAULT_OPTIONS.cast });
+  if (!p) return { ...settings, level: "chronicler", cast: settings.cast === "off" ? DEFAULT_OPTIONS.cast : settings.cast, castDeck: DEFAULT_OPTIONS.castDeck };
+  return cleanSettings({ ...settings, ...p.defaults, level: p.base, profile: p.builtIn ? "" : p.id, cast: p.options && CAST_FREQ.includes(p.options.cast) ? p.options.cast : DEFAULT_OPTIONS.cast, castDeck: p.options && typeof p.options.castDeck === "boolean" ? p.options.castDeck : DEFAULT_OPTIONS.castDeck });
 }
 
 /** Where a DM that starts now begins reading: the last few messages, not the whole story. */
@@ -5542,7 +5629,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -5559,6 +5646,8 @@ function settingsRoute(req, host) {
   if (fresh && next.level !== "off" && chat.msgs.length && b.fromStart !== true) state.lastKey = startKeyOf(chat.msgs, next);
   // a DM switched on for the first time brings people back too, unless the request says otherwise
   if (fresh && next.level !== "off" && b.cast === undefined && next.cast === "off") next.cast = DEFAULT_OPTIONS.cast;
+  // and draws new people from the cast deck (the player's own word on the switch stays)
+  if (fresh && next.level !== "off" && b.castDeck === undefined) next.castDeck = DEFAULT_OPTIONS.castDeck;
   // switched off, or a level with no state worth carrying: nothing waits to be sent
   if (next.cast === "off" || next.level === "off") delete state.entrance;
   // a level with no events drops a waiting one
