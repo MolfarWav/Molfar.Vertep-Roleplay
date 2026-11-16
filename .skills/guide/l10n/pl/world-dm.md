@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -40,6 +40,6 @@ Na wybranym czacie: Overview (te same ustawienia co arkusz), Places (drzewo miej
 
 ## Profile światów
 
-Każdy poziom to wbudowany profil: tych pięć trzyma prompty DM, a ty możesz otworzyć jeden, zmienić blok promptu i przywrócić go do domyślnego. Możesz też tworzyć własne profile na bazie poziomu. Czat wybiera swój profil w arkuszu DM. „Saved worlds” trzyma światy, które zbudowałeś i w których zaczynasz nowe czaty; „New world” buduje jeden przed jakimkolwiek czatem, z kart lub krótkiego wywiadu.
+Każdy poziom to wbudowany profil: tych pięć trzyma prompty DM, a ty możesz otworzyć jeden, zmienić blok promptu i przywrócić go do domyślnego. Możesz też tworzyć własne profile na bazie poziomu. Czat wybiera swój profil w arkuszu DM. Nowe czaty zaczynają się z Chronicler, chyba że naciśniesz **Make default** na innym profilu (zakładka Profiles, w nagłówku profilu): dostaje on tag *Default* i każdy nowy czat zaczyna się z jego poziomem, liczbami i promptami; czaty, które już masz, zachowują swoje własne, a DM „off” jest wybierany dla każdego czatu i nie może być domyślnym. „Saved worlds” trzyma światy, które zbudowałeś i w których zaczynasz nowe czaty; „New world” buduje jeden przed jakimkolwiek czatem, z kart lub krótkiego wywiadu.
 
 Powiązane: [[memory]], [[dashboard]]. Artykuły Pomocy *World profiles* i *Starting a world* pokazują ekrany.

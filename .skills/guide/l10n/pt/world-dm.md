@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Após as respostas, ele lê a história e guarda as pessoas, lugares e coisas que encontra no lorebook do próprio chat, chamado livro de mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
@@ -40,6 +40,6 @@ No chat escolhido: Overview (os mesmos controles da folha), Places (uma árvore 
 
 ## Perfis de mundo
 
-Cada nível é um perfil embutido: os cinco guardam os prompts do DM, e você pode abrir um, mudar um bloco de prompt e revertê-lo ao padrão. Você também pode criar perfis próprios sobre um nível. Um chat escolhe seu perfil na folha do DM. "Saved worlds" guarda mundos que você construiu e nos quais inicia chats novos; "New world" constrói um antes de qualquer chat, a partir de cartões ou de uma entrevista curta.
+Cada nível é um perfil embutido: os cinco guardam os prompts do DM, e você pode abrir um, mudar um bloco de prompt e revertê-lo ao padrão. Você também pode criar perfis próprios sobre um nível. Um chat escolhe seu perfil na folha do DM. Chats novos começam com o Chronicler a menos que você pressione **Make default** em outro perfil (a aba Profiles, no cabeçalho do perfil): ele ganha uma marca *Default* e todo chat novo começa com seu nível, números e prompts; chats que você já tem mantêm os seus, e o DM "off" é escolhido por chat e não pode ser o padrão. "Saved worlds" guarda mundos que você construiu e nos quais inicia chats novos; "New world" constrói um antes de qualquer chat, a partir de cartões ou de uma entrevista curta.
 
 Relacionados: [[memory]], [[dashboard]]. Os artigos de Ajuda *World profiles* e *Starting a world* têm as telas.

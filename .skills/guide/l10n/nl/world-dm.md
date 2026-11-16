@@ -1,4 +1,4 @@
-<!-- source: 48bbc9815581 -->
+<!-- source: 68f2d887108d -->
 # World DM
 
 De World DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en bewaart hij de mensen, plaatsen en dingen die hij tegenkomt in het eigen lorebook van de chat, het wereldboek genoemd. Op hogere niveaus beweegt hij ook de wereld en stuurt hij gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levendig en consistent aanvoelt.
@@ -40,6 +40,6 @@ Op de gekozen chat: Overview (dezelfde bediening als het blad), Places (een boom
 
 ## Wereldprofielen
 
-Elk niveau is een ingebouwd profiel: de vijf bevatten de prompts van de DM, en je kunt er een openen, een promptblok wijzigen en het terugzetten naar de standaard. Je kunt ook eigen profielen maken bovenop een niveau. Een chat kiest zijn profiel in het DM-blad. "Saved worlds" bevat werelden die je hebt gebouwd en waarin je nieuwe chats start; "New world" bouwt er een vóór elke chat, uit kaarten of een kort interview.
+Elk niveau is een ingebouwd profiel: de vijf bevatten de prompts van de DM, en je kunt er een openen, een promptblok wijzigen en het terugzetten naar de standaard. Je kunt ook eigen profielen maken bovenop een niveau. Een chat kiest zijn profiel in het DM-blad. Nieuwe chats starten met de Chronicler tenzij je op **Make default** drukt bij een ander profiel (het tabblad Profiles, in de kop van het profiel): het krijgt een *Default*-tag en elke nieuwe chat start met het niveau, de nummers en de prompts ervan; chats die je al hebt behouden hun eigen profiel, en de DM "off" wordt per chat gekozen en kan niet de standaard zijn. "Saved worlds" bevat werelden die je hebt gebouwd en waarin je nieuwe chats start; "New world" bouwt er een vóór elke chat, uit kaarten of een kort interview.
 
 Gerelateerd: [[memory]], [[dashboard]]. De Help-artikelen *World profiles* en *Starting a world* hebben de schermen.
