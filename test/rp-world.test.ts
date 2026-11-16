@@ -79,7 +79,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false, tidy: true, castDeck: false, castPer: 2, castLen: "normal" });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", castShow: false, tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -164,7 +164,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false, tidy: true, castDeck: true, castPer: 2, castLen: "normal" });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "normal", castShow: false, tidy: true, castDeck: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -895,6 +895,24 @@ describe("engine plugin: the chat's world book", () => {
     expect(allText(call("POST", "/prompt/preview", { chatId: id, userText: "Where is Maksym?" }))).toContain("Maksym keeps the toll.");
     const other = call("POST", "/chats", { characterId: "odarka" }).meta.id as string;
     expect(allText(call("POST", "/prompt/preview", { chatId: other, userText: "Where is Maksym?" }))).not.toContain("Maksym keeps the toll.");
+  });
+
+  it("a card entry linked to a person who left the story is muted in that chat only (#428)", () => {
+    const id = worldChat();
+    fs.writeFileSync(path.join(root, "lorebooks", "card-book.json"), JSON.stringify({
+      id: "card-book", name: "Card book", settings: {},
+      entries: [{ uid: 7, title: "Varyn", keys: ["Varyn"], content: "Varyn is the living captain.", enabled: true, order: 100, position: "before_char" }],
+    }));
+    const meta = readRel("chats/" + id + ".meta.json");
+    fs.writeFileSync(path.join(root, "chats", id + ".meta.json"), JSON.stringify({ ...meta, lorebookIds: ["card-book"] }));
+    const ask = () => allText(call("POST", "/prompt/preview", { chatId: id, userText: "Where is Varyn?" }));
+    expect(ask()).toContain("Varyn is the living captain.");
+    const book = readRel("lorebooks/world-" + id + ".json");
+    fs.writeFileSync(path.join(root, "lorebooks", "world-" + id + ".json"), JSON.stringify({ ...book, mutes: ["card-book#7"] }));
+    expect(ask()).not.toContain("Varyn is the living captain.");
+    // a book that names mutes but is not this chat's own world book mutes nothing
+    fs.writeFileSync(path.join(root, "lorebooks", "world-" + id + ".json"), JSON.stringify({ ...book, ownerChatId: "other", mutes: ["card-book#7"] }));
+    expect(ask()).toContain("Varyn is the living captain.");
   });
 
   it("a fork gets its own copy; the DM's place moves back to the fork point", () => {

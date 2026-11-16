@@ -350,6 +350,23 @@ function RecordForm({ initial, past, busy, onSave, onCancel, onDelete, placeName
   )
 }
 
+/** A retired record (#428): what leaving took with it, and the card's lorebook entry muted in this chat. */
+function GoneNote({ r }: { r: WorldRecord }) {
+  const t = useT()
+  const g = r.gone
+  const parts = [
+    ...(g && g.events ? [t('world.rec.gone.events', { n: g.events })] : []),
+    ...(g && g.cards.length ? [t('world.rec.gone.cards', { names: g.cards.join(', ') })] : []),
+    ...(g && g.groups.length ? [t('world.rec.gone.groups', { names: g.groups.join(', ') })] : []),
+  ]
+  return (
+    <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground" data-testid="record-gone">
+      {parts.length > 0 && <p className="break-words">{t('world.rec.gone', { what: parts.join('; ') })}</p>}
+      {r.kind === 'person' && r.link && <p className="break-words">{t('world.rec.gone.muted', { title: r.link.title })}</p>}
+    </div>
+  )
+}
+
 function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, placeNames, foldTargets, canLit, onFold, onToLit }: {
   placeNames: string[]
   /** old notes: the places and factions a note can be folded into, and whether the chat has a Litopys to move it to */
@@ -421,6 +438,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
         </button>
       )}
       {r.pinned && !past && <p className="mt-1 text-xs text-muted-foreground">{t('world.rec.pinHint')}</p>}
+      {past && (r.gone || r.link) && <GoneNote r={r} />}
       {r.kind === 'fact' && !past && !dormant && (
         <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-sky-500/30 bg-sky-500/5 p-2" data-testid="note-actions">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -452,7 +470,7 @@ function RecordCard({ r, editing, busy, onEdit, onCancel, onSave, onOp, onPin, p
             <ArrowCounterClockwise className="size-4" aria-hidden="true" />{dormant ? t('world.rec.wake') : t('world.rec.restore')}
           </Button>
         ) : (
-          <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} onClick={() => onOp('retire')}>
+          <Button variant="outline" size="sm" className="max-md:h-10" disabled={busy} title={t('world.rec.retireTip')} onClick={() => onOp('retire')}>
             <Archive className="size-4" aria-hidden="true" />{t('world.rec.retire')}
           </Button>
         )}
