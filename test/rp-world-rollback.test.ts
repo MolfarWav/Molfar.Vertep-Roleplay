@@ -92,7 +92,7 @@ describe("snapshots", () => {
     for (let i = 0; i < 11; i++) {
       msgs.push(msg(5 + i, i % 2 ? "user" : "char", "More story " + i));
       setChat(m, msgs);
-      m.results.world = { text: JSON.stringify({ add: [{ kind: "fact", name: "Fact " + i, text: "Something " + i }] }) };
+      m.results.world = { text: JSON.stringify({ add: [{ kind: "thing", name: "Fact " + i, text: "Something " + i }] }) };
       route(m, "POST", "/world/update", { chatId: "c1" });
     }
     const snaps = loadSnaps(m.host.fs, "c1");
@@ -128,7 +128,7 @@ describe("a deleted reply", () => {
   it("the next run reads the story again from the older point", () => {
     const m = twoRuns();
     setChat(m, [...STORY, msg(6, "char", "A different reply: the toll keeper laughs.")]);
-    m.results.world = { text: JSON.stringify({ add: [{ kind: "fact", name: "Laughter", text: "He laughs." }], summary: "x" }) };
+    m.results.world = { text: JSON.stringify({ add: [{ kind: "thing", name: "Laughter", text: "He laughs." }], summary: "x" }) };
     const out = route(m, "POST", "/world/update", { chatId: "c1" }).json;
     expect(out.ok).toBe(true);
     // Bandits came from the reply that is gone; Laughter from the new one
@@ -180,7 +180,7 @@ describe("what stays", () => {
   it("a record the player added by hand, and one the DM made that the player then edited", async () => {
     const m = twoRuns();
     await new Promise((r) => setTimeout(r, 5));
-    route(m, "PUT", "/world/records", { chatId: "c1", op: "add", record: { kind: "fact", name: "House rule", text: "No swords in the hall." } });
+    route(m, "PUT", "/world/records", { chatId: "c1", op: "add", record: { kind: "thing", name: "House rule", text: "No swords in the hall." } });
     route(m, "PUT", "/world/records", { chatId: "c1", op: "update", record: { id: "n3", text: "They hold the lower road. Led by Ira." } });
     setChat(m, STORY);
     route(m, "POST", "/world/rollback", { chatId: "c1" });

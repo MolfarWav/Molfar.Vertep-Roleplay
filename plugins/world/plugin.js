@@ -106,7 +106,12 @@ const HARD_LEVELS = ["director", "antagonist", "chaos"];
 export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
 /** Stagnation threshold per direction: x2 slow, x0.5 fast, 0 = the counter is paused. */
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
+// every kind a record may have when it is read (an old "fact" still shows); WRITE_KINDS = what the DM and the player may write now:
+// facts live in the Litopys, a world fact is folded into the text of its place or group (#424, step 3)
 export const KINDS = ["person", "place", "group", "thing", "fact"];
+export const WRITE_KINDS = ["person", "place", "group", "thing"];
+// why a thing is in the book: a clue, a hidden thing, a promise, a gift, a weapon, something people fight over (clue, hidden and promise are never tidied away)
+export const WHYS = ["clue", "hidden", "promise", "gift", "weapon", "contested"];
 // a person or a group stands to the player's character as one of these (colour, and where the weight comes from)
 export const RELATIONS = ["ally", "family", "rival", "enemy", "neutral"];
 // how much a person weighs in the story: 0 an acquaintance, 1 a friend or a rival, 2 family, a partner or a central figure
@@ -114,7 +119,7 @@ export const WEIGHTS = [0, 1, 2];
 // how often a person who has been away is brought back (#424); a new chat starts on normal, a chat that had a state file before stays off until the player asks
 export const CAST_FREQ = ["off", "rare", "normal", "often"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off" };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1123,6 +1128,8 @@ function cleanSettings(s) {
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_SETTINGS.cast,
     // a small mark under each reply that had a person come back, with who, why and the dice (the chat's own; for testing)
     castShow: b.castShow === true,
+    // the code tidy-up of things that played out (#424, step 3); on unless the player switched it off
+    tidy: typeof b.tidy === "boolean" ? b.tidy : DEFAULT_SETTINGS.tidy,
   };
 }
 
@@ -1158,6 +1165,43 @@ function cleanEvent(e) {
 export const CAST_BANDS = ["small", "medium", "big"];
 const CAST_RESULTS = ["came", "mentioned", "missed"];
 const RECORD_ID = /^[a-z]\d{1,6}$/;
+
+const TIDY_LOG_MAX = 60;
+const SIGNALS_MAX = 200;
+const SIGNAL_OPS = ["delete", "retire", "restore", "pin", "add", "edit"];
+
+/** One line of the tidy-up log: which thing, archived or woken, by whom (code or the DM naming it again), and the count that decided it. */
+function cleanTidyLine(l) {
+  if (!isObj(l) || !RECORD_ID.test(str(l.id)) || !["archive", "wake"].includes(l.act) || !Number.isFinite(l.at)) return null;
+  return { at: l.at, n: Number.isInteger(l.n) && l.n >= 0 ? l.n : 0, id: str(l.id), name: cut(str(l.name), NAME_MAX), act: l.act, count: Number.isInteger(l.count) && l.count >= 0 ? l.count : 0, via: l.via === "dm" ? "dm" : "code", ...(WHYS.includes(l.why) ? { why: l.why } : {}) };
+}
+
+/** One thing the player did to the book: what, which record (its name and a short text), who made it, and for an edit the text's length before and after. */
+function cleanSignal(g) {
+  if (!isObj(g) || !SIGNAL_OPS.includes(g.op) || !Number.isFinite(g.at)) return null;
+  const name = cut(str(g.name), NAME_MAX);
+  if (!name) return null;
+  return { at: g.at, op: g.op, kind: KINDS.includes(g.kind) ? g.kind : "thing", name, madeBy: g.madeBy === "player" ? "player" : "dm", ...(str(g.text) ? { text: cut(str(g.text), 120) } : {}), ...(Number.isInteger(g.lenBefore) && g.lenBefore >= 0 ? { lenBefore: g.lenBefore } : {}), ...(Number.isInteger(g.lenAfter) && g.lenAfter >= 0 ? { lenAfter: g.lenAfter } : {}) };
+}
+
+/** Writes a signal into the state (the player's own action: not in CORE_KEYS). */
+function noteSignal(state, sig) {
+  state.signals = [...arr(state.signals), { at: Date.now(), ...sig }].slice(-SIGNALS_MAX);
+}
+
+/** The names the player deleted and did not bring back, newest first: the DM does not record them again (and is told so). */
+export function removedNames(state, max = 30) {
+  const out = [];
+  const done = new Set();
+  const list = arr(state.signals);
+  for (let i = list.length - 1; i >= 0 && out.length < max; i--) {
+    const key = str(list[i].name).toLowerCase();
+    if (done.has(key)) continue;
+    done.add(key);
+    if (list[i].op === "delete") out.push(list[i].name);
+  }
+  return out;
+}
 
 /** A person coming back (#424), waiting to be judged: who, how big, how long they were away, sent (how many replies carried it), retried once. */
 function cleanEntrance(e) {
@@ -1238,13 +1282,14 @@ function spaceFields(kind, raw) {
   } else if (kind === "thing") {
     if (str(raw.holder)) out.holder = cut(str(raw.holder), NAME_MAX);
     else if (str(raw.place)) out.place = cut(str(raw.place), NAME_MAX);
+    if (WHYS.includes(raw.why)) out.why = raw.why;
   }
   return out;
 }
 
 /** The DM's update of a record's space fields (in place): a key that is sent changes it, "" clears it. True when something changed. */
 function applySpace(e, raw) {
-  const keys = e.kind === "place" ? ["size", "inside", "background", "members"] : e.kind === "thing" ? ["holder", "place"] : e.kind === "group" ? ["members"] : [];
+  const keys = e.kind === "place" ? ["size", "inside", "background", "members"] : e.kind === "thing" ? ["holder", "place", "why"] : e.kind === "group" ? ["members"] : [];
   let changed = false;
   for (const k of keys) {
     if (raw[k] === undefined) continue;
@@ -1257,7 +1302,7 @@ function applySpace(e, raw) {
       changed = true;
       continue;
     }
-    const v = k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
+    const v = k === "why" ? (WHYS.includes(raw.why) ? raw.why : "") : k === "size" ? (raw.size === "spot" ? "spot" : "") : k === "background" ? (FOLDER_ID.test(str(raw.background)) ? str(raw.background) : "") : cut(str(raw[k]), NAME_MAX);
     if ((e[k] || "") === v) continue;
     if (v) e[k] = v;
     else delete e[k];
@@ -1312,7 +1357,8 @@ function cleanEntity(e) {
   if (!name || !/^[a-z]\d{1,6}$/.test(id)) return null;
   const past = e.status === "past";
   const text = cut(str(e.text), past ? PAST_HARD : TEXT_BOUNDS[1]);
-  const kind = KINDS.includes(e.kind) ? e.kind : "fact";
+  if (!KINDS.includes(e.kind)) return null;
+  const kind = e.kind;
   const folk = kind === "person" || kind === "group";
   const link = kind === "person" && isObj(e.link) && str(e.link.book) && Number.isInteger(e.link.uid) ? { book: cut(str(e.link.book), 80), uid: e.link.uid, title: cut(str(e.link.title), NAME_MAX) } : null;
   return {
@@ -1336,7 +1382,7 @@ function cleanEntity(e) {
     ...(e.by === "player" ? { by: "player" } : {}),
     // always in the prompt, no keys needed (the player pins it in the Records tab)
     ...(e.pinned === true ? { pinned: true } : {}),
-    ...spaceFields(KINDS.includes(e.kind) ? e.kind : "fact", e),
+    ...spaceFields(kind, e),
     // how many times the story came to this place (counted by code when the Dashboard's place changes)
     ...(Number.isInteger(e.visits) && e.visits > 0 ? { visits: e.visits } : {}),
   };
@@ -1394,6 +1440,13 @@ export function normalizeState(raw, chatId) {
   // records the player deleted by hand, so a rollback does not bring them back (#75)
   const dropped = arr(s.dropped).filter((d) => isObj(d) && /^[a-z]\d{1,6}$/.test(str(d.id)) && Number.isFinite(d.at)).map((d) => ({ id: str(d.id), at: d.at })).slice(-DROPPED_MAX);
   if (dropped.length) out.dropped = dropped;
+  // the tidy-up (#424, step 3): the reply count of the last pass and the things it saw; a log of every archive and wake
+  if (isObj(s.tidy) && Number.isInteger(s.tidy.n) && s.tidy.n >= 0) out.tidy = { n: s.tidy.n, seen: arr(s.tidy.seen).map(str).filter((id) => RECORD_ID.test(id)).slice(0, ENTITIES_MAX) };
+  const tidyLog = arr(s.tidyLog).map(cleanTidyLine).filter(Boolean).slice(-TIDY_LOG_MAX);
+  if (tidyLog.length) out.tidyLog = tidyLog;
+  // what the player did to the DM's book (step 0 of the DM's memory): never rewound, a swipe does not undo a hand
+  const signals = arr(s.signals).map(cleanSignal).filter(Boolean).slice(-SIGNALS_MAX);
+  if (signals.length) out.signals = signals;
   out.log = arr(s.log).filter(isObj).slice(-LOG_MAX);
   if (Number.isFinite(s.lastRunAt)) out.lastRunAt = s.lastRunAt;
   if (str(s.lastModel)) out.lastModel = str(s.lastModel);
@@ -1482,7 +1535,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "entrance", "lastEntrance", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -1787,7 +1840,6 @@ function placesAlong(snaps, line) {
   return out;
 }
 const SWEEP_PLACES = 6;
-const SWEEP_THINGS = 8;
 const SWEEP_ASKED_MAX = 100;
 /**
  * Places and things the scene tracker named that the book has no record of and that no earlier sweep offered.
@@ -1797,7 +1849,6 @@ export function sweepCandidates(state, scene) {
   const out = { places: [], things: [] };
   if (!scene) return out;
   const asked = arr(state.sweepAsked);
-  const linked = new Set(Object.values(isObj(state.regIds) ? state.regIds : {}));
   const seen = (kind, name) => state.entities.some((e) => e.kind === kind && namesOf(e).some((n) => covered(n, name))) || asked.some((k) => covered(k, name));
   for (const name of arr(scene.places)) {
     if (out.places.length >= SWEEP_PLACES) break;
@@ -1806,16 +1857,7 @@ export function sweepCandidates(state, scene) {
   // the scene's own place has the tracker's id: the DM's record of it carries that id (ref) whatever language it is named in
   const here = scene.placeId ? out.places.find((n) => looseSame(n, str(scene.place))) : "";
   if (here) out.placeIds = { [here]: scene.placeId };
-  const lying = [
-    ...arr(scene.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.place })),
-    ...arr(scene.left && scene.left.objects).map((o) => ({ id: o.id, name: o.item, where: o.where, place: scene.left.place })),
-  ];
-  for (const t of lying) {
-    if (out.things.length >= SWEEP_THINGS) break;
-    // a thing the World already linked by its registry id is on record, whatever it is called now
-    if (t.id && linked.has(t.id)) continue;
-    if (!seen("thing", t.name) && !out.things.some((o) => looseSame(o.name, t.name))) out.things.push({ ...(t.id ? { id: str(t.id) } : {}), name: t.name, where: str(t.where), place: str(t.place) });
-  }
+  // things are not offered any more (#424, step 3): a cup of noodles in a guard's hands is not a record; the DM records a thing that has a reason
   return out;
 }
 /** A sweep is due: there is something to offer the DM and at least one reply came since its last run. */
@@ -1867,7 +1909,84 @@ function sweepInput(c) {
   const ids = isObj(c.placeIds) ? c.placeIds : {};
   if (c.places.length) rows.push("Places: " + c.places.map((n) => (ids[n] ? ids[n] + " " : "") + n).join("; ") + ".");
   if (c.things.length) rows.push("Things: " + c.things.map((t) => (t.id ? t.id + " " : "") + t.name + (t.where || t.place ? " (" + [t.where, t.place && "in " + t.place].filter(Boolean).join(", ") + ")" : "")).join("; ") + ".");
-  return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it) and each thing that matters or lies somewhere it can be found again. Leave out what is only passing. Name them as the story does.";
+  return "Named in the story by the scene tracker, with no record yet\n" + rows.join("\n") + "\nRecord each place the story may come back to (a room, a school, a cafe; a room inside a bigger place is a spot of it). Leave out what is only passing. Name them as the story does.";
+}
+
+// ---------- the tidy-up (#424, step 3): things that played out leave the book, in code, no model call ----------
+// Every TIDY_EVERY replies: a thing named in fewer than TIDY_NAMED_MIN of the last TIDY_EVERY replies, that belongs to nobody named and is not
+// pinned or kept for a reason (clue, hidden, promise), is put to rest (status "dormant": out of the book and the DM's input, restorable). A
+// thing that existed at the last pass is judged; a younger one waits for the next. An archived thing named in TIDY_WAKE_NAMED of the last
+// TIDY_EVERY replies, or named again by the DM, is active again. People, places and groups are never put to rest by this pass.
+export const TIDY_EVERY = 10;
+const TIDY_NAMED_MIN = 3;
+const TIDY_WAKE_NAMED = 2;
+const TIDY_EXEMPT = ["clue", "hidden", "promise"];
+
+function tidyNote(state, line) {
+  state.tidyLog = [...arr(state.tidyLog), line].slice(-TIDY_LOG_MAX);
+}
+
+/**
+ * One pass. state is changed in place. msgs = the chat, scene = what sceneOf read (or null), cards = the cards' character names,
+ * userName = the player's character. force = "Tidy now": runs at once, and a chat with no earlier pass judges every thing.
+ * Returns { ran, archived: [records], woken: [records] }.
+ */
+export function tidyBook(state, { msgs, scene, cards, userName, now, force }) {
+  const out = { ran: false, archived: [], woken: [] };
+  if (!force && state.settings.tidy === false) return out;
+  const replies = msgs.filter(isReply);
+  const n = replies.length;
+  if (!force && (n < TIDY_EVERY || (state.tidy && n - state.tidy.n < TIDY_EVERY))) return out;
+  const texts = replies.slice(-TIDY_EVERY).map((m) => str(m.text));
+  const seen = new Set(state.tidy ? state.tidy.seen : []);
+  // no earlier pass: the first automatic pass only takes the list, "Tidy now" judges everything
+  if (!state.tidy && !force) {
+    state.tidy = { n, seen: state.entities.filter((e) => e.kind === "thing" && e.status === "active").map((e) => e.id) };
+    out.ran = true;
+    return out;
+  }
+  const judged = (id) => (state.tidy ? seen.has(id) : true);
+  const owners = new Set(
+    [...arr(cards), userName, ...state.entities.filter((e) => e.kind === "person" && e.status === "active").flatMap(namesOf)].map((x) => str(x).toLowerCase()).filter(Boolean),
+  );
+  const chars = isObj(scene && scene.chars) ? Object.values(scene.chars) : [];
+  const belongs = (rec, re) => (rec.holder && owners.has(rec.holder.toLowerCase())) || (!!re && chars.some((c) => re.test(str(c.holding)) || arr(c.items).some((i) => re.test(str(i.text)))));
+  const at = now || Date.now();
+  for (const rec of state.entities) {
+    if (rec.kind !== "thing") continue;
+    const re = namesPattern(namesOf(rec));
+    const count = re ? texts.filter((t) => re.test(t)).length : 0;
+    if (rec.status === "dormant") {
+      if (count >= TIDY_WAKE_NAMED) {
+        rec.status = "active";
+        out.woken.push(rec);
+        tidyNote(state, { at, n, id: rec.id, name: rec.name, act: "wake", count, via: "code", ...(rec.why ? { why: rec.why } : {}) });
+      }
+      continue;
+    }
+    if (rec.status !== "active" || !judged(rec.id)) continue;
+    if (rec.pinned === true || TIDY_EXEMPT.includes(rec.why) || count >= TIDY_NAMED_MIN || belongs(rec, re)) continue;
+    rec.status = "dormant";
+    out.archived.push(rec);
+    tidyNote(state, { at, n, id: rec.id, name: rec.name, act: "archive", count, via: "code", ...(rec.why ? { why: rec.why } : {}) });
+  }
+  state.tidy = { n, seen: state.entities.filter((e) => e.kind === "thing" && e.status === "active").map((e) => e.id) };
+  out.ran = true;
+  return out;
+}
+
+/** Runs a pass for a chat and saves the state and the book when it changed something. Returns what tidyBook returned. */
+function runTidy(fsx, state, chat, force) {
+  const scene = sceneOf(fsx, state.chatId, chat.msgs);
+  const res = tidyBook(state, { msgs: chat.msgs, scene, cards: cardNames(fsx, chat.meta), userName: userNameOf(fsx, chat.meta), force });
+  if (res.ran) {
+    saveState(fsx, state);
+    if (res.archived.length || res.woken.length) {
+      writeBook(fsx, state, str(chat.meta.title));
+      bindBook(fsx, state.chatId, chat.meta, state.bookId);
+    }
+  }
+  return res;
 }
 
 /** The direction the DM goes by: the sensor's, else what the DM said last time. */
@@ -2459,7 +2578,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2476,6 +2595,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     // `full` (a Set of ids, see fullRecordIds): only these are read in full, the others are one line each; no Set = all in full
     "World record so far" + (active.length ? "\n" + active.map((e) => (full instanceof Set && !full.has(e.id) ? entityBrief(e) : entityLine(e))).join("\n") : ": empty."),
     ...(full instanceof Set && active.some((e) => !full.has(e.id)) ? [BRIEF_NOTE] : []),
+    ...(arr(removed).length ? ["Do not record (the player removed): " + arr(removed).join(", ") + "."] : []),
     ...(past.length ? ["Retired (finished; do not change): " + past.map((e) => e.id + " " + e.name).join(", ") + "."] : []),
     ...(str(place) ? ["Where the scene is now (from the scene tracker): " + (REF_ID.test(str(placeId)) ? str(placeId) + " " : "") + str(place) + "."] : []),
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
@@ -2723,6 +2843,7 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     return out;
   };
   let changes = 0;
+  const removed = removedNames(state, SIGNALS_MAX);
   // a draft (a world built without a chat) has no settings of its own: the defaults
   const set = isObj(state.settings) ? state.settings : DEFAULT_SETTINGS;
   const textMax = set.textMax;
@@ -2732,7 +2853,11 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!room() || !isObj(raw)) continue;
     const name = cut(str(raw.name), NAME_MAX);
     if (!name || isSkipped(name)) continue;
-    const kind = KINDS.includes(raw.kind) ? raw.kind : "fact";
+    // facts are not records any more, and an unknown kind is not a note (#424, step 3)
+    if (!WRITE_KINDS.includes(raw.kind)) continue;
+    const kind = raw.kind;
+    // the player deleted a record of this name: it is not written again (the DM is told so in its input)
+    if (removed.some((x) => sameName(x, name))) continue;
     if (kind === "person" && isOwn(name)) continue;
     const text = cut(str(raw.text), textMax);
     const ref = kind === "thing" || kind === "place" ? refEntity(rc, raw.ref, kind) : null;
@@ -2742,6 +2867,14 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
     if (known && ref && known.status === "active") linkToRef(state, rc, known, ref);
     if (known) {
+      // the DM names a thing that was put to rest: it is active again (the tidy-up log says so)
+      if (known.status === "dormant") {
+        known.status = "active";
+        known.at = at;
+        if (touched) touched.add(known.id);
+        tidyNote(state, { at, n: 0, id: known.id, name: known.name, act: "wake", count: 0, via: "dm", ...(known.why ? { why: known.why } : {}) });
+        changes++;
+      }
       if (known.status === "past" || !text || text === known.text) continue;
       known.text = text;
       known.aliases = cleanAliases([...known.aliases, ...arr(raw.aliases), ...(sameName(known.name, name) ? [] : [name])], known.name);
@@ -3438,6 +3571,41 @@ export function castStatus(fsx, chatId) {
     // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
     lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
   };
+}
+
+/** The tidy-up as the chat stands (for the panel and for testing): the switch, the log (newest first), how many things sleep, and the replies to the next pass. */
+export function tidyStatus(fsx, chatId) {
+  const { state } = loadState(fsx, chatId);
+  const chat = readChat(fsx, chatId);
+  const replies = chat ? chat.msgs.filter(isReply).length : 0;
+  const things = state.entities.filter((e) => e.kind === "thing");
+  return {
+    on: state.settings.tidy !== false,
+    every: TIDY_EVERY,
+    replies,
+    // 0 = the next reply starts a pass (or the first pass only takes the list)
+    next: state.tidy ? Math.max(0, TIDY_EVERY - (replies - state.tidy.n)) : Math.max(0, TIDY_EVERY - replies),
+    first: !state.tidy,
+    active: things.filter((e) => e.status === "active").length,
+    asleep: things.filter((e) => e.status === "dormant").length,
+    log: [...arr(state.tidyLog)].reverse(),
+  };
+}
+
+function tidyRoute(req, host) {
+  const fsx = host.fs;
+  const b = req.method === "POST" ? body(req) : req.query || {};
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  if (req.method === "POST") {
+    const { state, existed } = loadState(fsx, chatId);
+    if (!existed) return ok({ error: "this chat has no world yet" }, 409);
+    const res = runTidy(fsx, state, chat, true);
+    return ok({ ...tidyStatus(fsx, chatId), archived: res.archived.map((e) => e.name), woken: res.woken.map((e) => e.name) });
+  }
+  return ok(tidyStatus(fsx, chatId));
 }
 
 function castRoute(req, host) {
@@ -5318,7 +5486,7 @@ function peekRoute(req, host) {
     state = loadState(host.fs, chatId).state;
   }
   const records = state.entities
-    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
+    .map((e) => ({ id: e.id, kind: e.kind, name: e.name, aliases: e.aliases, text: e.text, status: e.status, at: e.at ?? 0, ...(e.by ? { by: e.by } : {}), ...(e.why ? { why: e.why } : {}), ...(e.pinned ? { pinned: true } : {}), ...(e.size ? { size: e.size } : {}), ...(e.inside ? { inside: e.inside } : {}), ...(e.holder ? { holder: e.holder } : {}), ...(e.place ? { place: e.place } : {}), ...(e.members ? { members: e.members } : {}), ...(e.visits ? { visits: e.visits } : {}), ...(e.background ? { background: e.background } : {}), ...(e.relation ? { relation: e.relation } : {}), ...(e.weight !== undefined ? { weight: e.weight } : {}), ...(e.link ? { link: e.link } : {}), ...(e.noReturn ? { noReturn: true } : {}) }))
     .sort((a, b) => (a.status === b.status ? b.at - a.at : a.status === "active" ? -1 : 1));
   return ok({ records });
 }
@@ -5366,7 +5534,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -5477,7 +5645,10 @@ function updateRoute(req, host) {
     saveState(fsx, state);
   }
   // a reply deleted or swiped since the last run takes its changes with it (#75); the run then reads from the older point
-  if (existed) settle(fsx, state, chat, "");
+  if (existed) {
+    settle(fsx, state, chat, "");
+    runTidy(fsx, state, chat, false);
+  }
   const auto = b.auto === true || b.auto === "true";
   // the DM off: the book still fills, but only by the sweep after a reply, and not in a chat that never had a world (an assistant)
   if (state.settings.level === "off" && (!auto || (!existed && !autoOn(fsx, chat.meta)))) return ok({ ok: true, skipped: "off" });
@@ -5521,7 +5692,7 @@ function updateRoute(req, host) {
       ...(play.model ? { model: play.model } : {}),
       systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
-        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
+        cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
@@ -5772,31 +5943,44 @@ function recordsRoute(req, host) {
     if (!name || !text) return ok({ error: "a record needs a name and a text" }, 400);
     if (clash(null)) return ok({ error: "a record with this name exists" }, 409);
     if (state.entities.length >= ENTITIES_MAX) return ok({ error: "the world book is full" }, 400);
-    const kind = KINDS.includes(r.kind) ? r.kind : "fact";
+    if (!WRITE_KINDS.includes(r.kind)) return ok({ error: "unknown kind" }, 400);
+    const kind = r.kind;
     const fresh = { id: "n" + state.nextId++, kind, name, aliases: cleanAliases(r.aliases, name), text, status: "active", uid: 0, at: now, by: "player", ...(r.pinned === true ? { pinned: true } : {}), ...spaceFields(kind, r) };
     applyFolk(fresh, r);
     state.entities.push(fresh);
+    if (!lib) noteSignal(state, { op: "add", kind, name, madeBy: "player", text: cut(text, 120) });
   } else {
     const e = state.entities.find((x) => x.id === str(r.id));
     if (!e) return ok({ error: "no such record" }, 404);
     if (op === "update") {
       if (name && clash(e.id)) return ok({ error: "a record with this name exists" }, 409);
+      const before = { len: e.text.length, pinned: e.pinned === true };
       if (name) e.name = name;
       if (r.text !== undefined) {
         if (!text) return ok({ error: "a record needs a text" }, 400);
         e.text = e.status === "past" ? cut(text, pastMaxOf(state.settings)) : text;
       }
-      if (KINDS.includes(r.kind)) e.kind = r.kind;
+      if (WRITE_KINDS.includes(r.kind)) e.kind = r.kind;
       if (r.aliases !== undefined) e.aliases = cleanAliases(r.aliases, e.name);
       if (r.pinned === true) e.pinned = true;
       else if (r.pinned === false) delete e.pinned;
       applySpace(e, r);
       applyFolk(e, r);
+      if (!lib) {
+        if (e.text.length !== before.len || r.text !== undefined) noteSignal(state, { op: "edit", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", lenBefore: before.len, lenAfter: e.text.length });
+        if (e.pinned === true && !before.pinned) noteSignal(state, { op: "pin", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm" });
+      }
     } else if (op === "retire") {
+      if (!lib) noteSignal(state, { op: "retire", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", text: cut(e.text, 120) });
       e.status = "past";
       e.text = shortText(text || e.text, pastMaxOf(state.settings));
-    } else if (op === "restore") e.status = "active";
-    else if (op === "delete") {
+    } else if (op === "restore") {
+      if (!lib) noteSignal(state, { op: "restore", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm" });
+      e.status = "active";
+      // a thing the player woke is judged again only after a full pass, not at once
+      if (state.tidy) state.tidy = { ...state.tidy, seen: state.tidy.seen.filter((id) => id !== e.id) };
+    } else if (op === "delete") {
+      if (!lib) noteSignal(state, { op: "delete", kind: e.kind, name: e.name, madeBy: e.by === "player" ? "player" : "dm", text: cut(e.text, 120) });
       state.entities = state.entities.filter((x) => x !== e);
       state.dropped = [...arr(state.dropped), { id: e.id, at: now }].slice(-DROPPED_MAX);
     } else return ok({ error: "unknown op" }, 400);
@@ -5907,6 +6091,7 @@ export function handleRoute(req, host) {
   if (path === "/world/deck" && req.method === "POST") return deckRoute(req, host);
   if (path === "/world/bench" && req.method === "POST") return benchRoute(req, host);
   if (path === "/world/cast" && req.method === "GET") return castRoute(req, host);
+  if (path === "/world/tidy" && (req.method === "GET" || req.method === "POST")) return tidyRoute(req, host);
   if (path === "/world/library" && ["GET", "POST", "PUT", "DELETE"].includes(req.method)) return libraryRoute(req, host);
   if (path === "/world/carry" && req.method === "POST") return carryRoute(req, host);
   if (path === "/world/opening" && req.method === "POST") return openingRoute(req, host);
