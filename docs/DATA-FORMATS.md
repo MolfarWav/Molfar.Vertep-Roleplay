@@ -684,8 +684,9 @@ player switches it on for that chat. It writes:
   - `insert`: `false` keeps the DM running but sends the story model no events (also the chat's prompt board key
     `plugin:world`).
   - `lastKey` = `<messageId>#<swipe>` of the newest message the DM has read; `kind` is `person`, `place`, `group`,
-    `thing` or `fact`; `status` `active` or `past` (retired: kept, text cut to two sentences); `uid` = its entry in
-    the world book.
+    `thing` (4.133: `fact` is read only, so an old note still shows; the DM, the Start recipes and the form no longer write one, and a kind
+    nobody knows drops the record instead of making a note); `status` `active`, `past` (retired: kept, text cut to two sentences) or
+    `dormant` (put to rest by the tidy-up; out of the book and the DM's input, `restore` wakes it); `uid` = its entry in the world book.
   - A front: `id` f1.., a goal and a clock `clock`/`size` (`size` 4, 6 or 8; full = the goal comes true).
   - `event`: `{ text, hard, sent, retried, at?, sentAt?, after?, place?, placeId? }` or null: added after the chat history
     of the next reply (`sent` counts the replies that carried it); the next run checks the story, sends a missed one
@@ -720,6 +721,22 @@ player switches it on for that chat. It writes:
     aliases, line, relation, weight }]`; adds linked records or the link to a record the world already has) and `GET /world/cast?chatId=` (Frequency, each
     person's silence and threshold, the entrance, the last one, how many entries could be adopted). The Start draft gets a step `{ bench: true }` (before the
     fronts) unless `bench: false` is sent.
+  - Book (#424, 4.133). A `thing` may carry `why`: `clue`, `hidden`, `promise`, `gift`, `weapon` or `contested` (the DM writes it in `add` and
+    `update`, "" clears it; the form has it). The tidy-up (`tidyBook`, setting `tidy`, default true; a switch in the chat's World DM panel) runs
+    from `updateRoute` after settle, at most every 10 replies and not in a chat under 10 replies: an active thing that was in the last pass's
+    list (`state.tidy.seen`; a younger one is judged next time), is named by fewer than 3 of the last 10 replies (its name or an alias, read
+    from the chat), is not pinned, has no `why` of `clue`, `hidden` or `promise`, and does not belong to a named character (its `holder` is the
+    player's character, a card character or an active person record, or the Dashboard has it in `scene.chars[..]` holding or items) goes to
+    `dormant`. A `dormant` thing named by 2 of the last 10 replies, or named again by the DM, is `active` again. The first pass of a chat only
+    takes the list; "Tidy now" (`POST /world/tidy`) runs at once and, with no earlier pass, judges every thing. People, places and groups are never
+    put to rest. State: `tidy { n, seen }` (the reply count of the last pass and the things it saw) and `tidyLog` (up to 60 lines `{ at, n, id,
+    name, act: archive | wake, count, via: code | dm, why? }`), both in the rollback's core keys. The sweep no longer offers the objects lying
+    around (only places). Step 0 of the DM's memory: `signals` (up to 200 lines `{ at, op: add | edit | pin | retire | restore | delete, kind, name,
+    madeBy, text?, lenBefore?, lenAfter? }`), written by the records route for a chat (not for a saved world), never rewound. A name whose newest
+    signal is `delete` is not recorded again by the DM (`removedNames`; code drops the add) and the newest 30 are told to it as "Do not
+    record (the player removed): …". Routes: `GET /world/tidy?chatId=` (`on`, `every`, `replies`, `next`, `first`, `active`, `asleep`, `log` newest
+    first), `POST /world/tidy {chatId}` (a pass now; also `archived` and `woken` names). `GET /world/state` also has `kinds` (active records per
+    kind), `notes` (active old notes) and `archive` (every record that is not active).
   - The DM's input (4.132.2). `dmInput` takes a Set of record ids (`full`, built by `fullRecordIds`) and sends only those in full; every other active record is one
     line `id · kind · name` followed by one sentence saying so. In full: records named in the new part of the story (name or alias), pinned ones, the scene's place
     with its parent and spots, things placed there or held by people in the scene, the people in the scene, and bench people due within one `everyN` of their
