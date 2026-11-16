@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.135.2'
+export const APP_VERSION = '4.136.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.gone-swipes',
+    since: '4.136.0',
+    help: 'world',
+    keywords: { en: 'dead killed gone for good retire npc lorebook card entry muted deck cards members swipe swiped events story rule reply model tell the reply model too kept on purpose pinned', uk: 'мертвий вбитий пішов назавжди у минуле нпс лорбук запис картки приглушено колода карти учасники свайп змахнуті події правило про сюжет модель відповідей казати й моделі відповідей залишене навмисно закріплене' },
+    title: { en: 'Gone for good means gone, and the DM learns from swiped events', uk: 'Хто пішов назавжди, той пішов, а ДМ вчиться зі змахнутих подій' },
+    body: {
+      en: 'When the DM or you retire someone who died or left for good, the event and cast cards tied to them are dropped, they leave their groups, and a card lorebook entry about them is muted in this chat, so the story stops treating them as alive. The record’s card lists what went with them; Bring back undoes the groups and the mute. Swipe away the reply that carried a DM event twice and the event is dropped; after three such events Memory proposes a rule about the story, which the reply model also reads while "Tell the reply model too" is on. Records you pin, write or bring back are shown to the DM as examples of what you want.',
+      uk: 'Коли ДМ або ви переводите в минуле когось, хто загинув чи пішов назавжди, карти подій і колоди, прив’язані до нього, прибираються, він виходить із груп, а запис про нього в лорбуці картки в цьому чаті приглушено, тож історія більше не вважає його живим. Картка запису показує, що пішло разом із ним; «Повернути» скасовує групи й приглушення. Двічі змахніть відповідь із подією ДМ-а, і подію буде прибрано; після трьох таких подій «Пам’ять» пропонує правило про сюжет, яке читає й модель відповідей, поки ввімкнено «Казати й моделі відповідей». Записи, які ви закріплюєте, пишете чи повертаєте, ДМ бачить як приклади того, що вам потрібно.',
+    },
+  },
   {
     id: 'new.dm-memory',
     since: '4.135.0',

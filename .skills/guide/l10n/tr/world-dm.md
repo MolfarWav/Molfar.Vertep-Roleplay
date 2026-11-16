@@ -1,4 +1,4 @@
-<!-- source: 8a4dfb047a91 -->
+<!-- source: 85f78f526756 -->
 # World DM
 
 World DM, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı insanları, yerleri ve şeyleri sohbetin kendi lorebook'unda, yani dünya kitabında tutar. Daha yüksek düzeylerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissetmesini istediğinizde kullanın.
@@ -52,6 +52,12 @@ Bir olay tek seferliktir. DM hikâyenin onu gösterip göstermediğini kontrol e
 
 Elle değiştirdiğiniz kayıtlar, DM aynı kaydı sonradan değiştirmediği sürece kalır. Sildiğiniz bir kayıt silinmiş kalır. Baştaki eski mesajları silmek, eski bir yanıtın başka kaydırmalarını okumak ve bir yanıtın metnini düzenlemek hiçbir şeyi geri almaz.
 
+Bir DM olayını taşıyan yanıtı kaydırıp atarsanız, olay yeni yanıtla yeniden gönderilir. Onu da kaydırıp atarsanız olay düşer: DM bunu istemediğinizi kabul eder ve Memory bundan öğrenir (aşağıya bakın). Silinen ya da başarısız bir yanıt sayılmaz.
+
+## Biri temelli gittiğinde
+
+Bir kişi öldüğünde, hikâyeden temelli ayrıldığında ya da bir yer veya grup yok edildiğinde, DM kaydı **emekliye ayırır**; bunu kayıttaki **Retire** ile kendiniz de yapabilirsiniz (ya da **Delete** ile silin ve DM onu bir daha yazmaz). Emekliye ayrılmış bir kayıt, dünya kitabında hikâyeden gittiğini söyleyen kısa bir not olarak kalır; böylece hikâye nasıl bittiğini hatırlar ve kayıt kendiliğinden asla geri dönmez. Emekliye ayırmak ona asılı olanları da götürür: olay destesinin onu adlandıran kartlarını, kadro destesinin o kişiye bağlı (ya da yok edilen gruba ait) kartlarını ve kişinin bir grubun **Members** listesindeki yerini. Kişi bir kartın lorebookundan geldiyse, bu kart girişi bu sohbette susturulur; böylece yaşayan birinin metni notun üzerine konuşmaz. Kaydın kitaptaki kartı tüm bunları listeler. **Bring back** kişiyi o gruplara geri koyar ve kart girişini yeniden açar; düşen kartlar düşmüş kalır. Yenilmiş ama hâlâ hayatta olan bir düşman emekliye ayrılmaz: geri dönmesini istemiyorsanız kayıttaki „bring back automatically” seçeneğini kapatın.
+
 ## World bölümü sekmeleri
 
 World listesinin başlığının yanındaki dişli, Litopys ayarları gibi katlanır bloklarda **World settings**'i açar: oyun modeli (bu World için geçersiz kılma anahtarı, yanıt sınırı ve bir test düğmesiyle), kurma modeli, görüntü modeli, arka plan anahtarı ve hatalardan haberdar edilip edilmeyeceğiniz. Katlanmış bir blok, ayarlanmış olanı tek satırda gösterir.
@@ -68,6 +74,10 @@ Her düzey yerleşik bir profildir: bu beşi DM'in istemlerini tutar ve birini a
 
 İnsanların, yerlerin ve grupların çevrilecek bir ayarı yoktur. DM'in yazdığı bunlardan çoğunu silerseniz, Memory bunun yerine **sözlerle kuralı** gösterir: Memory'yi açmak, sildiklerinizden ve tuttuklarınızdan kuralı (tek satır) yazan küçük bir çağrıyı yapı modeline gönderir ya da bir örüntü bulamaz. **Suggest a rule from my edits** kuralı elle ister. Aynı şekilde yanıtlarsınız; tüm sohbetler için bir kural, bunu gösteren bir iletişim kutusunda bir kez daha sorar. DM kurallarınızı kısa bir blok olarak okur: *bu oyuncunun tercih ettikleri* (bu sohbetin ve tüm sohbetlerin kuralları birlikte, en yenisi önce, en fazla 10 kural ve 600 karakter; sığmayan eski kurallar bir etiketle Memory'de kalır). **Add a rule** de kuralı sözlerle kabul eder.
 
-Memory'de yürürlükteki kuralları da okuyabilirsiniz (bir etiket, kuralın bu sohbet için mi yoksa tüm sohbetler için mi olduğunu söyler), birini değiştirebilir ya da kaldırabilir, elle kural ekleyebilir, **Remembered exactly** bölümünü (sildiğiniz ve DM'in bir daha yazmaması söylenen adlar) görüp temizleyebilir ya da **Reset all** düğmesine basabilirsiniz. Tüm sohbetler için bir kural, her sohbete bir sonraki açılışta ve yeni sohbetlere ulaşır; sonradan bir sohbette elle ayarladığınız bir değer kalır. Kurallar kaydedilmiş bir dünyayla birlikte taşınmaz. Profil düzenleyicisi, DM'in girdisine neyin eklendiğini gösteren salt okunur bir kart olan **Learned memory** ile biter. Sohbetin World DM sayfasında **What the DM learns** kartında bir anahtar ("Propose from my edits"), **Things in the book** ayarı, yürürlükteki öğrenilmiş kural sayısı ve her öneri ile yanıtın günlüğü bulunur.
+Olaylar da sayılır. DM'in olaylarından üç ya da daha fazlasını (her birini iki kez, yani olay düşecek şekilde) kaydırıp attıysanız ve bu, gönderdiği olayların üçte biri ya da daha fazlasıysa, Memory **hikâye hakkında** bir kural önerir (örneğin "Sessiz sahneleri ani saldırılarla bölme"). Hikâye kuralının kendi etiketi vardır; DM olay seçerken buna uyar ve **Tell the reply model too** açıkken (**What the DM learns** kartı), en yeni üç hikâye kuralı yanıtı yazan isteğe de tek kısa bir satır olarak girer. Sözlerle elle kural eklediğinizde **About** kitabı (DM'in kaydettikleri) ya da hikâyeyi seçer.
+
+Memory ayrıca **Kept on purpose** bölümünü gösterir: sabitlediğiniz, yazdığınız ya da elle geri getirdiğiniz kayıtlar. DM bu adları kitapta istediğinizin örnekleri olarak görür ve kural yazan çağrı da onları görür.
+
+Memory'de yürürlükteki kuralları da okuyabilirsiniz (bir etiket, kuralın bu sohbet için mi yoksa tüm sohbetler için mi olduğunu söyler), birini değiştirebilir ya da kaldırabilir, elle kural ekleyebilir, **Remembered exactly** bölümünü (sildiğiniz ve DM'in bir daha yazmaması söylenen adlar) görüp temizleyebilir ya da **Reset all** düğmesine basabilirsiniz. Tüm sohbetler için bir kural, her sohbete bir sonraki açılışta ve yeni sohbetlere ulaşır; sonradan bir sohbette elle ayarladığınız bir değer kalır. Kurallar kaydedilmiş bir dünyayla birlikte taşınmaz. Profil düzenleyicisi, DM'in girdisine neyin eklendiğini gösteren salt okunur bir kart olan **Learned memory** ile biter. Sohbetin World DM sayfasında **What the DM learns** kartında bir anahtar ("Propose from my edits"), **Tell the reply model too** anahtarı, **Things in the book** ayarı, yürürlükteki öğrenilmiş kural sayısı ve her öneri ile yanıtın günlüğü bulunur.
 
 İlgili: [[memory]], [[dashboard]]. *World profiles* ve *Starting a world* Yardım makaleleri ekranları içerir.

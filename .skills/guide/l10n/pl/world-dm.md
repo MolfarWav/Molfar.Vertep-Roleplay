@@ -1,4 +1,4 @@
-<!-- source: 8a4dfb047a91 -->
+<!-- source: 85f78f526756 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -52,6 +52,12 @@ Zdarzenie jest jednorazowe. DM sprawdza, czy historia je pokazała, patrząc na 
 
 Rekordy, które zmieniłeś ręcznie, zostają, chyba że DM zmienił ten sam rekord później. Rekord, który usunąłeś, pozostaje usunięty. Usuwanie starych wiadomości od góry, czytanie innych swipe'ów starszej odpowiedzi i edycja tekstu odpowiedzi niczego nie cofają.
 
+Przesunięcie odpowiedzi, która niosła zdarzenie DM, wysyła to zdarzenie ponownie z nową odpowiedzią. Przesuń też i tę, a zdarzenie upada: DM uznaje, że go nie chcesz, i Memory się z tego uczy (patrz niżej). Usunięta lub nieudana odpowiedź nie jest liczona.
+
+## Gdy ktoś odchodzi na dobre
+
+Gdy osoba umiera, odchodzi z historii na dobre, a miejsce lub grupa zostają zniszczone, DM **wycofuje** rekord; możesz zrobić to sam przyciskiem **Retire** na rekordzie (albo **Delete**, a DM nie zapisze go ponownie). Wycofany rekord zostaje w księdze świata jako krótka notatka mówiąca, że zniknął z historii, aby opowieść pamiętała, jak się skończył, i nigdy nie wraca sam. Wycofanie zabiera też to, co na nim wisiało: karty talii zdarzeń, które go wymieniają, karty talii obsady powiązane z osobą (lub należące do zniszczonej grupy) oraz miejsce osoby w **Members** grupy. Jeśli osoba pochodziła z lorebooka karty, ten wpis karty jest wyciszany w tym czacie, żeby jego tekst o żyjącej osobie nie zagłuszał notatki. Karta rekordu w księdze wymienia to wszystko. **Bring back** przywraca osobę do tych grup i cofa wyciszenie wpisu karty; upuszczone karty zostają upuszczone. Pokonany wróg, który wciąż żyje, nie jest wycofywany: wyłącz „bring back automatically” na rekordzie, jeśli nie chcesz, by wrócił.
+
 ## Karty sekcji World
 
 Zębatka obok nagłówka listy World otwiera **World settings**, w składanych blokach jak Litopys settings: model gry (z przełącznikiem, który pozwala nadpisać go dla tego World, limit odpowiedzi i przycisk testu), model budowania, model obrazów, przełącznik teł i to, czy dostajesz informację o błędach. Złożony blok pokazuje w jednej linijce, co jest ustawione.
@@ -68,6 +74,10 @@ Karta **DM** (Chats | Worlds | DM) zaczyna się od wiersza **Memory**; kropka na
 
 Osoby, miejsca i grupy nie mają ustawienia do przełączenia. Gdy usuniesz wiele z tych, które napisał DM, Memory pokazuje zamiast tego **regułę słowami**: otwarcie Memory wykonuje jedno małe wywołanie modelu budowania, który zapisuje regułę (jedna linijka) na podstawie tego, co usunąłeś i co zostawiłeś, albo nie znajduje wzorca. **Suggest a rule from my edits** prosi o regułę ręcznie. Odpowiadasz w ten sam sposób; reguła dla wszystkich czatów pyta jeszcze raz w oknie, które ją pokazuje. DM czyta twoje reguły jako krótki blok, *czego preferuje ten gracz* (reguły tego czatu i wszystkich czatów razem, od najnowszej, najwyżej 10 reguł i 600 znaków; starsze, które się nie mieszczą, zostają w Memory z tagiem), a **Add a rule** przyjmuje regułę także słowami.
 
-W Memory możesz też przeczytać obowiązujące reguły (tag mówi, czy reguła dotyczy tego czatu, czy wszystkich czatów), zmienić lub usunąć jedną, dodać regułę ręcznie, zobaczyć **Remembered exactly** (nazwy, które usunąłeś i których DM ma nie zapisywać ponownie) i je wyczyścić, albo użyć **Reset all**. Reguła dla wszystkich czatów dociera do każdego czatu przy następnym jego otwarciu oraz do nowych czatów; wartość, którą później ustawisz ręcznie w czacie, zostaje. Reguły nie przechodzą z zapisanym światem. Edytor profilu kończy się kartą tylko do odczytu **Learned memory**, pokazującą, co jest dodawane do wejścia DM-a. W arkuszu World DM czatu karta **What the DM learns** ma przełącznik („Propose from my edits”), ustawienie **Things in the book**, liczbę obowiązujących nauczonych reguł i dziennik każdej propozycji i odpowiedzi.
+Zdarzenia też się liczą. Gdy przesunąłeś trzy lub więcej zdarzeń DM-a (każde dwa razy, więc zostało upuszczone), a to jedna trzecia lub więcej wysłanych przez niego zdarzeń, Memory proponuje regułę **o historii** (na przykład „Nie przerywaj cichych scen nagłymi atakami”). Reguła historii ma własny tag; DM trzyma się jej, gdy wybiera zdarzenia, a gdy włączone jest **Tell the reply model too** (karta **What the DM learns**), trzy najnowsze reguły historii trafiają też do żądania piszącego odpowiedź, jako jedna krótka linijka. Gdy dodajesz regułę słowami ręcznie, **About** wybiera księgę (co DM zapisuje) albo historię.
+
+Memory pokazuje też **Kept on purpose**: rekordy, które przypiąłeś, napisałeś lub przywróciłeś ręcznie. DM widzi ich nazwy jako przykłady tego, co chcesz mieć w księdze, i widzi je też wywołanie, które pisze regułę.
+
+W Memory możesz też przeczytać obowiązujące reguły (tag mówi, czy reguła dotyczy tego czatu, czy wszystkich czatów), zmienić lub usunąć jedną, dodać regułę ręcznie, zobaczyć **Remembered exactly** (nazwy, które usunąłeś i których DM ma nie zapisywać ponownie) i je wyczyścić, albo użyć **Reset all**. Reguła dla wszystkich czatów dociera do każdego czatu przy następnym jego otwarciu oraz do nowych czatów; wartość, którą później ustawisz ręcznie w czacie, zostaje. Reguły nie przechodzą z zapisanym światem. Edytor profilu kończy się kartą tylko do odczytu **Learned memory**, pokazującą, co jest dodawane do wejścia DM-a. W arkuszu World DM czatu karta **What the DM learns** ma przełącznik („Propose from my edits”), przełącznik **Tell the reply model too**, ustawienie **Things in the book**, liczbę obowiązujących nauczonych reguł i dziennik każdej propozycji i odpowiedzi.
 
 Powiązane: [[memory]], [[dashboard]]. Artykuły Pomocy *World profiles* i *Starting a world* pokazują ekrany.
