@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.134.1 (2026-11-16)
+
 - Fixed: **a send in a long chat with a deep lorebook scan is faster (Molfar.Vertep#422).** "plugin roleplay__engine route POST /chats/<id>/send failed: The script execution has exceeded the maximum allowed time limit" came from the pass that builds the prompt. Measured in the engine's sandbox on a real chat of 151 messages with a book that scans the last 100 (310 thousand characters), that pass took 6.8 s on an idle laptop, 5.9 s of it in the lorebook scan; a phone or a busy computer is several times slower. The scan looked up its word index by the whole window text for every key (the sandbox hashes a long string anew each time), ran a pattern over the whole window for each key with an apostrophe, went over the window once per key, and stemmed every word even when only names in the other script were wanted. Now the window carries what is derived from it, a whole-word key is answered from the window's set of words, an apostrophe key is checked only where its first part occurs, and the stems are made only when a Cyrillic key needs them. The same pass now takes 4.3 s on that chat; chats with a short scan window were not slow and do not change. Matching is the same as before: the prompts of all 29 chats on the test machine came out identical, and a new test compares the answers with the old pattern over random texts and keys. Not measured on a phone.
 
 ## 4.134.0 (2026-11-16)
