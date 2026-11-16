@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 Le World DM est un maître de jeu pour le monde d'une discussion. Après les réponses, il lit l'histoire et garde les personnes, lieux et choses qu'il rencontre dans le livre de connaissances propre à la discussion, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde semble vivant et cohérent.
@@ -23,6 +23,10 @@ Il s'exécute après les réponses, toutes les N réponses (« Run after every N
 Il coûte un appel de modèle supplémentaire à chaque échéance, sur le « DM model (all chats) » ; un petit modèle bon marché suffit. Un échec est montré dans la feuille et dans la Inbox, et le DM relit les mêmes messages la fois suivante.
 
 Un profil qui joue à partir d'une pioche d'événements affiche « New deck » quand la pioche est épuisée. On demande au modèle de 8 à 12 événements ; s'il en revient moins, la pioche est conservée telle qu'elle est arrivée et un avertissement indique qu'elle est revenue trop courte, pour que vous puissiez la reconstruire.
+
+## Les personnes qui reviennent
+
+Un ami ou un proche issu du lorebook d'une carte peut rester hors de l'histoire pendant une centaine de messages, car une entrée n'apparaît que lorsque quelqu'un prononce le nom. Le DM fait revenir ces personnes. Il compte les réponses depuis la dernière présence ou mention de la personne dans la scène et, lorsque le silence est long (environ 15, 30 ou 60 réponses, selon **People coming back > How often** ; Normal est le réglage par défaut des nouveaux chats), il indique fermement au modèle d'écriture que la personne doit entrer dans cette réponse. Un jet caché de 2d6, associé à la durée du silence et au poids de la personne, détermine l'ampleur du retour : un message, un appel avec une demande ou quelqu'un qui arrive avec des nouvelles. Le modèle choisit la forme ; le DM vérifie que la personne est apparue et le redemande une fois si ce n'est pas le cas. Les personnes des lorebooks des cartes rejoignent la liste avec **Take people from the cards' lorebooks**, ou via l'interrupteur de Start « People from the lorebooks ». Sur la fiche d'une personne ou d'une faction, vous pouvez définir Relation, Weight et « Bring back automatically ». Pour le voir à l'œuvre, activez **Show under the reply** : une petite marque indique qui est revenu, pourquoi et comment les dés sont tombés ; la carte affiche aussi la liste avec le silence de chaque personne et un journal des retours.
 
 ## Suppression ou balayage d'une réponse
 

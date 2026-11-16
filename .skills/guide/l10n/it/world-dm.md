@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 Il World DM è un game master per il mondo di una chat. Dopo le risposte legge la storia e conserva le persone, i luoghi e le cose che incontra nel lorebook della chat, chiamato libro del mondo. Ai livelli più alti muove anche il mondo e manda eventi nella scena. Usalo quando vuoi che il mondo sembri vivo e coerente.
@@ -23,6 +23,10 @@ Viene eseguito dopo le risposte, ogni N risposte ("Run after every N replies"), 
 Costa una chiamata al modello in più ogni volta che è dovuta, sul "DM model (all chats)"; basta un modello piccolo ed economico. Un'esecuzione fallita viene mostrata nel foglio e nella Inbox, e il DM legge di nuovo gli stessi messaggi la volta successiva.
 
 Un profilo che gioca da un mazzo di eventi mostra "New deck" quando il mazzo è esaurito. Al modello si chiedono da 8 a 12 eventi; se ne tornano meno, il mazzo viene tenuto così com'è arrivato e un avviso dice che è tornato corto, così puoi ricostruirlo.
+
+## Persone che tornano
+
+Un amico o un parente tratto dal lorebook di una carta può restare fuori dalla storia per un centinaio di messaggi, perché una voce compare solo quando qualcuno ne pronuncia il nome. Il DM fa tornare queste persone. Conta le risposte da quando la persona è stata per l'ultima volta nella scena o è stata menzionata e, quando il silenzio è lungo (circa 15, 30 o 60 risposte, in base a **People coming back > How often**; Normal è l'impostazione predefinita per le nuove chat), dice con fermezza al modello di scrittura che la persona deve entrare in questa risposta. Un tiro nascosto di 2d6, insieme alla durata del silenzio e al peso della persona, decide quanto è grande il ritorno: un messaggio, una chiamata con una richiesta o qualcuno che arriva con una notizia. Il modello sceglie la forma; il DM verifica che la persona sia comparsa e, se non lo è, lo chiede ancora una volta. Le persone dei lorebook delle carte entrano nell'elenco con **Take people from the cards' lorebooks** o tramite l'interruttore di Start "People from the lorebooks". Su una scheda di persona o fazione potete impostare Relation, Weight e "Bring back automatically". Per vederlo all'opera, attivate **Show under the reply**: un piccolo segno indica chi è tornato, perché e come sono caduti i dadi; la scheda elenca anche le persone in attesa, con il silenzio di ciascuna e un registro dei ritorni.
 
 ## Eliminare o fare swipe di una risposta
 

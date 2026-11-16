@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.
@@ -23,6 +23,10 @@ Działa po odpowiedziach, co N-tą odpowiedź („Run after every N replies”) 
 Kosztuje jedno dodatkowe wywołanie modelu, gdy wypada jego kolej, na „DM model (all chats)”; wystarczy mały, tani model. Nieudany przebieg jest pokazany w arkuszu i w Skrzynce odbiorczej, a DM czyta te same wiadomości następnym razem.
 
 Profil, który gra z talii zdarzeń, pokazuje „New deck”, gdy talia się wyczerpie. Model jest proszony o 8 do 12 zdarzeń; jeśli wróci ich mniej, talia zostaje taka, jaka przyszła, a ostrzeżenie mówi, że wróciła za krótka, żeby można było zbudować ją ponownie.
+
+## Ludzie, którzy wracają
+
+Przyjaciel lub krewny z lorebooka karty może nie pojawiać się w opowieści przez sto wiadomości, bo wpis pojawia się tylko wtedy, gdy ktoś wypowie imię. DM sprowadza takie osoby z powrotem. Liczy odpowiedzi od chwili, gdy dana osoba ostatnio była w scenie lub została wspomniana, a gdy cisza trwa długo (około 15, 30 lub 60 odpowiedzi, według **People coming back > How often**; Normal to domyślne ustawienie w nowych czatach), stanowczo mówi modelowi piszącemu, że ta osoba ma pojawić się w tej odpowiedzi. Ukryty rzut 2d6 oraz długość ciszy i to, jak dużą wagę ma dana osoba, decydują o skali powrotu: wiadomość, telefon z prośbą albo ktoś, kto przybywa z nowinami. Model wybiera formę; DM sprawdza, czy osoba się pojawiła, a jeśli nie, prosi o to jeszcze raz. Osoby z lorebooków kart dołączają do ławki przez **Take people from the cards' lorebooks** lub przełącznik Start „People from the lorebooks”. Na karcie osoby lub frakcji możesz ustawić Relation, Weight i „Bring back automatically”. Aby zobaczyć, jak to działa, włącz **Show under the reply**: mały znacznik informuje, kto wrócił, dlaczego i jak padły kości; karta pokazuje też ławkę z ciszą każdej osoby i dziennikiem powrotów.
 
 ## Usuwanie lub przełączanie odpowiedzi
 

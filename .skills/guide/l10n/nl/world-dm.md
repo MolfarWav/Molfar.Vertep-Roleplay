@@ -1,4 +1,4 @@
-<!-- source: 68f2d887108d -->
+<!-- source: 116e8e38cad3 -->
 # World DM
 
 De World DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en bewaart hij de mensen, plaatsen en dingen die hij tegenkomt in het eigen lorebook van de chat, het wereldboek genoemd. Op hogere niveaus beweegt hij ook de wereld en stuurt hij gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levendig en consistent aanvoelt.
@@ -23,6 +23,10 @@ Hij draait na antwoorden, elke N-de antwoord ("Run after every N replies"), of m
 Het kost één extra modelaanroep wanneer het aan de beurt is, op het "DM model (all chats)"; een klein, goedkoop model is genoeg. Een mislukte run wordt getoond in het blad en in de Inbox, en de DM leest dezelfde berichten de volgende keer opnieuw.
 
 Een profiel dat speelt vanuit een gebeurtenissenstapel toont "New deck" wanneer de stapel op is. Het model wordt om 8 tot 12 gebeurtenissen gevraagd; komen er minder terug, dan blijft de stapel zoals hij kwam en waarschuwt een melding dat hij te kort terugkwam, zodat je hem opnieuw kunt opbouwen.
+
+## Mensen die terugkomen
+
+Een vriend of familielid uit het lorebook van een kaart kan honderd berichten lang buiten het verhaal blijven, omdat een vermelding alleen opkomt wanneer iemand de naam zegt. De DM laat zulke personen terugkeren. Hij telt de antwoorden sinds iemand voor het laatst in de scène was of werd genoemd, en wanneer de stilte lang duurt (ongeveer 15, 30 of 60 antwoorden, volgens **People coming back > How often**; Normal is de standaard voor nieuwe chats), geeft hij het schrijfmodel duidelijk aan dat de persoon in dit antwoord moet verschijnen. Een verborgen worp van 2d6, plus de lengte van de stilte en hoe zwaar de persoon weegt, bepaalt hoe groot de terugkeer is: een bericht, een telefoontje met een verzoek of iemand die met nieuws arriveert. Het model kiest de vorm; de DM controleert of de persoon is verschenen en vraagt het nog een keer als dat niet zo is. Mensen uit de lorebooks van kaarten komen op de bank via **Take people from the cards' lorebooks** of via de Start-schakelaar "People from the lorebooks". Bij een persoons- of factierecord kunt u Relation, Weight en "Bring back automatically" instellen. Zet **Show under the reply** aan om het te zien werken: een klein teken geeft aan wie er kwam, waarom en hoe de dobbelstenen vielen; de kaart toont ook de bank met ieders stilte en een logboek van terugkeermomenten.
 
 ## Een antwoord verwijderen of swipen
 
