@@ -4,9 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.136.2 (2026-11-17)
+
 - Fixed: **a lorebook file in the app's own format imports with its names, folders, constant status, depth, role, order, secondary keys and settings, with or without a `vectorized` key (Molfar.Vertep#295).** A file without the key went to the world-info importer, which read only the keys and the text: every entry became "Entry N", folders and the constant status were lost, and a constant entry never fired. The file is now native when it has a `settings` object and entries with the app's names (never one with another format's `insertion_order`, `extensions` or `keysecondary`). A file in the stored shape (what `data/lorebooks` holds and what Molfar writes) also keeps its logic and probability, which were read under the editor's names. Checked by tests on the conversion; not on a real import in the app.
 - Fixed: **the gallery's "Attach to message" no longer goes past the 8-attachment cap (Molfar.Vertep#306, point 3).** A ninth picture is refused with the same note a file from the disk gets. Not tried in a browser.
-
 - Fixed: **a message you stopped could come back into the box, although it was stored (Molfar.Vertep#384).** After a Stop the page cleans up (it reads the chat again); a new message sent in that moment cleared the per-chat "stopped" flag before the stopped send had read it, so the stopped send reported "not sent" and put its text back, and sending it again would have doubled it. Whether a send was stopped is now told by the clock (when the send began against when Stop was pressed), which a later send cannot clear. The new test reproduces it on the old code. Not seen with a real provider.
 
 ## 4.136.1 (2026-11-17)
