@@ -189,6 +189,11 @@ block is something that came out in the story (a relationship, a secret, a skill
 are not sections on purpose, they hardly ever change; a rare scar is an `other` block. A v1 file (`was`, `now`) is read as one
 `changed` block of `other` with the text "Was: ... Now: ...". At most 200 entries. `inject.maxTokens` is the user's room, 100 to 8000
 (default 1500); over it the newest accepted blocks stay (one that does not fit is skipped, a smaller older one may still go in).
+`inject.remind` (boolean, default false) repeats the two newest live blocks (500 characters each) at the end of the prompt, in the last user
+message, behind a line that says they win over the card (the stronger override; counted in `insertCeiling`). `POST /agents/growth/update`
+`{ cardId, chatId }` is the hand button: one model call (two passes, like a trial) over the card, the existing blocks and the last 40
+messages of a solo chat of this card, proposing up to 4 blocks (agent id `hand`) with the same rules as `write.growth`; it answers the
+`GET` shape plus `added`, `refused`, `model`. The `GET` answer also carries `text`, the part as the prompt gets it.
 An agent's `write.growth` card adds `proposed` blocks (at most 2 a run, a solo chat only; a text already in the file is not added
 twice; a re-run of the same reply replaces that agent's still-proposed blocks of it). A proposed "changed" block about a section
 that already has an accepted "changed" block carries `revises` (its id): accepting it replaces that block's text and moves the old
@@ -1400,7 +1405,9 @@ beside it (a call the app makes when a send starts). The routes below and the ho
 `grants/<id>.json` (`{ v: 1, needs: [...], asked?: [...] }`: what the user confirmed, and every need the person was shown, so `GET /agents/list` can report `added`, the needs a later version asks for), `config.json` (`{ model?, models?: { <role>: <model> } }`),
 `state/<chatId>/<id>.json` (`{ v: 1, own, last, before }`: the agent's own fields in that chat, the text it left for its
 `myPrevious`, and the state and message id before its last run), `runs/<chatId>.json` (`{ v: 1, runs }`, the newest 100) and
-`inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply).
+`inserts/<chatId>.json` (`{ v: 1, items }`, hints waiting for the next reply). A run record may carry `tokens: { in, out }` (what its model answers used, when the provider told) and `batched` (how many of its questions went out in a batch).
+  **Batching.** A `model.ask` card may have `batchKey` (null, or up to 40 of `A-Za-z0-9_-`; anything else is `E_BATCH_KEY`). In one pass, cards of any agents with the same `batchKey` and the same model (two or more, at most 20) go as ONE request `bt_<n>`: the prompts under `===== TASK k =====`, the answers expected under `===== ANSWER k =====` marker lines, output limit the sum of the cards' limits (cap 8000). A reply that is not exactly the n answers in order, or a failed call, puts those cards in the stash's `nobatch` and they are asked singly in the next pass. A card with no key is never batched.
+- `POST /agents/inspect` `{ files: [...] }` (at most 20): what agent files WOULD be, writing nothing: for each `{ id, name, description, version, trigger, needs, granted, missing, unsupported, maxCalls, cost, installed, scriptsMissing }` or `{ error }`. The new-chat step uses it to show what a ready agent reads, shows and costs before anything is installed; `installed` = an agent of that id exists (the step never overwrites it); `scriptsMissing` = the file has a Script card and this engine cannot run one.
 - `PUT /agents/install` `{ file, grant? }`: checks the file (a file that lies in `derived` is refused with the checker's
   errors and nothing is stored; one without `derived` is compiled), stores it and answers `{ id, needs, granted, missing,
   unsupported, warnings }`. `grant`: `true` or a list of permissions the user confirmed. A new version keeps the permissions

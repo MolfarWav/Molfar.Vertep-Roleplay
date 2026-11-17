@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, ArrowsClockwise, Check, CircleNotch, DotsThree, PencilSimple, Trash, TrendUp, Warning, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowsClockwise, BookOpenText, Check, CircleNotch, DotsThree, PencilSimple, Trash, TrendUp, Warning, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import type { Character } from '@/lib/types'
 import {
   type GrowthEntry,
@@ -28,6 +29,7 @@ import {
   GROWTH_TITLE_MAX,
   loadGrowth,
   putGrowth,
+  updateGrowthFromStory,
 } from './memory-api'
 import { AddButton, Block } from './memory-block'
 import { TokenField } from './memory-token-field'
@@ -89,6 +91,22 @@ export const addPatch = (v: GrowthFields): GrowthPatch => {
 
 const sectionLabel = (t: T, s: string) => t(`mem.grow.sec.${SECTION_ORDER.includes(s as GrowthSection) ? s : 'other'}` as MsgKey)
 
+/** The hand button "Update from the story": the chat it reads (null = the card has none), whether a read is running, and the click. */
+export interface StoryRead { title: string | null; reading: boolean; onRead: () => void }
+
+/** The button and the line under it that says which chat it reads (or why it cannot). */
+function ReadStory({ story, name, t }: { story: StoryRead; name: string; t: T }) {
+  return (
+    <div className="flex flex-col gap-1" data-testid="mem-grow-update">
+      <Button variant="outline" size="sm" className="w-fit max-md:h-10" onClick={story.onRead} disabled={story.title === null || story.reading} data-testid="mem-grow-update-btn">
+        {story.reading ? <CircleNotch className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <BookOpenText aria-hidden="true" />}
+        {story.reading ? t('mem.grow.update.busy') : t('mem.grow.update')}
+      </Button>
+      <p className="text-caption text-muted-foreground">{story.title === null ? t('mem.grow.update.noChat', { name }) : t('mem.grow.update.hint', { title: story.title })}</p>
+    </div>
+  )
+}
+
 /** The card's "How they changed" portrait: what an agent proposed and what the user accepted or wrote. Loads and saves on its own
  *  (the agents plugin keeps the file), and every change acts at once, like the rest of the Memory tab. */
 export function GrowthBlock({ card }: { card: Character }) {
@@ -121,6 +139,25 @@ export function GrowthBlock({ card }: { card: Character }) {
     }
   }
 
+  // the hand button reads the newest chat with this card alone (a group chat is a chat of the group card, never of this one)
+  const chats = useApp((st) => st.chats)
+  const storyChat = chats.filter((c) => c.characterId === card.id && !c.temporary).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
+  const [reading, setReading] = useState(false)
+  const readStory = async () => {
+    if (!storyChat || reading) return
+    setReading(true)
+    try {
+      const v = await updateGrowthFromStory(card.id, storyChat.id)
+      if (alive.current) setData(v)
+      if (v.added > 0) toast.success(t('mem.grow.update.done', { n: v.added }))
+      else toast(t('mem.grow.update.none'))
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : String(e))
+    } finally {
+      if (alive.current) setReading(false)
+    }
+  }
+
   if (!data) {
     return (
       <Block tone="sky" icon={TrendUp} title={t('mem.grow')}>
@@ -142,11 +179,11 @@ export function GrowthBlock({ card }: { card: Character }) {
       </Block>
     )
   }
-  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} />
+  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory() }} />
 }
 
 /** The block itself, from a loaded list. Split from `GrowthBlock` so it renders without a server. */
-export function GrowthBody({ card, data, t, act, busy }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean }) {
+export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean; story?: StoryRead }) {
   const [confirm, confirmDialog] = useConfirm()
   // the add form sits under the list; a block being edited opens in a dialog
   const [adding, setAdding] = useState(false)
@@ -237,6 +274,7 @@ export function GrowthBody({ card, data, t, act, busy }: { card: Pick<Character,
             <EmptyDescription>{t('mem.grow.empty', { name: card.name })}</EmptyDescription>
           </EmptyHeader>
           <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} primary />
+          {story && <ReadStory story={story} name={card.name} t={t} />}
         </Empty>
       ) : (
         <>
@@ -277,7 +315,10 @@ export function GrowthBody({ card, data, t, act, busy }: { card: Pick<Character,
           {adding ? (
             <GrowthForm key="new" t={t} sections={data.sections} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '' }} submitLabel={t('mem.grow.form.add')} onCancel={() => setAdding(false)} onSubmit={(v) => add(v)} />
           ) : (
-            <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} />
+            <div className="flex flex-col gap-3">
+              <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} />
+              {story && <ReadStory story={story} name={card.name} t={t} />}
+            </div>
           )}
         </>
       )}
@@ -299,6 +340,13 @@ export function GrowthBody({ card, data, t, act, busy }: { card: Pick<Character,
             onCommit={(v) => act({ op: 'inject', maxTokens: v })}
           />
           <p className="text-caption text-muted-foreground">{t('mem.grow.inject.hint')}</p>
+          <label className="flex min-h-8 items-start gap-3 text-body max-md:min-h-10" data-testid="mem-grow-remind">
+            <Switch checked={growth.inject.remind === true} onCheckedChange={(v) => void act({ op: 'inject', remind: v })} aria-label={t('mem.grow.remind')} className="mt-0.5 max-md:after:-inset-y-4" disabled={!growth.inject.enabled} />
+            <span className="flex flex-col">
+              <span>{t('mem.grow.remind')}</span>
+              <span className="text-caption text-muted-foreground">{t('mem.grow.remind.hint')}</span>
+            </span>
+          </label>
           <p className="text-caption text-muted-foreground" data-testid="mem-grow-cost">
             {growth.inject.enabled ? t('mem.grow.cost', { used: tokens.used, room: tokens.room }) : t('mem.grow.inject.off')}
           </p>

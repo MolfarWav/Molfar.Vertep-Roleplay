@@ -4,6 +4,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
+import { AgentOffer, useStarterOffer } from '@/components/chat/agent-offer'
+import { chatAgentsWith, markOfferShown } from '@/lib/agent-offer'
+import { installPicked } from '@/lib/agent-offer-install'
+import { toast } from 'sonner'
 import { listAgentSets, loadDefaultAgentSet, useAgentsLive, type AgentSet } from '@/lib/agents'
 import { lastSetFor } from '@/lib/agent-usage'
 import { useApp } from '@/lib/store'
@@ -65,6 +69,12 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   // the set this character's last chat used: the select opens on it (unless the person already picked), and says so
   const [lastFrom, setLastFrom] = useState<string | null>(null)
   const setTouched = useRef(false)
+  // the ready agents the player switched on in the offer (nothing is on until they do), and the install that Start runs for them
+  const offer = useStarterOffer(!!character?.isGroup)
+  const [picked, setPicked] = useState<string[]>([])
+  // once the offer has been on screen it is not a reason to open the step again
+  useEffect(() => { if (offer.state === 'ready') markOfferShown() }, [offer.state])
+  const [starting, setStarting] = useState(false)
   const storeChats = useApp((s) => s.chats)
   const personas = useApp((s) => s.personas)
   // this character's earlier chats, newest first: what the new one may continue
@@ -116,13 +126,26 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
 
   const costs = usePresetCosts(`${preset?.id ?? ''}|${JSON.stringify(preset?.variables ?? [])}`, preset?.id, { vars: values }, JSON.stringify(values), ready)
 
-  const start = () => {
-    if (!preset || !ready) return
+  const start = async () => {
+    if (!preset || !ready || starting) return
+    // the ready agents come first: if one cannot be installed the chat is not started and nothing is bound half way
+    let withOffer: { agents: { own: ReturnType<typeof chatAgentsWith> } } | null = null
+    if (picked.length > 0 && offer.state === 'ready') {
+      setStarting(true)
+      const failed = await installPicked(offer.files, offer.previews, picked)
+      setStarting(false)
+      if (failed.length > 0) {
+        for (const f of failed) toast.error(t('ag.offer.failed', { name: offer.previews.get(f.id)?.name ?? f.id, why: f.why }))
+        return
+      }
+      const baseId = setPick === 'default' ? defaultSet : setPick === 'none' ? null : setPick
+      withOffer = { agents: { own: chatAgentsWith(sets.find((x) => x.id === baseId)?.items ?? [], picked) } }
+    }
     if (dontAsk) updateSettings({ askPresetOnNewChat: false })
     closeNewChatStep()
     void startChatWith(charId, greetingIndex, {
       presetId: preset.id, presetVars: values,
-      ...(setPick === 'none' ? { agents: { own: [] as [] } } : setPick !== 'default' ? { agents: { preset: setPick } } : {}),
+      ...(withOffer ?? (setPick === 'none' ? { agents: { own: [] as [] } } : setPick !== 'default' ? { agents: { preset: setPick } } : {})),
       ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
       ...(from ? { continues: from.id, ...(from.personaId && personas.some((p) => p.id === from.personaId) ? { personaId: from.personaId } : {}), ...(from.model ? { model: from.model } : {}) } : {}),
       ...(worldPick.startsWith('w:') ? { world: { worldId: worldPick.slice(2) } } : worldPick.startsWith('c:') ? { world: { fromChatId: worldPick.slice(2) } } : {}),
@@ -144,7 +167,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
           const el = e.target as HTMLElement
           if (e.key === 'Enter' && !e.shiftKey && !el.closest('input, textarea, button, [role="combobox"], [role="radio"], [role="checkbox"], [role="switch"]')) {
             e.preventDefault()
-            start()
+            void start()
           }
         }}
       >
@@ -247,6 +270,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
           </div>
         )}
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5">
+          <AgentOffer offer={offer} picked={picked} onPicked={setPicked} />
           {preset && preset.variables.length > 0 && (
             <PresetChoices
               preset={preset}
@@ -271,7 +295,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
           </label>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={closeNewChatStep}>{t('pc.step.cancel')}</Button>
-            <Button size="sm" onClick={start} disabled={!ready || !preset} data-testid="new-chat-start">{t('pc.step.start')}</Button>
+            <Button size="sm" onClick={() => void start()} disabled={!ready || !preset || starting} data-testid="new-chat-start">{t('pc.step.start')}</Button>
           </div>
         </div>
       </DialogContent>

@@ -277,3 +277,106 @@ describe("the ready agent 'Character growth' (#396)", () => {
     expect(later[0]).toContain("waiting for the user");
   });
 });
+
+describe("the hand button: Update from the story (#396)", () => {
+  /** Plays the engine: the first pass asks the model, the second reads what `answer` gave. */
+  function update(body: Json, answer: Json | null = { text: "{}" }) {
+    results = {};
+    requests = [];
+    const first = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: {} } as never, host() as never) as { json?: Json; status?: number; __llmPending?: boolean; stash?: Json };
+    if (!first.__llmPending) return { first, asked: requests, done: first };
+    const asked = requests;
+    results = answer ? { growth_update: answer } : {};
+    const done = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: first.stash } as never, host() as never) as { json?: Json; status?: number };
+    return { first, asked, done };
+  }
+  const answerWith = (blocks: Json[]) => ({ text: "Here you go:\n" + JSON.stringify({ blocks }) });
+
+  it("asks the model once with the card, what is written and the story, then stores up to four proposals", () => {
+    const four = Array.from({ length: 6 }, (_, i) => ({ section: "behaviors", kind: "added", title: "Habit " + i, text: "She keeps one thing " + i + ".", basis: "" }));
+    const r = update({ cardId: "aria", chatId: "c1" }, answerWith(four));
+    expect(r.asked.length).toBe(1);
+    const prompt = r.asked[0][1].messages[0].content as string;
+    expect(prompt).toContain("A tsundere.");
+    expect(prompt).toContain("I stay by the fire.");
+    expect(prompt).toContain("(nothing yet)");
+    expect(r.done.json!.added).toBe(4);
+    const g = growthOf();
+    expect(g.entries.length).toBe(4);
+    expect(g.entries.every((e: Json) => e.state === "proposed" && e.agent === "hand" && e.from.chatId === "c1")).toBe(true);
+  });
+
+  it("nothing reaches the prompt before the user accepts", () => {
+    update({ cardId: "aria", chatId: "c1" }, answerWith([{ section: "personality", kind: "changed", text: "She no longer hides her warmth.", basis: "tsundere" }]));
+    const out = reply(PROMPT());
+    expect(JSON.stringify(out)).not.toContain("no longer hides");
+  });
+
+  it("a block about an accepted section is a revision, a repeated text is not added twice", () => {
+    put({ op: "add", section: "personality", kind: "changed", text: "Cold and proud." });
+    const r = update({ cardId: "aria", chatId: "c1" }, answerWith([{ section: "personality", kind: "changed", text: "Warm in private." }, { section: "personality", kind: "changed", text: "cold and proud." }]));
+    expect(r.done.json!.added).toBe(1);
+    const e = growthOf().entries.find((x: Json) => x.agent === "hand");
+    expect(e.revises).toBeTruthy();
+    expect(r.done.json!.refused.join(" ")).toContain("already there");
+  });
+
+  it("a model that sends no JSON, or no answer, stores nothing and says so", () => {
+    expect(update({ cardId: "aria", chatId: "c1" }, { text: "I could not tell." }).done.json!.added).toBe(0);
+    const none = update({ cardId: "aria", chatId: "c1" }, { error: "boom" });
+    expect(none.done.status).toBe(502);
+    expect(exists("characters/aria/growth.json")).toBe(false);
+  });
+
+  it("refuses a missing card, a missing chat, a chat of another card and an empty chat", () => {
+    expect(update({ cardId: "nope", chatId: "c1" }).first.status).toBe(400);
+    expect(update({ cardId: "aria", chatId: "zzz" }).first.status).toBe(404);
+    makeChat("c2", CHAT, { characterId: "bob" });
+    expect(update({ cardId: "aria", chatId: "c2" }).first.status).toBe(400);
+    makeChat("c3", []);
+    fs.writeFileSync(path.join(root, "chats", "c3.jsonl"), "");
+    expect(update({ cardId: "aria", chatId: "c3" }).first.status).toBe(400);
+  });
+
+  it("parseGrowthBlocks keeps four at most and drops empty ones", () => {
+    expect(plugin.parseGrowthBlocks("no json")).toEqual([]);
+    expect(plugin.parseGrowthBlocks('{"blocks":[{"text":""},{"text":"a"},{"text":"b"},{"text":"c"},{"text":"d"},{"text":"e"}]}').length).toBe(4);
+  });
+});
+
+describe("the stronger override: remind near the newest message (#396)", () => {
+  const blocks = () => {
+    put({ op: "add", section: "personality", kind: "changed", text: "She has stopped hiding her warmth." });
+    put({ op: "add", section: "relationships", kind: "changed", text: "She trusts Taras with her back." });
+    put({ op: "add", section: "goals", kind: "added", title: "A quiet wish", text: "She wants the keep to feel like home." });
+  };
+  const lastUser = (r: Json | null) => { const m = (r!.messages as Json[]); return m[m.length - 1].content as string; };
+
+  it("is off by default: the last message is untouched", () => {
+    blocks();
+    expect(lastUser(reply(PROMPT()))).toBe("Go on.");
+  });
+
+  it("when on, repeats the two newest blocks at the end, in the last user message, and says it in the prompt sources", () => {
+    blocks();
+    expect(put({ op: "inject", remind: true }).growth.inject.remind).toBe(true);
+    const r = reply(PROMPT());
+    const end = lastUser(r);
+    expect(end.startsWith("Go on.")).toBe(true);
+    expect(end).toContain("Reminder");
+    expect(end).toContain("She wants the keep to feel like home.");
+    expect(end).toContain("She trusts Taras with her back.");
+    expect(end).not.toContain("stopped hiding");
+    expect((r!.promptSources as Json).parts.map((p: Json) => p.label)).toContain("Agents · character growth (reminder)");
+  });
+
+  it("is counted in the ceiling, and is off when the portrait is off", () => {
+    blocks();
+    const before = (plugin.insertCeiling({ chatId: "c1" } as never, host() as never) as Json).ceilings[0].tokens;
+    put({ op: "inject", remind: true });
+    const after = (plugin.insertCeiling({ chatId: "c1" } as never, host() as never) as Json).ceilings[0].tokens;
+    expect(after).toBeGreaterThan(before);
+    put({ op: "inject", enabled: false });
+    expect(lastUser(reply(PROMPT()) ?? { messages: PROMPT() })).toBe("Go on.");
+  });
+});

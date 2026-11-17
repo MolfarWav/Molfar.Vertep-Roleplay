@@ -45,7 +45,8 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI, updateMessageDirections,
 } from './engine'
 import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
-import { listAgentSets, triggerAgentsRun, triggerParallelAgents } from './agents'
+import { listAgentSets, listInstalledAgents, triggerAgentsRun, triggerParallelAgents } from './agents'
+import { offerShown } from './agent-offer'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
 import { buildImagePrompt, generateImage, modelHints, postPicture, type GeneratedImage } from './image-gen'
 import { triggerDashUpdate } from './dash-live'
@@ -1905,12 +1906,14 @@ export const useApp = create<AppState>()(
       },
       startChatAndOpen: async (charId, greetingIndex) => {
         // a short step with the preset and its choices, unless the user turned it off or there is
-        // nothing to choose (one preset without variables, and no agent set to pick)
+        // nothing to choose (one preset without variables, and no agent set to pick; the first time, the ready agents count as something to choose)
         const { settings, presets } = get()
         if (settings.askPresetOnNewChat !== false && presets.length > 0) {
           const pre = presets.find((p) => p.isDefault) ?? presets[0]
           const hasSets = presets.length > 1 || pre.variables.length > 0 ? false : (await listAgentSets().catch(() => [])).length > 0
-          if (presets.length > 1 || pre.variables.length > 0 || hasSets) {
+          // a player who has not yet been shown the ready agents gets the step once, even with nothing else to choose (Molfar.Vertep#396)
+          const offerFresh = presets.length > 1 || pre.variables.length > 0 || hasSets || offerShown() ? false : (await listInstalledAgents().catch(() => null)) !== null
+          if (presets.length > 1 || pre.variables.length > 0 || hasSets || offerFresh) {
             set({ newChatStep: { charId, greetingIndex } })
             return
           }

@@ -105,6 +105,10 @@ export interface AgentRun {
   status: 'ok' | 'failed'
   reason?: string
   calls?: number
+  /** tokens the run's model answers used, when the provider said (#396 item 1) */
+  tokens?: { in: number; out: number }
+  /** how many of its questions went out as part of a batch */
+  batched?: number
   writes?: unknown[]
   refused?: unknown[]
   /** the Dashboard values this run changed, with what they replaced */
@@ -258,8 +262,30 @@ export async function deleteAgentDraft(name: string): Promise<void> {
   await j(`/agents/drafts/${encodeURIComponent(name)}`, { method: 'DELETE' })
 }
 
-export async function installAgentFile(file: unknown): Promise<InstallReply> {
-  return j<InstallReply>('/agents/install', { method: 'PUT', body: JSON.stringify({ file }) })
+/** `grant: true` also records the person's yes for every need this runner can give (the caller has just shown them). */
+export async function installAgentFile(file: unknown, grant?: boolean): Promise<InstallReply> {
+  return j<InstallReply>('/agents/install', { method: 'PUT', body: JSON.stringify({ file, ...(grant ? { grant: true } : {}) }) })
+}
+
+/** One agent file as it would be, before it is installed (POST /agents/inspect). */
+export type AgentPreview = Pick<AgentInfo, 'id' | 'name' | 'description' | 'trigger' | 'needs' | 'granted' | 'missing' | 'unsupported' | 'maxCalls' | 'cost'> & {
+  version: string
+  /** an agent of this id is already in the workspace: it is used as it is, never overwritten */
+  installed: boolean
+  /** the file has a Script card and this engine cannot run one */
+  scriptsMissing: boolean
+  error?: undefined
+}
+export type AgentPreviewRow = AgentPreview | { error: string; id?: string }
+
+/** What the files would be, in the same order; null when the app has no agents plugin. Installs and allows nothing. */
+export async function inspectAgentFiles(files: unknown[]): Promise<AgentPreviewRow[] | null> {
+  try {
+    return (await j<{ agents: AgentPreviewRow[] }>('/agents/inspect', { method: 'POST', body: JSON.stringify({ files }) })).agents
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null
+    throw e
+  }
 }
 
 /** Sets exactly which of the agent's needs are allowed (a list; the plugin keeps what it is sent). */

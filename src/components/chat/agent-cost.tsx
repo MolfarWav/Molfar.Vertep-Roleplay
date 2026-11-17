@@ -1,7 +1,8 @@
 import { Coins } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
 import type { AgentInfo, ChatAgentItem } from '@/lib/agents'
-import { cadenceOf, replyCost, runTokens } from '@/lib/agent-cost'
+import { cadenceOf, lastReply, replyCost, runTokens, type CostInfo } from '@/lib/agent-cost'
+import type { AgentRun } from '@/lib/agents'
 import { formatTokens } from '@/lib/tokens'
 
 /** A token count a person can read: tens under a thousand, then the usual short form. Always "about". */
@@ -14,7 +15,7 @@ const callsText = (n: number): string => (Number.isInteger(n) ? String(n) : n.to
  * (the length of its questions, what they read, the answer limits), so it says so. An agent that never asks a model says
  * that instead of showing zeros.
  */
-export function AgentRunCost({ agent, className }: { agent: AgentInfo; className?: string }) {
+export function AgentRunCost({ agent, className }: { agent: Pick<AgentInfo, 'id' | 'cost' | 'own' | 'trigger'>; className?: string }) {
   const t = useT()
   const c = agent.cost
   if (!c) return null
@@ -33,7 +34,7 @@ export function AgentRunCost({ agent, className }: { agent: AgentInfo; className
 }
 
 /** The line above the chat's agents: what the ones that are on cost for one reply, all together. */
-export function ReplyCostLine({ items, installed, className }: { items: ChatAgentItem[]; installed: AgentInfo[] | null | undefined; className?: string }) {
+export function ReplyCostLine({ items, installed, className }: { items: ChatAgentItem[]; installed: CostInfo[] | null | undefined; className?: string }) {
   const t = useT()
   if (!installed) return null
   const { calls, tokens, agents, unknown } = replyCost(items, installed)
@@ -43,6 +44,20 @@ export function ReplyCostLine({ items, installed, className }: { items: ChatAgen
       <Coins className="mr-1 inline size-3.5 align-text-bottom" aria-hidden="true" />
       {agents === 0 || tokens === 0 ? t('ag.cost.totalNone') : t('ag.cost.total', { calls: callsText(calls), tokens: rough(tokens) })}
       {unknown > 0 ? ` ${t('ag.cost.unknown', { n: unknown })}` : ''}
+    </p>
+  )
+}
+
+/** What the agents really did for the newest reply (calls, tokens when the provider told, the longest wait), from the run log. */
+export function LastReplyLine({ runs, className }: { runs: AgentRun[] | undefined; className?: string }) {
+  const t = useT()
+  const l = lastReply(runs)
+  if (!l || (l.calls === 0 && l.tokens === 0)) return null
+  return (
+    <p className={className} data-testid="agents-last-reply">
+      {t('ag.last.line', { n: l.runs, calls: l.calls, secs: l.seconds < 10 ? l.seconds.toFixed(1) : String(Math.round(l.seconds)) })}
+      {l.tokens > 0 ? ' ' + t('ag.last.tokens', { tokens: rough(l.tokens) }) : ''}
+      {l.batched > 0 ? ' ' + t('ag.last.batched', { n: l.batched }) : ''}
     </p>
   )
 }

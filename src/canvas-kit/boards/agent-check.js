@@ -763,6 +763,9 @@ export function validateAgent(raw) {
       checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
       err('E_ROLE', `"${n.title}" asks for the model role "${p.role}", which agent.models does not declare`, n.id);
+    // batchKey: Ask cards of different agents with the same key (and model) are asked in one request; null or missing = never batched
+    if (n.type === 'model.ask' && p.batchKey !== undefined && p.batchKey !== null && !(isString(p.batchKey) && /^[A-Za-z0-9_-]{1,40}$/.test(p.batchKey)))
+      err('E_BATCH_KEY', `"${n.title}": batchKey is empty or up to 40 letters, digits, "_" and "-"`, n.id);
     if (n.type === 'logic.if') {
       const inTypes = Object.fromEntries((p.inputs ?? []).map((i) => [i.id, i.type]));
       if (!(p.rows ?? []).length)

@@ -12,6 +12,8 @@ export const cadenceOf = (a: Pick<AgentInfo, 'own' | 'trigger'>): number => {
 }
 
 /** The whole run: what goes in plus the most that may come out. */
+export type CostInfo = Pick<AgentInfo, 'id' | 'cost' | 'own' | 'trigger'>
+
 export const runTokens = (c: AgentCost): number => c.tokensIn + c.tokensOut
 
 /**
@@ -19,7 +21,7 @@ export const runTokens = (c: AgentCost): number => c.tokensIn + c.tokensOut
  * third reply counts a third). Agents without an estimate, or not installed, are left out and counted in `unknown`.
  * A hand-only agent (`manual`) never runs by itself and adds nothing.
  */
-export function replyCost(items: ChatAgentItem[], installed: AgentInfo[] | null | undefined): { calls: number; tokens: number; agents: number; unknown: number } {
+export function replyCost(items: ChatAgentItem[], installed: CostInfo[] | null | undefined): { calls: number; tokens: number; agents: number; unknown: number } {
   let calls = 0
   let tokens = 0
   let agents = 0
@@ -35,4 +37,20 @@ export function replyCost(items: ChatAgentItem[], installed: AgentInfo[] | null 
     agents++
   }
   return { calls, tokens, agents, unknown }
+}
+
+/** What the chat's agents actually did for the newest reply, from the run log: the numbers #396 item 1 measures with. null = no run yet. */
+export interface LastReply { runs: number; calls: number; tokens: number; seconds: number; batched: number }
+export function lastReply(runs: { key: string; at: number; ms: number; calls?: number; tokens?: { in: number; out: number }; batched?: number }[] | undefined): LastReply | null {
+  if (!runs || runs.length === 0) return null
+  const newest = runs.reduce((a, b) => (b.at >= a.at ? b : a))
+  const mine = runs.filter((r) => r.key === newest.key)
+  return {
+    runs: mine.length,
+    calls: mine.reduce((t, r) => t + (r.calls ?? 0), 0),
+    tokens: mine.reduce((t, r) => t + (r.tokens ? r.tokens.in + r.tokens.out : 0), 0),
+    // the runs of one reply run together, so the longest one is the wait
+    seconds: Math.max(...mine.map((r) => r.ms)) / 1000,
+    batched: mine.reduce((t, r) => t + (r.batched ?? 0), 0),
+  }
 }

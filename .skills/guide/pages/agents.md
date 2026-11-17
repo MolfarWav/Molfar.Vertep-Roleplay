@@ -28,6 +28,10 @@ On top of the lane, an agent can run on every Nth reply or only when chosen word
 
 Press "New agent" in the Agents board of the **Canvas** (the rail's **Agents** item opens it). "Empty agent" gives an Input and a note. "Start from a ready agent" offers ten working ones: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (it proposes how the character has changed, for the card's Memory tab; see the memory page), Repetition guard, Canon guard and Ledger (described below). Under "Drafts" are agents Molfar wrote into your workspace ("Drafts from Molfar").
 
+### Ready agents in a new chat
+
+The step before a new chat starts has a fold, "Agents (optional)", with the same ready agents. Nothing in it is on until you turn it on. Open it and each agent shows a sentence about what it does, an estimate of its cost per run ("no model calls" for one that runs in code), and "What it reads, changes and shows" with the same lines the permission page lists. "Turn on the suggested three" picks Repetition guard, Next moves and Scene recap, the cheapest ones that show something at once. Below the list the total for the ones you turned on says "about N calls and T tokens per reply". Pressing Start installs the agents you turned on, allows exactly the lines they listed and starts the chat with them (together with the set the chat would have had anyway). Looking at the fold installs and allows nothing. An agent that is already installed is used as it is, never overwritten. One that needs a newer engine than yours says so and cannot be turned on. A group chat does not list Character growth. The step opens by itself once for a player who has one preset, no options and no agent set, so the ready agents are seen; after that it opens only when there is something else to choose, as before. Change or turn the agents off later in the chat's **Agents** tab.
+
 ### Repetition guard, Canon guard and Ledger
 
 Three ready agents for problems that long stories run into. Turn each on per chat, like any agent, and read its permissions before you allow it.
@@ -58,7 +62,9 @@ An agent with a Script card that runs out of time three runs in a row in a chat 
 
 A **set** is a named list of agents ("Save this chat's list as a set"; "Make default" gives it to new chats). The Canvas's "Agent sets" board shows each set's cost in time and calls, and holds the "Agents' notes in chats" switch that hides every agent's notes. Each agent's result place can be changed in the chat's Agents tab, among the places that suit it.
 
-Each "Ask the model" card is one call per run; the editor shows the number. "Every Nth reply" divides the cost.
+Each "Ask the model" card is one call per run; the editor shows the number. "Every Nth reply" divides the cost. The Agents tab also shows what the agents really did for the newest reply: how many ran, how many model calls, about how many tokens (when the provider tells) and how long the slowest took.
+
+**Batching.** An "Ask the model" card has an optional **Batch with other agents** word. Agents that run in the same pass, use the same model and have the same word send their questions as one request, which saves calls on a model with a rate limit. If the model's answer cannot be split into the right parts, each question is asked on its own, so the worst case is one extra call. Leave it empty (the default) for a question that must never share. Batching helps most when the cards read the same history; with different inputs the saving is small, and a small-window model may not take several tasks at once.
 
 **What it costs, before you turn it on.** The permissions page and the agent's card in the Agents sheet carry an estimate for one run: the calls, and about how many tokens go in and at most come out. The Agents tab adds a line with the total per reply for the agents that are on in the chat, the "every Nth reply" already spread in. It is read from the agents' files (the length of their questions, what they read, their answer limits), not from your chat, so it says "about": the real numbers depend on the chat and the model. An agent that asks no model says so.
 

@@ -4,6 +4,7 @@ import { buildCarries, flipOff, type CarriesAnswer } from "../src/lib/carries";
 const labels = {
   memory: (n: string) => `Memory of ${n}`,
   habits: (n: string) => `Habits of ${n}`,
+  growth: (n: string) => `Portrait of ${n}`,
   personaMemory: (n: string) => `Persona memory: ${n}`,
   worldMemory: (n: string) => `World memory: ${n}`,
   recollections: (n: string) => `Recollections: ${n}`,
@@ -134,5 +135,26 @@ describe("what a chat carries: the switches", () => {
     expect(flipOff([], "plugin:said")).toEqual(["plugin:said"]);
     expect(flipOff(["databank", "plugin:said"], "plugin:said")).toEqual(["databank"]);
     expect(flipOff(["databank"], "plugin:litopys")).toEqual(["databank", "plugin:litopys"]);
+  });
+});
+
+describe('the portrait of a character (#396)', () => {
+  const cardGrowth = { cardId: 'aria', name: 'Aria', tokens: 90, blocks: 2, omitted: 0, text: 'z' };
+  it('sits after the habits, has its own board switch and counts while it is on', () => {
+    const r = run({ carries: answer({ cardMemory: memory, cardGrowth }) });
+    expect(r.parts.map((p) => p.key)).toEqual(['memory', 'growth', 'note']);
+    const g = r.parts.find((p) => p.key === 'growth')!;
+    expect(g.label).toBe('Portrait of Aria');
+    expect(g.switchKey).toBe('plugin:cardgrowth');
+    expect(r.total).toBe(120 + 90 + 0);
+  });
+  it('is off, and not counted, when the chat switched it off', () => {
+    const r = run({ carries: answer({ off: ['plugin:cardgrowth'], cardGrowth }) });
+    const g = r.parts.find((p) => p.key === 'growth')!;
+    expect(g.off).toBe(true);
+    expect(r.total).toBe(0);
+  });
+  it('is left out when the card has no accepted block that is on', () => {
+    expect(run({ carries: answer({ cardMemory: memory }) }).parts.some((p) => p.key === 'growth')).toBe(false);
   });
 });

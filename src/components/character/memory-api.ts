@@ -189,11 +189,13 @@ export interface GrowthEntry {
 }
 
 export interface GrowthView {
-  growth: { v: 2; next: number; entries: GrowthEntry[]; inject: { enabled: boolean; maxTokens: number } }
+  growth: { v: 2; next: number; entries: GrowthEntry[]; inject: { enabled: boolean; maxTokens: number; remind?: boolean } }
   /** The section names in the order the portrait shows them. */
   sections: GrowthSection[]
   /** What the portrait costs in a prompt now: tokens used of the room, blocks sent / left out for lack of room / live (accepted and on). */
   tokens: { used: number; room: number; sent: number; omitted: number; live: number }
+  /** The part exactly as the prompt gets it ('' when nothing would be sent). */
+  text?: string
 }
 
 /** The fields of a block the user writes or edits. */
@@ -206,7 +208,7 @@ export type GrowthPatch =
   | { op: 'on'; id: string; on: boolean }
   | { op: 'delete'; id: string }
   | { op: 'revert'; id: string }
-  | { op: 'inject'; enabled?: boolean; maxTokens?: number }
+  | { op: 'inject'; enabled?: boolean; maxTokens?: number; remind?: boolean }
 
 export const GROWTH_TEXT_MAX = 1200
 export const GROWTH_TITLE_MAX = 80
@@ -218,3 +220,7 @@ export const loadGrowth = (cardId: string) => j<GrowthView>(`/agents/growth?card
 
 export const putGrowth = (cardId: string, patch: GrowthPatch) =>
   j<GrowthView>('/agents/growth', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })
+
+/** The hand button: one bigger look at a chat of this card; up to 4 blocks come back as proposals. `added` is how many were stored. */
+export const updateGrowthFromStory = (cardId: string, chatId: string) =>
+  j<GrowthView & { added: number; refused: string[] }>('/agents/growth/update', { method: 'POST', body: JSON.stringify({ cardId, chatId }) })

@@ -765,6 +765,9 @@ function validateAgent(raw) {
       checkCodeCard(n, err);
     if (n.type === 'model.ask' && !a.models?.[p.role])
       err('E_ROLE', `"${n.title}" asks for the model role "${p.role}", which agent.models does not declare`, n.id);
+    // batchKey: Ask cards of different agents with the same key (and model) are asked in one request; null or missing = never batched
+    if (n.type === 'model.ask' && p.batchKey !== undefined && p.batchKey !== null && !(isString(p.batchKey) && /^[A-Za-z0-9_-]{1,40}$/.test(p.batchKey)))
+      err('E_BATCH_KEY', `"${n.title}": batchKey is empty or up to 40 letters, digits, "_" and "-"`, n.id);
     if (n.type === 'logic.if') {
       const inTypes = Object.fromEntries((p.inputs ?? []).map((i) => [i.id, i.type]));
       if (!(p.rows ?? []).length)
@@ -1949,7 +1952,7 @@ function pickAgents(fsx, chat, view, items, phase, manual, turn, runs, last, ski
 }
 
 /** A model's answer as it travels from one pass to the next (the engine hands the plugin only the newest pass's answers). */
-const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
+const packAnswer = (r) => (isObj(r) ? { text: typeof r.text === "string" ? r.text : "", model: typeof r.model === "string" ? r.model : "", ...(isObj(r.usage) ? { usage: { input: Number(r.usage.input) || 0, output: Number(r.usage.output) || 0 } } : {}), ...(r.error ? { error: typeof r.error === "string" ? r.error : isObj(r.error) && r.error.message ? String(r.error.message) : "the model sent no answer" } : {}) } : null);
 /** What the engine's script box answered, in the shape the executor reads: { script, value } or { script, error }. */
 const packScript = (r) => (isObj(r) ? (r.ok === true && isObj(r.value) ? { script: true, value: r.value } : { script: true, error: typeof r.error === "string" && r.error ? r.error : "the script failed" }) : null);
 /** The engine can run scripts (permission "script"); an older one cannot. */
@@ -2283,6 +2286,34 @@ function dashUndoRoute(req, host) {
   return ok({ ok: true, id, field: entry.field, ...(entry.who ? { who: entry.who } : {}), restored: dashShown(slot.get()) });
 }
 
+// ---------- batching: Ask cards that share a batchKey go to the model as one request (#396 item 1) ----------
+
+const BATCH_KEY = /^[A-Za-z0-9_-]{1,40}$/;
+const BATCH_MARK = /^[ \t]*=+[ \t]*ANSWER[ \t]+(\d{1,2})[ \t]*=+[ \t]*$/gim;
+
+/** One request for several questions that are answered one after another, each under a marker line. */
+export function batchPrompt(prompts) {
+  const n = prompts.length;
+  return "You will do " + n + " separate tasks. Do each one on its own, exactly as it asks, as if you had been given only that task. After your work on task k write a marker line \"===== ANSWER k =====\" (k is the task number, nothing else on that line) and then your answer to it. Write the marker line for every task, in order, and nothing before the first marker.\n\n"
+    + prompts.map((p, i) => "===== TASK " + (i + 1) + " =====\n" + p).join("\n\n");
+}
+
+/** The n answers inside a batch reply, or null when a marker is missing, doubled or an answer is empty (the caller then asks them one by one). */
+export function splitBatchAnswer(text, n) {
+  const t = String(text == null ? "" : text);
+  const marks = [];
+  for (const m of t.matchAll(BATCH_MARK)) marks.push({ k: Number(m[1]), at: m.index, end: m.index + m[0].length });
+  if (marks.length !== n) return null;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (marks[i].k !== i + 1) return null;
+    const body = t.slice(marks[i].end, i + 1 < n ? marks[i + 1].at : t.length).trim();
+    if (!body) return null;
+    out.push(body);
+  }
+  return out;
+}
+
 /**
  * One round of a run. Every agent is run again from the start with all the answers so far (the cards that cost
  * nothing are cheap, and a pass can lose nothing); the questions that can be asked now are asked together.
@@ -2291,7 +2322,21 @@ function dashUndoRoute(req, host) {
 function stepRun(host, fsx, view, picks, last, stash) {
   const answersAll = isObj(stash && stash.answers) ? { ...stash.answers } : {};
   const fresh = host.llm && host.llm.results ? host.llm.results : {};
-  for (const k of Object.keys(fresh)) { const a = packAnswer(fresh[k]); if (a) answersAll[k] = a; }
+  // batches: a bt_<n> request stands for several Ask cards (stash.batches lists their keys). A reply that does not split into
+  // exactly the answers asked for sends those cards back to single requests (nobatch), so a weak model never loses an agent's run.
+  const batches = isObj(stash && stash.batches) ? { ...stash.batches } : {};
+  const nobatch = new Set(Array.isArray(stash && stash.nobatch) ? stash.nobatch.filter(isString) : []);
+  let batchN = Number(stash && stash.batchN) || 0;
+  for (const k of Object.keys(fresh)) {
+    if (!/^bt_\d+$/.test(k)) { const a = packAnswer(fresh[k]); if (a) answersAll[k] = a; continue; }
+    const members = Array.isArray(batches[k]) ? batches[k] : null;
+    delete batches[k];
+    if (!members) continue;
+    const a = packAnswer(fresh[k]);
+    const parts = a && !a.error ? splitBatchAnswer(a.text, members.length) : null;
+    if (!parts) { for (const mk of members) nobatch.add(mk); continue; }
+    members.forEach((mk, i) => { answersAll[mk] = { text: parts[i], model: a.model, batched: true, ...(i === 0 && a.usage ? { usage: a.usage } : {}) }; });
+  }
   const freshScripts = host.script && host.script.results ? host.script.results : {};
   for (const k of Object.keys(freshScripts)) { const a = packScript(freshScripts[k]); if (a) answersAll[k] = a; }
   const lastMsg = view.msgs.length ? view.msgs[view.msgs.length - 1] : null;
@@ -2324,7 +2369,10 @@ function stepRun(host, fsx, view, picks, last, stash) {
       if (!r) return;
       answers[n.id] = r.script ? (r.error ? { error: r.error } : { value: r.value }) : r.error || !r.text.trim() ? { error: r.error || "the model sent no answer" } : { text: r.text, model: r.model };
     });
-    return { ai, pick, schema, base, st, memo, runN, seed: ctx.seed, res: runAgent(pick.agent.file, ctx, answers), answers };
+    // what this agent's answers cost in tokens, and how many came out of a batch (for the run log: the numbers #396 item 1 measures with)
+    const mine = Object.entries(answersAll).filter(([k]) => k.startsWith("ag_" + ai + "_")).map(([, a]) => a);
+    const tokens = { in: mine.reduce((t, a) => t + (a.usage ? a.usage.input : 0), 0), out: mine.reduce((t, a) => t + (a.usage ? a.usage.output : 0), 0) };
+    return { ai, pick, schema, base, st, memo, runN, seed: ctx.seed, res: runAgent(pick.agent.file, ctx, answers), answers, tokens, batched: mine.filter((a) => a.batched).length };
   });
 
   // one pass for each model call in a row: past the limit an agent fails with a reason instead of vanishing when the engine drops the pass
@@ -2344,6 +2392,7 @@ function stepRun(host, fsx, view, picks, last, stash) {
   }
 
   let asked = 0;
+  const wanted = [];
   for (const r of results) {
     if (r.res.status !== "need") continue;
     for (const q of r.res.requests) {
@@ -2353,18 +2402,33 @@ function stepRun(host, fsx, view, picks, last, stash) {
         asked++;
         continue;
       }
-      const model = modelFor(fsx, view.meta, q.role, r.pick.item.agent);
-      const who = helperNames(fsx, view.meta);
-      host.llm.request(`ag_${r.ai}_${ni}`, {
-        ...(model ? { model } : {}),
-        systemPrompt: AGENT_SYSTEM,
-        messages: [{ role: "user", content: expandNames(q.prompt, who.user, who.char) }],
-        presetParams: { temperature: 0.3, max_tokens: Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600 },
-      });
-      asked++;
+      wanted.push({ key: `ag_${r.ai}_${ni}`, q, model: modelFor(fsx, view.meta, q.role, r.pick.item.agent) });
     }
   }
-  if (asked) return { pending: { started: Number(stash && stash.started) || Date.now(), pass: pass + 1, answers: answersAll } };
+  // Ask cards with the same batchKey and the same model, asked in this one pass, go as one request; one alone, or one a batch
+  // already failed for, goes by itself
+  const who = helperNames(fsx, view.meta);
+  const tokensOf = (q) => (Number.isInteger(q.maxTokens) && q.maxTokens > 0 ? Math.min(q.maxTokens, 4000) : 600);
+  const send = (key, model, content, maxTokens) => {
+    host.llm.request(key, { ...(model ? { model } : {}), systemPrompt: AGENT_SYSTEM, messages: [{ role: "user", content }], presetParams: { temperature: 0.3, max_tokens: maxTokens } });
+    asked++;
+  };
+  const groups = new Map();
+  const single = [];
+  for (const w of wanted) {
+    const bk = typeof w.q.batchKey === "string" && BATCH_KEY.test(w.q.batchKey) && !nobatch.has(w.key) ? w.q.batchKey + "|" + w.model : "";
+    if (!bk) { single.push(w); continue; }
+    if (!groups.has(bk)) groups.set(bk, []);
+    groups.get(bk).push(w);
+  }
+  for (const g of groups.values()) {
+    if (g.length < 2 || g.length > 20) { single.push(...g); continue; }
+    const id = "bt_" + batchN++;
+    batches[id] = g.map((w) => w.key);
+    send(id, g[0].model, expandNames(batchPrompt(g.map((w) => w.q.prompt)), who.user, who.char), Math.min(g.reduce((t, w) => t + tokensOf(w.q), 100), 8000));
+  }
+  for (const w of single) send(w.key, w.model, expandNames(w.q.prompt, who.user, who.char), tokensOf(w.q));
+  if (asked) return { pending: { started: Number(stash && stash.started) || Date.now(), pass: pass + 1, answers: answersAll, ...(Object.keys(batches).length ? { batches } : {}), ...(nobatch.size ? { nobatch: [...nobatch] } : {}), ...(batchN ? { batchN } : {}) } };
   return { results };
 }
 
@@ -2376,7 +2440,7 @@ function commitRun(fsx, chatId, view, results, turn, runs, started, phase) {
   let items2 = Array.isArray(inserts.items) ? inserts.items : [];
   for (const r of results) {
     const id = r.pick.item.agent;
-    const entry = { agent: id, key: turn.key, at: now, ms: now - started, status: "ok", ...(phase !== "after" ? { phase } : {}), trace: r.res.trace };
+    const entry = { agent: id, key: turn.key, at: now, ms: now - started, status: "ok", ...(phase !== "after" ? { phase } : {}), ...(r.tokens && (r.tokens.in || r.tokens.out) ? { tokens: r.tokens } : {}), ...(r.batched ? { batched: r.batched } : {}), trace: r.res.trace };
     if (r.res.status === "failed") {
       runs.push({ ...entry, status: "failed", reason: r.res.reason, node: r.res.node });
       ranOut.push({ agent: id, status: "failed", reason: r.res.reason });
@@ -2922,6 +2986,42 @@ function listRoute(req, host) {
   return ok({ agents });
 }
 
+/**
+ * What agent files WOULD be, before anything is installed (the offer in the new-chat step, Molfar.Vertep#396 item 0): for each
+ * file its id, name, trigger, needs, the estimate of one run and whether this runner can run it. Writes nothing, so looking at
+ * the offer allows and installs nothing. `installed` says an agent of that id is already in the workspace (the offer then never
+ * overwrites it: the person may have edited it); `missing` is what of its needs the person has not allowed yet.
+ */
+const INSPECT_MAX = 20;
+function inspectRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  if (!Array.isArray(b.files)) return ok({ error: "files required" }, 400);
+  const out = [];
+  for (const file of b.files.slice(0, INSPECT_MAX)) {
+    if (!isObj(file) || JSON.stringify(file).length > AG_FILE_MAX) { out.push({ error: "not an agent file" }); continue; }
+    const compiled = compileAgent(file);
+    if ("error" in compiled) { out.push({ error: compiled.error }); continue; }
+    if (compiled.report.errors.length) { out.push({ id: str(isObj(file.agent) ? file.agent.id : ""), error: compiled.report.errors[0].message }); continue; }
+    const f = compiled.file;
+    const a = f.agent || {};
+    const id = a.id;
+    const needs = needsOf(f);
+    const granted = grantedOf(fsx, id);
+    const installed = !!readJsonAt(fsx, agentPath(id), null);
+    const hasScript = f.nodes.some((n) => n.type === "code.script");
+    out.push({
+      id, name: str(a.name) || id, description: str(a.description), version: str(a.version),
+      trigger: isObj(a.trigger) ? a.trigger : {},
+      needs, granted, missing: needs.filter((t) => !granted.includes(t)), unsupported: unsupportedNeeds(needs),
+      maxCalls: compiled.report.derived ? compiled.report.derived.maxCalls : 0,
+      cost: costOf(f, compiled.report.derived ? compiled.report.derived.maxCalls : 0),
+      installed, scriptsMissing: hasScript && !canScript(host),
+    });
+  }
+  return ok({ agents: out });
+}
+
 function grantRoute(req, host) {
   const fsx = host.fs;
   const b = isObj(req.body) ? req.body : {};
@@ -3033,6 +3133,7 @@ export function handleRoute(req, host) {
   const seg = path.split("/").filter(Boolean);
   if (path === "/agents/list" && req.method === "GET") return listRoute(req, host);
   if (path === "/agents/install" && req.method === "PUT") return installRoute(req, host);
+  if (path === "/agents/inspect" && req.method === "POST") return inspectRoute(req, host);
   if (path === "/agents/drafts" && req.method === "GET") return draftsRoute(req, host);
   if (path === "/agents/drafts/install" && req.method === "POST") return draftInstallRoute(req, host);
   if (path === "/agents/drafts/copy" && req.method === "POST") return draftCopyRoute(req, host);
@@ -3049,6 +3150,7 @@ export function handleRoute(req, host) {
   if (path === "/agents/panels" && req.method === "GET") return panelsRoute(req, host);
   if (path === "/agents/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (path === "/agents/growth" && (req.method === "GET" || req.method === "PUT")) return growthRoute(req, host);
+  if (path === "/agents/growth/update" && req.method === "POST") return growthUpdateRoute(req, host);
   if (seg.length === 2 && req.method === "DELETE") return removeRoute(req, host, seg[1]);
   return ok({ error: "not found" }, 404);
 }
@@ -3103,7 +3205,7 @@ function readGrowth(fsx, cardId) {
   const inj = isObj(o.inject) ? o.inject : {};
   const room = Number.isInteger(inj.maxTokens) ? Math.max(GROWTH.roomMin, Math.min(GROWTH.roomMax, inj.maxTokens)) : GROWTH.room;
   const next = Math.max(Number.isInteger(o.next) ? o.next : 1, 1 + Math.max(0, ...entries.map((e) => Number(e.id.slice(1)))));
-  return { v: 2, next, entries, inject: { enabled: inj.enabled !== false, maxTokens: room } };
+  return { v: 2, next, entries, inject: { enabled: inj.enabled !== false, maxTokens: room, remind: inj.remind === true } };
 }
 
 const cardExists = (fsx, cardId) => AG_CHAT.test(cardId) && isObj(readJsonAt(fsx, "characters/" + cardId + "/card.json", null));
@@ -3150,6 +3252,21 @@ function growthLayout(g, name) {
   return { text, tokens: approxTokens(text), count: keep.length, omitted: live.length - keep.length };
 }
 
+/**
+ * The stronger override (opt-in, #396): models weigh text near the newest message more than text at the top, so the two newest
+ * live blocks are said again at the end of the prompt, in the user's last message, in a few words of framing. Null when off or
+ * nothing is live. It rides on top of the main part (the room is the main part's; this adds at most two clipped blocks).
+ */
+const GROWTH_REMIND = { blocks: 2, chars: 500 };
+function growthRemind(g, name) {
+  if (!g.inject.remind) return null;
+  const live = g.entries.filter((e) => e.state === "accepted" && e.on).sort((a, b) => b.at - a.at).slice(0, GROWTH_REMIND.blocks).reverse();
+  if (!live.length) return null;
+  const who = name || "the character";
+  const text = "(Reminder: this is how " + who + " is now, and it wins over the card.)\n" + live.map((e) => "- " + growthHeading(e) + ": " + clip(e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
+  return { text, tokens: approxTokens(text) + 4 };
+}
+
 /** The part a chat gets (null when there is nothing to say, or the chat's Prompt board switch or the master switch is off). */
 function growthPart(fsx, meta, card) {
   const cardId = soloCardOf(meta);
@@ -3162,15 +3279,17 @@ function growthPart(fsx, meta, card) {
   const name = isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "";
   const lay = growthLayout(g, name);
   if (!lay || !lay.count) return null;
-  return { cardId, text: lay.text, tokens: lay.tokens, count: lay.count, omitted: lay.omitted };
+  const remind = lay.count ? growthRemind(g, name) : null;
+  return { cardId, text: lay.text, tokens: lay.tokens, count: lay.count, omitted: lay.omitted, remind };
 }
 
 /** The Growth routes' answer: the file as it is now and what the part would cost. */
 function growthAnswer(fsx, cardId) {
   const g = readGrowth(fsx, cardId);
   const live = g.entries.filter((e) => e.state === "accepted" && e.on).length;
-  const lay = growthLayout(g, "");
-  return { growth: g, sections: GROWTH_SECTIONS, tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live } };
+  const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
+  const lay = growthLayout(g, isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "");
+  return { growth: g, sections: GROWTH_SECTIONS, tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live }, text: lay ? lay.text : "" };
 }
 
 /**
@@ -3193,7 +3312,7 @@ function growthText(fsx, meta) {
  * agent's still-proposed blocks of it; a text the file already has is not added twice. Returns what was refused, with the
  * reason, for the run log.
  */
-function applyGrowthWrites(fsx, view, agentId, writes, turnKey) {
+function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.perRun) {
   const refused = [];
   const adds = writes.filter((w) => w.op === "growth.add");
   if (!adds.length) return { applied: 0, refused };
@@ -3206,7 +3325,7 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey) {
   const now = Date.now();
   let applied = 0;
   for (const w of adds) {
-    if (applied >= GROWTH.perRun) { refused.push("growth: at most " + GROWTH.perRun + " proposals a run"); break; }
+    if (applied >= perRun) { refused.push("growth: at most " + perRun + " proposals a run"); break; }
     const text = clip(str(w.text), GROWTH.text);
     if (!text) continue;
     if (g.entries.some((e) => e.text.toLowerCase() === text.toLowerCase())) { refused.push("growth: already there"); continue; }
@@ -3226,6 +3345,62 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey) {
   }
   if (applied || g.entries.length !== before) writeGrowth(fsx, cardId, g);
   return { applied, refused };
+}
+
+/**
+ * POST /agents/growth/update: the hand button "Update from the story" in the card's Memory tab. One bigger look at the chat the
+ * person names: the card, what is already written and the recent story go to the model in one call, and up to four
+ * blocks come back as PROPOSALS, like the agent's (nothing reaches a prompt before the person accepts). Two passes, like a trial:
+ * the first asks the model, the second reads the answer. A solo chat of this card only.
+ */
+const GROWTH_UPDATE_MAX = 4;
+const GROWTH_UPDATE_PROMPT = "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe story so far:\n{{story}}\n\nLook over the whole story above. Which LASTING changes has it made in the character (how they think, act, treat someone, what they want), and what new has it shown about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not the mood of one scene. Write up to " + GROWTH_UPDATE_MAX + " blocks, the most important first, none if nothing lasting happened. For each: section is the part of the character it belongs to (one of " + GROWTH_SECTIONS.join(", ") + "); kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). Answer with JSON only, in the form {\"blocks\":[{\"section\":\"...\",\"kind\":\"...\",\"title\":\"...\",\"text\":\"...\",\"basis\":\"...\"}]}.";
+
+/** The blocks in a model's answer: the first JSON object in the text, its `blocks` list, at most GROWTH_UPDATE_MAX. */
+export function parseGrowthBlocks(text) {
+  const t = str(text);
+  const a = t.indexOf("{");
+  const z = t.lastIndexOf("}");
+  if (a < 0 || z <= a) return [];
+  let o;
+  try { o = JSON.parse(t.slice(a, z + 1)); } catch { return []; }
+  const list = isObj(o) && Array.isArray(o.blocks) ? o.blocks : [];
+  return list.filter((x) => isObj(x) && str(x.text).trim()).slice(0, GROWTH_UPDATE_MAX).map((x) => ({ op: "growth.add", text: str(x.text), section: str(x.section), kind: str(x.kind), title: str(x.title), basis: str(x.basis) }));
+}
+
+function growthUpdateRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const cardId = str(b.cardId);
+  const chatId = str(b.chatId);
+  if (!cardExists(fsx, cardId)) return ok({ error: "cardId of an existing card required" }, 400);
+  if (!AG_CHAT.test(chatId)) return ok({ error: "chatId required: the chat to read" }, 400);
+  const view = readChatFiles(fsx, chatId);
+  if (!view) return ok({ error: "no such chat" }, 404);
+  view.chatId = chatId;
+  if (soloCardOf(view.meta) !== cardId) return ok({ error: "that is not a chat with this card alone" }, 400);
+  const fresh = host.llm && host.llm.results ? host.llm.results.growth_update : null;
+  if (!fresh) {
+    const story = sourceValue(fsx, view, { id: "story", source: "history", last: 40, tokens: 6000 }, "");
+    if (!story) return ok({ error: "the chat has no messages yet" }, 400);
+    const who = helperNames(fsx, view.meta);
+    const parts = { card: sourceValue(fsx, view, { id: "card", source: "card" }, "") || "(no card text)", known: growthText(fsx, view.meta) || "(nothing yet)", story };
+    // one pass, so text inside the card or the story that looks like a slot is never filled
+    const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story)}}/g, (_m, k) => parts[k]);
+    const model = trialModel(fsx, view.meta, "fast", "growth", "");
+    host.llm.request("growth_update", {
+      ...(model ? { model } : {}),
+      systemPrompt: AGENT_SYSTEM,
+      messages: [{ role: "user", content: expandNames(prompt, who.user, who.char) }],
+      presetParams: { temperature: 0.3, max_tokens: 1800 },
+    });
+    return { __llmPending: true, stash: {} };
+  }
+  const a = packDry(fresh);
+  if (!a || a.error || !String(a.text || "").trim()) return ok({ error: (a && a.error) || "the model sent no answer" }, 502);
+  const writes = parseGrowthBlocks(a.text);
+  const done = applyGrowthWrites(fsx, view, "hand", writes, "hand:" + Date.now(), GROWTH_UPDATE_MAX);
+  return ok({ ...growthAnswer(fsx, cardId), added: done.applied, refused: done.refused, model: a.model || "" });
 }
 
 /** GET|PUT /agents/growth: the list for the card's Memory tab and the user's decisions on it. */
@@ -3279,6 +3454,7 @@ function growthRoute(req, host) {
     }
   } else if (op === "inject") {
     if ("enabled" in b) g.inject.enabled = b.enabled !== false;
+    if ("remind" in b) g.inject.remind = b.remind === true;
     if ("maxTokens" in b) {
       if (!Number.isInteger(b.maxTokens) || b.maxTokens < GROWTH.roomMin || b.maxTokens > GROWTH.roomMax) return bad("maxTokens is a whole number from " + GROWTH.roomMin + " to " + GROWTH.roomMax);
       g.inject.maxTokens = b.maxTokens;
@@ -3336,7 +3512,7 @@ export function insertCeiling(ctx, host) {
   const f = readJsonAt(fsx, insertsPath(chatId), null);
   // what the card's character has become (growth.json) is on disk too, so its part is counted exactly
   const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {});
-  const growTokens = grow ? grow.tokens + 4 : 0;
+  const growTokens = grow ? grow.tokens + 4 + (grow.remind ? grow.remind.tokens : 0) : 0;
   if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(growTokens);
   const tokens = (text) => {
     const s = String(text == null ? "" : text);
@@ -3382,6 +3558,10 @@ export function llmRequest(ctx, host) {
     if (grow) {
       messages = withSystemText(messages, grow.text, "system-end");
       parts.unshift({ kind: "plugin", label: "Agents · character growth", text: grow.text });
+      if (grow.remind) {
+        messages = withLastUser(messages, grow.remind.text);
+        parts.push({ kind: "plugin", label: "Agents · character growth (reminder)", text: grow.remind.text });
+      }
     }
     return { messages, promptSources: { parts } };
   } catch (e) {

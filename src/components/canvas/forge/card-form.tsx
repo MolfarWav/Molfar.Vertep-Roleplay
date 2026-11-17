@@ -685,6 +685,9 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
           <Field label={t('fg.ask.role')} hint={t('fg.ask.roleHint')}>
             <Input value={String(p.role ?? 'fast')} className="max-md:h-10" onChange={(e) => set({ role: e.target.value.replace(/[^A-Za-z0-9_-]/g, '') || 'fast' })} />
           </Field>
+          <Field label={t('fg.ask.batch')} hint={t('fg.ask.batchHint')}>
+            <Input value={typeof p.batchKey === 'string' ? p.batchKey : ''} maxLength={40} placeholder={t('fg.ask.batchPh')} className="max-md:h-10" onChange={(e) => set({ batchKey: e.target.value.replace(/[^A-Za-z0-9_-]/g, '') || null })} />
+          </Field>
         </>
       )}
 
