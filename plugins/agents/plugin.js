@@ -172,6 +172,7 @@ const AGENT_CARDS = {
     ports: () => [
       { id: 'text', side: 'in', type: 'text' }, { id: 'section', side: 'in', type: 'text', optional: true }, { id: 'kind', side: 'in', type: 'text', optional: true },
       { id: 'title', side: 'in', type: 'text', optional: true }, { id: 'basis', side: 'in', type: 'text', optional: true },
+      { id: 'who', side: 'in', type: 'text', optional: true },
       { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' },
     ],
     needs: () => ['write:card.growth'],
@@ -1401,7 +1402,7 @@ function runCards(file, ctx, answers, seen) {
         const text = asText(ins.text).trim();
         const opt = (k) => (typeof ins[k] === 'string' ? ins[k].trim() : '');
         if (!text) skip();
-        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis') }); out('done', true); ran({ 'growth.add': short(text) }); }
+        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis'), who: opt('who') }); out('done', true); ran({ 'growth.add': short(text) }); }
       }
     } else if (node.type === 'write.state' || node.type === 'state.set' || node.type === 'state.add' || node.type === 'state.list') {
       const dataPorts = ports.filter((x) => x.side === 'in' && x.id !== 'when' && !(node.type === 'state.add' && x.id === 'by')).map((x) => x.id);
@@ -3227,7 +3228,8 @@ const growthHeading = (e) => (e.kind === "added" ? (e.title || GROWTH_LABEL[e.se
  * that does not fit is skipped, a smaller older one may still go in), then they are written in the Profile's section order, the
  * "changed" blocks of a section under one heading, each "added" block under its own. `omitted` counts those left out.
  */
-function growthLayout(g, name) {
+function growthLayout(g, name, room) {
+  const cap = Number.isInteger(room) ? Math.max(0, room) : g.inject.maxTokens;
   const live = g.entries.filter((e) => e.state === "accepted" && e.on);
   if (!live.length) return null;
   const head = "How " + (name || "the character") + " has changed and what has come out over the story so far. Where this differs from the character description and personality above, this is more recent and wins.";
@@ -3236,7 +3238,7 @@ function growthLayout(g, name) {
   const order = [...live].sort((a, b) => b.at - a.at);
   for (const e of order) {
     const t = approxTokens(e.text) + approxTokens(growthHeading(e)) + 4;
-    if (used + t > g.inject.maxTokens) continue;
+    if (used + t > cap) continue;
     used += t;
     keep.push(e);
   }
@@ -3267,20 +3269,90 @@ function growthRemind(g, name) {
   return { text, tokens: approxTokens(text) + 4 };
 }
 
-/** The part a chat gets (null when there is nothing to say, or the chat's Prompt board switch or the master switch is off). */
-function growthPart(fsx, meta, card) {
-  const cardId = soloCardOf(meta);
-  if (!cardId) return null;
+/** The name on a card file ("" when unreadable). */
+const cardNameOf = (fsx, cardId) => {
+  const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
+  return isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "";
+};
+
+/**
+ * The group a chat belongs to: its member cards that still exist and how its members answer (the chat's own Turns setting wins
+ * over the group's; "swap" when neither says). null for a chat that is not a group chat.
+ */
+function groupInfo(fsx, meta) {
+  if (!isObj(meta) || !AG_CHAT.test(str(meta.groupId))) return null;
+  const g = readJsonAt(fsx, "groups/" + meta.groupId + ".json", null);
+  if (!isObj(g)) return null;
+  const modes = ["swap", "append", "narrator"];
+  const t = isObj(meta.turns) ? meta.turns : {};
+  const mode = modes.includes(t.generationMode) ? t.generationMode : modes.includes(g.generationMode) ? g.generationMode : "swap";
+  const memberIds = (Array.isArray(g.memberIds) ? g.memberIds : []).map(str).filter((x) => cardExists(fsx, x));
+  return { id: meta.groupId, mode, memberIds };
+}
+
+/** Whose portrait a reply to this chat carries, by how the chat answers: one card for a solo chat, the speaker for "swap", every member for "append" and "narrator". */
+function growthMembers(fsx, meta, speakerId, worst) {
+  const solo = soloCardOf(meta);
+  if (solo) return [solo];
+  const gi = groupInfo(fsx, meta);
+  if (!gi) return [];
+  if (gi.mode !== "swap") return gi.memberIds;
+  if (gi.memberIds.includes(speakerId)) return [speakerId];
+  // no speaker known (the history budget asks before one is chosen): the biggest single portrait is what may be needed
+  return speakerId || !worst ? [] : gi.memberIds;
+}
+
+/**
+ * The part a chat gets (null when there is nothing to say, or the chat's Prompt board switch or the master switch is off).
+ * A group whose members all speak in one prompt ("append", "narrator") shares ONE room: the biggest room among the members
+ * that have something to say, shared out member by member (what a member leaves over goes to the next); the newest blocks of
+ * each member go first. `worst` (the history budget) counts the biggest single member's part for "swap" when no speaker is known.
+ */
+function growthPart(fsx, meta, opts) {
   const off = isObj(meta.promptBoard) && Array.isArray(meta.promptBoard.off) ? meta.promptBoard.off : [];
   if (off.includes("plugin:cardgrowth")) return null;
-  const g = readGrowth(fsx, cardId);
-  if (!g.inject.enabled) return null;
-  const cd = card === undefined ? readJsonAt(fsx, "characters/" + cardId + "/card.json", null) : card;
-  const name = isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "";
-  const lay = growthLayout(g, name);
-  if (!lay || !lay.count) return null;
-  const remind = lay.count ? growthRemind(g, name) : null;
-  return { cardId, text: lay.text, tokens: lay.tokens, count: lay.count, omitted: lay.omitted, remind };
+  const o = opts || {};
+  const ids = growthMembers(fsx, meta, str(o.speakerId), o.worst === true);
+  const members = ids.map((id) => ({ id, g: readGrowth(fsx, id), name: cardNameOf(fsx, id) })).filter((m) => m.g.inject.enabled && m.g.entries.some((e) => e.state === "accepted" && e.on));
+  if (!members.length) return null;
+  const parts = [];
+  if (ids.length > 1 && !soloCardOf(meta) && groupInfo(fsx, meta).mode === "swap") {
+    // worst case for "swap" with no speaker: each member alone, the biggest wins
+    for (const m of members) { const lay = growthLayout(m.g, m.name); if (lay && lay.count) parts.push({ m, lay }); }
+    parts.sort((x, y) => y.lay.tokens - x.lay.tokens);
+    const top = parts[0];
+    if (!top) return null;
+    return { cardId: top.m.id, text: top.lay.text, tokens: top.lay.tokens, count: top.lay.count, omitted: top.lay.omitted, remind: growthRemindFor([top.m]) };
+  }
+  let remaining = Math.max(...members.map((m) => m.g.inject.maxTokens));
+  let left = members.length;
+  let count = 0, omitted = 0;
+  const texts = [];
+  for (const m of members) {
+    const lay = growthLayout(m.g, m.name, members.length === 1 ? m.g.inject.maxTokens : Math.floor(remaining / left));
+    left--;
+    if (!lay) continue;
+    omitted += lay.omitted;
+    if (!lay.count) continue;
+    texts.push(lay.text);
+    count += lay.count;
+    remaining -= lay.tokens;
+  }
+  if (!count) return null;
+  const text = texts.join("\n\n");
+  return { cardId: members.length === 1 ? members[0].id : "", text, tokens: approxTokens(text), count, omitted, remind: growthRemindFor(members) };
+}
+
+/** The reminder of the members that switched it on: their two newest live blocks together, each under its member's name in a group. */
+function growthRemindFor(members) {
+  const on = members.filter((m) => m.g.inject.remind);
+  if (!on.length) return null;
+  if (members.length === 1) return growthRemind(on[0].g, on[0].name);
+  const all = on.flatMap((m) => m.g.entries.filter((e) => e.state === "accepted" && e.on).map((e) => ({ e, name: m.name })));
+  const live = all.sort((x, y) => y.e.at - x.e.at).slice(0, GROWTH_REMIND.blocks).reverse();
+  if (!live.length) return null;
+  const text = "(Reminder: this is how they are now, and it wins over the cards.)\n" + live.map((x) => "- " + (x.name || "A member") + ", " + growthHeading(x.e) + ": " + clip(x.e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
+  return { text, tokens: approxTokens(text) + 4 };
 }
 
 /** The Growth routes' answer: the file as it is now and what the part would cost. */
@@ -3298,7 +3370,9 @@ function growthAnswer(fsx, cardId) {
  */
 function growthText(fsx, meta) {
   const cardId = soloCardOf(meta);
-  if (!cardId) return undefined;
+  return cardId ? growthTextOf(fsx, cardId) : undefined;
+}
+function growthTextOf(fsx, cardId) {
   const rows = readGrowth(fsx, cardId).entries.slice(-20).map((e) => {
     const body = e.text.replace(/\s+/g, " ");
     return "- [" + e.section + (e.kind === "added" ? ", new" : "") + "] " + (e.title ? e.title + ": " : "") + clip(body, 220) + (e.state === "proposed" ? " (waiting for the user)" : "");
@@ -3316,18 +3390,35 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
   const refused = [];
   const adds = writes.filter((w) => w.op === "growth.add");
   if (!adds.length) return { applied: 0, refused };
-  const cardId = soloCardOf(view.meta);
-  if (!cardId) { refused.push("growth: this chat has no single card (a group chat is not supported)"); return { applied: 0, refused }; }
-  if (!cardExists(fsx, cardId)) { refused.push("growth: the card is gone"); return { applied: 0, refused }; }
-  const g = readGrowth(fsx, cardId);
-  const before = g.entries.length;
-  g.entries = g.entries.filter((e) => !(e.state === "proposed" && e.agent === agentId && e.runKey === turnKey));
+  const solo = soloCardOf(view.meta);
+  const gi = solo ? null : groupInfo(fsx, view.meta);
+  if (!solo && !gi) { refused.push("growth: this chat has no card of its own and is not a group chat"); return { applied: 0, refused }; }
+  if (solo && !cardExists(fsx, solo)) { refused.push("growth: the card is gone"); return { applied: 0, refused }; }
+  // in a group each block says which member it is about (`who`, the member's name); every member has a file of their own
+  const byName = gi ? new Map(gi.memberIds.map((id) => [cardNameOf(fsx, id).trim().toLowerCase(), id])) : null;
+  const files = new Map();
+  const open = (cardId) => {
+    if (!files.has(cardId)) {
+      const g = readGrowth(fsx, cardId);
+      const before = g.entries.length;
+      g.entries = g.entries.filter((e) => !(e.state === "proposed" && e.agent === agentId && e.runKey === turnKey));
+      files.set(cardId, { g, dirty: g.entries.length !== before });
+    }
+    return files.get(cardId);
+  };
   const now = Date.now();
   let applied = 0;
   for (const w of adds) {
     if (applied >= perRun) { refused.push("growth: at most " + perRun + " proposals a run"); break; }
     const text = clip(str(w.text), GROWTH.text);
     if (!text) continue;
+    let cardId = solo;
+    if (gi) {
+      cardId = byName.get(str(w.who).trim().toLowerCase()) || "";
+      if (!cardId) { refused.push("growth: in a group chat say which member the block is about (who); " + (str(w.who) ? "\"" + clip(str(w.who), 40) + "\" is not one" : "none was given")); continue; }
+    }
+    const f = open(cardId);
+    const g = f.g;
     if (g.entries.some((e) => e.text.toLowerCase() === text.toLowerCase())) { refused.push("growth: already there"); continue; }
     if (g.entries.length >= GROWTH.entries) { refused.push("growth: the list is full (" + GROWTH.entries + ")"); break; }
     const section = GROWTH_SECTIONS.includes(str(w.section)) ? str(w.section) : "other";
@@ -3341,9 +3432,10 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
     }
     g.next++;
     g.entries.push(e);
+    f.dirty = true;
     applied++;
   }
-  if (applied || g.entries.length !== before) writeGrowth(fsx, cardId, g);
+  for (const [cardId, f] of files) if (f.dirty) writeGrowth(fsx, cardId, f.g);
   return { applied, refused };
 }
 
@@ -3354,7 +3446,7 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
  * the first asks the model, the second reads the answer. A solo chat of this card only.
  */
 const GROWTH_UPDATE_MAX = 4;
-const GROWTH_UPDATE_PROMPT = "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe story so far:\n{{story}}\n\nLook over the whole story above. Which LASTING changes has it made in the character (how they think, act, treat someone, what they want), and what new has it shown about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not the mood of one scene. Write up to " + GROWTH_UPDATE_MAX + " blocks, the most important first, none if nothing lasting happened. For each: section is the part of the character it belongs to (one of " + GROWTH_SECTIONS.join(", ") + "); kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). Answer with JSON only, in the form {\"blocks\":[{\"section\":\"...\",\"kind\":\"...\",\"title\":\"...\",\"text\":\"...\",\"basis\":\"...\"}]}.";
+const GROWTH_UPDATE_PROMPT = "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card of {{name}}:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe story so far (it may have other characters too; write only about {{name}}):\n{{story}}\n\nLook over the whole story above. Which LASTING changes has it made in {{name}} (how they think, act, treat someone, what they want), and what new has it shown about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not the mood of one scene. Write up to " + GROWTH_UPDATE_MAX + " blocks, the most important first, none if nothing lasting happened. For each: section is the part of the character it belongs to (one of " + GROWTH_SECTIONS.join(", ") + "); kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). Answer with JSON only, in the form {\"blocks\":[{\"section\":\"...\",\"kind\":\"...\",\"title\":\"...\",\"text\":\"...\",\"basis\":\"...\"}]}.";
 
 /** The blocks in a model's answer: the first JSON object in the text, its `blocks` list, at most GROWTH_UPDATE_MAX. */
 export function parseGrowthBlocks(text) {
@@ -3378,15 +3470,19 @@ function growthUpdateRoute(req, host) {
   const view = readChatFiles(fsx, chatId);
   if (!view) return ok({ error: "no such chat" }, 404);
   view.chatId = chatId;
-  if (soloCardOf(view.meta) !== cardId) return ok({ error: "that is not a chat with this card alone" }, 400);
+  const gi = groupInfo(fsx, view.meta);
+  if (soloCardOf(view.meta) !== cardId && !(gi && gi.memberIds.includes(cardId))) return ok({ error: "that is not a chat of this card, alone or in a group" }, 400);
+  const name = cardNameOf(fsx, cardId);
   const fresh = host.llm && host.llm.results ? host.llm.results.growth_update : null;
   if (!fresh) {
     const story = sourceValue(fsx, view, { id: "story", source: "history", last: 40, tokens: 6000 }, "");
     if (!story) return ok({ error: "the chat has no messages yet" }, 400);
     const who = helperNames(fsx, view.meta);
-    const parts = { card: sourceValue(fsx, view, { id: "card", source: "card" }, "") || "(no card text)", known: growthText(fsx, view.meta) || "(nothing yet)", story };
+    const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
+    const cardText = isObj(cd) ? clip([cd.name, cd.description, cd.personality, cd.scenario].filter((x) => typeof x === "string" && x.trim()).join("\n\n"), 4000) : "";
+    const parts = { card: cardText || "(no card text)", known: growthTextOf(fsx, cardId), story, name: name || "the character" };
     // one pass, so text inside the card or the story that looks like a slot is never filled
-    const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story)}}/g, (_m, k) => parts[k]);
+    const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story|name)}}/g, (_m, k) => parts[k]);
     const model = trialModel(fsx, view.meta, "fast", "growth", "");
     host.llm.request("growth_update", {
       ...(model ? { model } : {}),
@@ -3398,7 +3494,8 @@ function growthUpdateRoute(req, host) {
   }
   const a = packDry(fresh);
   if (!a || a.error || !String(a.text || "").trim()) return ok({ error: (a && a.error) || "the model sent no answer" }, 502);
-  const writes = parseGrowthBlocks(a.text);
+  // the blocks are about the card the button is on, also when the chat is a group's
+  const writes = parseGrowthBlocks(a.text).map((w) => ({ ...w, who: name }));
   const done = applyGrowthWrites(fsx, view, "hand", writes, "hand:" + Date.now(), GROWTH_UPDATE_MAX);
   return ok({ ...growthAnswer(fsx, cardId), added: done.applied, refused: done.refused, model: a.model || "" });
 }
@@ -3511,7 +3608,7 @@ export function insertCeiling(ctx, host) {
   if (!fsx || !/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) return { ceilings: [] };
   const f = readJsonAt(fsx, insertsPath(chatId), null);
   // what the card's character has become (growth.json) is on disk too, so its part is counted exactly
-  const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {});
+  const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {}, { worst: true });
   const growTokens = grow ? grow.tokens + 4 + (grow.remind ? grow.remind.tokens : 0) : 0;
   if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(growTokens);
   const tokens = (text) => {
@@ -3551,7 +3648,7 @@ export function llmRequest(ctx, host) {
     const live = items.length ? new Set(chatAgents(fsx, meta).filter((it) => it.on).map((it) => it.agent)) : null;
     const send = items.filter((x) => isObj(x) && live.has(x.agent) && typeof x.text === "string" && x.text.trim());
     // what the card's character has become: one part at the end of the leading system block, after the card's own sections
-    const grow = growthPart(fsx, meta);
+    const grow = growthPart(fsx, meta, { speakerId: str(ctx.turn && ctx.turn.speakerId) });
     if (!send.length && !grow) return null;
     let messages = send.length ? withInserts(req.messages, send) : req.messages;
     const parts = send.map((x) => ({ kind: "plugin", label: "Agent: " + (str(x.label) || x.agent), text: x.text }));

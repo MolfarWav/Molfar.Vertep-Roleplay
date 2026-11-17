@@ -483,7 +483,7 @@ function runCards(file, ctx, answers, seen) {
         const text = asText(ins.text).trim();
         const opt = (k) => (typeof ins[k] === 'string' ? ins[k].trim() : '');
         if (!text) skip();
-        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis') }); out('done', true); ran({ 'growth.add': short(text) }); }
+        else { writes.push({ op: 'growth.add', text, section: opt('section'), kind: opt('kind'), title: opt('title'), basis: opt('basis'), who: opt('who') }); out('done', true); ran({ 'growth.add': short(text) }); }
       }
     } else if (node.type === 'write.state' || node.type === 'state.set' || node.type === 'state.add' || node.type === 'state.list') {
       const dataPorts = ports.filter((x) => x.side === 'in' && x.id !== 'when' && !(node.type === 'state.add' && x.id === 'by')).map((x) => x.id);

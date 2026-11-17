@@ -139,9 +139,11 @@ export function GrowthBlock({ card }: { card: Character }) {
     }
   }
 
-  // the hand button reads the newest chat with this card alone (a group chat is a chat of the group card, never of this one)
+  // the hand button reads the newest chat this card is in: with it alone, or in a group (the blocks are about this card only)
   const chats = useApp((st) => st.chats)
-  const storyChat = chats.filter((c) => c.characterId === card.id && !c.temporary).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
+  const characters = useApp((st) => st.characters)
+  const groupIds = new Set(characters.filter((c) => c.isGroup && c.members?.includes(card.id)).map((c) => c.id))
+  const storyChat = chats.filter((c) => (c.characterId === card.id || groupIds.has(c.characterId)) && !c.temporary).sort((x, y) => y.updatedAt - x.updatedAt)[0] ?? null
   const [reading, setReading] = useState(false)
   const readStory = async () => {
     if (!storyChat || reading) return

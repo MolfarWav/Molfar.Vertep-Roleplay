@@ -170,6 +170,7 @@ export const AGENT_CARDS = {
     ports: () => [
       { id: 'text', side: 'in', type: 'text' }, { id: 'section', side: 'in', type: 'text', optional: true }, { id: 'kind', side: 'in', type: 'text', optional: true },
       { id: 'title', side: 'in', type: 'text', optional: true }, { id: 'basis', side: 'in', type: 'text', optional: true },
+      { id: 'who', side: 'in', type: 'text', optional: true },
       { id: 'when', side: 'in', type: 'signal', optional: true }, { id: 'done', side: 'out', type: 'signal' },
     ],
     needs: () => ['write:card.growth'],
