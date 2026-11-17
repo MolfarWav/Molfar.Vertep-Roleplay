@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agenci i kuźnia agentów
 
 Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje część czatu (przed odpowiedzią lub po niej, jak wybierzesz), może zadać modelowi jedno lub kilka krótkich pytań, prowadzi własne notatki i coś pokazuje: notkę pod odpowiedzią, przyciski do naciśnięcia, wskaźnik, mapę lub podpowiedź do następnej odpowiedzi. Przykłady: trzy proponowane następne ruchy, wskaźnik napięcia, mapa odwiedzonych miejsc. Ta strona jest dla tych, którzy chcą takich dodatków. Pomoc ma trzy artykuły o edytorze: „Agent editor: how an agent works”, „Agent editor: the cards” i „Agent editor: three ready agents”.
@@ -7,7 +7,7 @@ Agent to mały pomocnik, który budujesz z kart i połączeń. Odczytuje częś�
 
 Agent to dane, nie kod. W edytorze to plansza z **kart** połączonych **przewodami**:
 
-- karta **Input** mówi, co agent może czytać (ostatnią odpowiedź, historię czatu, kartę postaci, personę, notatkę autora, fakty z Litopysa, wpisy z ksiąg wiedzy);
+- karta **Input** mówi, co agent może czytać (ostatnią odpowiedź, historię czatu, kartę postaci, personę, notatkę autora, fakty z Litopysa, wpisy z ksiąg wiedzy, datę i liczbę dni historii). Źródło, które w tym czacie nic nie ma (brak karty w czacie grupowym, brak zapisanych jeszcze faktów), zwykle zatrzymuje każdą kartę, która go potrzebuje; zaznacz **Chats with nothing here still run** przy tym źródle, a dotrze ono jako pusty tekst;
 - karty **Ask the model** zadają modelowi jedno pytanie i biorą odpowiedź jako dowolny tekst, tak/nie lub kilka nazwanych pól;
 - karty logiczne (karta If może zadziałać tylko wtedy, gdy jej odpowiedź zmieni się na Yes, tylko raz albo z pauzą po zadziałaniu, a jej reguły mogą zapytać, czy wartość zmieniła się od ostatniego przebiegu; dziennik przebiegów mówi, dlaczego odpowiedziała Yes), oraz karty działające w kodzie bez modelu: kości, wybór linii, wycinanie lub wyciąganie tekstu;
 - karta **Script**: kilka linii JavaScriptu, który piszesz, `(input, seed)` na wejściu i zwykły obiekt na wyjściu, z typowanymi wejściami i wyjściami. Działa w piaskownicy silnika (bez zegara, bez internetu, bez plików, około pół sekundy i 16 MB) i wymaga silnika od wersji 1.10.1; starszy silnik kończy agenta prostym komunikatem;

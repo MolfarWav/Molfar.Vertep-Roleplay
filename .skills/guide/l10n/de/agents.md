@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agents und die Agenten-Schmiede
 
 Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er liest einen Teil des Chats (vor oder nach einer Antwort, wie du wählst), kann einem Modell eine oder mehrere kurze Fragen stellen, führt eigene Notizen und zeigt etwas: eine Notiz unter der Antwort, antippbare Schaltflächen, eine Anzeige, eine Karte oder einen Hinweis für die nächste Antwort. Beispiele: drei vorgeschlagene nächste Züge, eine Spannungsanzeige, eine Karte der besuchten Orte. Diese Seite ist für die, die solche Extras wollen. Die Hilfe hat drei Artikel zum Editor: „Agent editor: how an agent works“, „Agent editor: the cards“ und „Agent editor: three ready agents“.
@@ -7,7 +7,7 @@ Ein Agent ist ein kleiner Helfer, den du aus Karten und Verbindungen baust. Er l
 
 Ein Agent sind Daten, kein Code. Im Editor ist er ein Brett aus **Karten**, die durch **Verbindungen** verbunden sind:
 
-- eine **Input**-Karte legt fest, was der Agent lesen darf (die letzte Antwort, den Chatverlauf, die Charakterkarte, die Persona, die Autorennotiz, Litopys-Fakten, Lorebook-Einträge);
+- eine **Input**-Karte legt fest, was der Agent lesen darf (die letzte Antwort, den Chatverlauf, die Charakterkarte, die Persona, die Autorennotiz, Litopys-Fakten, Lorebook-Einträge, das Datum und die Tageszählung der Geschichte). Eine Quelle, die in diesem Chat nichts enthält (keine Karte in einem Gruppenchat, noch keine festgehaltenen Fakten), stoppt normalerweise jede Karte, die sie braucht; setze bei dieser Quelle ein Häkchen bei **Chats with nothing here still run**, und sie kommt als leerer Text an;
 - **Ask the model**-Karten stellen einem Modell eine Frage und nehmen die Antwort als freien Text, Ja oder Nein, oder ein paar benannte Felder;
 - Logik-Karten (eine If-Karte kann nur auslösen, wenn ihre Antwort auf Ja umspringt, nur einmal oder mit einer Pause nach dem Auslösen, und ihre Regeln können fragen, ob sich ein Wert seit dem letzten Lauf geändert hat; das Lauf-Protokoll sagt, warum sie geantwortet hat) und Karten, die ohne Modell im Code arbeiten: Würfel, das Auswählen einer Zeile, das Schneiden oder Herausziehen von Text;
 - eine **Script**-Karte: ein paar Zeilen JavaScript, die du schreibst, `(input, seed)` hinein und ein einfaches Objekt heraus, mit typisierten Ein- und Ausgaben. Sie läuft in einer Sandbox der Engine (ohne Uhr, ohne Internet, ohne Dateien, etwa eine halbe Sekunde und 16 MB) und braucht eine Engine ab 1.10.1; eine ältere Engine lässt den Agenten mit einer einfachen Meldung scheitern;

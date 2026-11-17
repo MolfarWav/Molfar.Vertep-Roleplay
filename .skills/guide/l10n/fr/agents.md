@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agents et la forge d'agents
 
 Un agent est un petit assistant que vous assemblez à partir de cartes et de fils. Il lit une partie de la discussion (avant ou après une réponse, au choix), peut poser au modèle une ou plusieurs questions courtes, garde ses propres notes, et montre quelque chose : une note sous la réponse, des boutons à toucher, un compteur, une carte, ou un indice pour la réponse suivante. Exemples : trois mouvements suggérés pour la suite, un compteur de tension, une carte des lieux visités. Cette page s'adresse à ceux qui veulent de tels suppléments. L'aide compte trois articles sur l'éditeur : « Agent editor: how an agent works », « Agent editor: the cards » et « Agent editor: three ready agents ».
@@ -7,7 +7,7 @@ Un agent est un petit assistant que vous assemblez à partir de cartes et de fil
 
 Un agent est une donnée, pas du code. Dans l'éditeur, c'est un tableau de **cartes** reliées par des **fils** :
 
-- une carte **Input** indique ce que l'agent peut lire (la dernière réponse, l'historique de la discussion, la carte du personnage, le persona, la note de l'auteur, les faits de Litopys, les entrées du livre de connaissances) ;
+- une carte **Input** indique ce que l'agent peut lire (la dernière réponse, l'historique de la discussion, la carte du personnage, le persona, la note de l'auteur, les faits de Litopys, les entrées du livre de connaissances, la date et le nombre de jours de l'histoire). Une source vide dans cette discussion (aucune carte dans une discussion de groupe, aucun fait enregistré pour l'instant) arrête normalement toutes les cartes qui en ont besoin ; cochez **Chats with nothing here still run** sur cette source et elle arrive sous forme de texte vide ;
 - les cartes **Ask the model** posent une question au modèle et prennent la réponse en texte libre, en oui ou non, ou en quelques champs nommés ;
 - des cartes de logique (une carte If peut ne se déclencher que lorsque sa réponse passe à Oui, une seule fois, ou avec une pause après son déclenchement, et ses règles peuvent demander si une valeur a changé depuis la dernière exécution ; le journal d'exécution dit pourquoi elle a répondu), et des cartes qui travaillent dans le code sans modèle : dés, choix d'une ligne, découpe ou extraction de texte ;
 - une carte **Script** : quelques lignes de JavaScript que vous écrivez, `(input, seed)` en entrée et un objet simple en sortie, avec des entrées et sorties typées. Elle s'exécute dans un bac à sable du moteur (ni horloge, ni internet, ni fichiers, environ une demi-seconde et 16 Mo) et demande un moteur à partir de la version 1.10.1 ; un moteur plus ancien fait échouer l'agent avec un message simple ;

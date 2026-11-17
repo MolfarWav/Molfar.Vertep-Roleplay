@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agentes y la forja de agentes
 
 Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. Lee una parte del chat (antes o después de una respuesta, como prefieras), puede hacerle a un modelo una o varias preguntas breves, guarda sus propias notas y muestra algo: una nota bajo la respuesta, botones para tocar, un medidor, un mapa o una pista para la siguiente respuesta. Ejemplos: tres próximos movimientos sugeridos, un medidor de tensión, un mapa de los lugares visitados. Esta página es para quienes quieren esos extras. El Help tiene tres artículos sobre el editor: "Agent editor: how an agent works", "Agent editor: the cards" y "Agent editor: three ready agents".
@@ -7,7 +7,7 @@ Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. 
 
 Un agente son datos, no código. En el editor es un tablero de **tarjetas** unidas por **cables**:
 
-- una tarjeta **Input** dice qué puede leer el agente (la última respuesta, el historial del chat, la tarjeta del personaje, la persona, la nota del autor, los hechos de Litopys, las entradas del lorebook);
+- una tarjeta **Input** dice qué puede leer el agente (la última respuesta, el historial del chat, la tarjeta del personaje, la persona, la nota del autor, los hechos de Litopys, las entradas del lorebook, la fecha de la historia y el recuento de días). Una fuente que no tiene nada en este chat (ninguna tarjeta en un chat de grupo, ningún hecho registrado todavía) normalmente detiene todas las tarjetas que la necesitan; marca **Chats with nothing here still run** en esa fuente y llega como un texto vacío;
 - las tarjetas **Ask the model** hacen una pregunta a un modelo y toman la respuesta como texto libre, sí o no, o unos pocos campos con nombre;
 - tarjetas de lógica (una tarjeta If solo se dispara cuando su respuesta cambia a Yes, solo una vez, o con una pausa tras dispararse, y sus reglas pueden preguntar si un valor cambió desde la última ejecución; el registro de ejecución dice por qué respondió) y tarjetas que trabajan en código sin modelo: dados, elegir una línea, cortar o extraer texto;
 - una tarjeta **Script**: unas pocas líneas de JavaScript que escribes, con `(input, seed)` de entrada y un objeto simple de salida, con entradas y salidas tipadas. Corre en un entorno aislado del motor (sin reloj, sin internet, sin archivos, unos medio segundo y 16 MB) y necesita un motor de la versión 1.10.1 o posterior; un motor más antiguo hace fallar al agente con un mensaje simple;
@@ -55,7 +55,7 @@ Un agente con una tarjeta Script que se queda sin tiempo tres ejecuciones seguid
 
 1. Pulsa "Install" ("Update" para una copia cambiada de un agente instalado; usa "Edit a copy" para modificar uno).
 2. Permítelo una vez: "Review permissions", luego "Allow all" o línea por línea. Corre cuando todas las líneas están activas. Una actualización que pide más espera a un nuevo Allow. Una tarjeta Script pide "Run its own small program"; la lista de permisos muestra su código ("Read the code") antes de que lo permitas, y si una actualización cambia el código, el permiso se vuelve a pedir.
-3. Añádelo a un chat. En la píldora del encabezado del chat abre la pestaña **Agents**: "In this chat" lista los agentes activos, "Installed" lista el resto (elige uno para añadirlo). Una fila puede volver a ejecutarse ahora, eliminarse o dejar de hacer esperar la respuesta. Un chat nuevo no tiene agentes hasta que añades algunos o eliges un conjunto. Un agente que aún no está permitido muestra **Allow…** en su fila: abre su diálogo de permisos de inmediato. Una fila puede ejecutarse de nuevo ahora, eliminarse o detener la respuesta que espera por ella.
+3. Añádelo a un chat. En la píldora del encabezado del chat abre la pestaña **Agents**: "In this chat" lista los agentes activos, "Installed" lista el resto (elige uno para añadirlo). Un agente que aún no está permitido muestra **Allow…** en su fila: abre su diálogo de permisos de inmediato. Una fila puede volver a ejecutarse ahora, eliminarse o dejar de hacer esperar la respuesta. Un chat nuevo no tiene agentes hasta que añades algunos o eliges un conjunto.
 
 Un **conjunto** es una lista con nombre de agentes ("Save this chat's list as a set"; "Make default" se lo da a los chats nuevos). El tablero "Agent sets" del Canvas muestra el costo en tiempo y en llamadas de cada conjunto, y contiene el interruptor "Agents' notes in chats" que oculta las notas de todos los agentes. El lugar de resultado de cada agente se puede cambiar en la pestaña Agents del chat, entre los lugares que le convienen.
 

@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agentes e a forja de agentes
 
 Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios. Ele lê parte do chat (antes ou depois de uma resposta, como você escolher), pode fazer ao modelo uma ou mais perguntas curtas, mantém suas próprias anotações e mostra algo: uma nota sob a resposta, botões para tocar, um medidor, um mapa ou uma dica para a próxima resposta. Exemplos: três próximos movimentos sugeridos, um medidor de tensão, um mapa dos lugares visitados. Esta página é para quem quer esses extras. A Ajuda tem três artigos sobre o editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -7,7 +7,7 @@ Um agente é um pequeno auxiliar que você constrói a partir de cartões e fios
 
 Um agente é dado, não código. No editor, ele é um quadro de **cartões** unidos por **fios**:
 
-- um cartão **Input** diz o que o agente pode ler (a última resposta, o histórico do chat, o cartão do personagem, a persona, a nota do autor, fatos do Litopys, entradas do lorebook);
+- um cartão **Input** diz o que o agente pode ler (a última resposta, o histórico do chat, o cartão do personagem, a persona, a nota do autor, fatos do Litopys, entradas do lorebook, a data e a contagem de dias da história). Uma fonte sem nada neste chat (nenhum cartão em um chat de grupo, nenhum fato registrado ainda) normalmente interrompe todo cartão que precisa dela; marque **Chats with nothing here still run** nessa fonte e ela chega como um texto vazio;
 - cartões **Ask the model** fazem uma pergunta a um modelo e recebem a resposta como texto livre, sim ou não, ou alguns campos nomeados;
 - cartões de lógica (um cartão If pode disparar somente quando sua resposta vira Yes, somente uma vez, ou com uma pausa depois de disparar, e suas regras podem perguntar se um valor mudou desde a última execução; o log de execução diz por que ele respondeu), e cartões que trabalham em código sem modelo: dados, escolher uma linha, recortar ou extrair texto;
 - um cartão **Script**: algumas linhas de JavaScript que você escreve, `(input, seed)` na entrada e um objeto simples na saída, com entradas e saídas tipadas. Ele roda em uma caixa de areia do motor (sem relógio, sem internet, sem arquivos, cerca de meio segundo e 16 MB) e precisa de um motor a partir da versão 1.10.1; um motor mais antigo faz o agente falhar com uma mensagem simples;

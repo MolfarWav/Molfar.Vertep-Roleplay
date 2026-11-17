@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Gli agenti e la fucina degli agenti
 
 Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge parte della chat (prima o dopo una risposta, come scegli), può porre a un modello una o più brevi domande, tiene appunti propri e mostra qualcosa: una nota sotto la risposta, pulsanti da toccare, un indicatore, una mappa o un suggerimento per la risposta successiva. Esempi: tre possibili prossime mosse, un indicatore di tensione, una mappa dei luoghi visitati. Questa pagina è per chi desidera questi extra. La Guida ha tre articoli sull'editor: "Agent editor: how an agent works", "Agent editor: the cards" e "Agent editor: three ready agents".
@@ -7,7 +7,7 @@ Un agente è un piccolo aiutante che costruisci con schede e collegamenti. Legge
 
 Un agente è dato, non codice. Nell'editor è una tavola di **schede** collegate da **fili**:
 
-- una scheda **Input** indica cosa l'agente può leggere (l'ultima risposta, la cronologia della chat, la scheda del personaggio, la persona, la nota dell'autore, i fatti di Litopys, le voci del lorebook);
+- una scheda **Input** indica cosa l'agente può leggere (l'ultima risposta, la cronologia della chat, la scheda del personaggio, la persona, la nota dell'autore, i fatti di Litopys, le voci del lorebook, la data e il conteggio dei giorni della storia). Una fonte che non ha nulla in questa chat (nessuna scheda in una chat di gruppo, nessun fatto ancora registrato) di norma blocca ogni scheda che ne ha bisogno; spunta **Chats with nothing here still run** su quella fonte e arriva come testo vuoto;
 - le schede **Ask the model** pongono una domanda a un modello e prendono la risposta come testo libero, sì o no, oppure alcuni campi con nome;
 - schede logiche (una scheda If può scattare solo quando la sua risposta passa a Yes, solo una volta, oppure con una pausa dopo lo scatto, e le sue regole possono chiedere se un valore è cambiato dall'ultima esecuzione; il log delle esecuzioni dice perché ha risposto) e schede che lavorano in codice senza modello: dadi, scelta di una riga, taglio o estrazione di testo;
 - una scheda **Script**: poche righe di JavaScript che scrivi, con `(input, seed)` in entrata e un oggetto semplice in uscita, con ingressi e uscite tipizzati. Gira in una sandbox del motore (senza orologio, senza internet, senza file, circa mezzo secondo e 16 MB) e richiede un motore dalla 1.10.1; un motore più vecchio fa fallire l'agente con un messaggio semplice;

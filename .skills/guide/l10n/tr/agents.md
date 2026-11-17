@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -7,7 +7,7 @@ Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın
 
 Bir ajan veridir, kod değildir. Düzenleyicide **kartların** **tellerle** birleştiği bir panodur:
 
-- bir **Girdi** kartı ajanın ne okuyabileceğini söyler (son yanıt, sohbet geçmişi, karakter kartı, persona, yazarın notu, Litopys olguları, lorebook girdileri);
+- bir **Girdi** kartı ajanın ne okuyabileceğini söyler (son yanıt, sohbet geçmişi, karakter kartı, persona, yazarın notu, Litopys olguları, lorebook girdileri, hikâyenin tarihi ve gün sayısı). Bu sohbette hiçbir şeyi olmayan bir kaynak (bir grup sohbetinde kart yok, henüz kaydedilmiş olgu yok) normalde ona ihtiyaç duyan her kartı durdurur; o kaynakta **Chats with nothing here still run** işaretlendiğinde ise boş bir metin olarak gelir;
 - **Modele sor** kartları modele tek bir soru sorar ve yanıtı serbest metin, evet ya da hayır veya birkaç adlandırılmış alan olarak alır;
 - mantık kartları (bir If kartı yalnızca yanıtı Yes'e döndüğünde, yalnızca bir kez ya da ateşlendikten sonra bir duraklamayla çalışabilir; kuralları bir değerin son çalıştırmadan beri değişip değişmediğini sorabilir; çalıştırma günlüğü yanıtın nedenini söyler) ve modelsiz kodla çalışan kartlar: zar, bir satır seçme, metni kesme veya çıkarma;
 - bir **Script** kartı: yazdığınız birkaç satırlık JavaScript, girdi olarak `(input, seed)`, çıktı olarak düz bir nesne; tipli girdiler ve çıktılar. Motorun bir kumlukta çalışır (saat yok, internet yok, dosya yok, yaklaşık yarım saniye ve 16 MB) ve motor 1.10.1 veya daha yeni olmalıdır; daha eski bir motor ajanı düz bir mesajla başarısız kılar;
