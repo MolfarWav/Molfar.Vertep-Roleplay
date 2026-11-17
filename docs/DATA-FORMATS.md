@@ -1173,7 +1173,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Ports are derived from a card's `params` (one input per `{{slot}}`, one output per JSON `shape` field) and use only
   `A-Z a-z 0-9 _ -`. Wire types are `text`, `number`, `flag`, `signal`; an output feeds an input of the same type, an input
   takes one wire, and the wires make no loop.
-- Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
+- Cards: `agent.input` (exactly one; `params.give`; an entry may carry `optional: true` (#403): a source with nothing for this chat then arrives as an empty text instead of missing data, which would skip every card that needs it; not for a number `state` field, `E_INPUT_OPTIONAL`; the trace of a skipped card and of the Input says `missing: <ids>`), `agent.output` (one or more; `params.kind` = `state-patch`,
   `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
   `unknown`; missing data is Unknown, never No; optional `edge`, `once`, `cooldown`: below), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),

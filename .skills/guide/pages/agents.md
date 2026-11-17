@@ -6,7 +6,7 @@ An agent is a small helper you build from cards and wires. It reads part of the 
 
 An agent is data, not code. In the editor it is a board of **cards** joined by **wires**:
 
-- an **Input** card says what the agent may read (the last reply, the chat history, the character card, the persona, the author's note, Litopys facts, lorebook entries);
+- an **Input** card says what the agent may read (the last reply, the chat history, the character card, the persona, the author's note, Litopys facts, lorebook entries, the story's date and day count). A source with nothing in this chat (no card in a group chat, no recorded facts yet) normally stops every card that needs it; tick **Chats with nothing here still run** on that source and it arrives as an empty text instead;
 - **Ask the model** cards put one question to a model and take the answer as free text, yes or no, or a few named fields;
 - logic cards (an If card can fire only when its answer turns Yes, only once, or with a pause after it fires, and its rules can ask whether a value changed since the last run; the run log says why it answered), and cards that work in code with no model: dice, picking a line, cutting or extracting text;
 - a **Script** card: a few lines of JavaScript you write, `(input, seed)` in and a plain object out, with typed inputs and outputs. It runs in a sandbox of the engine (no clock, no internet, no files, about half a second and 16 MB) and needs an engine from 1.10.1; an older engine fails the agent with a plain message;

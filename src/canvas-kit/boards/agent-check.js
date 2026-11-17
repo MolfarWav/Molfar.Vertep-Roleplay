@@ -739,8 +739,14 @@ export function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
-      for (const g of p.give ?? [])
+      for (const g of p.give ?? []) {
         if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+        // `optional`: a source with nothing for this chat arrives as an empty text instead of skipping every card that needs it (#403)
+        if (g?.optional !== undefined && typeof g.optional !== 'boolean')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): optional must be true or false`, n.id);
+        else if (g?.optional === true && g.source === 'state' && DASH_FIELDS[g.field]?.as === 'number')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): "${g.field}" is a number, which cannot arrive as an empty text, so it cannot be optional`, n.id);
+      }
     }
     if (n.type === 'logic.if')
       for (const r of p.rows ?? [])

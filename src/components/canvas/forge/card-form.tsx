@@ -584,7 +584,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
   const kind = String(p.kind ?? 'note')
   const places = SHOW_BY_KIND[kind] ?? []
   const { ins } = portsOf(node)
-  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string; limit?: number; last?: number; tokens?: number }[]
+  const give = (Array.isArray(p.give) ? p.give : []) as { id: string; source: string; limit?: number; last?: number; tokens?: number; optional?: boolean }[]
 
   const stateField = (types: string[], extra?: (name: string) => Params) => {
     const names = fieldsOf(...types)
@@ -622,6 +622,16 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
                     }} />
                     {t(`fg.source.${s}` as MsgKey)}
                   </label>
+                  {on && (
+                    <div className="ml-6 flex flex-col">
+                      <label className="flex min-h-8 cursor-pointer items-center gap-2 text-xs max-md:min-h-10">
+                        <input type="checkbox" className="size-4" checked={entry.optional === true}
+                          onChange={(e) => set({ give: give.map((g) => { if (g.source !== s) return g; const { optional: _o, ...rest } = g; return e.target.checked ? { ...rest, optional: true } : rest }) })} />
+                        {t('fg.input.optional')}
+                      </label>
+                      {entry.optional === true && <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.input.optionalHint')}</span>}
+                    </div>
+                  )}
                   {on && lim && (
                     <div className="ml-6 flex flex-col gap-1">
                       <span className="text-[11px] font-medium">{t('fg.input.limit')}</span>

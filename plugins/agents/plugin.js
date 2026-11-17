@@ -741,8 +741,14 @@ function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
-      for (const g of p.give ?? [])
+      for (const g of p.give ?? []) {
         if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+        // `optional`: a source with nothing for this chat arrives as an empty text instead of skipping every card that needs it (#403)
+        if (g?.optional !== undefined && typeof g.optional !== 'boolean')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): optional must be true or false`, n.id);
+        else if (g?.optional === true && g.source === 'state' && DASH_FIELDS[g.field]?.as === 'number')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): "${g.field}" is a number, which cannot arrive as an empty text, so it cannot be optional`, n.id);
+      }
     }
     if (n.type === 'logic.if')
       for (const r of p.rows ?? [])
@@ -1242,21 +1248,36 @@ function runCards(file, ctx, answers, seen) {
     const ins = {};
     for (const pt of ports) if (pt.side === 'in') ins[pt.id] = into.has(id + ':' + pt.id) ? wire.get(into.get(id + ':' + pt.id)) : ABSENT;
     const out = (port, v) => wire.set(id + ':' + port, v);
-    const skip = () => { setAll(node, SKIP); trace.push({ node: id, status: 'skipped' }); };
+    // what a skip was for, when it was missing data and not an earlier skip: the Input values this card could not get (#403)
+    let noValue = [];
+    const skip = () => { setAll(node, SKIP); trace.push({ node: id, status: 'skipped', ...(noValue.length ? { out: { missing: noValue.join(', ') } } : {}) }); };
     const wait = () => { setAll(node, PENDING); trace.push({ node: id, status: 'waiting' }); };
     // the state of a card's required inputs: SKIP beats PENDING beats missing data
     const gate = (required, optionalGate) => {
       const all = [...required.map((r) => ins[r]), ...(optionalGate ? [ins[optionalGate]] : [])];
       if (all.some((v) => v === SKIP)) return 'skip';
       if (all.some((v) => v === PENDING)) return 'wait';
-      if (required.some((r) => ins[r] === undefined || ins[r] === ABSENT)) return 'skip';
+      const lacking = required.filter((r) => ins[r] === undefined || ins[r] === ABSENT);
+      if (lacking.length) {
+        noValue = lacking.map((r) => (into.has(id + ':' + r) ? splitEnd(into.get(id + ':' + r))[1] : r));
+        return 'skip';
+      }
       return 'run';
     };
     const ran = (o) => trace.push({ node: id, status: 'ran', ...(o ? { out: o } : {}) });
 
     if (node.type === 'agent.input') {
-      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[dashKey(g)] : inputs[g.id]);
-      ran();
+      // a source with nothing for this chat is missing data, unless the entry says it may be empty: then it is an empty text (#403)
+      const gone = [];
+      for (const g of p.give || []) {
+        const v = g.source === 'state' ? dash[dashKey(g)] : inputs[g.id];
+        if (v === undefined || v === null) {
+          if (g.optional === true && g.as !== 'number') { out(g.id, ''); continue; }
+          gone.push(g.id);
+        }
+        out(g.id, v);
+      }
+      ran(gone.length ? { missing: gone.join(', ') } : undefined);
     } else if (node.type === 'note') {
       // no ports
     } else if (node.type === 'state.read') {
