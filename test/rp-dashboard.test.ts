@@ -80,7 +80,8 @@ describe("physics", () => {
 
   it("C. the per-turn cap on a gain", () => {
     const r = turn("Guest", zero(), [ev("compliment", "significant", "Guest"), ev("remembered_detail", "significant", "Guest"), ev("gift", "significant", "Guest")]);
-    expect([r.stats.affection, r.stats.attraction, r.stats.comfort]).toEqual([6, 2, 2]);
+    // strangers: the warm acts are ahead of the stage, so their good effects count x1.5 (#394): attraction and comfort 2 become 3
+    expect([r.stats.affection, r.stats.attraction, r.stats.comfort]).toEqual([6, 3, 3]);
   });
 
   it("D. diminishing returns near the pole, harm is never halved", () => {
@@ -220,7 +221,7 @@ describe("vocabulary", () => {
     expect(v.novelty.family).toBe("knowledge");
     expect(v.other.deltas).toEqual({});
     for (const id of ["learned_about_user", "heard_user_name", "heard_rumor"]) expect(v[id]).toBeUndefined();
-    expect(Object.keys(v).length).toBe(61);
+    expect(Object.keys(v).length).toBe(88);
   });
 
   it("every default row is valid: a known family, short meaning, known stats, user-file round trip", () => {
@@ -1091,7 +1092,7 @@ describe("config", () => {
     expect(c).toMatchObject({ sensorModel: "", mode: "sensor", catchUp: true, debug: false, injection: { enabled: true, maxTokens: 300 }, custom: [] });
     expect(c.families.body).toBe(true);
     expect(c.sensor).toBe(P.DEFAULT_PROMPTS.sensor);
-    expect(c.events.length).toBe(61);
+    expect(c.events.length).toBe(88);
   });
 
   it("PUT of the default prompt (or whitespace changes of it) stores nothing", () => {
@@ -1559,10 +1560,10 @@ describe("prompt insert", () => {
 
   describe("swipe and continue read the state before the target", () => {
     const four = () => [U("m1", "Hello."), A("m2", "Welcome."), U("m3", "Tell me."), A("m4", "I will.")];
-    // turn 1: a compliment, nothing felt yet; turn 2: a pivotal threat, trust and comfort drop to -12
+    // turn 1: a routine compliment, nothing felt yet; turn 2: a pivotal threat, trust and comfort drop to -12
     const setup = () => {
       writeChat("c1", [U("m1", "Hello."), A("m2", "Welcome.")]);
-      const mock = mockHost([reply({ present: ["Aria"], events: [{ id: "compliment", weight: "pivotal", from: "user", to: "Aria" }], chars: { Aria: { mood: "calm" } } })]);
+      const mock = mockHost([reply({ present: ["Aria"], events: [{ id: "compliment", weight: "routine", from: "user", to: "Aria" }], chars: { Aria: { mood: "calm" } } })]);
       update(mock, "c1");
       writeChat("c1", four());
       mock.push(reply({ present: ["Aria"], events: [{ id: "threat", weight: "pivotal", from: "user", to: "Aria" }], chars: { Aria: { mood: "tense" } } }));
@@ -3130,7 +3131,7 @@ describe("the event vocabulary editor", () => {
     // `other` is the fallback and stays
     expect(v.other).toBeDefined();
     expect(P.buildVocab([{ id: "kept_promise", off: true }, { id: "kept_promise", family: "trust", meaning: "back", deltas: { trust: 1 } }]).kept_promise.meaning).toBe("back");
-    expect(Object.keys(v).length).toBe(60);
+    expect(Object.keys(v).length).toBe(87);
     fs.writeFileSync(eventsFile(), JSON.stringify({ events: [{ id: "kept_promise", off: true }] }));
     writeChat("c1", three());
     const mock = mockHost([keptPromise]);
@@ -3156,14 +3157,14 @@ describe("the event vocabulary editor", () => {
     const ids = rows.map((r: any) => r.id);
     expect(ids.slice(0, 3)).toEqual(["kept_promise", "broke_promise", "told_truth"]);
     expect(ids.at(-1)).toBe("dance");
-    expect(ids.length).toBe(62);
+    expect(ids.length).toBe(89);
     const by = (id: string) => rows.find((r: any) => r.id === id);
     expect(by("kept_promise")).toMatchObject({ source: "changed", off: false, meaning: "mine", deltas: { trust: 5 } });
     expect(by("broke_promise")).toMatchObject({ source: "default", off: false });
     expect(by("gift")).toMatchObject({ source: "default", off: true, family: "warmth", meaning: "gave something meant for them" });
     expect(by("dance")).toMatchObject({ source: "custom", off: true, family: "play", deltas: { affection: 1 } });
     expect(by("told_truth")).toMatchObject({ source: "default", off: false });
-    expect(P.vocabRows([]).length).toBe(61);
+    expect(P.vocabRows([]).length).toBe(88);
   });
 
   it("GET /dashboard/config carries the rows, the delta keys and the family order", () => {

@@ -629,7 +629,7 @@ export function CardForm({ node, graph, fields, problems = [], onParams, onTitle
                           onChange={(e) => set({ give: give.map((g) => { if (g.source !== s) return g; const { optional: _o, ...rest } = g; return e.target.checked ? { ...rest, optional: true } : rest }) })} />
                         {t('fg.input.optional')}
                       </label>
-                      {entry.optional === true && <span className="text-[11px] leading-snug text-muted-foreground">{t('fg.input.optionalHint')}</span>}
+                      {entry.optional === true && <span className="text-caption leading-snug text-muted-foreground">{t('fg.input.optionalHint')}</span>}
                     </div>
                   )}
                   {on && lim && (
