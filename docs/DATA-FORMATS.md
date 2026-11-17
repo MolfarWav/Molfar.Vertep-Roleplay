@@ -1181,7 +1181,9 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
   operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
   user's own notes, the threads and what the characters said closed (anything else is `E_DASH_FIELD`). Scene fields, text:
-  `present` (the names in the scene, joined with ", "), `place`, `weather`. Character fields: text `mood`, `condition`,
+  `present` (the names in the scene, joined with ", "), `place`, `weather`, `date` (the in-story date as the Dashboard words it, a
+  world's own calendar too; missing without a calendar or with it hidden) and, a number, `day` (the day count of the story, 1 on
+  the first day; `as: "number"`; read-only like `present`, so no Write card may name `present`, `date` or `day`, #402). Character fields: text `mood`, `condition`,
   `outfit`, `holding`, `goal`, and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (the Dashboard's
   disposition numbers). `as` is `number` for the numbers and `text` for the rest (`E_DASH_TYPE`). `of` names a character
   (case does not matter, and any other name of that person in the chat's entity registry finds it too: "Rhea" for "Rhea Faeth";

@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Added: **agents can read the story's date and day count (Molfar.Vertep#402).** Two new Dashboard fields for the Input card and the If card: `date` (the in-story date as the Dashboard words it, a world's own calendar too; missing when the chat has no calendar or it is hidden) and the number `day` (the story's day, 1 on the first). Read only: the sensor and the date popover stay the writers, and a Write to Dashboard card naming them is refused. An agent that counts days (the Ledger's income, countdowns) can take the difference between two runs instead of asking the model for `days`; the Ledger itself still asks. A test keeps the agent's date equal to the Dashboard's for every kind of calendar.
+
 - Changed: **a short lorebook entry may fill the room an oversized one left (Molfar.Vertep#397).** The budget is still claimed in order of priority, but an entry that does not fit is only skipped (it shows under "cut by the budget" as before) and no longer eats the room; before, the first entry that did not fit silenced every later normal entry, even a one-line one. Books with one huge high-priority entry now let the small ones after it fire; "ignores the budget" entries still spend. Two new tests fail on the old code.
 
 ## 4.136.2 (2026-11-17)
