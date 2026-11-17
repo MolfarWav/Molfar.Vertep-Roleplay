@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **a message you stopped could come back into the box, although it was stored (Molfar.Vertep#384).** After a Stop the page cleans up (it reads the chat again); a new message sent in that moment cleared the per-chat "stopped" flag before the stopped send had read it, so the stopped send reported "not sent" and put its text back, and sending it again would have doubled it. Whether a send was stopped is now told by the clock (when the send began against when Stop was pressed), which a later send cannot clear. The new test reproduces it on the old code. Not seen with a real provider.
+
 ## 4.136.1 (2026-11-17)
 
 - Fixed: **a reply lost its first words, and Stop froze a text that did not start at the beginning of the reply (Molfar.Vertep#383).** The page closed its live-stream socket and opened a new one, with new buffers, on every re-hydrate, and a re-hydrate runs a quarter of a second after the chat file changes, i.e. right after a send. The words that arrived while the socket was being replaced, and the ones waiting for the next frame in the old buffer, were dropped. The socket is now opened once per page. Found by reading the code; the new test fails on the old code (two sockets, words missing) and passes now. Not tried on a real provider.

@@ -1398,7 +1398,9 @@ export const useApp = create<AppState>()(
           } catch { /* provider failed — send exactly what was typed */ }
         }
         const before = new Set(chat.messages.map((m) => m.id))
-        stoppedRuns.delete(chatId)
+        // whether THIS send was stopped is told by the clock, not by a flag per chat: a second send started right after a
+        // Stop used to clear the flag before this one had read it, and the stopped message came back into the box (#384)
+        const sentAt = Date.now()
         const run = runGeneration(set, get, chatId, 'send', {
           ...(sendText ? { text: sendText } : { text: '', allowEmpty: true }),
           ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
@@ -1415,7 +1417,7 @@ export const useApp = create<AppState>()(
         const ok = await run.catch(() => false)
         if (ok || !sendText.trim()) return 'sent'
         // stopped by the user: the engine may have stored the turn already; leave the box alone
-        if (stoppedRuns.delete(chatId)) return 'stopped'
+        if ((userStoppedAt.get(chatId) ?? 0) >= sentAt) return 'stopped'
         // the run failed: the transcript is refreshed by now; the turn either landed or it did not
         const landed = get().chats.find((c) => c.id === chatId)?.messages.some((m) =>
           m.role === 'user' && !before.has(m.id) && !m.id.startsWith('pending-') && m.swipes[m.activeSwipe]?.content === splitDirections(sendText).text)
@@ -2655,8 +2657,6 @@ export const useApp = create<AppState>()(
 )
 
 // ── generation driver ────────────────────────────────────────────────────────
-/** Chats whose last run the user stopped (a stopped send is not "not sent": the turn may be stored). */
-const stoppedRuns = new Set<ID>()
 /** When the user last pressed Stop on a chat: a failure that arrives after it, for a run that started before it, is the cancel itself. */
 const userStoppedAt = new Map<ID, number>()
 type SetFn = (partial: Partial<AppState> | ((s: AppState) => Partial<AppState>)) => void
@@ -2813,7 +2813,6 @@ async function runGeneration(
     await settling
     if (ctrl.signal.aborted) {
       if (activeGens.get(chatId) === ctrl) activeGens.delete(chatId)
-      stoppedRuns.add(chatId)
       if (get().streaming?.chatId === chatId && get().streaming?.messageId === inPlaceId) set({ streaming: null })
       return false
     }
@@ -3061,12 +3060,10 @@ async function runStream(
     noticeContextTooSmall((res as Record<string, unknown>)?.tooSmall, get().model, resolveLanguage(get().settings.language))
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
-      stoppedRuns.add(chatId)
       return false // stopped by the user
     }
     // the engine answers a cancelled run with a failure; the user pressed Stop, so that is not an error to report
     if ((userStoppedAt.get(chatId) ?? 0) >= runStartedAt) {
-      stoppedRuns.add(chatId)
       await refreshChat(set, get, chatId)
       return false
     }
