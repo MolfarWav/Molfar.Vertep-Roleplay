@@ -1,5 +1,6 @@
 // The model for a card's own tasks (GitHub #104): Structure it, Fill empty, the Soul rating. A card can name
-// its own; else an app-wide "Card tasks" model; else the Dashboard sensor's; else the app's default. The limits
+// its own; else an app-wide "Card tasks" model; else the Dashboard sensor's; else the app's default. (The automatic Soul rating of a chat's characters also tries the chat's model
+// between the sensor's and the app's default, `soulModel` in plugins/relations; Rate now has no chat.) The limits
 // follow the model's real window instead of fixed numbers. Pure: the editor and the plugin (plugins/profile)
 // share the order, and the plugin has its own copy of it (`resolveTaskModel`).
 

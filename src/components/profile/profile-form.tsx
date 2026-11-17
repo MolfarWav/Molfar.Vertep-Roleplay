@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { useT } from '@/hooks/use-t'
 import { estimateTokens, formatTokens } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 import {
@@ -407,6 +408,7 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
   /** the persona page folds each section into a row with a fill ring; the card editor shows them open */
   fold?: { open: boolean; toggle: () => void }
 }) {
+  const t = useT()
   const accent = ACCENTS[s.accent]
   const canFill = !!fill && on && fillable(s.id) && Object.keys(emptyFields(p, s.id)).length > 0
   if (fold) {
@@ -439,7 +441,7 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
             {s.id === 'appearance' && on && fill?.readPicture && (
               <Button variant="ghost" size="sm" className="h-8 w-fit text-xs" disabled={fill.busy || fill.readPicture.busy} onClick={fill.readPicture.open}>
                 {fill.readPicture.busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <ImageIcon className="size-3.5" aria-hidden="true" />}
-                {fill.readPicture.busy ? 'Reading…' : 'Read from picture'}
+                {fill.readPicture.busy ? t('ct.readingPicture') : t('ct.readPicture')}
               </Button>
             )}
             {s.hint && <p className="text-xs text-muted-foreground">{s.hint}</p>}
@@ -465,9 +467,9 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
             </Button>
           )}
           {s.id === 'appearance' && on && fill?.readPicture && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={fill.busy || fill.readPicture.busy} onClick={fill.readPicture.open} title="A model that reads pictures describes the appearance from the portrait; you review before anything changes">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={fill.busy || fill.readPicture.busy} onClick={fill.readPicture.open} title={t('ct.readPictureTip')}>
               {fill.readPicture.busy ? <CircleNotch className="size-3.5 animate-spin" aria-hidden="true" /> : <ImageIcon className="size-3.5" aria-hidden="true" />}
-              {fill.readPicture.busy ? 'Reading…' : 'Read from picture'}
+              {fill.readPicture.busy ? t('ct.readingPicture') : t('ct.readPicture')}
             </Button>
           )}
           {s.switchable && (

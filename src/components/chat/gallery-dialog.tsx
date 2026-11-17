@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CaretLeft, CaretRight, Paperclip } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
 import type { Character, ID } from '@/lib/types'
 
@@ -16,6 +17,7 @@ export function GalleryDialog(props: {
   characterId: ID | null
   onAttach?: (item: { url: string; name: string; type: string }) => void
 }) {
+  const t = useT()
   const characters = useApp((s) => s.characters)
   const [lightboxId, setLightboxId] = useState<ID | null>(null)
 
@@ -35,11 +37,11 @@ export function GalleryDialog(props: {
       <Dialog open={props.open} onOpenChange={props.onOpenChange}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{character ? `${character.name} gallery` : 'Gallery'}</DialogTitle>
+            <DialogTitle>{character ? t('gal.title', { name: character.name }) : t('gal.titleBare')}</DialogTitle>
           </DialogHeader>
           {items.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Nothing here yet. Add images on the character&apos;s Gallery tab.
+              {t('gal.empty')}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -49,7 +51,7 @@ export function GalleryDialog(props: {
                   type="button"
                   onClick={() => setLightboxId(g.id)}
                   className="relative aspect-square overflow-hidden rounded-md border border-border transition-opacity hover:opacity-85"
-                  aria-label={`Open ${g.caption || 'gallery item'}`}
+                  aria-label={t('gal.open', { name: g.caption || t('gal.item') })}
                 >
                   {g.type === 'video' ? (
                     <video src={g.url} className="size-full object-cover" muted playsInline />
@@ -67,7 +69,7 @@ export function GalleryDialog(props: {
         <DialogContent className="w-full max-w-[min(92vw,900px)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-sm font-normal">
-              {open?.caption || open?.owner} · {at + 1} of {items.length}
+              {t('gal.position', { name: open?.caption || open?.owner || '', n: at + 1, total: items.length })}
             </DialogTitle>
           </DialogHeader>
           {open && (
@@ -78,10 +80,10 @@ export function GalleryDialog(props: {
                 <img src={open.url} alt={open.caption} className="max-h-[65dvh] w-full rounded-md object-contain" />
               )}
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={at <= 0} onClick={() => setLightboxId(items[at - 1]!.id)} aria-label="Previous item">
+                <Button variant="outline" size="sm" disabled={at <= 0} onClick={() => setLightboxId(items[at - 1]!.id)} aria-label={t('gal.prev')}>
                   <CaretLeft className="size-4" aria-hidden="true" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={at >= items.length - 1} onClick={() => setLightboxId(items[at + 1]!.id)} aria-label="Next item">
+                <Button variant="outline" size="sm" disabled={at >= items.length - 1} onClick={() => setLightboxId(items[at + 1]!.id)} aria-label={t('gal.next')}>
                   <CaretRight className="size-4" aria-hidden="true" />
                 </Button>
                 {props.onAttach && open.type === 'image' && (
@@ -90,13 +92,13 @@ export function GalleryDialog(props: {
                     size="sm"
                     className="ml-auto"
                     onClick={() => {
-                      props.onAttach?.({ url: open.url, name: open.caption || 'gallery image', type: 'image/*' })
+                      props.onAttach?.({ url: open.url, name: open.caption || t('gal.imageName'), type: 'image/*' })
                       setLightboxId(null)
                       props.onOpenChange(false)
                     }}
                   >
                     <Paperclip className="size-4" aria-hidden="true" />
-                    Attach to message
+                    {t('gal.attach')}
                   </Button>
                 )}
               </div>

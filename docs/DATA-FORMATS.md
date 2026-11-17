@@ -119,7 +119,8 @@ before the first heading or a cast stops it, and the card is left as it came). C
 the card has no choice of its own). It is read and written by the profile plugin (`GET/PUT /profile/card-tasks`)
 and saved by the editor's Save changes. Structure it, Fill empty and the Soul rating run on: the model in the
 request (an unsaved pick) -> the card's `model` -> the app-wide `ui.cardTasks.model` in `settings.json` (Settings,
-Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model`. The editor sends the model's real limits
+Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model` (the automatic Soul rating of a chat's characters,
+`soulModel` in the relations plugin, also tries the chat's own model between `sensorModel` and the default; Rate now has no chat). The editor sends the model's real limits
 with a request (`limits: { inputChars, outputTokens }`); a card longer than `inputChars` is read in parts
 (`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
 

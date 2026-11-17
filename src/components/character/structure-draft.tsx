@@ -157,21 +157,22 @@ export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avat
 export function StructureButton({ busy, onClick, variant = 'outline', disabled, progress }: { busy: boolean; onClick: () => void; variant?: 'outline' | 'default'; disabled?: boolean; progress?: { part: number; parts: number } | null }) {
   const t = useT()
   return (
-    <Button variant={variant} size="sm" className="w-fit" disabled={busy || disabled} onClick={onClick} title="A model reads the text and proposes the fields; you review before anything changes">
+    <Button variant={variant} size="sm" className="w-fit" disabled={busy || disabled} onClick={onClick} title={t('ct.structureTip')}>
       {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
-      {busy ? (progress ? t('ct.reading', progress) : 'Reading the card…') : 'Structure it'}
+      {busy ? (progress ? t('ct.reading', progress) : t('ct.readingBare')) : t('ct.structure')}
     </Button>
   )
 }
 
 /** The whole-profile "Fill empty" button and the portrait model picker. */
 export function FillControls({ busy, disabled, onFill, vision, member }: { busy: boolean; disabled?: boolean; onFill: () => void; vision: VisionModel; member?: boolean }) {
+  const t = useT()
   const none = vision.models.length === 0 && !vision.engineRef
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="outline" size="sm" className="w-fit" disabled={busy || disabled} onClick={onFill} title="A model proposes values for the empty fields of the sections that are on; you review before anything changes">
+      <Button variant="outline" size="sm" className="w-fit" disabled={busy || disabled} onClick={onFill} title={t('ct.fillTip')}>
         {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
-        {busy ? 'Filling…' : 'Fill empty'}
+        {busy ? t('ct.filling') : t('ct.fill')}
       </Button>
       {!member && <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
         Portrait:

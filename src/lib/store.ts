@@ -15,6 +15,7 @@ import { guardLeaving } from '@/lib/leave-guard'
 import { readDraft, unsavedKeys } from './drafts'
 import { toast } from 'sonner'
 import { resolveLanguage, t, type Lang } from './i18n'
+import { toastGenerationError } from './gen-error'
 import { fetchModelParams, modelLimits, moveSamplersToModel, type ModelParams } from './model-params'
 import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
@@ -3067,7 +3068,7 @@ async function runStream(
       await refreshChat(set, get, chatId)
       return false
     }
-    toast.error(String((e as Error).message ?? e))
+    toastGenerationError(e, resolveLanguage(get().settings.language), () => get().setView('extensions'))
     // a model that refused (or never answered) a prompt that did not fit its window: explain why, next to the error
     noticeContextTooSmall((e as { data?: Record<string, unknown> }).data?.tooSmall, get().model, resolveLanguage(get().settings.language))
     await refreshChat(set, get, chatId)
