@@ -3013,15 +3013,16 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
   const textOf = (x) => wiFormat(x.fmt, contentOf(x).trim());
   // The budget is claimed in order-DESCENDING priority (higher
   // order wins, constants NOT exempt); ignoreBudget entries are always
-  // included but their content still consumes budget for later entries
+  // included and their content still consumes budget for later entries.
+  // An entry that does not fit is skipped and costs nothing: a shorter one
+  // after it may still fill the room it left (#397; it used to stop at the first overflow).
   const byPriority = activated.slice().sort((x, y) => (x.rank - y.rank) || ((y.entry.order ?? 100) - (x.entry.order ?? 100)));
   const admitted = new Set();
   let used = 0;
   for (const x of byPriority) {
     const c = textOf(x);
     if (!c) continue;
-    used += c.length;
-    if (x.entry.ignoreBudget === true || used <= budget) admitted.add(x);
+    if (x.entry.ignoreBudget === true || used + c.length <= budget) { used += c.length; admitted.add(x); }
   }
   out.used = Math.min(used, budget);
   // prompt emission: ascending order (the WI block runs order 1 -> 999, top to

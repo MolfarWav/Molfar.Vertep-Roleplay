@@ -170,6 +170,28 @@ describe("why an entry fired or was held back", () => {
     expect(titles(r.fired)).toEqual(["Small"]);
   });
 
+  it("a short entry fills the room an oversized one left (#397)", async () => {
+    const r = await test("Вежа.", [
+      entry("Huge", ["вежа"], { content: "x".repeat(40000), order: 300 }),
+      entry("First", ["вежа"], { order: 200 }),
+      entry("Second", ["вежа"], { order: 100 }),
+    ]);
+    expect(r.skipped.map((x) => x.title)).toEqual(["Huge"]);
+    expect(titles(r.fired)).toEqual(["First", "Second"]);
+  });
+
+  it("an entry that does not fit costs nothing, one that ignores the budget still spends (#397)", async () => {
+    const size = ((await test("Ліс.", [entry("Probe", ["вежа"])])) as unknown as { budgetChars: number }).budgetChars;
+    expect(size).toBeGreaterThan(1000);
+    const r = await test("Вежа.", [
+      entry("Always", ["вежа"], { content: "a".repeat(size - 300), order: 300, ignoreBudget: true }),
+      entry("TooBig", ["вежа"], { content: "b".repeat(500), order: 200 }),
+      entry("Tiny", ["вежа"], { content: "c".repeat(100), order: 100 }),
+    ]);
+    expect(titles(r.fired)).toEqual(["Always", "Tiny"]);
+    expect(r.skipped.map((x) => x.title)).toEqual(["TooBig"]);
+  });
+
   it("an entry whose keys do not hit is not listed at all", async () => {
     const r = await test("Ліс.", [entry("Later", ["вежа"], { delay: 5 })]);
     expect(r.blocked).toHaveLength(0);

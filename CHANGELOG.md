@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Changed: **a short lorebook entry may fill the room an oversized one left (Molfar.Vertep#397).** The budget is still claimed in order of priority, but an entry that does not fit is only skipped (it shows under "cut by the budget" as before) and no longer eats the room; before, the first entry that did not fit silenced every later normal entry, even a one-line one. Books with one huge high-priority entry now let the small ones after it fire; "ignores the budget" entries still spend. Two new tests fail on the old code.
+
 ## 4.136.2 (2026-11-17)
 
 - Fixed: **a lorebook file in the app's own format imports with its names, folders, constant status, depth, role, order, secondary keys and settings, with or without a `vectorized` key (Molfar.Vertep#295).** A file without the key went to the world-info importer, which read only the keys and the text: every entry became "Entry N", folders and the constant status were lost, and a constant entry never fired. The file is now native when it has a `settings` object and entries with the app's names (never one with another format's `insertion_order`, `extensions` or `keysecondary`). A file in the stored shape (what `data/lorebooks` holds and what Molfar writes) also keeps its logic and probability, which were read under the editor's names. Checked by tests on the conversion; not on a real import in the app.
