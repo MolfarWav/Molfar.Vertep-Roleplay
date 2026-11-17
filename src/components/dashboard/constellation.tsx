@@ -65,12 +65,18 @@ export function Constellation({ stats, prevStats, id, prevId, size, labels }: {
           const r = 1.6 + 2.4 * v / 100
           return (
             <g key={stat}>
+              <title>{`${t(`soul.stat.${stat}`)}: ${v}`}</title>
               <circle cx={pt.x} cy={pt.y} r={r} fill={color} opacity={0.6} filter={`url(#${filterId})`} />
               <circle cx={pt.x} cy={pt.y} r={r} fill={color} />
             </g>
           )
         }
-        return <circle key={stat} cx={pt.x} cy={pt.y} r={1.8} fill="none" stroke={COLD_STAR} strokeWidth={0.6} />
+        return (
+          <g key={stat}>
+            <title>{`${t(`soul.stat.${stat}`)}: ${v}`}</title>
+            <circle cx={pt.x} cy={pt.y} r={1.8} fill="none" stroke={COLD_STAR} strokeWidth={0.6} />
+          </g>
+        )
       })}
       {drawLines(prevPts, 0.35, '1 1.2')}
       {drawLines(currPts, 0.9)}
