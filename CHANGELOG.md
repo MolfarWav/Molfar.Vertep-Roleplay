@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.136.1 (2026-11-17)
+
 - Fixed: **a reply lost its first words, and Stop froze a text that did not start at the beginning of the reply (Molfar.Vertep#383).** The page closed its live-stream socket and opened a new one, with new buffers, on every re-hydrate, and a re-hydrate runs a quarter of a second after the chat file changes, i.e. right after a send. The words that arrived while the socket was being replaced, and the ones waiting for the next frame in the old buffer, were dropped. The socket is now opened once per page. Found by reading the code; the new test fails on the old code (two sockets, words missing) and passes now. Not tried on a real provider.
 - Fixed: **Regenerate had no Stop button for several seconds (Molfar.Vertep#382).** The new reply waits for the World DM to take back what it wrote from the old one, and Stop appeared only when the request started. Stop now shows at once, and a Stop in that wait ends the run before any request is sent; the old reply stays as it was.
 
