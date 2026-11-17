@@ -28,7 +28,9 @@
  *
  * The model for a card's tasks: the one named in the request (an unsaved pick in the editor), else the card's own
  * (card-tasks.json), else the app-wide "Card tasks" model (settings.json ui.cardTasks.model), else the Dashboard
- * sensor's, else the app's default. The request may carry the editor's working text (card: {name, description,
+ * sensor's, else the app's default. (The automatic Soul rating of a chat's characters, plugins/relations `soulModel`, tries the
+ * chat's own model too, between the sensor's and the app's default; Rate now has no chat, so it ends at the app's default.)
+ * The request may carry the editor's working text (card: {name, description,
  * personality, scenario, mes_example}) so a proposal reads what is on screen, and limits: {inputChars, outputTokens}
  * from the chosen model's real window. A card longer than inputChars is read in parts: Structure it takes
  * {part} (0 first) and answers {part, parts, done}; each part's fields merge into one draft.

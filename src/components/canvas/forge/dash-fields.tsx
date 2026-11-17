@@ -85,7 +85,7 @@ export function DashWriteForm({ p, onParams }: { p: Params; onParams: (p: Params
   )
 }
 
-type Give = { id: string; source: string; field?: string; as?: string; of?: string } & Params
+type Give = { id: string; source: string; field?: string; as?: string; of?: string; optional?: boolean } & Params
 
 /** A port id nobody on the Input uses yet: the field's name, then `name2`, `name3` … */
 function freeId(give: Give[], field: string, except?: string): string {
@@ -114,13 +114,20 @@ export function DashReadRows({ give, onGive }: { give: Give[]; onGive: (next: Gi
                     const next = DASH_FIELDS[f] as Spec | undefined
                     if (!next) return
                     const { of: _of, ...rest } = row
-                    swap(row, { ...rest, id: freeId(give, f, row.id), field: f, as: next.as, ...(next.char && row.of ? { of: row.of } : {}) })
+                    swap(row, { ...rest, id: freeId(give, f, row.id), field: f, as: next.as, ...(next.char && row.of ? { of: row.of } : {}), ...(next.as === 'text' && row.optional ? { optional: true } : {}) })
                   }} />
                 </div>
                 <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0 max-md:size-10" aria-label={t('fg.dash.readRemove')} onClick={() => { const next = give.filter((g) => g !== row); if (next.length) onGive(next) }}>
                   <Trash className="size-4" aria-hidden="true" />
                 </Button>
               </div>
+              {spec?.as === 'text' && (
+                <label className="flex min-h-8 cursor-pointer items-center gap-2 text-xs max-md:min-h-10" title={t('fg.input.optionalHint')}>
+                  <input type="checkbox" className="size-4" checked={row.optional === true}
+                    onChange={(e) => { const { optional: _o, ...rest } = row; swap(row, e.target.checked ? { ...rest, optional: true } : rest) }} />
+                  {t('fg.input.optional')}
+                </label>
+              )}
               {spec?.char && (
                 <label className="flex flex-col gap-0.5">
                 <span className="text-caption text-muted-foreground">{t('fg.dash.ofRead')}</span>

@@ -261,3 +261,62 @@ describe("list cards, run end to end", () => {
     expect(res.writes).toEqual([]);
   });
 });
+
+describe("an Input source that may be empty (#403)", () => {
+  /** Reads the card and the recorded facts (either may be missing in a chat) and asks one question about both. */
+  const agent = (optional: boolean[] = [false, false]): Json => ({
+    format: "vertep-canvas", version: 1, kind: "agent", title: "Both",
+    agent: { formatVersion: 1, id: "both-test", version: "1.0.0", name: "Both", trigger: { when: "manual" }, models: { fast: { hint: "fast" } }, limits: { maxCalls: 1 }, state: {} },
+    nodes: [
+      { id: "in", type: "agent.input", x: 0, y: 0, title: "Input", params: { give: [
+        { id: "card", source: "card", ...(optional[0] ? { optional: true } : {}) },
+        { id: "facts", source: "litopysFacts", ...(optional[1] ? { optional: true } : {}) },
+      ] } },
+      { id: "ask", type: "model.ask", x: 0, y: 0, title: "Ask", params: { role: "fast", prompt: "Card: {{card}}\nFacts: {{facts}}", answer: { as: "text" }, maxTokens: 50 } },
+      { id: "out", type: "agent.output", x: 0, y: 0, title: "Out", params: { kind: "note" } },
+    ],
+    edges: [
+      { id: "a", from: "in:card", to: "ask:card" }, { id: "b", from: "in:facts", to: "ask:facts" }, { id: "c", from: "ask:text", to: "out:in" },
+    ],
+  });
+  describe.each(both)("(%s)", (_name, r) => {
+    it("without `optional`, a source with nothing skips the card, and the run says which one", () => {
+      const f = agent();
+      expect(validateAgent(f).errors).toEqual([]);
+      const res = same(r.runAgent(f, { inputs: { card: "A tall knight." }, dash: {} }, {}));
+      expect(res.status).toBe("done");
+      expect(res.requests ?? []).toEqual([]);
+      expect(res.trace.find((s: Json) => s.node === "in")).toMatchObject({ status: "ran", out: { missing: "facts" } });
+      expect(res.trace.find((s: Json) => s.node === "ask")).toMatchObject({ status: "skipped", out: { missing: "facts" } });
+    });
+
+    it("with `optional`, it arrives as an empty text and the card runs", () => {
+      const res = same(r.runAgent(agent([false, true]), { inputs: { card: "A tall knight." }, dash: {} }, {}));
+      expect(res.status).toBe("need");
+      expect(res.requests[0].prompt).toContain("Card: A tall knight.\nFacts: ");
+      expect(res.trace.find((s: Json) => s.node === "in").out).toBeUndefined();
+    });
+
+    it("a source that has something still gives it", () => {
+      const res = same(r.runAgent(agent([true, true]), { inputs: { card: "A tall knight.", facts: "She fears fire." }, dash: {} }, {}));
+      expect(res.requests[0].prompt).toContain("Facts: She fears fire.");
+    });
+
+    it("an agent whose every source is optional still runs when all of them are empty", () => {
+      const res = same(r.runAgent(agent([true, true]), { inputs: {}, dash: {} }, {}));
+      expect(res.status).toBe("need");
+    });
+  });
+
+  it("the checker takes true or false, and no number", () => {
+    const bad = agent();
+    bad.nodes[0].params.give[0].optional = "yes";
+    expect(validateAgent(bad).errors.map((e: Json) => e.code)).toEqual(["E_INPUT_OPTIONAL"]);
+    const num = agent();
+    num.nodes[0].params.give.push({ id: "t", source: "state", field: "trust", as: "number", optional: true });
+    expect(validateAgent(num).errors.map((e: Json) => e.code)).toEqual(["E_INPUT_OPTIONAL"]);
+    const ok = agent([true, true]);
+    ok.nodes[0].params.give.push({ id: "pl", source: "state", field: "place", as: "text", optional: true });
+    expect(validateAgent(ok).errors).toEqual([]);
+  });
+});

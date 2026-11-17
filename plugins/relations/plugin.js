@@ -142,69 +142,98 @@ export function temperamentLine(soul) {
   return words.length ? "Temperament: " + words.join(", ") + "." : "";
 }
 
-// [family, id, meaning, deltas]; Sergey tunes these later, a user file can replace any of them
+// [family, id, meaning, deltas, level]; Sergey tunes these later, a user file can replace any of them.
+// level (#394) is how close two people usually are when this act is ordinary: 0 anyone, 1 warm (acquaintances), 2 close (friends), 3 intimate (a couple).
+// It only scales the good effects on the five numbers, by the stage the two are at now (stageFactor); harm is never scaled.
 const EVENT_ROWS = [
-  ["trust", "kept_promise", "did what was promised", { trust: 1, respect: 1 }],
-  ["trust", "broke_promise", "failed a promise", { trust: -3, respect: -1 }],
-  ["trust", "told_truth", "said an uncomfortable truth", { trust: 1, respect: 1 }],
-  ["trust", "caught_lying", "was caught in a lie", { trust: -3, respect: -2 }],
-  ["trust", "shared_secret", "trusted them with a secret", { trust: 2, affection: 1 }],
-  ["trust", "kept_her_secret", "kept their secret when it cost something", { trust: 2 }],
-  ["trust", "betrayed_secret", "told their secret to others", { trust: -4, comfort: -2, hostility: 3 }],
-  ["trust", "manipulated_her", "tricked or used them, short of a lie", { trust: -3, comfort: -1, hostility: 2 }],
-  ["trust", "abandoned_her", "left them behind or walked out on them", { trust: -3, comfort: -2, affection: -1, hostility: 2 }],
-  ["trust", "respected_limit", "held back when they set a limit", { trust: 2, comfort: 1 }],
-  ["trust", "pushed_limit", "pressed on after they set a limit", { trust: -2, comfort: -3, hostility: 2 }],
-  ["trust", "introduced_self", "told them their name or who they are", { trust: 1 }],
-  ["warmth", "compliment", "sincere praise", { affection: 1, attraction: 1 }],
-  ["warmth", "shared_laughter", "laughed together", { comfort: 1, affection: 1 }],
-  ["warmth", "remembered_detail", "remembered something small about them", { affection: 2 }],
-  ["warmth", "gift", "gave something meant for them", { affection: 1, comfort: 1 }],
-  ["warmth", "cold_shoulder", "ignored or dismissed them", { affection: -2, comfort: -1 }],
-  ["warmth", "teased_her", "teased them playfully, without malice", { affection: 1, comfort: 1, excitement: 4 }],
-  ["warmth", "confessed_feelings", "confessed love or deep feelings to them", { affection: 2, attraction: 1, excitement: 8 }],
-  ["warmth", "shared_meal", "ate or drank together", { comfort: 1, affection: 1 }],
-  ["warmth", "shared_victory", "won or achieved something together", { affection: 1, trust: 1, excitement: 10 }],
-  ["warmth", "checked_on_her", "asked how they are and listened", { affection: 1, comfort: 1 }],
-  ["warmth", "thanked_her", "thanked them sincerely", { affection: 1, respect: 1 }],
-  ["warmth", "invited_her", "invited them to meet or spend time together", { affection: 1, comfort: 1, excitement: 4 }],
-  ["power", "gave_order", "commanded them", { respect: 1, comfort: -1 }],
-  ["power", "asked_her_advice", "asked and listened", { respect: 1, trust: 1 }],
-  ["power", "deferred_to_her", "let them decide", { respect: 1, comfort: 1 }],
-  ["power", "overruled_her", "overrode their choice", { comfort: -1, respect: -1 }],
-  ["power", "protected_her_standing", "took their side or defended them before others", { respect: 1, affection: 1, trust: 1 }],
-  ["power", "humiliated_her", "shamed them in front of others", { respect: -2, comfort: -3, hostility: 3 }],
-  ["power", "impressed_her", "showed real skill or courage before them", { respect: 2, attraction: 1, excitement: 4 }],
-  ["power", "taught_her", "taught or showed them how to do something", { respect: 1, trust: 1 }],
-  ["power", "acted_cowardly", "froze or fled when they needed help", { respect: -3, trust: -1 }],
-  ["power", "stood_ground", "held their ground or set a calm boundary", { respect: 2 }],
-  ["body", "gentle_touch", "wanted, gentle touch", { comfort: 1, attraction: 1, arousal: 3 }],
-  ["body", "unwanted_touch", "touch they did not want", { comfort: -4, trust: -2, hostility: 3 }],
-  ["body", "flirt", "flirted with them", { attraction: 1, excitement: 6, arousal: 4 }],
-  ["body", "kiss", "kissed on the lips or romantically (welcome)", { attraction: 2, affection: 1, arousal: 12 }],
-  ["body", "tender_kiss", "kissed forehead, cheek or hand (tender)", { affection: 2, comfort: 1 }],
-  ["body", "hug", "hugged or held them (not romantic)", { comfort: 2, affection: 1 }],
-  ["body", "intimacy", "intimate moment (welcome)", { attraction: 2, comfort: 1, arousal: 20 }],
-  ["body", "rejected_advance", "turned down their romantic or sexual advance", { comfort: -2, affection: -1 }],
-  ["conflict", "raised_voice", "shouted, at them or near them", { comfort: -3 }],
-  ["conflict", "insult", "insulted, mocked or belittled them", { respect: -2, affection: -2, hostility: 3 }],
-  ["conflict", "threat", "threatened them", { comfort: -4, trust: -3, hostility: 4 }],
-  ["conflict", "fair_argument", "argued honestly", { respect: 1 }],
-  ["conflict", "apology", "sincere apology", { trust: 1, comfort: 1, hostility: -2 }],
-  ["conflict", "attacked_her", "hit or physically attacked them", { comfort: -5, trust: -3, hostility: 5 }],
-  ["conflict", "jealous_scene", "showed jealousy over them", { attraction: 1, comfort: -1, excitement: 4 }],
-  ["conflict", "forgave_her", "forgave them a wrong they did", { trust: 1, affection: 2, hostility: -3 }],
-  ["conflict", "ultimatum", "gave them a deadline or a take-it-or-leave-it demand", { comfort: -2, respect: -1, hostility: 1, excitement: 4 }],
-  ["conflict", "hinted_leverage", "hinted at a secret or weakness to use", { trust: -2, comfort: -3, hostility: 2 }],
-  ["care", "protected_her", "shielded or rescued them from harm", { trust: 2, affection: 1, comfort: 1 }],
-  ["care", "cared_for_kin", "helped their people or family", { affection: 2, trust: 1 }],
-  ["care", "tended_her", "looked after their wound or need", { comfort: 2, affection: 1 }],
-  ["care", "ignored_her_need", "saw their need and did nothing", { affection: -2, trust: -1 }],
-  ["care", "comforted_her", "consoled them when they were upset", { comfort: 2, affection: 1, trust: 1 }],
-  ["care", "kept_company", "stayed with them so they were not alone", { comfort: 2, affection: 1 }],
-  ["knowledge", "novelty", "something new or surprising", { excitement: 12 }],
-  ["knowledge", "danger", "danger in the scene", { excitement: 10, comfort: -1 }],
-  ["other", "other", "anything else", {}],
+  ["trust", "kept_promise", "did what was promised", { trust: 1, respect: 1 }, 0],
+  ["trust", "broke_promise", "failed a promise", { trust: -3, respect: -1 }, 0],
+  ["trust", "told_truth", "said an uncomfortable truth", { trust: 1, respect: 1 }, 0],
+  ["trust", "caught_lying", "was caught in a lie", { trust: -3, respect: -2 }, 0],
+  ["trust", "shared_secret", "trusted them with a secret", { trust: 2, affection: 1 }, 1],
+  ["trust", "kept_her_secret", "kept their secret when it cost something", { trust: 2 }, 1],
+  ["trust", "betrayed_secret", "told their secret to others", { trust: -4, comfort: -2, hostility: 3 }, 0],
+  ["trust", "manipulated_her", "tricked or used them, short of a lie", { trust: -3, comfort: -1, hostility: 2 }, 0],
+  ["trust", "abandoned_her", "left them behind or walked out on them", { trust: -3, comfort: -2, affection: -1, hostility: 2 }, 0],
+  ["trust", "respected_limit", "held back when they set a limit", { trust: 2, comfort: 1 }, 0],
+  ["trust", "pushed_limit", "pressed on after they set a limit", { trust: -2, comfort: -3, hostility: 2 }, 0],
+  ["trust", "introduced_self", "told them their name or who they are", { trust: 1 }, 0],
+  ["trust", "shared_vulnerability", "opened up about a fear or failure", { trust: 2, affection: 2, comfort: 1 }, 1],
+  ["trust", "owned_mistake", "admitted a mistake openly, without being pushed", { trust: 1, respect: 1 }, 0],
+  ["warmth", "compliment", "sincere praise", { affection: 1, attraction: 1 }, 1],
+  ["warmth", "shared_laughter", "laughed together", { comfort: 1, affection: 1 }, 1],
+  ["warmth", "remembered_detail", "remembered something small about them", { affection: 2 }, 1],
+  ["warmth", "gift", "gave something meant for them", { affection: 1, comfort: 1 }, 1],
+  ["warmth", "cold_shoulder", "ignored or dismissed them", { affection: -2, comfort: -1 }, 0],
+  ["warmth", "teased_her", "teased them playfully, without malice", { affection: 1, comfort: 1, excitement: 4 }, 1],
+  ["warmth", "confessed_feelings", "confessed love or deep feelings to them", { affection: 2, attraction: 1, excitement: 8 }, 3],
+  ["warmth", "shared_meal", "ate or drank together", { comfort: 1, affection: 1 }, 1],
+  ["warmth", "shared_victory", "won or achieved something together", { affection: 1, trust: 1, excitement: 10 }, 1],
+  ["warmth", "checked_on_her", "asked how they are and listened", { affection: 1, comfort: 1 }, 1],
+  ["warmth", "thanked_her", "thanked them sincerely", { affection: 1, respect: 1 }, 0],
+  ["warmth", "invited_her", "invited them to meet or spend time together", { affection: 1, comfort: 1, excitement: 4 }, 1],
+  ["warmth", "shared_interest", "found a shared interest and enjoyed it together", { affection: 1, comfort: 1 }, 0],
+  ["warmth", "long_talk", "talked for a long time about real things", { affection: 1, trust: 1, comfort: 1 }, 1],
+  ["warmth", "surprise_gesture", "did something thoughtful, unasked", { affection: 2, comfort: 1 }, 1],
+  ["warmth", "inside_joke", "brought up an inside joke", { affection: 1, comfort: 1 }, 2],
+  ["warmth", "pet_name", "used an affectionate pet name", { affection: 1, comfort: 1, attraction: 1 }, 2],
+  ["warmth", "shared_routine", "ordinary life together: cooking, chores, a quiet evening", { comfort: 1, affection: 1 }, 3],
+  ["warmth", "promised_future", "promised a future together (an engagement, a vow)", { trust: 2, affection: 2, attraction: 1, excitement: 10 }, 3],
+  ["power", "gave_order", "commanded them", { respect: 1, comfort: -1 }, 0],
+  ["power", "asked_her_advice", "asked and listened", { respect: 1, trust: 1 }, 1],
+  ["power", "deferred_to_her", "let them decide", { respect: 1, comfort: 1 }, 1],
+  ["power", "overruled_her", "overrode their choice", { comfort: -1, respect: -1 }, 0],
+  ["power", "protected_her_standing", "took their side or defended them before others", { respect: 1, affection: 1, trust: 1 }, 1],
+  ["power", "humiliated_her", "shamed them in front of others", { respect: -2, comfort: -3, hostility: 3 }, 0],
+  ["power", "impressed_her", "showed real skill or courage before them", { respect: 2, attraction: 1, excitement: 4 }, 0],
+  ["power", "taught_her", "taught or showed them how to do something", { respect: 1, trust: 1 }, 1],
+  ["power", "acted_cowardly", "froze or fled when they needed help", { respect: -3, trust: -1 }, 0],
+  ["power", "stood_ground", "held their ground or set a calm boundary", { respect: 2 }, 0],
+  ["power", "trusted_task", "trusted them with something important", { respect: 1, trust: 2 }, 1],
+  ["power", "took_blame", "took the blame for them", { trust: 2, respect: 1, affection: 1 }, 2],
+  ["power", "boasted", "boasted or talked down to them", { respect: -1, affection: -1 }, 0],
+  ["body", "gentle_touch", "wanted, gentle touch", { comfort: 1, attraction: 1, arousal: 3 }, 1],
+  ["body", "unwanted_touch", "touch they did not want", { comfort: -4, trust: -2, hostility: 3 }, 0],
+  ["body", "flirt", "flirted with them", { attraction: 1, excitement: 6, arousal: 4 }, 1],
+  ["body", "kiss", "kissed on the lips or romantically (welcome)", { attraction: 2, affection: 1, arousal: 12 }, 3],
+  ["body", "tender_kiss", "kissed forehead, cheek or hand (tender)", { affection: 2, comfort: 1 }, 2],
+  ["body", "hug", "hugged or held them (not romantic)", { comfort: 2, affection: 1 }, 2],
+  ["body", "intimacy", "intimate moment (welcome)", { attraction: 2, comfort: 1, arousal: 20 }, 3],
+  ["body", "rejected_advance", "turned down their romantic or sexual advance", { comfort: -2, affection: -1 }, 0],
+  ["body", "held_hands", "held hands or walked arm in arm", { comfort: 1, affection: 1, attraction: 1, arousal: 2 }, 2],
+  ["body", "lingering_look", "a long, warm look or eye contact", { attraction: 1, arousal: 2 }, 1],
+  ["body", "danced_together", "danced together", { affection: 1, attraction: 1, excitement: 5, arousal: 3 }, 2],
+  ["body", "cuddled", "cuddled or leaned on each other, not sexual", { comfort: 2, affection: 2, arousal: 2 }, 3],
+  ["body", "gave_massage", "a massage given or taken", { comfort: 2, attraction: 1, arousal: 4 }, 3],
+  ["body", "slept_beside", "slept side by side, without sex", { comfort: 2, trust: 1, affection: 1 }, 3],
+  ["conflict", "raised_voice", "shouted, at them or near them", { comfort: -3 }, 0],
+  ["conflict", "insult", "insulted, mocked or belittled them", { respect: -2, affection: -2, hostility: 3 }, 0],
+  ["conflict", "threat", "threatened them", { comfort: -4, trust: -3, hostility: 4 }, 0],
+  ["conflict", "fair_argument", "argued honestly", { respect: 1 }, 0],
+  ["conflict", "apology", "sincere apology", { trust: 1, comfort: 1, hostility: -2 }, 0],
+  ["conflict", "attacked_her", "hit or physically attacked them", { comfort: -5, trust: -3, hostility: 5 }, 0],
+  ["conflict", "jealous_scene", "showed jealousy over them", { attraction: 1, comfort: -1, excitement: 4 }, 0],
+  ["conflict", "forgave_her", "forgave them a wrong they did", { trust: 1, affection: 2, hostility: -3 }, 1],
+  ["conflict", "ultimatum", "gave them a deadline or a take-it-or-leave-it demand", { comfort: -2, respect: -1, hostility: 1, excitement: 4 }, 0],
+  ["conflict", "hinted_leverage", "hinted at a secret or weakness to use", { trust: -2, comfort: -3, hostility: 2 }, 0],
+  ["conflict", "silent_treatment", "went cold and silent after a quarrel", { affection: -1, comfort: -2, trust: -1 }, 0],
+  ["conflict", "made_up", "made up after a quarrel, talking it through", { trust: 2, affection: 2, comfort: 1, hostility: -2 }, 1],
+  ["conflict", "unfaithful", "cheated, or flirted with someone else openly", { trust: -4, affection: -3, comfort: -2, hostility: 3 }, 0],
+  ["conflict", "broke_up", "ended the relationship", { affection: -3, trust: -2, comfort: -2, attraction: -2, hostility: 2 }, 0],
+  ["care", "protected_her", "shielded or rescued them from harm", { trust: 2, affection: 1, comfort: 1 }, 1],
+  ["care", "cared_for_kin", "helped their people or family", { affection: 2, trust: 1 }, 2],
+  ["care", "tended_her", "looked after their wound or need", { comfort: 2, affection: 1 }, 1],
+  ["care", "ignored_her_need", "saw their need and did nothing", { affection: -2, trust: -1 }, 0],
+  ["care", "comforted_her", "consoled them when they were upset", { comfort: 2, affection: 1, trust: 1 }, 1],
+  ["care", "kept_company", "stayed with them so they were not alone", { comfort: 2, affection: 1 }, 1],
+  ["care", "nursed_her", "stayed with them through illness or grief", { comfort: 2, affection: 2, trust: 2 }, 1],
+  ["care", "shared_grief", "mourned or cried together", { comfort: 1, affection: 2, trust: 1 }, 1],
+  ["care", "sacrificed_for_her", "gave up something real for them", { affection: 2, trust: 2, respect: 1 }, 1],
+  ["care", "met_family", "introduced them to family or close friends", { trust: 2, affection: 1 }, 2],
+  ["care", "moved_in", "started to live together or share a home", { comfort: 2, affection: 1, trust: 1 }, 3],
+  ["knowledge", "novelty", "something new or surprising", { excitement: 12 }, 0],
+  ["knowledge", "danger", "danger in the scene", { excitement: 10, comfort: -1 }, 0],
+  ["other", "other", "anything else", {}, 0],
 ];
 const FAMILIES = ["trust", "warmth", "power", "body", "conflict", "care", "knowledge"];
 
@@ -1829,11 +1858,16 @@ function readDeltas(raw) {
   return out;
 }
 
-/** A valid user row as { id, family, meaning, deltas }, else null. */
+/** The closeness level of a row (#394): 0 to 3, or null for "none"; anything else is undefined (not said, so a default row keeps its own). */
+const readLevel = (v) => (v === null ? null : Number.isInteger(v) && v >= 0 && v <= 3 ? v : undefined);
+
+/** A valid user row as { id, family, meaning, deltas, level? }, else null. */
 function readRow(e) {
   if (!isObj(e) || !VOCAB_ID.test(String(e.id)) || typeof e.family !== "string" || !VOCAB_FAMILY.test(e.family)) return null;
   const deltas = readDeltas(e.deltas === undefined ? {} : e.deltas);
-  return deltas ? { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas } : null;
+  if (!deltas) return null;
+  const level = readLevel(e.level);
+  return { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas, ...(level !== undefined ? { level } : {}) };
 }
 
 // `other` is where unknown events land, so it cannot be switched off
@@ -1842,14 +1876,15 @@ const isOff = (e) => isObj(e) && VOCAB_ID.test(String(e.id)) && e.off === true &
 /** Event table by id: the defaults, then the user file in order (same id replaces; an `off` row removes). */
 export function buildVocab(userEvents) {
   const vocab = {};
-  for (const [family, id, meaning, deltas] of EVENT_ROWS) vocab[id] = { id, family, meaning, deltas };
+  for (const [family, id, meaning, deltas, level] of EVENT_ROWS) vocab[id] = { id, family, meaning, deltas, level };
   for (const e of arr(userEvents)) {
     if (isOff(e)) {
       delete vocab[e.id];
       continue;
     }
     const row = readRow(e);
-    if (row) vocab[row.id] = row;
+    // a changed default keeps its closeness level unless the row says otherwise, so tuning the numbers does not switch the stage off
+    if (row) vocab[row.id] = row.level === undefined && vocab[row.id] ? { ...row, level: vocab[row.id].level } : row;
   }
   return vocab;
 }
@@ -1929,12 +1964,13 @@ function otherSeenRows(fsx, vocab) {
     .sort((a, b) => b.n - a.n || b.at - a.at);
 }
 
-const sameRow = (a, b) => a.family === b.family && a.meaning === b.meaning && canonJson(a.deltas) === canonJson(b.deltas);
+// a row without `level` keeps the default's, so only an explicit different level makes it "changed"
+const sameRow = (a, b) => a.family === b.family && a.meaning === b.meaning && canonJson(a.deltas) === canonJson(b.deltas) && ((a.level === undefined ? b.level : a.level) ?? null) === (b.level ?? null);
 
-/** For the UI: every default and custom event as { id, family, meaning, deltas, source, off }. */
+/** For the UI: every default and custom event as { id, family, meaning, deltas, level, source, off }; `level` is 0 to 3, or null for none. */
 export function vocabRows(userEvents) {
   const rows = new Map();
-  for (const [family, id, meaning, deltas] of EVENT_ROWS) rows.set(id, { id, family, meaning, deltas, source: "default", off: false });
+  for (const [family, id, meaning, deltas, level] of EVENT_ROWS) rows.set(id, { id, family, meaning, deltas, level: level ?? null, source: "default", off: false });
   for (const e of arr(userEvents)) {
     if (isOff(e)) {
       const had = rows.get(e.id);
@@ -1944,9 +1980,43 @@ export function vocabRows(userEvents) {
     const row = readRow(e);
     if (!row) continue;
     const dflt = DEFAULT_VOCAB[row.id];
-    rows.set(row.id, { ...row, source: !dflt ? "custom" : sameRow(row, dflt) ? "default" : "changed", off: false });
+    const full = { ...row, level: row.level === undefined ? (dflt ? dflt.level ?? null : null) : row.level };
+    rows.set(row.id, { ...full, source: !dflt ? "custom" : sameRow(full, dflt) ? "default" : "changed", off: false });
   }
   return [...rows.values()];
+}
+
+// ---------- relationship stage (#394): how close the two are now, worked out from the numbers ----------
+// The same act weighs differently by how far the relationship has come: the first hug of two acquaintances is a step, the
+// hundredth between a couple is routine. The stage is worked out by code from the five numbers (no extra words for the sensor
+// to write): it follows the rank of the bond constellations (friendly is above 15, friendship above 30, devoted above 60).
+export const STAGES = ["stranger", "acquaintance", "friend", "close"];
+export const EVENT_LEVELS = ["anyone", "warm", "close", "intimate"];
+
+/** 0 stranger, 1 acquaintance, 2 friend, 3 close (a couple, family, a bond that has lasted); -1 when the bond is cold (affection or trust below -15). */
+export function stageOf(stats) {
+  const s = isObj(stats) ? stats : {};
+  const affection = num(s.affection) || 0;
+  const trust = num(s.trust) || 0;
+  const comfort = num(s.comfort) || 0;
+  const attraction = num(s.attraction) || 0;
+  if (affection < -15 || trust < -15) return -1;
+  if (attraction >= 40 && affection >= 40 && trust >= 20) return 3;
+  const closeness = (Math.max(0, affection) + Math.max(0, trust) + Math.max(0, comfort)) / 3;
+  return closeness < 15 ? 0 : closeness < 30 ? 1 : closeness < 55 ? 2 : 3;
+}
+
+/**
+ * The factor on the good effects (on the five numbers) of an event of closeness `level` between two at `stage`: ahead of the
+ * relationship the first time counts more (x1.5), at its stage as it is, below it less (x0.5: what is everyday at this stage).
+ * Level 0 (anyone), no level and a cold bond (-1) are never scaled. Harm is never scaled either; the caller decides that.
+ * A number moves in whole points: the turn's sum is rounded as always (toward zero, never below 1), so a x1.5 shows on an effect
+ * of 2 or more (a hug's comfort 2 becomes 3) and not on a single point.
+ */
+export function stageFactor(level, stage) {
+  if (!Number.isInteger(level) || level < 1 || !Number.isInteger(stage) || stage < 0) return 1;
+  const gap = level - stage;
+  return gap >= 1 ? 1.5 : gap === 0 ? 1 : 0.5;
 }
 
 // ---------- physics ----------
@@ -2012,9 +2082,16 @@ function cardMultiplier(soul, eventId, stat) {
 }
 
 /** One event on one stat, as floats, with a math line per step. */
-function eventDelta(soul, e, stat, base, weightName, prevValue, lines) {
+function eventDelta(soul, e, stat, base, weightName, prevValue, lines, stage) {
   let x = base;
   lines.push(stat + " " + signed(base) + " base");
+  // how far the relationship has come (#394): only the good effects on the five numbers, and only for a row that has a level
+  const level = stage && base > 0 && DISPOSITION.includes(stat) ? stage.level : null;
+  const sf = level === null ? 1 : stageFactor(level, stage.at);
+  if (sf !== 1) {
+    x *= sf;
+    lines.push("x" + sf + " " + EVENT_LEVELS[level] + " act at the " + STAGES[stage.at] + " stage");
+  }
   const w = WEIGHTS[weightName];
   if (w !== 1) {
     x *= w;
@@ -2071,17 +2148,20 @@ export function applyTurn({ name, prev, soul, cls, events, vocab }) {
   const sums = {};
   const stimulated = {};
   const math = { events: events.map(() => []), turn: [] };
+  // the stage the two were at when the turn began: every event of the turn is weighed against the same one
+  const stageAt = stageOf(before.stats);
 
   events.forEach((e, i) => {
     const mine = e.to === name && (e.from === undefined || e.from === null || e.from === "" || e.from === "user");
     const def = table[e.id];
     if (!mine || !def) return;
     const weightName = WEIGHTS[e.weight] ? e.weight : "routine";
+    const stage = { at: stageAt, level: Number.isInteger(def.level) ? def.level : null };
     for (const stat of DELTA_KEYS) {
       const d = def.deltas[stat];
       if (!d || (stat === "hostility" && !hostile)) continue;
       const prevValue = DISPOSITION.includes(stat) ? (before.stats[stat] ?? 0) : 0;
-      sums[stat] = (sums[stat] || 0) + eventDelta(soul, e, stat, d, weightName, prevValue, math.events[i]);
+      sums[stat] = (sums[stat] || 0) + eventDelta(soul, e, stat, d, weightName, prevValue, math.events[i], stage);
       stimulated[stat] = true;
     }
   });
@@ -8969,7 +9049,8 @@ function cleanEventRow(e) {
       if (d !== 0) deltas[k] = d;
     }
   }
-  return { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas };
+  const level = readLevel(e.level);
+  return { id: e.id, family: e.family, meaning: cut(str(e.meaning), 200), deltas, ...(level !== undefined ? { level } : {}) };
 }
 
 /** Write the user's rows; the file's other top-level keys stay. Nothing is written for no rows and no file. */

@@ -39,7 +39,7 @@
 | `profile-drafts/group-<groupId>.json` | JSON | A proposed group scenario or opening waiting for review (`kind`: `scenario` or `opening`, `text`, `mode`, `model`, `at`; written by the `profile` plugin) |
 | `dashboard/soul-drafts/<characterId>.json` | JSON | Proposed souls of one card waiting for the user's review (`by` auto or molfar, `note`, `error`, `dismissedAt`, `characters`); see `docs/SOUL.md` (written by the `relations` plugin) |
 | `dashboard/config.json` | JSON | Dashboard settings: only what differs from the defaults (sensor model, insert limits, `said`, `journal`, quest limits...). See DATA-FORMATS.md, "Dashboard state" |
-| `dashboard/events.json` | JSON | Optional own event vocabulary of the user (changed, new, off rows); removed to go back to the default vocabulary |
+| `dashboard/events.json` | JSON | Optional own event vocabulary of the user (changed, new, off rows: `{ id, family, meaning, deltas, level? }`, `level` 0 anyone, 1 warm, 2 close, 3 intimate or null, #394; a changed default row without `level` keeps the default's); removed to go back to the default vocabulary |
 | `dashboard/agent/<chatId>.json` | JSON | Ledger of the Dashboard fields custom agents wrote (`before`, `after`, `undone`), so an undo and a re-read keep them (written by the `agents` plugin; DATA-FORMATS.md, "Agents") |
 | `dashboard/voices/<chatId>.json` | JSON | Voice colours per chat: `{v, mode, colors, hand}`, one colour per person of the entity registry |
 | `dashboard/notice/<chatId>.json` | JSON | The last time the Dashboard insert did not fit the user's limit, so the app shows the notice once |

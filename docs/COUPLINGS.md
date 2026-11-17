@@ -231,7 +231,7 @@ Date: 2026-11-05.
 
 ### Lorebook budget and the regex cap (handbook findings 2)
 - **Touches:** `plugins/engine/plugin.js` the lorebook scan (the loop after `byPriority`, outputs `used`, `skipped` with reason `budget`) and `applyRegexScript` (`REGEX_SEE_CHARS`).
-- **Must stay true:** entries claim the lorebook budget in order-descending priority, and an entry's length is added to `used` whether or not it fits, so after the first normal entry that does not fit every later normal entry is skipped too, even a short one ("stop at the first overflow"). `ignoreBudget` entries are always in and still spend. A regex script looks at the first 20,000 characters of a text and returns the rest unchanged (a match that straddles the cut is not made).
+- **Must stay true:** entries claim the lorebook budget in order-descending priority; an entry that does not fit in the room left is skipped (reason `budget`) and costs nothing, so a shorter one after it can still fire (#397; before, the first overflow silenced every later normal entry). `ignoreBudget` entries are always in and still spend. `test/rp-lore-scan.test.ts` pins both. A regex script looks at the first 20,000 characters of a text and returns the rest unchanged (a match that straddles the cut is not made).
 - **Enforced in:** the loop and `REGEX_SEE_CHARS`; nothing pins "short entries after an overflow are skipped" (it is the current behaviour, not a decided one).
 - **Fails in:** `test/rp-lore-scan.test.ts` ("delay and budget" pins only that an oversized entry is skipped); `test/rp-regex-long-text.test.ts` (the cap).
 - **Why / history:** handbook findings 2, items 3 and 4. Whether a short later entry may fill the room an oversized one left is an open question for the owner.

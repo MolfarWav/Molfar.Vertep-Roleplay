@@ -1,4 +1,4 @@
-<!-- source: c7ff99fc9c56 -->
+<!-- source: b8aaee1c7866 -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -7,7 +7,7 @@ Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een
 
 Een agent is data, geen code. In de editor is het een bord met **kaarten** verbonden door **draden**:
 
-- een **Input**-kaart zegt wat de agent mag lezen (het laatste antwoord, de chatgeschiedenis, de personagekaart, de persona, de auteursnotitie, Litopys-feiten, lorebook-vermeldingen);
+- een **Input**-kaart zegt wat de agent mag lezen (het laatste antwoord, de chatgeschiedenis, de personagekaart, de persona, de auteursnotitie, Litopys-feiten, lorebook-vermeldingen, de datum en het aantal dagen van het verhaal). Een bron waar niets in deze chat staat (geen kaart in een groepschat, nog geen vastgelegde feiten) stopt normaal elke kaart die hem nodig heeft; vink **Chats with nothing here still run** aan op die bron en hij komt aan als een lege tekst;
 - **Ask the model**-kaarten stellen één vraag aan een model en nemen het antwoord als vrije tekst, ja of nee, of een paar benoemde velden;
 - logische kaarten (een If-kaart kan alleen afgaan wanneer zijn antwoord Yes wordt, alleen één keer, of met een pauze nadat hij afgaat, en zijn regels kunnen vragen of een waarde is veranderd sinds de vorige run; het runlog zegt waarom hij antwoordde), en kaarten die in code werken zonder model: dobbelstenen, een regel kiezen, tekst knippen of uitpakken;
 - een **Script**-kaart: een paar regels JavaScript die je zelf schrijft, `(input, seed)` erin en een gewoon object eruit, met getypte invoer en uitvoer. Hij draait in een zandbak van de engine (geen klok, geen internet, geen bestanden, ongeveer een halve seconde en 16 MB) en heeft een engine vanaf 1.10.1 nodig; een oudere engine laat de agent mislukken met een gewone melding;

@@ -57,17 +57,20 @@ const SOURCE_TYPE = {
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
  * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
  * `of` name on the Input entry (or the If operand), else the character who spoke last. Writing (#132) is the same list
- * without `present` (DASH_WRITE_FIELDS).
+ * without the read-only fields (DASH_WRITE_FIELDS). `date` is the in-story date as the Dashboard shows it (a world's own
+ * calendar too) and `day` the day count of the story, 1 on the first day (#402): the sensor and the date popover stay the writers.
  */
 const DASH_FIELDS = {
-  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
+  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' }, date: { as: 'text' }, day: { as: 'number' },
   mood: { as: 'text', char: true }, condition: { as: 'text', char: true }, outfit: { as: 'text', char: true },
   holding: { as: 'text', char: true }, goal: { as: 'text', char: true },
   trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
   respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
 };
-/** The fields an agent may change: the readable ones except `present`, which decides who has an entry on the Dashboard at all. */
-const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => k !== 'present'));
+/** Read only: `present` decides who has an entry on the Dashboard at all; `date` and `day` belong to the sensor and the date popover. */
+const DASH_READ_ONLY = ['present', 'date', 'day'];
+/** The fields an agent may change: the readable ones except the read-only ones. */
+const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => !DASH_READ_ONLY.includes(k)));
 /** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
 const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
 /** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
@@ -636,9 +639,9 @@ function checkDashWrite(n, err) {
   const where = `"${n.title}"`;
   const spec = DASH_WRITE_FIELDS[p.field];
   if (!spec) {
-    err('E_DASH_FIELD', p.field === 'present'
-      ? `${where}: the Dashboard field "present" can be read but not changed (it decides who is on the Dashboard)`
-      : `${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
+    err('E_DASH_FIELD', DASH_READ_ONLY.includes(p.field)
+      ? `${where}: the Dashboard field "${p.field}" can be read but not changed (${p.field === 'present' ? 'it decides who is on the Dashboard' : 'the sensor and the date popover write it'})`
+      :`${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
     return;
   }
   if ((p.as ?? 'text') !== spec.as)
@@ -738,8 +741,14 @@ function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
-      for (const g of p.give ?? [])
+      for (const g of p.give ?? []) {
         if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+        // `optional`: a source with nothing for this chat arrives as an empty text instead of skipping every card that needs it (#403)
+        if (g?.optional !== undefined && typeof g.optional !== 'boolean')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): optional must be true or false`, n.id);
+        else if (g?.optional === true && g.source === 'state' && DASH_FIELDS[g.field]?.as === 'number')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): "${g.field}" is a number, which cannot arrive as an empty text, so it cannot be optional`, n.id);
+      }
     }
     if (n.type === 'logic.if')
       for (const r of p.rows ?? [])
@@ -1239,21 +1248,36 @@ function runCards(file, ctx, answers, seen) {
     const ins = {};
     for (const pt of ports) if (pt.side === 'in') ins[pt.id] = into.has(id + ':' + pt.id) ? wire.get(into.get(id + ':' + pt.id)) : ABSENT;
     const out = (port, v) => wire.set(id + ':' + port, v);
-    const skip = () => { setAll(node, SKIP); trace.push({ node: id, status: 'skipped' }); };
+    // what a skip was for, when it was missing data and not an earlier skip: the Input values this card could not get (#403)
+    let noValue = [];
+    const skip = () => { setAll(node, SKIP); trace.push({ node: id, status: 'skipped', ...(noValue.length ? { out: { missing: noValue.join(', ') } } : {}) }); };
     const wait = () => { setAll(node, PENDING); trace.push({ node: id, status: 'waiting' }); };
     // the state of a card's required inputs: SKIP beats PENDING beats missing data
     const gate = (required, optionalGate) => {
       const all = [...required.map((r) => ins[r]), ...(optionalGate ? [ins[optionalGate]] : [])];
       if (all.some((v) => v === SKIP)) return 'skip';
       if (all.some((v) => v === PENDING)) return 'wait';
-      if (required.some((r) => ins[r] === undefined || ins[r] === ABSENT)) return 'skip';
+      const lacking = required.filter((r) => ins[r] === undefined || ins[r] === ABSENT);
+      if (lacking.length) {
+        noValue = lacking.map((r) => (into.has(id + ':' + r) ? splitEnd(into.get(id + ':' + r))[1] : r));
+        return 'skip';
+      }
       return 'run';
     };
     const ran = (o) => trace.push({ node: id, status: 'ran', ...(o ? { out: o } : {}) });
 
     if (node.type === 'agent.input') {
-      for (const g of p.give || []) out(g.id, g.source === 'state' ? dash[dashKey(g)] : inputs[g.id]);
-      ran();
+      // a source with nothing for this chat is missing data, unless the entry says it may be empty: then it is an empty text (#403)
+      const gone = [];
+      for (const g of p.give || []) {
+        const v = g.source === 'state' ? dash[dashKey(g)] : inputs[g.id];
+        if (v === undefined || v === null) {
+          if (g.optional === true && g.as !== 'number') { out(g.id, ''); continue; }
+          gone.push(g.id);
+        }
+        out(g.id, v);
+      }
+      ran(gone.length ? { missing: gone.join(', ') } : undefined);
     } else if (node.type === 'note') {
       // no ports
     } else if (node.type === 'state.read') {
@@ -2003,11 +2027,61 @@ function dashSpeaker(d, view) {
   return present.map((n) => dashCharKey(d, n)).find((k) => k) || "";
 }
 
+// The in-story date for an agent (#402): the Dashboard's own words for story day N, "Saturday 26 October 2026" or "3 Frostmoon 1204 AR".
+// A copy of dateTextOf in plugins/relations/plugin.js (a sandboxed plugin imports nothing); test/rp-agents-plugin.test.ts keeps the two equal.
+const DATE_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DATE_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const oneLineText = (v, max) => str(v).replace(/\s+/g, " ").slice(0, max).trim();
+function dateTextOf(cal, day) {
+  if (!isObj(cal) || cal.off === true) return null;
+  const steps = Math.max(1, Math.floor(Number(day) || 1)) - 1;
+  if (isObj(cal.custom) && isObj(cal.cstart)) {
+    const months = [];
+    for (const m of Array.isArray(cal.custom.months) ? cal.custom.months : []) {
+      const name = isObj(m) ? oneLineText(m.name, 24) : "";
+      const days = isObj(m) ? Number(m.days) : NaN;
+      if (!name || !Number.isInteger(days) || days < 1 || days > 100) return null;
+      months.push({ name, days });
+    }
+    if (!months.length || months.length > 24) return null;
+    const weekdays = (Array.isArray(cal.custom.weekdays) ? cal.custom.weekdays : []).map((w) => oneLineText(w, 24)).filter(Boolean);
+    if (weekdays.length > 14) return null;
+    const era = oneLineText(cal.custom.era, 24);
+    const y0 = Number(cal.cstart.y), m0 = Number(cal.cstart.m), d0 = Number(cal.cstart.d);
+    if (!Number.isInteger(y0) || Math.abs(y0) > 1000000 || !Number.isInteger(m0) || m0 < 1 || m0 > months.length) return null;
+    if (!Number.isInteger(d0) || d0 < 1 || d0 > months[m0 - 1].days) return null;
+    const wd0 = Number(cal.cstart.wd);
+    const startWd = weekdays.length && Number.isInteger(wd0) && wd0 > 0 && wd0 < weekdays.length ? wd0 : 0;
+    const length = months.reduce((n, m) => n + m.days, 0);
+    const total = months.slice(0, m0 - 1).reduce((n, m) => n + m.days, 0) + (d0 - 1) + steps;
+    const y = y0 + Math.floor(total / length);
+    let rest = total % length;
+    let mi = 0;
+    while (rest >= months[mi].days) rest -= months[mi++].days;
+    const weekday = weekdays.length ? weekdays[(startWd + steps) % weekdays.length] : "";
+    return (weekday ? weekday + " " : "") + (rest + 1) + " " + months[mi].name + " " + y + (era ? " " + era : "");
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str(cal.start));
+  if (!m || Number(m[1]) < 1) return null;
+  const t = new Date(0);
+  t.setUTCFullYear(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (t.getUTCFullYear() !== Number(m[1]) || t.getUTCMonth() !== Number(m[2]) - 1 || t.getUTCDate() !== Number(m[3])) return null;
+  t.setUTCDate(t.getUTCDate() + steps);
+  return DATE_WEEKDAYS[t.getUTCDay()] + " " + t.getUTCDate() + " " + DATE_MONTHS[t.getUTCMonth()] + " " + t.getUTCFullYear();
+}
+
 /** One Dashboard value as the executor takes it (text or a finite number), undefined when the Dashboard has none. */
 function dashValue(d, view, field, of) {
   const spec = DASH_FIELDS[field];
   if (!d || !spec) return undefined;
   if (!spec.char) {
+    if (field === "day" || field === "date") {
+      const day = isObj(d.snap.clock) ? Number(d.snap.clock.day) : NaN;
+      if (!Number.isFinite(day) || day < 1) return undefined;
+      if (field === "day") return Math.floor(day);
+      const text = dateTextOf(isObj(d.state) ? d.state.calendar : null, day);
+      return text ? clip(text, 200) : undefined;
+    }
     if (field === "present") {
       const names = (Array.isArray(d.snap.present) ? d.snap.present : []).filter((n) => str(n) && !d.removed.has(str(n).toLowerCase())).map(str);
       return names.length ? clip(names.join(", "), 400) : undefined;

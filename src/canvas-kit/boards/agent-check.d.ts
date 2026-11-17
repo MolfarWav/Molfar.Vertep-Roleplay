@@ -23,7 +23,7 @@ export const AGENT_MAX_ROUNDS: number
 
 /** The Dashboard fields an agent may read: `as` is the wire type, `char` = per character (named by `of`, else the one who spoke last). */
 export const DASH_FIELDS: Record<string, { as: 'text' | 'number'; char?: true }>
-/** The Dashboard fields an agent may change (#132): the readable ones except `present`. */
+/** The Dashboard fields an agent may change (#132): the readable ones except `present`, `date` and `day` (#402). */
 export const DASH_WRITE_FIELDS: Record<string, { as: 'text' | 'number'; char?: true }>
 /** The key under which the host hands a Dashboard value to the executor (`ctx.dash`): `field`, or `field@name` with `of`. */
 /** The World DM dice an If rule may read (#155), and what of a die: `rolled` is a flag, `outcome` text. */

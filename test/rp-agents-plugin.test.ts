@@ -856,6 +856,39 @@ describe("Dashboard fields for agents", () => {
     expect(d).toEqual({ present: "Aria, Ghost" });
   });
 
+  it("the date and the day count are readable (#402)", () => {
+    const snaps = { "m2#0": { turn: 3, clock: { day: 4, place: "x" }, present: [], chars: {} } };
+    const give = [{ id: "when", source: "state", field: "date" }, { id: "n", source: "state", field: "day", as: "number" }];
+    writeDash("c1", { snapshots: snaps, calendar: { start: "2026-10-26", src: "text" } });
+    expect(dashRead(give)).toEqual({ date: "Thursday 29 October 2026", day: 4 });
+    // a world's own calendar: words, no ISO date
+    writeDash("c1", { snapshots: snaps, calendar: { custom: { months: [{ name: "Frostmoon", days: 30 }], weekdays: ["Sunday", "Moonday"], era: "AR" }, cstart: { y: 1204, m: 1, d: 29 }, src: "user" } });
+    expect(dashRead(give)).toEqual({ date: "Moonday 2 Frostmoon 1205 AR", day: 4 });
+    // no calendar, or a hidden one: the day count is still there, the date is missing
+    writeDash("c1", { snapshots: snaps });
+    expect(dashRead(give)).toEqual({ day: 4 });
+    writeDash("c1", { snapshots: snaps, calendar: { start: "2026-10-26", src: "text", off: true } });
+    expect(dashRead(give)).toEqual({ day: 4 });
+    // no day in the snapshot: neither
+    writeDash("c1", { snapshots: { "m2#0": { turn: 3, clock: { place: "x" }, present: [], chars: {} } }, calendar: { start: "2026-10-26", src: "text" } });
+    expect(dashRead(give)).toEqual({});
+  });
+
+  it("the agent's date reads the same as the Dashboard's, for every kind of calendar (#402)", async () => {
+    const dash = (await import("../plugins/relations/plugin.js")) as { dateTextOf: (c: unknown, d: number) => string | null };
+    const custom = { months: [{ name: "Frostmoon", days: 30 }, { name: "Ashmoon", days: 28 }, { name: "Longnight", days: 7 }], weekdays: ["Sunday", "Moonday", "Tuesday"], era: "AR" };
+    const cals: unknown[] = [
+      null, {}, { start: "2026-10-26", src: "text" }, { start: "2024-02-27", src: "user" }, { start: "0001-01-01", src: "user" }, { start: "2026-13-40", src: "user" },
+      { start: "2026-10-26", off: true }, { custom, cstart: { y: 1204, m: 1, d: 29, wd: 2 } }, { custom, cstart: { y: -5, m: 3, d: 7 } },
+      { custom: { ...custom, weekdays: [], era: "" }, cstart: { y: 10, m: 2, d: 1 } }, { custom, cstart: { y: 1, m: 9, d: 1 } }, { custom: { months: [] }, cstart: { y: 1, m: 1, d: 1 } },
+    ];
+    const agentDate = (cal: unknown, day: number) => {
+      writeDash("c1", { snapshots: { "m2#0": { turn: 3, clock: { day }, present: [], chars: {} } }, calendar: cal });
+      return dashRead([{ id: "when", source: "state", field: "date" }]).date ?? null;
+    };
+    for (const cal of cals) for (const day of [1, 2, 3, 29, 30, 31, 65, 66, 100, 366, 1000, 12345]) expect(agentDate(cal, day)).toEqual(dash.dateTextOf(cal, day));
+  });
+
   it("`of` finds a character by another of its names, from the chat's entity registry", () => {
     writeDash("c1", { snapshots: SNAPS, personIds: { Aria: "p1", Maren: "p2" } });
     fs.mkdirSync(path.join(root, "registry"), { recursive: true });

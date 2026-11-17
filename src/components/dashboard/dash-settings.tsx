@@ -34,6 +34,8 @@ interface VocabRow {
   meaning: string
   /** only the delta keys, -20..20, zeros omitted */
   deltas: Record<string, number>
+  /** how close two people usually are when this act is ordinary (#394): 0 anyone, 1 warm, 2 close, 3 intimate; null = not set */
+  level?: number | null
   source: 'default' | 'changed' | 'custom'
   off: boolean
 }
@@ -224,9 +226,9 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 function eventsPayload(rows: VocabRow[]) {
   return rows
     .filter((r) => r.source !== 'default' || r.off)
-    .map(({ id, family, meaning, deltas, off }) => (off
+    .map(({ id, family, meaning, deltas, level, off }) => (off
       ? { id, off: true }
-      : { id, family, meaning, deltas: Object.fromEntries(Object.entries(deltas).sort(([a], [b]) => a.localeCompare(b))) }))
+      : { id, family, meaning, deltas: Object.fromEntries(Object.entries(deltas).sort(([a], [b]) => a.localeCompare(b))), ...(level !== undefined ? { level } : {}) }))
 }
 
 export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
@@ -794,6 +796,16 @@ function EventFields({ row, meta, onChange, idError, onId }: {
         </div>
       </div>
       {idError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{idError}</p>}
+      <div className="flex flex-col gap-1 text-caption text-muted-foreground">
+        {t('dash.set.level')}
+        <Select value={row.level === null || row.level === undefined ? 'none' : String(row.level)} onValueChange={(v) => onChange({ level: v === 'none' || v === null ? null : Number(v) })}>
+          <SelectTrigger className={cn(FIELD, 'w-full sm:w-48')} aria-label={t('dash.set.level')}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {['none', '0', '1', '2', '3'].map((v) => <SelectItem key={v} value={v}>{tx('dash.set.level', v)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <span className="leading-snug">{t('dash.set.levelHint')}</span>
+      </div>
       <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
         {t('dash.set.meaning')}
         <Input value={row.meaning} onChange={(e) => onChange({ meaning: e.target.value })} maxLength={200} className={FIELD} />

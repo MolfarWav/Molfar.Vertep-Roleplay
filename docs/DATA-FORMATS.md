@@ -119,7 +119,8 @@ before the first heading or a cast stops it, and the card is left as it came). C
 the card has no choice of its own). It is read and written by the profile plugin (`GET/PUT /profile/card-tasks`)
 and saved by the editor's Save changes. Structure it, Fill empty and the Soul rating run on: the model in the
 request (an unsaved pick) -> the card's `model` -> the app-wide `ui.cardTasks.model` in `settings.json` (Settings,
-Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model`. The editor sends the model's real limits
+Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model` (the automatic Soul rating of a chat's characters,
+`soulModel` in the relations plugin, also tries the chat's own model between `sensorModel` and the default; Rate now has no chat). The editor sends the model's real limits
 with a request (`limits: { inputChars, outputTokens }`); a card longer than `inputChars` is read in parts
 (`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
 
@@ -985,6 +986,7 @@ flags that did the same (`prompt` also turns on `wi`) and writes the new form wh
 Written by the Dashboard plugin, one file per chat. Besides `snapshots` (one per message key), `notebook` (what each
 character saw, heard or guessed), `names` and `history`:
 
+- The event table (Molfar.Vertep#394): 88 default rows `[family, id, meaning, deltas, level]` in `EVENT_ROWS` of the relations plugin, seven families (trust, warmth, power, body, conflict, care, knowledge) and `other`. `level` is how close two people usually are when the act is ordinary (0 anyone, 1 warm, 2 close, 3 intimate). The **stage** of the two is worked out by code from the five numbers before each turn (`stageOf`: stranger below 15 of mean closeness, acquaintance below 30, friend below 55, close above; a couple at attraction 40 and affection 40 and trust 20; -1, no stage, when affection or trust is below -15). An act with a level above the stage counts x1.5 on its good effects on the five numbers, one below it x0.5; level 0, a cold bond, harm and the pulses (excitement, arousal) are never scaled. Numbers move in whole points (the turn's sum is rounded toward zero, never below 1), so the x1.5 shows on an effect of 2 or more (a hug's comfort 2 becomes 3) and the x0.5 on the sum of several. The math line of the event says it ("x2 intimate act at the stranger stage"). A user row in `dashboard/events.json` may carry `level` (0 to 3, or null for none); one that does not keeps its default's. Tests: `test/rp-dash-stage.test.ts` (also the table's house rules: a good act moves a number by 1 to 2, harm by up to 5).
 - The snapshot's `clock` (Molfar.Vertep#406): `{ day, time, minutes, band, place, weather, approx? }`. The format did not change; how it is
   worked out did (`advanceClock`, `readTimeWords`, `withTimeHints`, `settleHint` in `plugins/relations/plugin.js`). The sensor's `time` is where
   the clock stands at the END of the new messages: a named `HH:MM` or part of the day is set as it is and the sensor's `minutes` are not added on
@@ -1173,7 +1175,7 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Ports are derived from a card's `params` (one input per `{{slot}}`, one output per JSON `shape` field) and use only
   `A-Z a-z 0-9 _ -`. Wire types are `text`, `number`, `flag`, `signal`; an output feeds an input of the same type, an input
   takes one wire, and the wires make no loop.
-- Cards: `agent.input` (exactly one; `params.give`), `agent.output` (one or more; `params.kind` = `state-patch`,
+- Cards: `agent.input` (exactly one; `params.give`; an entry may carry `optional: true` (#403): a source with nothing for this chat then arrives as an empty text instead of missing data, which would skip every card that needs it; not for a number `state` field, `E_INPUT_OPTIONAL`; the trace of a skipped card and of the Input says `missing: <ids>`), `agent.output` (one or more; `params.kind` = `state-patch`,
   `note`, `prompt-insert` or `choices`, optional `params.show`), `text.template`, `model.ask` (`role`, `prompt`,
   `answer.as` = `text`, `yesno` or `json` with `shape`, `maxTokens`), `data.parse`, `logic.if` (outputs `yes`, `no`,
   `unknown`; missing data is Unknown, never No; optional `edge`, `once`, `cooldown`: below), `logic.merge`, `write.state` (`field`, `as`, optional `of`, optional `clamp`, optional `when` signal; below),
@@ -1181,7 +1183,9 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
 - Dashboard fields an agent may read (#132; reading only): an Input entry `{ id, source: "state", field, as, of? }` or an If
   operand `{ from: "state", field, as, of? }`. `field` must be on the list `DASH_FIELDS` of the checker, which keeps the
   user's own notes, the threads and what the characters said closed (anything else is `E_DASH_FIELD`). Scene fields, text:
-  `present` (the names in the scene, joined with ", "), `place`, `weather`. Character fields: text `mood`, `condition`,
+  `present` (the names in the scene, joined with ", "), `place`, `weather`, `date` (the in-story date as the Dashboard words it, a
+  world's own calendar too; missing without a calendar or with it hidden) and, a number, `day` (the day count of the story, 1 on
+  the first day; `as: "number"`; read-only like `present`, so no Write card may name `present`, `date` or `day`, #402). Character fields: text `mood`, `condition`,
   `outfit`, `holding`, `goal`, and numbers `trust`, `comfort`, `attraction`, `respect`, `affection` (the Dashboard's
   disposition numbers). `as` is `number` for the numbers and `text` for the rest (`E_DASH_TYPE`). `of` names a character
   (case does not matter, and any other name of that person in the chat's entity registry finds it too: "Rhea" for "Rhea Faeth";

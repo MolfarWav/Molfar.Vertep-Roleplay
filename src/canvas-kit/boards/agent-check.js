@@ -55,17 +55,20 @@ const SOURCE_TYPE = {
  * The Dashboard fields an agent may read (#132). The list is short on purpose: the user's own notes, the threads and
  * what the characters said stay closed. A `scene` field belongs to the scene; a `char` field to one character: the
  * `of` name on the Input entry (or the If operand), else the character who spoke last. Writing (#132) is the same list
- * without `present` (DASH_WRITE_FIELDS).
+ * without the read-only fields (DASH_WRITE_FIELDS). `date` is the in-story date as the Dashboard shows it (a world's own
+ * calendar too) and `day` the day count of the story, 1 on the first day (#402): the sensor and the date popover stay the writers.
  */
 export const DASH_FIELDS = {
-  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' },
+  present: { as: 'text' }, place: { as: 'text' }, weather: { as: 'text' }, date: { as: 'text' }, day: { as: 'number' },
   mood: { as: 'text', char: true }, condition: { as: 'text', char: true }, outfit: { as: 'text', char: true },
   holding: { as: 'text', char: true }, goal: { as: 'text', char: true },
   trust: { as: 'number', char: true }, comfort: { as: 'number', char: true }, attraction: { as: 'number', char: true },
   respect: { as: 'number', char: true }, affection: { as: 'number', char: true },
 };
-/** The fields an agent may change: the readable ones except `present`, which decides who has an entry on the Dashboard at all. */
-export const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => k !== 'present'));
+/** Read only: `present` decides who has an entry on the Dashboard at all; `date` and `day` belong to the sensor and the date popover. */
+const DASH_READ_ONLY = ['present', 'date', 'day'];
+/** The fields an agent may change: the readable ones except the read-only ones. */
+export const DASH_WRITE_FIELDS = Object.fromEntries(Object.entries(DASH_FIELDS).filter(([k]) => !DASH_READ_ONLY.includes(k)));
 /** Where the host puts a Dashboard value for the executor: the field, and `field@name` when the entry names a character. */
 export const dashKey = (x) => (x?.of ? `${x.field}@${x.of}` : x?.field);
 /** One `state` source (an Input entry or an If operand): the field must be on the list, with the right type and `of` only where it means something. */
@@ -634,9 +637,9 @@ function checkDashWrite(n, err) {
   const where = `"${n.title}"`;
   const spec = DASH_WRITE_FIELDS[p.field];
   if (!spec) {
-    err('E_DASH_FIELD', p.field === 'present'
-      ? `${where}: the Dashboard field "present" can be read but not changed (it decides who is on the Dashboard)`
-      : `${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
+    err('E_DASH_FIELD', DASH_READ_ONLY.includes(p.field)
+      ? `${where}: the Dashboard field "${p.field}" can be read but not changed (${p.field === 'present' ? 'it decides who is on the Dashboard' : 'the sensor and the date popover write it'})`
+      :`${where}: the Dashboard field "${p.field}" is not available to agents. They can change: ${Object.keys(DASH_WRITE_FIELDS).join(', ')}`, n.id);
     return;
   }
   if ((p.as ?? 'text') !== spec.as)
@@ -736,8 +739,14 @@ export function validateAgent(raw) {
     maxCalls += card.calls ?? 0;
     if (n.type === 'agent.input') {
       checkGiveLimits(n, warn);
-      for (const g of p.give ?? [])
+      for (const g of p.give ?? []) {
         if (g?.source === 'state') checkDashRead(g, `"${n.title}" (${g.id})`, err, n.id);
+        // `optional`: a source with nothing for this chat arrives as an empty text instead of skipping every card that needs it (#403)
+        if (g?.optional !== undefined && typeof g.optional !== 'boolean')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): optional must be true or false`, n.id);
+        else if (g?.optional === true && g.source === 'state' && DASH_FIELDS[g.field]?.as === 'number')
+          err('E_INPUT_OPTIONAL', `"${n.title}" (${g.id}): "${g.field}" is a number, which cannot arrive as an empty text, so it cannot be optional`, n.id);
+      }
     }
     if (n.type === 'logic.if')
       for (const r of p.rows ?? [])
