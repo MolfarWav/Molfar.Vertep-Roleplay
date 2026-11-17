@@ -1023,149 +1023,154 @@ export const useApp = create<AppState>()(
             }) }).catch(() => undefined)
             libraryOnDisk = libraryJson()
           }
-          // live generation deltas over the kernel WS bus
-          stopStreams?.()
-          let deltaBuf = ''
-          let thinkBuf = ''
-          let deltaChatId: ID | null = null
-          let deltaFrame = 0
-          const armFrame = () => {
-            if (!deltaFrame) deltaFrame = requestAnimationFrame(() => { deltaFrame = 0; flushStreamDeltas?.() })
-          }
-          const flushThinking = (chatId: ID, delta: string) => {
-            // reasoning-model thinking arrives live (no typewriter pacing —
-            // watching it grow IS the point); the first delta starts the clock,
-            // so the wait before the model answers never reads as thinking.
-            // Marks keep it IN SEQUENCE: thinking anchors after the last tool
-            // call (or at the top), so round-two thinking renders below the
-            // tool row it followed, never hoisted above everything.
-            const st = get().streaming
-            if (!st || st.chatId !== chatId) return
-            const marks = (st.marks ?? []).slice()
-            const lastToolAt = [...marks].reverse().find((m) => m.kind === 'tool')?.at ?? 0
-            const last = marks[marks.length - 1]
-            if (last && last.kind === 'think' && last.at === lastToolAt) marks[marks.length - 1] = { ...last, text: last.text + delta }
-            else marks.push({ kind: 'think', at: lastToolAt, text: delta, t0: Date.now() })
-            set({ streaming: { ...st, thinking: (st.thinking ?? '') + delta, marks, ...(st.thinking == null ? { thinkingT0: Date.now() } : {}) } })
-          }
-          flushStreamDeltas = () => {
-            if (deltaFrame) { cancelAnimationFrame(deltaFrame); deltaFrame = 0 }
-            const chatId = deltaChatId
-            const think = thinkBuf
-            const delta = deltaBuf
-            deltaBuf = ''
-            thinkBuf = ''
-            deltaChatId = null
-            if (!chatId) return
-            // thinking lands first: within one frame it always preceded the
-            // text that closed it
-            if (think) flushThinking(chatId, think)
-            if (!delta) return
-            const st = get().streaming
-            if (!st || st.chatId !== chatId) return
-            // the chat's preset can turn live rendering OFF (Samplers tab):
-            // deltas still accumulate but nothing is revealed until commit
-            const chat = get().chats.find((c) => c.id === chatId)
-            const preset = chat ? get().presets.find((p) => p.id === chat.presetId) : null
-            if (preset && preset.samplers?.streaming === false) return
-            // the user's own choice: replies appear only when finished
-            if (get().settings.replyDisplay === 'whole') return
-            const full = st.full + delta
-            // first text token ends the thinking phase — freeze its span so the
-            // live block can say "Thought for Xs" WHILE the reply streams
-            const thinkingMs = st.thinking && st.thinkingMs == null
-              ? Date.now() - (st.thinkingT0 ?? Date.now())
-              : st.thinkingMs
-            // typewriter reveal chases the arriving text; text after a think
-            // mark closes it (its duration freezes, the block relabels)
-            const marks = st.marks?.slice()
-            const lastMark = marks?.[marks.length - 1]
-            if (lastMark && lastMark.kind === 'think' && lastMark.ms == null) {
-              marks![marks!.length - 1] = { ...lastMark, ms: Date.now() - lastMark.t0 }
+          // live generation deltas over the kernel WS bus. Connected ONCE per page (#383): every hydrate used to
+          // close the socket and open a new one, with new buffers, and a re-hydrate runs a quarter of a second after the
+          // chat file changes, i.e. right after a send. The deltas that arrived while the old socket was closed and the
+          // new one not yet open, and the ones waiting for the next animation frame in the old closure, were lost: a
+          // reply lost its first words, and the text a Stop froze did not start at the beginning of the reply.
+          if (!stopStreams) {
+            let deltaBuf = ''
+            let thinkBuf = ''
+            let deltaChatId: ID | null = null
+            let deltaFrame = 0
+            const armFrame = () => {
+              if (!deltaFrame) deltaFrame = requestAnimationFrame(() => { deltaFrame = 0; flushStreamDeltas?.() })
             }
-            set({ streaming: { ...st, full, shown: Math.min(full.length, st.shown + Math.ceil(delta.length * 1.5)), ...(marks ? { marks } : {}), ...(thinkingMs != null ? { thinkingMs } : {}) } })
-          }
-          stopStreams = connectStreams((chatId, _name, delta) => {
-            const st = get().streaming
-            if (!st || st.chatId !== chatId) return
-            // a delta for a different chat than the buffer holds cannot be
-            // merged into it: land what is buffered first
-            if (deltaChatId && deltaChatId !== chatId) flushStreamDeltas?.()
-            deltaChatId = chatId
-            deltaBuf += delta
-            armFrame()
-          }, (paths) => {
-            // look_changed with a dist/ path = a fresh BUILD landed (watcher
-            // rebuilt the app) — the running bundle is stale, so reload the
-            // page instead of re-hydrating data. Anything else is a data-tree
-            // change (agent edit, git ops, another tab — and echoes of our own
-            // writes): coalesce bursts into one trailing hydrate; a mid-burst
-            // re-hydrate would read half-written state and revert optimistic
-            // local updates.
-            if (paths?.some((p) => p.startsWith('dist'))) {
-              // a fresh build landed: the running bundle is stale. Hidden tab
-              // defers the reload until it's next seen (same contract as the
-              // engine build stamp), and the pending flag stays set — clearing
-              // it on a timer would strand the tab on old code forever.
-              distReloadPending = true
-              const reload = () => reloadWithReason('Reloaded: a new build of the app landed')
-              if (document.visibilityState === 'visible') reload()
-              else if (!distReloadArmed) {
-                distReloadArmed = true
-                document.addEventListener('visibilitychange', () => {
-                  distReloadArmed = false
-                  if (document.visibilityState === 'visible' && distReloadPending) reload()
-                }, { once: true })
-              }
-              return
+            const flushThinking = (chatId: ID, delta: string) => {
+              // reasoning-model thinking arrives live (no typewriter pacing —
+              // watching it grow IS the point); the first delta starts the clock,
+              // so the wait before the model answers never reads as thinking.
+              // Marks keep it IN SEQUENCE: thinking anchors after the last tool
+              // call (or at the top), so round-two thinking renders below the
+              // tool row it followed, never hoisted above everything.
+              const st = get().streaming
+              if (!st || st.chatId !== chatId) return
+              const marks = (st.marks ?? []).slice()
+              const lastToolAt = [...marks].reverse().find((m) => m.kind === 'tool')?.at ?? 0
+              const last = marks[marks.length - 1]
+              if (last && last.kind === 'think' && last.at === lastToolAt) marks[marks.length - 1] = { ...last, text: last.text + delta }
+              else marks.push({ kind: 'think', at: lastToolAt, text: delta, t0: Date.now() })
+              set({ streaming: { ...st, thinking: (st.thinking ?? '') + delta, marks, ...(st.thinking == null ? { thinkingT0: Date.now() } : {}) } })
             }
-            // the dashboard's own state and debug files change on every update:
-            // no reason to re-hydrate the whole data tree for them
-            const QUIET = ['data/dashboard', 'data/_debug']
-            const quiet = (p: string) => { const n = p.replace(/\\/g, '/'); return QUIET.some((d) => n === d || n.startsWith(d + '/')) }
-            if (paths && paths.length > 0 && paths.every(quiet)) return
-            clearTimeout(lookHydrateTimer)
-            lookHydrateTimer = setTimeout(() => void get().hydrate(), 250)
-          }, (chatId, delta) => {
-            const st = get().streaming
-            if (!st || st.chatId !== chatId) return
-            if (deltaChatId && deltaChatId !== chatId) flushStreamDeltas?.()
-            deltaChatId = chatId
-            thinkBuf += delta
-            armFrame()
-          }, (chatId, ev) => {
-            // tool-call progress: the mark's `at` anchors it in the text
-            // stream (where the model paused); end fills the row's result.
-            // The buffered frame lands first — a tool row must not jump ahead
-            // of the text and thinking that came before it.
-            flushStreamDeltas?.()
-            const st = get().streaming
-            if (!st || st.chatId !== chatId) return
-            const marks = (st.marks ?? []).slice()
-            if (ev.phase === 'start') {
-              // a tool call after a think mark closes it too
-              const lastMark = marks[marks.length - 1]
+            flushStreamDeltas = () => {
+              if (deltaFrame) { cancelAnimationFrame(deltaFrame); deltaFrame = 0 }
+              const chatId = deltaChatId
+              const think = thinkBuf
+              const delta = deltaBuf
+              deltaBuf = ''
+              thinkBuf = ''
+              deltaChatId = null
+              if (!chatId) return
+              // thinking lands first: within one frame it always preceded the
+              // text that closed it
+              if (think) flushThinking(chatId, think)
+              if (!delta) return
+              const st = get().streaming
+              if (!st || st.chatId !== chatId) return
+              // the chat's preset can turn live rendering OFF (Samplers tab):
+              // deltas still accumulate but nothing is revealed until commit
+              const chat = get().chats.find((c) => c.id === chatId)
+              const preset = chat ? get().presets.find((p) => p.id === chat.presetId) : null
+              if (preset && preset.samplers?.streaming === false) return
+              // the user's own choice: replies appear only when finished
+              if (get().settings.replyDisplay === 'whole') return
+              const full = st.full + delta
+              // first text token ends the thinking phase — freeze its span so the
+              // live block can say "Thought for Xs" WHILE the reply streams
+              const thinkingMs = st.thinking && st.thinkingMs == null
+                ? Date.now() - (st.thinkingT0 ?? Date.now())
+                : st.thinkingMs
+              // typewriter reveal chases the arriving text; text after a think
+              // mark closes it (its duration freezes, the block relabels)
+              const marks = st.marks?.slice()
+              const lastMark = marks?.[marks.length - 1]
               if (lastMark && lastMark.kind === 'think' && lastMark.ms == null) {
-                marks[marks.length - 1] = { ...lastMark, ms: Date.now() - lastMark.t0 }
+                marks![marks!.length - 1] = { ...lastMark, ms: Date.now() - lastMark.t0 }
               }
-              marks.push({ kind: 'tool', at: st.full.length, name: ev.name, args: ev.args })
-            } else {
-              for (let i = marks.length - 1; i >= 0; i--) {
-                const m = marks[i]!
-                if (m.kind === 'tool' && !m.done) {
-                  marks[i] = { ...m, done: true, resultText: ev.result?.text ?? '', isError: ev.result?.isError }
-                  break
+              set({ streaming: { ...st, full, shown: Math.min(full.length, st.shown + Math.ceil(delta.length * 1.5)), ...(marks ? { marks } : {}), ...(thinkingMs != null ? { thinkingMs } : {}) } })
+            }
+            stopStreams = connectStreams((chatId, _name, delta) => {
+              const st = get().streaming
+              if (!st || st.chatId !== chatId) return
+              // a delta for a different chat than the buffer holds cannot be
+              // merged into it: land what is buffered first
+              if (deltaChatId && deltaChatId !== chatId) flushStreamDeltas?.()
+              deltaChatId = chatId
+              deltaBuf += delta
+              armFrame()
+            }, (paths) => {
+              // look_changed with a dist/ path = a fresh BUILD landed (watcher
+              // rebuilt the app) — the running bundle is stale, so reload the
+              // page instead of re-hydrating data. Anything else is a data-tree
+              // change (agent edit, git ops, another tab — and echoes of our own
+              // writes): coalesce bursts into one trailing hydrate; a mid-burst
+              // re-hydrate would read half-written state and revert optimistic
+              // local updates.
+              if (paths?.some((p) => p.startsWith('dist'))) {
+                // a fresh build landed: the running bundle is stale. Hidden tab
+                // defers the reload until it's next seen (same contract as the
+                // engine build stamp), and the pending flag stays set — clearing
+                // it on a timer would strand the tab on old code forever.
+                distReloadPending = true
+                const reload = () => reloadWithReason('Reloaded: a new build of the app landed')
+                if (document.visibilityState === 'visible') reload()
+                else if (!distReloadArmed) {
+                  distReloadArmed = true
+                  document.addEventListener('visibilitychange', () => {
+                    distReloadArmed = false
+                    if (document.visibilityState === 'visible' && distReloadPending) reload()
+                  }, { once: true })
+                }
+                return
+              }
+              // the dashboard's own state and debug files change on every update:
+              // no reason to re-hydrate the whole data tree for them
+              const QUIET = ['data/dashboard', 'data/_debug']
+              const quiet = (p: string) => { const n = p.replace(/\\/g, '/'); return QUIET.some((d) => n === d || n.startsWith(d + '/')) }
+              if (paths && paths.length > 0 && paths.every(quiet)) return
+              clearTimeout(lookHydrateTimer)
+              lookHydrateTimer = setTimeout(() => void get().hydrate(), 250)
+            }, (chatId, delta) => {
+              const st = get().streaming
+              if (!st || st.chatId !== chatId) return
+              if (deltaChatId && deltaChatId !== chatId) flushStreamDeltas?.()
+              deltaChatId = chatId
+              thinkBuf += delta
+              armFrame()
+            }, (chatId, ev) => {
+              // tool-call progress: the mark's `at` anchors it in the text
+              // stream (where the model paused); end fills the row's result.
+              // The buffered frame lands first — a tool row must not jump ahead
+              // of the text and thinking that came before it.
+              flushStreamDeltas?.()
+              const st = get().streaming
+              if (!st || st.chatId !== chatId) return
+              const marks = (st.marks ?? []).slice()
+              if (ev.phase === 'start') {
+                // a tool call after a think mark closes it too
+                const lastMark = marks[marks.length - 1]
+                if (lastMark && lastMark.kind === 'think' && lastMark.ms == null) {
+                  marks[marks.length - 1] = { ...lastMark, ms: Date.now() - lastMark.t0 }
+                }
+                marks.push({ kind: 'tool', at: st.full.length, name: ev.name, args: ev.args })
+              } else {
+                for (let i = marks.length - 1; i >= 0; i--) {
+                  const m = marks[i]!
+                  if (m.kind === 'tool' && !m.done) {
+                    marks[i] = { ...m, done: true, resultText: ev.result?.text ?? '', isError: ev.result?.isError }
+                    break
+                  }
                 }
               }
-            }
-            set({ streaming: { ...st, marks } })
-          }, () => {
-            // a connection was added/changed engine-side (usually from another
-            // tab): the model catalog and connection list are stale — the
-            // engine emits AFTER discovery finished, so a plain hydrate lands
-            // the fresh list, no view re-entry needed
-            void get().hydrate()
-          })
+              set({ streaming: { ...st, marks } })
+            }, () => {
+              // a connection was added/changed engine-side (usually from another
+              // tab): the model catalog and connection list are stale — the
+              // engine emits AFTER discovery finished, so a plain hydrate lands
+              // the fresh list, no view re-entry needed
+              void get().hydrate()
+            })
+          }
           get().runAutoExecutes('onStartup')
           void get().refreshModelParams()
         } catch (e) {
@@ -2793,21 +2798,39 @@ async function runGeneration(
 ): Promise<boolean> {
   // a rollback of the World DM still going (a reply deleted or swiped just now): the lorebook it writes is read by this request
   const settling = worldSettling(chatId)
-  if (settling) await settling
-  if (get().streaming?.chatId === chatId) return false
-  const chat = get().chats.find((c) => c.id === chatId)
-  if (!chat) return false
-
-  // world-info scope for this generation (studio semantics)
-  const bookIds = scopeBookIds(get().lorebooks, chat, get().characters)
-  const ctrl = new AbortController()
-  activeGens.set(chatId, ctrl)
-
   // Swipe/regenerate stream IN PLACE on the target message — a new bubble
   // appended at the bottom (then vanishing on commit) reads as a glitch.
   const inPlaceId = opts?.regenerateInto
-  if (inPlaceId) {
+  const ctrl = new AbortController()
+  let early = false
+  if (settling && inPlaceId) {
+    // the rollback can take seconds: the Stop button shows at once, not when the request starts (#382). A Stop in
+    // this window aborts ctrl; the run then ends here, before any request is sent
+    if (get().streaming?.chatId === chatId || !get().chats.some((c) => c.id === chatId)) return false
+    early = true
+    activeGens.set(chatId, ctrl)
     set(() => ({ streaming: { chatId, messageId: inPlaceId, full: '', shown: 0, startedAt: Date.now() } }))
+    await settling
+    if (ctrl.signal.aborted) {
+      if (activeGens.get(chatId) === ctrl) activeGens.delete(chatId)
+      stoppedRuns.add(chatId)
+      if (get().streaming?.chatId === chatId && get().streaming?.messageId === inPlaceId) set({ streaming: null })
+      return false
+    }
+  } else if (settling) await settling
+  if (!early && get().streaming?.chatId === chatId) return false
+  const chat = get().chats.find((c) => c.id === chatId)
+  if (!chat) {
+    if (early) { activeGens.delete(chatId); set({ streaming: null }) }
+    return false
+  }
+
+  // world-info scope for this generation (studio semantics)
+  const bookIds = scopeBookIds(get().lorebooks, chat, get().characters)
+  if (!early) activeGens.set(chatId, ctrl)
+
+  if (inPlaceId) {
+    if (!early) set(() => ({ streaming: { chatId, messageId: inPlaceId, full: '', shown: 0, startedAt: Date.now() } }))
     return runStream(set, get, chatId, op, body, ctrl, chat, bookIds)
   }
   const pendingId = `pending-${uid('reply')}`
