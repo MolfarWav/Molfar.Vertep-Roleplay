@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.137.1'
+export const APP_VERSION = '4.138.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -108,6 +108,17 @@ const HAND_TIPS: Tip[] = [
     body: {
       en: 'Group editor, Turns tab, "How they talk": Interruptions (members cut in and talk over each other), Own goals (members object or refuse when a plan goes against who they are) and Draw in quiet members. Off, Can or Should: Can allows it when it fits, Should expects it; if every reply becomes an argument, go back to Can. New groups start with Can; older groups keep everything off. The Turns button above a group chat changes it for that chat only. On the Members tab, "In this group" now has a voice per member: up to two speech habits and five sample lines.',
       uk: 'Редактор групи, вкладка Turns, «Як вони розмовляють»: «Перебивання» (учасники вриваються й говорять одночасно), «Власні цілі» (учасники заперечують або відмовляються, коли план суперечить їхній вдачі) і «Залучати мовчазних». «Вимк.», «Можуть» або «Мають»: «Можуть» дозволяє, коли пасує, «Мають» очікує цього; якщо кожна відповідь стає суперечкою, поверніть «Можуть». Нові групи починають із «Можуть»; старі лишають усе вимкненим. Кнопка Turns у чаті змінює це для одного чату. На вкладці Members у «У цій групі» тепер є голос учасника: до двох манер мови й п’яти прикладів реплік.',
+    },
+  },
+  {
+    id: 'new.agent-offer',
+    since: '4.138.0',
+    help: 'canvas',
+    keywords: { en: 'agents offer new chat step ready agents suggested cost batch reminder portrait update from the story', uk: 'агенти пропозиція новий чат крок готові агенти рекомендовані вартість пакет нагадування портрет оновити з історії' },
+    title: { en: 'Ready agents when a chat starts', uk: 'Готові агенти під час старту чату' },
+    body: {
+      en: 'The step before a new chat has a fold, Agents (optional). Each ready agent shows what it reads, what it can change or show and what it costs per reply; nothing is on until you turn it on, and Start installs and allows only what you chose. In a character card, Memory tab, the portrait has an Update from the story button that proposes up to four blocks, and an option to remind near the newest message.',
+      uk: 'У кроці перед новим чатом є блок «Агенти (за бажанням)». Кожен готовий агент показує, що читає, що може змінити чи показати і скільки коштує на відповідь; нічого не ввімкнено, доки ви не ввімкнете, а «Почати» встановлює й дозволяє лише обране. У картці персонажа, вкладка Memory, портрет має кнопку «Оновити з історії», яка пропонує до чотирьох блоків, і опцію нагадування біля найновішого повідомлення.',
     },
   },
   {

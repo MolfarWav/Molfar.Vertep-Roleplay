@@ -1,4 +1,4 @@
-<!-- source: b8aaee1c7866 -->
+<!-- source: 6af5ed4f6d28 -->
 # Agents en de agentensmederij
 
 Een agent is een kleine helper die je bouwt uit kaarten en draden. Hij leest een deel van de chat (vóór of na een antwoord, naar keuze), mag een model een of meer korte vragen stellen, houdt eigen aantekeningen bij en laat iets zien: een notitie onder het antwoord, knoppen om op te tikken, een meter, een kaart of een hint voor het volgende antwoord. Voorbeelden: drie voorgestelde volgende zetten, een spanningsmeter, een kaart van de bezochte plaatsen. Deze pagina is voor wie zulke extra's wil. De Help heeft drie artikelen over de editor: "Agent editor: how an agent works", "Agent editor: the cards" en "Agent editor: three ready agents".
@@ -16,7 +16,7 @@ Een agent is data, geen code. In de editor is het een bord met **kaarten** verbo
 
 **Panelen** (meters, tellers, tabellen, een bord met tegels) tonen wat de agent bewaart; niets in een paneel draait, en de knoppen zetten alleen tekst in het berichtvak.
 
-Wanneer hij draait, bepaalt zijn **lane**. Het agentbestand noemt de lane waarin hij start, en elke chat kan de agent naar een andere lane verplaatsen (het tabblad Agents van de chat, of het bord "Agent sets" van het Canvas). De vier lanes:
+Wanneer hij draait, is een lane. Het agentbestand noemt de lane waarin hij start, en elke chat kan de agent naar een andere lane verplaatsen (het tabblad Agents van de chat, of het bord "Agent sets" van het Canvas). De vier lanes:
 
 - **Before the reply**: het antwoord wacht op de agent, en een hint die hij achterlaat gaat in datzelfde antwoord. Houd het bij een of twee snelle vragen, want de wachttijd komt bij elk antwoord. De schakelaar Wait in de rij van de agent zet het wachten uit; de agent draait dan naast het antwoord.
 - **Beside the reply**: draait tegelijk, voegt geen wachttijd toe en kan geen hint in het antwoord zetten waarnaast hij draait (notities, knoppen en panelen werken wel).
@@ -28,6 +28,10 @@ Bovenop de lane kan een agent draaien op elk N-de antwoord, of alleen wanneer ge
 ## Kant-en-klare agents
 
 Druk op "New agent" in het Agents-bord van het **Canvas** (het **Agents**-item van de rail opent het). "Empty agent" geeft een Input en een notitie. "Start from a ready agent" biedt tien werkende aan: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (hij stelt voor hoe het personage is veranderd, voor het tabblad Memory van de kaart; zie de pagina over het geheugen), Repetition guard, Canon guard en Ledger (hieronder beschreven). Onder "Drafts" staan agents die Molfar in je werkruimte heeft geschreven ("Drafts from Molfar").
+
+### Kant-en-klare agents in een nieuwe chat
+
+De stap vóór een nieuwe chat begint heeft een vouw, "Agents (optional)", met dezelfde kant-en-klare agents. Niets daarin staat aan totdat je het aanzet. Open het en elke agent toont een zin over wat hij doet, een schatting van zijn kosten per run ("no model calls" voor een die in code draait), en "What it reads, changes and shows" met dezelfde regels die de permissiepagina opsomt. "Turn on the suggested three" kiest Repetition guard, Next moves en Scene recap, de goedkoopste die meteen iets laten zien. Onder de lijst zegt het totaal voor degenen die je hebt aangezet "about N calls and T tokens per reply". Op Start drukken installeert de agents die je hebt aangezet, staat precies de regels toe die ze opsomden en start de chat met hen (samen met de set die de chat anders ook zou hebben gehad). Naar de vouw kijken installeert en staat niets toe. Een agent die al is geïnstalleerd wordt gebruikt zoals hij is, nooit overschreven. Een die een nieuwere engine nodig heeft dan de jouwe zegt dat en kan niet worden aangezet. Een groepschat toont Character growth niet. De stap opent één keer vanzelf voor een speler die één preset heeft, geen opties en geen agentset, zodat de kant-en-klare agents worden gezien; daarna opent hij alleen wanneer er iets anders te kiezen is, zoals voorheen. Wijzig of zet de agents later uit in het tabblad **Agents** van de chat.
 
 ### Repetition guard, Canon guard en Ledger
 
@@ -55,11 +59,13 @@ Een agent met een Script-kaart die in een chat drie runs op rij te laat klaar is
 
 1. Druk op "Install" ("Update" voor een gewijzigde kopie van een geïnstalleerde agent; gebruik "Edit a copy" om er een te wijzigen).
 2. Sta hem één keer toe: "Review permissions", dan "Allow all" of regel voor regel. Hij draait wanneer elke regel aan staat. Een update die meer vraagt, wacht op een nieuwe Allow. Een Script-kaart vraagt om "Run its own small program"; de lijst met rechten toont de code ("Read the code") voordat je toestaat, en als een update de code wijzigt, wordt de toestemming opnieuw gevraagd.
-3. Voeg hem toe aan een chat. Open in de pil van de chatkop het tabblad **Agents**: "In this chat" toont actieve agents, "Installed" toont de rest (kies er een om hem toe te voegen). Een rij kan nu opnieuw draaien, verwijderd worden, of het antwoord laten stoppen met wachten op hem. Een nieuwe chat heeft geen agents totdat je er een paar toevoegt of een set kiest. Een agent die nog niet is toegestaan, toont **Allow…** in zijn rij: daarmee opent meteen het toestemmingsvenster. Een rij kan nu opnieuw worden uitgevoerd, worden verwijderd of het wachtende antwoord stoppen.
+3. Voeg hem toe aan een chat. Open in de pil van de chatkop het tabblad **Agents**: "In this chat" toont actieve agents, "Installed" toont de rest (kies er een om hem toe te voegen). Een agent die nog niet is toegestaan, toont **Allow…** in zijn rij: daarmee opent meteen het toestemmingsvenster. Een rij kan nu opnieuw draaien, verwijderd worden, of het antwoord laten stoppen met wachten op hem. Een nieuwe chat heeft geen agents totdat je er een paar toevoegt of een set kiest.
 
 Een **set** is een benoemde lijst agents ("Save this chat's list as a set"; "Make default" geeft hem aan nieuwe chats). Het bord "Agent sets" van het Canvas toont de kosten per set in tijd en aanroepen, en bevat de schakelaar "Agents' notes in chats" die alle notities van agents verbergt. De resultaatplek van elke agent kan in het tabblad Agents van de chat worden gewijzigd, uit de plekken die bij hem passen.
 
-Elke "Ask the model"-kaart is één aanroep per run; de editor toont het aantal. "Every Nth reply" verdeelt de kosten.
+Elke "Ask the model"-kaart is één aanroep per run; de editor toont het aantal. "Every Nth reply" verdeelt de kosten. Het tabblad Agents toont ook wat de agents echt deden voor het nieuwste antwoord: hoeveel er draaiden, hoeveel modelaanroepen, ongeveer hoeveel tokens (wanneer de provider het meldt) en hoe lang de langzaamste duurde.
+
+**Batching.** Een "Ask the model"-kaart heeft een optioneel **Batch with other agents**-woord. Agents die in dezelfde pas draaien, hetzelfde model gebruiken en hetzelfde woord hebben, sturen hun vragen als één aanvraag, wat aanroepen bespaart op een model met een limiet. Als het antwoord van het model niet in de juiste delen kan worden gesplitst, wordt elke vraag afzonderlijk gesteld, dus het slechtste geval is één extra aanroep. Laat het leeg (de standaard) voor een vraag die nooit mag delen. Batching helpt het meest wanneer de kaarten dezelfde geschiedenis lezen; met verschillende invoer is de besparing klein, en een model met een klein venster kan misschien niet meerdere taken tegelijk aan.
 
 **Wat het kost, voordat je het aanzet.** De permissiepagina en de kaart van de agent in het Agents-blad tonen een schatting voor één run: de aanroepen en ongeveer hoeveel tokens erin gaan en hooguit eruit komen. Het tabblad Agents voegt een regel toe met het totaal per antwoord voor de agents die in de chat aanstaan, met "Every Nth reply" al verdeeld. Het wordt berekend uit de bestanden van de agents (de lengte van hun vragen, wat ze lezen, hun antwoordlimieten), niet uit je chat, dus er staat "ongeveer": de echte getallen hangen af van de chat en het model. Een agent die geen model aanroept, zegt dat.
 

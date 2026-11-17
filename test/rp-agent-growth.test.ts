@@ -44,6 +44,14 @@ function makeChat(id: string, msgs: [string, string][], meta: Json = {}) {
 function setMessages(id: string, msgs: [string, string][]) {
   fs.writeFileSync(path.join(root, "chats", id + ".jsonl"), msgs.map(([role, text], i) => JSON.stringify({ id: "m" + i, role, name: role === "user" ? "Taras" : "Aria", text, swipe: 0 })).join("\n") + "\n");
 }
+function makeGroup(id: string, members: string[], mode = "swap") {
+  for (const m of members) {
+    fs.mkdirSync(path.join(root, "characters", m), { recursive: true });
+    if (!exists("characters/" + m + "/card.json")) fs.writeFileSync(path.join(root, "characters", m, "card.json"), JSON.stringify({ name: m[0].toUpperCase() + m.slice(1), description: "A member." }));
+  }
+  fs.mkdirSync(path.join(root, "groups"), { recursive: true });
+  fs.writeFileSync(path.join(root, "groups", id + ".json"), JSON.stringify({ id, name: "The group", memberIds: members, generationMode: mode }));
+}
 /** n replies in the chat (the trigger counts them); the last message is a reply. */
 const replies = (n: number, tag = "line") => setMessages("c1", Array.from({ length: n * 2 }, (_, i): [string, string] => [i % 2 ? "char" : "user", tag + " " + i]));
 const CHAT: [string, string][] = [["user", "I stay by the fire."], ["char", "She sits next to you and does not pull away."]];
@@ -124,13 +132,14 @@ describe("proposing a block (#396)", () => {
     expect(growthOf().entries[0].section).toBe("other");
   });
 
-  it("refuses in a group chat and writes nothing", () => {
+  it("in a group chat a block with no member name is refused, and nothing is written", () => {
     j("/agents/install", "PUT", { file: growerFile(), grant: true });
     useAgent("grower");
-    makeChat("g1", CHAT, { groupId: "grp", characterId: "aria" });
+    makeGroup("grp", ["aria", "bob"], "narrator");
+    makeChat("g1", CHAT, { groupId: "grp", characterId: "grp" });
     expect(run("g1").ran[0].status).toBe("ok");
     expect(exists("characters/aria/growth.json")).toBe(false);
-    expect(JSON.stringify(j("/agents/runs", "GET", undefined, { chatId: "g1" }).runs)).toContain("group chat is not supported");
+    expect(JSON.stringify(j("/agents/runs", "GET", undefined, { chatId: "g1" }).runs)).toContain("say which member");
   });
 });
 
@@ -275,5 +284,206 @@ describe("the ready agent 'Character growth' (#396)", () => {
     runChat("c1", (q) => { later.push(JSON.stringify(q)); return { text: JSON.stringify(nothing) }; });
     expect(later[0]).toContain("[personality] Open now");
     expect(later[0]).toContain("waiting for the user");
+  });
+});
+
+describe("the hand button: Update from the story (#396)", () => {
+  /** Plays the engine: the first pass asks the model, the second reads what `answer` gave. */
+  function update(body: Json, answer: Json | null = { text: "{}" }) {
+    results = {};
+    requests = [];
+    const first = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: {} } as never, host() as never) as { json?: Json; status?: number; __llmPending?: boolean; stash?: Json };
+    if (!first.__llmPending) return { first, asked: requests, done: first };
+    const asked = requests;
+    results = answer ? { growth_update: answer } : {};
+    const done = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: first.stash } as never, host() as never) as { json?: Json; status?: number };
+    return { first, asked, done };
+  }
+  const answerWith = (blocks: Json[]) => ({ text: "Here you go:\n" + JSON.stringify({ blocks }) });
+
+  it("asks the model once with the card, what is written and the story, then stores up to four proposals", () => {
+    const four = Array.from({ length: 6 }, (_, i) => ({ section: "behaviors", kind: "added", title: "Habit " + i, text: "She keeps one thing " + i + ".", basis: "" }));
+    const r = update({ cardId: "aria", chatId: "c1" }, answerWith(four));
+    expect(r.asked.length).toBe(1);
+    const prompt = r.asked[0][1].messages[0].content as string;
+    expect(prompt).toContain("A tsundere.");
+    expect(prompt).toContain("I stay by the fire.");
+    expect(prompt).toContain("(nothing yet)");
+    expect(r.done.json!.added).toBe(4);
+    const g = growthOf();
+    expect(g.entries.length).toBe(4);
+    expect(g.entries.every((e: Json) => e.state === "proposed" && e.agent === "hand" && e.from.chatId === "c1")).toBe(true);
+  });
+
+  it("nothing reaches the prompt before the user accepts", () => {
+    update({ cardId: "aria", chatId: "c1" }, answerWith([{ section: "personality", kind: "changed", text: "She no longer hides her warmth.", basis: "tsundere" }]));
+    const out = reply(PROMPT());
+    expect(JSON.stringify(out)).not.toContain("no longer hides");
+  });
+
+  it("a block about an accepted section is a revision, a repeated text is not added twice", () => {
+    put({ op: "add", section: "personality", kind: "changed", text: "Cold and proud." });
+    const r = update({ cardId: "aria", chatId: "c1" }, answerWith([{ section: "personality", kind: "changed", text: "Warm in private." }, { section: "personality", kind: "changed", text: "cold and proud." }]));
+    expect(r.done.json!.added).toBe(1);
+    const e = growthOf().entries.find((x: Json) => x.agent === "hand");
+    expect(e.revises).toBeTruthy();
+    expect(r.done.json!.refused.join(" ")).toContain("already there");
+  });
+
+  it("a model that sends no JSON, or no answer, stores nothing and says so", () => {
+    expect(update({ cardId: "aria", chatId: "c1" }, { text: "I could not tell." }).done.json!.added).toBe(0);
+    const none = update({ cardId: "aria", chatId: "c1" }, { error: "boom" });
+    expect(none.done.status).toBe(502);
+    expect(exists("characters/aria/growth.json")).toBe(false);
+  });
+
+  it("refuses a missing card, a missing chat, a chat of another card and an empty chat", () => {
+    expect(update({ cardId: "nope", chatId: "c1" }).first.status).toBe(400);
+    expect(update({ cardId: "aria", chatId: "zzz" }).first.status).toBe(404);
+    makeChat("c2", CHAT, { characterId: "bob" });
+    expect(update({ cardId: "aria", chatId: "c2" }).first.status).toBe(400);
+    makeChat("c3", []);
+    fs.writeFileSync(path.join(root, "chats", "c3.jsonl"), "");
+    expect(update({ cardId: "aria", chatId: "c3" }).first.status).toBe(400);
+  });
+
+  it("parseGrowthBlocks keeps four at most and drops empty ones", () => {
+    expect(plugin.parseGrowthBlocks("no json")).toEqual([]);
+    expect(plugin.parseGrowthBlocks('{"blocks":[{"text":""},{"text":"a"},{"text":"b"},{"text":"c"},{"text":"d"},{"text":"e"}]}').length).toBe(4);
+  });
+});
+
+describe("the stronger override: remind near the newest message (#396)", () => {
+  const blocks = () => {
+    put({ op: "add", section: "personality", kind: "changed", text: "She has stopped hiding her warmth." });
+    put({ op: "add", section: "relationships", kind: "changed", text: "She trusts Taras with her back." });
+    put({ op: "add", section: "goals", kind: "added", title: "A quiet wish", text: "She wants the keep to feel like home." });
+  };
+  const lastUser = (r: Json | null) => { const m = (r!.messages as Json[]); return m[m.length - 1].content as string; };
+
+  it("is off by default: the last message is untouched", () => {
+    blocks();
+    expect(lastUser(reply(PROMPT()))).toBe("Go on.");
+  });
+
+  it("when on, repeats the two newest blocks at the end, in the last user message, and says it in the prompt sources", () => {
+    blocks();
+    expect(put({ op: "inject", remind: true }).growth.inject.remind).toBe(true);
+    const r = reply(PROMPT());
+    const end = lastUser(r);
+    expect(end.startsWith("Go on.")).toBe(true);
+    expect(end).toContain("Reminder");
+    expect(end).toContain("She wants the keep to feel like home.");
+    expect(end).toContain("She trusts Taras with her back.");
+    expect(end).not.toContain("stopped hiding");
+    expect((r!.promptSources as Json).parts.map((p: Json) => p.label)).toContain("Agents · character growth (reminder)");
+  });
+
+  it("is counted in the ceiling, and is off when the portrait is off", () => {
+    blocks();
+    const before = (plugin.insertCeiling({ chatId: "c1" } as never, host() as never) as Json).ceilings[0].tokens;
+    put({ op: "inject", remind: true });
+    const after = (plugin.insertCeiling({ chatId: "c1" } as never, host() as never) as Json).ceilings[0].tokens;
+    expect(after).toBeGreaterThan(before);
+    put({ op: "inject", enabled: false });
+    expect(lastUser(reply(PROMPT()) ?? { messages: PROMPT() })).toBe("Go on.");
+  });
+});
+
+describe("the portrait in a group chat (#396)", () => {
+  const give = (card: string, text: string, extra: Json = {}) => j("/agents/growth", "PUT", { cardId: card, op: "add", section: "personality", kind: "changed", text, ...extra });
+  const sys = (r: Json | null) => ((r ? (r.messages as Json[]) : []).filter((m) => m.role === "system").map((m) => m.content).join("\n"));
+  const groupReply = (speakerId: string, chatId = "g1") => plugin.llmRequest({ key: "reply", request: { sessionId: chatId, messages: PROMPT() }, turn: { op: "send", chatId, speakerId } } as never, host() as never) as Json | null;
+
+  beforeEach(() => { makeGroup("grp", ["aria", "bob"], "narrator"); makeChat("g1", CHAT, { groupId: "grp", characterId: "grp" }); });
+
+  it("a narrator group carries every member's portrait, each under the member's name", () => {
+    give("aria", "Aria now trusts the keep.");
+    give("bob", "Bob has stopped lying.");
+    const t = sys(groupReply("grp"));
+    expect(t).toContain("How Aria has changed");
+    expect(t).toContain("Aria now trusts the keep.");
+    expect(t).toContain("How Bob has changed");
+    expect(t).toContain("Bob has stopped lying.");
+  });
+
+  it("the members share ONE room: the biggest of theirs, member by member, newest first", () => {
+    give("aria", "A ".repeat(200).trim());
+    give("bob", "B ".repeat(200).trim());
+    j("/agents/growth", "PUT", { cardId: "aria", op: "inject", maxTokens: 300 });
+    j("/agents/growth", "PUT", { cardId: "bob", op: "inject", maxTokens: 300 });
+    const r = groupReply("grp");
+    const used = Math.ceil(sys(r).length / 3.5);
+    expect(sys(r)).toContain("Aria");
+    expect(used).toBeLessThanOrEqual(300 + 60);
+    // together they would have been about twice that
+    j("/agents/growth", "PUT", { cardId: "aria", op: "inject", maxTokens: 8000 });
+    j("/agents/growth", "PUT", { cardId: "bob", op: "inject", maxTokens: 8000 });
+    expect(Math.ceil(sys(groupReply("grp")).length / 3.5)).toBeGreaterThan(used);
+  });
+
+  it("in 'swap' only the speaker's portrait goes in, and none when no member speaks", () => {
+    makeGroup("grp", ["aria", "bob"], "swap");
+    give("aria", "Aria now trusts the keep.");
+    give("bob", "Bob has stopped lying.");
+    const t = sys(groupReply("bob"));
+    expect(t).toContain("Bob has stopped lying.");
+    expect(t).not.toContain("Aria now trusts");
+    expect(sys(groupReply("grp"))).not.toContain("trusts the keep");
+  });
+
+  it("a chat's own Turns setting wins over the group's", () => {
+    give("aria", "Aria now trusts the keep.");
+    makeChat("g2", CHAT, { groupId: "grp", characterId: "grp", turns: { generationMode: "swap" } });
+    expect(sys(groupReply("bob", "g2"))).not.toContain("trusts the keep");
+    expect(sys(groupReply("aria", "g2"))).toContain("trusts the keep");
+  });
+
+  it("the history budget counts every member for a narrator group, and the biggest one for swap", () => {
+    give("aria", "A ".repeat(300).trim());
+    give("bob", "B ".repeat(300).trim());
+    const ceil = () => (plugin.insertCeiling({ chatId: "g1" } as never, host() as never) as Json).ceilings[0].tokens;
+    const narrator = ceil();
+    makeGroup("grp", ["aria", "bob"], "swap");
+    const swap = ceil();
+    expect(narrator).toBeGreaterThan(swap);
+    expect(swap).toBeGreaterThan(0);
+  });
+
+  it("an agent's block names the member in 'who' and lands in that member's file", () => {
+    const f = (who: string) => {
+      const file = growerFile("grower2");
+      file.nodes.push({ id: "who", type: "text.template", x: 0, y: 300, title: "Who", params: { text: who } });
+      file.edges.push({ id: "w", from: "who:text", to: "grow:who" });
+      return compileAgent(file as never).file;
+    };
+    j("/agents/install", "PUT", { file: f("bob"), grant: true });
+    useAgent("grower2");
+    expect(run("g1").ran[0].status).toBe("ok");
+    expect(exists("characters/aria/growth.json")).toBe(false);
+    const g = disk("characters/bob/growth.json");
+    expect(g.entries.length).toBe(1);
+    expect(g.entries[0].state).toBe("proposed");
+  });
+
+  it("the hand button works from a group chat the card is in, and writes into that card only", () => {
+    results = {};
+    requests = [];
+    const body = { cardId: "aria", chatId: "g1" };
+    const first = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: {} } as never, host() as never) as { __llmPending?: boolean; stash?: Json; status?: number };
+    expect(first.__llmPending).toBe(true);
+    expect(requests[0][1].messages[0].content).toContain("write only about Aria");
+    results = { growth_update: { text: JSON.stringify({ blocks: [{ section: "goals", kind: "added", title: "Home", text: "She wants the keep to feel like home." }] }) } };
+    const done = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body, stash: first.stash } as never, host() as never) as { json?: Json };
+    expect(done.json!.added).toBe(1);
+    expect(exists("characters/bob/growth.json")).toBe(false);
+    expect(disk("characters/aria/growth.json").entries[0].text).toContain("feel like home");
+  });
+
+  it("the hand button refuses a group chat the card is not in", () => {
+    makeGroup("other", ["bob"], "swap");
+    makeChat("g3", CHAT, { groupId: "other", characterId: "other" });
+    const r = plugin.handleRoute({ method: "POST", path: "/agents/growth/update", query: {}, body: { cardId: "aria", chatId: "g3" }, stash: {} } as never, host() as never) as { status?: number };
+    expect(r.status).toBe(400);
   });
 });

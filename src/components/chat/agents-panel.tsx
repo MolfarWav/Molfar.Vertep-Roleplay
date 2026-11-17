@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { AgentOwnLimits } from '@/components/chat/agent-own-limits'
-import { AgentRunCost, ReplyCostLine } from '@/components/chat/agent-cost'
+import { AgentRunCost, LastReplyLine, ReplyCostLine } from '@/components/chat/agent-cost'
 import { AgentNotesSwitch } from '@/components/chat/agent-notes-switch'
 import { AgentPermissions } from '@/components/chat/agent-permissions'
 import { allowedCount } from '@/lib/agent-permissions'
@@ -89,6 +89,7 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
   const t = useT()
   const edit = useEdit(chatId)
   const { list, sets } = data
+  const lastRuns = useAgentsLive((st) => st.runs[chatId])
   const setName = list?.presetId ? sets.find((s) => s.id === list.presetId)?.name ?? list.presetId : ''
   const line = !list ? '…'
     : !list.followsPreset ? t('ag.ownList')
@@ -109,6 +110,7 @@ export function AgentsTabContext({ chatId, data }: { chatId: string; data: Agent
         </button>
       )}
       <ReplyCostLine items={list?.items ?? []} installed={data.installed} className="mt-0.5 w-full text-caption leading-snug text-muted-foreground" />
+      <LastReplyLine runs={lastRuns} className="w-full text-caption leading-snug text-muted-foreground" />
       <AgentNotesSwitch className="mt-1 w-full" />
     </div>
   )
