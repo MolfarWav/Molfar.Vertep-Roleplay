@@ -1,4 +1,4 @@
-<!-- source: b8aaee1c7866 -->
+<!-- source: 6af5ed4f6d28 -->
 # Ajanlar ve ajan atölyesi
 
 Ajan, kartlardan ve tellerden kurduğunuz küçük bir yardımcıdır. Yanıtın öncesinde ya da sonrasında, sizin seçtiğiniz gibi, sohbetin bir kısmını okur, modele bir veya birkaç kısa soru sorabilir, kendi notlarını tutar ve bir şey gösterir: yanıtın altında bir not, dokunulacak düğmeler, bir gösterge, bir harita veya bir sonraki yanıt için bir ipucu. Örnekler: önerilen üç sonraki hamle, bir gerilim göstergesi, ziyaret edilen yerlerin haritası. Bu sayfa bu tür ekstralar isteyenler içindir. Yardım bölümünde düzenleyici hakkında üç makale var: "Agent editor: how an agent works", "Agent editor: the cards" ve "Agent editor: three ready agents".
@@ -29,6 +29,10 @@ Ajanın ne zaman çalışacağı bir şeride (lane) bağlıdır. Ajanın dosyas�
 
 Canvas'taki Agents panosunda "New agent"a basın (raydaki **Agents** öğesi onu açar). "Empty agent" bir Girdi ve bir not verir. "Start from a ready agent" on çalışan ajan sunar: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (karakterin nasıl değiştiğini önerir, kartın Memory sekmesi için; bellek sayfasına bakın), Repetition guard, Canon guard ve Ledger (aşağıda anlatılır). "Drafts" altında Molfar'ın çalışma alanınıza yazdığı ajanlar bulunur ("Drafts from Molfar").
 
+### Yeni bir sohbette hazır ajanlar
+
+Yeni bir sohbet başlamadan önceki adımda aynı hazır ajanları içeren bir katlama yeri vardır: "Agents (optional)". Siz açana kadar içindeki hiçbir şey açık değildir. Onu açtığınızda her ajan, ne yaptığına dair bir cümle, çalıştırma başına maliyetinin bir tahmini (kodla çalışan için "no model calls") ve izin sayfasının listelediği satırların aynısını içeren "What it reads, changes and shows" gösterir. "Turn on the suggested three" Repetition guard, Next moves ve Scene recap'i seçer; bunlar hemen bir şey gösteren en ucuzlarıdır. Listenin altında, açtıklarınız için toplam "about N calls and T tokens per reply" der. Start'a basmak açtığınız ajanları kurar, tam olarak listeledikleri satırlara izin verir ve sohbeti onlarla başlatır (sohbetin zaten sahip olacağı setle birlikte). Katlama yerine bakmak hiçbir şey kurmaz ve hiçbir şeye izin vermez. Zaten kurulu olan bir ajan olduğu gibi kullanılır, asla üzerine yazılmaz. Sizinkinden daha yeni bir motor gerektiren bir ajan bunu söyler ve açılamaz. Bir grup sohbeti Character growth'u listelemez. Bu adım, bir ön ayarı olan, seçeneği olmayan ve ajan seti olmayan bir oyuncu için hazır ajanlar görülsün diye kendiliğinden bir kez açılır; ondan sonra, eskiden olduğu gibi, yalnızca seçilecek başka bir şey olduğunda açılır. Ajanları daha sonra sohbetin **Agents** sekmesinden değiştirin ya da kapatın.
+
 ### Repetition guard, Canon guard ve Ledger
 
 Uzun hikâyelerin karşılaştığı sorunlar için üç hazır ajan. Her birini, her ajan gibi, sohbet başına açın ve izin vermeden önce izinlerini okuyun.
@@ -55,11 +59,13 @@ Bir sohbette üst üste üç çalıştırmada zaman aşımına uğrayan bir Scri
 
 1. "Install"a basın ("Update" kurulu bir ajanın değiştirilmiş kopyası için; birini değiştirmek için "Edit a copy" kullanın).
 2. Bir kez izin verin: "Review permissions", sonra "Allow all" ya da satır satır. Her satır açıkken çalışır. Daha fazlasını isteyen bir güncelleme yeni bir Allow bekler. Bir Script kartı "Run its own small program" izni ister; izin listesi, onu açmadan önce kodunu gösterir ("Read the code") ve bir güncelleme kodu değiştirirse izin yeniden sorulur.
-3. Onu bir sohbete ekleyin. Sohbet başlığındaki hapta **Agents** sekmesini açın: "In this chat" etkin ajanları, "Installed" geri kalanları listeler (eklemek için birini seçin). Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya yanıtın onu beklemesini durdurabilir. Yeni bir sohbette, siz bazılarını eklemeden ya da bir set seçmeden hiç ajan yoktur. Henüz izin verilmemiş bir etmen satırında **Allow…** gösterir: bu, izin penceresini hemen açar. Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya onu bekleyen yanıtı durdurabilir.
+3. Onu bir sohbete ekleyin. Sohbet başlığındaki hapta **Agents** sekmesini açın: "In this chat" etkin ajanları, "Installed" geri kalanları listeler (eklemek için birini seçin). Henüz izin verilmemiş bir ajan satırında **Allow…** gösterir: bu, izin penceresini hemen açar. Bir satır şimdi yeniden çalışabilir, kaldırılabilir veya yanıtın onu beklemesini durdurabilir. Yeni bir sohbette, siz bazılarını eklemeden ya da bir set seçmeden hiç ajan yoktur.
 
 Bir **set**, adlandırılmış bir ajan listesidir ("Save this chat's list as a set"; "Make default" onu yeni sohbetlere verir). Canvas'ın "Agent sets" panosu her setin zaman ve çağrı maliyetini gösterir ve her ajanın notlarını gizleyen "Agents' notes in chats" anahtarını tutar. Her ajanın sonuç yeri, sohbetin Agents sekmesinde, ona uyan yerler arasından değiştirilebilir.
 
-Her "Ask the model" kartı çalıştırma başına bir çağrıdır; düzenleyici sayıyı gösterir. "Every Nth reply" maliyeti böler.
+Her "Ask the model" kartı çalıştırma başına bir çağrıdır; düzenleyici sayıyı gösterir. "Every Nth reply" maliyeti böler. Agents sekmesi ayrıca ajanların en yeni yanıt için gerçekte ne yaptığını gösterir: kaçının çalıştığı, kaç model çağrısı yapıldığı, yaklaşık kaç token (sağlayıcı bildirdiğinde) ve en yavaşının ne kadar sürdüğü.
+
+**Toplu işleme.** Bir "Ask the model" kartında isteğe bağlı bir **Batch with other agents** sözcüğü bulunur. Aynı geçişte çalışan, aynı modeli kullanan ve aynı sözcüğe sahip ajanlar sorularını tek bir istek olarak gönderir; bu, hız sınırı olan bir modelde çağrı tasarrufu sağlar. Modelin yanıtı doğru parçalara ayrılamazsa her soru kendi başına sorulur, yani en kötü durumda fazladan bir çağrı olur. Asla paylaşmaması gereken bir soru için boş bırakın (varsayılan). Toplu işleme en çok kartlar aynı geçmişi okuduğunda yarar sağlar; farklı girdilerde tasarruf küçüktür ve küçük pencereli bir model aynı anda birden fazla görevi alamayabilir.
 
 **Açmadan önce ne kadara mal olur.** İzinler sayfası ve Agents sayfasındaki ajan kartı tek bir çalıştırma için bir tahmin gösterir: çağrılar ve kabaca ne kadar token girdiği ve en fazla ne kadarının çıktığı. Agents sekmesi, sohbette açık olan ajanlar için yanıt başına toplamı gösteren bir satır ekler; "Every Nth reply" zaten paylaştırılmıştır. Bu rakam sohbetten değil ajanların dosyalarından (soruların uzunluğu, okudukları, yanıt sınırları) hesaplanır; bu yüzden "yaklaşık" yazar: gerçek sayılar sohbete ve modele bağlıdır. Hiçbir modele sormayan bir ajan bunu söyler.
 

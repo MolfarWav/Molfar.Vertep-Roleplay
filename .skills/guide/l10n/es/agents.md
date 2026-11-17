@@ -1,4 +1,4 @@
-<!-- source: b8aaee1c7866 -->
+<!-- source: 6af5ed4f6d28 -->
 # Agentes y la forja de agentes
 
 Un agente es un pequeño ayudante que construyes a partir de tarjetas y cables. Lee una parte del chat (antes o después de una respuesta, como prefieras), puede hacerle a un modelo una o varias preguntas breves, guarda sus propias notas y muestra algo: una nota bajo la respuesta, botones para tocar, un medidor, un mapa o una pista para la siguiente respuesta. Ejemplos: tres próximos movimientos sugeridos, un medidor de tensión, un mapa de los lugares visitados. Esta página es para quienes quieren esos extras. El Help tiene tres artículos sobre el editor: "Agent editor: how an agent works", "Agent editor: the cards" y "Agent editor: three ready agents".
@@ -9,7 +9,7 @@ Un agente son datos, no código. En el editor es un tablero de **tarjetas** unid
 
 - una tarjeta **Input** dice qué puede leer el agente (la última respuesta, el historial del chat, la tarjeta del personaje, la persona, la nota del autor, los hechos de Litopys, las entradas del lorebook, la fecha de la historia y el recuento de días). Una fuente que no tiene nada en este chat (ninguna tarjeta en un chat de grupo, ningún hecho registrado todavía) normalmente detiene todas las tarjetas que la necesitan; marca **Chats with nothing here still run** en esa fuente y llega como un texto vacío;
 - las tarjetas **Ask the model** hacen una pregunta a un modelo y toman la respuesta como texto libre, sí o no, o unos pocos campos con nombre;
-- tarjetas de lógica (una tarjeta If solo se dispara cuando su respuesta cambia a Yes, solo una vez, o con una pausa tras dispararse, y sus reglas pueden preguntar si un valor cambió desde la última ejecución; el registro de ejecución dice por qué respondió) y tarjetas que trabajan en código sin modelo: dados, elegir una línea, cortar o extraer texto;
+- tarjetas de lógica (una tarjeta If puede dispararse solo cuando su respuesta cambia a Yes, solo una vez, o con una pausa tras dispararse, y sus reglas pueden preguntar si un valor cambió desde la última ejecución; el registro de ejecución dice por qué respondió) y tarjetas que trabajan en código sin modelo: dados, elegir una línea, cortar o extraer texto;
 - una tarjeta **Script**: unas pocas líneas de JavaScript que escribes, con `(input, seed)` de entrada y un objeto simple de salida, con entradas y salidas tipadas. Corre en un entorno aislado del motor (sin reloj, sin internet, sin archivos, unos medio segundo y 16 MB) y necesita un motor de la versión 1.10.1 o posterior; un motor más antiguo hace fallar al agente con un mensaje simple;
 - tarjetas para la **memoria** propia del agente (números, texto, sí/no, listas), guardada por chat y aparte del Dashboard;
 - una tarjeta **Output** que muestra un resultado: "A note under the reply", "Buttons to tap", un valor de estado, o una pista colocada en el siguiente prompt.
@@ -28,6 +28,10 @@ Además del carril, un agente puede correr en cada N respuestas o solo cuando ap
 ## Agentes listos
 
 Pulsa "New agent" en el tablero Agents del **Canvas** (el elemento **Agents** del riel lo abre). "Empty agent" da una tarjeta Input y una nota. "Start from a ready agent" ofrece diez que funcionan: Next moves, Pacing nudge, Story map, Scene recap, Territory board, Tension meter, Character growth (propone cómo ha cambiado el personaje, para la pestaña Memory de la tarjeta; ver la página de memoria), Repetition guard, Canon guard y Ledger (descritos abajo). Bajo "Drafts" están los agentes que Molfar escribió en tu espacio de trabajo ("Drafts from Molfar").
+
+### Agentes listos en un chat nuevo
+
+El paso previo al inicio de un chat nuevo tiene un pliegue, "Agents (optional)", con los mismos agentes listos. Nada en él está activo hasta que lo activas. Ábrelo y cada agente muestra una frase sobre lo que hace, una estimación de su costo por ejecución ("no model calls" para uno que corre en código), y "What it reads, changes and shows" con las mismas líneas que lista la página de permisos. "Turn on the suggested three" elige Repetition guard, Next moves y Scene recap, los más baratos que muestran algo de inmediato. Debajo de la lista, el total de los que activaste dice "about N calls and T tokens per reply". Pulsar Start instala los agentes que activaste, permite exactamente las líneas que listaron y comienza el chat con ellos (junto con el conjunto que el chat habría tenido de todos modos). Mirar el pliegue no instala ni permite nada. Un agente que ya está instalado se usa tal cual, nunca se sobrescribe. Uno que necesita un motor más nuevo que el tuyo lo dice y no se puede activar. Un chat de grupo no lista Character growth. El paso se abre solo una vez para un jugador que tiene un preset, sin opciones y sin conjunto de agentes, para que se vean los agentes listos; después se abre solo cuando hay algo más que elegir, como antes. Cambia o desactiva los agentes más tarde en la pestaña **Agents** del chat.
 
 ### Repetition guard, Canon guard y Ledger
 
@@ -59,7 +63,9 @@ Un agente con una tarjeta Script que se queda sin tiempo tres ejecuciones seguid
 
 Un **conjunto** es una lista con nombre de agentes ("Save this chat's list as a set"; "Make default" se lo da a los chats nuevos). El tablero "Agent sets" del Canvas muestra el costo en tiempo y en llamadas de cada conjunto, y contiene el interruptor "Agents' notes in chats" que oculta las notas de todos los agentes. El lugar de resultado de cada agente se puede cambiar en la pestaña Agents del chat, entre los lugares que le convienen.
 
-Cada tarjeta "Ask the model" es una llamada por ejecución; el editor muestra el número. "Every Nth reply" divide el costo.
+Cada tarjeta "Ask the model" es una llamada por ejecución; el editor muestra el número. "Every Nth reply" divide el costo. La pestaña Agents también muestra lo que los agentes hicieron de verdad para la respuesta más reciente: cuántos corrieron, cuántas llamadas al modelo, más o menos cuántos tokens (cuando el proveedor lo dice) y cuánto tardó el más lento.
+
+**Agrupación.** Una tarjeta "Ask the model" tiene una palabra opcional **Batch with other agents**. Los agentes que corren en la misma pasada, usan el mismo modelo y tienen la misma palabra envían sus preguntas como una sola solicitud, lo que ahorra llamadas en un modelo con límite de frecuencia. Si la respuesta del modelo no se puede dividir en las partes correctas, cada pregunta se hace por separado, así que el peor caso es una llamada extra. Déjala vacía (el predeterminado) para una pregunta que nunca debe compartirse. La agrupación ayuda más cuando las tarjetas leen el mismo historial; con entradas distintas el ahorro es pequeño, y un modelo de ventana pequeña puede no aceptar varias tareas a la vez.
 
 **Cuánto cuesta, antes de activarlo.** La página de permisos y la tarjeta del agente en la hoja Agents muestran una estimación para una ejecución: las llamadas y, más o menos, cuántos tokens entran y, como máximo, cuántos salen. La pestaña Agents añade una línea con el total por respuesta para los agentes activos en el chat, con "Every Nth reply" ya repartido. Se calcula a partir de los archivos de los agentes (la longitud de sus preguntas, lo que leen, sus límites de respuesta), no de tu chat, por eso dice "about": las cifras reales dependen del chat y del modelo. Un agente que no consulta ningún modelo lo indica.
 

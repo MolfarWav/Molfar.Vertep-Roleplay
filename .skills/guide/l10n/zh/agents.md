@@ -1,4 +1,4 @@
-<!-- source: b8aaee1c7866 -->
+<!-- source: 6af5ed4f6d28 -->
 # 代理与代理工坊
 
 代理是一个由卡片和连线搭建的小助手。它读取聊天的一部分（在回复之前或之后，由你选择），可能会向模型提出一个或多个简短问题，保留自己的笔记，并展示一些内容：回复下方的一条注释、可点击的按钮、一个计量表、一张地图，或是对下一次回复的提示。例如：三个建议的后续行动、一个紧张度计量表、一张已到访地点的地图。本页面向那些想要这些附加功能的人。帮助中有三篇关于编辑器的文章：“Agent editor: how an agent works”、“Agent editor: the cards”和“Agent editor: three ready agents”。
@@ -29,6 +29,10 @@
 
 在**Canvas**的Agents面板中按“New agent”（侧边栏的**Agents**项会打开它）。“Empty agent”提供一个输入和一条注释。“Start from a ready agent”提供十个可用的代理：Next moves、Pacing nudge、Story map、Scene recap、Territory board、Tension meter、Character growth（提出角色如何变化，用于卡片的Memory标签页；见记忆页面）、Repetition guard、Canon guard和Ledger（下文说明）。“Drafts”下是Molfar写入你工作区的代理（“Drafts from Molfar”）。
 
+### 新聊天中的现成代理
+
+新聊天开始前的那一步有一个折叠项“Agents (optional)”，里面是同样的现成代理。在你开启之前，其中没有任何东西是开启状态。打开它，每个代理会显示一句关于它做什么的说明、每次运行的成本估算（不调用模型的代理会显示“no model calls”），以及“What it reads, changes and shows”，内容与权限页面列出的行相同。“Turn on the suggested three”会选中Repetition guard、Next moves和Scene recap，这三个是最便宜且能立刻显示内容的。列表下方会显示你开启的代理的合计：“about N calls and T tokens per reply”。按Start会安装你开启的代理，恰好允许它们列出的行，并用它们启动聊天（连同该聊天本来就会有的组）。仅仅查看折叠项不会安装或允许任何东西。已经安装的代理会按原样使用，绝不会被覆盖。需要比你所用引擎更新的引擎的代理会说明这一点，并且无法开启。群聊不会列出Character growth。对于有一个预设、没有选项且没有代理组的玩家，这一步会自动打开一次，让现成代理被看到；之后只有在有其他内容需要选择时才会打开，和以前一样。之后可以在聊天的**Agents**标签页中更改或关闭代理。
+
 ### Repetition guard、Canon guard和Ledger
 
 三个现成代理，针对长篇故事容易遇到的问题。像其他代理一样按聊天分别开启，并在允许之前先读它的权限。
@@ -55,11 +59,13 @@ Try标签页运行一个虚构的回合，不会改动任何内容。你可以�
 
 1. 按“Install”（对于已安装代理的修改版本，按“Update”；如需修改，请使用“Edit a copy”）。
 2. 允许一次：点“Review permissions”，然后选择“Allow all”或逐项允许。所有项目都开启后它才会运行。请求更多权限的更新会等待新的允许。脚本卡片会请求“Run its own small program”；在允许之前，权限列表会显示其代码（“Read the code”）；如果更新改变了代码，将再次请求权限。
-3. 将其添加到聊天中。在聊天顶部的胶囊按钮中打开**Agents**标签页：“In this chat”列出活动代理，“Installed”列出其余代理（选择一个即可添加）。每一行都可以立即再次运行、被移除，或停止让回复等待它。新聊天在你添加代理或选择一组之前没有任何代理。 尚未被允许的代理会在其行中显示**Allow…**：点击后会立即打开权限对话框。某一行可以立即重新运行、被移除，或停止正在等待它的回复。
+3. 将其添加到聊天中。在聊天顶部的胶囊按钮中打开**Agents**标签页：“In this chat”列出活动代理，“Installed”列出其余代理（选择一个即可添加）。尚未被允许的代理会在其行中显示**Allow…**：点击后会立即打开权限对话框。某一行可以立即重新运行、被移除，或停止正在等待它的回复。新聊天在你添加代理或选择一组之前没有任何代理。
 
 **组**是一个有名称的代理列表（“Save this chat's list as a set”；“Make default”会将它赋予新聊天）。Canvas的“Agent sets”面板显示每组的时间与调用成本，并保存“Agents' notes in chats”开关，用于隐藏所有代理的注释。每个代理的结果位置可以在聊天的Agents标签页中更改，选项为适合它的位置。
 
-每张“Ask the model”卡片每次运行调用一次；编辑器会显示数量。“Every Nth reply”可分摊成本。
+每张“Ask the model”卡片每次运行调用一次；编辑器会显示数量。“Every Nth reply”可分摊成本。Agents标签页还会显示各代理为最新回复实际做了什么：多少个运行了、多少次模型调用、大约多少token（当供应商告知时），以及最慢的耗时多久。
+
+**批处理。** “Ask the model”卡片有一个可选的**Batch with other agents**词。在同一轮次中运行、使用相同模型且具有相同词的代理会将它们的问题作为一次请求发送，这可以在有速率限制的模型上节省调用次数。如果模型的答案无法拆分为正确的部分，每个问题都会单独询问，因此最坏情况是多一次调用。对于绝对不能共享的问题，请将其留空（默认）。当卡片读取相同的历史时，批处理最有用；输入不同时节省有限，而且小窗口模型可能无法同时处理多个任务。
 
 **启用前的成本。** 权限页面以及代理在 Agents 表中的卡片会给出一次运行的估算：调用次数，以及大致输入多少 token、最多输出多少。Agents 标签页会为聊天中已开启的代理加上每次回复的合计行，已计入“Every Nth reply”的分摊。这一数字来自代理文件（其问题的长度、读取的内容、回答上限），而不是来自你的聊天，因此标注为“约”：实际数字取决于聊天和模型。不调用模型的代理会说明这一点。
 
