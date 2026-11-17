@@ -1568,6 +1568,30 @@ const ENGINE_TO_POS: Record<string, LoreEntry['position']> = {
   before_examples: 'before_em', after_examples: 'after_em',
 }
 
+/** Is this file a book in the app's own shape (what Export writes, or what sits in data/lorebooks)? The app's own book has a
+ *  `settings` object and an entries array whose entries carry the app's names (`uid`, `status`, `title`...). A file without
+ *  `vectorized` is native too (#295): it used to go to the world-info importer, which does not know these names and kept
+ *  only the keys and the text. Another format's entries (`insertion_order`, `extensions`, `keysecondary`) never count. */
+export function isNativeBook(json: Record<string, unknown>): boolean {
+  if (!isRecord(json.settings) || !Array.isArray(json.entries)) return false
+  const entries = json.entries.filter(isRecord)
+  if (entries.some((e) => 'insertion_order' in e || 'extensions' in e || 'keysecondary' in e)) return false
+  if (!entries.length) return 'vectorized' in json
+  return entries.some((e) => 'uid' in e || 'status' in e || 'logic' in e || 'selectiveLogic' in e || 'useProbability' in e)
+}
+
+/** A native file as the engine stores a book, under a new id. The file may be in either of the app's two shapes: the editor's
+ *  (`logic`, `useProbability`: what Export writes) or the stored one (`selectiveLogic`, `probability`: what data/lorebooks
+ *  holds and what Molfar writes). The stored shape used to be read as the editor's and lost its logic and probability (#295). */
+export function nativeBookToEngine(json: Record<string, unknown>, id: string): EngineLorebook {
+  const entries = (json.entries as unknown[]).filter(isRecord)
+  const editorShape = entries.some((e) => 'logic' in e || 'useProbability' in e)
+  const ui: Lorebook = editorShape
+    ? { ...(json as unknown as Lorebook), id, entries: entries as unknown as Lorebook['entries'], vectorized: (json.vectorized as Lorebook['vectorized'] | undefined) ?? engineLorebookToUI({ entries: [] } as unknown as EngineLorebook, id).vectorized }
+    : engineLorebookToUI({ ...(json as unknown as EngineLorebook), entries: entries as unknown as EngineLorebook['entries'] }, id)
+  return { ...lorebookToEngine({ ...ui, id }), id }
+}
+
 /** Import lorebook files. A native studio book is stored verbatim; anything
  *  else goes through the server-side world-info normalizer, where the FILE
  *  name becomes the book name because world files carry none. Returns the new
@@ -1588,12 +1612,11 @@ export async function importLorebookFiles(
     try {
       const json = JSON.parse(await file.text()) as Record<string, unknown>
       run.step(t('imp.step.saving'), 0.5)
-      const isNative = 'settings' in json && 'vectorized' in json && Array.isArray(json.entries)
-      if (isNative) {
+      if (isNativeBook(json)) {
         const id = uid('book')
         await j(`/lorebooks/${encodeURIComponent(id)}`, {
           method: 'PUT',
-          body: JSON.stringify({ ...lorebookToEngine({ ...(json as unknown as Lorebook), id }), id }),
+          body: JSON.stringify(nativeBookToEngine(json, id)),
         })
         ids.push(id)
       } else {
