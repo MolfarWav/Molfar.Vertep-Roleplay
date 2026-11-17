@@ -118,3 +118,36 @@ describe("the live stream socket (#383)", () => {
     useApp.setState({ streaming: null });
   });
 });
+
+describe("a send right after a Stop (#384)", () => {
+  it("the stopped send is 'stopped', not 'not-sent', even when the next send starts before its clean-up ends", async () => {
+    const refresh = deferred();
+    const calls: string[] = [];
+    fetchImpl = (url, init) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      const m = init?.method ?? "GET";
+      if (url.includes("/send")) {
+        // the request ends with an error that is not an AbortError once the page aborts it (what a slow page can see)
+        return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("network error")), { once: true });
+        });
+      }
+      // the clean-up after a Stop reads the chat again: slow, so the next send gets in before it ends
+      if (m === "GET" && /\/chats\/D$/.test(url)) return refresh.promise;
+      return Promise.resolve(json({}));
+    };
+    useApp.setState({ chats: [chat("D")], streaming: null, composerDrafts: {} });
+    const first = useApp.getState().sendMessage("D", "first message");
+    for (let i = 0; i < 50 && !calls.some((c) => c.includes("/send")); i++) await Bun.sleep(5);
+    expect(calls.some((c) => c.includes("/send"))).toBe(true);
+    useApp.getState().stopStreaming();
+    await Bun.sleep(20);
+    // the user sends again within the second: this clears what the old code kept per chat
+    const second = useApp.getState().sendMessage("D", "second message");
+    await Bun.sleep(20);
+    refresh.resolve(json({ meta: { id: "D", title: "D" }, messages: [] }));
+    expect(await first).toBe("stopped");
+    useApp.getState().stopStreaming();
+    await second.catch(() => undefined);
+  });
+});
