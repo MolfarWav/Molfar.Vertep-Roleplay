@@ -138,7 +138,7 @@ describe("GrowthBody", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).not.toContain('data-testid="mem-grow-section-relationships"');
     expect(count(html, 'data-testid="mem-grow-entry"')).toBe(3);
-    expect(count(html, 'role="switch"')).toBe(4); // three blocks and the master switch
+    expect(count(html, 'role="switch"')).toBe(5); // three blocks, the master switch and the reminder switch
     expect(html).toMatch(/aria-label="Use the block: The northern road"[^>]*aria-checked="false"|aria-checked="false"[^>]*aria-label="Use the block: The northern road"/);
     expect(html).toContain(">Goals<");
     expect(html).toContain(">Background<");

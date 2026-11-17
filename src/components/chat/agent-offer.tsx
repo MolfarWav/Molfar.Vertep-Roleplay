@@ -90,8 +90,8 @@ function OfferRow({ p, on, onChange }: { p: AgentPreview; on: boolean; onChange:
   const count = p.needs.length
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2.5" data-testid={`offer-row-${p.id}`}>
-      <div className="flex items-start gap-2.5">
-        <Switch size="sm" className="mt-0.5 max-md:after:-inset-y-3.5" checked={on && ok} disabled={!ok} aria-label={t('ag.offer.turnOn', { name: p.name })} onCheckedChange={onChange} data-testid={`offer-switch-${p.id}`} />
+      <label className={`flex items-start gap-2.5 ${ok ? 'cursor-pointer' : ''}`}>
+        <Switch size="sm" className="mt-0.5 max-md:after:-inset-y-4" checked={on && ok} disabled={!ok} aria-label={t('ag.offer.turnOn', { name: p.name })} onCheckedChange={onChange} data-testid={`offer-switch-${p.id}`} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-sm font-medium leading-snug">{p.name}</span>
           <span className="text-xs leading-snug text-muted-foreground">{p.description}</span>
@@ -99,7 +99,7 @@ function OfferRow({ p, on, onChange }: { p: AgentPreview; on: boolean; onChange:
           {p.installed && <span className="text-caption text-muted-foreground">{t('ag.offer.installed')}</span>}
           {!ok && <span className="text-caption text-amber-600 dark:text-amber-400">{t('ag.offer.newer')}</span>}
         </div>
-      </div>
+      </label>
       {ok && count > 0 && (
         <details className="ml-9 text-xs" data-testid={`offer-can-${p.id}`}>
           <summary className="cursor-pointer select-none py-1 font-medium max-md:min-h-10 max-md:leading-10">{t('ag.offer.can', { n: count })}</summary>
