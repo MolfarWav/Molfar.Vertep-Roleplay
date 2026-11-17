@@ -686,7 +686,11 @@ export function Composer({ chatId }: { chatId: ID }) {
               open={galleryOpen}
               onOpenChange={setGalleryOpen}
               characterId={characterId}
-              onAttach={(item) => setAttachments((prev) => [...prev, { id: uid('att'), ...item }])}
+              // the same cap as a file picked from the disk (#306): a ninth picture is refused, not silently kept
+              onAttach={(item) => {
+                if (attachments.length >= MAX_DRAFT_ATTACHMENTS) { toast.error(t('composer.attachmentsMax')); return }
+                setAttachments((prev) => [...prev, { id: uid('att'), ...item }])
+              }}
             />
           </>
         )}
