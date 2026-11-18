@@ -810,7 +810,11 @@ player switches it on for that chat. It writes:
   With `draw: true` (World > Backgrounds, "Draw places that have no picture"; needs image generation on) the sensor may also name a
   place the folder has no picture of, as a short name of two to four words, and the app draws it: the chat's model describes the
   place (`POST /chats/:id/image-prompt`, mode `background`, `subject` = the name and the World's own record of the place when it has one), the
-  World's image model (else the app's) draws it, and it is filed into the folder under the sensor's name, so the next pick finds it.
+  World's image model (else the app's) draws it, and it is filed into the folder under the sensor's name, so the next pick finds it. Its `tags` are that name plus, when the scene's World
+  record of the place (`GET /world/here` `place`) has the same words, the record's name and aliases, and the record's `background` is set to it
+  when it had none. A name is matched by its words (#278): small words and time of day or weather are left out (`placeWordKey`, copied as
+  `backdropWordKey` in the relations plugin), so "Lyra's quarters at night" finds `lyra_quarters`; the sensor plugin matches picture
+  names only, the app also tags and the record's names.
   One drawing at a time across the app, a chat at most once a minute, a place that failed waits 15 minutes.
   `style` (up to 200 characters, English words such as `medieval fantasy, candlelight`) is the chat's own look for its drawn backgrounds: it goes
   to the description call as `setting` and is appended to the end of the final image prompt, for a place drawn on the spot and for a set.

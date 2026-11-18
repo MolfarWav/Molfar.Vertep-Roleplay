@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { fetchImageModels, j } from '@/lib/engine'
 import { buildImagePrompt, describeForImage, generateImage, imageTargetOf, type ImageGenSettings } from '@/lib/image-gen'
 import { resolveLanguage, t } from '@/lib/i18n'
-import { loadWorldBackgrounds, loadWorldConfig, type WorldPlace } from '@/lib/world'
+import { editWorldRecord, loadWorldBackgrounds, loadWorldConfig, type WorldPlace } from '@/lib/world'
 import { backgroundBlob, storeBackground } from '@/lib/webp'
 import type { BackgroundItem, Chat, ID } from '@/lib/types'
 
@@ -103,6 +103,46 @@ export function findByName(backgrounds: BackgroundItem[], folderId: ID, name: st
   return n ? backgrounds.find((b) => b.folderId === folderId && b.name.trim().toLowerCase() === n) : undefined
 }
 
+/** Words that say when or how a place is seen, not which place it is ("at night", "in the rain"), and small words, in
+ *  English and Ukrainian: left out when two names of a place are compared (#278). */
+const PLACE_NOISE = new Set([
+  'a', 'an', 'the', 'at', 'in', 'on', 'of', 'by', 'near', 'during', 'inside', 'outside', 'with', 'and',
+  'night', 'nighttime', 'day', 'daytime', 'dawn', 'dusk', 'morning', 'evening', 'afternoon', 'noon', 'midnight',
+  'sunset', 'sunrise', 'twilight', 'rain', 'rainy', 'storm', 'stormy', 'snow', 'snowy', 'fog', 'foggy', 'winter',
+  'summer', 'autumn', 'spring', 'late', 'early', 'now', 'again', 'time',
+  'у', 'в', 'на', 'біля', 'при', 'під', 'час', 'і', 'та', 'вночі', 'вдень', 'вранці', 'ввечері', 'ніч', 'день',
+  'ранок', 'вечір', 'світанок', 'сутінки', 'дощ', 'сніг', 'зима', 'літо', 'осінь', 'весна',
+])
+
+/** The words that name a place, sorted, without small words and time of day: "Lyra's private quarters at night" and
+ *  "lyra_private_quarters" give the same key, "mill" and "mill cellar" do not. Empty when nothing is left. */
+export function placeWordKey(name: string): string {
+  const words = norm(name).split(' ').filter((w) => w.length > 1 && !PLACE_NOISE.has(w))
+  return [...new Set(words)].sort().join(' ')
+}
+
+/** A picture of this folder for any of these names of one place: its name or one of its tags means the same words (#278). */
+export function findForPlace(backgrounds: BackgroundItem[], folderId: ID, names: readonly string[]): BackgroundItem | undefined {
+  const keys = new Set(names.map(placeWordKey).filter(Boolean))
+  if (!keys.size) return undefined
+  return backgrounds.find((b) => b.folderId === folderId && b.type === 'image' && [b.name, ...(b.tags ?? [])].some((x) => keys.has(placeWordKey(x))))
+}
+
+/** What applySceneBackground reads from GET /world/here. */
+export interface SceneHere {
+  background?: string | null
+  place?: { id: string; name: string; aliases?: string[]; background?: string } | null
+}
+
+/** The scene's place record (GET /world/here) when it is the place the sensor named: the record's name or an alias has the
+ *  same words. Strict on purpose: "mill cellar" is not the record "Mill", and a drawn picture is bound to the record. */
+export function sceneRecordFor(name: string, here: SceneHere | null): SceneHere['place'] {
+  const p = here?.place
+  if (!p || !name.trim()) return null
+  const key = placeWordKey(name)
+  return key && [p.name, ...(p.aliases ?? [])].some((x) => placeWordKey(x) === key) ? p : null
+}
+
 /**
  * The Dashboard sensor named an image of the chat's folder: make it the chat's background. Called after
  * each Dashboard update; nothing else changes the background by itself. A picture bound to the scene's place
@@ -125,8 +165,10 @@ export async function applySceneBackground(
   const chat = s.chats.find((c) => c.id === chatId)
   const auto = chat?.autoBackground
   if (!chat || !auto?.on) return
+  let here: SceneHere | null = null
   try {
-    const id = sceneBackgroundId(await j<{ background?: string | null }>(`/world/here?chatId=${encodeURIComponent(chatId)}`), s.backgrounds)
+    here = await j<SceneHere>(`/world/here?chatId=${encodeURIComponent(chatId)}`)
+    const id = sceneBackgroundId(here, s.backgrounds)
     if (id) {
       if (chat.backgroundId !== id) s.updateChat(chatId, { backgroundId: id })
       return
@@ -143,7 +185,10 @@ export async function applySceneBackground(
   } catch {
     return
   }
+  // the exact name first; then the same place worded differently, or by the names of its World record (#278)
+  const record = sceneRecordFor(name, here)
   const bg = findByName(s.backgrounds, auto.folderId, name)
+    ?? findForPlace(s.backgrounds, auto.folderId, [name, ...(record ? [record.name, ...(record.aliases ?? [])] : [])])
   if (bg) {
     if (chat.backgroundId !== bg.id) s.updateChat(chatId, { backgroundId: bg.id })
     return
@@ -156,7 +201,7 @@ export async function applySceneBackground(
   drawingChats.add(chatId)
   lastDrawAt.set(chatId, now)
   // one image job at a time across the app: a single image server serves every chat, so a burst of Dashboard updates queues
-  const job = drawQueue.then(() => drawSceneBackground(chatId, name, auto.folderId!, s)).catch(() => {})
+  const job = drawQueue.then(() => drawSceneBackground(chatId, name, auto.folderId!, s, record)).catch(() => {})
   drawQueue = job
   try {
     await job
@@ -194,7 +239,7 @@ export const DRAW_COOLDOWN_MS = 60_000
 /** A place whose drawing failed is not tried again for this long (the sensor keeps naming it every update). */
 export const DRAW_RETRY_MS = 15 * 60_000
 
-const placeKey = (chatId: ID, name: string) => `${chatId}\u0001${name.trim().toLowerCase()}`
+const placeKey = (chatId: ID, name: string) => `${chatId}\u0001${placeWordKey(name) || name.trim().toLowerCase()}`
 export function drawFailedRecently(chatId: ID, name: string, now: number): boolean {
   return now - (failedDraws.get(placeKey(chatId, name)) ?? 0) < DRAW_RETRY_MS
 }
@@ -241,6 +286,7 @@ async function drawSceneBackground(
     addBackground?: (name: string, url: string) => ID
     updateBackground?: (id: ID, patch: Partial<BackgroundItem>) => void
   },
+  record: SceneHere['place'] = null,
 ): Promise<void> {
   const ig = s.settings?.imageGen
   if (!ig?.enabled || !s.addBackground || !s.updateBackground) return
@@ -261,8 +307,11 @@ async function drawSceneBackground(
     const stored = await storeBackground(blob, uniqueName(toSnake(name) || 'place', taken))
     // the name stays as the sensor wrote it (matched without case later), so the next pick finds the picture instead of drawing it again
     const id = s.addBackground(name, stored.url)
-    s.updateBackground(id, { folderId })
+    // the place's own names as tags, so another wording of it finds this picture (#278)
+    s.updateBackground(id, { folderId, tags: mergeTags([name], record ? placeTags(record.name, record.aliases) : []) })
     if (s.chats.find((c) => c.id === chatId)?.backgroundId !== id) s.updateChat(chatId, { backgroundId: id })
+    // and bound to the World's record of the place, as World > Places does by hand: from now on the record is the key
+    if (record && !record.background) await editWorldRecord(chatId, 'update', { id: record.id, background: id }).catch(() => {})
   } catch (e) {
     noteDrawFailed(chatId, name, Date.now())
     toast.error(t('world.bg.drawFailed', resolveLanguage(s.settings?.language), { name, why: String((e as Error)?.message ?? e) }), { id: `autobg-${chatId}` })

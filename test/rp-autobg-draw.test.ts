@@ -130,3 +130,46 @@ describe("withPlaceStyle", () => {
     expect(withPlaceStyle("a stone chamber", "   ")).toBe("a stone chamber");
   });
 });
+
+describe("the same place worded differently (#278)", () => {
+  it("time of day, small words, possessives and snake_case do not change a place's words; another place does", async () => {
+    const { placeWordKey } = await import("../src/lib/world-backgrounds");
+    expect(placeWordKey("Lyra's private quarters at night")).toBe(placeWordKey("lyra_private_quarters"));
+    expect(placeWordKey("The Old Mill at dusk")).toBe(placeWordKey("old mill"));
+    expect(placeWordKey("Кузня вночі")).toBe(placeWordKey("кузня"));
+    expect(placeWordKey("mill")).not.toBe(placeWordKey("mill cellar"));
+    expect(placeWordKey("at night")).toBe("");
+  });
+
+  it("the app's key and the sensor plugin's copy agree", async () => {
+    const { placeWordKey } = await import("../src/lib/world-backgrounds");
+    const { backdropWordKey } = await import("../plugins/relations/plugin.js");
+    for (const n of ["Lyra's private quarters at night", "old_mill", "Кузня вночі біля ріки", "the", "Tavern  —  rainy evening"]) {
+      expect(backdropWordKey(n)).toBe(placeWordKey(n));
+    }
+  });
+
+  it("the sensor's other wording picks the folder's picture by name, not by a loose tag", () => {
+    const folder = [{ name: "lyra_private_quarters", tags: [] }, { name: "castle_hall", tags: ["castle"] }];
+    expect(readBackdrop("Lyra's private quarters at night", folder)).toBe("lyra_private_quarters");
+    expect(readBackdrop("Lyra's private quarters at night", folder, true)).toBe("lyra_private_quarters");
+    expect(readBackdrop("castle", folder)).toBeNull();
+    expect(readBackdrop("castle", folder, true)).toBe("castle");
+  });
+
+  it("the app finds a picture by the place's words, by a tag, or by the record's names", async () => {
+    const { findForPlace, sceneRecordFor } = await import("../src/lib/world-backgrounds");
+    const bg = (id: string, name: string, tags: string[] = [], folderId = "f") => ({ id, name, tags, folderId, type: "image", url: `u${id}` }) as any;
+    const lib = [bg("1", "Lyra's private quarters at night", ["lyra's private quarters at night"]), bg("2", "hall_9", ["The Great Hall"]), bg("3", "mill", [], "other")];
+    expect(findForPlace(lib, "f", ["lyra private quarters"])?.id).toBe("1");
+    expect(findForPlace(lib, "f", ["great hall in the evening"])?.id).toBe("2");
+    expect(findForPlace(lib, "f", ["mill"])).toBeUndefined();
+    expect(findForPlace(lib, "f", ["at night", ""])).toBeUndefined();
+    const here = { place: { id: "n4", name: "The Great Hall", aliases: ["throne room"] } };
+    expect(sceneRecordFor("throne room at dusk", here)?.id).toBe("n4");
+    expect(sceneRecordFor("The great hall in the evening", here)?.id).toBe("n4");
+    expect(sceneRecordFor("great hall, by the fire", here)).toBeNull();
+    expect(sceneRecordFor("forest path", here)).toBeNull();
+    expect(sceneRecordFor("forest path", null)).toBeNull();
+  });
+});

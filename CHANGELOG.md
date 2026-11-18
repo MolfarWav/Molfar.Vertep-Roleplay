@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Fixed: **a place worded differently is no longer drawn again (Molfar.Vertep#278).** With "Draw places that have no picture" on, the Dashboard sensor naming the same place another way ("Lyra's private quarters at night", then "Lyra's private quarters") cost a new description and a new picture. Names are now compared by their words, leaving out small words and time of day or weather, in the sensor (picture names) and in the app (names, tags and the World record's names and aliases). A picture drawn on the spot carries the place's names as tags and becomes the picture of the World's record of that place (World > Places) when it had none, so from then on the record decides, however the sensor words it. "Mill" and "mill cellar" stay two places.
+
 ## 4.138.2 (2026-11-18)
 
 - Fixed: **the voice no longer reads the markup of a message (Molfar.Vertep#441).** With "Skip code blocks" and "Only narrate quotes" on, a reply styled like `<span style="color:#CC79A7">"Stay," she whispered.</span>` was read as `color:#CC79A7` and the speech: the quote pass took the tag's quoted attribute value for dialogue. HTML tags, comments and `<style>` / `<script>` blocks now leave the text before anything else is decided, with "Only narrate quotes" off too, so a tag is never spelled out. Plain `<` in prose ("5 < 6", "i <3 you") is kept. The fix was found and tried by the reporter in their own copy; here it is in a module of its own (`src/lib/tts-clean.ts`) with a test that runs the real function.

@@ -4616,7 +4616,30 @@ export function readBackdrop(v, choices, allowNew) {
   const name = str(v).toLowerCase();
   const hit = name ? arr(choices).find((b) => b.name.toLowerCase() === name) : null;
   if (hit) return hit.name;
+  // the same place worded differently ("Lyra's quarters at night" for lyra_quarters): its name has the same words (#278); tags
+  // are left out here, a tag like "castle" would send every castle scene to one hall
+  const key = backdropWordKey(name);
+  const near = key ? arr(choices).find((b) => backdropWordKey(b.name) === key) : null;
+  if (near) return near.name;
   return allowNew === true && name ? str(v).replace(/\s+/g, " ").slice(0, 60) : null;
+}
+
+// a copy of PLACE_NOISE and placeWordKey in src/lib/world-backgrounds.ts (plugins cannot import the app); a test keeps them equal
+// lexicon:start
+const BACKDROP_NOISE = new Set([
+  "a", "an", "the", "at", "in", "on", "of", "by", "near", "during", "inside", "outside", "with", "and",
+  "night", "nighttime", "day", "daytime", "dawn", "dusk", "morning", "evening", "afternoon", "noon", "midnight",
+  "sunset", "sunrise", "twilight", "rain", "rainy", "storm", "stormy", "snow", "snowy", "fog", "foggy", "winter",
+  "summer", "autumn", "spring", "late", "early", "now", "again", "time",
+  "у", "в", "на", "біля", "при", "під", "час", "і", "та", "вночі", "вдень", "вранці", "ввечері", "ніч", "день",
+  "ранок", "вечір", "світанок", "сутінки", "дощ", "сніг", "зима", "літо", "осінь", "весна",
+]);
+// lexicon:end
+
+/** The words that name a place, sorted, without small words and time of day; empty when nothing is left. */
+export function backdropWordKey(name) {
+  const words = String(name ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter((w) => w.length > 1 && !BACKDROP_NOISE.has(w));
+  return [...new Set(words)].sort().join(" ");
 }
 
 const classOf = (soul) => (soul && CLASSES.includes(soul.class) ? soul.class : "neutral");
