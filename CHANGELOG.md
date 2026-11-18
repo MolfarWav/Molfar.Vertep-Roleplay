@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.138.3 (2026-11-18)
+
 - Fixed: **a place worded differently is no longer drawn again (Molfar.Vertep#278).** With "Draw places that have no picture" on, the Dashboard sensor naming the same place another way ("Lyra's private quarters at night", then "Lyra's private quarters") cost a new description and a new picture. Names are now compared by their words, leaving out small words and time of day or weather, in the sensor (picture names) and in the app (names, tags and the World record's names and aliases). A picture drawn on the spot carries the place's names as tags and becomes the picture of the World's record of that place (World > Places) when it had none, so from then on the record decides, however the sensor words it. "Mill" and "mill cellar" stay two places.
 
 ## 4.138.2 (2026-11-18)

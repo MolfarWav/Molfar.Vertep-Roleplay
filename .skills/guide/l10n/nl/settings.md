@@ -1,4 +1,4 @@
-<!-- source: 324954b86949 -->
+<!-- source: 4a8da4a002cb -->
 # Waar de instellingen van Roleplay zijn
 
 Roleplay heeft geen enkele instellingenpagina voor alles. Instellingen staan dicht bij wat ze wijzigen, en twee ervan zitten in de hoofdinstellingen van Molfar Vertep. Deze pagina is een wegwijzer.
@@ -25,7 +25,7 @@ Wat de secties kort doen: Appearance is taal, lettertypen, chatbreedte en avatar
 
 De sectie **Tools** is een rij tabbladen, gegroepeerd als Panels (pluginpanelen zoals Tool Calling), Text & voice en System.
 
-- **Regex**: zoek-en-vervangscripts die alleen werken op de plaatsen die je inschakelt.
+- **Regex**: zoek-en-vervangscripts die alleen werken op de plaatsen die je inschakelt. Een script zonder flags in het vak Flags vervangt alleen de eerste overeenkomst (voeg `g` toe voor elke overeenkomst; een SillyTavern-import behoudt wat het patroon zei). Een script dat te lang duurt, of waarvan het resultaat in één bericht voorbij ongeveer drie miljoen tekens zou groeien (een patroon dat overal op een lege string past, met een wrapper als vervanging), wordt overgeslagen en de tekst wordt getoond zoals hij was.
 - **Translation**: provider, twee talen en een automatische vertaalmodus; vertaalt ook de open chat.
 - **Image Generation**: het chatmodel beschrijft de scène en een beeldmodel tekent hem. Standaard uit. Met interactieve modus aan controleer je elke prompt eerst.
 - **TTS**: leest antwoorden voor. Standaard uit.

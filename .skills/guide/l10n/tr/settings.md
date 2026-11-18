@@ -1,4 +1,4 @@
-<!-- source: 324954b86949 -->
+<!-- source: 4a8da4a002cb -->
 # Roleplay'in ayarları nerede
 
 Roleplay'in her şey için tek bir ayar sayfası yoktur. Ayarlar değiştirdikleri şeyin yanında durur ve ikisi ana Molfar Vertep Settings'tedir. Bu sayfa bir bulucudur.
@@ -25,7 +25,7 @@ Bölümlerin kısaca yaptıkları: Appearance dil, yazı tipleri, sohbet genişl
 
 **Tools** bölümü, Panels (Tool Calling gibi eklenti panelleri), Text & voice ve System olarak gruplanmış bir sekme sırasıdır.
 
-- **Regex**: yalnızca açtığınız yerlerde çalışan bul-değiştir betikleri.
+- **Regex**: yalnızca açtığınız yerlerde çalışan bul-değiştir betikleri. Flags kutusunda hiç bayrağı olmayan bir betik yalnızca ilk eşleşmeyi değiştirir (her eşleşme için `g` ekleyin; bir SillyTavern içe aktarımı kalıbın söylediğini korur). Çok uzun süren ya da sonucu tek bir mesajda yaklaşık üç milyon karakteri aşacak olan bir betik (her yerde boş bir dizeyle eşleşen ve değişimi bir sarmalayıcı olan bir kalıp) atlanır ve metin olduğu gibi gösterilir.
 - **Translation**: sağlayıcı, iki dil ve otomatik çeviri modu; ayrıca açık sohbeti de çevirir.
 - **Image Generation**: sohbet modeli sahneyi tanımlar ve bir görüntü modeli çizer. Varsayılan olarak kapalıdır. Etkileşimli mod açıkken önce her istemi kontrol edersiniz.
 - **TTS**: yanıtları sesli okur. Varsayılan olarak kapalıdır.
