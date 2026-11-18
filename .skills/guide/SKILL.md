@@ -11,6 +11,7 @@ Answer from these pages, not from the code. Read the page that fits:
 - `index`: what Roleplay is, a map of its parts
 - `first-story`: the newcomer's path, what to switch off on a small model
 - `characters`: cards, the card editor, persona, groups, import
+- `sprites`: sprites over the chat, sprite windows (several characters, transparent, row or grid), outfits
 - `soul`: a character's Soul, rating it, how it feeds the relationship dashboard
 - `dashboard`: the scene dashboard
 - `litopys`: chapters, facts, proposals, the Library

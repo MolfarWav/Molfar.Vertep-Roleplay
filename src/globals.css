@@ -803,7 +803,7 @@ h1 {
    sprite is inferred from that spot). While one is open on a touch screen
    the sprite steps out of the way; the sheet covers it anyway. */
 @media (pointer: coarse) {
-  body:has([role="dialog"], [role="menu"], [role="listbox"]) [data-expression-panel] { visibility: hidden; }
+  body:has([role="dialog"]:not([data-stage-menu]), [role="menu"], [role="listbox"]) [data-expression-panel] { visibility: hidden; }
 }
 
 /* Dashboard motion: a row that turns up fades in, a band icon pops, the weather icon moves a little.

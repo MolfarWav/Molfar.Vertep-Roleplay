@@ -29,6 +29,7 @@ Three helpers watch the story and cost extra model calls, so it is worth knowing
 
 - [[first-story]]: from nothing to your first reply, and what to switch off on a small or slow model.
 - [[characters]]: cards, the card editor, personas, groups, import.
+- [[sprites]]: sprites over the chat, several windows for a group or a narrator, the visual-novel look.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: the story machinery.
 - [[memory]]: which kind of memory to use for what.
 - [[canvas]]: chat links, the prompt board and the agent forge.

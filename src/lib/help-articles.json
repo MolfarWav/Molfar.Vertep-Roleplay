@@ -149,17 +149,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "121-121",
+          "lines": "129-129",
           "quote": "Import cards from links: chub, RisuRealm, CharaVault or a direct file"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "152-152",
+          "lines": "160-160",
           "quote": "Real import (PNG and JSON cards, single or bulk): shared with Home."
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "155-155",
+          "lines": "163-163",
           "quote": "Real export: V2 PNG card with the JSON spliced into a tEXt chunk."
         }
       ]
@@ -241,17 +241,17 @@
       "sources": [
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "66-66",
+          "lines": "67-67",
           "quote": "The Characters section, or the Groups section: the same"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "567-567",
+          "lines": "575-575",
           "quote": "on desktop the tags in use (two rows at most"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "51-51",
+          "lines": "52-52",
           "quote": "SORT_OPTIONS: [SortKey, string][] = ["
         }
       ]
@@ -291,7 +291,7 @@
         },
         {
           "path": "src/components/profile/profile-form.tsx",
-          "lines": "84-84",
+          "lines": "85-85",
           "quote": "{ id: 'identity', title: 'Identity', Icon: IdentificationCard, accent: 'sky', switchable: false }"
         },
         {
@@ -393,7 +393,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3900-3900",
+          "lines": "4534-4534",
           "quote": "'voices.title': 'Voices',"
         },
         {
@@ -539,12 +539,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3901-3901",
+          "lines": "4535-4535",
           "quote": "List who speaks: each one\\'s lines get their own colour."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3906-3906",
+          "lines": "4540-4540",
           "quote": "Colours not picked yet come from a built-in palette, in this order."
         },
         {
@@ -591,12 +591,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "614-614",
+          "lines": "795-795",
           "quote": "Dialogue set off by a dash (— Hello) is coloured like quoted speech, with the author\\'s words between two dashes left plain."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "614-614",
+          "lines": "795-795",
           "quote": "A voice is found when the story spells its name in the other script (Ember as Эмбер)."
         },
         {
@@ -639,22 +639,22 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4372-4372",
+          "lines": "5081-5081",
           "quote": "Short rules for how {name} acts, written once and used in every chat. Not abilities: reactions and manners."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9536-9536",
+          "lines": "11076-11076",
           "quote": "\"Чекають на ваше «так» ({n})\""
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "148-148",
+          "lines": "149-149",
           "quote": "called skills until Roleplay 4.67.0, and files with the old keys `skills`, `nextSkill`,"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4464-4464",
+          "lines": "5249-5249",
           "quote": "'lit.set.habitsAfter': 'Formed after (scenes)',"
         }
       ]
@@ -692,22 +692,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1021-1021",
+          "lines": "1202-1202",
           "quote": "A persona is who you play: name, pronouns and description. “Use this persona” makes it your default and switches the open chat to it."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "5018-5018",
+          "lines": "5849-5849",
           "quote": "chats keep their messages."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2300-2300",
+          "lines": "2347-2347",
           "quote": "usePersona: (id) => {"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "384-384",
+          "lines": "464-464",
           "quote": "card's `molfar_profile`, written by the Personas page's five questions, its Profile section,"
         }
       ]
@@ -744,12 +744,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "998-998",
+          "lines": "1179-1179",
           "quote": "A group puts several characters into one chat. Create one with New group; its editor has Overview, Members, Scene, Turns, Lore and Chats."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "420-420",
+          "lines": "500-500",
           "quote": "chat's meta has `groupId` and no `characterId`. Deleting a group deletes its chats; its members stay."
         },
         {
@@ -759,7 +759,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2402-2402",
+          "lines": "2916-2916",
           "quote": "'group.ed.noteHint': 'Never sent to the model',"
         }
       ]
@@ -796,22 +796,22 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2550-2550",
+          "lines": "3064-3064",
           "quote": "'group.ed.generationModeNarrator': 'Narrator: one reply voices everyone',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2574-2574",
+          "lines": "3108-3108",
           "quote": "'turns.short.manual': 'You pick',"
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1009-1009",
+          "lines": "1190-1190",
           "quote": "In a group’s Turns tab, Generation mode is either Narrator (one reply voices everyone) or Each in turn."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "426-426",
+          "lines": "506-506",
           "quote": "Who answers: `natural` (whoever the user names, else one pick by talkativeness), `list` (everyone in order), `manual` (only a triggered member)."
         }
       ]
@@ -850,22 +850,22 @@
       "sources": [
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "472-472",
+          "lines": "494-494",
           "quote": "{char.mood && ("
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "473-473",
+          "lines": "495-495",
           "quote": "<Field label={t('dash.mood')}>"
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "475-475",
+          "lines": "497-497",
           "quote": "{char.moodWas && <span className=\"ml-1 text-caption text-muted-foreground\">({t('dash.moodWas', { mood: char.moodWas })})</span>}"
         },
         {
           "path": "src/components/dashboard/dash-common.tsx",
-          "lines": "346-346",
+          "lines": "368-368",
           "quote": "export type Tone = 'scene' | 'people' | 'memory' | 'plot'"
         }
       ]
@@ -903,17 +903,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "806-806",
+          "lines": "987-987",
           "quote": "Quests are the open questions and promises that drive the story: main ones (what it is about now), side ones, and small everyday ones that end by themselves."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "603-603",
+          "lines": "784-784",
           "quote": "Story, move can pick a quest or a step, or add a Twist: something outside the quests."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "830-830",
+          "lines": "1011-1011",
           "quote": "The arrow beside it picks one open quest to pull on."
         }
       ]
@@ -955,7 +955,7 @@
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "818-818",
+          "lines": "999-999",
           "quote": "You can add a note, edit one, pin it or mark it important or everyday, and remove it or bring it back."
         }
       ]
@@ -992,17 +992,17 @@
       "sources": [
         {
           "path": "src/lib/dashboard.ts",
-          "lines": "399-399",
+          "lines": "436-436",
           "quote": "export async function armNudge(chatId: string, threadId: string | null, twist = false): Promise<Nudge | null> {"
         },
         {
           "path": "src/lib/dashboard.ts",
-          "lines": "398-398",
+          "lines": "435-435",
           "quote": "Throws with the server's message (409 when the thread is no longer open)."
         },
         {
           "path": "src/lib/dashboard.ts",
-          "lines": "404-404",
+          "lines": "441-441",
           "quote": "/** Cancel the pending nudge (DELETE /dashboard/nudge); the new nudge is always null. */"
         }
       ]
@@ -1039,17 +1039,17 @@
       "sources": [
         {
           "path": "src/lib/types.ts",
-          "lines": "253-253",
+          "lines": "276-276",
           "quote": "authorNote: {"
         },
         {
           "path": "src/lib/types.ts",
-          "lines": "255-255",
+          "lines": "278-278",
           "quote": "position: 'before-system' | 'after-system' | 'in-chat'"
         },
         {
           "path": "src/lib/types.ts",
-          "lines": "258-258",
+          "lines": "281-281",
           "quote": "frequency: number"
         }
       ]
@@ -1086,17 +1086,17 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4274-4274",
+          "lines": "4983-4983",
           "quote": "'mem.intro': \"What {name} remembers from all stories, even after a chat is deleted."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "126-126",
+          "lines": "127-127",
           "quote": "**The card's long memory.** Not part of the card either: `characters/<id>/memory.json`, written by the Litopys"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "131-131",
+          "lines": "132-132",
           "quote": "A source is a snapshot taken when a chat is imported (the arc, the"
         },
         {
@@ -1106,7 +1106,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2903-2903",
+          "lines": "3478-3478",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1143,22 +1143,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "912-912",
+          "lines": "1093-1093",
           "quote": "Record in the chat header (on a phone: Menu) opens the Library record of this chat in a side panel: chapters, facts and proposals, with an option to rebuild"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "953-953",
+          "lines": "1188-1188",
           "quote": "which writes a new record beside the old one and swaps it in when done (your own, edited and pinned facts and your edited chapters stay)."
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "502-502",
+          "lines": "737-737",
           "quote": "Rebuild from scratch no longer empties a chat's record: with no closed scene it refuses to start"
         },
         {
           "path": "CHANGELOG.md",
-          "lines": "948-948",
+          "lines": "1183-1183",
           "quote": "**Litopys is the chat's memory.** It cuts the story into scenes and, in the background, writes one chapter per finished scene (what changed, not a retelling)"
         }
       ]
@@ -1195,12 +1195,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "646-646",
+          "lines": "827-827",
           "quote": "Litopys follows the scenes you see"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "276-276",
+          "lines": "333-333",
           "quote": "A marked run of messages is always a scene of its own: the sensor's boundaries inside it are dropped, `scene.minMessages`"
         },
         {
@@ -1243,17 +1243,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "866-866",
+          "lines": "1047-1047",
           "quote": "Litopys, the chronicler, writes a chapter after each scene closes and keeps facts about the story."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2884-2884",
+          "lines": "3459-3459",
           "quote": "'lit.set.proposalsQuiet': 'Apply pins and rewrites quietly',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2899-2899",
+          "lines": "3474-3474",
           "quote": "'lit.set.autoConsolidate': 'Tidy facts automatically',"
         },
         {
@@ -1263,7 +1263,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2903-2903",
+          "lines": "3478-3478",
           "quote": "'lit.set.sizeAuto': 'Auto',"
         }
       ]
@@ -1300,17 +1300,17 @@
       "sources": [
         {
           "path": "src/components/library/ledger.tsx",
-          "lines": "26-26",
+          "lines": "27-27",
           "quote": "TAB_IDS = ['chapters', 'facts', 'turns', 'proposals', 'habits', 'activity', 'settings']"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2757-2757",
+          "lines": "3330-3330",
           "quote": "'lit.mode': 'Library view',"
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "878-878",
+          "lines": "1059-1059",
           "quote": "Overview shows a chat’s story as a timeline of chapters with its characters beside it."
         }
       ]
@@ -1347,22 +1347,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "888-888",
+          "lines": "1069-1069",
           "quote": "Facts are things the story has established, each with a type, a weight and who knows it; pin the important ones."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2806-2806",
+          "lines": "3381-3381",
           "quote": "'lit.type.event': 'Event',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2813-2813",
+          "lines": "3388-3388",
           "quote": "'lit.weight.everyday': 'Everyday',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2831-2831",
+          "lines": "3406-3406",
           "quote": "'lit.pstatus.auto': 'Applied by itself',"
         }
       ]
@@ -1397,32 +1397,32 @@
       "sources": [
         {
           "path": "src/components/library/ledger-facts.tsx",
-          "lines": "762-762",
+          "lines": "814-814",
           "quote": "const hay = [f.text, f.subject, ...(Array.isArray(f.knownBy) ?"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3074-3074",
+          "lines": "3666-3666",
           "quote": "'lit.msgs.searchToggle': 'Search the messages',"
         },
         {
           "path": "src/components/library/ledger-facts.tsx",
-          "lines": "85-85",
+          "lines": "87-87",
           "quote": "const STATE_FILTERS = ['active', 'pinned', 'retired', 'superseded', 'all'] as const"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2822-2822",
+          "lines": "3397-3397",
           "quote": "'lit.status.superseded': 'Replaced',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3187-3187",
+          "lines": "3800-3800",
           "quote": "'lit.factsShown': '{n} of {total} shown',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3188-3188",
+          "lines": "3801-3801",
           "quote": "'lit.clear': 'Clear',"
         }
       ]
@@ -1459,7 +1459,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "900-900",
+          "lines": "1081-1081",
           "quote": "The map shows which chats continue which, and it is view-only."
         },
         {
@@ -1469,7 +1469,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3088-3088",
+          "lines": "3680-3680",
           "quote": "'lit.map.hint': 'The map of this chat: the chats it continues above, the ones that continue it below."
         }
       ]
@@ -1507,12 +1507,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "924-924",
+          "lines": "1105-1105",
           "quote": "World in the chat header (on a phone: Menu) switches on a game master for this chat."
         },
         {
           "path": "plugins/world/plugin.js",
-          "lines": "4586-4586",
+          "lines": "7013-7013",
           "quote": "must not switch off a chat that is on by default"
         },
         {
@@ -1527,7 +1527,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "527-527",
+          "lines": "625-625",
           "quote": "The World DM plugin (`plugins/world/`) keeps the world around the characters for one chat."
         }
       ]
@@ -1564,7 +1564,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "387-387",
+          "lines": "554-554",
           "quote": "In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default."
         },
         {
@@ -1574,7 +1574,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "530-530",
+          "lines": "628-628",
           "quote": "the chat's world book, a normal lorebook with `ownerChatId`"
         }
       ]
@@ -1611,22 +1611,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "397-397",
+          "lines": "564-564",
           "quote": "Start tab drafts records and fronts from its cards or a short interview"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "394-394",
+          "lines": "728-728",
           "quote": "'world.recipe.from-cards.desc': 'The DM reads the cards and their lorebooks and writes what they imply: places, people, factions, a conflict.',"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "627-627",
+          "lines": "824-824",
           "quote": "state.draft` holds a Start in progress or waiting for the player"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "639-639",
+          "lines": "836-836",
           "quote": "world/library/w-<id>.json`: a saved world"
         }
       ]
@@ -1663,12 +1663,12 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "430-430",
+          "lines": "597-597",
           "quote": "Backgrounds tab links a folder, plans a set of pictures for its places"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "487-487",
+          "lines": "823-823",
           "quote": "'world.bg.setHint': 'The DM plans names and prompts for the places you pick; you check the plan, then the pictures are drawn one by one.',"
         },
         {
@@ -1678,12 +1678,12 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "611-611",
+          "lines": "804-804",
           "quote": "Backgrounds of a world: a folder of the app's Backgrounds library"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "597-597",
+          "lines": "933-933",
           "quote": "'world.bg.auto': 'Change the background by scene'"
         }
       ]
@@ -1720,22 +1720,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "685-685",
+          "lines": "866-866",
           "quote": "the arrows flip between its versions (swipes). The right arrow on the last version asks the model for a new one"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "596-596",
+          "lines": "604-604",
           "quote": "!isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "190-190",
+          "lines": "191-191",
           "quote": "swipeCountAllMessages: false,"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1127-1127",
+          "lines": "1146-1146",
           "quote": "Swipe {index + 1}"
         }
       ]
@@ -1772,22 +1772,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "697-697",
+          "lines": "878-878",
           "quote": "press Edit to change its text, then Save. The buttons appear when you point at a message"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "560-560",
+          "lines": "567-567",
           "quote": "setDraft(swipe?.content ?? '')"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "857-857",
+          "lines": "865-865",
           "quote": "<Button size=\"sm\" onClick={() => { editMessage(chat.id, message.id, draft); setEditing(false) }}>Save</Button>"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "997-997",
+          "lines": "1016-1016",
           "quote": "aria-label={t('msg.edit')}"
         }
       ]
@@ -1824,7 +1824,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "709-709",
+          "lines": "890-890",
           "quote": "redoes the last reply and lets you say what to change. The hint goes to the model for that one reply"
         },
         {
@@ -1876,7 +1876,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "721-721",
+          "lines": "902-902",
           "quote": "holds Copy text, Translate, Speak, Bookmark, Fork here, Generation data, Prompt peek, Hide from AI, Move up and down"
         },
         {
@@ -1886,12 +1886,12 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "635-635",
+          "lines": "643-643",
           "quote": "<DropdownMenuContent align=\"end\" className=\"w-64\">"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "997-997",
+          "lines": "1016-1016",
           "quote": "<Button variant=\"ghost\" size=\"sm\" className=\"ls-act\" aria-label={t('msg.edit')} onClick={startEdit}>"
         }
       ]
@@ -1928,22 +1928,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "733-733",
+          "lines": "914-914",
           "quote": "starts a new chat from that message and leaves the original unchanged"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "710-710",
+          "lines": "724-724",
           "quote": "{ key: 'branches', icon: GitBranch, label: 'Branches', onSelect: () => setBranchesOpen(true) },"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "605-605",
+          "lines": "613-613",
           "quote": "case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1741-1741",
+          "lines": "1786-1786",
           "quote": "toast.success('Forked into a new chat')"
         }
       ]
@@ -1980,22 +1980,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "745-745",
+          "lines": "926-926",
           "quote": "shows the request behind that reply, and Generation data shows its model, tokens, cost and time"
         },
         {
           "path": "src/components/chat/prompt-peek-dialog.tsx",
-          "lines": "15-17",
+          "lines": "34-36",
           "quote": "/**\n * The REAL assembled prompt for a chat, straight from the engine's preview\n * route — macros expanded, world info / summary / depth injections spliced,"
         },
         {
           "path": "src/components/chat/prompt-peek-dialog.tsx",
-          "lines": "29-29",
+          "lines": "48-48",
           "quote": "/** scope the assembly to one message: the prompt as of that point */"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "1062-1062",
+          "lines": "1081-1081",
           "quote": "<DialogTitle>Generation data</DialogTitle>"
         }
       ]
@@ -2032,7 +2032,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "756-756",
+          "lines": "937-937",
           "quote": "such as /continue, /impersonate, /regenerate and your own shortcuts. Macros like {{char}}, {{user}} and {{roll:d20}} are filled in"
         },
         {
@@ -2042,7 +2042,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4260-4260",
+          "lines": "4969-4969",
           "quote": "'guide.help.reference': 'All commands and macros',"
         },
         {
@@ -2084,22 +2084,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "768-768",
+          "lines": "949-949",
           "quote": "holds Convert to group, Branches, Bookmarks and Display settings, then Start new chat, Delete messages and Manage chat files"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "704-704",
+          "lines": "718-718",
           "quote": "{ key: 'note', icon: Note, label: \"Author's note\", onSelect: () => setNotesOpen(true) },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "724-724",
+          "lines": "738-738",
           "quote": "{ key: 'delete', icon: Trash, label: 'Delete messages…', onSelect: () => setDeleteMode(true), disabled: isStreaming },"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "728-728",
+          "lines": "742-742",
           "quote": "// the story tools sit in the header (desktop, when it is wide enough) or on top of the phone menu; the lists keep the rest"
         }
       ]
@@ -2135,7 +2135,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "272-272",
+          "lines": "439-439",
           "quote": "the second continues the first and gets the earlier story as backstory. Dashed wires are branches forked from a message."
         },
         {
@@ -2177,7 +2177,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "177-177",
+          "lines": "344-344",
           "quote": "See every part of a chat’s request to the model with its tokens, and switch parts off for that chat only."
         },
         {
@@ -2187,7 +2187,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1668-1668",
+          "lines": "2047-2047",
           "quote": "'canvas.prompt.state.presetOff': 'Off in the preset'"
         }
       ]
@@ -2223,7 +2223,7 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "190-190",
+          "lines": "357-357",
           "quote": "only the last N messages, whose messages (everyone’s, only the player’s, only the character’s), and whether to send thinking blocks"
         },
         {
@@ -2233,7 +2233,7 @@
         },
         {
           "path": "src/lib/engine.ts",
-          "lines": "1124-1124",
+          "lines": "1174-1174",
           "quote": "export const DEFAULT_PROMPT_HISTORY: PromptBoardHistory = { lastN: 0, only: 'all', thinking: true }"
         }
       ]
@@ -2270,22 +2270,22 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "304-304",
+          "lines": "471-471",
           "quote": "Each card is one part: preset sections, card fields, persona, lorebooks. Most have a switch that turns the part off for this chat only."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "292-292",
+          "lines": "459-459",
           "quote": "The board shows what this chat sends to the model with its next reply."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "313-313",
+          "lines": "480-480",
           "quote": "Everything that stays on, in order, with the total tokens."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "322-322",
+          "lines": "489-489",
           "quote": "Details list what was taken and why something was left out, and show the text itself."
         }
       ]
@@ -2322,17 +2322,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1047-1047",
+          "lines": "1228-1228",
           "quote": "A lorebook is a set of entries about your world. An entry joins the request when its keywords show up in the chat, or always if you set it so."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "510-510",
+          "lines": "607-607",
           "quote": "Percent chance to fire when keyed; omit for always."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3416-3416",
+          "lines": "4029-4029",
           "quote": "Grey keywords: words in the chat that trigger the entry."
         }
       ]
@@ -2369,17 +2369,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1059-1059",
+          "lines": "1240-1240",
           "quote": "The Global switch adds a book to every chat, whichever character or persona is in it."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3413-3413",
+          "lines": "4026-4026",
           "quote": "'lore.global.info': 'A global book is added to every chat, whichever character or persona is in it."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "478-478",
+          "lines": "575-575",
           "quote": "Links live on the card (or the group) only"
         }
       ]
@@ -2416,17 +2416,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1071-1071",
+          "lines": "1252-1252",
           "quote": "Paste a message to see which entries of a book would fire and why, or what was held back."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3417-3417",
+          "lines": "4030-4030",
           "quote": "'lore.testKeys': 'Test triggers'"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "501-501",
+          "lines": "598-598",
           "quote": "Words of 3 letters or fewer match only exactly."
         }
       ]
@@ -2463,17 +2463,17 @@
       "sources": [
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1085-1085",
+          "lines": "1288-1288",
           "quote": "A preset is the set of instructions and settings the model gets with every reply."
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "656-656",
+          "lines": "853-853",
           "quote": "A preset is the prompt the model gets around the chat, plus sampler settings."
         },
         {
           "path": "src/lib/guide-tips.ts",
-          "lines": "1262-1262",
+          "lines": "1465-1465",
           "quote": "Shows the final request this preset builds for a chat, so you can see what the model really gets."
         },
         {
@@ -2488,7 +2488,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4059-4059",
+          "lines": "4714-4714",
           "quote": "'pc.worksWith': 'Works with: {list}',"
         }
       ]
@@ -2585,7 +2585,7 @@
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "779-779",
+          "lines": "977-977",
           "quote": "Global scripts run first, then preset, then character and chat."
         },
         {
@@ -2648,17 +2648,17 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2015-2015",
+          "lines": "2062-2062",
           "quote": ".filter((r) => r.mode === 'send' && r.autoExecute?.[event])"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3119-3119",
+          "lines": "3192-3192",
           "quote": "Auto-execute runs /continue, /impersonate, /regenerate, /swipe, or plain text."
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2013-2013",
+          "lines": "2060-2060",
           "quote": ".filter((set) => set.enabled)"
         }
       ],
@@ -2695,22 +2695,22 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3133-3133",
+          "lines": "3725-3725",
           "quote": "Failures, Library suggestions and proposed souls show up here."
         },
         {
           "path": "src/lib/attention.ts",
-          "lines": "59-59",
+          "lines": "65-65",
           "quote": "\"Dismiss\" on a failure row: gone until that job fails again"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3162-3162",
+          "lines": "3775-3775",
           "quote": "Dismiss (the proposal is deleted)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3173-3173",
+          "lines": "3786-3786",
           "quote": "a background job fails: the World DM, the Library, the scene state or a soul rating"
         }
       ],
@@ -2801,7 +2801,7 @@
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "260-260",
+          "lines": "268-268",
           "quote": "meta.get(name)?.visible !== false"
         },
         {
@@ -2811,7 +2811,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2558-2558",
+          "lines": "2605-2605",
           "quote": "chats: s.chats.map((c) => (c.folderId === id ? { ...c, folderId: null } : c))"
         },
         {
@@ -2821,7 +2821,7 @@
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "348-348",
+          "lines": "356-356",
           "quote": "characters.folders.move"
         }
       ],
@@ -2876,7 +2876,7 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "195-195",
+          "lines": "196-196",
           "quote": "targetLanguage: 'Spanish'"
         }
       ]
@@ -2917,17 +2917,17 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "194-194",
+          "lines": "195-195",
           "quote": "provider: 'None', narratorVoice: 'aria', autoPlay: false, speed: 1, onlyQuotes: true, skipAsterisks: true, skipCodeblocks: true"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "431-431",
+          "lines": "445-445",
           "quote": "if (!settings.tts.autoPlay || settings.tts.provider === 'None' || isStreaming || !chat) return"
         },
         {
           "path": "src/lib/tts.ts",
-          "lines": "9-9",
+          "lines": "10-10",
           "quote": "export const TTS_PROVIDERS = ['None', 'System (Web Speech)', 'Engine'] as const"
         }
       ]
@@ -2979,7 +2979,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3084-3084",
+          "lines": "3157-3157",
           "quote": "Turn on Tools → Image Generation to see it."
         }
       ]
@@ -3065,12 +3065,12 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3817-3817",
+          "lines": "4430-4430",
           "quote": "'bank.scope.global': 'Everywhere',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3824-3824",
+          "lines": "4437-4437",
           "quote": "'bank.scope.change': 'Where this file applies',"
         },
         {
@@ -3080,7 +3080,7 @@
         },
         {
           "path": "plugins/engine/plugin.js",
-          "lines": "1079-1079",
+          "lines": "1135-1135",
           "quote": "a chat that continues one of them (Canvas links, `scope.chain`"
         },
         {
@@ -3090,7 +3090,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3827-3827",
+          "lines": "4440-4440",
           "quote": "'bank.searchChat': 'Search as this chat',"
         },
         {
@@ -3146,7 +3146,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "614-614",
+          "lines": "950-950",
           "quote": "Stores each image again as WebP in the asset store: smaller, and out of library.json. GIFs and animated images stay as they are."
         }
       ]
@@ -3192,7 +3192,7 @@
         },
         {
           "path": "AGENTS.md",
-          "lines": "292-292",
+          "lines": "300-300",
           "quote": "Each app starts with every shared server off and opts in per server"
         },
         {
@@ -3285,22 +3285,22 @@
       "sources": [
         {
           "path": "plugins/tools/plugin.js",
-          "lines": "358-360",
+          "lines": "360-362",
           "quote": "label: \"Tool Calling\", icon: \"dices\", hint: \"Enabled tools are offered to the model during generation.\","
         },
         {
           "path": "plugins/tools/plugin.js",
-          "lines": "49-51",
+          "lines": "51-53",
           "quote": "name: \"Dice Roller\", description: \"Roll dice when an outcome should be left to chance.\", enabled: false,"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "64-64",
+          "lines": "66-66",
           "quote": "function ToolRow({ name, args, result, running, isError }: {"
         },
         {
           "path": "plugins/tools/plugin.js",
-          "lines": "61-61",
+          "lines": "63-63",
           "quote": "Lets the character draw a picture into the chat (needs Image Generation turned on)."
         }
       ]
@@ -3333,17 +3333,17 @@
       "sources": [
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "146-146",
+          "lines": "149-149",
           "quote": "A draft that wrapped gets the whole row and the buttons move under it:"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "590-590",
+          "lines": "634-634",
           "quote": "<DropdownMenuItem onClick={polish} disabled={isStreaming || !canPolish}>"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "207-207",
+          "lines": "210-210",
           "quote": "toast(t('composer.draftReplaced'), { action: { label: t('composer.undo'), onClick: () => setValue(before) } })"
         },
         {
@@ -3384,7 +3384,7 @@
       "sources": [
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "224-224",
+          "lines": "227-227",
           "quote": "Translate what is typed, in place, into the language the model reads"
         },
         {
@@ -3394,7 +3394,7 @@
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "249-249",
+          "lines": "252-252",
           "quote": "action: { label: t('composer.translateUndo'), onClick: () => { if (valueRef.current === text) setValue(original) } },"
         },
         {
@@ -3441,7 +3441,7 @@
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "600-600",
+          "lines": "648-648",
           "quote": "Only offered once the extension is switched on, so the menu does"
         },
         {
@@ -3507,12 +3507,12 @@
       "sources": [
         {
           "path": "src/components/chat/chat-quick-bar.tsx",
-          "lines": "358-358",
+          "lines": "360-360",
           "quote": "Star models in Settings › Connections and models to switch between them here."
         },
         {
           "path": "src/components/chat/chat-quick-bar.tsx",
-          "lines": "156-156",
+          "lines": "158-158",
           "quote": "void setChatModel(chatId, ref)"
         },
         {
@@ -3522,7 +3522,7 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "3444-3444",
+          "lines": "3517-3517",
           "quote": "the old connection profiles (library.json) become the engine's quick"
         }
       ]
@@ -3569,17 +3569,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3870-3870",
+          "lines": "4483-4483",
           "quote": "'ct.app.title': 'Model for card tasks',"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "607-607",
+          "lines": "603-603",
           "quote": "Everything at once: characters, chats, personas, presets, worlds, regex"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "733-733",
+          "lines": "727-727",
           "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
         }
       ]
@@ -3618,7 +3618,7 @@
       "sources": [
         {
           "path": "src/lib/store.ts",
-          "lines": "1863-1863",
+          "lines": "1908-1908",
           "quote": "a short step with the preset and its choices, unless the user turned it off or there is"
         },
         {
@@ -3628,82 +3628,82 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1870-1870",
+          "lines": "1917-1917",
           "quote": "set({ newChatStep: { charId, greetingIndex } })"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "121-121",
+          "lines": "144-144",
           "quote": "if (dontAsk) updateSettings({ askPresetOnNewChat: false })"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "100-100",
+          "lines": "110-110",
           "quote": "the character's last choices first, else the user's own default for the preset"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "110-110",
+          "lines": "120-120",
           "quote": "character?.isGroup ? null : fetchPresetMemory(charId)"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "145-145",
+          "lines": "168-168",
           "quote": "if (e.key === 'Enter' && !e.shiftKey"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "273-273",
+          "lines": "297-297",
           "quote": "onClick={closeNewChatStep}>{t('pc.step.cancel')}"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "91-91",
+          "lines": "101-101",
           "quote": "const showWorld = (worlds?.length ?? 0) + worldChats.length > 0"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "188-188",
+          "lines": "211-211",
           "quote": "{sets.length > 0 && ("
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4221-4221",
+          "lines": "4930-4930",
           "quote": "'pc.step.title': 'New chat with {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4222-4222",
+          "lines": "4931-4931",
           "quote": "Pick a preset for this chat: the set of instructions and settings the model gets."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4225-4225",
+          "lines": "4934-4934",
           "quote": "\"Don't ask again\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4226-4226",
+          "lines": "4935-4935",
           "quote": "You can turn this back on in Settings › Chat Behavior."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4058-4058",
+          "lines": "4713-4713",
           "quote": "'pc.total': '≈ {n} tokens of instructions',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4600-4600",
+          "lines": "5390-5390",
           "quote": "'ag.new.trigger': 'Agents: {what}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2586-2586",
+          "lines": "3120-3120",
           "quote": "'turns.step': 'How they answer',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "676-676",
+          "lines": "1012-1012",
           "quote": "'world.step.world': 'World',"
         },
         {
@@ -3723,37 +3723,37 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1729-1729",
+          "lines": "2108-2108",
           "quote": "'home.startChat': 'Start chat',"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "718-718",
+          "lines": "732-732",
           "quote": "label: 'Start new chat', onSelect: () => void startChatAndOpen(chat.characterId), disabled: isStreaming"
         },
         {
           "path": "src/components/views/characters-view.tsx",
-          "lines": "689-689",
+          "lines": "697-697",
           "quote": "<Chats className=\"size-4\" aria-hidden=\"true\" />New chat"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4223-4223",
+          "lines": "4932-4932",
           "quote": "'pc.step.start': 'Start',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9388-9388",
+          "lines": "10928-10928",
           "quote": "Знову ввімкнути можна в Налаштуваннях › Chat Behavior."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9396-9396",
+          "lines": "10936-10936",
           "quote": "'pc.settings.ask': 'Питати про пресет на початку чату',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6891-6891",
+          "lines": "8101-8101",
           "quote": "'home.startChat': 'Почати чат',"
         }
       ]
@@ -3795,17 +3795,17 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1883-1883",
+          "lines": "1930-1930",
           "quote": "const { setLitLink } = await import('@/components/library/litopys-api')"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "719-719",
+          "lines": "733-733",
           "quote": "onSelect: () => void continueInNewChat(chat.id)"
         },
         {
           "path": "src/components/chat/new-chat-step.tsx",
-          "lines": "71-71",
+          "lines": "81-81",
           "quote": "const earlier = storeChats.filter((c) => c.characterId === charId && !c.temporary)"
         }
       ],
@@ -3852,22 +3852,22 @@
         },
         {
           "path": "src/components/chat/request-size.tsx",
-          "lines": "70-70",
+          "lines": "76-76",
           "quote": "opens by itself only when a reply made the request grow past the limit"
         },
         {
           "path": "src/components/chat/request-size.tsx",
-          "lines": "214-214",
+          "lines": "221-221",
           "quote": "closing a popup that asked for an answer counts as \"Not now\""
         },
         {
           "path": "src/components/chat/request-size.tsx",
-          "lines": "22-22",
+          "lines": "25-25",
           "quote": "const PRESETS = [16000, 32000, 64000, 100000, 200000, 500000]"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "819-819",
+          "lines": "833-833",
           "quote": "<RequestSizeButton rs={requestSize} />"
         },
         {
@@ -3917,7 +3917,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2430-2430",
+          "lines": "2944-2944",
           "quote": "'chats.search': 'Search chats',"
         },
         {
@@ -3927,12 +3927,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2439-2439",
+          "lines": "2953-2953",
           "quote": "'chats.sortMessages': 'Most messages',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2440-2440",
+          "lines": "2954-2954",
           "quote": "'chats.sortName': 'By name',"
         },
         {
@@ -3962,12 +3962,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2444-2444",
+          "lines": "2958-2958",
           "quote": "'chats.kind.single': 'One-on-one',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2445-2445",
+          "lines": "2959-2959",
           "quote": "'chats.kind.group': 'Groups',"
         },
         {
@@ -3987,7 +3987,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2455-2455",
+          "lines": "2969-2969",
           "quote": "'chats.selected': '{n} selected',"
         },
         {
@@ -3997,7 +3997,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2458-2458",
+          "lines": "2972-2972",
           "quote": "'chats.moveTo': 'Move to…',"
         },
         {
@@ -4017,12 +4017,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2508-2508",
+          "lines": "3022-3022",
           "quote": "'chats.panel.delete': 'Delete',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2461-2461",
+          "lines": "2975-2975",
           "quote": "This permanently removes the messages too. It cannot be undone."
         },
         {
@@ -4032,7 +4032,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "709-709",
+          "lines": "1045-1045",
           "quote": "'home.newChat': 'New chat',"
         },
         {
@@ -4047,12 +4047,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2447-2447",
+          "lines": "2961-2961",
           "quote": "'chats.when.pinned': 'Pinned',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2449-2449",
+          "lines": "2963-2963",
           "quote": "'chats.when.week': 'This week',"
         },
         {
@@ -4062,17 +4062,17 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7609-7609",
+          "lines": "8954-8954",
           "quote": "Закріплені"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7611-7611",
+          "lines": "8956-8956",
           "quote": "'chats.when.week': 'Цього тижня',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7670-7670",
+          "lines": "9015-9015",
           "quote": "'chats.panel.delete': 'Видалити',"
         }
       ]
@@ -4109,102 +4109,102 @@
       "sources": [
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "410-410",
+          "lines": "423-423",
           "quote": "Chat files{character"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "204-204",
+          "lines": "206-206",
           "quote": "title=\"Rename\""
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "214-214",
+          "lines": "216-216",
           "quote": "title=\"Export TXT\""
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "224-224",
+          "lines": "226-226",
           "quote": "title=\"Export JSONL\""
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "238-238",
+          "lines": "240-240",
           "quote": "title=\"Checkpoint (fork from last message)\""
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "254-254",
+          "lines": "256-256",
           "quote": "title=\"Delete\""
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "30-30",
+          "lines": "32-32",
           "quote": "Plain-text transcript: speaker-labeled blocks separated by blank lines."
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "33-33",
+          "lines": "35-35",
           "quote": "${m.role === \"user\" ? userName : charName}: ${m.swipes[m.activeSwipe]?.content"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "212-212",
+          "lines": "214-214",
           "quote": "downloadText(chatToText(chat, charName, personaName)"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "38-38",
+          "lines": "40-40",
           "quote": "Interchange JSONL: a header line with both names, then one object per"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "39-39",
+          "lines": "41-41",
           "quote": "message (swipes carried, hidden messages flagged as system)"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "73-73",
+          "lines": "75-75",
           "quote": "Size of the chat's JSONL export"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "184-184",
+          "lines": "186-186",
           "quote": "<span>{msgCount(chat)} message{msgCount(chat) === 1 ? \"\" : \"s\"}</span>"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "197-197",
+          "lines": "199-199",
           "quote": "group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "120-120",
+          "lines": "122-122",
           "quote": "if (title && title !== chat.title) updateChat(chat.id, { title })"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "151-151",
+          "lines": "153-153",
           "quote": "if (e.key === \"Enter\") commitRename()"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "152-152",
+          "lines": "154-154",
           "quote": "if (e.key === \"Escape\") { setDraft(chat.title); setRenaming(false) }"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "249-249",
+          "lines": "251-251",
           "quote": "if (confirmDeletions) { setConfirmOpen(true); return }"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "266-266",
+          "lines": "268-268",
           "quote": "will be removed. This cannot be undone."
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "190-190",
+          "lines": "191-191",
           "quote": "autoScroll: true, confirmDeletions: true"
         },
         {
@@ -4214,47 +4214,47 @@
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "235-235",
+          "lines": "237-237",
           "quote": "toast.success(\"Checkpoint created\")"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1745-1745",
+          "lines": "1790-1790",
           "quote": "const id = await get().forkChat(chatId, messageId)"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1746-1746",
+          "lines": "1791-1791",
           "quote": "get().openChat(id)"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "436-436",
+          "lines": "449-449",
           "quote": "<UploadSimple className=\"size-4\" /> Import chat"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "331-331",
+          "lines": "349-349",
           "quote": "toast.success(`Imported to ${character.name} (${r.chats.length} new)`)"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "447-447",
+          "lines": "463-463",
           "quote": "<BoxArrowUp className=\"size-4\" /> Restore backup"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "348-348",
+          "lines": "363-363",
           "quote": "j<Record<string, unknown>>(\"/import/zip\", {"
         },
         {
           "path": "src/components/chat/manage-chats-dialog.tsx",
-          "lines": "424-424",
+          "lines": "437-437",
           "quote": "<ChatCenteredText className=\"size-4\" /> Start new chat"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "726-726",
+          "lines": "740-740",
           "quote": "label: 'Manage chat files', onSelect: () => setManageOpen(true)"
         }
       ]
@@ -4293,32 +4293,32 @@
       "sources": [
         {
           "path": "src/components/chat/carries-panel.tsx",
-          "lines": "196-196",
+          "lines": "214-214",
           "quote": "{t('carries.subtitle')}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4500-4500",
+          "lines": "5285-5285",
           "quote": "What goes into the prompt besides the history. A switch applies to this chat only."
         },
         {
           "path": "src/lib/carries.ts",
-          "lines": "153-153",
+          "lines": "160-160",
           "quote": "total: parts.reduce((sum, p) => sum + (p.off ? 0 : p.tokens), 0)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4501-4501",
+          "lines": "5286-5286",
           "quote": "'carries.total': 'About {n} tok',"
         },
         {
           "path": "src/components/chat/carries-panel.tsx",
-          "lines": "257-257",
+          "lines": "277-277",
           "quote": "<Switch checked={!part.off} onCheckedChange={onFlip}"
         },
         {
           "path": "src/lib/carries.ts",
-          "lines": "151-151",
+          "lines": "158-158",
           "quote": "if (parts.length === 0 && notePart.empty) return { parts: [], total: 0, visible: false }"
         },
         {
@@ -4328,7 +4328,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4495-4495",
+          "lines": "5280-5280",
           "quote": "'tools.carries': '~{n} tok',"
         },
         {
@@ -4338,32 +4338,32 @@
         },
         {
           "path": "src/lib/carries.ts",
-          "lines": "114-114",
+          "lines": "121-121",
           "quote": "off: !m.taken || isOff(switchKey)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4590-4590",
+          "lines": "5380-5380",
           "quote": "\"Off in this chat until you turn it on\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4422-4422",
+          "lines": "5205-5205",
           "quote": "\"Habits of {name}\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4505-4505",
+          "lines": "5290-5290",
           "quote": "'carries.memory.show': 'Show lines',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4523-4523",
+          "lines": "5308-5308",
           "quote": "'carries.text': 'The text that goes into the prompt',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4468-4468",
+          "lines": "5253-5253",
           "quote": "'carries.stories.toggle': 'Stories in this chat',"
         },
         {
@@ -4373,117 +4373,117 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4469-4469",
+          "lines": "5254-5254",
           "quote": "It changes only this chat; the card stays as it is."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4475-4475",
+          "lines": "5260-5260",
           "quote": "'carries.stories.own': 'This chat already has it.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4476-4476",
+          "lines": "5261-5261",
           "quote": "'carries.stories.cardOff': 'Switched off on the card.',"
         },
         {
           "path": "src/components/chat/carries-panel.tsx",
-          "lines": "221-221",
+          "lines": "239-239",
           "quote": "onClick={() => { setOpen(false); onOpenNote() }}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4520-4520",
+          "lines": "5305-5305",
           "quote": "\"Author's note and card\","
         },
         {
           "path": "src/components/chat/carries-panel.tsx",
-          "lines": "284-284",
+          "lines": "304-304",
           "quote": "openCharacterOnTab(cm.cardId, 'memory')"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4507-4507",
+          "lines": "5292-5292",
           "quote": "'carries.memory.edit': 'Edit in the card',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4482-4482",
+          "lines": "5267-5267",
           "quote": "'carries.label.litopys': 'Litopys',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4483-4483",
+          "lines": "5268-5268",
           "quote": "'carries.label.dashboard': 'Dashboard',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4524-4524",
+          "lines": "5309-5309",
           "quote": "'carries.label.world': 'World DM · {level}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4479-4479",
+          "lines": "5264-5264",
           "quote": "'carries.label.memory': 'Memory of {name}',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9661-9661",
+          "lines": "11277-11277",
           "quote": "'carries.title': 'Що несе цей чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9663-9663",
+          "lines": "11279-11279",
           "quote": "'carries.total': 'Близько {n} ток.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9752-9752",
+          "lines": "11373-11373",
           "quote": "У цьому чаті вимкнено, доки ви не ввімкнете"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9630-9630",
+          "lines": "11246-11246",
           "quote": "'carries.stories.toggle': 'Історії в цьому чаті',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9667-9667",
+          "lines": "11283-11283",
           "quote": "'carries.memory.show': 'Показати рядки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9669-9669",
+          "lines": "11285-11285",
           "quote": "'carries.memory.edit': 'Змінити в картці',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9695-9695",
+          "lines": "11311-11311",
           "quote": "\"Змінити в Бібліотеці\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9755-9755",
+          "lines": "11376-11376",
           "quote": "\"Змінити в персоні\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9756-9756",
+          "lines": "11377-11377",
           "quote": "\"Змінити у світі\","
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9675-9675",
+          "lines": "11291-11291",
           "quote": "'carries.backstory.open': 'Відкрити той чат',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9679-9679",
+          "lines": "11295-11295",
           "quote": "'carries.dashboard.open': 'Відкрити дашборд',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9684-9684",
+          "lines": "11300-11300",
           "quote": "'carries.note.open': 'Відкрити',"
         }
       ]
@@ -4520,102 +4520,102 @@
       "sources": [
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "567-567",
+          "lines": "607-607",
           "quote": "<Plus className=\"size-4.5\" />"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "573-573",
+          "lines": "613-613",
           "quote": "<DropdownMenuLabel>{t('composer.group.generate')}</DropdownMenuLabel>"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "575-575",
+          "lines": "615-615",
           "quote": "<ArrowsClockwise className=\"size-4\" /> {t('composer.regenerate')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "580-580",
+          "lines": "620-620",
           "quote": "onClick={() => continueReply(chatId)} disabled={isStreaming}"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "581-581",
+          "lines": "621-621",
           "quote": "<CaretDoubleRight className=\"size-4\" /> {t('composer.continue')}"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1729-1729",
+          "lines": "1774-1774",
           "quote": "continue extends the LAST assistant message — stream it in place"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "700-700",
+          "lines": "753-753",
           "quote": "<span className=\"max-[380px]:sr-only\">{t('composer.continue')}</span>"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "583-583",
+          "lines": "623-623",
           "quote": "onClick={() => impersonate(chatId)} disabled={isStreaming}"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "584-584",
+          "lines": "624-624",
           "quote": "<User className=\"size-4\" /> {t('composer.impersonate')}"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1373-1373",
+          "lines": "1392-1392",
           "quote": "const r = await j<{ text: string }>"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1686-1686",
+          "lines": "1731-1731",
           "quote": "the result belongs to this chat and to the draft as it reads now"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "203-203",
+          "lines": "206-206",
           "quote": "setValue(fill.text)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4134-4134",
+          "lines": "4811-4811",
           "quote": "'composer.putIn': 'Put it in',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9296-9296",
+          "lines": "10804-10804",
           "quote": "'composer.putIn': 'Вставити',"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "589-589",
+          "lines": "633-633",
           "quote": "<DropdownMenuLabel>{t('composer.group.compose')}</DropdownMenuLabel>"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "591-591",
+          "lines": "635-635",
           "quote": "<Sparkle className=\"size-4\" /> {t('composer.polish')}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9297-9297",
+          "lines": "10805-10805",
           "quote": "'composer.polish': 'Причесати',"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "594-594",
+          "lines": "638-638",
           "quote": "<ArrowsOut className=\"size-4\" /> {t('composer.expandEditor')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "482-482",
+          "lines": "515-515",
           "quote": "Shift+Tab opens the full-height writing surface."
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "485-485",
+          "lines": "518-518",
           "quote": "setExpandOpen(true)"
         },
         {
@@ -4630,27 +4630,27 @@
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "598-598",
+          "lines": "646-646",
           "quote": "<ImageIcon className=\"size-4\" /> {t('composer.sendImage')}"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "427-427",
+          "lines": "460-460",
           "quote": "Attachments are capped at 2 MB."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4087-4087",
+          "lines": "4742-4742",
           "quote": "'composer.attachmentsMax': 'A message takes up to 8 attachments.',"
         },
         {
           "path": "src/lib/drafts.ts",
-          "lines": "31-31",
+          "lines": "85-85",
           "quote": "export const MAX_DRAFT_ATTACHMENTS = 8"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "602-602",
+          "lines": "650-650",
           "quote": "{imageGen?.enabled && ("
         }
       ]
@@ -4797,137 +4797,137 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1722-1722",
+          "lines": "2101-2101",
           "quote": "'home.customize': 'Customize',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1724-1724",
+          "lines": "2103-2103",
           "quote": "'home.reset': 'Reset to default',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1723-1723",
+          "lines": "2102-2102",
           "quote": "'home.done': 'Done',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1756-1756",
+          "lines": "2135-2135",
           "quote": "'home.edit.hint': 'Move, resize or hide blocks. Changes are saved as you make them.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1757-1757",
+          "lines": "2136-2136",
           "quote": "'home.edit.earlier': 'Move earlier',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1758-1758",
+          "lines": "2137-2137",
           "quote": "'home.edit.later': 'Move later',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1759-1759",
+          "lines": "2138-2138",
           "quote": "'home.edit.size': 'Change size (now {size})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1760-1760",
+          "lines": "2139-2139",
           "quote": "'home.edit.sizeSm': 'Narrow',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1762-1762",
+          "lines": "2141-2141",
           "quote": "'home.edit.sizeLg': 'Full width',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1763-1763",
+          "lines": "2142-2142",
           "quote": "'home.edit.hide': 'Hide this block',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1764-1764",
+          "lines": "2143-2143",
           "quote": "'home.edit.hidden': 'Hidden blocks',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1765-1765",
+          "lines": "2144-2144",
           "quote": "'home.edit.noHidden': 'No hidden blocks.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1766-1766",
+          "lines": "2145-2145",
           "quote": "'home.edit.restore': 'Restore',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1768-1768",
+          "lines": "2147-2147",
           "quote": "'home.suggestMarket': 'Suggestions from the Marketplace',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6884-6884",
+          "lines": "8094-8094",
           "quote": "'home.customize': 'Налаштувати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6886-6886",
+          "lines": "8096-8096",
           "quote": "'home.reset': 'Скинути до типового',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6885-6885",
+          "lines": "8095-8095",
           "quote": "'home.done': 'Готово',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6919-6919",
+          "lines": "8129-8129",
           "quote": "'home.edit.earlier': 'Посунути вище',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6920-6920",
+          "lines": "8130-8130",
           "quote": "'home.edit.later': 'Посунути нижче',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6921-6921",
+          "lines": "8131-8131",
           "quote": "'home.edit.size': 'Змінити розмір (зараз {size})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6922-6922",
+          "lines": "8132-8132",
           "quote": "'home.edit.sizeSm': 'Вузький',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6924-6924",
+          "lines": "8134-8134",
           "quote": "'home.edit.sizeLg': 'На всю ширину',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6925-6925",
+          "lines": "8135-8135",
           "quote": "'home.edit.hide': 'Сховати блок',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6926-6926",
+          "lines": "8136-8136",
           "quote": "'home.edit.hidden': 'Приховані блоки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6927-6927",
+          "lines": "8137-8137",
           "quote": "'home.edit.noHidden': 'Прихованих блоків немає.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6928-6928",
+          "lines": "8138-8138",
           "quote": "'home.edit.restore': 'Повернути',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6930-6930",
+          "lines": "8140-8140",
           "quote": "'home.suggestMarket': 'Підбірки з Маркетплейсу',"
         }
       ]
@@ -4958,7 +4958,8 @@
       "related": [
         "kb.card-editor",
         "kb.voices",
-        "kb.settings"
+        "kb.settings",
+        "kb.sprite-windows"
       ],
       "sources": [
         {
@@ -4968,22 +4969,22 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2374-2374",
+          "lines": "2888-2888",
           "quote": "'editor.tab.more': 'More',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2379-2379",
+          "lines": "2893-2893",
           "quote": "'editor.panel.sprites': 'Sprites',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7536-7536",
+          "lines": "8881-8881",
           "quote": "'editor.tab.more': 'Ще',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "7541-7541",
+          "lines": "8886-8886",
           "quote": "'editor.panel.sprites': 'Спрайти',"
         },
         {
@@ -4993,47 +4994,47 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3938-3938",
+          "lines": "4572-4572",
           "quote": "Add a whole pack at once: each file name says the emotion"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3942-3942",
+          "lines": "4576-4576",
           "quote": "'sprites.addPack': 'Add sprite pack',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9104-9104",
+          "lines": "10569-10569",
           "quote": "'sprites.addPack': 'Додати пак спрайтів',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3939-3939",
+          "lines": "4573-4573",
           "quote": "'sprites.addSlot': 'Add expression',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9101-9101",
+          "lines": "10566-10566",
           "quote": "'sprites.addSlot': 'Додати емоцію',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3941-3941",
+          "lines": "4575-4575",
           "quote": "'sprites.addSlotBtn': 'Add',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9103-9103",
+          "lines": "10568-10568",
           "quote": "'sprites.addSlotBtn': 'Додати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3975-3975",
+          "lines": "4630-4630",
           "quote": "Nothing is stored until you press Add"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9137-9137",
+          "lines": "10623-10623",
           "quote": "Нічого не зберігається, доки ви не натиснете «Додати»"
         },
         {
@@ -5048,22 +5049,22 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3957-3957",
+          "lines": "4591-4591",
           "quote": "'sprites.slotDefault': 'Set as default expression',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9119-9119",
+          "lines": "10584-10584",
           "quote": "'sprites.slotDefault': 'Зробити емоцією за замовчуванням',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3962-3962",
+          "lines": "4596-4596",
           "quote": "'sprites.defBadge': 'def',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9124-9124",
+          "lines": "10589-10589",
           "quote": "'sprites.defBadge': 'за зам.',"
         },
         {
@@ -5073,27 +5074,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3960-3960",
+          "lines": "4594-4594",
           "quote": "'sprites.slotReplace': 'replace',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9122-9122",
+          "lines": "10587-10587",
           "quote": "'sprites.slotReplace': 'замінити',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3946-3946",
+          "lines": "4580-4580",
           "quote": "Shown for the card itself and for any voice that has no sprites of its own."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3951-3951",
+          "lines": "4585-4585",
           "quote": "'sprites.wear': 'Wear by default',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9113-9113",
+          "lines": "10578-10578",
           "quote": "'sprites.wear': 'Носити за замовчуванням',"
         },
         {
@@ -5103,58 +5104,58 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3952-3952",
+          "lines": "4586-4586",
           "quote": "'sprites.deleteOutfit': 'Delete outfit',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9114-9114",
+          "lines": "10579-10579",
           "quote": "'sprites.deleteOutfit': 'Видалити одяг',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3954-3954",
+          "lines": "4588-4588",
           "quote": "Nothing is written until you press Save changes."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9116-9116",
+          "lines": "10581-10581",
           "quote": "Нічого не записується, поки ви не натиснете «Зберегти зміни»."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4014-4014",
+          "lines": "4669-4669",
           "quote": "'cd.save': 'Save changes',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "9176-9176",
+          "lines": "10662-10662",
           "quote": "'cd.save': 'Зберегти зміни',"
         },
         {
           "path": "src/components/chat/expression-panel.tsx",
-          "lines": "32-32",
-          "quote": "resizable from its lower corner"
+          "lines": "167-167",
+          "quote": "resize it from its lower corner"
         },
         {
           "path": "src/components/chat/expression-panel.tsx",
-          "lines": "174-174",
-          "quote": "the outfit: only when the speaker has more than one; the choice is kept for this chat"
+          "lines": "310-310",
+          "quote": "the outfit: only when this character has more than one; the choice is kept for this chat"
         },
         {
           "path": "src/components/chat/expression-panel.tsx",
-          "lines": "195-195",
+          "lines": "380-380",
           "quote": "title=\"Fold into a small chip\""
         },
         {
           "path": "src/components/chat/expression-panel.tsx",
           "lines": "34-34",
-          "quote": "Hidden when the speaker has"
+          "quote": "Settings turns every window off"
         },
         {
           "path": "src/components/chat/expression-panel.tsx",
-          "lines": "118-118",
-          "quote": "if (!show || !sprite || !speaker || brokenUrls.has(sprite.url)) return null"
+          "lines": "88-88",
+          "quote": "if (!show || !members.length) return null"
         },
         {
           "path": "src/components/views/settings-view.tsx",
@@ -5168,7 +5169,7 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "188-188",
+          "lines": "189-189",
           "quote": "showExpressionSprites: true"
         },
         {
@@ -5209,6 +5210,95 @@
       ]
     },
     {
+      "id": "kb.sprite-windows",
+      "group": "characters",
+      "title": {
+        "en": "Sprite windows: several characters at once",
+        "uk": "Вікна спрайтів: кілька персонажів разом"
+      },
+      "aliases": {
+        "en": "sprite windows several multiple characters group narrator transparent visual novel row grid scene gear add window speaker blank empty phone chips",
+        "uk": "вікна спрайтів кілька персонажів група оповідач прозорий візуальна новела рядом сітка сцена шестірня додати вікно мовець порожнє телефон"
+      },
+      "short": {
+        "en": "A sprite window shows one character. Add up to 8 windows to see everyone in a group or narrator chat, with or without a frame, and place them like a visual novel.",
+        "uk": "Вікно спрайта показує одного персонажа. Додайте до 8 вікон, щоб бачити всіх у групі чи в чаті з оповідачем. Розставте їх як у візуальній новелі."
+      },
+      "where": {
+        "en": "The gear on a sprite picture in a chat.",
+        "uk": "Шестірня на картинці спрайта в чаті."
+      },
+      "details": {
+        "en": "Each window shows one character, picked by that character’s own last lines. The picture stays until they speak again.\n\nPress the gear on a picture to open “Sprite windows”. “Add window” adds one, up to 8. “Shows” picks “Whoever speaks”, “Next in the scene” or one named character. A “Next in the scene” window keeps its character while they stay in the scene. When one leaves, the window goes blank (“Nobody here”), or disappears with “Hide empty windows”.\n\n“Transparent background” removes the frame and backing, and clicks pass through to the chat. Move such a window by its grip. “Row at the bottom” and “Grid” place the windows; drag them from there. “Back to one window” undoes it all.\n\nThe scene is the Dashboard’s “Present” list. Without the Dashboard, it is whoever spoke in the last six messages.\n\nThe layout is saved for the chat in this browser only. On a phone one window shows, and the others are small round pictures: tap one to show that character.",
+        "uk": "Кожне вікно показує одного персонажа за його власними останніми репліками. Картинка тримається, доки він знову не заговорить.\n\nНатисніть шестірню на картинці, щоб відкрити «Вікна спрайтів». «Додати вікно» додає ще одне, до 8. «Показує» вибирає «Того, хто говорить», «Наступного у сцені» або одного названого персонажа. Вікно «Наступного у сцені» тримає свого персонажа, доки той у сцені. Коли він іде, вікно порожніє («Тут нікого») або зникає, якщо ввімкнено «Ховати порожні вікна».\n\n«Прозорий фон» прибирає рамку й підкладку, а кліки проходять крізь вікно до чату. Таке вікно рухають за ручку. «Рядком унизу» і «Сіткою» розкладають вікна, далі їх можна перетягнути. «Повернути одне вікно» скасовує все.\n\nСцена — це список «Присутні» з Dashboard. Без Dashboard це ті, хто говорив в останніх шести повідомленнях.\n\nРозкладка зберігається для чату лише в цьому браузері. На телефоні видно одне вікно, решта — маленькі круглі картинки: торкніться однієї, щоб показати цього персонажа."
+      },
+      "related": [
+        "kb.sprites"
+      ],
+      "sources": [
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "169-169",
+          "quote": "A window with nobody to show stays as an empty slot"
+        },
+        {
+          "path": "src/components/chat/expression-panel.tsx",
+          "lines": "45-45",
+          "quote": "the character the user tapped in the strip"
+        },
+        {
+          "path": "src/lib/sprite-stage.ts",
+          "lines": "10-10",
+          "quote": "export const MAX_WINDOWS = 8"
+        },
+        {
+          "path": "src/lib/sprite-stage.ts",
+          "lines": "12-12",
+          "quote": "export const RECENT = 6"
+        },
+        {
+          "path": "src/lib/sprite-stage.ts",
+          "lines": "247-247",
+          "quote": "rp.stage.${chatId}"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "4617-4617",
+          "quote": "'sprites.win.add': 'Add window',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "4614-4614",
+          "quote": "'sprites.win.whoAuto': 'Next in the scene',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "4622-4622",
+          "quote": "'sprites.win.hideEmpty': 'Hide empty windows',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "4615-4615",
+          "quote": "'sprites.win.transparent': 'Transparent background',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "2249-2249",
+          "quote": "'dash.present': 'Present',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "10610-10610",
+          "quote": "'sprites.win.add': 'Додати вікно',"
+        },
+        {
+          "path": "src/lib/i18n.ts",
+          "lines": "10618-10618",
+          "quote": "'sprites.win.empty': 'Тут нікого',"
+        }
+      ]
+    },
+    {
       "id": "kb.backup",
       "group": "setup",
       "title": {
@@ -5239,92 +5329,92 @@
       "sources": [
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "712-712",
+          "lines": "706-706",
           "quote": "Export Roleplay data (zip)"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "723-723",
+          "lines": "717-717",
           "quote": "Restore Roleplay data (zip)"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "730-730",
+          "lines": "724-724",
           "quote": "Reset look and local settings"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "733-733",
+          "lines": "727-727",
           "quote": "These cover Roleplay only: characters, chats, presets, lorebooks, personas, regex and the pictures they use."
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "733-733",
+          "lines": "727-727",
           "quote": "The whole profile (every app, Molfar, connections) is saved in Molfar Vertep's Settings › Backup."
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "737-737",
+          "lines": "731-731",
           "quote": "onClick={() => void openSettingsTab('backup')"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "654-654",
+          "lines": "650-650",
           "quote": "the engine zips every stored entity"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "662-662",
+          "lines": "658-658",
           "quote": "downloadBlob(withPictures?.base64 ?? r.base64, r.filename)"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "676-676",
+          "lines": "672-672",
           "quote": "const handleImport = async (files: FileList | null) => {"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "717-717",
+          "lines": "711-711",
           "quote": "accept=\".zip\""
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "693-693",
+          "lines": "687-687",
           "quote": "skipped (incl. PNG cards, import those from Characters"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "695-695",
+          "lines": "689-689",
           "quote": "Restored ${n} items"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "747-747",
+          "lines": "741-741",
           "quote": "Reset local UI state?"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "749-749",
+          "lines": "743-743",
           "quote": "Resets appearance settings, themes, quick replies and tags to their defaults."
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "755-755",
+          "lines": "749-749",
           "quote": "<AlertDialogCancel>Cancel</AlertDialogCancel>"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "760-760",
+          "lines": "754-754",
           "quote": "Reset everything"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "401-401",
+          "lines": "408-408",
           "quote": "themes: seedThemes,"
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "2569-2569",
+          "lines": "2616-2616",
           "quote": "set({ settings, themes, qrSets, tags, view: 'home'"
         }
       ]
@@ -5496,42 +5586,42 @@
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "185-185",
+          "lines": "186-186",
           "quote": "chatWidth: 'comfortable', chatWidthCustom: 760, fontScale: 100, lineSpacing: 180, paragraphSpacing: 14"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "185-185",
+          "lines": "186-186",
           "quote": "lookVersion: 2, uiScale: 100"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "187-187",
+          "lines": "188-188",
           "quote": "messageSpacing: 'roomy', hideAvatars: false"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "188-188",
+          "lines": "189-189",
           "quote": "showTimestamps: true, showMessageIds: false, showEdited: false, showTokens: true, showCost: true"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "188-188",
+          "lines": "189-189",
           "quote": "showModelIcons: true, showGenTimer: true, showExpressionSprites: true, showCache: true"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "189-189",
+          "lines": "190-190",
           "quote": "expandMessageActions: false, reducedMotion: false"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "190-190",
+          "lines": "191-191",
           "quote": "autoScroll: true, confirmDeletions: true, dayDividers: true"
         },
         {
           "path": "src/lib/seed.ts",
-          "lines": "192-192",
+          "lines": "193-193",
           "quote": "quoteStyle: 'default',"
         },
         {
@@ -5571,52 +5661,52 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "697-697",
+          "lines": "711-711",
           "quote": "settings.chatWidth === 'full' ? '100%' :"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "699-699",
+          "lines": "713-713",
           "quote": "settings.chatWidth === 'compact' ? '36rem' :"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1041-1041",
+          "lines": "1055-1055",
           "quote": "const showDay = settings.dayDividers"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "714-714",
+          "lines": "728-728",
           "quote": "label: 'Display settings'"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1567-1567",
+          "lines": "1581-1581",
           "quote": "updateSettings({ chatWidth: v as never })"
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1579-1579",
+          "lines": "1593-1593",
           "quote": "Font scale: {settings.fontScale}%"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "576-576",
+          "lines": "583-583",
           "quote": "const rowPad = spacing === 'compact' ? 'py-1' : spacing === 'cozy' ? 'py-2' : 'py-3'"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "577-577",
+          "lines": "584-584",
           "quote": "const showPortrait = !isUser && !settings.hideAvatars"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "739-739",
+          "lines": "747-747",
           "quote": "{settings.showTimestamps && ("
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "593-593",
+          "lines": "601-601",
           "quote": "if (settings.showMessageIds) meta.push"
         },
         {
@@ -5626,27 +5716,27 @@
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "744-744",
+          "lines": "752-752",
           "quote": "{settings.showCache && !isStreamingThis && realUsage"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "592-592",
+          "lines": "600-600",
           "quote": "if (settings.showCost && !isStreamingThis && msgCost != null)"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "587-587",
+          "lines": "594-594",
           "quote": "if (!isUser && settings.showModelIcons && modelId) {"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "590-590",
+          "lines": "597-597",
           "quote": "if (settings.showGenTimer && !isUser && !isStreamingThis"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "597-597",
+          "lines": "605-605",
           "quote": "const pinned = settings.expandMessageActions || coarsePointer"
         }
       ]
@@ -5681,12 +5771,12 @@
       "sources": [
         {
           "path": "src/components/library/ledger.tsx",
-          "lines": "185-185",
+          "lines": "186-186",
           "quote": "<ArcNotice chat={chat} onChat={onChat} onRefresh={refresh} />"
         },
         {
           "path": "src/components/library/ledger.tsx",
-          "lines": "220-220",
+          "lines": "222-222",
           "quote": "mode === 'overview' ? ("
         },
         {
@@ -5756,272 +5846,272 @@
         },
         {
           "path": "src/components/library/ledger-chapters.tsx",
-          "lines": "501-501",
+          "lines": "504-504",
           "quote": "<ArcCard chat={chat} arc={arcMap.get(it.chapter.id)!}"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "274-274",
+          "lines": "275-275",
           "quote": "<FieldLabel htmlFor=\"lit-arc-mode\" className=\"font-medium\">{t('lit.set.arcMode')}</FieldLabel>"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "285-285",
+          "lines": "286-286",
           "quote": "<option value=\"ask\">{t('lit.set.arcAsk')}</option>"
         },
         {
           "path": "src/components/settings/memory-summary-section.tsx",
-          "lines": "287-287",
+          "lines": "288-288",
           "quote": "<option value=\"off\">{t('lit.set.arcOff')}</option>"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5941-5941",
+          "lines": "6537-6537",
           "quote": "if (cfg.arcMode === \"ask\" && plan.over && plan.run"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "1073-1073",
+          "lines": "1083-1083",
           "quote": "A new install merges by itself"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "1360-1360",
+          "lines": "1392-1392",
           "quote": "an install that already has Litopys data keeps"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "1074-1074",
+          "lines": "1084-1084",
           "quote": "a merge only adds an arc over its chapters, nothing is deleted"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5737-5737",
+          "lines": "6333-6333",
           "quote": "holds while the older part has grown by less than another threshold."
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5967-5967",
+          "lines": "6563-6563",
           "quote": "if (chapters.length < 2 || chapters.length > 30) return bad(\"an arc takes 2 to 30 chapters\");"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5970-5970",
+          "lines": "6566-6566",
           "quote": "only chapters before the cut merge"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5961-5961",
+          "lines": "6557-6557",
           "quote": "if (cfg.arcMode === \"off\") return { status: 409, json: { error: \"arcs are off\" } };"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "6000-6000",
+          "lines": "6596-6596",
           "quote": "wait for the older part to grow"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5993-5993",
+          "lines": "6589-6589",
           "quote": "arc.stale = true;"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "5999-5999",
+          "lines": "6595-6595",
           "quote": "st.arcs = st.arcs.filter((a) => a !== arc);"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3016-3016",
+          "lines": "3608-3608",
           "quote": "The older chapters take {tokens} tokens, more than the {threshold} allowed."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8178-8178",
+          "lines": "9601-9601",
           "quote": "Старіші розділи займають ~{tokens} ток., більше за дозволені {threshold}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3017-3017",
+          "lines": "3609-3609",
           "quote": "The chapters stay in the record; the prompt carries the arc in their place."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3022-3022",
+          "lines": "3614-3614",
           "quote": "Arcs now merge by themselves. Change it in the Litopys settings."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3035-3035",
+          "lines": "3627-3627",
           "quote": "Its chapters stay and go back into the prompt one by one."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3018-3018",
+          "lines": "3610-3610",
           "quote": "'lit.arc.merge': 'Merge',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8180-8180",
+          "lines": "9603-9603",
           "quote": "'lit.arc.merge': 'Злити',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3019-3019",
+          "lines": "3611-3611",
           "quote": "'lit.arc.notNow': 'Not now',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8181-8181",
+          "lines": "9604-9604",
           "quote": "'lit.arc.notNow': 'Не зараз',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3020-3020",
+          "lines": "3612-3612",
           "quote": "'lit.arc.always': 'Always merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8182-8182",
+          "lines": "9605-9605",
           "quote": "'lit.arc.always': 'Завжди зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3031-3031",
+          "lines": "3623-3623",
           "quote": "'lit.arc.menu': 'Arc menu',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8193-8193",
+          "lines": "9616-9616",
           "quote": "'lit.arc.menu': 'Меню арки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3032-3032",
+          "lines": "3624-3624",
           "quote": "'lit.arc.rewrite': 'Merge again',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8194-8194",
+          "lines": "9617-9617",
           "quote": "'lit.arc.rewrite': 'Злити знову',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3033-3033",
+          "lines": "3625-3625",
           "quote": "'lit.arc.delete': 'Delete the arc',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8195-8195",
+          "lines": "9618-9618",
           "quote": "'lit.arc.delete': 'Видалити арку',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3038-3038",
+          "lines": "3630-3630",
           "quote": "'lit.arc.chapters': 'Chapters ({n})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8200-8200",
+          "lines": "9623-9623",
           "quote": "'lit.arc.chapters': 'Розділи ({n})',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3023-3023",
+          "lines": "3615-3615",
           "quote": "'lit.arcsOffer.title': 'Arcs can merge by themselves now',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8185-8185",
+          "lines": "9608-9608",
           "quote": "'lit.arcsOffer.title': 'Арки тепер можуть зливатися самі',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3025-3025",
+          "lines": "3617-3617",
           "quote": "'lit.arcsOffer.on': 'Merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8187-8187",
+          "lines": "9610-9610",
           "quote": "'lit.arcsOffer.on': 'Зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3026-3026",
+          "lines": "3618-3618",
           "quote": "'lit.arcsOffer.keep': 'Keep asking me',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8188-8188",
+          "lines": "9611-9611",
           "quote": "'lit.arcsOffer.keep': 'Питати й далі',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3058-3058",
+          "lines": "3650-3650",
           "quote": "'lit.set.arcMode': 'Arcs',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8220-8220",
+          "lines": "9643-9643",
           "quote": "'lit.set.arcMode': 'Арки',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3059-3059",
+          "lines": "3651-3651",
           "quote": "'lit.set.arcAsk': 'Ask me first',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8221-8221",
+          "lines": "9644-9644",
           "quote": "'lit.set.arcAsk': 'Спершу питати',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3060-3060",
+          "lines": "3652-3652",
           "quote": "'lit.set.arcAuto': 'Merge automatically',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8222-8222",
+          "lines": "9645-9645",
           "quote": "'lit.set.arcAuto': 'Зливати автоматично',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3061-3061",
+          "lines": "3653-3653",
           "quote": "'lit.set.arcOff': 'Off',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8223-8223",
+          "lines": "9646-9646",
           "quote": "'lit.set.arcOff': 'Вимкнено',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2847-2847",
+          "lines": "3422-3422",
           "quote": "'lit.settingsTitle': 'Story record (Litopys)',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8009-8009",
+          "lines": "9415-9415",
           "quote": "'lit.settingsTitle': 'Запис історії (Літопис)',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3000-3000",
+          "lines": "3592-3592",
           "quote": "'lit.settings.open': 'Litopys settings',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8162-8162",
+          "lines": "9585-9585",
           "quote": "'lit.settings.open': 'Налаштування Літопису',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2758-2758",
+          "lines": "3331-3331",
           "quote": "'lit.mode.overview': 'Overview',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2759-2759",
+          "lines": "3332-3332",
           "quote": "'lit.mode.ledger': 'Details',"
         }
       ]
@@ -6063,27 +6153,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "857-857",
+          "lines": "1196-1196",
           "quote": "'fg.new': 'New agent'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "858-858",
+          "lines": "1197-1197",
           "quote": "'fg.new.empty': 'Empty agent'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "860-860",
+          "lines": "1199-1199",
           "quote": "'fg.new.recipes': 'Start from a ready agent'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "859-859",
+          "lines": "1198-1198",
           "quote": "'fg.new.emptyHint': 'An Input and a note, nothing wired'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "893-893",
+          "lines": "1232-1232",
           "quote": "An agent is cards joined by wires."
         },
         {
@@ -6098,7 +6188,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1178-1178",
+          "lines": "1533-1533",
           "quote": "'fg.board.call': '{n} {n|call|calls}'"
         },
         {
@@ -6108,7 +6198,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1346-1346",
+          "lines": "1708-1708",
           "quote": "Draw it from an output (right side) to an input (left side)."
         },
         {
@@ -6128,22 +6218,22 @@
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "796-796",
+          "lines": "833-833",
           "quote": "if (from.type !== to.type)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1115-1115",
+          "lines": "1470-1470",
           "quote": "'fg.io.type.signal': 'a go signal'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1114-1114",
+          "lines": "1469-1469",
           "quote": "'fg.io.type.flag': 'yes or no'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1113-1113",
+          "lines": "1468-1468",
           "quote": "'fg.io.type.number': 'number'"
         },
         {
@@ -6173,7 +6263,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1226-1226",
+          "lines": "1581-1581",
           "quote": "'fg.tab.try': 'Try'"
         },
         {
@@ -6183,7 +6273,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "880-880",
+          "lines": "1219-1219",
           "quote": "'fg.check.ok': 'Passes the check'"
         },
         {
@@ -6193,27 +6283,27 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "879-879",
+          "lines": "1218-1218",
           "quote": "Fix {n} {n|problem|problems} before installing."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "883-883",
+          "lines": "1222-1222",
           "quote": "'fg.check.calls': '{n} model {n|call|calls} per run'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "128-128",
+          "lines": "133-133",
           "quote": "label: 'Ask the model', colorVar: '--k-model'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "714-714",
+          "lines": "740-740",
           "quote": "maxCalls += card.calls ?? 0;"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4656-4656",
+          "lines": "5448-5448",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
@@ -6223,62 +6313,62 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "903-903",
+          "lines": "1242-1242",
           "quote": "'fg.trigger.after': 'After every reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "904-904",
+          "lines": "1243-1243",
           "quote": "This version does not run “{when}” agents yet; the agent will wait."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "905-905",
+          "lines": "1244-1244",
           "quote": "'fg.trigger.every': 'Every Nth reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "906-906",
+          "lines": "1245-1245",
           "quote": "3 means every third reply: a third of the cost."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "907-907",
+          "lines": "1246-1246",
           "quote": "'fg.trigger.keywords': 'Only when these words appear'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "901-901",
+          "lines": "1240-1240",
           "quote": "'fg.trigger': 'When it runs'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "902-902",
+          "lines": "1241-1241",
           "quote": "'fg.trigger.when': 'Runs'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1226-1226",
+          "lines": "1581-1581",
           "quote": "'fg.tab.try': 'Try'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1240-1240",
+          "lines": "1595-1595",
           "quote": "A trial turn. Unless you run it with a model, none is called"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1240-1240",
+          "lines": "1595-1595",
           "quote": "and nothing is written to a chat or to the agent."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4615-4615",
+          "lines": "5405-5405",
           "quote": "'ag.drafts.install': 'Install'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "290-290",
+          "lines": "624-624",
           "quote": "'nav.agents': 'Agents'"
         }
       ]
@@ -6338,12 +6428,12 @@
         },
         {
           "path": "src/components/canvas/forge/palette.tsx",
-          "lines": "18-18",
+          "lines": "19-19",
           "quote": "types: ['agent.output']"
         },
         {
           "path": "src/components/canvas/forge/palette.tsx",
-          "lines": "19-19",
+          "lines": "20-20",
           "quote": "types: ['note']"
         },
         {
@@ -6368,17 +6458,17 @@
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "113-113",
+          "lines": "118-118",
           "quote": "label: 'Input', colorVar: '--k-data'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "113-113",
+          "lines": "118-118",
           "quote": "What is not listed here, the agent cannot see."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "114-114",
+          "lines": "119-119",
           "quote": "ports: (p) => (p.give ?? []).map((g) => ({ id: g.id, side: 'out'"
         },
         {
@@ -6388,322 +6478,322 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1016-1016",
+          "lines": "1359-1359",
           "quote": "'fg.input.give': 'What the agent may read'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1017-1017",
+          "lines": "1360-1360",
           "quote": "Each ticked source is a permission the player must allow."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1018-1018",
+          "lines": "1361-1361",
           "quote": "'fg.source.lastReply': 'The last reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1020-1020",
+          "lines": "1363-1363",
           "quote": "'fg.source.history': 'The chat history'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1025-1025",
+          "lines": "1368-1368",
           "quote": "'fg.source.litopysFacts': 'Facts from Litopys'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1031-1031",
+          "lines": "1375-1375",
           "quote": "'fg.input.tokens': 'Most tokens'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "118-118",
+          "lines": "123-123",
           "quote": "label: 'Output', colorVar: '--k-main'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "119-119",
+          "lines": "124-124",
           "quote": "OUTPUT_TEXT_KINDS.includes(p.kind) ? 'text' : 'signal'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1066-1066",
+          "lines": "1421-1421",
           "quote": "'fg.kind.note': 'A note under the reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1067-1067",
+          "lines": "1422-1422",
           "quote": "'fg.kind.choices': 'Buttons to tap'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1068-1068",
+          "lines": "1423-1423",
           "quote": "'fg.kind.prompt-insert': 'A hint for the next reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1069-1069",
+          "lines": "1424-1424",
           "quote": "'fg.kind.state-patch': 'A value from memory'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1086-1086",
+          "lines": "1441-1441",
           "quote": "The one result that goes to the model."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "123-123",
+          "lines": "128-128",
           "quote": "label: 'Template', colorVar: '--k-data'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1035-1035",
+          "lines": "1381-1381",
           "quote": "Write {{name}} where a wired value goes; each one becomes an input below."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "128-128",
+          "lines": "133-133",
           "quote": "label: 'Ask the model', colorVar: '--k-model', hint: 'One model call: text, yes/no or JSON.', calls: 1"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "131-131",
+          "lines": "136-136",
           "quote": "[{ id: 'answer', side: 'out', type: 'flag' }, { id: 'reason', side: 'out', type: 'text' }]"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1038-1038",
+          "lines": "1384-1384",
           "quote": "'fg.ask.asText': 'Free text'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1039-1039",
+          "lines": "1385-1385",
           "quote": "'fg.ask.asYesno': 'Yes or no'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1040-1040",
+          "lines": "1386-1386",
           "quote": "'fg.ask.asJson': 'Fields (JSON)'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1046-1046",
+          "lines": "1392-1392",
           "quote": "the player picks the real model for it."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1096-1096",
+          "lines": "1451-1451",
           "quote": "'fg.hint.model.ask': 'Asks the model one question (costs a call)'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "138-138",
+          "lines": "143-143",
           "quote": "label: 'Parse JSON', colorVar: '--k-model'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "139-139",
+          "lines": "144-144",
           "quote": "{ id: 'failed', side: 'out', type: 'signal' }"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1097-1097",
+          "lines": "1452-1452",
           "quote": "'fg.hint.data.parse': 'Splits a JSON text into values'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "143-143",
+          "lines": "148-148",
           "quote": "label: 'If', colorVar: '--k-logic'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "143-143",
+          "lines": "148-148",
           "quote": "Yes, No or Unknown. Never calls the model."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "146-146",
+          "lines": "151-151",
           "quote": "['yes', 'no', 'unknown'].map((id) => ({ id, side: 'out', type: 'signal' }))"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "964-964",
+          "lines": "1307-1307",
           "quote": "'fg.if.match': 'The branch fires when'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "965-965",
+          "lines": "1308-1308",
           "quote": "'fg.if.all': 'all rules hold'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "966-966",
+          "lines": "1309-1309",
           "quote": "'fg.if.any': 'any rule holds'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "155-155",
+          "lines": "160-160",
           "quote": "Array.from({ length: p.count ?? 2 }"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1099-1099",
+          "lines": "1454-1454",
           "quote": "'fg.hint.logic.merge': 'Fires when any of its inputs fires'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1047-1047",
+          "lines": "1396-1396",
           "quote": "'fg.merge.count': 'Number of inputs'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "164-164",
+          "lines": "179-179",
           "quote": "label: 'Read own state', colorVar: '--k-data'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1100-1100",
+          "lines": "1455-1455",
           "quote": "Reads a field of the agent’s memory"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "165-165",
+          "lines": "180-180",
           "quote": "ports: (p) => [{ id: 'value', side: 'out', type: ownType(p.as) }]"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "169-169",
+          "lines": "184-184",
           "quote": "Replaces the value of one own field. Queued like every write."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1101-1101",
+          "lines": "1456-1456",
           "quote": "'fg.hint.state.set': 'Writes a value into memory'"
         },
         {
           "path": "src/canvas-kit/boards/agent-run.js",
-          "lines": "563-563",
+          "lines": "589-589",
           "quote": "return { status: 'done', writes, outputs, calls, trace, memo: keep };"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "174-174",
+          "lines": "189-189",
           "quote": "Adds or subtracts. The result is clamped by the field"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1050-1050",
+          "lines": "1399-1399",
           "quote": "A negative number subtracts. The field’s lowest and highest values still apply."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1102-1102",
+          "lines": "1457-1457",
           "quote": "'fg.hint.state.add': 'Adds a number to a field; the code counts'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1103-1103",
+          "lines": "1458-1458",
           "quote": "'fg.hint.state.list': 'Adds, changes or removes a list entry'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1055-1055",
+          "lines": "1405-1405",
           "quote": "'fg.list.key': 'Entry is found by'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "184-184",
+          "lines": "199-199",
           "quote": "label: 'Dice', colorVar: '--k-logic'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "184-184",
+          "lines": "199-199",
           "quote": "Rolls dice in code, never the model. The same reply always gets the same roll."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1148-1148",
+          "lines": "1503-1503",
           "quote": "Wire “when” to roll only when a signal comes."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1269-1269",
+          "lines": "1624-1624",
           "quote": "'fg.try.reroll': 'Roll again'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1270-1270",
+          "lines": "1625-1625",
           "quote": "Dice and picks keep their result while you edit."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "189-189",
+          "lines": "204-204",
           "quote": "label: 'Pick', colorVar: '--k-logic'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "189-189",
+          "lines": "204-204",
           "quote": "Picks one of your lines by weight, in code."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "350-350",
+          "lines": "365-365",
           "quote": "export const PICK_MAX = 40;"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1150-1150",
+          "lines": "1505-1505",
           "quote": "A line with weight 3 comes up three times as often as one with weight 1."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "194-194",
+          "lines": "209-209",
           "quote": "label: 'Extract', colorVar: '--k-data'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "194-194",
+          "lines": "209-209",
           "quote": "Takes the part of a text a pattern matches. Never calls the model."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1168-1168",
+          "lines": "1523-1523",
           "quote": "'fg.extract.none': 'When nothing matches, “none” fires and the cards after “match” are skipped.'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1158-1158",
+          "lines": "1513-1513",
           "quote": "A regular expression. Example:"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "199-199",
+          "lines": "214-214",
           "quote": "label: 'Cut', colorVar: '--k-data'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "199-199",
+          "lines": "214-214",
           "quote": "Keeps the first or last part of a text: characters, words or lines."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1173-1173",
+          "lines": "1528-1528",
           "quote": "'fg.cut.unit': 'Count in'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "213-213",
+          "lines": "228-228",
           "quote": "note: { label: 'Note', colorVar: '--k-data'"
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "213-213",
+          "lines": "228-228",
           "quote": "A note for people; never sent to a model."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1065-1065",
+          "lines": "1420-1420",
           "quote": "Only a reminder on the board; it does nothing when the agent runs."
         }
       ]
@@ -6738,117 +6828,117 @@
       "sources": [
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Tension meter\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "Keeps a tension number from 0 to 10: danger raises it, calm lowers it."
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"state\":{\"tension\":{\"type\":\"number\",\"min\":0,\"max\":10,\"start\":2}}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"What happened\",\"params\":{\"role\":\"fast\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"answer\":{\"as\":\"json\",\"shape\":{\"mood\":\"enum:calm|tense|danger\"}}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Danger?\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"op\":\"eq\",\"right\":{\"value\":\"danger\"}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Calm?\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Tension +2\",\"params\":{\"field\":\"tension\",\"amount\":2}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Tension -1\",\"params\":{\"field\":\"tension\",\"amount\":-1}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Either changed\",\"params\":{\"count\":2}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "\"title\":\"Output\",\"params\":{\"kind\":\"state-patch\",\"show\":\"top1\"}"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "11-11",
+          "lines": "15-15",
           "quote": "{\"w\":\"meter\",\"label\":\"Tension\",\"bind\":\"tension\"}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1218-1218",
+          "lines": "1573-1573",
           "quote": "'fg.wk.meter': 'Meter (a number with a bar)'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1073-1073",
+          "lines": "1428-1428",
           "quote": "'fg.place.top1': 'the top bar'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4656-4656",
+          "lines": "5448-5448",
           "quote": "Up to {n} model {n|call|calls} per run, on your model."
         },
         {
           "path": "src/canvas-kit/boards/agent-check.js",
-          "lines": "714-714",
+          "lines": "740-740",
           "quote": "maxCalls += card.calls ?? 0;"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1050-1050",
+          "lines": "1399-1399",
           "quote": "A negative number subtracts. The field’s lowest and highest values still apply."
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "6-6",
+          "lines": "7-7",
           "quote": "\"title\":\"Next moves\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "6-6",
+          "lines": "7-7",
           "quote": "Offers up to three short things the player could do next, as buttons above the composer."
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "6-6",
+          "lines": "7-7",
           "quote": "\"title\":\"Three moves\",\"params\":{\"role\":\"fast\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "6-6",
+          "lines": "7-7",
           "quote": "Give three short things the player could do next, one per line, at most eight words each"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "6-6",
+          "lines": "7-7",
           "quote": "\"maxTokens\":100"
         },
         {
@@ -6858,67 +6948,67 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1067-1067",
+          "lines": "1422-1422",
           "quote": "'fg.kind.choices': 'Buttons to tap'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1078-1078",
+          "lines": "1433-1433",
           "quote": "'fg.place.bottom': 'above the composer'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1084-1084",
+          "lines": "1439-1439",
           "quote": "A tap puts the text in the box; nothing is sent."
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "7-7",
+          "lines": "9-9",
           "quote": "\"title\":\"Pacing nudge\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "7-7",
+          "lines": "9-9",
           "quote": "adds one sentence of direction to the next one, so the scene keeps moving."
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "7-7",
+          "lines": "9-9",
           "quote": "\"title\":\"Nudge\",\"params\":{\"role\":\"fast\""
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "7-7",
+          "lines": "9-9",
           "quote": "Write one sentence of stage direction for the next reply that moves the scene forward"
         },
         {
           "path": "src/lib/forge-recipes.ts",
-          "lines": "7-7",
+          "lines": "9-9",
           "quote": "\"kind\":\"prompt-insert\",\"label\":\"Pacing nudge\",\"show\":\"inspector\""
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1068-1068",
+          "lines": "1423-1423",
           "quote": "'fg.kind.prompt-insert': 'A hint for the next reply'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1077-1077",
+          "lines": "1432-1432",
           "quote": "'fg.place.inspector': 'the prompt inspector'"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1086-1086",
+          "lines": "1441-1441",
           "quote": "It is always visible in the prompt inspector, with the agent’s name."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1063-1063",
+          "lines": "1413-1413",
           "quote": "Short; shown beside the hint in the inspector."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1248-1248",
+          "lines": "1603-1603",
           "quote": "It starts with an example in the format the card wants."
         }
       ]
@@ -6983,12 +7073,12 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1473-1473",
+          "lines": "1837-1837",
           "quote": "'canvas.shelf.addChain': 'Put on the board with its linked chats',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1469-1469",
+          "lines": "1833-1833",
           "quote": "'canvas.shelf.sortRecent': 'Recent first',"
         }
       ]
@@ -7026,17 +7116,17 @@
         {
           "path": "src/components/world/world-view.tsx",
           "quote": "type Tab = 'overview' | 'places' | 'records' | 'start' | 'backgrounds' | 'runs'",
-          "lines": "34-34"
+          "lines": "35-35"
         },
         {
           "path": "src/components/world/world-view.tsx",
           "quote": "{tab === 'places' && <WorldPlaces",
-          "lines": "193-193"
+          "lines": "194-194"
         },
         {
           "path": "src/components/world/world-view.tsx",
           "quote": "{tab === 'runs' && <WorldRuns key={chatId} chatId={chatId} />}",
-          "lines": "197-197"
+          "lines": "198-198"
         },
         {
           "path": "src/components/world/use-world-book.tsx",
@@ -7056,17 +7146,17 @@
         {
           "path": "src/lib/i18n.ts",
           "quote": "'world.places.show': 'Show places',",
-          "lines": "4908-4908"
+          "lines": "5739-5739"
         },
         {
           "path": "src/lib/i18n.ts",
           "quote": "'world.tab.records': 'World book',",
-          "lines": "114-114"
+          "lines": "242-242"
         },
         {
           "path": "src/lib/i18n.ts",
           "quote": "'world.runs.show': 'Show what changed',",
-          "lines": "371-371"
+          "lines": "705-705"
         },
         {
           "path": "src/components/world/world-controls.tsx",
@@ -7076,12 +7166,12 @@
         {
           "path": "src/components/world/world-records.tsx",
           "quote": "onClick={() => onOp('retire')}",
-          "lines": "323-323"
+          "lines": "473-473"
         },
         {
           "path": "src/components/world/world-runs.tsx",
           "quote": "const [shown, setShown] = useState(false)",
-          "lines": "100-100"
+          "lines": "101-101"
         },
         {
           "path": "src/components/world/world-tabs.tsx",
@@ -7126,7 +7216,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2040-2040",
+          "lines": "2459-2459",
           "quote": "'dash.tab.constellation': 'Constellation',"
         },
         {
@@ -7136,27 +7226,27 @@
         },
         {
           "path": "src/components/dashboard/dash-cards.tsx",
-          "lines": "79-79",
+          "lines": "81-81",
           "quote": "<Constellation stats={char.stats} prevStats={char.prev?.stats}"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "1778-1778",
+          "lines": "2157-2157",
           "quote": "'dash.title': 'Scene state',"
         },
         {
           "path": "src/components/dashboard/dash-mount.tsx",
-          "lines": "225-225",
+          "lines": "239-239",
           "quote": "<div className=\"hidden h-full shrink-0 lg:block\">"
         },
         {
           "path": "plugins/relations/plugin.js",
-          "lines": "271-271",
+          "lines": "309-309",
           "quote": "{ id: \"romance\", test: (s) => s.attraction > 40 && s.affection > 40 && s.trust > 20 },"
         },
         {
           "path": "plugins/relations/plugin.js",
-          "lines": "2019-2019",
+          "lines": "2192-2192",
           "quote": "return CONSTELLATIONS.find((c) => c.test(stats, cls));"
         },
         {
@@ -7176,22 +7266,22 @@
         },
         {
           "path": "src/lib/dashboard.ts",
-          "lines": "385-385",
+          "lines": "422-422",
           "quote": "export const ZERO_RADIUS = 21.5"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2142-2142",
+          "lines": "2593-2593",
           "quote": "'dash.const.legend': 'Further out = warmer; the dashed ring is zero.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2114-2114",
+          "lines": "2565-2565",
           "quote": "'dash.set.mode.manual.hint': 'The state updates only when you press Refresh.',"
         },
         {
           "path": "plugins/relations/plugin.js",
-          "lines": "5682-5682",
+          "lines": "6505-6505",
           "quote": "if (was !== entry.constellation) lines.push({ turn, kind: \"constellation\", from: was, to: entry.constellation, src: K });"
         },
         {
@@ -7201,7 +7291,7 @@
         },
         {
           "path": "src/components/dashboard/dash-mount.tsx",
-          "lines": "184-184",
+          "lines": "198-198",
           "quote": "dash.status === 'absent' || dash.status === 'loading'"
         },
         {
@@ -7243,22 +7333,22 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3869-3869",
+          "lines": "4482-4482",
           "quote": "'ct.app.nav': 'Card tasks',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3871-3871",
+          "lines": "4484-4484",
           "quote": "Structure it, Fill empty and the Soul rating use this model when a card has none of its own."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3872-3872",
+          "lines": "4485-4485",
           "quote": "'ct.app.follow': 'Dashboard sensor model, then the app default',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "3857-3857",
+          "lines": "4470-4470",
           "quote": "'ct.covers': 'Used by Structure it, Fill empty and the Soul rating of this card."
         },
         {
@@ -7268,17 +7358,17 @@
         },
         {
           "path": "src/lib/card-tasks.ts",
-          "lines": "21-21",
+          "lines": "22-22",
           "quote": "if (pick) return { model: pick, source: 'card' }"
         },
         {
           "path": "plugins/profile/plugin.js",
-          "lines": "218-218",
+          "lines": "220-220",
           "quote": "if (app) return { model: app, source: \"app\" };"
         },
         {
           "path": "plugins/relations/plugin.js",
-          "lines": "6291-6291",
+          "lines": "7123-7123",
           "quote": "(isObj(ui.cardTasks) ? str(ui.cardTasks.model) : \"\")"
         },
         {
@@ -7336,27 +7426,27 @@
         },
         {
           "path": "src/components/chat/chat-view.tsx",
-          "lines": "1131-1131",
+          "lines": "1145-1145",
           "quote": "{i === 0 && !deleteMode && !msg.edited && <OpeningHint"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "9450-9450",
+          "lines": "10366-10366",
           "quote": "const OPENING_HINT_MAX = 4;"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "9459-9459",
+          "lines": "10375-10375",
           "quote": "first.greeting !== true || first.edited || arr(line).length > OPENING_HINT_MAX"
         },
         {
           "path": "plugins/litopys/plugin.js",
-          "lines": "10010-10010",
+          "lines": "10928-10928",
           "quote": "opening: greetingOpening(fsx, chatId, line, titleOf),"
         },
         {
           "path": "src/components/chat/message-row.tsx",
-          "lines": "571-571",
+          "lines": "578-578",
           "quote": "window.addEventListener(EDIT_MESSAGE_EVENT, on)"
         },
         {
@@ -7366,32 +7456,32 @@
         },
         {
           "path": "src/lib/store.ts",
-          "lines": "1884-1884",
+          "lines": "1931-1931",
           "quote": "const linked = await setLitLink(id, opts.continues)"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2865-2865",
+          "lines": "3440-3440",
           "quote": "'opening.hint': 'This chat continues “{title}”, but it opens with the card’s first greeting.',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2867-2867",
+          "lines": "3442-3442",
           "quote": "'opening.edit': 'Edit the first message',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2868-2868",
+          "lines": "3443-3443",
           "quote": "'opening.dismiss': 'Leave it',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "8029-8029",
+          "lines": "9435-9435",
           "quote": "'opening.edit': 'Редагувати перше повідомлення',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "6594-6594",
+          "lines": "7789-7789",
           "quote": "'canvas.board.links': \"Зв'язки чатів\","
         }
       ]
@@ -7429,17 +7519,17 @@
       "sources": [
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "361-361",
+          "lines": "364-364",
           "quote": "if (line === \"/gallery\") { setGalleryOpen(true); return true }"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "359-359",
+          "lines": "362-362",
           "quote": "/help and /gallery open UI only — never sent to the model"
         },
         {
           "path": "src/components/chat/composer.tsx",
-          "lines": "634-634",
+          "lines": "682-682",
           "quote": "{characterId && ("
         },
         {
@@ -7449,7 +7539,7 @@
         },
         {
           "path": "src/components/chat/gallery-dialog.tsx",
-          "lines": "28-28",
+          "lines": "30-30",
           "quote": "const items: Item[] = owners.flatMap((o) => o.gallery.map((g) => ({ ...g, owner: o.name })))"
         },
         {
@@ -7464,7 +7554,7 @@
         },
         {
           "path": "src/components/chat/gallery-dialog.tsx",
-          "lines": "87-87",
+          "lines": "89-89",
           "quote": "{props.onAttach && open.type === 'image' && ("
         },
         {
@@ -7474,7 +7564,7 @@
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "2380-2380",
+          "lines": "2894-2894",
           "quote": "'editor.panel.gallery': 'Gallery',"
         },
         {
