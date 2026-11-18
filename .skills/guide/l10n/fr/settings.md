@@ -1,4 +1,4 @@
-<!-- source: 324954b86949 -->
+<!-- source: 4a8da4a002cb -->
 # Où sont les réglages de Roleplay
 
 Roleplay n'a pas une seule page de réglages pour tout. Les réglages se trouvent près de ce qu'ils changent, et deux d'entre eux sont dans les Réglages principaux de Molfar Vertep. Cette page est un index.
@@ -25,7 +25,7 @@ Ce que font les sections, en bref : Appearance règle la langue, les polices, la
 
 La section **Tools** est une rangée d'onglets, groupés en Panels (panneaux de plugins comme Tool Calling), Text & voice et System.
 
-- **Regex** : scripts de recherche-remplacement qui ne fonctionnent que dans les endroits que vous activez.
+- **Regex** : scripts de recherche-remplacement qui ne fonctionnent que dans les endroits que vous activez. Un script sans drapeaux dans la case Flags ne remplace que la première correspondance (ajoutez `g` pour toutes les correspondances ; un import SillyTavern garde ce que disait le motif). Un script qui prend trop de temps, ou dont le résultat dépasserait environ trois millions de caractères dans un seul message (un motif qui correspond à une chaîne vide partout, avec un wrapper comme remplacement), est ignoré et le texte est affiché tel qu'il était.
 - **Translation** : fournisseur, deux langues et un mode de traduction automatique ; traduit aussi la discussion ouverte.
 - **Image Generation** : le modèle de discussion décrit la scène et un modèle d'image la dessine. Désactivé par défaut. Avec le mode interactif activé, vous vérifiez d'abord chaque requête.
 - **TTS** : lit les réponses à voix haute. Désactivé par défaut.

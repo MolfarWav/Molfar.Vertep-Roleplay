@@ -1,4 +1,4 @@
-<!-- source: 85f78f526756 -->
+<!-- source: 89b994f56ac2 -->
 # World DM
 
 World DM to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i trzyma napotkane osoby, miejsca i rzeczy we własnej księdze wiedzy czatu, zwanej księgą świata. Na wyższych poziomach porusza też światem i wysyła zdarzenia do sceny. Używaj go, gdy chcesz, aby świat wydawał się żywy i spójny.

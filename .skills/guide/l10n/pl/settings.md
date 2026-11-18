@@ -1,4 +1,4 @@
-<!-- source: 324954b86949 -->
+<!-- source: 4a8da4a002cb -->
 # Gdzie są ustawienia Roleplay
 
 Roleplay nie ma jednej strony ustawień dla wszystkiego. Ustawienia siedzą blisko tego, co zmieniają, a dwa z nich są w głównych Ustawieniach Molfar Vertep. Ta strona to wyszukiwarka.
@@ -25,7 +25,7 @@ Co robią sekcje, w skrócie: Appearance to język, czcionki, szerokość czatu 
 
 Sekcja **Tools** to rząd kart, zgrupowanych jako Panels (panele wtyczek, takie jak Tool Calling), Text & voice i System.
 
-- **Regex**: skrypty znajdź-i-zamień, które działają tylko w miejscach, w których je włączysz.
+- **Regex**: skrypty znajdź-i-zamień, które działają tylko w miejscach, w których je włączysz. Skrypt bez flag w polu Flags zastępuje tylko pierwsze dopasowanie (dodaj `g`, aby zastąpić każde dopasowanie; import z SillyTavern zachowuje to, co mówił wzorzec). Skrypt, który działa zbyt długo, albo którego wynik urósłby powyżej około trzech milionów znaków w jednej wiadomości (wzorzec pasujący do pustego ciągu wszędzie, z wrapperem jako zamiennikiem), jest pomijany, a tekst jest pokazywany tak, jak był.
 - **Translation**: dostawca, dwa języki i tryb automatycznego tłumaczenia; tłumaczy też otwarty czat.
 - **Image Generation**: model czatu opisuje scenę, a model obrazu ją rysuje. Domyślnie wyłączone. W trybie interaktywnym najpierw sprawdzasz każdy prompt.
 - **TTS**: czyta odpowiedzi na głos. Domyślnie wyłączone.

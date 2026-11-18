@@ -1,4 +1,4 @@
-<!-- source: 324954b86949 -->
+<!-- source: 4a8da4a002cb -->
 # Onde ficam as configurações do Roleplay
 
 O Roleplay não tem uma única página de configurações para tudo. As configurações ficam perto do que mudam, e duas delas estão nas Configurações principais do Molfar Vertep. Esta página é um localizador.
@@ -25,7 +25,7 @@ O que as seções fazem, em resumo: Appearance é idioma, fontes, largura do cha
 
 A seção **Tools** é uma fileira de abas, agrupadas como Panels (painéis de plugin como Tool Calling), Text & voice e System.
 
-- **Regex**: scripts de localizar e substituir que funcionam apenas nos lugares que você ativa.
+- **Regex**: scripts de localizar e substituir que funcionam apenas nos lugares que você ativa. Um script sem flags na caixa Flags substitui apenas a primeira ocorrência (adicione `g` para todas as ocorrências; uma importação do SillyTavern mantém o que o padrão dizia). Um script que demora demasiado, ou cujo resultado cresceria além de cerca de três milhões de caracteres em uma mensagem (um padrão que corresponde a uma string vazia em todo o lado, com um wrapper como substituição), é ignorado e o texto é mostrado como estava.
 - **Translation**: provedor, dois idiomas e um modo de tradução automática; também traduz o chat aberto.
 - **Image Generation**: o modelo do chat descreve a cena e um modelo de imagem a desenha. Desligado por padrão. Com o modo interativo ligado, você confere cada prompt antes.
 - **TTS**: lê as respostas em voz alta. Desligado por padrão.
