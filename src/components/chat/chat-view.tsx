@@ -1024,7 +1024,7 @@ export function ChatView() {
       <div className="flex min-w-0 flex-1 flex-col">
       {/* `data-chat-log` lets the composer scroll-compensate this pane as the
           textarea grows upward, so the message you're reading stays put. */}
-      <div ref={scrollRef} data-chat-log data-pinned="true" onScroll={onScroll} className="relative z-10 min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch]" style={{ fontSize: `${settings.fontScale}%` }}>
+      <div ref={scrollRef} data-chat-log data-pinned="true" onScroll={onScroll} className="relative z-10 mb-[var(--stage-reserve,0px)] min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch]" style={{ fontSize: `${settings.fontScale}%` }}>
         <div
           className={cn('chat-column flex flex-col gap-1 py-3', look === 'stage' ? 'look-stage px-3 sm:px-6 lg:px-8' : 'px-2 sm:px-4')}
           data-no-av={settings.hideAvatars ? '' : undefined}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { X, ArrowsOutLineVertical, GearSix, DotsSixVertical, Plus, Trash } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -8,7 +8,7 @@ import { DEFAULT_OUTFIT } from '@/lib/expressions'
 import {
   MAX_WINDOWS, addWindow, arrange, contributions, defaultLayout, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
   saveLayout, sceneKeys, speakerOf, stageMembers,
-  type Area, type Contribution, type StageLayout, type StageMember, type StageWindow,
+  type Area, type Contribution, type StageLayout, type StageMember, type StagePlace, type StageWindow,
 } from '@/lib/sprite-stage'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
@@ -21,8 +21,12 @@ const maxHeight = () => Math.round(window.innerHeight * 0.9)
 const storage = (): Storage | null => { try { return localStorage } catch { return null } }
 /** The chat's column on the page, where windows are laid out; the whole window when it cannot be found. */
 const stageArea = (chatId: string): Area => {
-  const r = document.querySelector(`[data-chat-id="${CSS.escape(chatId)}"]`)?.getBoundingClientRect()
-  return r && r.width > 120 && r.height > 200 ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+  const root = document.querySelector(`[data-chat-id="${CSS.escape(chatId)}"]`)
+  const r = root?.getBoundingClientRect()
+  if (!r || r.width <= 120 || r.height <= 200) return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+  // across the column of the messages, not the Dashboard strip beside it
+  const log = root?.querySelector('[data-chat-log]')?.getBoundingClientRect()
+  return log && log.width > 120 ? { x: log.left, y: r.top, w: log.width, h: r.height } : { x: r.left, y: r.top, w: r.width, h: r.height }
 }
 
 /**
@@ -85,6 +89,36 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotsNow])
 
+  // where the windows sit against the chat text; a phone keeps them in front
+  const place: StagePlace = phone ? 'front' : layout.place
+  const strip = place === 'reserve' && show && members.length > 0
+  // the strip: as tall as the tallest window that shows, never more than 60% of the chat
+  const reserve = !strip ? 0 : Math.min(
+    Math.max(0, ...layout.windows.filter((w) => !w.folded && (view.shows[w.id] || !layout.hideEmpty)).map((w) => w.h ?? Math.round(window.innerHeight * 0.42))),
+    Math.round(stageArea(chat.id).h * 0.6),
+  ) + 8
+  const [anchor, setAnchor] = useState<number | null>(null)
+  const [, bump] = useState(0)
+  useLayoutEffect(() => {
+    const root = document.querySelector<HTMLElement>(`[data-chat-id="${CSS.escape(chat.id)}"]`)
+    if (!root) return
+    root.style.setProperty('--stage-reserve', strip ? `${reserve}px` : '0px')
+    // the log has shrunk by `reserve`: the strip's bottom edge is where the log would have ended
+    const log = root.querySelector('[data-chat-log]')
+    setAnchor(strip && log ? Math.round(log.getBoundingClientRect().bottom + reserve) : null)
+    return () => { root.style.removeProperty('--stage-reserve') }
+  })
+  // the composer grows and the window resizes: the strip follows
+  useEffect(() => {
+    if (!strip) return
+    const log = document.querySelector(`[data-chat-id="${CSS.escape(chat.id)}"] [data-chat-log]`)
+    const on = () => bump((n) => n + 1)
+    window.addEventListener('resize', on)
+    const ro = log && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(on) : null
+    if (log && ro) ro.observe(log)
+    return () => { window.removeEventListener('resize', on); ro?.disconnect() }
+  }, [strip, chat.id])
+
   if (!show || !members.length) return null
 
   const menuFor = (id: string) => (
@@ -107,6 +141,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
             said={member ? said.get(member.key) ?? null : null}
             outfits={chat.spriteOutfits}
             hideEmpty={layout.hideEmpty}
+            place={place}
+            anchorBottom={strip ? anchor : null}
             onPatch={(patch, transient) => update((l) => patchWindow(l, w.id, patch), transient)}
             menu={menuFor(w.id)}
           />
@@ -168,13 +204,16 @@ function CastStrip({ members, keys, said, outfits, pinned, onPin }: {
  * chip brings it back). A transparent window has no frame and lets clicks through to the chat; it is moved by its
  * grip. A window with nobody to show stays as an empty slot, or disappears when "Hide empty windows" is on.
  */
-function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, onPatch, menu }: {
+function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, anchorBottom, onPatch, menu }: {
   chatId: string
   win: StageWindow
   member: StageMember | null
   said: Contribution | null
   outfits: Record<string, string> | undefined
   hideEmpty: boolean
+  place: StagePlace
+  /** in the strip: the page y of its bottom edge; the window stands on it and moves sideways only */
+  anchorBottom: number | null
   onPatch: (patch: Partial<Omit<StageWindow, 'id'>>, transient?: boolean) => void
   menu: React.ReactNode
 }) {
@@ -187,6 +226,9 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, onPatch, 
   const boxRef = useRef<HTMLDivElement>(null)
   const patchRef = useRef(onPatch)
   patchRef.current = onPatch
+  const anchored = anchorBottom !== null
+  const anchoredRef = useRef(anchored)
+  anchoredRef.current = anchored
   // the sprite URL that finished loading, and the ones that failed. Until its image loads the window is not
   // hit-testable: an invisible box over the lower half of the log swallowed touch scrolling on Chromium, and a
   // sprite that never loads (a dead URL) left it there for good
@@ -215,7 +257,8 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, onPatch, 
       }
       if (!dragRef.current) return
       movedRef.current = true
-      patchRef.current(clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy }), true)
+      const to = clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy })
+      patchRef.current(anchoredRef.current ? { x: to.x } : to, true)
     }
     const up = () => {
       if (resizeRef.current) { resizeRef.current = null; patchRef.current({}); return }
@@ -231,19 +274,23 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, onPatch, 
     }
   }, [])
 
+  const h = win.h ?? Math.round(window.innerHeight * 0.42)
   const hasPos = win.x !== null && win.y !== null
-  const style: React.CSSProperties = hasPos
-    ? { left: win.x!, top: win.y!, right: 'auto', bottom: 'auto' }
-    : { right: '1rem', bottom: '5rem' }
+  const style: React.CSSProperties = anchored
+    ? { top: anchorBottom! - h - 4, bottom: 'auto', ...(win.x !== null ? { left: win.x, right: 'auto' } : { right: '1rem' }) }
+    : hasPos
+      ? { left: win.x!, top: win.y!, right: 'auto', bottom: 'auto' }
+      : { right: '1rem', bottom: '5rem' }
   const startDrag = (e: React.PointerEvent) => {
     const r = boxRef.current?.getBoundingClientRect()
-    const at = hasPos ? { x: win.x!, y: win.y! } : r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 }
-    if (!hasPos) onPatch({ x: at.x, y: at.y }, true)
+    const at = anchored
+      ? { x: win.x ?? r?.left ?? e.clientX - 60, y: r?.top ?? e.clientY - 60 }
+      : hasPos ? { x: win.x!, y: win.y! } : r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 }
+    if (anchored ? win.x === null : !hasPos) onPatch(anchored ? { x: at.x } : { x: at.x, y: at.y }, true)
     dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y }
     movedRef.current = false
   }
   const setFolded = (v: boolean) => onPatch({ folded: v })
-  const h = win.h ?? Math.round(window.innerHeight * 0.42)
   const transparent = win.transparent
 
   // nobody to show
@@ -285,44 +332,65 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, onPatch, 
   }
 
   const loaded = loadedUrl === sprite.url
+  const behind = place === 'behind'
+  // behind the text the picture sits under the chat log, which would cover its buttons: they live in a copy of the
+  // box above the log, whose picture is only there to give the box its size. Buttons are then faint and the window
+  // is moved by its grip, as a transparent one is.
+  const layers: ('single' | 'back' | 'front')[] = behind ? ['back', 'front'] : ['single']
+  const loose = transparent || behind
   return (
-    <div
-      ref={boxRef}
-      data-expression-panel
-      className={cn('group fixed z-30 touch-none select-none', transparent ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing')}
-      style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
-      onPointerDown={transparent ? undefined : startDrag}
-      role="img"
-      aria-label={label}
-      title={transparent ? label : `${label} (drag to move)`}
-      data-transparent={transparent || undefined}
-    >
-      <img
-        key={sprite.url}
-        src={sprite.url}
-        alt={`${member.name} ${sprite.name}`}
-        draggable={false}
-        onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
-        onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
-        style={{ height: h, maxHeight: '90dvh' }}
-        className={cn('w-auto [opacity:0] transition-opacity duration-200', transparent ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]' : 'rounded-lg border border-border/40 bg-card/60 shadow-lg')}
-      />
-      {/* the outfit: only when this character has more than one; the choice is kept for this chat */}
-      {picked && picked.outfits.length > 1 && (
-        <select
-          value={picked.outfit}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={(e) => setSpriteOutfit(chatId, member.outfitKey, e.target.value)}
-          aria-label={t('sprites.outfitSwitchAria', { name: who })}
-          title={t('sprites.outfitSwitchAria', { name: who })}
-          data-testid="outfit-switch"
-          className={cn('pointer-events-auto absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm', transparent && 'opacity-60 hover:opacity-100 focus-visible:opacity-100')}
-        >
-          {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
-        </select>
-      )}
-      <WindowControls t={t} transparent={transparent} startDrag={startDrag} menu={menu} onFold={() => setFolded(true)} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
-    </div>
+    <>
+      {layers.map((layer) => {
+        const picture = layer !== 'front'
+        const controls = layer !== 'back'
+        return (
+          <div
+            // the box that holds the buttons keeps its key across modes, so an open menu stays open when the mode changes
+            key={layer === 'back' ? 'back' : 'main'}
+            ref={controls ? boxRef : undefined}
+            data-expression-panel
+            data-layer={layer}
+            className={cn('group fixed touch-none select-none', layer === 'back' ? 'z-[5]' : 'z-30', loose || layer !== 'single' ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing')}
+            style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
+            onPointerDown={loose ? undefined : startDrag}
+            role={picture ? 'img' : undefined}
+            aria-label={picture ? label : undefined}
+            title={picture ? (loose ? label : `${label} (drag to move)`) : undefined}
+            data-transparent={transparent || undefined}
+          >
+            <img
+              key={sprite.url}
+              src={sprite.url}
+              alt={picture ? `${member.name} ${sprite.name}` : ''}
+              draggable={false}
+              onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
+              onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
+              style={{ height: h, maxHeight: '90dvh' }}
+              className={cn('w-auto [opacity:0] transition-opacity duration-200', !picture && 'invisible', transparent ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]' : 'rounded-lg border border-border/40 bg-card/60 shadow-lg')}
+            />
+            {controls && (
+              <>
+                {/* the outfit: only when this character has more than one; the choice is kept for this chat */}
+                {picked && picked.outfits.length > 1 && (
+                  <select
+                    value={picked.outfit}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onChange={(e) => setSpriteOutfit(chatId, member.outfitKey, e.target.value)}
+                    aria-label={t('sprites.outfitSwitchAria', { name: who })}
+                    title={t('sprites.outfitSwitchAria', { name: who })}
+                    data-testid="outfit-switch"
+                    className={cn('pointer-events-auto absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm', loose && 'opacity-60 hover:opacity-100 focus-visible:opacity-100')}
+                  >
+                    {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
+                  </select>
+                )}
+                <WindowControls t={t} transparent={loose} startDrag={startDrag} menu={menu} onFold={() => setFolded(true)} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
+              </>
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -418,6 +486,19 @@ function StageMenu({ layout, members, current, phone, update, area }: {
         <div className="text-sm font-medium">{t('sprites.win.title')}</div>
         <p className="text-xs text-muted-foreground">{t('sprites.win.hint')}</p>
       </div>
+      {!phone && (
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-2 text-xs">
+            <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.place')}</span>
+            <select value={layout.place} onChange={(e) => update((l) => ({ ...l, place: e.target.value as StagePlace }))} className={selectClass} data-testid="stage-place">
+              <option value="front">{t('sprites.win.placeFront')}</option>
+              <option value="behind">{t('sprites.win.placeBehind')}</option>
+              <option value="reserve">{t('sprites.win.placeReserve')}</option>
+            </select>
+          </label>
+          {layout.place !== 'front' && <p className="text-xs text-muted-foreground">{t('sprites.win.placeHint')}</p>}
+        </div>
+      )}
       <div className="flex max-h-64 flex-col gap-2 overflow-y-auto overscroll-contain">
         {list.map((w, i) => (
           <div key={w.id} className={cn('flex flex-col gap-1.5 rounded-md border p-2', w.id === current ? 'border-primary/60 bg-primary/5' : 'border-border')} data-testid="stage-window-row">
@@ -467,7 +548,7 @@ function StageMenu({ layout, members, current, phone, update, area }: {
           {layout.windows.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('sprites.win.arrange')}</span>
-              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'row', area()))} data-testid="stage-row">{t('sprites.win.row')}</button>
+              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'row', area(), l.place === 'reserve' ? 0.36 : 0.5))} data-testid="stage-row">{t('sprites.win.row')}</button>
               <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'grid', area()))} data-testid="stage-grid">{t('sprites.win.grid')}</button>
             </div>
           )}

@@ -193,8 +193,13 @@ export interface StageWindow {
   transparent: boolean
 }
 
+/** Where the windows sit against the chat text: over it (as always), under it, or in a strip the chat keeps for them. */
+export type StagePlace = 'front' | 'behind' | 'reserve'
+export const STAGE_PLACES: readonly StagePlace[] = ['front', 'behind', 'reserve']
+
 export interface StageLayout {
   windows: StageWindow[]
+  place: StagePlace
   /** an empty "next in the scene" window disappears instead of staying blank */
   hideEmpty: boolean
   /** which member each 'auto' window holds (window id → member key), kept while they stay in the scene */
@@ -212,7 +217,7 @@ export function defaultLayout(legacy?: { pos?: { x: number; y: number } | null; 
   if (legacy?.pos) { w.x = legacy.pos.x; w.y = legacy.pos.y }
   if (legacy?.height) w.h = legacy.height
   if (legacy?.folded) w.folded = true
-  return { windows: [w], hideEmpty: false, slots: {} }
+  return { windows: [w], place: 'front', hideEmpty: false, slots: {} }
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -241,7 +246,8 @@ export function normalizeLayout(raw: unknown): StageLayout {
   if (r.slots && typeof r.slots === 'object') {
     for (const [k, v] of Object.entries(r.slots as Record<string, unknown>)) if (typeof v === 'string' && seen.has(k)) slots[k] = v
   }
-  return { windows, hideEmpty: r.hideEmpty === true, slots }
+  const place = STAGE_PLACES.find((x) => x === r.place) ?? 'front'
+  return { windows, place, hideEmpty: r.hideEmpty === true, slots }
 }
 
 export const layoutKey = (chatId: string) => `rp.stage.${chatId}`
@@ -305,15 +311,16 @@ export type Arrangement = 'grid' | 'row'
 
 /**
  * Places every window inside the chat's column by an estimate of a sprite's width (`SPRITE_WIDTH_RATIO` of its
- * height): a row along the bottom (the visual-novel look) or a block of columns in the lower right. The user drags
+ * height): a row along the bottom (the visual-novel look; `rowHeight` is the share of the chat's height a window may
+ * take, less for a strip that the chat keeps under its text) or a block of columns in the lower right. The user drags
  * from there.
  */
-export function arrange(layout: StageLayout, kind: Arrangement, area: Area): StageLayout {
+export function arrange(layout: StageLayout, kind: Arrangement, area: Area, rowHeight = 0.5): StageLayout {
   const n = layout.windows.length
   const bottom = area.y + area.h - 88
   const ws: StageWindow[] = []
   if (kind === 'row') {
-    const h = Math.round(Math.min(area.h * 0.5, (area.w - (n + 1) * 8) / n / SPRITE_WIDTH_RATIO))
+    const h = Math.round(Math.min(area.h * rowHeight, (area.w - (n + 1) * 8) / n / SPRITE_WIDTH_RATIO))
     const w = h * SPRITE_WIDTH_RATIO
     const gap = Math.max(8, (area.w - n * w) / (n + 1))
     layout.windows.forEach((win, i) => ws.push({ ...win, h, x: Math.round(area.x + gap + i * (w + gap)), y: Math.max(area.y + 8, Math.round(bottom - h)) }))

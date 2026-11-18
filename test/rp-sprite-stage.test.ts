@@ -202,6 +202,13 @@ describe("layout", () => {
     expect(l.windows).toEqual([{ id: "a", who: "speaker", x: null, y: null, h: 300, folded: false, transparent: false }]);
     expect(l.slots).toEqual({ a: "m:x" });
   });
+  it("windows sit in front of the text unless the layout says otherwise", () => {
+    expect(defaultLayout().place).toBe("front");
+    expect(normalizeLayout({ windows: [{ id: "a" }], place: "behind" }).place).toBe("behind");
+    expect(normalizeLayout({ windows: [{ id: "a" }], place: "reserve" }).place).toBe("reserve");
+    expect(normalizeLayout({ windows: [{ id: "a" }], place: "sideways" }).place).toBe("front");
+    expect(normalizeLayout({ windows: [{ id: "a" }] }).place).toBe("front");
+  });
   it("the old single window's place carries over into the first window", () => {
     const store = { getItem: (k: string) => ({ "expr-panel-pos": '{"x":40,"y":60}', "expr-panel-height": "300", "expr-panel-minimized": "true" } as Record<string, string>)[k] ?? null };
     expect(loadLayout("c1", store).windows[0]).toMatchObject({ x: 40, y: 60, h: 300, folded: true });
