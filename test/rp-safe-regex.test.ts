@@ -66,3 +66,20 @@ describe("regex worker semantics", () => {
     expect(r.output!.length).toBeLessThan(MAX_OUTPUT_CHARS / 10);
   });
 });
+
+// Molfar.Vertep#442: a stylesheet script written as /(?:)/ (no flags) is meant to go in ONCE. Read as global it went in at
+// every position of every message: thousands of copies, megabytes per message, a dead page.
+describe("a script without the g flag", () => {
+  const SHEET = '<style>' + '.voyage-main-header{margin:6px 0;border-radius:3px 12px 12px 3px;overflow:hidden;}'.repeat(30) + '</style>'; // ~3000 characters, like a preset's stylesheet script
+  it("replaces the first match only", () => {
+    const r = runJob({ find: "(?:)", flags: "", replace: SHEET, input: "word ".repeat(400) });
+    expect(r.ok).toBe(true);
+    expect(r.output!.split("<style>").length - 1).toBe(1);
+    expect(r.output!.length).toBe(SHEET.length + 2000);
+  });
+  it("with g it is still every match (and the size cap catches the runaway)", () => {
+    const r = runJob({ find: "(?:)", flags: "g", replace: SHEET, input: "word ".repeat(400) });
+    expect(r.ok).toBe(false);
+    expect(r.tooBig).toBe(true);
+  });
+});

@@ -27,3 +27,17 @@ describe("a regex script over a text longer than 20,000 characters", () => {
     expect(applyRegexScript(script, text, {})).toBe(text);
   });
 });
+
+describe("flags and size on the server path (Molfar.Vertep#442)", () => {
+  const sheet = "<style>" + ".voyage-main-header{margin:6px 0;overflow:hidden;}".repeat(60) + "</style>";
+  it("an empty flags string is the first match only; a script with no flags field stays global", () => {
+    expect(applyRegexScript({ findRegex: "a", replaceString: "b", flags: "" }, "aaa", {})).toBe("baa");
+    expect(applyRegexScript({ findRegex: "a", replaceString: "b" }, "aaa", {})).toBe("bbb");
+  });
+  it("a pattern that matches everywhere with a big replacement leaves the text as it was", () => {
+    const text = "word ".repeat(3000);
+    expect(applyRegexScript({ findRegex: "(?:)", replaceString: sheet, flags: "g" }, text, {})).toBe(text);
+    const once = applyRegexScript({ findRegex: "(?:)", replaceString: sheet, flags: "" }, text, {});
+    expect(once.length).toBe(text.length + sheet.length);
+  });
+});

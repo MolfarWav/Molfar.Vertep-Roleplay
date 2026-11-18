@@ -36,7 +36,9 @@ export const WORKER_SRC = `
 self.onmessage = (e) => {
   const { id, find, flags, replace, trims, macros, input } = e.data;
   try {
-    const re = new RegExp(find, (flags || "").includes("g") ? flags : (flags || "") + "g");
+    // no g flag: the first match only, as the pattern was written (an empty-pattern stylesheet insert is meant to go in once)
+    const re = new RegExp(find, flags || "");
+    const global = re.global || re.sticky;
     const trim = (v) => {
       let t = v;
       for (const s of (trims || [])) if (s) t = t.split(s).join("");
@@ -52,7 +54,7 @@ self.onmessage = (e) => {
     let guard = 0;
     const MAX = ${MAX_OUTPUT_CHARS};
     while ((m = re.exec(input)) !== null && guard++ < 5000) {
-      if (m.index === re.lastIndex) re.lastIndex++;
+      if (global && m.index === re.lastIndex) re.lastIndex++;
       matches.push({ start: m.index, end: m.index + m[0].length });
       let repl = String(replace ?? "").replace(/\\{\\{match\\}\\}/gi, "\\u0000");
       repl = repl.replace(/\\$(\\d+)|\\$<([^>]+)>/g, (_, num, name) => {
@@ -66,6 +68,7 @@ self.onmessage = (e) => {
         self.postMessage({ id, ok: false, tooBig: true, error: "the result is larger than " + MAX + " characters (a pattern that matches an empty string everywhere?)" });
         return;
       }
+      if (!global) break;
     }
     output += input.slice(last);
     self.postMessage({ id, ok: true, output, matches });
