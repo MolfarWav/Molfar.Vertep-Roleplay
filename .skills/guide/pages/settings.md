@@ -24,7 +24,7 @@ What the sections do, in short: Appearance is language, fonts, chat width and av
 
 The **Tools** section is a row of tabs, grouped as Panels (plugin panels such as Tool Calling), Text & voice and System.
 
-- **Regex**: find-and-replace scripts that work only in the places you switch on.
+- **Regex**: find-and-replace scripts that work only in the places you switch on. A script that takes too long, or whose result would grow past about three million characters in one message (a pattern that matches an empty string everywhere, with a wrapper as its replacement), is skipped and the text is shown as it was.
 - **Translation**: provider, two languages and an auto-translate mode; also translates the open chat.
 - **Image Generation**: the chat model describes the scene and an image model draws it. Off by default. With interactive mode on, you check each prompt first.
 - **TTS**: reads replies aloud. Off by default.

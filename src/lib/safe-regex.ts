@@ -16,7 +16,16 @@ export interface SafeRegexResult {
   matches?: { start: number; end: number }[]
   error?: string
   timedOut?: boolean
+  /** the result passed MAX_OUTPUT_CHARS and was dropped: the text stays as it was */
+  tooBig?: boolean
 }
+
+/** One script's result may not pass this many characters (Molfar.Vertep#442). The time limit does not bound memory:
+ *  a pattern that matches an empty string at every position (`(.*?)`, `(?:)`) with an HTML wrapper as its replacement
+ *  writes the wrapper thousands of times into every message, a chain of such scripts multiplies it, and a long chat then
+ *  holds gigabytes of markup. The browser answers that with a dead page. 3 million characters is far above any real
+ *  message with its decoration; a result above it is dropped and the text is shown as it was. */
+export const MAX_OUTPUT_CHARS = 3_000_000
 
 // Application (same semantics as the message renderer): global exec loop,
 // trim strings, {{match}} and $n/$<name> substitution, macro names, and a
@@ -41,6 +50,7 @@ self.onmessage = (e) => {
     let last = 0;
     let m;
     let guard = 0;
+    const MAX = ${MAX_OUTPUT_CHARS};
     while ((m = re.exec(input)) !== null && guard++ < 5000) {
       if (m.index === re.lastIndex) re.lastIndex++;
       matches.push({ start: m.index, end: m.index + m[0].length });
@@ -52,6 +62,10 @@ self.onmessage = (e) => {
       repl = subMacros(repl.split("\\u0000").join(trim(m[0])));
       output += input.slice(last, m.index) + repl;
       last = m.index + m[0].length;
+      if (output.length > MAX) {
+        self.postMessage({ id, ok: false, tooBig: true, error: "the result is larger than " + MAX + " characters (a pattern that matches an empty string everywhere?)" });
+        return;
+      }
     }
     output += input.slice(last);
     self.postMessage({ id, ok: true, output, matches });

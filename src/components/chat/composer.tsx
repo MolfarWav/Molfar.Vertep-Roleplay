@@ -33,7 +33,7 @@ import type { ID, Message, QuickReply } from "@/lib/types"
 import { toast } from "sonner"
 import { useGuidePlace } from '@/components/guide/place'
 import { DEFAULT_AVATAR } from '../../lib/utils'
-import { MAX_DRAFT_ATTACHMENTS, draftKey, fillAction, liveAttachments, readAttachmentDraft, readDraft, unsavedKeys, writeAttachmentDraft } from '@/lib/drafts'
+import { MAX_DRAFT_ATTACHMENTS, discardDraft, draftKey, fillAction, flushDraft, liveAttachments, readAttachmentDraft, readDraft, saveDraft, unsavedKeys, writeAttachmentDraft } from '@/lib/drafts'
 
 type Attachment = NonNullable<Message["attachments"]>[number]
 
@@ -90,12 +90,11 @@ export function Composer({ chatId }: { chatId: ID }) {
   const [draft, setDraft] = useState(() => ({ chatId, text: readDraft(chatId) }))
   const value = draft.chatId === chatId ? draft.text : readDraft(chatId)
   const setValue = useCallback((text: string) => {
-    try {
-      if (text) localStorage.setItem(draftKey(chatId), text)
-      else localStorage.removeItem(draftKey(chatId))
-    } catch { /* storage unavailable */ }
+    saveDraft(chatId, text) // after a pause, not on every key (#418)
     setDraft({ chatId, text })
   }, [chatId])
+  // leaving the box or the chat writes what is waiting
+  useEffect(() => () => flushDraft(), [chatId])
   const valueRef = useRef(value)
   valueRef.current = value
   const [historyIdx, setHistoryIdx] = useState(-1)
@@ -279,7 +278,7 @@ export function Composer({ chatId }: { chatId: ID }) {
   }
 
   const dropDraft = () => {
-    try { localStorage.removeItem(draftKey(chatId)) } catch { /* storage unavailable */ }
+    discardDraft(chatId)
   }
 
   // ── Autocomplete ──
@@ -703,6 +702,7 @@ export function Composer({ chatId }: { chatId: ID }) {
             ref={textareaRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onBlur={flushDraft}
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder={t('composer.placeholder')}

@@ -4,7 +4,7 @@
  *  $n/$<name>, trim strings and {{user}}/{{char}} macros. */
 import { describe, it, expect } from "bun:test";
 import vm from "node:vm";
-import { WORKER_SRC } from "../src/lib/safe-regex.js";
+import { MAX_OUTPUT_CHARS, WORKER_SRC } from "../src/lib/safe-regex.js";
 
 interface Job {
   find: string;
@@ -16,9 +16,9 @@ interface Job {
 }
 
 function runJob(job: Job) {
-  const messages: Array<{ ok: boolean; output?: string; error?: string }> = [];
+  const messages: Array<{ ok: boolean; output?: string; error?: string; tooBig?: boolean }> = [];
   const self = {
-    postMessage: (m: { ok: boolean; output?: string; error?: string }) => { messages.push(m); },
+    postMessage: (m: { ok: boolean; output?: string; error?: string; tooBig?: boolean }) => { messages.push(m); },
     onmessage: null as null | ((e: { data: Record<string, unknown> }) => void),
   };
   const ctx = vm.createContext({ self });
@@ -48,5 +48,21 @@ describe("regex worker semantics", () => {
     const r = runJob({ find: "a*", replace: "_", input: "ba" });
     expect(r.ok).toBe(true);
     expect(r.output).toContain("_");
+  });
+
+  // Molfar.Vertep#442: the time limit does not bound memory. A lazy pattern matches the empty string at every
+  // position, so an HTML wrapper as the replacement is written thousands of times into one message.
+  it("drops a result past the size cap and leaves the text alone", () => {
+    const wrapper = '<div class="x" style="color:red;padding:4px;margin:2px;border:1px solid #333;background:#eee">$1</div>'.repeat(10);
+    const r = runJob({ find: "(.*?)", flags: "gs", replace: wrapper, input: "word ".repeat(2000) });
+    expect(r.ok).toBe(false);
+    expect(r.tooBig).toBe(true);
+    expect(r.output).toBeUndefined();
+  });
+
+  it("keeps an ordinary decoration far under the cap", () => {
+    const r = runJob({ find: "\\*([^*]+)\\*", replace: '<em class="a" style="color:#c33">$1</em>', input: "he *waved* and *left*. ".repeat(500) });
+    expect(r.ok).toBe(true);
+    expect(r.output!.length).toBeLessThan(MAX_OUTPUT_CHARS / 10);
   });
 });

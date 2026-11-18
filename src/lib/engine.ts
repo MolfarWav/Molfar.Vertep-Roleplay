@@ -12,6 +12,7 @@ import type {
   Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
+import { flushDraft } from './drafts'
 import { cleanFolder, cleanFolderList, cleanFolderTones } from './lore-folders'
 import { beginImport } from './import-progress'
 import { t } from './i18n'
@@ -603,6 +604,7 @@ export function noteReload(reason: string): void {
 
 export function reloadWithReason(reason: string): void {
   noteReload(reason)
+  flushDraft() // a draft still waiting for its pause is written before the reload takes the page's address
   location.reload()
 }
 

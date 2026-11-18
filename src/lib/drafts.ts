@@ -4,8 +4,62 @@ import type { ID } from './types'
  *  chat switch never eats a half-written thought. */
 export const draftKey = (chatId: ID) => `chrysalis.roleplay.draft.${chatId}`
 
+/** The draft is saved a moment after the last key, not on every key (Molfar.Vertep#418). In the app frame each
+ *  localStorage write is posted to the shell, which parses and rewrites the app's whole storage, and the frame rewrites
+ *  a copy of that storage into its own address: with a large storage that cost about 0.4 s per letter on a desktop
+ *  browser, and a phone is slower. Typing waits for nothing now; the text is written when you stop, leave the box,
+ *  switch chat, send, hide the page, or before the app reloads itself. */
+export const DRAFT_SAVE_DELAY_MS = 600
+
+let pending: { chatId: ID; text: string } | null = null
+let timer: ReturnType<typeof setTimeout> | undefined
+
+function commitDraft(chatId: ID, text: string): void {
+  try {
+    if (text) localStorage.setItem(draftKey(chatId), text)
+    else localStorage.removeItem(draftKey(chatId))
+  } catch { /* storage unavailable */ }
+}
+
+/** Write what is waiting, now. Safe to call at any time. */
+export function flushDraft(): void {
+  if (timer !== undefined) clearTimeout(timer)
+  timer = undefined
+  const p = pending
+  pending = null
+  if (p) commitDraft(p.chatId, p.text)
+}
+
+/** Save a chat's draft: an empty one at once (a sent or cleared box must not leave the old text behind), text after a pause. */
+export function saveDraft(chatId: ID, text: string): void {
+  if (pending && pending.chatId !== chatId) flushDraft()
+  if (!text) {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+    pending = null
+    commitDraft(chatId, '')
+    return
+  }
+  pending = { chatId, text }
+  if (timer !== undefined) clearTimeout(timer)
+  timer = setTimeout(flushDraft, DRAFT_SAVE_DELAY_MS)
+}
+
+/** Forget a chat's draft, saved or waiting. */
+export function discardDraft(chatId: ID): void {
+  saveDraft(chatId, '')
+}
+
 export const readDraft = (chatId: ID): string => {
+  if (pending && pending.chatId === chatId) return pending.text
   try { return localStorage.getItem(draftKey(chatId)) ?? '' } catch { return '' }
+}
+
+// Whatever leaves the page keeps the text: a hidden tab may be dropped without another event.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('pagehide', flushDraft)
+  window.addEventListener('beforeunload', flushDraft)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushDraft() })
 }
 
 /** Keys the shell refused to store (its storage is full): the engine bridge
