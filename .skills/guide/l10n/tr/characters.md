@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne işe yaradığını söyler; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makaleleri ayrıntıları içerir.
@@ -14,7 +14,7 @@ Düzenleyicinin altı sekmesi vardır:
 - **Soul**: karakterin size nasıl tepki verdiği, ayrıca alışkanlıklar. Bkz. [[soul]].
 - **Memory**: karakterin hatırladığı bitmiş sohbetler. Bkz. [[memory]].
 - **Lorebook**: bu karta bağlı kitaplar.
-- **More**: renkler ve sesler, sprite'lar, galeri, regex, gelişmiş ayarlar.
+- **More**: renkler ve sesler, sprite'lar (bkz. [[sprites]]), galeri, regex, gelişmiş ayarlar.
 
 Bir kart aynı anda birkaç karakteri oynayabilir (bir anlatıcı veya oyun yöneticisi). Colors altında, "Voices" her konuşmacıya kendi rengini verir. Hiç ses listelemezseniz sohbet bunu sizin yerinize yapar: birkaç karakter içeren bir kart (her birinin adını taşıyan bölümlerle) her karakterin satırlarını kendiliğinden, her biri farklı bir renkle boyar ve bu renkler sohbetle birlikte saklanır. Başka herhangi bir sohbette sohbet menüsünü açın, "Voice colors"ı seçin ve anahtarı açın; "Spread colors" renk seçmediğiniz herkese farklı bir renk verir. Bunun için karakterlerin listesini sağlayan Relationship dashboard'u gerekir.
 

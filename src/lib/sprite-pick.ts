@@ -59,11 +59,20 @@ export function pickSprite(
   const character = who?.name ?? ''
   const own = who ? detectExpressionLabels(who.text) : []
   const labels = own.length ? own : detectExpressionLabels(text)
+  return pickSpriteFor(labels, card, character, outfits?.[character])
+}
+
+/**
+ * The sprite of one known speaker (`character`: a voice's name, '' = the card itself), from emotion labels already
+ * read. `wanted` is the outfit chosen for this speaker, else the card's `outfit`. `pickSprite` ends here, and so do
+ * the sprite windows, which know whom they show before they look at any text.
+ */
+export function pickSpriteFor(labels: string[], card: SpriteCard, character: string, wanted?: string): PickedSprite | null {
+  const sprites = card.expressions
   const pool = spritePool(sprites, character)
   if (!pool.length) return null
   const list = outfitsIn(pool)
-  const wanted = outfits?.[character] ?? card.outfit
-  const outfit = pickOutfit(list, wanted) ?? ''
+  const outfit = pickOutfit(list, wanted ?? card.outfit) ?? ''
   const sprite = resolveSprite(labels, sprites, { character, outfit, defaultExpression: card.defaultExpression })
   return sprite ? { sprite, character, outfits: list, outfit } : null
 }

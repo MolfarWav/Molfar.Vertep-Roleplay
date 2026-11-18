@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.138.3'
+export const APP_VERSION = '4.139.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.sprite-windows',
+    since: '4.139.0',
+    help: 'characters',
+    keywords: { en: 'sprite windows several characters group narrator visual novel transparent row grid behind text strip waist up gear', uk: 'вікна спрайтів кілька персонажів група оповідач візуальна новела прозорий рядом сітка позаду тексту смуга по пояс шестірня' },
+    title: { en: 'Sprite windows: several characters at once', uk: 'Вікна спрайтів: кілька персонажів разом' },
+    body: {
+      en: 'A chat can show up to 8 sprite windows, one character each: whoever speaks, the next person in the scene or one named character. Press the gear on a sprite to add windows, make them transparent, or put them behind the text or in a strip under it.',
+      uk: 'У чаті може бути до 8 вікон спрайтів, у кожному один персонаж: той, хто говорить, наступний у сцені або названий. Натисніть шестірню на спрайті, щоб додати вікна, зробити їх прозорими або поставити позаду тексту чи в смузі під ним.',
+    },
+  },
   {
     id: 'new.gone-swipes',
     since: '4.136.0',

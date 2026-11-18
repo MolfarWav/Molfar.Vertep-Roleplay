@@ -1,79 +1,254 @@
-
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, ArrowsOutLineVertical } from '@phosphor-icons/react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { X, ArrowsOutLineVertical, GearSix, DotsSixVertical, Plus, Trash } from '@phosphor-icons/react'
+import { useDashMaybe } from '@/components/dashboard/dash-context'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
 import { useApp } from '@/lib/store'
-import { cardVoices } from '@/lib/dialogue-voices'
 import { DEFAULT_OUTFIT } from '@/lib/expressions'
-import { pickSprite } from '@/lib/sprite-pick'
+import {
+  MAX_WINDOWS, MIN_VISIBLE, addWindow, arrange, contributions, defaultLayout, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
+  saveLayout, sceneKeys, speakerOf, stageMembers,
+  type Area, type Contribution, type StageLayout, type StageMember, type StagePlace, type StageWindow,
+} from '@/lib/sprite-stage'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
-import type { Character, Chat } from '@/lib/types'
-import { onImageError } from '@/lib/utils'
+import type { Chat } from '@/lib/types'
+import { cn, onImageError } from '@/lib/utils'
 
-const POS_KEY = 'expr-panel-pos'
-const SIZE_KEY = 'expr-panel-height'
-const MIN_KEY = 'expr-panel-minimized'
 const MIN_HEIGHT = 96
 const CHIP = 48
-
-const readJson = <T,>(key: string, fallback: T): T => {
-  try { return (JSON.parse(localStorage.getItem(key) ?? 'null') as T) ?? fallback } catch { return fallback }
-}
-// a browser blocking site data throws here; the panel keeps its state for
-// this session either way
-const writeJson = (key: string, value: unknown) => {
-  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage unavailable */ }
-}
 const maxHeight = () => Math.round(window.innerHeight * 0.9)
-const NO_SPRITES: Character['expressions'] = []
+const storage = (): Storage | null => { try { return localStorage } catch { return null } }
+/** The chat's column on the page, where windows are laid out; the whole window when it cannot be found. */
+const stageArea = (chatId: string): Area => {
+  const root = document.querySelector(`[data-chat-id="${CSS.escape(chatId)}"]`)
+  const r = root?.getBoundingClientRect()
+  if (!r || r.width <= 120 || r.height <= 200) return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+  // across the column of the messages, not the Dashboard strip beside it
+  const log = root?.querySelector('[data-chat-log]')?.getBoundingClientRect()
+  return log && log.width > 120 ? { x: log.left, y: r.top, w: log.width, h: r.height } : { x: r.left, y: r.top, w: r.width, h: r.height }
+}
 
 /**
- * Floating expression sprite — reads the latest character message, detects
- * its emotion (keyword rules) and shows the speaker's matching sprite with a
- * soft crossfade. Draggable anywhere; resizable from its lower corner; the ×
- * folds it into a small round chip (a click on the chip brings it back).
- * Position, height and the folded state persist. Hidden when the speaker has
- * no sprites or Settings turns sprites off.
+ * The sprite stage: floating sprite windows over the chat. Each window shows one character, picked by the
+ * character's own last line (keyword rules, soft crossfade). By default there is one window that follows whoever
+ * speaks, as before; more can be added (up to 8), each following the next one in the scene or one named
+ * character, with or without a frame, and placed anywhere or arranged in a row or a grid (Molfar.Vertep#456).
+ * The layout is kept per chat in this browser. On a phone one window shows, and the others in the scene are
+ * small round pictures. Settings turns every window off.
  */
 export function ExpressionPanel({ chat }: { chat: Chat }) {
-  const t = useT()
   const characters = useApp((s) => s.characters)
-  const setSpriteOutfit = useApp((s) => s.setSpriteOutfit)
+  const loadCharacter = useApp((s) => s.loadCharacter)
   const show = useApp((s) => s.settings.showExpressionSprites !== false)
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => readJson(POS_KEY, null))
-  // null = the default (42% of the window)
-  const [height, setHeight] = useState<number | null>(() => readJson<number | null>(SIZE_KEY, null))
-  const [minimized, setMinimized] = useState<boolean>(() => readJson<unknown>(MIN_KEY, false) === true)
-  const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null)
+  const dash = useDashMaybe()
+  const phone = useIsMobile()
+
+  const [layout, setLayout] = useState<StageLayout>(() => loadLayout(chat.id, storage()))
+  const [forChat, setForChat] = useState(chat.id)
+  // a phone: the character the user tapped in the strip, shown in the one window until tapped again
+  const [pinned, setPinned] = useState<string | null>(null)
+  if (forChat !== chat.id) {
+    setForChat(chat.id)
+    setLayout(loadLayout(chat.id, storage()))
+    setPinned(null)
+  }
+  const layoutRef = useRef(layout)
+  layoutRef.current = layout
+  // `transient` = in the middle of a drag or resize: kept on the screen, written when it ends
+  const update = useCallback((fn: (l: StageLayout) => StageLayout, transient = false) => {
+    const next = fn(layoutRef.current)
+    layoutRef.current = next
+    setLayout(next)
+    if (!transient) saveLayout(chat.id, next, storage())
+  }, [chat.id])
+
+  const chatCard = characters.find((c) => c.id === chat.characterId)
+  const order = chat.groupSettings?.order
+  const members = useMemo(() => stageMembers(chatCard, characters, order), [chatCard, characters, order])
+  // a group's members come from the list as summaries until loaded
+  useEffect(() => {
+    if (!chatCard?.isGroup) return
+    for (const id of chatCard.group?.memberIds ?? chatCard.members ?? []) {
+      if (characters.find((x) => x.id === id)?.stub) void loadCharacter(id)
+    }
+  }, [chatCard, characters, loadCharacter])
+
+  const said = useMemo(() => contributions(members, chat.messages), [members, chat.messages])
+  const speaker = useMemo(() => speakerOf(members, said), [members, said])
+  const usable = !!dash && (dash.status === 'ready' || dash.status === 'empty')
+  const presentKey = usable ? (dash?.view?.present ?? []).join('\n') : ''
+  const present = useMemo(() => (presentKey ? presentKey.split('\n') : null), [presentKey])
+  const scene = useMemo(() => sceneKeys(members, said, present), [members, said, present])
+  const view = useMemo(() => resolveWindows(layout, members, speaker, scene), [layout, members, speaker, scene])
+
+  // who holds which window is kept, so nobody moves while they stay in the scene
+  const slotsNow = JSON.stringify(view.slots)
+  useEffect(() => {
+    if (slotsNow !== JSON.stringify(layoutRef.current.slots)) update((l) => ({ ...l, slots: view.slots }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotsNow])
+
+  // where the windows sit against the chat text; a phone keeps them in front
+  const place: StagePlace = phone ? 'front' : layout.place
+  const strip = place === 'reserve' && show && members.length > 0
+  // the strip: as tall as the tallest window that shows, never more than 60% of the chat
+  const reserve = !strip ? 0 : Math.min(
+    Math.max(0, ...layout.windows.filter((w) => !w.folded && (view.shows[w.id] || !layout.hideEmpty)).map((w) => w.h ?? Math.round(window.innerHeight * 0.42))),
+    Math.round(stageArea(chat.id).h * 0.6),
+  ) + 8
+  const [anchor, setAnchor] = useState<number | null>(null)
+  const [, bump] = useState(0)
+  useLayoutEffect(() => {
+    const root = document.querySelector<HTMLElement>(`[data-chat-id="${CSS.escape(chat.id)}"]`)
+    if (!root) return
+    root.style.setProperty('--stage-reserve', strip ? `${reserve}px` : '0px')
+    // behind the text: the messages get a backing of this strength (globals.css, [data-stage-behind])
+    if (place === 'behind' && show && members.length > 0) {
+      root.setAttribute('data-stage-behind', '')
+      root.style.setProperty('--stage-scrim', `${layout.scrim}%`)
+    }
+    // the log has shrunk by `reserve`: the strip's bottom edge is where the log would have ended
+    const log = root.querySelector('[data-chat-log]')
+    setAnchor(strip && log ? Math.round(log.getBoundingClientRect().bottom + reserve) : null)
+    return () => {
+      root.style.removeProperty('--stage-reserve')
+      root.removeAttribute('data-stage-behind')
+      root.style.removeProperty('--stage-scrim')
+    }
+  })
+  // the composer grows and the window resizes: the strip follows
+  useEffect(() => {
+    if (!strip) return
+    const log = document.querySelector(`[data-chat-id="${CSS.escape(chat.id)}"] [data-chat-log]`)
+    const on = () => bump((n) => n + 1)
+    window.addEventListener('resize', on)
+    const ro = log && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(on) : null
+    if (log && ro) ro.observe(log)
+    return () => { window.removeEventListener('resize', on); ro?.disconnect() }
+  }, [strip, chat.id])
+
+  if (!show || !members.length) return null
+
+  const menuFor = (id: string) => (
+    <StageMenu layout={layout} members={members} current={id} phone={phone} update={update} area={() => stageArea(chat.id)} />
+  )
+  const windows = phone ? layout.windows.slice(0, 1) : layout.windows
+  const shownKey = (w: StageWindow) => (phone && pinned && members.some((m) => m.key === pinned) ? pinned : view.shows[w.id] ?? null)
+  const first = windows[0]
+  return (
+    <>
+      {windows.map((w) => {
+        const key = shownKey(w)
+        const member = members.find((m) => m.key === key) ?? null
+        return (
+          <SpriteWindow
+            key={w.id}
+            chatId={chat.id}
+            win={w}
+            member={member}
+            said={member ? said.get(member.key) ?? null : null}
+            outfits={chat.spriteOutfits}
+            hideEmpty={layout.hideEmpty}
+            place={place}
+            visible={phone ? 100 : layout.visible}
+            anchorBottom={strip ? anchor : null}
+            onPatch={(patch, transient) => update((l) => patchWindow(l, w.id, patch), transient)}
+            menu={menuFor(w.id)}
+          />
+        )
+      })}
+      {phone && first && (
+        <CastStrip
+          members={members}
+          keys={scene.filter((k) => k !== shownKey(first)).slice(0, MAX_WINDOWS)}
+          said={said}
+          outfits={chat.spriteOutfits}
+          pinned={pinned}
+          onPin={(k) => setPinned((p) => (p === k ? null : k))}
+        />
+      )}
+    </>
+  )
+}
+
+/** A phone: the others in the scene as small round pictures; a tap puts one in the window. */
+function CastStrip({ members, keys, said, outfits, pinned, onPin }: {
+  members: StageMember[]
+  keys: string[]
+  said: ReadonlyMap<string, Contribution | null>
+  outfits: Record<string, string> | undefined
+  pinned: string | null
+  onPin: (key: string) => void
+}) {
+  const t = useT()
+  const list = [...keys]
+  if (pinned && !list.includes(pinned) && members.some((m) => m.key === pinned)) list.unshift(pinned)
+  if (!list.length) return null
+  return (
+    <div data-expression-panel className="fixed bottom-20 left-2 z-30 flex max-w-[60vw] gap-2 overflow-x-auto" data-testid="cast-strip">
+      {list.map((k) => {
+        const m = members.find((x) => x.key === k)
+        const sp = m ? memberSprite(m, said.get(k) ?? null, outfits) : null
+        if (!m || !sp) return null
+        return (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onPin(k)}
+            aria-pressed={pinned === k}
+            aria-label={t('sprites.win.chip', { name: m.name })}
+            title={m.name}
+            className={cn('size-10 shrink-0 overflow-hidden rounded-full border border-border/60 bg-card shadow-lg', pinned === k && 'ring-2 ring-primary')}
+          >
+            <img src={sp.sprite.url} alt="" draggable={false} className="size-full object-cover object-top" />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * One sprite window: drag it anywhere, resize it from its lower corner, fold it into a small chip (a click on the
+ * chip brings it back). A transparent window has no frame and lets clicks through to the chat; it is moved by its
+ * grip. A window with nobody to show stays as an empty slot, or disappears when "Hide empty windows" is on.
+ */
+function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, visible, anchorBottom, onPatch, menu }: {
+  chatId: string
+  win: StageWindow
+  member: StageMember | null
+  said: Contribution | null
+  outfits: Record<string, string> | undefined
+  hideEmpty: boolean
+  place: StagePlace
+  /** percent of each picture that shows from the top (100 = all of it); the window's height is the part that shows */
+  visible: number
+  /** in the strip: the page y of its bottom edge; the window stands on it and moves sideways only */
+  anchorBottom: number | null
+  onPatch: (patch: Partial<Omit<StageWindow, 'id'>>, transient?: boolean) => void
+  menu: React.ReactNode
+}) {
+  const t = useT()
+  const setSpriteOutfit = useApp((s) => s.setSpriteOutfit)
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null)
   const resizeRef = useRef<{ y: number; h: number } | null>(null)
-  // set by a drag, read by the click that ends it: pointerup clears dragRef
-  // before the browser fires that click, so the chip asks this one instead
+  // set by a drag, read by the click that ends it: pointerup clears dragRef before the browser fires that click
   const movedRef = useRef(false)
   const boxRef = useRef<HTMLDivElement>(null)
-  // the sprite URL that finished loading, and the ones that failed. Until its
-  // image loads the panel is not hit-testable: an invisible box (opacity 0)
-  // over the lower half of the log swallowed touch scrolling on Chromium,
-  // and a sprite that never loads (a dead URL) left it there for good
+  const patchRef = useRef(onPatch)
+  patchRef.current = onPatch
+  const anchored = anchorBottom !== null
+  const anchoredRef = useRef(anchored)
+  anchoredRef.current = anchored
+  // the sprite URL that finished loading, and the ones that failed. Until its image loads the window is not
+  // hit-testable: an invisible box over the lower half of the log swallowed touch scrolling on Chromium, and a
+  // sprite that never loads (a dead URL) left it there for good
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
   const [brokenUrls, setBrokenUrls] = useState<ReadonlySet<string>>(() => new Set())
   const markBroken = (url: string) => setBrokenUrls((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
 
-  // memoized: this panel sits over the scrolling log and re-renders with the
-  // chat view — detection (a regex pass per rule) + the reverse-copy only re-run
-  // when the latest character message actually changes
-  const lastAsst = useMemo(
-    () => [...chat.messages].reverse().find((m) => m.role === 'assistant'),
-    [chat.messages],
-  )
-  const speaker = characters.find((c) => c.id === (lastAsst?.characterId ?? chat.characterId))
-  const sprites = speaker?.expressions ?? NO_SPRITES
-
-  const text = lastAsst?.swipes[lastAsst.activeSwipe]?.content ?? ''
-  // a Narrator card plays several characters: the voice that speaks last in the message owns the sprite
-  const voices = useMemo(() => cardVoices({ voices: speaker?.voices }), [speaker?.voices])
-  const picked = useMemo(
-    () => pickSprite(text, { expressions: sprites, defaultExpression: speaker?.defaultExpression, outfit: speaker?.outfit }, voices, chat.spriteOutfits),
-    [text, sprites, speaker?.defaultExpression, speaker?.outfit, voices, chat.spriteOutfits],
-  )
+  const picked = useMemo(() => (member ? memberSprite(member, said, outfits) : null), [member, said, outfits])
   const sprite = picked?.sprite ?? null
 
   useEffect(() => {
@@ -89,23 +264,19 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     const move = (e: PointerEvent) => {
       if (resizeRef.current) {
         const next = resizeRef.current.h + (e.clientY - resizeRef.current.y)
-        setHeight(Math.min(maxHeight(), Math.max(MIN_HEIGHT, Math.round(next))))
+        patchRef.current({ h: Math.min(maxHeight(), Math.max(MIN_HEIGHT, Math.round(next))) }, true)
         return
       }
       if (!dragRef.current) return
-      dragRef.current.moved = true
       movedRef.current = true
-      setPos(clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy }))
+      const to = clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy })
+      patchRef.current(anchoredRef.current ? { x: to.x } : to, true)
     }
     const up = () => {
-      if (resizeRef.current) {
-        resizeRef.current = null
-        setHeight((h) => { writeJson(SIZE_KEY, h); return h })
-        return
-      }
+      if (resizeRef.current) { resizeRef.current = null; patchRef.current({}); return }
       if (!dragRef.current) return
       dragRef.current = null
-      setPos((p) => { if (p) writeJson(POS_KEY, p); return p })
+      patchRef.current({})
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -115,23 +286,47 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     }
   }, [])
 
-  if (!show || !sprite || !speaker || brokenUrls.has(sprite.url)) return null
-
-  const style: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
-    : { right: '1rem', bottom: '5rem' }
+  const h = win.h ?? Math.round(window.innerHeight * 0.42)
+  const hasPos = win.x !== null && win.y !== null
+  const style: React.CSSProperties = anchored
+    ? { top: anchorBottom! - h - 4, bottom: 'auto', ...(win.x !== null ? { left: win.x, right: 'auto' } : { right: '1rem' }) }
+    : hasPos
+      ? { left: win.x!, top: win.y!, right: 'auto', bottom: 'auto' }
+      : { right: '1rem', bottom: '5rem' }
   const startDrag = (e: React.PointerEvent) => {
     const r = boxRef.current?.getBoundingClientRect()
-    const at = pos ?? (r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 })
-    if (!pos) setPos(at)
-    dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y, moved: false }
+    const at = anchored
+      ? { x: win.x ?? r?.left ?? e.clientX - 60, y: r?.top ?? e.clientY - 60 }
+      : hasPos ? { x: win.x!, y: win.y! } : r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 }
+    if (anchored ? win.x === null : !hasPos) onPatch(anchored ? { x: at.x } : { x: at.x, y: at.y }, true)
+    dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y }
     movedRef.current = false
   }
-  const setFolded = (v: boolean) => { setMinimized(v); writeJson(MIN_KEY, v) }
-  const who = picked?.character || speaker.name
-  const label = `${who}: ${sprite.name}`
+  const setFolded = (v: boolean) => onPatch({ folded: v })
+  const transparent = win.transparent
 
-  if (minimized) {
+  // nobody to show
+  if (!sprite || !member || brokenUrls.has(sprite.url)) {
+    if (hideEmpty || win.folded || (!member && win.who === 'speaker')) return null
+    return (
+      <div
+        ref={boxRef}
+        data-expression-panel
+        className={cn('group fixed z-30 flex cursor-grab touch-none select-none items-center justify-center rounded-lg border border-dashed border-border bg-card/30 p-2 text-center text-xs text-muted-foreground active:cursor-grabbing', transparent && 'pointer-events-none')}
+        style={{ ...style, height: h, width: Math.round(h * 0.6) }}
+        onPointerDown={transparent ? undefined : startDrag}
+        data-testid="sprite-window-empty"
+      >
+        {t('sprites.win.empty')}
+        <WindowControls t={t} transparent={transparent} startDrag={startDrag} menu={menu} onFold={null} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
+      </div>
+    )
+  }
+
+  const who = picked?.character || member.name
+  const label = `${member.name}${picked?.character && picked.character !== member.name ? ` (${picked.character})` : ''}: ${sprite.name}`
+
+  if (win.folded) {
     return (
       <div ref={boxRef} data-expression-panel className="fixed z-30 touch-none select-none" style={style} onPointerDown={startDrag}>
         <button
@@ -148,61 +343,135 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     )
   }
 
-  const h = height ?? Math.round(window.innerHeight * 0.42)
   const loaded = loadedUrl === sprite.url
+  const behind = place === 'behind'
+  // behind the text the picture sits under the chat log, which would cover its buttons: they live in a copy of the
+  // box above the log, whose picture is only there to give the box its size. Buttons are then faint and the window
+  // is moved by its grip, as a transparent one is.
+  const layers: ('single' | 'back' | 'front')[] = behind ? ['back', 'front'] : ['single']
+  const loose = transparent || behind
+  const cropped = visible < 100
   return (
-    <div
-      ref={boxRef}
-      data-expression-panel
-      className="group fixed z-30 cursor-grab touch-none select-none active:cursor-grabbing"
-      style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
-      onPointerDown={startDrag}
-      role="img"
-      aria-label={label}
-      title={`${label} (drag to move)`}
-    >
-      <img
-        key={sprite.url}
-        src={sprite.url}
-        alt={`${speaker.name} ${sprite.name}`}
-        draggable={false}
-        onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
-        onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
-        style={{ height: h, maxHeight: '90dvh' }}
-        className="w-auto rounded-lg border border-border/40 bg-card/60 shadow-lg [opacity:0] transition-opacity duration-200"
-      />
-      {/* the outfit: only when the speaker has more than one; the choice is kept for this chat */}
-      {picked && picked.outfits.length > 1 && (
-        <select
-          value={picked.outfit}
-          onPointerDown={(e) => e.stopPropagation()}
-          onChange={(e) => setSpriteOutfit(chat.id, picked.character, e.target.value)}
-          aria-label={t('sprites.outfitSwitchAria', { name: who })}
-          title={t('sprites.outfitSwitchAria', { name: who })}
-          data-testid="outfit-switch"
-          className="absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm"
+    <>
+      {layers.map((layer) => {
+        const picture = layer !== 'front'
+        const controls = layer !== 'back'
+        return (
+          <div
+            // the box that holds the buttons keeps its key across modes, so an open menu stays open when the mode changes
+            key={layer === 'back' ? 'back' : 'main'}
+            ref={controls ? boxRef : undefined}
+            data-expression-panel
+            data-layer={layer}
+            className={cn('group fixed touch-none select-none', layer === 'back' ? 'z-[5]' : 'z-30', loose || layer !== 'single' ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing')}
+            style={{ ...style, visibility: loaded ? undefined : 'hidden' }}
+            onPointerDown={loose ? undefined : startDrag}
+            role={picture ? 'img' : undefined}
+            aria-label={picture ? label : undefined}
+            title={picture ? (loose ? label : `${label} (drag to move)`) : undefined}
+            data-transparent={transparent || undefined}
+          >
+            <div
+              className={cn(!picture && 'invisible', !transparent && 'overflow-hidden rounded-lg border border-border/40 bg-card/60 shadow-lg', transparent && cropped && 'overflow-hidden')}
+              style={cropped ? { height: h } : undefined}
+            >
+              <img
+                key={sprite.url}
+                src={sprite.url}
+                alt={picture ? `${member.name} ${sprite.name}` : ''}
+                draggable={false}
+                onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
+                onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
+                style={{ height: Math.round(h * 100 / visible), maxHeight: cropped ? 'none' : '90dvh' }}
+                className={cn('block w-auto max-w-none [opacity:0] transition-opacity duration-200', transparent && 'drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]')}
+              />
+            </div>
+            {controls && (
+              <>
+                {/* the outfit: only when this character has more than one; the choice is kept for this chat */}
+                {picked && picked.outfits.length > 1 && (
+                  <select
+                    value={picked.outfit}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onChange={(e) => setSpriteOutfit(chatId, member.outfitKey, e.target.value)}
+                    aria-label={t('sprites.outfitSwitchAria', { name: who })}
+                    title={t('sprites.outfitSwitchAria', { name: who })}
+                    data-testid="outfit-switch"
+                    className={cn('pointer-events-auto absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm', loose && 'opacity-60 hover:opacity-100 focus-visible:opacity-100')}
+                  >
+                    {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
+                  </select>
+                )}
+                <WindowControls t={t} transparent={loose} startDrag={startDrag} menu={menu} onFold={() => setFolded(true)} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
+              </>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+/**
+ * The buttons on a window: fold (×), settings (gear), resize, and for a transparent window a grip to move it.
+ * Always visible on touch screens, on hover elsewhere; a transparent window shows them faintly all the time,
+ * since hovering a picture that lets clicks through would not reveal them.
+ */
+function WindowControls({ t, transparent, startDrag, menu, onFold, onResizeStart, onResetSize }: {
+  t: ReturnType<typeof useT>
+  transparent: boolean
+  startDrag: (e: React.PointerEvent) => void
+  menu: React.ReactNode
+  onFold: (() => void) | null
+  onResizeStart: (e: React.PointerEvent) => void
+  onResetSize: () => void
+}) {
+  const reveal = transparent
+    ? 'pointer-events-auto opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100'
+    : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100'
+  const btn = 'absolute flex size-7 items-center justify-center rounded-full bg-background/85 text-foreground shadow backdrop-blur transition-opacity hover:bg-background max-md:size-10'
+  return (
+    <>
+      {transparent && (
+        <span
+          onPointerDown={(e) => { e.stopPropagation(); startDrag(e) }}
+          className={cn(btn, reveal, 'left-1 top-1 cursor-grab touch-none active:cursor-grabbing')}
+          role="button"
+          aria-label={t('sprites.win.grip')}
+          title={t('sprites.win.grip')}
+          data-testid="sprite-grip"
         >
-          {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
-        </select>
+          <DotsSixVertical className="size-4" aria-hidden="true" />
+        </span>
       )}
-      {/* controls: always visible on touch screens, on hover elsewhere */}
-      <button
-        type="button"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => setFolded(true)}
-        className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-background/85 text-foreground shadow backdrop-blur transition-opacity hover:bg-background [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
-        aria-label="Fold the sprite"
-        title="Fold into a small chip"
-      >
-        <X className="size-4" aria-hidden="true" />
-      </button>
+      <Popover>
+        <PopoverTrigger
+          onPointerDown={(e) => e.stopPropagation()}
+          className={cn(btn, reveal, onFold ? 'right-9 top-1 max-md:right-11' : 'right-1 top-1')}
+          aria-label={t('sprites.win.menuAria')}
+          title={t('sprites.win.menuAria')}
+          data-testid="sprite-menu"
+        >
+          <GearSix className="size-4" aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent data-stage-menu align="end" className="w-80 max-md:w-[calc(100vw-1.5rem)]">{menu}</PopoverContent>
+      </Popover>
+      {onFold && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onFold}
+          className={cn(btn, reveal, 'right-1 top-1')}
+          aria-label="Fold the sprite"
+          title="Fold into a small chip"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      )}
       <span
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          resizeRef.current = { y: e.clientY, h }
-        }}
-        onDoubleClick={() => { setHeight(null); writeJson(SIZE_KEY, null) }}
-        className="absolute bottom-1 right-1 flex size-7 cursor-ns-resize items-center justify-center rounded-full bg-background/85 text-foreground shadow backdrop-blur transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+        onPointerDown={(e) => { e.stopPropagation(); onResizeStart(e) }}
+        onDoubleClick={onResetSize}
+        className={cn(btn, reveal, 'bottom-1 right-1 cursor-ns-resize touch-none')}
         role="separator"
         aria-orientation="horizontal"
         aria-label="Resize the sprite"
@@ -210,6 +479,137 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
       >
         <ArrowsOutLineVertical className="size-4" aria-hidden="true" />
       </span>
+    </>
+  )
+}
+
+const selectClass = 'h-8 min-w-0 flex-1 cursor-pointer rounded-md border border-border bg-background px-2 text-xs text-foreground max-md:h-10 max-md:text-sm'
+const smallBtn = 'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 max-md:h-10 max-md:text-sm'
+
+/** The one menu every window's gear opens: all the windows, who each shows, and how they are laid out. */
+function StageMenu({ layout, members, current, phone, update, area }: {
+  layout: StageLayout
+  members: StageMember[]
+  current: string
+  phone: boolean
+  update: (fn: (l: StageLayout) => StageLayout) => void
+  area: () => Area
+}) {
+  const t = useT()
+  const list = phone ? layout.windows.slice(0, 1) : layout.windows
+  const full = layout.windows.length >= MAX_WINDOWS
+  return (
+    <div className="flex flex-col gap-2.5" data-testid="stage-menu">
+      <div className="flex flex-col gap-0.5">
+        <div className="text-sm font-medium">{t('sprites.win.title')}</div>
+        <p className="text-xs text-muted-foreground">{t('sprites.win.hint')}</p>
+      </div>
+      {!phone && (
+        <label className="flex items-center gap-2 text-xs">
+          <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.visible')}</span>
+          <input
+            type="range" min={MIN_VISIBLE} max={100} step={5} value={layout.visible}
+            onChange={(e) => update((l) => ({ ...l, visible: Number(e.target.value) }))}
+            aria-label={t('sprites.win.visible')}
+            className="h-8 min-w-0 flex-1 accent-primary max-md:h-10"
+            data-testid="stage-visible"
+          />
+          <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">{layout.visible}%</span>
+        </label>
+      )}
+      {!phone && (
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-2 text-xs">
+            <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.place')}</span>
+            <select value={layout.place} onChange={(e) => update((l) => ({ ...l, place: e.target.value as StagePlace }))} className={selectClass} data-testid="stage-place">
+              <option value="front">{t('sprites.win.placeFront')}</option>
+              <option value="behind">{t('sprites.win.placeBehind')}</option>
+              <option value="reserve">{t('sprites.win.placeReserve')}</option>
+            </select>
+          </label>
+          {layout.place !== 'front' && <p className="text-xs text-muted-foreground">{t('sprites.win.placeHint')}</p>}
+          {layout.place === 'behind' && (
+            <label className="flex items-center gap-2 text-xs">
+              <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.scrim')}</span>
+              <input
+                type="range" min={0} max={100} step={5} value={layout.scrim}
+                onChange={(e) => update((l) => ({ ...l, scrim: Number(e.target.value) }))}
+                aria-label={t('sprites.win.scrim')}
+                className="h-8 min-w-0 flex-1 accent-primary max-md:h-10"
+                data-testid="stage-scrim"
+              />
+              <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">{layout.scrim}%</span>
+            </label>
+          )}
+        </div>
+      )}
+      <div className="flex max-h-64 flex-col gap-2 overflow-y-auto overscroll-contain">
+        {list.map((w, i) => (
+          <div key={w.id} className={cn('flex flex-col gap-1.5 rounded-md border p-2', w.id === current ? 'border-primary/60 bg-primary/5' : 'border-border')} data-testid="stage-window-row">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium">{t('sprites.win.n', { n: i + 1 })}</span>
+              {layout.windows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => update((l) => removeWindow(l, w.id))}
+                  className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground max-md:size-10"
+                  aria-label={t('sprites.win.remove')}
+                  title={t('sprites.win.remove')}
+                >
+                  <Trash className="size-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-xs">
+              <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.who')}</span>
+              <select
+                value={w.who === 'speaker' || w.who === 'auto' || members.some((m) => m.key === w.who) ? w.who : 'auto'}
+                onChange={(e) => update((l) => patchWindow(l, w.id, { who: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="speaker">{t('sprites.win.whoSpeaker')}</option>
+                <option value="auto">{t('sprites.win.whoAuto')}</option>
+                {members.map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-2 text-xs">
+              <span>{t('sprites.win.transparent')}</span>
+              <Switch size="sm" checked={w.transparent} onCheckedChange={(v) => update((l) => patchWindow(l, w.id, { transparent: v }))} aria-label={t('sprites.win.transparent')} />
+            </label>
+          </div>
+        ))}
+      </div>
+      {phone ? (
+        <p className="text-xs text-muted-foreground">{t('sprites.win.phoneNote')}</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={smallBtn} disabled={full} onClick={() => update((l) => addWindow(l, area()))} data-testid="stage-add">
+              <Plus className="size-4" aria-hidden="true" /> {t('sprites.win.add')}
+            </button>
+            {full && <span className="text-xs text-muted-foreground">{t('sprites.win.max', { n: MAX_WINDOWS })}</span>}
+          </div>
+          {layout.windows.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">{t('sprites.win.arrange')}</span>
+              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'row', area(), l.place === 'reserve' ? 0.36 : 0.5, l.visible))} data-testid="stage-row">{t('sprites.win.row')}</button>
+              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'grid', area(), 0.5, l.visible))} data-testid="stage-grid">{t('sprites.win.grid')}</button>
+            </div>
+          )}
+          <label className="flex items-start justify-between gap-3 text-xs">
+            <span className="flex flex-col gap-0.5">
+              <span>{t('sprites.win.hideEmpty')}</span>
+              <span className="text-muted-foreground">{t('sprites.win.hideEmptyHint')}</span>
+            </span>
+            <Switch size="sm" checked={layout.hideEmpty} onCheckedChange={(v) => update((l) => ({ ...l, hideEmpty: v }))} aria-label={t('sprites.win.hideEmpty')} />
+          </label>
+        </>
+      )}
+      {(layout.windows.length > 1 || layout.windows[0]?.transparent) && (
+        <button type="button" className={cn(smallBtn, 'self-start border-transparent bg-transparent text-muted-foreground')} onClick={() => update(() => defaultLayout())}>
+          {t('sprites.win.reset')}
+        </button>
+      )}
     </div>
   )
 }

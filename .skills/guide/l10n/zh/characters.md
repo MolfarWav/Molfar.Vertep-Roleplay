@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # 角色、人格与群组
 
 你所玩的一切都存放在四个部分中：Characters、Groups、Personas和Marketplace。本页说明每个部分的用途；帮助文章*Your characters*、*The card editor tabs*和*Groups of characters*包含详细信息。
@@ -14,7 +14,7 @@
 - **Soul**：角色如何对你做出反应，以及习惯。参见[[soul]]。
 - **Memory**：角色记得的已结束聊天。参见[[memory]]。
 - **Lorebook**：链接到此卡片的设定集。
-- **More**：颜色和声音、立绘、图库、正则表达式、高级设置。
+- **More**：颜色和声音、立绘（见 [[sprites]]）、图库、正则表达式、高级设置。
 
 一张卡片可以同时扮演多个角色（叙述者或游戏主持人）。在Colors下，“Voices”为每个说话者设置自己的颜色。如果你没有列出任何声音，聊天会替你完成：包含多个角色的卡片（以各角色命名的部分）会自动为每个角色的台词着色，每个角色一种不同的颜色，并与聊天一起保存。在任何其他聊天中，打开聊天菜单，“Voice colors”，并打开开关；“Spread colors”会给你没有选择颜色的每个人一种不同的颜色。这需要Relationship dashboard，它提供角色列表。
 

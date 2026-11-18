@@ -13,7 +13,7 @@ The editor has six tabs:
 - **Soul**: how the character reacts to you, plus habits. See [[soul]].
 - **Memory**: finished chats the character remembers. See [[memory]].
 - **Lorebook**: books linked to this card.
-- **More**: colors and voices, sprites, gallery, regex, advanced settings.
+- **More**: colors and voices, sprites (see [[sprites]]), gallery, regex, advanced settings.
 
 A card may play several characters at once (a narrator or game master). Under Colors, "Voices" gives each speaker its own color. If you list no voices, the chat does it for you: a card that holds several characters (sections named after each) colors every character's lines by itself, each with a different color, kept with the chat. In any other chat, open the chat menu, "Voice colors", and turn the switch on; "Spread colors" gives everyone you have not picked a different color. This needs the Relationship dashboard, which supplies the list of characters.
 

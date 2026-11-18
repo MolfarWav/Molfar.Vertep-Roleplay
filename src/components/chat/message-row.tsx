@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RichText } from '@/components/rich-blocks'
 import { DialogueVoices, Markdown, VoiceLeadOnly } from '@/components/markdown'
 import { peopleVoices, useChatVoices } from '@/lib/chat-voices'
+import { outfitsFor } from '@/lib/sprite-stage'
 import { cardQuoteColor, cardVoices, groupVoices, memberColor, voiceInk, voiceMatcher, type DialogueVoice } from '@/lib/dialogue-voices'
 import { pickSprite } from '@/lib/sprite-pick'
 import { AttachmentGallery } from '@/components/chat/attachment-gallery'
@@ -532,12 +533,14 @@ export const MessageRow = memo(function MessageRow({
   const spriteOutfit = !isUser && speaker && 'outfit' in speaker ? speaker.outfit : undefined
   const spriteVoiceNames = !isUser && speaker && 'voices' in speaker ? speaker.voices : undefined
   const spriteVoices = useMemo(() => cardVoices({ voices: spriteVoiceNames }), [spriteVoiceNames])
+  // a group member's outfit choice is kept under its own key (src/lib/sprite-stage.ts)
+  const spriteOwnerId = !isUser && speaker ? speaker.id : ''
   const spriteAvatar = useMemo(
     () =>
       settings.showExpressionSprites && sprites?.length
-        ? (pickSprite(content, { expressions: sprites, defaultExpression: spriteDefault, outfit: spriteOutfit }, spriteVoices, chat.spriteOutfits)?.sprite.url ?? null)
+        ? (pickSprite(content, { expressions: sprites, defaultExpression: spriteDefault, outfit: spriteOutfit }, spriteVoices, outfitsFor(chat.spriteOutfits, spriteOwnerId, !!groupChar))?.sprite.url ?? null)
         : null,
-    [settings.showExpressionSprites, sprites, spriteDefault, spriteOutfit, spriteVoices, chat.spriteOutfits, content],
+    [settings.showExpressionSprites, sprites, spriteDefault, spriteOutfit, spriteVoices, chat.spriteOutfits, spriteOwnerId, groupChar, content],
   )
   const shownAvatar = spriteAvatar || avatar
   // Without provider-reported usage (stopped generations keep their partial

@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina zegt waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* hebben de details.
@@ -14,7 +14,7 @@ De editor heeft zes tabbladen:
 - **Soul**: hoe het personage op jou reageert, plus gewoonten. Zie [[soul]].
 - **Memory**: afgeronde chats die het personage onthoudt. Zie [[memory]].
 - **Lorebook**: boeken die aan deze kaart zijn gekoppeld.
-- **More**: kleuren en stemmen, sprites, galerij, regex, geavanceerde instellingen.
+- **More**: kleuren en stemmen, sprites (zie [[sprites]]), galerij, regex, geavanceerde instellingen.
 
 Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Colors geeft "Voices" elke spreker een eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart die meerdere personages bevat (secties genoemd naar elk van hen) kleurt de regels van elk personage zelf, elk in een andere kleur, en dit blijft bij de chat bewaard. In elke andere chat open je het chatmenu, "Voice colors", en zet je de schakelaar aan; "Spread colors" geeft iedereen die je niet hebt gekozen een andere kleur. Dit heeft het Relationship-dashboard nodig, dat de lijst met personages levert.
 

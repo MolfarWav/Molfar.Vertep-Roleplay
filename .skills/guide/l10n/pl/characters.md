@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, żyje w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego każda służy; szczegóły są w artykułach Pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -14,7 +14,7 @@ Edytor ma sześć zakładek:
 - **Soul**: jak postać reaguje na ciebie, plus nawyki. Zobacz [[soul]].
 - **Memory**: zakończone czaty, które postać pamięta. Zobacz [[memory]].
 - **Lorebook**: księgi powiązane z tą kartą.
-- **More**: kolory i głosy, sprite'y, galeria, regex, ustawienia zaawansowane.
+- **More**: kolory i głosy, sprite'y (zob. [[sprites]]), galeria, regex, ustawienia zaawansowane.
 
 Karta może grać kilka postaci naraz (narrator lub mistrz gry). W Colors opcja „Voices” daje każdemu mówcy własny kolor. Jeśli nie wymienisz żadnych głosów, czat zrobi to za ciebie: karta zawierająca kilka postaci (sekcje nazwane od każdej z nich) sama koloruje kwestie każdej postaci, każdą innym kolorem, a kolory są zapisywane razem z czatem. W każdym innym czacie otwórz menu czatu, „Voice colors”, i włącz przełącznik; „Spread colors” daje każdemu, kogo nie wybrałeś, inny kolor. Wymaga to pulpitu Relationship, który dostarcza listę postaci.
 

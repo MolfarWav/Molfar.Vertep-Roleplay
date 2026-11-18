@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez vit dans quatre sections : Personnages, Groupes, Personas et Marché. Cette page dit à quoi sert chacune ; les articles d'aide *Vos personnages*, *Les onglets de l'éditeur de carte* et *Groupes de personnages* donnent les détails.
@@ -14,7 +14,7 @@ L'éditeur a six onglets :
 - **Âme** : comment le personnage réagit à vous, plus les habitudes. Voir [[soul]].
 - **Mémoire** : les discussions terminées dont le personnage se souvient. Voir [[memory]].
 - **Livre de connaissances** : livres liés à cette carte.
-- **Plus** : couleurs et voix, sprites, galerie, regex, paramètres avancés.
+- **Plus** : couleurs et voix, sprites (voir [[sprites]]), galerie, regex, paramètres avancés.
 
 Une carte peut jouer plusieurs personnages à la fois (un narrateur ou maître de jeu). Sous Couleurs, « Voices » donne à chaque locuteur sa propre couleur. Si vous n'indiquez aucune voix, la discussion le fait pour vous : une carte qui contient plusieurs personnages (des sections nommées d'après chacun) colore d'elle-même les répliques de chaque personnage, chacun d'une couleur différente, conservée avec la discussion. Dans toute autre discussion, ouvrez le menu de la discussion, « Voice colors », et activez l'interrupteur ; « Spread colors » donne une couleur différente à tous ceux que vous n'avez pas choisis. Cela demande le tableau de bord Relationship, qui fournit la liste des personnages.
 
