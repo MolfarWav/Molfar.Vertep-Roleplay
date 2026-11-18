@@ -672,7 +672,7 @@ function normalizeRegex(raw) {
   let find = raw.findRegex;
   let flags;
   const m = /^\/(.*)\/([a-z]*)$/s.exec(find);
-  if (m) { find = m[1]; flags = m[2] || undefined; }
+  if (m) { find = m[1]; flags = m[2]; } // an empty string is kept: no g means the first match only, as in SillyTavern
   const placement = Array.isArray(raw.placement)
     ? Array.from(new Set(raw.placement.map((n) => PLACEMENT[n]).filter(Boolean)))
     : ["ai_output"];
@@ -685,7 +685,7 @@ function normalizeRegex(raw) {
     promptOnly: raw.promptOnly === true,
     runOnEdit: raw.runOnEdit === true,
     trimStrings: Array.isArray(raw.trimStrings) ? raw.trimStrings.map(String) : [],
-    ...(flags ? { flags } : {}),
+    ...(typeof flags === "string" ? { flags } : {}),
     minDepth: typeof raw.minDepth === "number" && raw.minDepth >= -1 ? raw.minDepth : null,
     maxDepth: typeof raw.maxDepth === "number" && raw.maxDepth >= 0 ? raw.maxDepth : null,
     disabled: raw.disabled === true,

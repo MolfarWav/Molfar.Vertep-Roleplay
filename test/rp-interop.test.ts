@@ -280,3 +280,13 @@ describe("regexImport", () => {
     expect(regexImport({ scriptName: "X" })).toBeNull();
   });
 });
+
+describe("regexImport flags (Molfar.Vertep#442)", () => {
+  it("a pattern written /x/ with no flags stays non-global, as in the tool it came from", () => {
+    expect(regexImport({ scriptName: "Sheet", findRegex: "/(?:)/", replaceString: "<style></style>", placement: [2] })!.flags).toBe("");
+    expect(regexImport({ scriptName: "All", findRegex: "/a/gim", replaceString: "b", placement: [2] })!.flags).toBe("gim");
+  });
+  it("a bare pattern with no slashes keeps the app's own default, global", () => {
+    expect(regexImport({ scriptName: "Bare", findRegex: "a", replaceString: "b", placement: [2] })!.flags).toBe("g");
+  });
+});

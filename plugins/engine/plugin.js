@@ -844,6 +844,8 @@ export function literalHead(find) {
 }
 /** How much of a text one script looks at; what lies beyond is passed through unchanged. */
 const REGEX_SEE_CHARS = 20000;
+/** One script may not turn a message into more than this many characters (the browser side has the same cap). */
+const REGEX_MAX_RESULT_CHARS = 3000000;
 /** Per script, per pass: the compiled pattern and its literal head (kept off the script object). */
 const compiledRegex = new WeakMap();
 
@@ -853,7 +855,8 @@ export function applyRegexScript(s, input, mc) {
   const plain = s.macroMode !== "raw" && s.macroMode !== "escaped";
   if (s.macroMode === "raw") find = expandMacros(find, mc);
   else if (s.macroMode === "escaped") find = expandMacros(find, macroEscapedContext(mc));
-  const flags = s.flags || "g";
+  // "" is a script without g: the first match only (a SillyTavern import keeps it that way, #442); a script with no flags field stays global
+  const flags = typeof s.flags === "string" ? s.flags : "g";
   let re;
   if (plain) {
     // a stored pattern has no macros: compiled once per pass
@@ -882,7 +885,7 @@ export function applyRegexScript(s, input, mc) {
   try {
     // the pattern sees the first REGEX_SEE_CHARS only (a runaway pattern on a huge text stays bounded); the rest is returned as it was
     const whole = String(input);
-    return whole.slice(0, REGEX_SEE_CHARS).replace(re, (...args) => {
+    const done = whole.slice(0, REGEX_SEE_CHARS).replace(re, (...args) => {
       // (match, p1..pn, offset, string[, named-groups object]) — a $n beyond
       // the capture count would read the offset and leak it; those vanish
       const last = args[args.length - 1];
@@ -897,7 +900,10 @@ export function applyRegexScript(s, input, mc) {
       });
       out = out.split("\u0000").join(trim(String(args[0] ?? "")));
       return expandMacros(out, mc);
-    }) + whole.slice(REGEX_SEE_CHARS);
+    });
+    // a pattern that matches everywhere with a big replacement would turn one message into megabytes (#442): leave the text alone
+    if (done.length > REGEX_MAX_RESULT_CHARS) return whole;
+    return done + whole.slice(REGEX_SEE_CHARS);
   } catch { return String(input); }
 }
 
@@ -6314,7 +6320,7 @@ export function handleRoute(req, host) {
           name: "User Settings/regex/" + rid2 + ".json",
           text: JSON.stringify({
             id: rid2, scriptName: s.scriptName || rid2,
-            findRegex: "/" + String(s.findRegex || "").replace(/(?<!\\)\//g, "\\/") + "/" + (s.flags || "g"),
+            findRegex: "/" + String(s.findRegex || "").replace(/(?<!\\)\//g, "\\/") + "/" + (typeof s.flags === "string" ? s.flags : "g"),
             replaceString: s.replaceString || "",
             trimStrings: Array.isArray(s.trimStrings) ? s.trimStrings : [],
             placement: ax.where.map((p) => NUM[p]).filter(Boolean),

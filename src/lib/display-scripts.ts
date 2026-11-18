@@ -52,7 +52,7 @@ export function resolveDisplayScripts(regexScripts: RegexScript[], at: DisplayTa
     else if (r.macroMode === 'escaped') {
       find = find.replace(/\{\{(user|char)\}\}/gi, (_, k: string) => escapeLiteral(k.toLowerCase() === 'user' ? at.userName : at.charName))
     }
-    resolved.push({ find, flags: r.flags || 'g', replace: r.replace, trims: r.trimStrings.filter(Boolean), macros: { user: at.userName, char: at.charName } })
+    resolved.push({ find, flags: typeof r.flags === 'string' ? r.flags : 'g', replace: r.replace, trims: r.trimStrings.filter(Boolean), macros: { user: at.userName, char: at.charName } })
   }
   return resolved
 }

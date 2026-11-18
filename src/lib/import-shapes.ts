@@ -686,7 +686,9 @@ export function regexImport(json: unknown): Omit<RegexScript, 'id' | 'order'> | 
   let find = d.findRegex
   let flags = typeof d.flags === 'string' && /^[a-z]*$/.test(d.flags) && d.flags ? d.flags : 'g'
   const m = /^\/(.*)\/([a-z]*)$/s.exec(d.findRegex)
-  if (m) { find = m[1] ?? d.findRegex; flags = m[2] || 'g' }
+  // no flags after the slash means NOT global, as in SillyTavern: the first match only. Reading it as global put a
+  // stylesheet written as /(?:)/ at every position of every message (Molfar.Vertep#442)
+  if (m) { find = m[1] ?? d.findRegex; flags = m[2] ?? '' }
   const substitute = d.substituteRegex === 1 ? 'raw' : d.substituteRegex === 2 ? 'escaped' : 'none'
   // a pattern that does not compile can never match; with macros inside, it is only known after they are filled in
   if (substitute === 'none') { try { new RegExp(find, flags) } catch { return null } }

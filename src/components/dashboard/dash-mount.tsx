@@ -92,6 +92,20 @@ function useAvatars(chatId: string, names: string[] | undefined): Record<string,
   const card = useApp((s) => s.characters.find((c) => c.id === chat?.characterId))
   const map = usePortraitMap([card?.id, ...(card?.members ?? [])])
   const key = (names ?? []).join('|')
+  // A card's picture is left out of the character list and fetched when a screen asks (wantAvatars). The Dashboard never
+  // asked, so a person who is not the chat's own card (a narrator chat's cast, a group member, a character met in the
+  // story) stayed on initials until the Characters list happened to load that card (Molfar.Vertep#417).
+  const wantAvatars = useApp((s) => s.wantAvatars)
+  const characters = useApp((s) => s.characters)
+  const cardId = card?.id
+  const memberKey = (card?.members ?? []).join('|')
+  useEffect(() => {
+    const named = new Set((key ? key.split('|') : []).map((n) => n.toLowerCase()))
+    const ids: string[] = []
+    if (cardId) ids.push(cardId, ...(memberKey ? memberKey.split('|') : []))
+    for (const c of characters) if (c.avatarLazy && named.has(c.name.toLowerCase())) ids.push(c.id)
+    if (ids.length) wantAvatars(ids)
+  }, [key, cardId, memberKey, characters, wantAvatars])
   return useMemo(() => {
     const out: Record<string, string | undefined> = {}
     for (const n of key ? key.split('|') : []) out[n] = map.get(n.toLowerCase())
