@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Personaggi, Gruppi, Persone e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* hanno i dettagli.
@@ -14,7 +14,7 @@ L'editor ha sei schede:
 - **Soul**: come il personaggio reagisce a te, più le abitudini. Vedi [[soul]].
 - **Memory**: le chat concluse che il personaggio ricorda. Vedi [[memory]].
 - **Lorebook**: i libri collegati a questa scheda.
-- **More**: colori e voci, sprite, galleria, regex, impostazioni avanzate.
+- **More**: colori e voci, sprite (vedi [[sprites]]), galleria, regex, impostazioni avanzate.
 
 Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). Sotto Colors, "Voices" dà a ciascun parlante il proprio colore. Se non elenchi nessuna voce, la chat lo fa per te: una scheda che contiene più personaggi (sezioni con il nome di ciascuno) colora da sola le battute di ogni personaggio, ognuno con un colore diverso, e il colore resta salvato con la chat. In qualsiasi altra chat, apri il menu della chat, "Voice colors", e attiva l'interruttore; "Spread colors" dà un colore diverso a tutti quelli che non hai scelto. Serve il Dashboard Relationship, che fornisce l'elenco dei personaggi.
 

@@ -1,4 +1,4 @@
-<!-- source: 9bbf7efc4d3f -->
+<!-- source: 8601aebf3a12 -->
 # Personagens, personas e grupos
 
 Tudo com que você joga vive em quatro seções: Characters, Groups, Personas e Marketplace. Esta página diz para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
@@ -14,7 +14,7 @@ O editor tem seis abas:
 - **Soul**: como o personagem reage a você, mais hábitos. Veja [[soul]].
 - **Memory**: chats concluídos de que o personagem se lembra. Veja [[memory]].
 - **Lorebook**: livros vinculados a este cartão.
-- **More**: cores e vozes, sprites, galeria, regex, configurações avançadas.
+- **More**: cores e vozes, sprites (veja [[sprites]]), galeria, regex, configurações avançadas.
 
 Um cartão pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Colors, "Voices" dá a cada falante sua própria cor. Se você não listar vozes, o chat faz isso por você: um cartão que contém vários personagens (seções com o nome de cada um) colore sozinho as falas de cada personagem, cada um com uma cor diferente, e isso fica salvo com o chat. Em qualquer outro chat, abra o menu do chat, "Voice colors", e ligue o interruptor; "Spread colors" dá uma cor diferente a todos que você não escolheu. Isso precisa do Relationship dashboard, que fornece a lista de personagens.
 
