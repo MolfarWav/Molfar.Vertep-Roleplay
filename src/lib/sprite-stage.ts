@@ -196,6 +196,7 @@ export interface StageWindow {
 /** Where the windows sit against the chat text: over it (as always), under it, or in a strip the chat keeps for them. */
 export type StagePlace = 'front' | 'behind' | 'reserve'
 export const DEFAULT_SCRIM = 55
+export const MIN_VISIBLE = 35
 export const STAGE_PLACES: readonly StagePlace[] = ['front', 'behind', 'reserve']
 
 export interface StageLayout {
@@ -203,6 +204,8 @@ export interface StageLayout {
   place: StagePlace
   /** behind the text: how strong the backing under the chat text is, 0 to 100 percent of the page colour */
   scrim: number
+  /** how much of each picture shows from the top, 35 to 100 percent: less cuts the legs off (waist up) */
+  visible: number
   /** an empty "next in the scene" window disappears instead of staying blank */
   hideEmpty: boolean
   /** which member each 'auto' window holds (window id → member key), kept while they stay in the scene */
@@ -220,7 +223,7 @@ export function defaultLayout(legacy?: { pos?: { x: number; y: number } | null; 
   if (legacy?.pos) { w.x = legacy.pos.x; w.y = legacy.pos.y }
   if (legacy?.height) w.h = legacy.height
   if (legacy?.folded) w.folded = true
-  return { windows: [w], place: 'front', scrim: DEFAULT_SCRIM, hideEmpty: false, slots: {} }
+  return { windows: [w], place: 'front', scrim: DEFAULT_SCRIM, visible: 100, hideEmpty: false, slots: {} }
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -251,7 +254,8 @@ export function normalizeLayout(raw: unknown): StageLayout {
   }
   const place = STAGE_PLACES.find((x) => x === r.place) ?? 'front'
   const scrim = typeof r.scrim === 'number' && Number.isFinite(r.scrim) ? Math.min(100, Math.max(0, Math.round(r.scrim))) : DEFAULT_SCRIM
-  return { windows, place, scrim, hideEmpty: r.hideEmpty === true, slots }
+  const visible = typeof r.visible === 'number' && Number.isFinite(r.visible) ? Math.min(100, Math.max(MIN_VISIBLE, Math.round(r.visible))) : 100
+  return { windows, place, scrim, visible, hideEmpty: r.hideEmpty === true, slots }
 }
 
 export const layoutKey = (chatId: string) => `rp.stage.${chatId}`
@@ -319,21 +323,23 @@ export type Arrangement = 'grid' | 'row'
  * take, less for a strip that the chat keeps under its text) or a block of columns in the lower right. The user drags
  * from there.
  */
-export function arrange(layout: StageLayout, kind: Arrangement, area: Area, rowHeight = 0.5): StageLayout {
+export function arrange(layout: StageLayout, kind: Arrangement, area: Area, rowHeight = 0.5, visible = 100): StageLayout {
   const n = layout.windows.length
+  // a window's height is what shows; a picture cut at the waist is wider for that height
+  const ratio = SPRITE_WIDTH_RATIO * (100 / Math.max(MIN_VISIBLE, visible))
   const bottom = area.y + area.h - 88
   const ws: StageWindow[] = []
   if (kind === 'row') {
-    const h = Math.round(Math.min(area.h * rowHeight, (area.w - (n + 1) * 8) / n / SPRITE_WIDTH_RATIO))
-    const w = h * SPRITE_WIDTH_RATIO
+    const h = Math.round(Math.min(area.h * rowHeight, (area.w - (n + 1) * 8) / n / ratio))
+    const w = h * ratio
     const gap = Math.max(8, (area.w - n * w) / (n + 1))
     layout.windows.forEach((win, i) => ws.push({ ...win, h, x: Math.round(area.x + gap + i * (w + gap)), y: Math.max(area.y + 8, Math.round(bottom - h)) }))
   } else {
     const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 6 ? 3 : 4
     const rows = Math.ceil(n / cols)
     // clear of the chat's header (about 120 px) at the top and of the composer at the bottom
-    const h = Math.round(Math.min(area.h * 0.6, (area.h - 88 - 120) / rows - 8, (area.w * 0.55 - (cols - 1) * 8) / cols / SPRITE_WIDTH_RATIO))
-    const w = h * SPRITE_WIDTH_RATIO
+    const h = Math.round(Math.min(area.h * 0.6, (area.h - 88 - 120) / rows - 8, (area.w * 0.55 - (cols - 1) * 8) / cols / ratio))
+    const w = h * ratio
     const left = area.x + area.w - 16 - cols * w - (cols - 1) * 8
     const top = bottom - rows * h - (rows - 1) * 8
     layout.windows.forEach((win, i) => ws.push({ ...win, h, x: Math.round(left + (i % cols) * (w + 8)), y: Math.max(area.y + 8, Math.round(top + Math.floor(i / cols) * (h + 8))) }))

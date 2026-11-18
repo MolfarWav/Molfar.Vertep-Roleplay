@@ -208,6 +208,10 @@ describe("layout", () => {
     expect(normalizeLayout({ windows: [{ id: "a" }], place: "reserve" }).place).toBe("reserve");
     expect(normalizeLayout({ windows: [{ id: "a" }], place: "sideways" }).place).toBe("front");
     expect(normalizeLayout({ windows: [{ id: "a" }] }).place).toBe("front");
+    expect(defaultLayout().visible).toBe(100);
+    expect(normalizeLayout({ windows: [{ id: "a" }], visible: 10 }).visible).toBe(35);
+    expect(normalizeLayout({ windows: [{ id: "a" }], visible: 55.4 }).visible).toBe(55);
+    expect(normalizeLayout({ windows: [{ id: "a" }], visible: "x" }).visible).toBe(100);
     expect(defaultLayout().scrim).toBe(55);
     expect(normalizeLayout({ windows: [{ id: "a" }], scrim: 140 }).scrim).toBe(100);
     expect(normalizeLayout({ windows: [{ id: "a" }], scrim: -3 }).scrim).toBe(0);

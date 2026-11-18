@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { useApp } from '@/lib/store'
 import { DEFAULT_OUTFIT } from '@/lib/expressions'
 import {
-  MAX_WINDOWS, addWindow, arrange, contributions, defaultLayout, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
+  MAX_WINDOWS, MIN_VISIBLE, addWindow, arrange, contributions, defaultLayout, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
   saveLayout, sceneKeys, speakerOf, stageMembers,
   type Area, type Contribution, type StageLayout, type StageMember, type StagePlace, type StageWindow,
 } from '@/lib/sprite-stage'
@@ -151,6 +151,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
             outfits={chat.spriteOutfits}
             hideEmpty={layout.hideEmpty}
             place={place}
+            visible={phone ? 100 : layout.visible}
             anchorBottom={strip ? anchor : null}
             onPatch={(patch, transient) => update((l) => patchWindow(l, w.id, patch), transient)}
             menu={menuFor(w.id)}
@@ -213,7 +214,7 @@ function CastStrip({ members, keys, said, outfits, pinned, onPin }: {
  * chip brings it back). A transparent window has no frame and lets clicks through to the chat; it is moved by its
  * grip. A window with nobody to show stays as an empty slot, or disappears when "Hide empty windows" is on.
  */
-function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, anchorBottom, onPatch, menu }: {
+function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, visible, anchorBottom, onPatch, menu }: {
   chatId: string
   win: StageWindow
   member: StageMember | null
@@ -221,6 +222,8 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, an
   outfits: Record<string, string> | undefined
   hideEmpty: boolean
   place: StagePlace
+  /** percent of each picture that shows from the top (100 = all of it); the window's height is the part that shows */
+  visible: number
   /** in the strip: the page y of its bottom edge; the window stands on it and moves sideways only */
   anchorBottom: number | null
   onPatch: (patch: Partial<Omit<StageWindow, 'id'>>, transient?: boolean) => void
@@ -347,6 +350,7 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, an
   // is moved by its grip, as a transparent one is.
   const layers: ('single' | 'back' | 'front')[] = behind ? ['back', 'front'] : ['single']
   const loose = transparent || behind
+  const cropped = visible < 100
   return (
     <>
       {layers.map((layer) => {
@@ -367,16 +371,21 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, an
             title={picture ? (loose ? label : `${label} (drag to move)`) : undefined}
             data-transparent={transparent || undefined}
           >
-            <img
-              key={sprite.url}
-              src={sprite.url}
-              alt={picture ? `${member.name} ${sprite.name}` : ''}
-              draggable={false}
-              onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
-              onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
-              style={{ height: h, maxHeight: '90dvh' }}
-              className={cn('w-auto [opacity:0] transition-opacity duration-200', !picture && 'invisible', transparent ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]' : 'rounded-lg border border-border/40 bg-card/60 shadow-lg')}
-            />
+            <div
+              className={cn(!picture && 'invisible', !transparent && 'overflow-hidden rounded-lg border border-border/40 bg-card/60 shadow-lg', transparent && cropped && 'overflow-hidden')}
+              style={cropped ? { height: h } : undefined}
+            >
+              <img
+                key={sprite.url}
+                src={sprite.url}
+                alt={picture ? `${member.name} ${sprite.name}` : ''}
+                draggable={false}
+                onLoad={(e) => { e.currentTarget.style.opacity = '1'; setLoadedUrl(sprite.url) }}
+                onError={(e) => onImageError(e.currentTarget, () => markBroken(sprite.url))}
+                style={{ height: Math.round(h * 100 / visible), maxHeight: cropped ? 'none' : '90dvh' }}
+                className={cn('block w-auto max-w-none [opacity:0] transition-opacity duration-200', transparent && 'drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]')}
+              />
+            </div>
             {controls && (
               <>
                 {/* the outfit: only when this character has more than one; the choice is kept for this chat */}
@@ -496,6 +505,19 @@ function StageMenu({ layout, members, current, phone, update, area }: {
         <p className="text-xs text-muted-foreground">{t('sprites.win.hint')}</p>
       </div>
       {!phone && (
+        <label className="flex items-center gap-2 text-xs">
+          <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.visible')}</span>
+          <input
+            type="range" min={MIN_VISIBLE} max={100} step={5} value={layout.visible}
+            onChange={(e) => update((l) => ({ ...l, visible: Number(e.target.value) }))}
+            aria-label={t('sprites.win.visible')}
+            className="h-8 min-w-0 flex-1 accent-primary max-md:h-10"
+            data-testid="stage-visible"
+          />
+          <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">{layout.visible}%</span>
+        </label>
+      )}
+      {!phone && (
         <div className="flex flex-col gap-1">
           <label className="flex items-center gap-2 text-xs">
             <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.place')}</span>
@@ -570,8 +592,8 @@ function StageMenu({ layout, members, current, phone, update, area }: {
           {layout.windows.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('sprites.win.arrange')}</span>
-              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'row', area(), l.place === 'reserve' ? 0.36 : 0.5))} data-testid="stage-row">{t('sprites.win.row')}</button>
-              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'grid', area()))} data-testid="stage-grid">{t('sprites.win.grid')}</button>
+              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'row', area(), l.place === 'reserve' ? 0.36 : 0.5, l.visible))} data-testid="stage-row">{t('sprites.win.row')}</button>
+              <button type="button" className={smallBtn} onClick={() => update((l) => arrange(l, 'grid', area(), 0.5, l.visible))} data-testid="stage-grid">{t('sprites.win.grid')}</button>
             </div>
           )}
           <label className="flex items-start justify-between gap-3 text-xs">
