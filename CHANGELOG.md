@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.138.2 (2026-11-18)
+
+- Fixed: **the voice no longer reads the markup of a message (Molfar.Vertep#441).** With "Skip code blocks" and "Only narrate quotes" on, a reply styled like `<span style="color:#CC79A7">"Stay," she whispered.</span>` was read as `color:#CC79A7` and the speech: the quote pass took the tag's quoted attribute value for dialogue. HTML tags, comments and `<style>` / `<script>` blocks now leave the text before anything else is decided, with "Only narrate quotes" off too, so a tag is never spelled out. Plain `<` in prose ("5 < 6", "i <3 you") is kept. The fix was found and tried by the reporter in their own copy; here it is in a module of its own (`src/lib/tts-clean.ts`) with a test that runs the real function.
+
 ## 4.138.1 (2026-11-18)
 
 - Fixed: **typing lagged on phones and with a lot of stored data (Molfar.Vertep#418).** The message box wrote the draft to the app's storage on every key, and each write made the shell rewrite the app's whole storage (about 0.4 s per letter with 1.2 MB stored, measured on a desktop browser with the engine's test setup; a phone is slower). The draft is now saved 0.6 s after the last key, and at once when you leave the box, switch chat, send, hide the page or before the app reloads itself. With the same 1.2 MB the cost fell to about 25 ms per key. The keyboard that does not open on Chrome and Brave phones is NOT addressed here: it could not be reproduced and still needs a report from a phone.

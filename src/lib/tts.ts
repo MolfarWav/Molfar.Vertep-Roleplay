@@ -4,6 +4,7 @@
 //    compatible speech endpoint from its own connections (keys never leave).
 import { useSyncExternalStore } from 'react'
 import { engineSpeech } from '@/lib/engine'
+import { cleanedText } from './tts-clean'
 import type { AppSettings } from './types'
 
 export const TTS_PROVIDERS = ['None', 'System (Web Speech)', 'Engine'] as const
@@ -34,14 +35,6 @@ export function useSpeakingKey(): string | null {
     (cb) => { speakingSubs.add(cb); return () => speakingSubs.delete(cb) },
     () => speakingKey,
   )
-}
-
-function cleanedText(text: string, tts: AppSettings['tts']): string {
-  let out = text
-  if (tts.skipCodeblocks) out = out.replace(/```[\s\S]*?```/g, ' ')
-  if (tts.skipAsterisks) out = out.replace(/\*[^*]*\*/g, ' ')
-  if (tts.onlyQuotes) out = (out.match(/"([^"]*)"/g) ?? []).map((q) => q.slice(1, -1)).join('. ') || out
-  return out.trim()
 }
 
 /** Speak text honoring the TTS settings. Returns false when nothing plays
