@@ -257,6 +257,18 @@
   margin-inline: auto;
 }
 
+/* Sprite windows behind the chat text (the "Windows are" menu choice): the text column of every message gets a backing
+   in the page colour, as strong as the menu's slider says (--stage-scrim, set on the chat root). The shadow spreads
+   the backing past the text without moving it. 0% leaves the text bare. */
+[data-stage-behind] .look-stage .ls-col {
+  background: color-mix(in srgb, var(--background) var(--stage-scrim, 55%), transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--background) var(--stage-scrim, 55%), transparent);
+  border-radius: 8px;
+  /* only as wide as its text, so the pictures behind are not cut by bars across the whole column */
+  width: fit-content;
+  max-width: 100%;
+}
+
 /* Chat background layer — user-supplied image/video sits under the chat log. */
 .chat-bg-layer {
   position: absolute;

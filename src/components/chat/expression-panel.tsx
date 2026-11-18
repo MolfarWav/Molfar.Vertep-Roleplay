@@ -103,10 +103,19 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     const root = document.querySelector<HTMLElement>(`[data-chat-id="${CSS.escape(chat.id)}"]`)
     if (!root) return
     root.style.setProperty('--stage-reserve', strip ? `${reserve}px` : '0px')
+    // behind the text: the messages get a backing of this strength (globals.css, [data-stage-behind])
+    if (place === 'behind' && show && members.length > 0) {
+      root.setAttribute('data-stage-behind', '')
+      root.style.setProperty('--stage-scrim', `${layout.scrim}%`)
+    }
     // the log has shrunk by `reserve`: the strip's bottom edge is where the log would have ended
     const log = root.querySelector('[data-chat-log]')
     setAnchor(strip && log ? Math.round(log.getBoundingClientRect().bottom + reserve) : null)
-    return () => { root.style.removeProperty('--stage-reserve') }
+    return () => {
+      root.style.removeProperty('--stage-reserve')
+      root.removeAttribute('data-stage-behind')
+      root.style.removeProperty('--stage-scrim')
+    }
   })
   // the composer grows and the window resizes: the strip follows
   useEffect(() => {
@@ -497,6 +506,19 @@ function StageMenu({ layout, members, current, phone, update, area }: {
             </select>
           </label>
           {layout.place !== 'front' && <p className="text-xs text-muted-foreground">{t('sprites.win.placeHint')}</p>}
+          {layout.place === 'behind' && (
+            <label className="flex items-center gap-2 text-xs">
+              <span className="w-14 shrink-0 text-muted-foreground">{t('sprites.win.scrim')}</span>
+              <input
+                type="range" min={0} max={100} step={5} value={layout.scrim}
+                onChange={(e) => update((l) => ({ ...l, scrim: Number(e.target.value) }))}
+                aria-label={t('sprites.win.scrim')}
+                className="h-8 min-w-0 flex-1 accent-primary max-md:h-10"
+                data-testid="stage-scrim"
+              />
+              <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">{layout.scrim}%</span>
+            </label>
+          )}
         </div>
       )}
       <div className="flex max-h-64 flex-col gap-2 overflow-y-auto overscroll-contain">

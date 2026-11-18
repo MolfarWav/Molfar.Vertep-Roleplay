@@ -208,6 +208,10 @@ describe("layout", () => {
     expect(normalizeLayout({ windows: [{ id: "a" }], place: "reserve" }).place).toBe("reserve");
     expect(normalizeLayout({ windows: [{ id: "a" }], place: "sideways" }).place).toBe("front");
     expect(normalizeLayout({ windows: [{ id: "a" }] }).place).toBe("front");
+    expect(defaultLayout().scrim).toBe(55);
+    expect(normalizeLayout({ windows: [{ id: "a" }], scrim: 140 }).scrim).toBe(100);
+    expect(normalizeLayout({ windows: [{ id: "a" }], scrim: -3 }).scrim).toBe(0);
+    expect(normalizeLayout({ windows: [{ id: "a" }], scrim: "x" }).scrim).toBe(55);
   });
   it("the old single window's place carries over into the first window", () => {
     const store = { getItem: (k: string) => ({ "expr-panel-pos": '{"x":40,"y":60}', "expr-panel-height": "300", "expr-panel-minimized": "true" } as Record<string, string>)[k] ?? null };

@@ -195,11 +195,14 @@ export interface StageWindow {
 
 /** Where the windows sit against the chat text: over it (as always), under it, or in a strip the chat keeps for them. */
 export type StagePlace = 'front' | 'behind' | 'reserve'
+export const DEFAULT_SCRIM = 55
 export const STAGE_PLACES: readonly StagePlace[] = ['front', 'behind', 'reserve']
 
 export interface StageLayout {
   windows: StageWindow[]
   place: StagePlace
+  /** behind the text: how strong the backing under the chat text is, 0 to 100 percent of the page colour */
+  scrim: number
   /** an empty "next in the scene" window disappears instead of staying blank */
   hideEmpty: boolean
   /** which member each 'auto' window holds (window id → member key), kept while they stay in the scene */
@@ -217,7 +220,7 @@ export function defaultLayout(legacy?: { pos?: { x: number; y: number } | null; 
   if (legacy?.pos) { w.x = legacy.pos.x; w.y = legacy.pos.y }
   if (legacy?.height) w.h = legacy.height
   if (legacy?.folded) w.folded = true
-  return { windows: [w], place: 'front', hideEmpty: false, slots: {} }
+  return { windows: [w], place: 'front', scrim: DEFAULT_SCRIM, hideEmpty: false, slots: {} }
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -247,7 +250,8 @@ export function normalizeLayout(raw: unknown): StageLayout {
     for (const [k, v] of Object.entries(r.slots as Record<string, unknown>)) if (typeof v === 'string' && seen.has(k)) slots[k] = v
   }
   const place = STAGE_PLACES.find((x) => x === r.place) ?? 'front'
-  return { windows, place, hideEmpty: r.hideEmpty === true, slots }
+  const scrim = typeof r.scrim === 'number' && Number.isFinite(r.scrim) ? Math.min(100, Math.max(0, Math.round(r.scrim))) : DEFAULT_SCRIM
+  return { windows, place, scrim, hideEmpty: r.hideEmpty === true, slots }
 }
 
 export const layoutKey = (chatId: string) => `rp.stage.${chatId}`
