@@ -4,7 +4,7 @@ Sprites are small pictures of a character, one per emotion, that appear over the
 
 ## What a sprite window is
 
-A sprite window floats over the chat and shows **one character**. It picks the picture from that character's own last lines (the same keyword rules as before; no model is called), and the picture stays until the character speaks again. Drag a window anywhere, drag its lower corner to resize it (double-click the corner to go back to the default size), and press **×** to fold it into a small round chip; press the chip to bring it back.
+A sprite window floats over the chat and shows **one character**. It picks the picture from that character's own last lines (the same keyword rules as before; no model is called), and the picture stays until the character speaks again. A narrator card that writes its characters as lines ("Aria: ...") gives each one their own lines; one that writes prose ("Aria laughs with joy") gives each one the sentences that name them, and when those show no emotion, the whole message decides. Drag a window anywhere, drag its lower corner to resize it (double-click the corner to go back to the default size), and press **×** to fold it into a small round chip; press the chip to bring it back.
 
 Sprites are added to a card in the editor, **More** tab, **Sprites**. Settings has one switch, "Expression Sprites", that turns every window off.
 
@@ -35,7 +35,14 @@ A character with more than one outfit gets a small outfit switch on the window. 
 
 ## On a phone
 
-A phone shows **one window**; the other people of the scene are small round pictures at the bottom left. Tap one to show that character in the window, tap it again to go back to following the speaker. Transparent windows, arranging and extra windows are for tablets and computers.
+A phone shows **one window**, and everything stays above the message box, wherever it grows to:
+
+- **The picture lets touches through.** A swipe over it scrolls the chat. The window is moved by the grip in its top-left corner, and the gear (settings), **×** (fold) and the corner (resize) are always visible. The window stays wholly on the screen and above the message box; if it does not fit, it gets lower.
+- **The row above the message box** has **Auto** and everyone in the scene as small round pictures. The character in the window has a ring. Tap another to show them there: a pin on their picture means the window stays on them. Tap the pinned one, or **Auto**, and the window follows whoever speaks again.
+- **While you type**, the window and the row step aside, and come back when the message box is empty or you leave it.
+- A folded window is a small round chip: tap it and the window opens where the chip is, pulled back onto the screen.
+
+Transparent windows, arranging and extra windows are for tablets and computers.
 
 ## What it does not do
 

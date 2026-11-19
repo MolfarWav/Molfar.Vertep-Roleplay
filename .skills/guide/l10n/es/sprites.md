@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprites y ventanas de sprites
 
 Los sprites son pequeñas imágenes de un personaje, una por emoción, que aparecen sobre el chat y cambian a medida que avanza la historia. Esta página es para quien quiera ver varios personajes a la vez, en un grupo o con una tarjeta de narrador, o montar un aspecto de novela visual.
 
 ## Qué es una ventana de sprites
 
-Una ventana de sprites flota sobre el chat y muestra **un personaje**. Elige la imagen a partir de las últimas líneas de ese propio personaje (con las mismas reglas de palabras clave de antes; no se llama a ningún modelo), y la imagen se queda hasta que el personaje vuelve a hablar. Arrastra una ventana donde quieras, arrastra su esquina inferior para cambiar el tamaño (doble clic en la esquina para volver al tamaño por defecto) y pulsa **×** para plegarla en una pequeña ficha redonda; pulsa la ficha para recuperarla.
+Una ventana de sprites flota sobre el chat y muestra **un personaje**. Elige la imagen a partir de las últimas líneas de ese propio personaje (con las mismas reglas de palabras clave de antes; no se llama a ningún modelo), y la imagen se queda hasta que el personaje vuelve a hablar. Una tarjeta de narrador que escribe sus personajes como líneas ("Aria: ...") da a cada uno sus propias líneas; una que escribe prosa ("Aria laughs with joy") da a cada uno las frases que los nombran, y cuando estas no muestran emoción, decide el mensaje entero. Arrastra una ventana donde quieras, arrastra su esquina inferior para cambiar el tamaño (doble clic en la esquina para volver al tamaño por defecto) y pulsa **×** para plegarla en una pequeña ficha redonda; pulsa la ficha para recuperarla.
 
 Los sprites se añaden a una tarjeta en el editor, pestaña **More**, **Sprites**. Ajustes tiene un interruptor, "Expression Sprites", que apaga todas las ventanas.
 
@@ -36,7 +36,14 @@ Un personaje con más de un atuendo recibe en la ventana un pequeño selector de
 
 ## En un teléfono
 
-Un teléfono muestra **una ventana**; las demás personas de la escena son pequeñas imágenes redondas abajo a la izquierda. Toca una para mostrar a ese personaje en la ventana, tócala otra vez para volver a seguir a quien habla. Las ventanas transparentes, la disposición y las ventanas adicionales son para tabletas y ordenadores.
+Un teléfono muestra **una ventana**, y todo se queda por encima de la caja de mensaje, dondequiera que crezca:
+
+- **La imagen deja pasar los toques.** Un deslizamiento sobre ella desplaza el chat. La ventana se mueve con el asa de su esquina superior izquierda, y el engranaje (ajustes), **×** (plegar) y la esquina (cambiar el tamaño) están siempre visibles. La ventana se queda entera en la pantalla y por encima de la caja de mensaje; si no cabe, baja.
+- **La fila encima de la caja de mensaje** tiene **Auto** y a todos los de la escena como pequeñas imágenes redondas. El personaje que está en la ventana tiene un anillo. Toca otro para mostrarlo ahí: un alfiler en su imagen significa que la ventana se queda en él. Toca el que tiene el alfiler, o **Auto**, y la ventana vuelve a seguir a quien habla.
+- **Mientras escribes**, la ventana y la fila se apartan, y vuelven cuando la caja de mensaje está vacía o la dejas.
+- Una ventana plegada es una pequeña ficha redonda: tócala y la ventana se abre donde está la ficha, atraída de vuelta a la pantalla.
+
+Las ventanas transparentes, la disposición y las ventanas adicionales son para tabletas y ordenadores.
 
 ## Lo que no hace
 

@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprites und Sprite-Fenster
 
 Sprites sind kleine Bilder einer Figur, eines pro Emotion, die über dem Chat erscheinen und sich mit dem Verlauf der Geschichte ändern. Diese Seite ist für alle, die mehrere Figuren gleichzeitig sehen möchten, in einer Gruppe oder mit einer Erzählerkarte, oder die einen Visual-Novel-Look aufbauen wollen.
 
 ## Was ein Sprite-Fenster ist
 
-Ein Sprite-Fenster schwebt über dem Chat und zeigt **eine Figur**. Das Bild wird anhand der letzten eigenen Zeilen dieser Figur gewählt (mit denselben Stichwortregeln wie bisher; es wird kein Modell aufgerufen), und es bleibt, bis die Figur wieder spricht. Ziehe ein Fenster an eine beliebige Stelle, ziehe seine untere Ecke, um die Größe zu ändern (Doppelklick auf die Ecke stellt die Standardgröße wieder her), und drücke **×**, um es zu einem kleinen runden Chip zusammenzuklappen; drücke auf den Chip, um es zurückzuholen.
+Ein Sprite-Fenster schwebt über dem Chat und zeigt **eine Figur**. Das Bild wird anhand der letzten eigenen Zeilen dieser Figur gewählt (mit denselben Stichwortregeln wie bisher; es wird kein Modell aufgerufen), und es bleibt, bis die Figur wieder spricht. Eine Erzählerkarte, die ihre Figuren als Zeilen schreibt ("Aria: ..."), gibt jeder ihre eigenen Zeilen; eine, die Prosa schreibt ("Aria lacht vor Freude"), gibt jeder die Sätze, die sie nennen, und wenn diese keine Emotion zeigen, entscheidet die ganze Nachricht. Ziehe ein Fenster an eine beliebige Stelle, ziehe seine untere Ecke, um die Größe zu ändern (Doppelklick auf die Ecke stellt die Standardgröße wieder her), und drücke **×**, um es zu einem kleinen runden Chip zusammenzuklappen; drücke auf den Chip, um es zurückzuholen.
 
 Sprites fügst du einer Karte im Editor hinzu, im Tab **More**, unter **Sprites**. In den Einstellungen gibt es einen Schalter, "Expression Sprites", der alle Fenster ausschaltet.
 
@@ -36,7 +36,14 @@ Eine Figur mit mehr als einem Outfit bekommt am Fenster einen kleinen Outfit-Sch
 
 ## Auf dem Smartphone
 
-Ein Smartphone zeigt **ein Fenster**; die anderen Personen der Szene sind kleine runde Bilder unten links. Tippe auf eines, um diese Figur im Fenster zu zeigen, tippe erneut, um wieder dem Sprechenden zu folgen. Transparente Fenster, Anordnen und zusätzliche Fenster gibt es nur auf Tablets und Computern.
+Ein Smartphone zeigt **ein Fenster**, und alles bleibt über dem Nachrichtenfeld, wo immer es auch hin wächst:
+
+- **Das Bild lässt Berührungen durch.** Ein Wischen darüber scrollt den Chat. Das Fenster wird am Griff in seiner oberen linken Ecke verschoben, und das Zahnrad (Einstellungen), **×** (Zuklappen) und die Ecke (Größe ändern) sind immer sichtbar. Das Fenster bleibt vollständig auf dem Bildschirm und über dem Nachrichtenfeld; wenn es nicht passt, wird es niedriger.
+- **Die Reihe über dem Nachrichtenfeld** hat **Auto** und alle in der Szene als kleine runde Bilder. Die Figur im Fenster hat einen Ring. Tippe auf eine andere, um sie dort zu zeigen: Eine Nadel auf ihrem Bild bedeutet, dass das Fenster auf ihr bleibt. Tippe auf die angeheftete oder auf **Auto**, und das Fenster folgt wieder dem, der spricht.
+- **Während du tippst**, treten das Fenster und die Reihe zur Seite und kommen zurück, wenn das Nachrichtenfeld leer ist oder du es verlässt.
+- Ein zugeklapptes Fenster ist ein kleiner runder Chip: Tippe darauf, und das Fenster öffnet sich dort, wo der Chip ist, zurück auf den Bildschirm gezogen.
+
+Transparente Fenster, Anordnen und zusätzliche Fenster gibt es nur auf Tablets und Computern.
 
 ## Was es nicht tut
 

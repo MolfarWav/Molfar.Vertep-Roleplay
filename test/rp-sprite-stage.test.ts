@@ -11,6 +11,7 @@ import {
   assignSlots,
   contributions,
   defaultLayout,
+  fitIn,
   layoutKey,
   loadLayout,
   memberSprite,
@@ -253,5 +254,60 @@ describe("layout", () => {
     const row = arrange(addWindow(defaultLayout(), AREA), "row", AREA);
     expect(row.windows[0]!.y).toBe(row.windows[1]!.y);
     expect(row.windows[0]!.x!).toBeLessThan(row.windows[1]!.x!);
+  });
+});
+
+describe("a prose Narrator message (#464)", () => {
+  const both = (v: string) => ["neutral", "joy", "anger"].map((e) => sprite(e, v));
+  const nar = card("n", "Narrator", { voices: [{ name: "Aria", color: "" }, { name: "Bo", color: "" }], expressions: [...both("Aria"), ...both("Bo")] });
+  const ms = stageMembers(nar, [nar]);
+  const [aria, bo] = ms;
+
+  it("a voice with no labelled line takes the sentences that name them, and the one named first is the speaker", () => {
+    const said = contributions(ms, [say("n", "Aria laughs with joy. Bo slams the table in a rage.")]);
+    expect(said.get("v:aria")!.text).toBe("Aria laughs with joy.");
+    expect(said.get("v:bo")!.text).toBe("Bo slams the table in a rage.");
+    expect(memberSprite(aria!, said.get("v:aria")!, undefined)!.sprite.name).toBe("joy");
+    expect(memberSprite(bo!, said.get("v:bo")!, undefined)!.sprite.name).toBe("anger");
+    expect(speakerOf(ms, said)).toBe("v:aria");
+  });
+  it("two names in one sentence: the one that stands first is the speaker, whatever the order of the cast", () => {
+    const said = contributions([bo!, aria!], [say("n", "Bo slams the table while Aria laughs with joy.")]);
+    expect(speakerOf([aria!, bo!], said)).toBe("v:bo");
+  });
+  it("a labelled line beats the sentences, and ranks above them as the speaker", () => {
+    const said = contributions(ms, [say("n", ["Bo shrugs in a rage.", "Aria: Hello there."].join("\n"))]);
+    expect(said.get("v:aria")!.text).toBe("Aria: Hello there.");
+    expect(said.get("v:bo")!.text).toBe("Bo shrugs in a rage.");
+    expect(speakerOf(ms, said)).toBe("v:aria");
+    // a voice that has a label is not also read from the sentences that name them
+    expect(contributions(ms, [say("n", ["Aria: Fine.", "Aria smiles with joy."].join("\n"))]).get("v:aria")!.text).toBe("Aria: Fine.");
+  });
+  it("a newer prose mention beats an older labelled line", () => {
+    const said = contributions(ms, [say("n", "Aria: I am so angry!"), say("n", "Aria laughs with joy.")]);
+    expect(said.get("v:aria")).toMatchObject({ ago: 0, text: "Aria laughs with joy." });
+  });
+  it("a voice whose own lines show no emotion takes it from the whole message", () => {
+    const said = contributions(ms, [say("n", ["Aria: Hm.", "The room fills with joy."].join("\n"))]);
+    expect(memberSprite(aria!, said.get("v:aria")!, undefined)!.sprite.name).toBe("joy");
+  });
+  it("a group member is not read from sentences in somebody else's message", () => {
+    const g = stageMembers(group(["a", "b"]), all);
+    const said = contributions(g, [say("a", "Reine laughs with joy.")]);
+    expect(said.get("m:b")).toBeNull();
+  });
+});
+
+describe("fitIn", () => {
+  const room = { x: 0, y: 100, w: 390, h: 500 };
+  it("leaves a box that fits where it is", () => {
+    expect(fitIn({ x: 10, y: 120 }, { w: 100, h: 200 }, room)).toEqual({ x: 10, y: 120 });
+  });
+  it("pulls a box back inside by the least distance (the unfolded window of #464 at x 326, y 669)", () => {
+    expect(fitIn({ x: 326, y: 669 }, { w: 199, h: 337 }, room)).toEqual({ x: 191, y: 263 });
+    expect(fitIn({ x: -40, y: 0 }, { w: 100, h: 200 }, room)).toEqual({ x: 0, y: 100 });
+  });
+  it("a box larger than the room sticks to its top-left", () => {
+    expect(fitIn({ x: 50, y: 300 }, { w: 500, h: 800 }, room)).toEqual({ x: 0, y: 100 });
   });
 });

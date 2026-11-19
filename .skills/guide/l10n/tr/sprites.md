@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprite'lar ve sprite pencereleri
 
 Sprite'lar, bir karakterin her duygu için bir tane olan küçük resimleridir; sohbetin üzerinde görünür ve hikâye ilerledikçe değişir. Bu sayfa, birden fazla karakteri aynı anda görmek isteyenler (bir grupta ya da anlatıcı kartıyla) ve görsel roman görünümü kurmak isteyenler için.
 
 ## Sprite penceresi nedir
 
-Bir sprite penceresi sohbetin üzerinde süzülür ve **tek bir karakteri** gösterir. Resmi, o karakterin kendi son repliklerinden seçer (eskisiyle aynı anahtar sözcük kurallarıyla; hiçbir model çağrılmaz) ve resim, karakter yeniden konuşana kadar kalır. Bir pencereyi istediğin yere sürükle, yeniden boyutlandırmak için alt köşesini sürükle (varsayılan boyuta dönmek için köşeye çift tıkla) ve onu küçük yuvarlak bir çipe katlamak için **×** düğmesine bas; geri getirmek için çipe bas.
+Bir sprite penceresi sohbetin üzerinde süzülür ve **tek bir karakteri** gösterir. Resmi, o karakterin kendi son repliklerinden seçer (eskisiyle aynı anahtar sözcük kurallarıyla; hiçbir model çağrılmaz) ve resim, karakter yeniden konuşana kadar kalır. Karakterlerini replik olarak yazan bir anlatıcı kartı ("Aria: ...") her birine kendi repliklerini verir; düz yazı yazan bir kart ("Aria laughs with joy") ise her birine onları adlandıran cümleleri verir ve bunlar hiçbir duygu göstermediğinde tüm mesaj karar verir. Bir pencereyi istediğin yere sürükle, yeniden boyutlandırmak için alt köşesini sürükle (varsayılan boyuta dönmek için köşeye çift tıkla) ve onu küçük yuvarlak bir çipe katlamak için **×** düğmesine bas; geri getirmek için çipe bas.
 
 Sprite'lar, düzenleyicide bir karta **More** sekmesinden, **Sprites** bölümünden eklenir. Ayarlar'da tüm pencereleri kapatan tek bir anahtar var: "Expression Sprites".
 
@@ -36,7 +36,14 @@ Birden fazla kıyafeti olan bir karakterin penceresinde küçük bir kıyafet an
 
 ## Telefonda
 
-Telefon **tek pencere** gösterir; sahnedeki diğer kişiler sol altta küçük yuvarlak resimlerdir. Bir karakteri pencerede göstermek için birine dokun, konuşanı izlemeye geri dönmek için yeniden dokun. Saydam pencereler, yerleştirme ve ek pencereler tabletler ve bilgisayarlar içindir.
+Telefon **tek pencere** gösterir ve her şey, nereye kadar büyürse büyüsün, mesaj kutusunun üzerinde kalır:
+
+- **Resim dokunuşları geçirir.** Üzerinde kaydırma yapmak sohbeti kaydırır. Pencere sol üst köşesindeki tutamaçla taşınır ve dişli (ayarlar), **×** (katla) ve köşe (yeniden boyutlandır) her zaman görünür. Pencere tamamen ekranda ve mesaj kutusunun üzerinde kalır; sığmazsa daha aşağı iner.
+- **Mesaj kutusunun üzerindeki satırda** **Auto** ve sahnedeki herkes küçük yuvarlak resimler olarak bulunur. Penceredeki karakterin bir halkası vardır. Başka birine dokunarak onu orada göster: resmindeki bir raptiye, pencerenin onda kaldığı anlamına gelir. Raptiyeli olana ya da **Auto**'ya dokun, pencere yeniden konuşanı izler.
+- **Sen yazarken**, pencere ve satır kenara çekilir; mesaj kutusu boşaldığında ya da oradan ayrıldığında geri gelir.
+- Katlanmış bir pencere küçük yuvarlak bir çiptir: ona dokun, pencere çipin olduğu yerde açılır ve ekrana geri çekilir.
+
+Saydam pencereler, yerleştirme ve ek pencereler tabletler ve bilgisayarlar içindir.
 
 ## Ne yapmaz
 

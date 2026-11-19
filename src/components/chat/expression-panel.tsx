@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { X, ArrowsOutLineVertical, GearSix, DotsSixVertical, Plus, Trash } from '@phosphor-icons/react'
+import { X, ArrowsOutLineVertical, GearSix, DotsSixVertical, Plus, PushPin, Trash } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { useApp } from '@/lib/store'
 import { DEFAULT_OUTFIT } from '@/lib/expressions'
 import {
-  MAX_WINDOWS, MIN_VISIBLE, addWindow, arrange, contributions, defaultLayout, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
+  MAX_WINDOWS, MIN_VISIBLE, SPRITE_WIDTH_RATIO, addWindow, arrange, contributions, defaultLayout, fitIn, loadLayout, memberSprite, patchWindow, removeWindow, resolveWindows,
   saveLayout, sceneKeys, speakerOf, stageMembers,
   type Area, type Contribution, type StageLayout, type StageMember, type StagePlace, type StageWindow,
 } from '@/lib/sprite-stage'
@@ -27,6 +27,56 @@ const stageArea = (chatId: string): Area => {
   // across the column of the messages, not the Dashboard strip beside it
   const log = root?.querySelector('[data-chat-log]')?.getBoundingClientRect()
   return log && log.width > 120 ? { x: log.left, y: r.top, w: log.width, h: r.height } : { x: r.left, y: r.top, w: r.width, h: r.height }
+}
+
+/** How far a finger or a mouse may wander between pressing and lifting and still count as a tap (px). */
+const TAP_SLOP = 8
+/** The part of the page a phone's window may stand on: from the top of the chat's messages to the top of the message box. */
+interface PhoneLimit { top: number; bottom: number }
+const limitArea = (l: PhoneLimit): Area => ({ x: 0, y: l.top, w: window.innerWidth, h: Math.max(0, l.bottom - l.top) })
+
+/**
+ * A phone: where the message box starts and whether the user is typing in it. The windows and the chips of the
+ * others stand just above the box, wherever it is (it grows with a long draft), and step aside while a draft is
+ * being typed (Molfar.Vertep#464).
+ */
+function useComposer(phone: boolean): { top: number | null; logTop: number; typing: boolean } {
+  const [state, setState] = useState<{ top: number | null; logTop: number; typing: boolean }>({ top: null, logTop: 0, typing: false })
+  useEffect(() => {
+    if (!phone) return
+    const box = () => document.querySelector<HTMLElement>('[data-chat-composer]')
+    const field = (el: Element | null): HTMLTextAreaElement | HTMLInputElement | null =>
+      el && box()?.contains(el) && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? (el as HTMLTextAreaElement | HTMLInputElement) : null
+    const read = (focused?: Element | null) => {
+      const r = box()?.getBoundingClientRect()
+      const log = document.querySelector('[data-chat-log]')?.getBoundingClientRect()
+      const f = field(focused === undefined ? document.activeElement : focused)
+      const next = { top: r && r.height > 0 ? Math.round(r.top) : null, logTop: log && log.height > 0 ? Math.round(log.top) : 0, typing: !!f && f.value.length > 0 }
+      setState((prev) => (prev.top === next.top && prev.logTop === next.logTop && prev.typing === next.typing ? prev : next))
+    }
+    const onIn = (e: Event) => read(e.target as Element)
+    const onOut = (e: FocusEvent) => read(e.relatedTarget as Element | null)
+    const onChange = () => read()
+    read()
+    document.addEventListener('focusin', onIn)
+    document.addEventListener('focusout', onOut)
+    document.addEventListener('input', onChange, true)
+    window.addEventListener('resize', onChange)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', onChange)
+    const el = box()
+    const ro = el && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onChange) : null
+    if (ro && el) ro.observe(el)
+    return () => {
+      document.removeEventListener('focusin', onIn)
+      document.removeEventListener('focusout', onOut)
+      document.removeEventListener('input', onChange, true)
+      window.removeEventListener('resize', onChange)
+      vv?.removeEventListener('resize', onChange)
+      ro?.disconnect()
+    }
+  }, [phone])
+  return phone ? state : { top: null, logTop: 0, typing: false }
 }
 
 /**
@@ -81,6 +131,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   const present = useMemo(() => (presentKey ? presentKey.split('\n') : null), [presentKey])
   const scene = useMemo(() => sceneKeys(members, said, present), [members, said, present])
   const view = useMemo(() => resolveWindows(layout, members, speaker, scene), [layout, members, speaker, scene])
+  const composer = useComposer(phone)
+  const limit: PhoneLimit | null = phone && composer.top !== null ? { top: composer.logTop, bottom: composer.top } : null
 
   // who holds which window is kept, so nobody moves while they stay in the scene
   const slotsNow = JSON.stringify(view.slots)
@@ -128,7 +180,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
     return () => { window.removeEventListener('resize', on); ro?.disconnect() }
   }, [strip, chat.id])
 
-  if (!show || !members.length) return null
+  // a phone: the window and the chips step aside while a draft is being typed
+  if (!show || !members.length || (phone && composer.typing)) return null
 
   const menuFor = (id: string) => (
     <StageMenu layout={layout} members={members} current={id} phone={phone} update={update} area={() => stageArea(chat.id)} />
@@ -152,6 +205,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
             hideEmpty={layout.hideEmpty}
             place={place}
             visible={phone ? 100 : layout.visible}
+            phone={phone}
+            limit={limit}
             anchorBottom={strip ? anchor : null}
             onPatch={(patch, transient) => update((l) => patchWindow(l, w.id, patch), transient)}
             menu={menuFor(w.id)}
@@ -161,48 +216,80 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
       {phone && first && (
         <CastStrip
           members={members}
-          keys={scene.filter((k) => k !== shownKey(first)).slice(0, MAX_WINDOWS)}
+          shown={shownKey(first)}
+          keys={scene}
           said={said}
           outfits={chat.spriteOutfits}
           pinned={pinned}
+          bottom={limit ? window.innerHeight - limit.bottom + 6 : null}
           onPin={(k) => setPinned((p) => (p === k ? null : k))}
+          onAuto={() => setPinned(null)}
         />
       )}
     </>
   )
 }
 
-/** A phone: the others in the scene as small round pictures; a tap puts one in the window. */
-function CastStrip({ members, keys, said, outfits, pinned, onPin }: {
+/**
+ * A phone: a row just above the message box with an Auto pill and everyone in the scene as small round pictures.
+ * The one in the window has a ring; a tap puts another there and pins them (a pin badge), a tap on the pinned one
+ * or on Auto lets the window follow whoever speaks again (Molfar.Vertep#464).
+ */
+function CastStrip({ members, shown, keys, said, outfits, pinned, bottom, onPin, onAuto }: {
   members: StageMember[]
+  shown: string | null
   keys: string[]
   said: ReadonlyMap<string, Contribution | null>
   outfits: Record<string, string> | undefined
   pinned: string | null
+  /** px from the bottom of the screen; null until the message box is measured */
+  bottom: number | null
   onPin: (key: string) => void
+  onAuto: () => void
 }) {
   const t = useT()
-  const list = [...keys]
-  if (pinned && !list.includes(pinned) && members.some((m) => m.key === pinned)) list.unshift(pinned)
-  if (!list.length) return null
+  // in the chat's order, so a chip does not jump under the finger while the scene changes
+  const list = members.filter((m) => keys.includes(m.key) || m.key === shown || m.key === pinned)
+  if (list.length < 2) return null
   return (
-    <div data-expression-panel className="fixed bottom-20 left-2 z-30 flex max-w-[60vw] gap-2 overflow-x-auto" data-testid="cast-strip">
-      {list.map((k) => {
-        const m = members.find((x) => x.key === k)
-        const sp = m ? memberSprite(m, said.get(k) ?? null, outfits) : null
-        if (!m || !sp) return null
+    <div
+      data-expression-panel
+      className="fixed left-2 z-30 flex max-w-[calc(100vw-1rem)] items-center gap-2 overflow-x-auto py-1"
+      style={{ bottom: bottom ?? '5rem' }}
+      data-testid="cast-strip"
+    >
+      <button
+        type="button"
+        onClick={onAuto}
+        aria-pressed={pinned === null}
+        aria-label={t('sprites.win.autoAria')}
+        title={t('sprites.win.autoAria')}
+        data-testid="cast-auto"
+        className={cn('h-10 shrink-0 rounded-full border px-3 text-xs font-medium shadow-lg', pinned === null ? 'border-primary bg-primary text-primary-foreground' : 'border-border/60 bg-card text-foreground')}
+      >
+        {t('sprites.win.auto')}
+      </button>
+      {list.map((m) => {
+        const sp = memberSprite(m, said.get(m.key) ?? null, outfits)
+        if (!sp) return null
         return (
-          <button
-            key={k}
-            type="button"
-            onClick={() => onPin(k)}
-            aria-pressed={pinned === k}
-            aria-label={t('sprites.win.chip', { name: m.name })}
-            title={m.name}
-            className={cn('size-10 shrink-0 overflow-hidden rounded-full border border-border/60 bg-card shadow-lg', pinned === k && 'ring-2 ring-primary')}
-          >
-            <img src={sp.sprite.url} alt="" draggable={false} className="size-full object-cover object-top" />
-          </button>
+          <div key={m.key} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => onPin(m.key)}
+              aria-pressed={pinned === m.key}
+              aria-label={pinned === m.key ? t('sprites.win.pinned', { name: m.name }) : t('sprites.win.chip', { name: m.name })}
+              title={m.name}
+              className={cn('block size-10 overflow-hidden rounded-full border border-border/60 bg-card shadow-lg', shown === m.key && 'ring-2 ring-primary')}
+            >
+              <img src={sp.sprite.url} alt="" draggable={false} className="size-full object-cover object-top" />
+            </button>
+            {pinned === m.key && (
+              <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden="true">
+                <PushPin className="size-2.5" weight="fill" />
+              </span>
+            )}
+          </div>
         )
       })}
     </div>
@@ -214,7 +301,7 @@ function CastStrip({ members, keys, said, outfits, pinned, onPin }: {
  * chip brings it back). A transparent window has no frame and lets clicks through to the chat; it is moved by its
  * grip. A window with nobody to show stays as an empty slot, or disappears when "Hide empty windows" is on.
  */
-function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, visible, anchorBottom, onPatch, menu }: {
+function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, visible, phone, limit, anchorBottom, onPatch, menu }: {
   chatId: string
   win: StageWindow
   member: StageMember | null
@@ -224,6 +311,10 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
   place: StagePlace
   /** percent of each picture that shows from the top (100 = all of it); the window's height is the part that shows */
   visible: number
+  /** a phone: the picture lets touches through, the window stands above the message box and wholly on the screen */
+  phone: boolean
+  /** a phone: the part of the page the window may stand on; null until the message box is measured */
+  limit: PhoneLimit | null
   /** in the strip: the page y of its bottom edge; the window stands on it and moves sideways only */
   anchorBottom: number | null
   onPatch: (patch: Partial<Omit<StageWindow, 'id'>>, transient?: boolean) => void
@@ -231,7 +322,9 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
 }) {
   const t = useT()
   const setSpriteOutfit = useApp((s) => s.setSpriteOutfit)
-  const dragRef = useRef<{ dx: number; dy: number } | null>(null)
+  const dragRef = useRef<{ dx: number; dy: number; sx: number; sy: number } | null>(null)
+  const limitRef = useRef(limit)
+  limitRef.current = limit
   const resizeRef = useRef<{ y: number; h: number } | null>(null)
   // set by a drag, read by the click that ends it: pointerup clears dragRef before the browser fires that click
   const movedRef = useRef(false)
@@ -256,6 +349,9 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
     const clamp = (p: { x: number; y: number }) => {
       const w = boxRef.current?.offsetWidth ?? 80
       const h = boxRef.current?.offsetHeight ?? 80
+      // a phone keeps the whole window on the screen and above the message box
+      const lim = limitRef.current
+      if (lim) return fitIn(p, { w, h }, limitArea(lim))
       return {
         x: Math.min(Math.max(0, p.x), Math.max(0, window.innerWidth - Math.min(w, 80))),
         y: Math.min(Math.max(0, p.y), Math.max(0, window.innerHeight - Math.min(h, 80))),
@@ -268,6 +364,8 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
         return
       }
       if (!dragRef.current) return
+      // a press that wanders a few pixels is still a tap
+      if (!movedRef.current && Math.hypot(e.clientX - dragRef.current.sx, e.clientY - dragRef.current.sy) < TAP_SLOP) return
       movedRef.current = true
       const to = clamp({ x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy })
       patchRef.current(anchoredRef.current ? { x: to.x } : to, true)
@@ -286,23 +384,41 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
     }
   }, [])
 
-  const h = win.h ?? Math.round(window.innerHeight * 0.42)
+  const wanted = win.h ?? Math.round(window.innerHeight * 0.42)
+  // a phone: no taller than the room between the messages' top and the message box
+  const h = limit ? Math.max(MIN_HEIGHT, Math.min(wanted, limit.bottom - limit.top - 12)) : wanted
   const hasPos = win.x !== null && win.y !== null
   const style: React.CSSProperties = anchored
     ? { top: anchorBottom! - h - 4, bottom: 'auto', ...(win.x !== null ? { left: win.x, right: 'auto' } : { right: '1rem' }) }
     : hasPos
       ? { left: win.x!, top: win.y!, right: 'auto', bottom: 'auto' }
-      : { right: '1rem', bottom: '5rem' }
+      : limit
+        ? { right: '0.5rem', bottom: window.innerHeight - limit.bottom + 6 }
+        : { right: '1rem', bottom: '5rem' }
+  // a phone: a window that was put somewhere (or whose box grew) is pulled back onto the screen above the message box
+  useLayoutEffect(() => {
+    if (!limit || anchored || win.x === null || win.y === null) return
+    const el = boxRef.current
+    if (!el || !el.offsetWidth || !el.offsetHeight) return
+    const to = fitIn({ x: win.x, y: win.y }, { w: el.offsetWidth, h: el.offsetHeight }, limitArea(limit))
+    if (Math.abs(to.x - win.x) > 1 || Math.abs(to.y - win.y) > 1) patchRef.current(to, true)
+  })
   const startDrag = (e: React.PointerEvent) => {
     const r = boxRef.current?.getBoundingClientRect()
     const at = anchored
       ? { x: win.x ?? r?.left ?? e.clientX - 60, y: r?.top ?? e.clientY - 60 }
       : hasPos ? { x: win.x!, y: win.y! } : r ? { x: r.left, y: r.top } : { x: e.clientX - 60, y: e.clientY - 60 }
     if (anchored ? win.x === null : !hasPos) onPatch(anchored ? { x: at.x } : { x: at.x, y: at.y }, true)
-    dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y }
+    dragRef.current = { dx: e.clientX - at.x, dy: e.clientY - at.y, sx: e.clientX, sy: e.clientY }
     movedRef.current = false
   }
-  const setFolded = (v: boolean) => onPatch({ folded: v })
+  const setFolded = (v: boolean) => {
+    if (v || anchored || !hasPos) { onPatch({ folded: v }); return }
+    // unfolding: the window opens where the chip is, pulled back wholly onto the screen (it used to keep the chip's corner and leave it)
+    const width = Math.round(h * SPRITE_WIDTH_RATIO * 100 / Math.max(MIN_VISIBLE, visible))
+    const area = limit ? limitArea(limit) : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+    onPatch({ folded: false, ...fitIn({ x: win.x!, y: win.y! }, { w: width, h }, area) })
+  }
   const transparent = win.transparent
 
   // nobody to show
@@ -312,13 +428,13 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
       <div
         ref={boxRef}
         data-expression-panel
-        className={cn('group fixed z-30 flex cursor-grab touch-none select-none items-center justify-center rounded-lg border border-dashed border-border bg-card/30 p-2 text-center text-xs text-muted-foreground active:cursor-grabbing', transparent && 'pointer-events-none')}
+        className={cn('group fixed z-30 flex cursor-grab touch-none select-none items-center justify-center rounded-lg border border-dashed border-border bg-card/30 p-2 text-center text-xs text-muted-foreground active:cursor-grabbing', (transparent || phone) && 'pointer-events-none')}
         style={{ ...style, height: h, width: Math.round(h * 0.6) }}
-        onPointerDown={transparent ? undefined : startDrag}
+        onPointerDown={transparent || phone ? undefined : startDrag}
         data-testid="sprite-window-empty"
       >
         {t('sprites.win.empty')}
-        <WindowControls t={t} transparent={transparent} startDrag={startDrag} menu={menu} onFold={null} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
+        <WindowControls t={t} grip={transparent || phone} faint={transparent} startDrag={startDrag} menu={menu} onFold={null} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
       </div>
     )
   }
@@ -349,7 +465,8 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
   // box above the log, whose picture is only there to give the box its size. Buttons are then faint and the window
   // is moved by its grip, as a transparent one is.
   const layers: ('single' | 'back' | 'front')[] = behind ? ['back', 'front'] : ['single']
-  const loose = transparent || behind
+  // a phone's picture never catches a touch: a swipe over it scrolls the chat, the window is moved by its grip
+  const loose = transparent || behind || phone
   const cropped = visible < 100
   return (
     <>
@@ -397,12 +514,12 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
                     aria-label={t('sprites.outfitSwitchAria', { name: who })}
                     title={t('sprites.outfitSwitchAria', { name: who })}
                     data-testid="outfit-switch"
-                    className={cn('pointer-events-auto absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm', loose && 'opacity-60 hover:opacity-100 focus-visible:opacity-100')}
+                    className={cn('pointer-events-auto absolute bottom-1 left-1 h-8 max-w-[calc(100%-3rem)] cursor-pointer rounded-full border border-border/60 bg-background/85 px-2 text-xs text-foreground shadow backdrop-blur max-md:h-10 max-md:text-sm', loose && !phone && 'opacity-60 hover:opacity-100 focus-visible:opacity-100')}
                   >
                     {picked.outfits.map((o) => <option key={o} value={o}>{o.toLowerCase() === DEFAULT_OUTFIT ? t('sprites.outfitDefault') : o}</option>)}
                   </select>
                 )}
-                <WindowControls t={t} transparent={loose} startDrag={startDrag} menu={menu} onFold={() => setFolded(true)} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
+                <WindowControls t={t} grip={loose} faint={loose && !phone} startDrag={startDrag} menu={menu} onFold={() => setFolded(true)} onResizeStart={(e) => { resizeRef.current = { y: e.clientY, h } }} onResetSize={() => onPatch({ h: null })} />
               </>
             )}
           </div>
@@ -417,22 +534,25 @@ function SpriteWindow({ chatId, win, member, said, outfits, hideEmpty, place, vi
  * Always visible on touch screens, on hover elsewhere; a transparent window shows them faintly all the time,
  * since hovering a picture that lets clicks through would not reveal them.
  */
-function WindowControls({ t, transparent, startDrag, menu, onFold, onResizeStart, onResetSize }: {
+function WindowControls({ t, grip, faint, startDrag, menu, onFold, onResizeStart, onResetSize }: {
   t: ReturnType<typeof useT>
-  transparent: boolean
+  /** the picture lets touches through, so the window is moved by a grip and its buttons always catch them */
+  grip: boolean
+  /** the buttons show faintly (a transparent window); false = fully, as on a phone */
+  faint: boolean
   startDrag: (e: React.PointerEvent) => void
   menu: React.ReactNode
   onFold: (() => void) | null
   onResizeStart: (e: React.PointerEvent) => void
   onResetSize: () => void
 }) {
-  const reveal = transparent
-    ? 'pointer-events-auto opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100'
+  const reveal = grip
+    ? cn('pointer-events-auto', faint && 'opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100')
     : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100'
   const btn = 'absolute flex size-7 items-center justify-center rounded-full bg-background/85 text-foreground shadow backdrop-blur transition-opacity hover:bg-background max-md:size-10'
   return (
     <>
-      {transparent && (
+      {grip && (
         <span
           onPointerDown={(e) => { e.stopPropagation(); startDrag(e) }}
           className={cn(btn, reveal, 'left-1 top-1 cursor-grab touch-none active:cursor-grabbing')}
@@ -447,7 +567,8 @@ function WindowControls({ t, transparent, startDrag, menu, onFold, onResizeStart
       <Popover>
         <PopoverTrigger
           onPointerDown={(e) => e.stopPropagation()}
-          className={cn(btn, reveal, onFold ? 'right-9 top-1 max-md:right-11' : 'right-1 top-1')}
+          // a phone: the gear sits under the grip on the left, so the buttons leave the face of a narrow picture free
+          className={cn(btn, reveal, onFold ? 'right-9 top-1' : 'right-1 top-1', 'max-md:left-1 max-md:right-auto max-md:top-12')}
           aria-label={t('sprites.win.menuAria')}
           title={t('sprites.win.menuAria')}
           data-testid="sprite-menu"

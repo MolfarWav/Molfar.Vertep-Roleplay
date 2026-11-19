@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprites e janelas de sprites
 
 Sprites são pequenas imagens de um personagem, uma por emoção, que aparecem sobre o chat e mudam conforme a história avança. Esta página é para quem quer ver vários personagens ao mesmo tempo, em um grupo ou com um cartão de narrador, ou montar um visual de visual novel.
 
 ## O que é uma janela de sprite
 
-Uma janela de sprite flutua sobre o chat e mostra **um personagem**. Ela escolhe a imagem a partir das últimas falas desse próprio personagem (com as mesmas regras de palavras-chave de antes; nenhum modelo é chamado), e a imagem fica até o personagem falar de novo. Arraste uma janela para onde quiser, arraste o canto inferior dela para redimensionar (clique duas vezes no canto para voltar ao tamanho padrão) e toque em **×** para dobrá-la em uma pequena ficha redonda; toque na ficha para trazê-la de volta.
+Uma janela de sprite flutua sobre o chat e mostra **um personagem**. Ela escolhe a imagem a partir das últimas falas desse próprio personagem (com as mesmas regras de palavras-chave de antes; nenhum modelo é chamado), e a imagem fica até o personagem falar de novo. Um cartão de narrador que escreve seus personagens como falas ("Aria: ...") dá a cada um as suas próprias falas; um que escreve em prosa ("Aria ri de alegria") dá a cada um as frases que os nomeiam, e quando essas não mostram emoção, a mensagem inteira decide. Arraste uma janela para onde quiser, arraste o canto inferior dela para redimensionar (clique duas vezes no canto para voltar ao tamanho padrão) e toque em **×** para dobrá-la em uma pequena ficha redonda; toque na ficha para trazê-la de volta.
 
 Os sprites são adicionados a um cartão no editor, aba **More**, **Sprites**. As Configurações têm um interruptor, "Expression Sprites", que desliga todas as janelas.
 
@@ -36,7 +36,14 @@ Um personagem com mais de uma roupa ganha na janela um pequeno seletor de roupa.
 
 ## No celular
 
-Um celular mostra **uma janela**; as outras pessoas da cena são pequenas imagens redondas no canto inferior esquerdo. Toque em uma para mostrar esse personagem na janela, toque de novo para voltar a seguir quem fala. Janelas transparentes, organização e janelas extras são para tablets e computadores.
+Um celular mostra **uma janela**, e tudo fica acima da caixa de mensagem, onde quer que ela cresça:
+
+- **A imagem deixa os toques passarem.** Um deslize sobre ela rola o chat. A janela é movida pela alça no canto superior esquerdo, e a engrenagem (configurações), o **×** (dobrar) e o canto (redimensionar) ficam sempre visíveis. A janela fica inteiramente na tela e acima da caixa de mensagem; se não couber, ela fica mais baixa.
+- **A fileira acima da caixa de mensagem** tem **Auto** e todos na cena como pequenas imagens redondas. O personagem na janela tem um anel. Toque em outro para mostrá-lo ali: um alfinete na imagem dele significa que a janela fica nele. Toque no que está com o alfinete, ou em **Auto**, e a janela volta a seguir quem fala.
+- **Enquanto você digita**, a janela e a fileira saem do caminho, e voltam quando a caixa de mensagem está vazia ou você sai dela.
+- Uma janela dobrada é uma pequena ficha redonda: toque nela e a janela abre onde a ficha está, trazida de volta para a tela.
+
+Janelas transparentes, organização e janelas extras são para tablets e computadores.
 
 ## O que ele não faz
 

@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprites en spritevensters
 
 Sprites zijn kleine plaatjes van een personage, één per emotie, die boven de chat verschijnen en veranderen naarmate het verhaal vordert. Deze pagina is voor wie meerdere personages tegelijk wil zien, in een groep of met een vertellerkaart, of een visual-novel-look wil opbouwen.
 
 ## Wat een spritevenster is
 
-Een spritevenster zweeft boven de chat en toont **één personage**. Het kiest het plaatje op basis van de laatste regels van dat personage zelf (met dezelfde trefwoordregels als voorheen; er wordt geen model aangeroepen), en het plaatje blijft staan tot het personage weer spreekt. Sleep een venster waar je maar wilt, sleep de onderste hoek om het formaat te wijzigen (dubbelklik op de hoek om terug te gaan naar het standaardformaat) en druk op **×** om het op te vouwen tot een klein rond bolletje; druk op het bolletje om het terug te halen.
+Een spritevenster zweeft boven de chat en toont **één personage**. Het kiest het plaatje op basis van de laatste regels van dat personage zelf (met dezelfde trefwoordregels als voorheen; er wordt geen model aangeroepen), en het plaatje blijft staan tot het personage weer spreekt. Een vertellerkaart die zijn personages als regels schrijft ("Aria: ...") geeft elk van hen hun eigen regels; een die proza schrijft ("Aria lacht van vreugde") geeft elk van hen de zinnen die hen noemen, en wanneer die geen emotie tonen, beslist het hele bericht. Sleep een venster waar je maar wilt, sleep de onderste hoek om het formaat te wijzigen (dubbelklik op de hoek om terug te gaan naar het standaardformaat) en druk op **×** om het op te vouwen tot een klein rond bolletje; druk op het bolletje om het terug te halen.
 
 Sprites voeg je aan een kaart toe in de editor, tabblad **More**, **Sprites**. Instellingen heeft één schakelaar, "Expression Sprites", die alle vensters uitzet.
 
@@ -36,7 +36,14 @@ Een personage met meer dan één outfit krijgt een kleine outfitschakelaar op he
 
 ## Op een telefoon
 
-Een telefoon toont **één venster**; de andere mensen van de scène zijn kleine ronde plaatjes linksonder. Tik op een plaatje om dat personage in het venster te tonen, tik er nogmaals op om weer degene die spreekt te volgen. Transparante vensters, indelen en extra vensters zijn voor tablets en computers.
+Een telefoon toont **één venster**, en alles blijft boven het berichtvak, waar het ook groeit:
+
+- **Het plaatje laat aanrakingen door.** Een veeg erover scrolt de chat. Het venster verplaats je met het grijpvlak linksboven, en het tandwiel (instellingen), **×** (opvouwen) en de hoek (formaat wijzigen) zijn altijd zichtbaar. Het venster blijft helemaal op het scherm en boven het berichtvak; als het niet past, wordt het lager.
+- **De rij boven het berichtvak** heeft **Auto** en iedereen in de scène als kleine ronde plaatjes. Het personage in het venster heeft een ring. Tik op een ander om die daar te tonen: een pin op hun plaatje betekent dat het venster op hen blijft. Tik op degene met de pin, of op **Auto**, en het venster volgt weer degene die spreekt.
+- **Terwijl je typt**, wijken het venster en de rij opzij, en komen terug wanneer het berichtvak leeg is of je het verlaat.
+- Een opgevouwen venster is een klein rond bolletje: tik erop en het venster opent waar het bolletje is, teruggetrokken op het scherm.
+
+Transparante vensters, indelen en extra vensters zijn voor tablets en computers.
 
 ## Wat het niet doet
 
