@@ -24,6 +24,10 @@ import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { PersonaPage } from '@/components/persona/persona-page'
 import { PersonaNewDialog } from '@/components/persona/persona-new-dialog'
+import { parsePersonaFile } from '@/lib/persona-new'
+import { adoptInlineBook, personaForExport, storeInlineBook } from '@/lib/persona-book'
+import { uid } from '@/lib/tokens'
+import { bookUsage } from '@/lib/lore-usage'
 import { PersonaGrid, PersonaRows, type PersonaItem } from '@/components/persona/persona-list'
 import { PersonaPreviewPanel, PersonaPreviewSheet } from '@/components/persona/persona-preview'
 import { ActiveFilters, AllTagsPanel, FolderList, FolderStrip, NameDialog, SelectBar, TagFilterRow, type SelectActions } from '@/components/persona/persona-filters'
@@ -177,8 +181,8 @@ export function PersonasView() {
     }
     toast.success(t('personas.tagged', { name }))
   }
-  const exportThem = (ids: string[]) => {
-    const list = withPersonas(ids)
+  const exportThem = async (ids: string[]) => {
+    const list = await Promise.all(withPersonas(ids).map((x) => personaForExport(x, useApp.getState().loadBook)))
     downloadTextFile(`personas-${list.length}.json`, JSON.stringify(list, null, 2), 'application/json')
     toast.success(t('personas.exported', { n: list.length }))
   }
@@ -207,18 +211,45 @@ export function PersonasView() {
     setDetailOpen(true)
   }
   /** Persona records (a backup, a file): each one is added, its tags kept clean. Returns how many. */
-  const addRecords = (records: Record<string, unknown>[]): number => {
+  const addRecords = async (records: Record<string, unknown>[]): Promise<number> => {
     let added = 0
-    for (const item of records) {
-      if (typeof item.name !== 'string') continue
+    for (const rec of records) {
+      if (typeof rec.name !== 'string') continue
+      // a persona's own book rides inside its file: it becomes a book of the library again, under a new id, and is linked
+      // restoring a backup over the same persona (same id) refills that persona's own book instead of making a second one, unless
+      // someone else carries the book (a card or another persona): then the file's book becomes a new one
+      const { personas: now, lorebooks: library, characters } = useApp.getState()
+      const before = now.find((x) => x.id === rec.id)
+      const wasOwn = library.find((b) => b.id === before?.ownLorebookId)
+      const shared = !!wasOwn && (bookUsage(characters, wasOwn.id).users.length > 0 || now.some((x) => x.id !== rec.id && x.lorebookIds.includes(wasOwn.id)))
+      const reuse = wasOwn && !shared && rec.lorebook ? wasOwn : null
+      const adopted = adoptInlineBook(rec, reuse?.id ?? uid('book'), library.filter((b) => b.id !== reuse?.id).map((b) => b.name))
+      let item = adopted.record
+      if (adopted.book) {
+        try {
+          await storeInlineBook(String(item.ownLorebookId), adopted.book)
+        } catch (e) {
+          toast.error(`${String(item.name)}: ${(e as Error).message ?? 'the book could not be saved'}`)
+          const { ownLorebookId: _own, ...rest } = item
+          item = { ...rest, lorebookIds: Array.isArray(rest.lorebookIds) ? rest.lorebookIds.filter((x) => x !== item.ownLorebookId) : [] }
+        }
+      }
+      const have = new Set(useApp.getState().lorebooks.map((b) => b.id))
       const tags = cleanTags(item.tags)
       setSelectedId(addPersona({ ...item, tags: tags?.length ? tags : undefined } as never))
       added++
+      // a persona that names books the library does not have yet (it came before the book files): say so, not silently
+      const missing = Array.isArray(item.lorebookIds) ? item.lorebookIds.filter((id): id is string => typeof id === 'string' && !have.has(id) && id !== item.ownLorebookId) : []
+      if (missing.length) toast.warning(t('personas.import.missingBooks', { n: missing.length, name: String(item.name), ids: missing.join(', ') }))
     }
     return added
   }
   const switchPersona = (id: string, name: string) => { switchTo(id); toast.success(t('personas.using', { name })) }
-  const downloadBackup = () => { downloadTextFile('personas-backup.json', JSON.stringify(personas, null, 2), 'application/json'); toast.success('Backup downloaded') }
+  const downloadBackup = async () => {
+    const list = await Promise.all(personas.map((x) => personaForExport(x, useApp.getState().loadBook)))
+    downloadTextFile('personas-backup.json', JSON.stringify(list, null, 2), 'application/json')
+    toast.success('Backup downloaded')
+  }
 
   /** Import: our backup shape (array of personas) or the common
    *  { name: description } personas object. */
@@ -227,13 +258,15 @@ export function PersonasView() {
     let added = 0
     await forEachImport(tNow('imp.title.personas'), Array.from(files), (f) => f.name, async (file) => {
       try {
-        const json: unknown = JSON.parse(await file.text())
+        const text = await file.text()
+        const json: unknown = JSON.parse(text)
         if (Array.isArray(json)) {
-          added += addRecords(json.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object'))
+          added += await addRecords(json.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object'))
         } else if (json && typeof json === 'object') {
-          for (const [name, description] of Object.entries(json as Record<string, unknown>)) {
-            setSelectedId(addPersona({ name, description: String(description ?? '') })); added++
-          }
+          // one persona (a name and a description, as another app writes it) or a { name: description } map; any other object is no persona file
+          const parsed = parsePersonaFile(file.name, text)
+          if (parsed.kind !== 'personas' || !parsed.personas) { toast.error(t('personas.import.notPersona', { file: file.name })); return false }
+          added += await addRecords(parsed.personas)
         }
         return true
       } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? 'invalid JSON'}`); return false }
@@ -260,7 +293,7 @@ export function PersonasView() {
     onNewFolder: () => setNaming('folder-move'),
     onTag: (name) => { tagThem([...picked], name); leaveSelect() },
     onNewTag: () => setNaming('tag'),
-    onExport: () => { exportThem([...picked]); leaveSelect() },
+    onExport: () => { void exportThem([...picked]); leaveSelect() },
     onDelete: () => { void removeThem([...picked]).then((done) => { if (done) leaveSelect() }) },
     onCancel: leaveSelect,
   }

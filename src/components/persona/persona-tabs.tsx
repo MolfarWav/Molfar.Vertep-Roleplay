@@ -7,6 +7,10 @@ import { Switch } from '@/components/ui/switch'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import type { useConfirm } from '@/components/ui/confirm'
 import { MemorySection } from '@/components/character/memory-section'
+import { BookLinks } from '@/components/lore/book-links'
+import { useApp } from '@/lib/store'
+import { bookUsage } from '@/lib/lore-usage'
+import { bookPatchOf, bookSetOf } from '@/lib/persona-book'
 import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { PersonaDescriptionField, PersonaProfilePanel, type PersonaProfileState } from '@/components/persona/persona-profile'
 import { useT } from '@/hooks/use-t'
@@ -117,6 +121,24 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** The body of one section; the same on desktop (beside the stat column) and on a phone (a page of its own). */
+/** The Lorebook tab: the books this persona carries (the shared `BookLinks` list, as on a card), not every book of the library. The
+ *  persona's own book travels inside its file; the others are links. */
+function PersonaBooks({ p, update, characters }: { p: Persona; update: (patch: Partial<Persona>) => void; characters: Character[] }) {
+  const t = useT()
+  const personas = useApp((s) => s.personas)
+  return (
+    <BookLinks
+      value={bookSetOf(p)}
+      onChange={(next) => update(bookPatchOf(next))}
+      ownerName={p.name}
+      usedElsewhere={(id) => bookUsage(characters, id).users.length + personas.filter((x) => x.id !== p.id && x.lorebookIds.includes(id)).length}
+      allowOwn
+      testId="persona-books"
+      empty={t('personas.page.booksEmpty')}
+    />
+  )
+}
+
 export function PersonaSectionBody({ section, b }: { section: PersonaSection; b: BodyProps }) {
   const t = useT()
   const { p, update } = b
@@ -173,18 +195,8 @@ export function PersonaSectionBody({ section, b }: { section: PersonaSection; b:
       )
     case 'lorebooks':
       return (
-        <Block title="Bound lorebooks">
-          {b.lorebooks.length === 0 && <p className="text-xs text-muted-foreground">{t('personas.page.noLorebooks')}</p>}
-          {b.lorebooks.map((l) => (
-            <label key={l.id} className="flex min-h-11 items-center gap-2 text-sm">
-              <Switch
-                checked={p.lorebookIds.includes(l.id)}
-                onCheckedChange={(v) => update({ lorebookIds: v ? [...p.lorebookIds, l.id] : p.lorebookIds.filter((x) => x !== l.id) })}
-                aria-label={`Bind ${l.name}`}
-              />
-              {l.name}
-            </label>
-          ))}
+        <Block title={t('personas.sec.lorebooks')}>
+          <PersonaBooks p={p} update={update} characters={b.characters} />
         </Block>
       )
     case 'memory':

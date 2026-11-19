@@ -50,7 +50,7 @@ export function PersonaNewDialog({ open, onOpenChange, startTag, onBlank, onCrea
   /** a persona was made: open its page */
   onCreated: (id: string) => void
   /** persona records from a file, through the existing import; returns how many were added */
-  onImportRecords: (records: Record<string, unknown>[]) => number
+  onImportRecords: (records: Record<string, unknown>[]) => Promise<number>
 }) {
   const t = useT()
   const addPersona = useApp((s) => s.addPersona)
@@ -78,10 +78,10 @@ export function PersonaNewDialog({ open, onOpenChange, startTag, onBlank, onCrea
     setFileName(file.name); setParsed(p); setName(p.name)
   }
 
-  const fromFile = () => {
+  const fromFile = async () => {
     if (!parsed) return
     if (parsed.kind === 'personas' && parsed.personas) {
-      const n = onImportRecords(parsed.personas)
+      const n = await onImportRecords(parsed.personas)
       toast.success(t('personas.new.imported', { n }))
       close()
       return

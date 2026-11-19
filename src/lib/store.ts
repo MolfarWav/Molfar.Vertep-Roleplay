@@ -2283,7 +2283,7 @@ export const useApp = create<AppState>()(
           set((st) => ({ lorebooks: st.lorebooks.filter((b) => b.id !== own) }))
           writeThrough('the lorebook deletion', j(`/lorebooks/${encodeURIComponent(own)}`, { method: 'DELETE' }))
           for (const per of get().personas) {
-            if (per.lorebookIds.includes(own)) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== own) })
+            if (per.lorebookIds.includes(own) || per.ownLorebookId === own) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== own), ...(per.ownLorebookId === own ? { ownLorebookId: null } : {}) })
           }
         }
         bumpMutate()
@@ -2499,7 +2499,7 @@ export const useApp = create<AppState>()(
           }
         }
         for (const per of get().personas) {
-          if (per.lorebookIds.includes(id)) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== id) })
+          if (per.lorebookIds.includes(id) || per.ownLorebookId === id) get().updatePersona(per.id, { lorebookIds: per.lorebookIds.filter((x) => x !== id), ...(per.ownLorebookId === id ? { ownLorebookId: null } : {}) })
         }
       },
 

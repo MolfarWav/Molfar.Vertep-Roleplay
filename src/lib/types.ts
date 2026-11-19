@@ -335,6 +335,8 @@ export interface Persona {
   description: string
   pronouns: string
   lorebookIds: ID[]
+  /** The one of `lorebookIds` that is this persona's own book: it travels inside the persona's file (src/lib/persona-book.ts). */
+  ownLorebookId?: ID | null
   isDefault: boolean
   folderId: ID | null
   binding: 'default' | 'character' | 'chat'

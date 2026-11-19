@@ -1505,4 +1505,6 @@ Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds,
 | `tags` | Names of the persona's tags (strings). A tag marked `asFolder` in the shared tag list (`library.json`, entries with `scope: "persona"`) is also a folder: the persona is in every folder it has a tag for. |
 | `gallery` | `string[]` of stored media urls: portraits generated for the persona. `avatar` is the one in use. |
 | `cardTasks` | `{ model?, maxInput?, maxOutput? }`: the model for this persona's Structure it and Fill empty, same shape as a character's card tasks. |
+| `ownLorebookId` | The one of `lorebookIds` that is the persona's own book, or missing. The id is also in `lorebookIds`, so the prompt engine, which reads `lorebookIds`, is unchanged. Unlinking it clears this field; deleting the book clears it too. |
+| `lorebook` | Only in an exported file (Personas > Export, Backup): the own book inline, in the stored book shape of `lorebooks/<id>.json` without its `id`. Import stores it as a new book (a new id, a name that does not clash: `Name (2)`), sets `ownLorebookId` to it, links it first and removes the old own id from `lorebookIds`. It is never kept in `personas/<id>.json`. A persona can only own one book; every other id in `lorebookIds` is a plain link and travels as an id only. |
 | `folderId` | Not used. |

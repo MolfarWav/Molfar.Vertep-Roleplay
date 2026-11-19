@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { MAX_TEXT_CHARS, baseName, composeBrief, fieldsFor, parsePersonaFile } from "../src/lib/persona-new";
+import { MAX_TEXT_CHARS, baseName, composeBrief, fieldsFor, foreignPersona, parsePersonaFile } from "../src/lib/persona-new";
 
 describe("baseName", () => {
   it("drops the folder and the last extension", () => {
@@ -20,6 +20,17 @@ describe("parsePersonaFile", () => {
     expect(f.kind).toBe("personas");
     expect(f.personas).toEqual([{ name: "Ada", description: "A captain." }]);
     expect(f.name).toBe("Ada");
+  });
+  // Molfar.Vertep#463: one persona from another app carries about thirty fields; it used to become one persona per field
+  it("one persona with fields this app has no place for is one persona, not one per field", () => {
+    const marinara = {
+      id: "p1", name: "Ada", description: "A captain.", personality: "dry", tags: '["sea","captain"]', avatarCrop: '{"x":1}', boxColor: "#112233",
+      dialogueColor: "#ff8800", nameColor: "red", personaStats: '{"hp":1}', trackerCardColors: "{}", savedStatusOptions: "[]", lorebookIds: ["book-1"],
+    };
+    const f = parsePersonaFile("ada.json", JSON.stringify(marinara));
+    expect(f.kind).toBe("personas");
+    expect(f.personas).toEqual([{ name: "Ada", description: "A captain.", tags: ["sea", "captain"], lorebookIds: ["book-1"], dialogueColor: "#ff8800" }]);
+    expect(foreignPersona({ name: " Bo ", description: 5, tags: "not json [", lorebookIds: "x", dialogueColor: "red", pronouns: "she/her" })).toEqual({ name: "Bo", description: "", pronouns: "she/her" });
   });
   it("reads a { name: description } object", () => {
     const f = parsePersonaFile("x.json", JSON.stringify({ Ada: "captain", Bo: "cook" }));
