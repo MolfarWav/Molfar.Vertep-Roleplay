@@ -46,6 +46,30 @@ export function baseName(file: string): string {
 
 const capText = (s: string): { text: string; cut: boolean } => (s.length > MAX_TEXT_CHARS ? { text: s.slice(0, MAX_TEXT_CHARS), cut: true } : { text: s, cut: false })
 
+/** A list of strings from an array, or from a JSON-encoded array (another app stores `tags` as the text "[\"a\",\"b\"]"). */
+function stringList(v: unknown): string[] {
+  let list: unknown = v
+  if (typeof v === 'string' && v.trim().startsWith('[')) {
+    try { list = JSON.parse(v) } catch { list = [] }
+  }
+  return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : []
+}
+
+/** One persona written by another app (a `name` and a `description` among about thirty other fields: colours, stats, crops):
+ *  only what has a place here. A backup of this app's own records is kept whole and does not come through here. */
+export function foreignPersona(json: Record<string, unknown>): Record<string, unknown> {
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const out: Record<string, unknown> = { name: text(json.name), description: typeof json.description === 'string' ? json.description : '' }
+  for (const k of ['title', 'pronouns'] as const) if (text(json[k])) out[k] = text(json[k])
+  const tags = stringList(json.tags)
+  if (tags.length) out.tags = tags
+  const books = stringList(json.lorebookIds)
+  if (books.length) out.lorebookIds = books
+  if (/^#[0-9a-f]{6}$/i.test(text(json.dialogueColor))) out.dialogueColor = text(json.dialogueColor)
+  if (json.profile && typeof json.profile === 'object' && !Array.isArray(json.profile)) out.profile = json.profile
+  return out
+}
+
 /** What a picked file is. Persona-shaped JSON (a backup array, one object with `name` and `description`, a
  *  `{ name: description }` object) is imported as it is; any other JSON is shown as pretty text; text is text. */
 export function parsePersonaFile(file: string, raw: string): ParsedFile {
@@ -60,7 +84,7 @@ export function parsePersonaFile(file: string, raw: string): ParsedFile {
       const personas = json.filter((x): x is Record<string, unknown> => isObj(x) && typeof x.name === 'string' && x.name.trim() !== '')
       if (personas.length > 0 && personas.length === json.length) return { kind: 'personas', name: String(personas[0]?.name ?? fallback), text: '', cut: false, personas }
     } else if (isObj(json)) {
-      if (typeof json.name === 'string' && json.name.trim() && typeof json.description === 'string') return { kind: 'personas', name: json.name.trim(), text: '', cut: false, personas: [json] }
+      if (typeof json.name === 'string' && json.name.trim() && typeof json.description === 'string') return { kind: 'personas', name: json.name.trim(), text: '', cut: false, personas: [foreignPersona(json)] }
       const entries = Object.entries(json)
       if (entries.length > 0 && !('name' in json) && entries.every(([, v]) => typeof v === 'string')) {
         return { kind: 'personas', name: entries[0]?.[0] ?? fallback, text: '', cut: false, personas: entries.map(([name, description]) => ({ name, description })) }

@@ -24,6 +24,7 @@ import { useBackClose } from '@/hooks/use-back-close'
 import { useT } from '@/hooks/use-t'
 import { PersonaPage } from '@/components/persona/persona-page'
 import { PersonaNewDialog } from '@/components/persona/persona-new-dialog'
+import { parsePersonaFile } from '@/lib/persona-new'
 import { PersonaGrid, PersonaRows, type PersonaItem } from '@/components/persona/persona-list'
 import { PersonaPreviewPanel, PersonaPreviewSheet } from '@/components/persona/persona-preview'
 import { ActiveFilters, AllTagsPanel, FolderList, FolderStrip, NameDialog, SelectBar, TagFilterRow, type SelectActions } from '@/components/persona/persona-filters'
@@ -209,11 +210,15 @@ export function PersonasView() {
   /** Persona records (a backup, a file): each one is added, its tags kept clean. Returns how many. */
   const addRecords = (records: Record<string, unknown>[]): number => {
     let added = 0
+    const have = new Set(useApp.getState().lorebooks.map((b) => b.id))
     for (const item of records) {
       if (typeof item.name !== 'string') continue
       const tags = cleanTags(item.tags)
       setSelectedId(addPersona({ ...item, tags: tags?.length ? tags : undefined } as never))
       added++
+      // a persona that names books the library does not have yet (it came before the book files): say so, not silently
+      const missing = Array.isArray(item.lorebookIds) ? item.lorebookIds.filter((id): id is string => typeof id === 'string' && !have.has(id)) : []
+      if (missing.length) toast.warning(t('personas.import.missingBooks', { n: missing.length, name: item.name, ids: missing.join(', ') }))
     }
     return added
   }
@@ -227,13 +232,15 @@ export function PersonasView() {
     let added = 0
     await forEachImport(tNow('imp.title.personas'), Array.from(files), (f) => f.name, async (file) => {
       try {
-        const json: unknown = JSON.parse(await file.text())
+        const text = await file.text()
+        const json: unknown = JSON.parse(text)
         if (Array.isArray(json)) {
           added += addRecords(json.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object'))
         } else if (json && typeof json === 'object') {
-          for (const [name, description] of Object.entries(json as Record<string, unknown>)) {
-            setSelectedId(addPersona({ name, description: String(description ?? '') })); added++
-          }
+          // one persona (a name and a description, as another app writes it) or a { name: description } map; any other object is no persona file
+          const parsed = parsePersonaFile(file.name, text)
+          if (parsed.kind !== 'personas' || !parsed.personas) { toast.error(t('personas.import.notPersona', { file: file.name })); return false }
+          added += addRecords(parsed.personas)
         }
         return true
       } catch (e) { toast.error(`${file.name}: ${(e as Error).message ?? 'invalid JSON'}`); return false }

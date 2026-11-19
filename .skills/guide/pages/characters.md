@@ -19,7 +19,7 @@ A card may play several characters at once (a narrator or game master). Under Co
 
 ## Personas
 
-A persona is you: name, pronouns, description, avatar. The model sees it wherever the prompt speaks of the user. "Use this persona" makes it your default and switches the open chat to it. A persona can carry its own lorebooks and can be locked to chosen characters, so new chats with them start with it.
+A persona is you: name, pronouns, description, avatar. The model sees it wherever the prompt speaks of the user. "Use this persona" makes it your default and switches the open chat to it. A persona can carry its own lorebooks and can be locked to chosen characters, so new chats with them start with it. The Lorebooks tab of a persona lists the books it carries (open one, unlink it, add more from a list you can search, or start a new one); a book the persona names but your library does not have shows as a "Not in your library" row you can remove. Import on the Personas screen takes one persona from another app (a name and a description), a backup of several, or a `{ name: description }` list; a persona that names books you have not imported yet is imported anyway, with a note which ones are missing.
 
 ## Groups
 
