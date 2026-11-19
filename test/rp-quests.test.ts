@@ -353,10 +353,10 @@ describe("what the sensor and the story model read", () => {
 
   it("the previous default sensor prompt still counts as the default", () => {
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-9)!;
+    const before = past.at(-10)!;
     expect(before).toContain("up to the open thread limit given in the input");
     expect(before).not.toContain("Give each new thread a kind");
-    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", past.at(-2)!.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-8));
+    expect(before.replace("- Keep open threads, up to the open thread limit given in the input: unanswered questions or promises that drive the story. A question, greeting or order with nothing at stake is not a thread.", past.at(-3)!.match(/- Keep open threads, up to the open thread limits[\s\S]*?parent set to that main thread's id\. Only main threads have steps\./)![0])).toBe(past.at(-9));
   });
 
   it("proposals ride the state file, not the snapshot, and a rebuilt state starts without them", () => {
@@ -514,11 +514,11 @@ describe("quests close when done, failed or dropped (#400)", () => {
     expect(threads).toContain("A thread tied to one scene ends with that scene.");
     expect(threads).not.toContain("Silence is not resolution");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.at(-2)).toContain("Silence is not resolution: a thread nobody mentioned stays open.");
+    expect(past.at(-3)).toContain("Silence is not resolution: a thread nobody mentioned stays open.");
     // the newest past default is the previous default as a whole, so a saved copy of it follows the update
     // (the clock rules came after it: those lines are left out of both)
     const bare = (text: string) => text.replace(/\nThreads:\n[\s\S]*?\n\nKeep the whole reply compact/, "").replace(/^- (?:minutes|time and day|time|day):.*\n/gm, "");
-    expect(bare(past.at(-2)!)).toBe(bare(P.DEFAULT_PROMPTS.sensor as string));
+    expect(bare(past.at(-3)!)).toBe(bare(P.DEFAULT_PROMPTS.sensor as string));
   });
 
   it("splitDone keeps the goal as the text and the condition apart; a plain text is all goal", () => {
@@ -560,7 +560,7 @@ describe("quests close when done, failed or dropped (#400)", () => {
 
   it("a saved Threads part equal to a past default follows the new default", () => {
     const mock = mockHost();
-    const oldThreads = P.PAST_DEFAULT_PROMPTS.sensor.at(-2).match(/Threads:\n[\s\S]*?(?=\n\nKeep the whole reply compact)/)[0];
+    const oldThreads = P.PAST_DEFAULT_PROMPTS.sensor.at(-3).match(/Threads:\n[\s\S]*?(?=\n\nKeep the whole reply compact)/)[0];
     expect(oldThreads).toContain("Silence is not resolution");
     // as a settings page left open across the update would save it
     fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensorParts: { threads: oldThreads, role: "Blocks." } }));
@@ -569,5 +569,34 @@ describe("quests close when done, failed or dropped (#400)", () => {
     expect(cfg.sensorParts.find((x: any) => x.key === "role")).toMatchObject({ text: "Blocks.", custom: true });
     drive(mock, { method: "PUT", path: "/dashboard/config", body: { sensorParts: { threads: oldThreads } } });
     expect(JSON.parse(fs.readFileSync(path.join(root, "dashboard/config.json"), "utf8")).sensorParts).toEqual({ role: "Blocks." });
+  });
+});
+
+// #461: a character pressed the user's character for "one true thing" every turn. The demand was recorded as a thread and
+// as the character's goal, shown back as "Wants: ..." and "the open threads are there to pull on", and pressed again.
+describe("a demand on the user's character closes once answered (#461)", () => {
+  it("the default says it; the rules before it are the newest past default and a saved copy of them follows the default", () => {
+    const threads = P.DEFAULT_SENSOR_PARTS.threads as string;
+    expect(threads).toContain("or it is a demand on the user's character that they have answered, refused or turned aside once.");
+    expect(threads).toContain("never write it as that character's goal");
+    expect(threads).toContain("never one that nobody asked");
+    const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
+    const before = past.at(-1)!;
+    expect(before).not.toContain("never write it as that character's goal");
+    expect(before).toContain("Every turn, check every open thread");
+    expect(before).toContain("nobody pursues it any more. A thread tied to one scene ends with that scene.");
+    // the same prompt with the two changes taken back is the newest past default
+    const text = P.DEFAULT_PROMPTS.sensor as string;
+    const taken = text
+      .replace("nobody pursues it any more, or it is a demand on the user's character that they have answered, refused or turned aside once.", "or nobody pursues it any more.")
+      .split("\n")
+      .filter((l) => !l.includes("never write it as that character's goal"))
+      .join("\n");
+    expect(taken).toBe(before);
+    const mock = mockHost();
+    fs.writeFileSync(path.join(root, "dashboard/config.json"), JSON.stringify({ autoSoul: false, sensor: before }));
+    const cfg = drive(mock, { method: "GET", path: "/dashboard/config" }).json;
+    expect(cfg.custom).toEqual([]);
+    expect(cfg.sensor).toBe(text);
   });
 });
