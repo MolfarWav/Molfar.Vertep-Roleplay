@@ -50,9 +50,9 @@ describe('place icons: which picture a place gets', () => {
   test('every kind the map can name is one the engine set is made for', () => {
     // the engine's own test lists the same ids against its files; keep the two lists in step
     const ids = [...PLACE_KINDS.map((k) => k.id), FALLBACK_KIND.id].sort()
-    expect(ids.length).toBe(52)
-    expect(new Set(ids).size).toBe(52)
-    for (const id of ids) expect(id).toMatch(/^[a-z]+$/)
+    expect(ids.length).toBe(90)
+    expect(new Set(ids).size).toBe(90)
+    for (const id of ids) expect(id).toMatch(/^[a-z]+(?:-[a-z]+)*$/)
   })
 })
 

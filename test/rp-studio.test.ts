@@ -479,6 +479,13 @@ describe("rp studio engine: chats + swipes", () => {
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 5, y: 400.6 }, n2: { x: "q", y: 1 } }, routes: [{ a: "n2", b: "n1", minutes: 25, via: "  Old  Lane " }, { a: "n1", b: "n2" }, { a: "n1", b: "n1" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "  Home   sweet home ", n2: "", n3: 7 }, icons: { n1: "inn-2", n2: "Bad Key" } } } }, m);
     const mapped = (await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown };
     expect(mapped.placeMap).toEqual({ v: 1, nodes: { n1: { x: 70, y: 401 } }, routes: [{ a: "n1", b: "n2", minutes: 25, via: "Old Lane" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "Home sweet home" }, icons: { n1: "inn-2" } });
+    // a ready map of the engine and the grid are pictures too; a bad key is dropped
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 80, y: 80 } }, picture: { builtin: "default/city-3" } } } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: { picture?: unknown } }).placeMap?.picture).toEqual({ builtin: "default/city-3" });
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 80, y: 80 } }, picture: { none: true } } } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: { picture?: unknown } }).placeMap?.picture).toEqual({ none: true });
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 80, y: 80 } }, picture: { builtin: "../x-1" } } } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: { picture?: unknown } }).placeMap?.picture).toBeUndefined();
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: {}, routes: [] } } }, m);
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown }).placeMap ?? null).toBeNull();
 

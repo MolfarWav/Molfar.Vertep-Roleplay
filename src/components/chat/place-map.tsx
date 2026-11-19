@@ -5,7 +5,9 @@ import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { TONES } from '@/components/ui/tone'
 import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
+import { MapGalleryDialog } from '@/components/chat/map-gallery-dialog'
 import { PlaceIconDialog } from '@/components/chat/place-icon-dialog'
 import { PlaceTravelDialog, type TravelSent } from '@/components/chat/place-travel-dialog'
 import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
@@ -14,6 +16,7 @@ import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
 import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, routeOf, setIcon, setRouteInfo, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
+import { defaultMapKey, hasMap, mapPackUrl, useMapPacks } from '@/lib/map-packs'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
 import { loadLock, saveLock } from '@/lib/place-map-lock'
@@ -259,7 +262,13 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const selectedRecord = selected ? records?.find((r) => r.id === selected.id) ?? null : null
   const parentName = selected?.parentId ? nodes.find((n) => n.id === selected.parentId)?.name ?? null : null
   const thumb = selectedRecord?.background ? backgrounds.find((b) => b.id === selectedRecord.background && b.type === 'image')?.url ?? null : null
-  const pictureUrl = data?.picture?.id ? `/v1/assets/${data.picture.id}` : null
+  // the picture under the places: the player's own, a ready map they chose, none (the grid), or by default a ready map that suits the places
+  const packs = useMapPacks()
+  const chosen = data?.picture ?? null
+  const autoKey = !chosen && records ? defaultMapKey(records, chat.id, packs) : null
+  const pictureKey = chosen && 'builtin' in chosen ? chosen.builtin : autoKey
+  const pictureUrl = chosen && 'id' in chosen ? `/v1/assets/${chosen.id}` : chosen && 'none' in chosen ? null : pictureKey && hasMap(pictureKey, packs) ? mapPackUrl(pictureKey) : null
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   const baseData = () => withPositions(data, layout?.added ?? {})
   const onMoved = (id: string, to: { x: number; y: number }) => {
@@ -277,7 +286,9 @@ export function PlaceMap({ chat }: { chat: Chat }) {
       toast.error(t('placeMap.uploadFail', { message: e instanceof Error ? e.message : String(e) }))
     }
   }
-  const removePicture = () => updateChat(chat.id, { placeMap: { ...(data ?? emptyMap()), picture: null } })
+  const removePicture = () => updateChat(chat.id, { placeMap: { ...baseData(), picture: { none: true } } })
+  const autoPicture = () => { const { picture: _p, ...rest } = baseData(); updateChat(chat.id, { placeMap: rest }) }
+  const pickReady = (key: string) => updateChat(chat.id, { placeMap: { ...baseData(), picture: { builtin: key } } })
   const resetLayout = async () => {
     if (!(await confirm({ title: t('placeMap.resetTitle'), description: t('placeMap.resetBody'), actionLabel: t('placeMap.resetGo'), destructive: false }))) return
     updateChat(chat.id, { placeMap: { ...(data ?? emptyMap()), nodes: {} } })
@@ -356,7 +367,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
             title={pinned ? t('placeMap.unlockHint') : t('placeMap.lockHint')}
             data-testid="place-map-lock"
           >
-            {pinned ? <LockSimple className="size-4" weight="fill" aria-hidden="true" /> : <LockSimpleOpen className="size-4" aria-hidden="true" />}
+            {pinned ? <LockSimple className={cn('size-4', TONES.amber.ink)} weight="fill" aria-hidden="true" /> : <LockSimpleOpen className="size-4" aria-hidden="true" />}
           </Button>
           <Popover>
             <PopoverTrigger
@@ -377,18 +388,30 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f) }}
               />
               <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => fileRef.current?.click()}>
-                <UploadSimple className="size-4" aria-hidden="true" />
+                <UploadSimple className={cn('size-4', TONES.sky.ink)} aria-hidden="true" />
                 {t('placeMap.uploadPicture')}
               </Button>
+              {packs && packs.length > 0 && (
+                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => setGalleryOpen(true)} data-testid="place-map-gallery">
+                  <MapTrifold className={cn('size-4', TONES.teal.ink)} weight="duotone" aria-hidden="true" />
+                  {t('placeMap.readyMaps')}
+                </Button>
+              )}
+              {chosen && 'none' in chosen && packs && packs.length > 0 && (
+                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={autoPicture} data-testid="place-map-auto-picture">
+                  <ArrowCounterClockwise className={cn('size-4', TONES.sky.ink)} aria-hidden="true" />
+                  {t('placeMap.autoPicture')}
+                </Button>
+              )}
               {pictureUrl && (
-                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={removePicture}>
-                  <Trash className="size-4" aria-hidden="true" />
+                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={removePicture} data-testid="place-map-no-picture">
+                  <Trash className={cn('size-4', TONES.orange.ink)} aria-hidden="true" />
                   {t('placeMap.removePicture')}
                 </Button>
               )}
               <p className="text-xs text-muted-foreground">{t('placeMap.pictureHint')}</p>
               <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => void resetLayout()}>
-                <ArrowCounterClockwise className="size-4" aria-hidden="true" />
+                <ArrowCounterClockwise className={cn('size-4', TONES.amber.ink)} aria-hidden="true" />
                 {t('placeMap.reset')}
               </Button>
             </PopoverContent>
@@ -466,7 +489,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
             </div>
             {draft === null && !selected.here && (
               <Button variant="secondary" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
-                <NavigationArrow className="size-4" aria-hidden="true" />
+                <NavigationArrow className={cn('size-4', TONES.sky.ink)} weight="fill" aria-hidden="true" />
               </Button>
             )}
             {draft === null && (
@@ -477,17 +500,17 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 <PopoverContent align="end" className="flex w-64 flex-col gap-0.5 p-1">
                   {selectedRecord && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setDraft(selected.name) }} data-testid="place-map-rename">
-                      <PencilSimple className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.rename')}
+                      <PencilSimple className={cn('size-4 shrink-0', TONES.emerald.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.rename')}
                     </Button>
                   )}
                   {Object.keys(iconIndex ?? {}).length > 0 && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setIconOpen(true) }} data-testid="place-map-icon">
-                      <ImageSquare className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.icon')}
+                      <ImageSquare className={cn('size-4 shrink-0', TONES.violet.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.icon')}
                     </Button>
                   )}
                   {!selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setConnectFrom(selected.id) }} data-testid="place-map-connect">
-                      <Path className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.connect')}
+                      <Path className={cn('size-4 shrink-0', TONES.teal.ink)} weight="bold" aria-hidden="true" />{t('placeMap.connect')}
                     </Button>
                   )}
                 </PopoverContent>
@@ -549,6 +572,9 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </span>
         </div>
       </div>
+      {galleryOpen && packs && (
+        <MapGalleryDialog packs={packs} current={pictureKey && hasMap(pictureKey, packs) && !(chosen && ('id' in chosen || 'none' in chosen)) ? pictureKey : null} open={galleryOpen} onOpenChange={setGalleryOpen} onPick={pickReady} />
+      )}
       {selected && iconOpen && iconIndex && (
         <PlaceIconDialog
           key={selected.id}

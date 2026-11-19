@@ -3542,7 +3542,11 @@ function cleanPlaceMapMeta(v) {
       if (out.routes.length >= 400) break;
     }
   }
-  if (v.picture && typeof v.picture === "object" && typeof v.picture.id === "string" && v.picture.id && v.picture.id.length <= 200) out.picture = { id: v.picture.id };
+  if (v.picture && typeof v.picture === "object") {
+    if (typeof v.picture.id === "string" && v.picture.id && v.picture.id.length <= 200) out.picture = { id: v.picture.id };
+    else if (typeof v.picture.builtin === "string" && /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(v.picture.builtin)) out.picture = { builtin: v.picture.builtin };
+    else if (v.picture.none === true) out.picture = { none: true };
+  }
   if (str(v.at)) out.at = v.at;
   if (v.labels && typeof v.labels === "object" && !Array.isArray(v.labels)) {
     const labels = {};

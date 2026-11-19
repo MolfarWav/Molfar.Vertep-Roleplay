@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { TONES } from '@/components/ui/tone'
+import { cn } from '@/lib/utils'
 import { ToggleChip } from '@/components/ui/toggle-chip'
 import { useT } from '@/hooks/use-t'
 import { routeOf, setRouteInfo, type MapNode, type PlaceMapData } from '@/lib/place-map'
@@ -141,7 +143,7 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
                 className="max-md:min-h-10"
                 data-testid="place-travel-ask"
               >
-                <Sparkle className="size-4" aria-hidden="true" />{asking ? t('placeMap.travelAsking') : t('placeMap.travelAsk')}
+                <Sparkle className={cn('size-4', TONES.violet.ink)} weight="fill" aria-hidden="true" />{asking ? t('placeMap.travelAsking') : t('placeMap.travelAsk')}
               </Button>
               <Input
                 className="min-w-0 basis-full"
@@ -199,7 +201,7 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('placeMap.travelCancel')}</Button>
           <Button onClick={go} disabled={!valid} data-testid="place-travel-go">
-            <NavigationArrow className="size-4" aria-hidden="true" />{t('placeMap.travelGo')}
+            <NavigationArrow className="size-4" weight="fill" aria-hidden="true" />{t('placeMap.travelGo')}
           </Button>
         </DialogFooter>
       </DialogContent>

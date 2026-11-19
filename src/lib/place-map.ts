@@ -22,12 +22,18 @@ export interface MapPos { x: number; y: number }
 /** A road: the two whole places it joins (`a` sorts first) and, once the player has set them, the walking time and the road's own name. */
 export interface MapRoute { a: string; b: string; minutes?: number; via?: string }
 
+/** The picture under the places: one of the player's own (an asset), a ready map of the engine (`<pack>/<map id>`), or none (the dotted grid). Nothing chosen = the app picks a ready map by what the places are. */
+export type MapPicture = { id: string } | { builtin: string } | { none: true }
+
+/** `<pack>/<map id>` as a chat keeps a ready map. */
+const BUILTIN_RE = /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/
+
 /** What a chat keeps. `at` is the whole place the tracker saw the story in last (routes start there). */
 export interface PlaceMapData {
   v: 1
   nodes: Record<string, MapPos>
   routes: MapRoute[]
-  picture?: { id: string } | null
+  picture?: MapPicture | null
   at?: string
   /** names the player gave places on the map only, by place record id; the World book, the Dashboard and the story keep the record's own name */
   labels?: Record<string, string>
@@ -85,9 +91,11 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
       if (out.routes.length >= MAX_ROUTES) break
     }
   }
-  const pic = raw.picture
-  if (pic && typeof pic === 'object' && typeof (pic as { id?: unknown }).id === 'string' && (pic as { id: string }).id && (pic as { id: string }).id.length <= 200) {
-    out.picture = { id: (pic as { id: string }).id }
+  const pic = raw.picture as { id?: unknown; builtin?: unknown; none?: unknown } | null | undefined
+  if (pic && typeof pic === 'object') {
+    if (typeof pic.id === 'string' && pic.id && pic.id.length <= 200) out.picture = { id: pic.id }
+    else if (typeof pic.builtin === 'string' && BUILTIN_RE.test(pic.builtin)) out.picture = { builtin: pic.builtin }
+    else if (pic.none === true) out.picture = { none: true }
   }
   if (typeof raw.at === 'string' && raw.at && raw.at.length <= 80) out.at = raw.at
   if (raw.labels && typeof raw.labels === 'object' && !Array.isArray(raw.labels)) {

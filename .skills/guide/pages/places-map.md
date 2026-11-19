@@ -13,7 +13,7 @@ On a phone the open map is a panel standing on the message box. While it is open
 ## What is on it
 
 - **A dotted board.** Drag the empty board to pan, pinch or use the wheel to zoom, **+**, **−** and the corners button (Show all places) in the header. Places keep their size on the screen; far out they shrink and lose their names, except the one you are in and the one you picked.
-- **A place** is a small painted picture with its name under it. The three dots on its card ("More for this place") open a menu with "Change the icon of this place", which changes it by hand: the dialog offers "Automatic" (the one the name says) and every kind of the icon set with all its pictures; pick one and it stays on this place. Automatic takes the pick off. The picks belong to the chat. The picture comes from the place's name (a tavern, a forge, a forest, a kitchen...); a place whose name says nothing gets a brass pin. Each kind has four pictures and a place keeps the one it got, so two taverns can look different. If the engine is older and has no pictures, a round emoji stands in their place. The place the story is in now has a ring and a dot. A place the story has never visited is a little dimmer.
+- **A place** is a small painted picture with its name under it. The three dots on its card ("More for this place") open a menu with "Change the icon of this place", which changes it by hand: the dialog offers "Automatic" (the one the name says) and every kind of the icon set with all its pictures; pick one and it stays on this place. Automatic takes the pick off. The picks belong to the chat. The picture comes from the place's name (a tavern, a forge, a forest, a kitchen...); a place whose name says nothing gets a brass pin. Each kind has several pictures (usually four) and a place keeps the one it got, so two taverns can look different. There are fantasy kinds (a tavern, a forge, a castle, a cave...) and the modern city's (a hospital, a police station, a cafe, a skyscraper, a metro entrance, a gas station, a post office, a cinema, a karaoke bar, an arcade and more). If the engine is older and has no pictures, a round emoji stands in their place. The place the story is in now has a ring and a dot. A place the story has never visited is a little dimmer.
 - **Rooms and corners** of a place (the World DM's "spots") are smaller and stand around the place they are inside, with a thin line to it. Drag a place and its rooms go with it; drag a room and only the room moves.
 - **Roads** are dashed lines between two places the story moved between. A road appears by itself the first time the story goes from one place to another; moving between rooms of one place is not a journey. Roads of the place you pick are drawn stronger.
   The map learns where the story is from the Dashboard's place line, matched by name to a place of the World book. When that line names somewhere that is not in the book, a line under the header says so ("The story is at ... which is not one of the places"), no place is marked as yours and no road is drawn until the story reaches a place the book has. Add the place in the World section (or give an existing one the name the story uses there). A road is only drawn for moves the map saw: it does not read back the story's past.
@@ -29,7 +29,7 @@ New places are placed by the app, not by a model: the first in the middle, the n
 
 The gear in the header opens:
 
-- **Upload a map picture.** A map you made or drew elsewhere goes under the places and is fitted into the board, aspect kept. **Remove the map picture** takes it away and keeps where the places stand. Then drag the places onto your picture.
+- **The picture under the places** (see "Ready maps" below): upload your own, choose a ready map, or switch to the dotted grid. Changing it keeps where the places stand; then drag the places onto it.
 - **Arrange the places again** puts every place back to the automatic layout (it asks first). The roads stay.
 
 ## Travel by a tap
@@ -45,6 +45,17 @@ Pick a place the story is not in and press the arrow on its card (next to the th
 **Go** sends your move with a hidden instruction for that one reply: where from, where to, how, about how long, to tell the way in a few lines and then the arrival, and to show the new time of day. It costs the reply and nothing more. The Dashboard clock is not moved by the map: it follows the reply, as it does after Skip time, so a swiped reply takes the time back with it. The instruction shows as a chip on your message. On a phone the map folds after Go so you can read the reply.
 
 When the map does not know where the story is (the line under the header says so), the trip has no road and no time: the move and the arrival only. A room of the place the story is in is a move within it, also without time.
+
+## Ready maps and the picture under the places
+
+A map with nothing chosen is not bare: the app shows a ready, painted plan that suits the places (a house plan for rooms, caves for cellars and dungeons, a coast for the sea, a walled town or a village for streets and shops, the wilds for woods and rivers, a region otherwise; a modern plan, such as a downtown, a suburb, an industrial district, an airport or a campus, when the places are a modern city's: a hospital, a police station, a cinema, a bank...). The plan is picked by code from the names, the same one every time for a chat, and costs nothing.
+
+The gear menu has the rest:
+- **Choose a ready map** opens the gallery of the engine's packs by kind (Region, Wilderness, Coast, Walled town, Village, Harbour town, House plan, Caves; Downtown, Suburb, Industrial district, Campus, Waterfront, Old town, Airport, Metropolis, City park, Small town), four maps each. Pick one and it stays on this chat.
+- **Upload a map picture** puts your own under the places, fitted into the board with its aspect kept.
+- **No picture (the dotted grid)** takes the picture away; the menu then offers **Use the automatic map again**.
+
+Moving the places or changing the picture never moves one into the other: the places keep where you put them.
 
 ## What it does not do
 
