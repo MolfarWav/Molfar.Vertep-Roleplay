@@ -3542,7 +3542,17 @@ function cleanPlaceMapMeta(v) {
   }
   if (v.picture && typeof v.picture === "object" && typeof v.picture.id === "string" && v.picture.id && v.picture.id.length <= 200) out.picture = { id: v.picture.id };
   if (str(v.at)) out.at = v.at;
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at ? out : null;
+  if (v.labels && typeof v.labels === "object" && !Array.isArray(v.labels)) {
+    const labels = {};
+    for (const [id, l] of Object.entries(v.labels)) {
+      const label = typeof l === "string" ? l.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+      if (!str(id) || !label) continue;
+      labels[id] = label;
+      if (Object.keys(labels).length >= 200) break;
+    }
+    if (Object.keys(labels).length) out.labels = labels;
+  }
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels ? out : null;
 }
 
 function cleanTurns(t) {

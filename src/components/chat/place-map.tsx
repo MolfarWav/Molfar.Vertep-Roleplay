@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, CornersOut, GearSix, MapTrifold, Minus, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -10,10 +10,11 @@ import { limitArea, stageArea, useComposer } from '@/components/chat/expression-
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { emptyMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { cleanLabel, emptyMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
+import { loadLock, saveLock } from '@/lib/place-map-lock'
 import { useApp } from '@/lib/store'
 import type { Chat } from '@/lib/types'
 import { loadWorld, loadWorldHere, peekWorld, useWorldLive, type WorldRecord } from '@/lib/world'
@@ -79,14 +80,15 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   }, [chat.id, wanted, lastRunAt, retry])
 
   // where the story is now: after each Dashboard reading and each reply
-  const [here, setHere] = useState<{ chatId: string; id: string | null } | null>(null)
+  const [here, setHere] = useState<{ chatId: string; id: string | null; scene: string } | null>(null)
   const hereId = here?.chatId === chat.id ? here.id : null
+  const sceneText = here?.chatId === chat.id ? here.scene : ''
   const sceneKey = `${dash?.view?.key ?? ''}|${dash?.view?.clock?.place ?? ''}`
   const messageCount = chat.messages?.length ?? 0
   useEffect(() => {
     if (!wanted || !records) return
     let live = true
-    loadWorldHere(chat.id).then((h) => { if (live) setHere({ chatId: chat.id, id: h?.place?.id ?? null }) }).catch(() => {})
+    loadWorldHere(chat.id).then((h) => { if (live) setHere({ chatId: chat.id, id: h?.place?.id ?? null, scene: h?.scenePlace ?? '' }) }).catch(() => {})
     return () => { live = false }
   }, [chat.id, wanted, records, sceneKey, messageCount])
 
@@ -180,7 +182,28 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const iconIndex = usePlaceIconIndex()
   useEffect(() => { setSelectedId(null) }, [chat.id])
-
+  // the lock: places stay where they are; kept per chat in this browser
+  const [pinned, setPinned] = useState(() => loadLock(chat.id, storage()))
+  useEffect(() => { setPinned(loadLock(chat.id, storage())) }, [chat.id])
+  const toggleLock = () => {
+    const next = !pinned
+    setPinned(next)
+    saveLock(chat.id, next, storage())
+  }
+  // renaming a place on the map: a label kept in the chat. The World record keeps its own name (the book, the Dashboard and
+  // travel by a tap all go by the record), and an empty label puts the book's name back
+  const [draft, setDraft] = useState<string | null>(null)
+  useEffect(() => { setDraft(null) }, [selectedId, chat.id])
+  const saveName = () => {
+    const rec = records?.find((x) => x.id === selectedId)
+    const label = cleanLabel(draft)
+    setDraft(null)
+    if (!rec) return
+    const labels = { ...(data?.labels ?? {}) }
+    if (!label || label === rec.name) delete labels[rec.id]
+    else labels[rec.id] = label
+    updateChat(chat.id, { placeMap: { ...withPositions(data, layout?.added ?? {}), labels } })
+  }
   const nodes = layout?.nodes ?? []
   const selected = nodes.find((n) => n.id === selectedId) ?? null
   const selectedRecord = selected ? records?.find((r) => r.id === selected.id) ?? null : null
@@ -240,7 +263,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   }
 
   const ctl = 'size-8 max-md:size-10 shrink-0'
-  const kind = selected ? placeKind(selected.name) : null
+  const kind = selected ? placeKind(...selected.names) : null
   const selectedIcon = kind && selected ? placeIconPath(kind.id, selected.id, iconIndex) : null
   return (
     <>
@@ -272,6 +295,18 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </Button>
           <Button variant="ghost" size="icon" className={ctl} onClick={() => boardRef.current?.fit()} aria-label={t('placeMap.fit')} title={t('placeMap.fit')}>
             <CornersOut className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant={pinned ? 'secondary' : 'ghost'}
+            size="icon"
+            className={ctl}
+            onClick={toggleLock}
+            aria-pressed={pinned}
+            aria-label={pinned ? t('placeMap.unlock') : t('placeMap.lock')}
+            title={pinned ? t('placeMap.unlockHint') : t('placeMap.lockHint')}
+            data-testid="place-map-lock"
+          >
+            {pinned ? <LockSimple className="size-4" weight="fill" aria-hidden="true" /> : <LockSimpleOpen className="size-4" aria-hidden="true" />}
           </Button>
           <Popover>
             <PopoverTrigger
@@ -317,6 +352,12 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.dmOff')}>{t('placeMap.dmOff')}</p>
         )}
 
+        {!hereId && sceneText && (
+          <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.sceneUnknown', { name: sceneText })} data-testid="place-map-scene">
+            {t('placeMap.sceneUnknown', { name: sceneText })}
+          </p>
+        )}
+
         {selected && (
           // over the bottom of the board, so the board keeps its room
           <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-2 rounded-md border border-border bg-card/95 py-1 pl-2 pr-1 shadow-md max-md:bottom-3" style={{ marginRight: 32 }} data-testid="place-map-card">
@@ -328,15 +369,40 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               </span>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{selected.name}</p>
+              {draft !== null ? (
+                <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); saveName() }}>
+                  <input
+                    autoFocus
+                    value={draft}
+                    maxLength={80}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setDraft(null) } }}
+                    className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm max-md:h-10 max-md:text-base"
+                    aria-label={t('placeMap.renameLabel')}
+                    placeholder={selected.bookName}
+                    data-testid="place-map-rename-input"
+                  />
+                  <Button type="submit" variant="ghost" size="icon" className={ctl} aria-label={t('placeMap.renameSave')} title={t('placeMap.renameSave')} data-testid="place-map-rename-save">
+                    <Check className="size-4" aria-hidden="true" />
+                  </Button>
+                </form>
+              ) : (
+                <p className="line-clamp-3 break-words text-sm font-medium" title={selected.name} data-testid="place-map-card-name">{selected.name}</p>
+              )}
               <p className="truncate text-xs text-muted-foreground">
                 {[
                   selected.here ? t('placeMap.here') : null,
+                  selected.bookName !== selected.name ? t('placeMap.bookName', { name: selected.bookName }) : null,
                   parentName ? t('placeMap.inside', { name: parentName }) : null,
                   selected.visits > 0 ? t('placeMap.visits', { n: selected.visits }) : t('placeMap.neverVisited'),
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
+            {draft === null && selectedRecord && (
+              <Button variant="ghost" size="icon" className={ctl} onClick={() => setDraft(selected.name)} aria-label={t('placeMap.rename')} title={t('placeMap.rename')} data-testid="place-map-rename">
+                <PencilSimple className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className={ctl} onClick={() => setSelectedId(null)} aria-label={t('placeMap.close')} title={t('placeMap.close')}>
               <X className="size-4" aria-hidden="true" />
             </Button>
@@ -372,6 +438,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               onMoved={onMoved}
               label={t('placeMap.board')}
               hereLabel={t('placeMap.here')}
+              locked={pinned}
             />
           )}
           <span

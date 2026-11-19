@@ -16,11 +16,15 @@ On a phone the open map is a panel standing on the message box. While it is open
 - **A place** is a small painted picture with its name under it. The picture comes from the place's name (a tavern, a forge, a forest, a kitchen...); a place whose name says nothing gets a brass pin. Each kind has four pictures and a place keeps the one it got, so two taverns can look different. If the engine is older and has no pictures, a round emoji stands in their place. The place the story is in now has a ring and a dot. A place the story has never visited is a little dimmer.
 - **Rooms and corners** of a place (the World DM's "spots") are smaller and stand around the place they are inside, with a thin line to it. Drag a place and its rooms go with it; drag a room and only the room moves.
 - **Roads** are dashed lines between two places the story moved between. A road appears by itself the first time the story goes from one place to another; moving between rooms of one place is not a journey. Roads of the place you pick are drawn stronger.
-- **Tap a place** to see its card at the bottom: the name, "You are here", what it is inside, how many times the story visited it, and the picture bound to it in the World section when there is one.
+  The map learns where the story is from the Dashboard's place line, matched by name to a place of the World book. When that line names somewhere that is not in the book, a line under the header says so ("The story is at ... which is not one of the places"), no place is marked as yours and no road is drawn until the story reaches a place the book has. Add the place in the World section (or give an existing one the name the story uses there). A road is only drawn for moves the map saw: it does not read back the story's past.
+- **Tap a place** to see its card at the bottom: the full name (the name under the icon is cut short, the card is not, and holding the pointer over a name shows it whole), "You are here", what it is inside, how many times the story visited it, and the picture bound to it in the World section when there is one.
+- **Rename a place on the map** with the pencil on its card. It changes only what the map shows: the World book, the Dashboard and the story keep the place's own name, so nothing that goes by the place (its rooms, its roads, later travel by a tap) is affected. The card then also says "In the book: ...". Save an empty name to put the book's name back. The icon's kind is read from both names.
 
 ## Where the places stand
 
 New places are placed by the app, not by a model: the first in the middle, the next ones next to the place the story came from, rooms around their place. Drag any place where you want it; the app never moves a place you placed. The positions, the roads and the map picture belong to the chat, not to the browser.
+
+- **The lock** (the padlock in the header) keeps the places where they are: a drag that starts on a place moves the map instead, a tap still picks the place. It is made for a phone, where a finger panning the map keeps pushing icons about. It is kept per chat in this browser, so a phone can be locked while the desktop is not.
 
 The gear in the header opens:
 

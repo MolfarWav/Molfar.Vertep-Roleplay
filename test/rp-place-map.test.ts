@@ -162,3 +162,35 @@ describe("stepRoute", () => {
     expect(visibleRoutes(d, nodes)).toEqual([{ a: "a", b: "b" }]);
   });
 });
+
+describe("map labels (a place renamed on the map only)", () => {
+  it("are kept clean: squeezed, 80 characters, never empty, never for a nameless id", () => {
+    const out = cleanPlaceMap({ v: 1, labels: { n1: "  The   Rusty \n Mug ", n2: "", n3: 5, "": "x", n4: "y".repeat(200) } });
+    expect(out?.labels).toEqual({ n1: "The Rusty Mug", n4: "y".repeat(80) });
+    expect(cleanPlaceMap({ v: 1, labels: {} })).toBeNull();
+    expect(cleanPlaceMap({ v: 1, labels: [1, 2] })).toBeNull();
+  });
+
+  it("show on the node, the record keeps its own name, and the kind is read from both", async () => {
+    const { placeKind } = await import("../src/lib/place-kinds");
+    const tavern = place("Таверна «Іржавий кухоль»");
+    const plain = place("Old Forge");
+    const { nodes } = layoutMap([tavern, plain], { v: 1, nodes: {}, routes: [], labels: { [tavern.id]: "The Rusty Mug" } }, null);
+    expect(nodes[0]).toMatchObject({ id: tavern.id, name: "The Rusty Mug", bookName: "Таверна «Іржавий кухоль»" });
+    expect(nodes[0].names).toEqual(["The Rusty Mug", "Таверна «Іржавий кухоль»"]);
+    expect(placeKind(...nodes[0].names).id).toBe("tavern");
+    expect(nodes[1]).toMatchObject({ name: "Old Forge", bookName: "Old Forge" });
+  });
+
+  it("survive a drag, a new position, a road and a reset of the layout", () => {
+    const a = place("A");
+    const b = place("B");
+    const data = { v: 1 as const, nodes: {}, routes: [], labels: { [a.id]: "Home" } };
+    const laid = layoutMap([a, b], data, a.id);
+    const moved = moveNode(withPositions(data, laid.added), a.id, { x: 300, y: 300 }, []);
+    expect(moved.labels).toEqual({ [a.id]: "Home" });
+    const stepped = stepRoute(stepRoute(moved, [a, b], a.id), [a, b], b.id);
+    expect(stepped?.labels).toEqual({ [a.id]: "Home" });
+    expect(stepped?.routes.length).toBe(1);
+  });
+});

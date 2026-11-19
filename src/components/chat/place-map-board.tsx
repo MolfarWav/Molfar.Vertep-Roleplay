@@ -19,7 +19,7 @@ export interface PlaceMapBoardHandle {
 interface View { x: number; y: number; k: number }
 
 type Gesture =
-  | { type: 'pan'; sx: number; sy: number; vx: number; vy: number; moved: boolean }
+  | { type: 'pan'; sx: number; sy: number; vx: number; vy: number; moved: boolean; tapId?: string }
   | { type: 'node'; id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean }
   | { type: 'pinch'; d0: number; k0: number; px: number; py: number }
 
@@ -43,7 +43,9 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
   label: string
   /** a name for "you are here" on the current place's mark */
   hereLabel: string
-}>(function PlaceMapBoard({ nodes, routes, pictureUrl, selectedId, onSelect, onMoved, label, hereLabel }, ref) {
+  /** places do not move by a drag (a drag from one moves the map); a tap still picks one */
+  locked?: boolean
+}>(function PlaceMapBoard({ nodes, routes, pictureUrl, selectedId, onSelect, onMoved, label, hereLabel, locked = false }, ref) {
   const stageRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 0.5 })
   const viewRef = useRef(view)
@@ -55,6 +57,8 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
   const gesture = useRef<Gesture | null>(null)
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
+  const lockedRef = useRef(locked)
+  lockedRef.current = locked
   const [imgBroken, setImgBroken] = useState<string | null>(null)
 
   const fit = useCallback(() => {
@@ -151,6 +155,11 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
     if (nodeEl) {
       const id = nodeEl.dataset.node!
       const n = nodesRef.current.find((x) => x.id === id)
+      // locked: a drag from a place moves the map, a tap still picks the place
+      if (n && lockedRef.current) {
+        gesture.current = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: viewRef.current.x, vy: viewRef.current.y, moved: false, tapId: id }
+        return
+      }
       if (n) {
         const p = toBoard(e.clientX, e.clientY)
         gesture.current = { type: 'node', id, sx: e.clientX, sy: e.clientY, ox: p.x - n.x, oy: p.y - n.y, moved: false }
@@ -198,7 +207,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
       setLive(null)
       return
     }
-    if (!g.moved && e.type !== 'pointercancel') onSelect(null)
+    if (!g.moved && e.type !== 'pointercancel') onSelect(g.tapId ?? null)
   }
 
   // while a place is dragged its spots go along on the screen; they are saved with it
@@ -275,7 +284,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
           })}
         </svg>
         {shown.map((n) => {
-          const kind = placeKind(n.name)
+          const kind = placeKind(...n.names)
           const iconPath = placeIconPath(kind.id, n.id, iconIndex)
           const icon = iconPath && !badIcons.has(iconPath) ? iconPath : null
           const size = icon ? (n.spot ? 42 : 60) : n.spot ? 32 : 44
@@ -289,7 +298,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
                 aria-pressed={selected}
                 aria-label={n.here ? `${n.name} (${hereLabel})` : n.name}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(n.id) } }}
-                className={cn('absolute flex cursor-grab flex-col items-center active:cursor-grabbing', live?.id === n.id && 'z-10')}
+                className={cn('absolute flex flex-col items-center', locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing', (live?.id === n.id || selected) && 'z-10')}
                 style={{ transform: `translate(-50%, -${size / 2}px) scale(${inv})`, transformOrigin: `50% ${size / 2}px`, opacity: n.visits === 0 && !n.here && !selected ? 0.72 : 1 }}
               >
                 {icon ? (
@@ -328,7 +337,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
                   </span>
                 )}
                 {!many || selected || n.here ? (
-                  <span className="mt-0.5 line-clamp-2 w-[92px] break-words rounded bg-background/75 px-1 text-center text-[11px] leading-tight text-foreground">{n.name}</span>
+                  <span title={n.name} className={cn('mt-0.5 break-words rounded bg-background/75 px-1 text-center text-[11px] leading-tight text-foreground', selected ? 'w-[150px]' : 'line-clamp-2 w-[92px]')}>{n.name}</span>
                 ) : null}
               </div>
             </div>

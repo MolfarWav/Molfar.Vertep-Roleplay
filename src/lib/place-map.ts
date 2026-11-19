@@ -28,9 +28,18 @@ export interface PlaceMapData {
   routes: MapRoute[]
   picture?: { id: string } | null
   at?: string
+  /** names the player gave places on the map only, by place record id; the World book, the Dashboard and the story keep the record's own name */
+  labels?: Record<string, string>
 }
 
 export const emptyMap = (): PlaceMapData => ({ v: 1, nodes: {}, routes: [] })
+
+/** A map label as it is kept: spaces squeezed, 1 to 80 characters, or null. */
+export const cleanLabel = (s: unknown): string | null => {
+  if (typeof s !== 'string') return null
+  const t = s.replace(/\s+/g, ' ').trim().slice(0, 80)
+  return t || null
+}
 
 const clampPos = (p: MapPos): MapPos => ({
   x: Math.round(Math.min(BOARD_W - MARGIN, Math.max(MARGIN, p.x))),
@@ -71,12 +80,27 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
     out.picture = { id: (pic as { id: string }).id }
   }
   if (typeof raw.at === 'string' && raw.at && raw.at.length <= 80) out.at = raw.at
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at ? out : null
+  if (raw.labels && typeof raw.labels === 'object' && !Array.isArray(raw.labels)) {
+    const labels: Record<string, string> = {}
+    for (const [id, l] of Object.entries(raw.labels as Record<string, unknown>)) {
+      const label = cleanLabel(l)
+      if (!id || id.length > 80 || !label) continue
+      labels[id] = label
+      if (Object.keys(labels).length >= MAX_NODES) break
+    }
+    if (Object.keys(labels).length) out.labels = labels
+  }
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels ? out : null
 }
 
 export interface MapNode {
   id: string
+  /** what the map shows: the player's label when there is one, else the record's name */
   name: string
+  /** the World record's own name (what the book, the Dashboard and the story call it) */
+  bookName: string
+  /** the label, the record's name and its aliases: the icon's kind is read from all of them */
+  names: string[]
   spot: boolean
   /** the whole place a spot belongs to */
   parentId: string | null
@@ -171,7 +195,8 @@ export function layoutMap(records: WorldRecord[], data: PlaceMapData | null, her
   }
   const nodes: MapNode[] = places.map((r) => {
     const p = pos.get(r.id) ?? { x: BOARD_W / 2, y: BOARD_H / 2 }
-    return { id: r.id, name: r.name, spot: parentOf.has(r.id), parentId: parentOf.get(r.id) ?? null, here: r.id === hereId, visits: r.visits ?? 0, x: p.x, y: p.y }
+    const label = cleanLabel(data?.labels?.[r.id])
+    return { id: r.id, name: label ?? r.name, bookName: r.name, names: [...(label ? [label] : []), r.name, ...(r.aliases ?? [])], spot: parentOf.has(r.id), parentId: parentOf.get(r.id) ?? null, here: r.id === hereId, visits: r.visits ?? 0, x: p.x, y: p.y }
   })
   return { nodes, added }
 }
