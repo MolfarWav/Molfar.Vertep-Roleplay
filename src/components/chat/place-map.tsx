@@ -12,6 +12,7 @@ import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
 import { emptyMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
+import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
 import { useApp } from '@/lib/store'
 import type { Chat } from '@/lib/types'
@@ -177,6 +178,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const boardRef = useRef<PlaceMapBoardHandle>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const iconIndex = usePlaceIconIndex()
   useEffect(() => { setSelectedId(null) }, [chat.id])
 
   const nodes = layout?.nodes ?? []
@@ -239,6 +241,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
 
   const ctl = 'size-8 max-md:size-10 shrink-0'
   const kind = selected ? placeKind(selected.name) : null
+  const selectedIcon = kind && selected ? placeIconPath(kind.id, selected.id, iconIndex) : null
   return (
     <>
       <div
@@ -320,7 +323,9 @@ export function PlaceMap({ chat }: { chat: Chat }) {
             {thumb ? (
               <img src={thumb} alt="" draggable={false} className="size-10 shrink-0 rounded-md object-cover" />
             ) : (
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-xl" aria-hidden="true">{kind?.emoji}</span>
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-xl" aria-hidden="true">
+                {selectedIcon ? <img src={selectedIcon} alt="" draggable={false} className="size-9 object-contain" /> : kind?.emoji}
+              </span>
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{selected.name}</p>

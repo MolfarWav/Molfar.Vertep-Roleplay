@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { BOARD_H, BOARD_W, type MapNode, type MapPos, type MapRoute } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
+import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { cn } from '@/lib/utils'
 
 /** How far a press may wander and still be a tap (px). */
@@ -211,6 +212,9 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
   }, [nodes, live])
   const at = useMemo(() => new Map(shown.map((n) => [n.id, n])), [shown])
   // nodes keep their size on the screen, a little smaller when far out, and lose their names (but the current and the chosen one)
+  const iconIndex = usePlaceIconIndex()
+  // an icon the browser could not decode keeps its emoji (an error before the app frame swaps in the blob is not one)
+  const [badIcons, setBadIcons] = useState<ReadonlySet<string>>(() => new Set())
   const inv = clamp(view.k / 0.6, 0.5, 1) / view.k
   const farOut = view.k < 0.3
   const many = nodes.length > 40 || farOut
@@ -240,7 +244,8 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
               src={pictureUrl!}
               alt=""
               draggable={false}
-              onError={() => setImgBroken(pictureUrl)}
+              // the app frame first asks for /v1/... without a session and fails; only an error on the blob it swaps in is a broken picture
+              onError={(e) => { if (e.currentTarget.src.startsWith('blob:')) setImgBroken(pictureUrl) }}
               className="pointer-events-none absolute inset-0 size-full object-contain"
             />
           )}
@@ -271,7 +276,9 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
         </svg>
         {shown.map((n) => {
           const kind = placeKind(n.name)
-          const size = n.spot ? 32 : 44
+          const iconPath = placeIconPath(kind.id, n.id, iconIndex)
+          const icon = iconPath && !badIcons.has(iconPath) ? iconPath : null
+          const size = icon ? (n.spot ? 42 : 60) : n.spot ? 32 : 44
           const selected = selectedId === n.id
           return (
             <div key={n.id} className="absolute" style={{ left: n.x, top: n.y, width: 0, height: 0 }}>
@@ -285,18 +292,41 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
                 className={cn('absolute flex cursor-grab flex-col items-center active:cursor-grabbing', live?.id === n.id && 'z-10')}
                 style={{ transform: `translate(-50%, -${size / 2}px) scale(${inv})`, transformOrigin: `50% ${size / 2}px`, opacity: n.visits === 0 && !n.here && !selected ? 0.72 : 1 }}
               >
-                <span
-                  className={cn(
-                    'flex items-center justify-center rounded-full border bg-card shadow-md',
-                    n.spot ? 'text-base' : 'text-xl',
-                    n.here ? 'border-primary ring-2 ring-primary' : 'border-border',
-                    selected && 'ring-2 ring-foreground/70',
-                  )}
-                  style={{ width: size, height: size }}
-                >
-                  <span aria-hidden="true">{kind.emoji}</span>
-                  {n.here && <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-card bg-primary" aria-hidden="true" />}
-                </span>
+                {icon ? (
+                  <span className="relative flex items-end justify-center" style={{ width: size, height: size }}>
+                    {(n.here || selected) && (
+                      <span
+                        className={cn('absolute bottom-0 left-1/2 h-[30%] w-[92%] -translate-x-1/2 rounded-[50%] border-2', n.here ? 'border-primary bg-primary/20' : 'border-foreground/70 bg-foreground/10')}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <img
+                      src={icon}
+                      alt=""
+                      draggable={false}
+                      className="pointer-events-none relative size-full select-none object-contain"
+                      style={{ filter: 'drop-shadow(0 2px 2px rgb(0 0 0 / 0.5))' }}
+                      onError={(e) => {
+                        if (!e.currentTarget.src.startsWith('blob:')) return
+                        setBadIcons((prev) => new Set(prev).add(icon))
+                      }}
+                    />
+                    {n.here && <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-card bg-primary" aria-hidden="true" />}
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'flex items-center justify-center rounded-full border bg-card shadow-md',
+                      n.spot ? 'text-base' : 'text-xl',
+                      n.here ? 'border-primary ring-2 ring-primary' : 'border-border',
+                      selected && 'ring-2 ring-foreground/70',
+                    )}
+                    style={{ width: size, height: size }}
+                  >
+                    <span aria-hidden="true">{kind.emoji}</span>
+                    {n.here && <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-card bg-primary" aria-hidden="true" />}
+                  </span>
+                )}
                 {!many || selected || n.here ? (
                   <span className="mt-0.5 line-clamp-2 w-[92px] break-words rounded bg-background/75 px-1 text-center text-[11px] leading-tight text-foreground">{n.name}</span>
                 ) : null}

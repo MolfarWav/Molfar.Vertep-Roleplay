@@ -12,11 +12,11 @@ export const MAX_ROUTES = 400
 /** Nodes keep this far from the board's edge. */
 const MARGIN = 70
 /** The least distance between two whole places, and between a spot and anything. */
-const GAP_PLACE = 120
-const GAP_SPOT = 64
+const GAP_PLACE = 150
+const GAP_SPOT = 84
 /** Distance of a new place from the place the story came from, and of a spot from its place. */
-const RING_PLACE = 160
-const RING_SPOT = 80
+const RING_PLACE = 200
+const RING_SPOT = 110
 
 export interface MapPos { x: number; y: number }
 export interface MapRoute { a: string; b: string }
