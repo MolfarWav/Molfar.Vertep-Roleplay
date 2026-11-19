@@ -19,7 +19,8 @@ const RING_PLACE = 200
 const RING_SPOT = 110
 
 export interface MapPos { x: number; y: number }
-export interface MapRoute { a: string; b: string }
+/** A road: the two whole places it joins (`a` sorts first) and, once the player has set them, the walking time and the road's own name. */
+export interface MapRoute { a: string; b: string; minutes?: number; via?: string }
 
 /** What a chat keeps. `at` is the whole place the tracker saw the story in last (routes start there). */
 export interface PlaceMapData {
@@ -71,7 +72,11 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
       const k = routeKey(a, b)
       if (seen.has(k)) continue
       seen.add(k)
-      out.routes.push(a < b ? { a, b } : { a: b, b: a })
+      const m = (r as { minutes?: unknown }).minutes
+      const minutes = typeof m === 'number' && Number.isInteger(m) && m >= 1 && m <= 99999 ? m : null
+      const v = (r as { via?: unknown }).via
+      const via = typeof v === 'string' ? v.replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) : ''
+      out.routes.push({ ...(a < b ? { a, b } : { a: b, b: a }), ...(minutes ? { minutes } : {}), ...(via ? { via } : {}) })
       if (out.routes.length >= MAX_ROUTES) break
     }
   }
@@ -269,6 +274,24 @@ export function toggleRoute(data: PlaceMapData | null, a: string, b: string): { 
   if (base.routes.some((r) => routeKey(r.a, r.b) === key)) return { data: { ...base, routes: base.routes.filter((r) => routeKey(r.a, r.b) !== key) }, added: false }
   const route = a < b ? { a, b } : { a: b, b: a }
   return { data: { ...base, routes: [...base.routes, route].slice(-MAX_ROUTES) }, added: true }
+}
+
+/** The road between two places, if there is one. */
+export const routeOf = (data: PlaceMapData | null, a: string, b: string): MapRoute | null => (data?.routes ?? []).find((r) => routeKey(r.a, r.b) === routeKey(a, b)) ?? null
+
+/** Set what a road keeps (walking minutes, its name; null takes one off), making the road when there is none. */
+export function setRouteInfo(data: PlaceMapData | null, a: string, b: string, info: { minutes?: number | null; via?: string | null }): PlaceMapData {
+  const base = data ?? emptyMap()
+  if (!a || !b || a === b) return base
+  const key = routeKey(a, b)
+  const old = base.routes.find((r) => routeKey(r.a, r.b) === key)
+  const next: MapRoute = { ...(a < b ? { a, b } : { a: b, b: a }) }
+  const minutes = info.minutes === undefined ? old?.minutes : info.minutes
+  const via = info.via === undefined ? old?.via : info.via
+  if (minutes) next.minutes = minutes
+  if (via) next.via = via
+  const routes = old ? base.routes.map((r) => (routeKey(r.a, r.b) === key ? next : r)) : [...base.routes, next].slice(-MAX_ROUTES)
+  return { ...base, routes }
 }
 
 /** How many roads a place has. */

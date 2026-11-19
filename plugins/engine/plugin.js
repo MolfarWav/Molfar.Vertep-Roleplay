@@ -3536,7 +3536,9 @@ function cleanPlaceMapMeta(v) {
       const b = r.a < r.b ? r.b : r.a;
       if (seen.has(a + "\n" + b)) continue;
       seen.add(a + "\n" + b);
-      out.routes.push({ a, b });
+      const minutes = Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 99999 ? r.minutes : 0;
+      const via = typeof r.via === "string" ? r.via.replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) : "";
+      out.routes.push({ a, b, ...(minutes ? { minutes } : {}), ...(via ? { via } : {}) });
       if (out.routes.length >= 400) break;
     }
   }

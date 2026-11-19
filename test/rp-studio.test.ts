@@ -476,9 +476,9 @@ describe("rp studio engine: chats + swipes", () => {
     expect((cleared.json.meta as { spriteOutfits?: unknown }).spriteOutfits ?? null).toBeNull();
 
     // the places map (#454) rides the meta: positions clamped to the board, routes joined once, junk dropped, null clears it
-    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 5, y: 400.6 }, n2: { x: "q", y: 1 } }, routes: [{ a: "n2", b: "n1" }, { a: "n1", b: "n2" }, { a: "n1", b: "n1" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "  Home   sweet home ", n2: "", n3: 7 } } } }, m);
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 5, y: 400.6 }, n2: { x: "q", y: 1 } }, routes: [{ a: "n2", b: "n1", minutes: 25, via: "  Old  Lane " }, { a: "n1", b: "n2" }, { a: "n1", b: "n1" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "  Home   sweet home ", n2: "", n3: 7 } } } }, m);
     const mapped = (await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown };
-    expect(mapped.placeMap).toEqual({ v: 1, nodes: { n1: { x: 70, y: 401 } }, routes: [{ a: "n1", b: "n2" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "Home sweet home" } });
+    expect(mapped.placeMap).toEqual({ v: 1, nodes: { n1: { x: 70, y: 401 } }, routes: [{ a: "n1", b: "n2", minutes: 25, via: "Old Lane" }], picture: { id: "bg1" }, at: "n1", labels: { n1: "Home sweet home" } });
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: {}, routes: [] } } }, m);
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown }).placeMap ?? null).toBeNull();
 

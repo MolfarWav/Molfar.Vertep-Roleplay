@@ -32,6 +32,19 @@ The gear in the header opens:
 - **Upload a map picture.** A map you made or drew elsewhere goes under the places and is fitted into the board, aspect kept. **Remove the map picture** takes it away and keeps where the places stand. Then drag the places onto your picture.
 - **Arrange the places again** puts every place back to the automatic layout (it asks first). The roads stay.
 
+## Travel by a tap
+
+Pick a place the story is not in and press the arrow on its card ("Go to this place"). A small window opens:
+
+- **How:** on foot, riding or skip the road. Riding takes 0.4 of the walking time; skipping the road asks the reply for one line at most.
+- **Minutes:** worked out from the distance between the two places on the board (10 board units a minute, rounded to 5), and yours to change. They are kept on the road, so the next trip between the same two places starts from them.
+- **Road name:** optional. Kept on the road; the next trip tells the reply to keep to that road, so the same street is walked again. Left empty, the reply invents a short name (it is not read back automatically yet: type it here when you like it).
+- **Your move:** the line that goes into the chat, "I head to ..." by default, yours to rewrite.
+
+**Go** sends your move with a hidden instruction for that one reply: where from, where to, how, about how long, to tell the way in a few lines and then the arrival, and to show the new time of day. It costs the reply and nothing more. The Dashboard clock is not moved by the map: it follows the reply, as it does after Skip time, so a swiped reply takes the time back with it. The instruction shows as a chip on your message. On a phone the map folds after Go so you can read the reply.
+
+When the map does not know where the story is (the line under the header says so), the trip has no road and no time: the move and the arrival only. A room of the place the story is in is a move within it, also without time.
+
 ## What it does not do
 
-It does not draw the world, does not invent places (the World DM does, see [[world-dm]]) and does not travel for you yet: a tap selects a place, it does not move the story. Places the DM has retired leave the map.
+It does not draw the world and does not invent places (the World DM does, see [[world-dm]]). Places the DM has retired leave the map.

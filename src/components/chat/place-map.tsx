@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
+import { PlaceTravelDialog } from '@/components/chat/place-travel-dialog'
 import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
@@ -207,6 +208,10 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   // drawing a road by hand: from the picked place to the next whole place that is tapped (a road that is there is taken away)
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   useEffect(() => { setConnectFrom(null) }, [chat.id])
+  // travel by a tap: the dialog for the picked place
+  const [travelOpen, setTravelOpen] = useState(false)
+  const [travelRun, setTravelRun] = useState(0)
+  useEffect(() => { setTravelOpen(false) }, [selectedId, chat.id])
   const nodes = layout?.nodes ?? []
   const pick = (id: string | null) => {
     if (!connectFrom) { setSelectedId(id); return }
@@ -409,7 +414,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               ) : (
                 <p className="line-clamp-3 break-words text-sm font-medium" title={selected.name} data-testid="place-map-card-name">{selected.name}</p>
               )}
-              <p className="truncate text-xs text-muted-foreground">
+              <p className="line-clamp-2 break-words text-xs text-muted-foreground">
                 {[
                   selected.here ? t('placeMap.here') : null,
                   selected.bookName !== selected.name ? t('placeMap.bookName', { name: selected.bookName }) : null,
@@ -419,6 +424,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
+            {draft === null && !selected.here && (
+              <Button variant="ghost" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
+                <NavigationArrow className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             {draft === null && !selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
               <Button variant="ghost" size="icon" className={ctl} onClick={() => setConnectFrom(selected.id)} aria-label={t('placeMap.connect')} title={t('placeMap.connect')} data-testid="place-map-connect">
                 <Path className="size-4" aria-hidden="true" />
@@ -485,6 +495,20 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </span>
         </div>
       </div>
+      {selected && (
+        <PlaceTravelDialog
+          key={`${selected.id}:${travelRun}`}
+          chatId={chat.id}
+          target={selected}
+          from={nodes.find((n) => n.id === hereId) ?? null}
+          nodes={nodes}
+          data={data}
+          open={travelOpen}
+          onOpenChange={setTravelOpen}
+          onSaveMap={(next) => updateChat(chat.id, { placeMap: { ...next, nodes: { ...withPositions(data, layout?.added ?? {}).nodes } } })}
+          onSent={() => { if (phone) fold(true) }}
+        />
+      )}
       {confirmDialog}
     </>
   )
