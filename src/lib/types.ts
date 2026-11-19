@@ -1,5 +1,7 @@
 // ─── Core domain types for the roleplay chat frontend (server-backed via lib/engine.ts) ───
 
+import type { PlaceMapData } from './place-map'
+
 export type ID = string
 
 // ── Characters ──
@@ -310,6 +312,8 @@ export interface Chat {
   agents?: { preset?: string; own?: { agent: string }[] }
   /** the outfit each speaker's sprite wears in this chat (chat meta `spriteOutfits`): key = a voice's name, '' = the card itself */
   spriteOutfits?: Record<string, string>
+  /** the places map of this chat (chat meta `placeMap`): node positions, routes, the map picture (src/lib/place-map.ts) */
+  placeMap?: PlaceMapData
   /** how this group chat plays: the group's defaults with `turns` on top (derived, never saved) */
   groupSettings?: {
     activation: 'natural' | 'list' | 'manual'

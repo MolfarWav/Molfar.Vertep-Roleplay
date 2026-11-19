@@ -475,6 +475,13 @@ describe("rp studio engine: chats + swipes", () => {
     const cleared = await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m);
     expect((cleared.json.meta as { spriteOutfits?: unknown }).spriteOutfits ?? null).toBeNull();
 
+    // the places map (#454) rides the meta: positions clamped to the board, routes joined once, junk dropped, null clears it
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 5, y: 400.6 }, n2: { x: "q", y: 1 } }, routes: [{ a: "n2", b: "n1" }, { a: "n1", b: "n2" }, { a: "n1", b: "n1" }], picture: { id: "bg1" }, at: "n1" } } }, m);
+    const mapped = (await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown };
+    expect(mapped.placeMap).toEqual({ v: 1, nodes: { n1: { x: 70, y: 401 } }, routes: [{ a: "n1", b: "n2" }], picture: { id: "bg1" }, at: "n1" });
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: {}, routes: [] } } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown }).placeMap ?? null).toBeNull();
+
     // the chat's own CSS rides the meta too: kept as written, cut at 20000, blank or null clears it
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { css: ".mes_text { color: red }" } }, m);
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { css?: unknown }).css).toBe(".mes_text { color: red }");
