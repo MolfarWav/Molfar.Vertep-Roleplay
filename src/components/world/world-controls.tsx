@@ -14,6 +14,7 @@ import { DiceFields } from './dice-fields'
 import { DiceLog } from './dice-log'
 import { CastCard } from './world-cast'
 import { CastDeckCard } from './world-cast-deck'
+import { NamesCard } from './world-names'
 import { TidyCard } from './world-tidy'
 import { LearningCard } from './world-memory'
 import { WorldRecords } from './world-records'
@@ -481,6 +482,9 @@ export function WorldControls({
   // Card 5: the cast deck of new people (#424, step 4): the switch, the cards left, "Add new people now" and the log of every draw and refill
   const deckCard = <CastDeckCard chatId={chatId} view={view} save={save} on={on} />
 
+  // Card 5b: names from the shared catalog (#373, step 3): the switch, the style and the name cultures
+  const namesCard = <NamesCard view={view} save={save} on={on} />
+
   // Card 6: tidying the book (#424, step 3): things that played out go to the Archive by code; the switch, "Tidy now" and the log
   const tidyCard = <TidyCard chatId={chatId} view={view} save={save} on={on} />
 
@@ -620,6 +624,7 @@ export function WorldControls({
             {addsCard}
             {castCard}
             {deckCard}
+            {namesCard}
             {tidyCard}
             {learnCard}
           </div>

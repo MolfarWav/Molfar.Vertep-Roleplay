@@ -122,7 +122,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
+export const DEFAULT_SETTINGS = { names: false, namesGenres: [], namesCultures: [], level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1143,7 +1143,86 @@ function cleanSettings(s) {
     learn: typeof b.learn === "boolean" ? b.learn : DEFAULT_SETTINGS.learn,
     // the rules about the story (from events the player swiped away, or written so) also reach the writing model (#428)
     learnWriter: typeof b.learnWriter === "boolean" ? b.learnWriter : DEFAULT_SETTINGS.learnWriter,
+    // names from the shared catalog (#373, step 3): the switch, the style (genres) and the name cultures it draws from; off unless the player turned it on
+    names: b.names === true,
+    namesGenres: cleanTagList(b.namesGenres, 6),
+    namesCultures: cleanTagList(b.namesCultures, 4),
   };
+}
+
+/** A list of catalog tags (lower case words with underscores), no repeats, at most `max`. */
+const cleanTagList = (v, max) => [...new Set(arr(v).filter((x) => typeof x === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(x)))].slice(0, max);
+
+// ---------- names from the shared catalog (#373, step 3) ----------
+// The app reads the catalog (the engine's /v1/catalog routes) and sends a small random pool with a DM run or a Start; with the chat's switch
+// on, the pool goes into the prompt as a list of names the world does not use yet, for NEW records to take when one fits. It is a nudge: code
+// does not check the answer. Nothing is stored except, for a Start, the pool in the draft.
+const POOL_MAX = 12;
+const POOL_NAME_MAX = 60;
+const poolKey = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/** The pool the app sent, cleaned: {persons: {f, m, family}, places, groups, things}, each a short list of plain names; null when it holds none. */
+export function cleanPool(raw) {
+  if (!isObj(raw)) return null;
+  const list = (v) => {
+    const out = [];
+    const seen = new Set();
+    for (const x of arr(v)) {
+      const s = cut(str(x).replace(/[<>]/g, " ").replace(/\s+/g, " ").trim(), POOL_NAME_MAX);
+      const k = poolKey(s);
+      if (!s || !k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+      if (out.length >= POOL_MAX) break;
+    }
+    return out;
+  };
+  const p = isObj(raw.persons) ? raw.persons : {};
+  const pool = { persons: { f: list(p.f), m: list(p.m), family: list(p.family) }, places: list(raw.places), groups: list(raw.groups), things: list(raw.things) };
+  return [...pool.persons.f, ...pool.persons.m, ...pool.persons.family, ...pool.places, ...pool.groups, ...pool.things].length ? pool : null;
+}
+
+/** The pool without what the world, the cards and the player already use: whole names, and for people the first and the family names of the names in use. */
+export function poolWithout(pool, entities, extra) {
+  if (!pool) return null;
+  const used = new Set();
+  const words = new Set();
+  for (const e of arr(entities)) {
+    if (!isObj(e)) continue;
+    for (const n of [e.name, ...arr(e.aliases)]) {
+      const k = poolKey(typeof n === "string" ? n : "");
+      if (k) used.add(k);
+      if (e.kind === "person" && typeof n === "string") for (const w of n.split(/\s+/)) if (poolKey(w).length >= 3) words.add(poolKey(w));
+    }
+  }
+  for (const n of arr(extra)) {
+    if (typeof n !== "string") continue;
+    const k = poolKey(n);
+    if (k) used.add(k);
+    for (const w of n.split(/\s+/)) if (poolKey(w).length >= 3) words.add(poolKey(w));
+  }
+  const free = (list, people) => list.filter((n) => !used.has(poolKey(n)) && !(people && words.has(poolKey(n))));
+  const out = {
+    persons: { f: free(pool.persons.f, true), m: free(pool.persons.m, true), family: free(pool.persons.family, true) },
+    places: free(pool.places),
+    groups: free(pool.groups),
+    things: free(pool.things),
+  };
+  return [...out.persons.f, ...out.persons.m, ...out.persons.family, ...out.places, ...out.groups, ...out.things].length ? out : null;
+}
+
+/** The pool as the prompt's block, or "" when there is none. */
+export function poolNote(pool) {
+  if (!pool) return "";
+  const rows = [];
+  const p = pool.persons;
+  const people = [p.f.length ? "women: " + p.f.join(", ") : "", p.m.length ? "men: " + p.m.join(", ") : "", p.family.length ? "family names: " + p.family.join(", ") : ""].filter(Boolean);
+  if (people.length) rows.push("People, " + people.join("; "));
+  if (pool.places.length) rows.push("Places: " + pool.places.join(", "));
+  if (pool.groups.length) rows.push("Groups: " + pool.groups.join(", "));
+  if (pool.things.length) rows.push("Things: " + pool.things.join(", "));
+  if (!rows.length) return "";
+  return "Names this world does not use yet. When a NEW person, place, group or thing needs a name, take one of these if it fits and change it freely to suit the story; never rename an existing record, and do not add records only to use a name.\n" + rows.join("\n");
 }
 
 /** A front: a faction or threat with a goal and a clock (0..size; full = it happens). */
@@ -5004,6 +5083,7 @@ function cleanDraft(d) {
     deck: cleanDeck(d.deck),
     cast: cleanCast(d.cast),
     ...(isObj(d.castOpts) ? { castOpts: cleanCastOpts(d.castOpts) } : {}),
+    ...(cleanPool(d.pool) ? { pool: cleanPool(d.pool) } : {}),
     at: num(d.at) || Date.now(),
     ...(isObj(d.error) && str(d.error.message) ? { error: cleanError(d.error) } : {}),
   };
@@ -5161,7 +5241,7 @@ function startRoute(req, host) {
       const at = steps.findIndex((x) => x.fronts);
       steps.splice(at < 0 ? steps.length : at, 0, { bench: true });
     }
-    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, ...(castParts ? { castOpts } : {}), at: Date.now() });
+    state.draft = cleanDraft({ recipe: recipe.id, cardIds, answers: b.answers, lang: b.lang, steps, done: 0, ...(castParts ? { castOpts } : {}), ...(state.settings.names === true && cleanPool(b.pool) ? { pool: cleanPool(b.pool) } : {}), at: Date.now() });
     t.save(state);
     return ok({ ok: true, ...(t.worldId ? { worldId: t.worldId } : {}), draft: draftView(state.draft) });
   }
@@ -5215,6 +5295,11 @@ function startRoute(req, host) {
     const chunk = step.chunk === BRIEF_STEP ? castBrief(sources) : step.chunk >= 0 ? chunkSources(sources)[step.chunk] || "" : "";
     content = buildInput({ cards, userName, entities: [...state.entities, ...draft.entities], section, chunk, recipe, answers: draft.answers, lang: draft.lang });
     system = buildSystemFor(recipe);
+  }
+  // names from the catalog (#373): the people and places a step writes may take names the draft and the world do not use yet
+  if (draft.pool && (step.cast || (!step.fronts && !step.deck && !step.bench))) {
+    const note = poolNote(poolWithout(draft.pool, [...state.entities, ...draft.entities], [...cards.map((c) => c.name || c), userName]));
+    if (note) content += "\n\n" + note;
   }
   const built = buildResult(host, "world_build", buildAsk(host, fsx, cfg, chat.meta, system, content), stash);
   if (built.pending) return built.pending;
@@ -7013,7 +7098,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen", "things", "learn", "learnWriter", "names", "namesGenres", "namesCultures"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -7174,6 +7259,8 @@ function updateRoute(req, host) {
   const soonWho = runCast ? benchSoonList({ state, msgs: chat.msgs, snaps: runCast.snaps, reg: runCast.reg, personIds: runCast.personIds, freq: runFreq, within: state.settings.everyN }) : [];
   const soon = soonWho.map((x) => x.id);
   const fullIds = fullRecordIds(state, { story: take.msgs.map((m) => str(m.text)).join("\n"), scene, reg: runReg.reg, soon });
+  // names from the catalog (#373): the pool came with the first request; a retry reads it back from the stash
+  const poolText = typeof stash.pool === "string" ? stash.pool : state.settings.names === true ? poolNote(poolWithout(cleanPool(b.pool), state.entities, [...cards.map((c) => c.name || c), userName])) : "";
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
@@ -7184,7 +7271,7 @@ function updateRoute(req, host) {
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
-      })) }],
+      })) + (poolText ? "\n\n" + poolText : "") }],
       ...callParams(fsx, cfg, chat.meta, maxTokens),
     });
   };
@@ -7193,19 +7280,19 @@ function updateRoute(req, host) {
   const started = Number(stash.started) || Date.now();
   if (!r) {
     ask(key);
-    return { __llmPending: true, stash: { retry, upTo, started } };
+    return { __llmPending: true, stash: { retry, upTo, started, pool: poolText } };
   }
   const limit = limitOf(r);
   if (!retry && r.error && isRateLimit(r)) {
     ask("world_retry");
-    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started } };
+    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started, pool: poolText } };
   }
   // all thinking, no answer: once more with room for both, unless the model's own block sets the
   // limit (it wins over the request, so more room asked here would change nothing)
   if (!retry && thinkingOnly(r) && !(limit && limit.fromModel)) {
     const room = Math.min(RETRY_MAX, Math.max((limit ? limit.max : cfg.maxTokens) * RETRY_FACTOR, cfg.maxTokens + 2000));
     ask("world_retry", room);
-    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started, roomy: true } };
+    return { __llmPending: true, stash: { retry: true, upTo: stash.upTo || upTo, started, roomy: true, pool: poolText } };
   }
   const usage = isObj(r.usage) ? { input: num(r.usage.input), output: num(r.usage.output), cost: r.usage.priced === false ? 0 : num(r.usage.costTotal) } : null;
   const run = { at: Date.now(), reason, model: str(r.model) && r.model !== "error" ? str(r.model) : play.model, ms: Math.round(num(r.genTimeMs) || Date.now() - started), ...(usage ? { usage } : {}), ...(limit ? { limit } : {}), ...(retry ? { retried: true } : {}) };

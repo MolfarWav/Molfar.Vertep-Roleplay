@@ -3,6 +3,7 @@
 
 import { create } from 'zustand'
 import { ApiError, j } from './engine'
+import { poolFor } from './names-pool'
 
 /** A chat's own world book (`ownerChatId`) stays out of the app: the engine scans it for that chat only. */
 export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[] {
@@ -47,7 +48,7 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean; /** names from the shared catalog (#373): the switch, the style (genres) and the name cultures */ names: boolean; namesGenres: string[]; namesCultures: string[] }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   ready: WorldLevel[]
@@ -359,7 +360,9 @@ export async function runWorld(chatId: string, auto: boolean): Promise<WorldRepl
   inFlight.add(chatId)
   setRunning(chatId, true)
   try {
-    const r = await j<WorldReply>('/world/update', { method: 'POST', body: JSON.stringify({ chatId, auto }) })
+    // names from the catalog (#373): with the chat's switch on, a small random pool rides along (nothing when the catalog cannot be read)
+    const pool = await poolFor(useWorldLive.getState().views[chatId]?.settings)
+    const r = await j<WorldReply>('/world/update', { method: 'POST', body: JSON.stringify({ chatId, auto, ...(pool ? { pool } : {}) }) })
     if (r?.settings) keepView(chatId, r)
     else if (r?.ok === false || r?.skipped !== 'off') void loadWorld(chatId).catch(() => {})
     return r
@@ -487,7 +490,8 @@ interface DraftReply { ok?: boolean; error?: string; code?: WorldErrorCode | 'no
 
 /** Begin a draft. 409 code 'no-text' = the chosen cards have nothing to learn from. */
 export async function beginWorldStart(chatId: string, o: { recipe: string; cardIds?: string[]; answers?: Record<string, string>; fromCards?: boolean; lang?: string; deck?: boolean; bench?: boolean; cast?: WorldCastAsk }): Promise<WorldDraft> {
-  return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...o }) })).draft
+  const pool = await poolFor(useWorldLive.getState().views[chatId]?.settings)
+  return (await j<DraftReply>('/world/start', { method: 'POST', body: JSON.stringify({ chatId, begin: true, ...(pool ? { pool } : {}), ...o }) })).draft
 }
 
 /**
