@@ -1,40 +1,41 @@
-<!-- source: 58bab820783a -->
-# Roleplay：概览
+<!-- source: 660954abd188 -->
+# Roleplay：概述
 
-Roleplay是Molfar Vertep的故事应用：你保存角色卡，与角色聊天，让应用跟踪场景、记住故事并运行你周围的世界。本页是一张地图。应用自带的**Help**（在侧边栏中）几乎为每个界面都提供了简短文章；本指南解释这些部分如何协同工作。模型和连接不在这里设置，而是在主Settings中设置：参见[[vertep:models]]。
+Roleplay 是 Molfar Vertep 的故事应用：你保存角色卡、与他们进行聊天游玩，并让应用追踪场景、记住故事、运转你周围的世界。本页是一张地图。应用自带的 **Help**（在侧边栏中）几乎每个界面都有一篇短文；本指南解释各部分如何组合在一起。模型和连接不在这里设置，而是在主 Settings 中设置：参见 [[vertep:models]]。
 
-## 各部分的位置
+## 各功能的位置
 
-左侧的侧边栏（在手机上为底部的标签栏）将各部分分组：
+左侧的侧边栏（在手机上为底部的标签栏）将各个部分分组：
 
-- **Home**和**Chats**：从上次停下的地方继续，或打开任意聊天。
-- **Characters**、**Groups**、**Marketplace**、**Personas**：人物。参见[[characters]]。
-- **Lorebooks**、**Library**、**Canvas**、**World**、**Agents**：故事的记忆与运行机制。参见[[memory]]、[[litopys]]、[[canvas]]、[[world-dm]]和[[agents]]。
-- **Presets**：如何构建发送给模型的请求。
-- **Shortcuts**和**Tools**：快捷回复、正则表达式、翻译、图片、语音、Data Bank等。参见[[settings]]。
-- 底部是**Inbox**和**Help**。Inbox列出等待你处理的事项：失败的后台任务、Library的建议以及提议的soul。
+- **Home** 和 **Chats**：从你停下的地方继续，或打开任意聊天。
+- **Characters**、**Groups**、**Marketplace**、**Personas**：人物。参见 [[characters]]。
+- **Lorebooks**、**Library**、**Canvas**、**World**、**Agents**：故事的记忆与机制。参见 [[memory]]、[[litopys]]、[[canvas]]、[[world-dm]] 和 [[agents]]。
+- **Presets**：发给模型的请求是如何构建的。
+- **Shortcuts** 和 **Tools**：快捷回复、正则、翻译、图片、语音、Data Bank 等。参见 [[settings]]。
+- **Inbox** 和 **Help** 在底部。Inbox 列出等待你处理的事项：失败的后台任务、Library 建议和提议的 soul。
 
-Roleplay自己的设置没有侧边栏条目。点击Home顶部的“Roleplay settings”按钮即可打开（在手机上，位于菜单中）。
+Roleplay 自己的设置没有侧边栏条目。用 Home 标题栏中的 "Roleplay settings" 按钮打开它们（在手机上，在菜单中）。
 
 ## 聊天内部
 
-聊天顶部放着故事工具：**Note**（作者备注）、**Fired**（写入提示的内容，参见[[memory]]）、**Record**和**World**。旁边的胶囊按钮可打开本聊天的Preset、Persona、Model和Agents标签页。每条消息上的“More”按钮会打开该消息的操作；消息输入框旁边的“+”菜单里有Polish、Regenerate with a hint、图片生成等功能。
+聊天标题栏包含故事工具：**Note**（作者注）、**Fired**（进入了提示词的内容，参见 [[memory]]）、**Record** 和 **World**。旁边的胶囊按钮打开此聊天的 Preset、Persona、Model 和 Agents 标签页。每条消息上的 "More" 按钮打开其操作，消息框旁的 "+" 菜单包含 Polish、Regenerate with a hint、Stage direction、图片生成等。
 
-有三个辅助功能会监看故事，并额外消耗模型调用，值得了解一下：
+有三个助手会观察故事并消耗额外的模型调用，因此值得了解它们：
 
-- **Dashboard**读取每个场景：参见[[dashboard]]，它的唯一输入是角色的[[soul]]。
-- **Litopys**撰写章节和事实：参见[[litopys]]。
-- **World DM**维护一本人物与地点的册子：参见[[world-dm]]。
+- **Dashboard** 读取每个场景：[[dashboard]]，有一个输入，即角色的 [[soul]]。
+- **Litopys** 撰写章节和事实：[[litopys]]。
+- **World DM** 维护一本人物和地点的书：[[world-dm]]。
 
 ## 本指南中的页面
 
-- [[first-story]]：从零开始到第一条回复，以及在小型或慢速模型上应关闭哪些功能。
-- [[characters]]：卡片、卡片编辑器、人格、群组、导入。
-- [[sprites]]：聊天上方的立绘、为群组或旁白准备的多个窗口、视觉小说效果。
-- [[soul]]、[[dashboard]]、[[litopys]]、[[world-dm]]、[[agents]]：故事的运行机制。
-- [[memory]]：各类记忆分别用于什么。
-- [[canvas]]：聊天链接、提示面板和智能体工坊。
-- [[long-chats]]：长聊天为何变慢或变贵、什么能削减成本，以及如何把故事带入新聊天。
-- [[settings]]：每项设置的位置。
+- [[first-story]]：从零到你的第一条回复，以及在小型或慢速模型上应关闭什么。
+- [[characters]]：卡片、卡片编辑器、personas、groups、导入。
+- [[sprites]]：聊天上方的立绘、为群组或旁白开设的多个窗口、视觉小说外观。
+- [[soul]]、[[dashboard]]、[[litopys]]、[[world-dm]]、[[agents]]：故事机制。
+- [[places-map]]：聊天地点的浮动地图，带有道路和你自己的图片。
+- [[memory]]：哪种记忆用于什么。
+- [[canvas]]：聊天链接、提示词板和 agent forge。
+- [[long-chats]]：为什么长聊天会变慢或变贵、什么能削减它，以及如何将故事带入新聊天。
+- [[settings]]：每项设置在哪里。
 
-初次使用Molfar Vertep？请先阅读[[vertep:first-steps]]和[[vertep:glossary]]。
+刚接触 Molfar Vertep 本身？从 [[vertep:first-steps]] 和 [[vertep:glossary]] 开始。

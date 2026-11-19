@@ -1,11 +1,11 @@
-<!-- source: 8601aebf3a12 -->
+<!-- source: 63580e32deab -->
 # Postacie, persony i grupy
 
-Wszystko, czym grasz, żyje w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego każda służy; szczegóły są w artykułach Pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
+Wszystko, czym grasz, znajduje się w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego służy każda z nich; szczegóły znajdziesz w artykułach pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
 
 ## Karty
 
-Karta to postać: opis, osobowość, scenariusz i pierwsza wiadomość. Tag zapisany jako `group: Guild of Ravens` lub `faction: Guild of Ravens` wkłada też postać karty do tej grupy, więc fakt z pamięci powiedziany grupie jest jej znany ([[litopys]]). Sekcja Characters pokazuje twoje karty jako siatkę lub listę, z wyszukiwaniem, tagami, folderami, ulubionymi (gwiazdka) i kilkoma sortowaniami. Otwórz kartę, aby ją edytować. Zmiany zostają w szkicu do czasu „Save changes”; wyjście z niezapisanymi zmianami najpierw pyta.
+Karta to postać: opis, osobowość, scena i pierwsza wiadomość. Tag zapisany jako `group: Guild of Ravens` lub `faction: Guild of Ravens` umieszcza postać z karty w tej grupie, więc fakt pamięci przekazany grupie jest im znany ([[litopys]]). Sekcja Characters pokazuje twoje karty jako siatkę lub listę, z wyszukiwaniem, tagami, folderami, ulubionymi (gwiazdka) i kilkoma sortowaniami. Otwórz kartę, aby ją edytować. Zmiany pozostają w wersji roboczej do momentu „Save changes"; wyjście z niezapisanymi zmianami najpierw pyta o potwierdzenie.
 
 Edytor ma sześć zakładek:
 
@@ -14,43 +14,43 @@ Edytor ma sześć zakładek:
 - **Soul**: jak postać reaguje na ciebie, plus nawyki. Zobacz [[soul]].
 - **Memory**: zakończone czaty, które postać pamięta. Zobacz [[memory]].
 - **Lorebook**: księgi powiązane z tą kartą.
-- **More**: kolory i głosy, sprite'y (zob. [[sprites]]), galeria, regex, ustawienia zaawansowane.
+- **More**: kolory i głosy, sprites (zobacz [[sprites]]), galeria, regex, ustawienia zaawansowane.
 
-Karta może grać kilka postaci naraz (narrator lub mistrz gry). W Colors opcja „Voices” daje każdemu mówcy własny kolor. Jeśli nie wymienisz żadnych głosów, czat zrobi to za ciebie: karta zawierająca kilka postaci (sekcje nazwane od każdej z nich) sama koloruje kwestie każdej postaci, każdą innym kolorem, a kolory są zapisywane razem z czatem. W każdym innym czacie otwórz menu czatu, „Voice colors”, i włącz przełącznik; „Spread colors” daje każdemu, kogo nie wybrałeś, inny kolor. Wymaga to pulpitu Relationship, który dostarcza listę postaci.
-
-## Listy od kart
-
-Karta, której od jakiegoś czasu nie grałeś, może napisać do ciebie krótki list we własnym głosie. List trafia do skrzynki (Home, „Waiting on you”, oraz przycisk skrzynki na pasku) jako zielony Letter; otwarcie go przenosi cię do starego czatu albo zaczyna czat z kartą, z którą nigdy nie grałeś. List nigdy nie pisze do czatu i nigdy nie wymyśla zdarzeń.
-
-Jest **wyłączone, dopóki go nie włączysz**. Dopóki jest wyłączone, na górze sekcji Characters i w „Waiting on you” na Home wisi zielona karta „Let your characters write to you”: **Turn on** włącza go od razu, **Not now** chowa kartę na dobre. Liczby (dni bezczynności, listy dziennie, dni między listami z jednej karty, model piszący) oraz karty, które wyłączyłeś, są w Characters, More, Letters from cards. Listy są sprawdzane co kilka godzin, gdy aplikacja jest otwarta: czat bezczynny przez 14 dni, karta, której nigdy nie grałeś, przez 14 dni, oraz zagrana karta bez Soul (raz). Jeśli model piszący zawiedzie w trzech kolejnych sprawdzeniach (albo żaden nie jest ustawiony), skrzynka pokazuje czerwony błąd „Letters” z powodem, a **Open** prowadzi do ustawień listów; błąd znika, gdy przyjdzie list, gdy wybierzesz inny model albo wyłączysz listy.
+Karta może odgrywać kilka postaci naraz (narrator lub mistrz gry). W sekcji Colors opcja „Voices" daje każdemu mówcy własny kolor. Jeśli nie wymienisz żadnych głosów, czat zrobi to za ciebie: karta zawierająca kilka postaci (sekcje nazwane po każdej z nich) sama koloruje kwestie każdej postaci, każdą innym kolorem, zachowanym wraz z czatem. W każdym innym czacie otwórz menu czatu, „Voice colors", i włącz przełącznik; „Spread colors" daje każdemu, kogo nie wybrałeś, inny kolor. Wymaga to Dashboardu Relationship, który dostarcza listę postaci.
 
 ## Persony
 
-Persona to ty: imię, zaimki, opis, awatar. Model widzi ją tam, gdzie prompt mówi o użytkowniku. „Use this persona” czyni ją twoją domyślną i przełącza otwarty czat na nią. Persona może mieć własne księgi wiedzy i może być przypięta do wybranych postaci, aby nowe czaty z nimi zaczynały się od niej.
+Persona to ty: imię, zaimki, opis, awatar. Model widzi ją wszędzie, gdzie prompt mówi o użytkowniku. „Use this persona" czyni ją twoją domyślną i przełącza na nią otwarty czat. Persona może mieć własne lorebooki i może być przypisana do wybranych postaci, więc nowe czaty z nimi zaczynają się z nią. Zakładka Lorebooks persony wyświetla księgi, które nosi (otwórz jedną, odłącz ją, dodaj więcej z listy, którą możesz przeszukiwać, lub zacznij nową). Persona może mieć własną księgę („New book" na pustej zakładce ją tworzy, „Replace" ją podmienia): podróżuje wewnątrz pliku persony, więc Export i Backup ją przenoszą, a import pliku na innym urządzeniu przywraca ją, powiązaną. Księgi, które tylko linkuje, pozostają w bibliotece tego urządzenia; link, którego księgi brakuje, pokazuje się jako wiersz „Not in your library", który możesz usunąć. Import na ekranie Personas przyjmuje jedną personę z innej aplikacji (imię i opis), kopię zapasową kilku lub listę `{ name: description }`; persona, która wymienia niezaimportowane jeszcze księgi, i tak zostaje zaimportowana, z notatką, których brakuje.
 
 ## Grupy
 
-Grupa umieszcza kilka postaci w jednym czacie. „New group” pozwala wybrać członków. Edytor ma karty Overview, Members, Scene, Turns, Lore i Chats. Karta Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wypowiada wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator.
+Grupa umieszcza kilka postaci w jednym czacie. „New group" pozwala wybrać członków. Edytor ma Overview, Members, Scene, Turns, Lore i Chats. Zakładka Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wyraża wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator.
 
-Karta Turns ma także **How they talk**: **Wtrącanie się** (Interruptions): członkowie wchodzą sobie w słowo, mówią jednocześnie albo ignorują pytanie, gdy pasuje to do ich postaci. **Samobóje** (Own goals): członkowie sprzeciwiają się, targują albo odmawiają, gdy plan kłóci się z tym, kim są, nawet jeśli wywołuje to napięcie z tobą. **Wciąganie cichych członków** (Draw in quiet members): ktoś, kto od pewnego czasu milczy, ma większe szanse na odpowiedź, a opisywana scena jest proszona, by go włączyć. Dwa pierwsze ustawienia to Off, Can albo Should: Can dopuszcza to, gdy pasuje do sceny, Should tego oczekuje, a jeśli każda odpowiedź zamienia się w kłótnię, wróć do Can. Nowe grupy startują z Can i włączonym wciąganiem cichych; starsze grupy mają wszystko wyłączone, dopóki tego nie włączysz. Przycisk Turns w samym czacie może je zmienić tylko dla jednego czatu. Na karcie Members otwórz sekcję „In this group” członka, aby nadać mu **głos** używany tylko w tej grupie: do dwóch nawyków mowy (mówi urywkami, nigdy nie zadaje pytań) i do pięciu przykładowych kwestii. Kilka kwestii uczy rytmu lepiej niż przymiotniki, a różne postacie powinny inaczej reagować na tę samą wiadomość.
+Zakładka Turns ma też **How they talk**: **Interruptions** (członkowie wtrącają się, mówią jeden przez drugiego lub ignorują pytanie, gdy pasuje to do ich charakteru), **Own goals** (członkowie sprzeciwiają się, targują lub odmawiają, gdy plan jest sprzeczny z tym, kim są, nawet jeśli tworzy to napięcie z tobą) i **Draw in quiet members** (ktoś, kto od dawna milczał, dostaje więcej szans na odpowiedź, a narratowana scena jest proszona o wciągnięcie go). Pierwsze dwie opcje to Off, Can lub Should: Can pozwala, gdy pasuje to do sceny, Should tego oczekuje, a jeśli każda odpowiedź zamienia się w kłótnię, wróć do Can. Nowe grupy zaczynają z Can i Draw in włączonymi; starsze grupy pozostają z wszystkim wyłączonym, dopóki tego nie włączysz. Przycisk Turns w czacie może je zmienić tylko dla jednego czatu. Na zakładce Members otwórz sekcję „In this group" członka, aby dać mu **voice**, którego używa tylko ta grupa: do dwóch nawyków mowy (mówi fragmentami, nigdy nie zadaje pytań) i do pięciu przykładowych kwestii. Kilka kwestii uczy rytmu lepiej niż przymiotniki, a różne postacie powinny odpowiadać na tę samą wiadomość inaczej.
 
-Grupa nie jest kartą: usunięcie grupy usuwa jej czaty, nigdy jej członków. Członkowie bez własnego koloru dostają automatycznie różne kolory.
+Grupa to nie karta: usunięcie grupy usuwa jej czaty, nigdy jej członków. Członkowie bez własnego koloru dostają automatycznie różne kolory.
 
 ## Zdobywanie kart
 
-- „Import card” przyjmuje pliki PNG lub JSON, jeden lub wiele, i linkuje do Chub, RisuRealm, CharaVault, Botbooru lub bezpośredniego pliku.
-- Marketplace przeszukuje kilka źródeł naraz; otwórz wynik, aby przeczytać całą kartę przed importem. Każde źródło ma własny porządek sortowania i filtr dla dorosłych, a niektóre wymagają ręcznego pobrania.
-- Eksport zapisuje PNG z kartą w środku.
-- „With Molfar” na Home (oraz w Lorebooks) prosi Molfara o naszkicowanie z tobą karty lub księgi wiedzy. Zobacz [[vertep:molfar]].
+- „Import card" przyjmuje pliki PNG lub JSON, jeden lub wiele, oraz linki do Chub, RisuRealm, CharaVault, Botbooru lub bezpośredniego pliku.
+- Marketplace przeszukuje kilka źródeł naraz; otwórz wynik, aby przeczytać całą kartę przed importem. Każde źródło ma własną kolejność sortowania i filtr treści dla dorosłych, a niektóre wymagają ręcznego pobrania.
+- Export zapisuje PNG z kartą w środku.
+- „With Molfar" na Home (oraz w Lorebooks) prosi Molfara o wspólne napisanie karty lub lorebooka. Zobacz [[vertep:molfar]].
 
-## Portrety kart bez obrazka
+## Listy od kart
 
-Karta bez własnego obrazka (nic albo domyślny awatar) może zostać narysowana. **Jedna karta:** w edytorze karty „Draw” pod portretem otwiera okno: wybierz model obrazu, model tekstowy (model zadań kart) napisze opis karty, który możesz edytować, a model obrazu go narysuje. Obrazek trafia od razu do Galerii karty, a „Use as portrait” ustawia go jako awatar. **Wiele kart:** w Characters, More, „Draw missing portraits (N)” wybierasz model, a potem karty są rysowane jedna po drugiej w karcie postępu; Cancel zatrzymuje się między kartami, a karta, która się nie udała, jest wymieniona z powodem.
+Karta, w którą dawno nie grałeś, może napisać do ciebie krótką notatkę własnym głosem. Notatka trafia do skrzynki odbiorczej („Waiting on you" na Home, przycisk skrzynki na pasku) jako zielony Letter; otwarcie go przenosi cię do starego czatu lub zaczyna czat dla karty, w którą nigdy nie grałeś. List nigdy nie pisze do czatu i nigdy nie wymyśla wydarzeń.
 
-„Draw with” wymienia modele obrazów z Settings > Images: lokalne ComfyUI lub Forge obok modeli API. Pierwszym wyborem jest własny model obrazów aplikacji (Extensions > Image generation); wybór tutaj jest zapamiętany tylko dla portretów. Model wytrenowany na tagach dostaje linijkę tagów, model API akapit. Karta z samym imieniem nie ma czego opisać, a okno to mówi. Generowanie obrazów musi być włączone (Extensions); okna o tym mówią i same je dla ciebie otwierają.
+Jest **wyłączony, dopóki go nie włączysz**. Gdy jest wyłączony, na górze sekcji Characters i w „Waiting on you" na Home widnieje zielona karta „Let your characters write to you": **Turn on** włącza go od razu, **Not now** ukrywa kartę na dobre. Liczby (dni bezczynności, listy dziennie, dni między listami od jednej karty, model piszący) i karty, które zatrzymałeś, są w Characters, More, Letters from cards. Listy są sprawdzane co kilka godzin, gdy aplikacja jest otwarta: czat bezczynny przez 14 dni, karta, w którą nigdy nie grałeś, przez 14 dni, oraz rozegrana karta bez Soul (raz). Jeśli model piszący zawiedzie trzy kontrole z rzędu (lub żaden nie jest ustawiony), skrzynka pokazuje czerwony błąd „Letters" z powodem, a Open przenosi cię do ustawień Letters; nadchodzący list, inny model lub wyłączenie listów go czyści.
 
-## Czego karta nie zawiera
+## Portrety dla kart, które go nie mają
 
-Stan Pulpitu, rozdziały i fakty należą do każdego czatu, nie do karty. Pamięć karty również nie jest częścią karty i nigdy nie pojawia się w eksporcie. Dusza natomiast jest zapisana w karcie.
+Karta bez własnego obrazu (nic lub domyślny awatar) może zostać narysowana. **Jedna karta:** w edytorze karty „Draw" pod portretem otwiera okno dialogowe: wybierz model obrazu, model tekstowy (model Card tasks) pisze opis karty, który możesz edytować, a model obrazu go rysuje. Obraz trafia od razu do galerii karty, a „Use as portrait" czyni go awatarem. **Wiele kart:** Characters, More, „Draw missing portraits (N)" pyta o model, a następnie rysuje je jedną po drugiej przez kartę postępu; Cancel zatrzymuje to między kartami, a karta, która zawiedzie, jest wymieniona z powodem.
 
-Dalej: [[first-story]] po pierwszy czat lub [[soul]] po profil reakcji.
+„Draw with" wyświetla modele obrazów z Settings > Images: lokalny ComfyUI lub Forge obok modeli API. Pierwszy wybór to własny model obrazu aplikacji (Extensions > Image generation); wybór tutaj jest zapamiętywany tylko dla portretów. Model wytrenowany na tagach dostaje wiersz tagów, model API akapit. Karta z samym imieniem nie ma czego opisywać i okno dialogowe to mówi. Generowanie obrazów musi być włączone (Extensions); okna dialogowe to mówią i otwierają je za ciebie.
+
+## Czego karta nie przechowuje
+
+Stan Dashboardu, rozdziały i fakty należą do każdego czatu, nie do karty. Pamięć karty również nie jest częścią karty i nigdy nie pojawia się w eksporcie. Natomiast Soul jest zapisywany w karcie.
+
+Dalej: [[first-story]] o pierwszym czacie lub [[soul]] o profilu reakcji.

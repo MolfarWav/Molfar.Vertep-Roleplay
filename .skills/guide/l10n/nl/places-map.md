@@ -1,0 +1,63 @@
+<!-- source: b1f6a72c1291 -->
+# De kaart van plaatsen
+
+De kaart van plaatsen is een kleine zwevende kaart boven de chat. Ze toont elke plaats die het verhaal heeft genoemd, de wegen die het verhaal ertussen heeft afgelegd en waar je je nu bevindt. Ze is voor iedereen die met de World DM speelt en de wereld wil zien waarin die zich bevindt. Ze kost geen modelaanroepen.
+
+## Waar ze staat
+
+Een chat toont een ronde kaartknop, linksonder in de chatkolom, wanneer het wereldboek van de chat minstens één plaats bevat (zie [[world-dm]]). Druk erop om de kaart te openen; druk op **×** op de kaart om ze weer tot de knop op te vouwen. Je kunt de knop en het venster overal naartoe slepen, en aan de onderhoek slepen om het venster te vergroten of te verkleinen (dubbelklik op de hoek voor de standaardgrootte). Het venster blijft staan waar je het hebt achtergelaten, per chat, in deze browser. Instellingen heeft één schakelaar, "Places Map", die de knop overal verbergt.
+
+Een wereld die vóór het verhaal is gebouwd (uit kaarten, een recept of de bibliotheek) kan plaatsen bevatten die het verhaal je nog niet heeft getoond, dus de kaart stelt dezelfde vraag als het World-gedeelte voordat ze die toont.
+
+Op een telefoon is de geopende kaart een paneel dat op het berichtvak staat. Terwijl ze open is, wijken het spritevenster en de rij personages opzij; terwijl je typt, wijkt de kaart ook opzij en komt ze terug wanneer het vak leeg is.
+
+## Wat erop staat
+
+- **Een gestippeld bord.** Sleep het lege bord om te verschuiven, knijp of gebruik het wiel om te zoomen, **+**, **−** en de hoekenknop (Show all places) in de kop. Plaatsen behouden hun grootte op het scherm; ver weg krimpen ze en verliezen ze hun namen, behalve degene waarin je je bevindt en degene die je hebt gekozen.
+- **Een plaats** is een klein geschilderd plaatje met de naam eronder. De drie puntjes op haar kaartje ("More for this place") openen een menu met "Change the icon of this place", dat ze met de hand wijzigt: de dialoog biedt "Automatic" (degene die de naam zegt) en elk soort van de iconenset met al zijn plaatjes; kies er een en ze blijft op deze plaats. Automatic haalt de keuze weg. De keuzes horen bij de chat. Het plaatje komt van de naam van de plaats (een tavern, een forge, een forest, een kitchen...); een plaats waarvan de naam niets zegt krijgt een koperen pin. Elk soort heeft meerdere plaatjes (meestal vier) en een plaats houdt degene die ze kreeg, zodat twee taverns er verschillend kunnen uitzien. Er zijn fantasy-soorten (een tavern, een forge, een castle, een cave...) en die van de moderne stad (een hospital, een police station, een cafe, een skyscraper, een metro entrance, een gas station, een post office, een cinema, een karaoke bar, een arcade en meer). Als de engine ouder is en geen plaatjes heeft, staat er een ronde emoji in hun plaats. De plaats waar het verhaal zich nu bevindt heeft een ring en een stip. Een plaats die het verhaal nooit heeft bezocht is wat donkerder.
+- **Kamers en hoeken** van een plaats (de "spots" van de World DM) zijn kleiner en staan rond de plaats waarin ze zich bevinden, met een dunne lijn ernaartoe. Sleep een plaats en haar kamers gaan mee; sleep een kamer en alleen de kamer beweegt.
+- **Wegen** zijn stippellijnen tussen twee plaatsen waartussen het verhaal zich heeft verplaatst. Een weg verschijnt vanzelf de eerste keer dat het verhaal van de ene plaats naar de andere gaat; bewegen tussen kamers van één plaats is geen reis. Wegen van de plaats die je kiest worden sterker getekend.
+  De kaart leert waar het verhaal zich bevindt uit de plaatsregel van het Dashboard, op naam gekoppeld aan een plaats van het World-boek. Wanneer die regel ergens anders naar verwijst dat niet in het boek staat, zegt een regel onder de kop dat ("The story is at ... which is not one of the places"), geen enkele plaats is als de jouwe gemarkeerd en er wordt geen weg getekend tot het verhaal een plaats bereikt die het boek heeft. Voeg de plaats toe in het World-gedeelte (of geef een bestaande de naam die het verhaal daar gebruikt). Een weg wordt alleen getekend voor verplaatsingen die de kaart heeft gezien: ze leest het verleden van het verhaal niet terug.
+  **Teken een weg met de hand:** kies een plaats, kies "Draw a road from this place" in het drie-puntjesmenu van haar kaartje en tik dan op een andere plaats: een weg verbindt hen. Tik op een plaats waarmee al een weg is en de weg wordt weggenomen. Tikken op een kamer of een lege plek annuleert alleen. Alleen hele plaatsen kunnen worden verbonden, geen kamers. Handgetekende wegen worden bewaard zoals degene die het verhaal tekende.
+- **Tik op een plaats** om haar kaartje onderaan te zien: de volledige naam (de naam onder het pictogram is afgekort, het kaartje niet, en de aanwijzer boven een naam houden toont hem helemaal), "You are here", wat zich erin bevindt, hoe vaak het verhaal haar heeft bezocht, en het plaatje dat er in het World-gedeelte aan is gebonden wanneer dat er is.
+- **Hernoem een plaats op de kaart** vanuit het drie-puntjesmenu van het kaartje. Het wijzigt alleen wat de kaart toont: het World-boek, het Dashboard en het verhaal houden de eigen naam van de plaats, dus niets dat op de plaats berust (haar kamers, haar wegen, later reizen met een tik) wordt beïnvloed. Het kaartje zegt dan ook "In the book: ...". Sla een lege naam op om de naam van het boek terug te zetten. Het soort van het pictogram wordt uit beide namen gelezen.
+
+## Waar de plaatsen staan
+
+Nieuwe plaatsen worden door de app geplaatst, niet door een model: de eerste in het midden, de volgende naast de plaats waar het verhaal vandaan kwam, kamers rond hun plaats. Sleep elke plaats waar je wilt; de app verplaatst nooit een plaats die je zelf hebt geplaatst. De posities, de wegen en het kaartbeeld horen bij de chat, niet bij de browser.
+
+- **Het slot** (het hangslot in de kop) houdt de plaatsen waar ze zijn: een sleep die op een plaats begint verplaatst in plaats daarvan de kaart, een tik kiest nog steeds de plaats. Het is gemaakt voor een telefoon, waar een vinger die de kaart verschuift de pictogrammen blijft wegduwen. Het wordt per chat in deze browser bewaard, dus een telefoon kan vergrendeld zijn terwijl de desktop dat niet is.
+
+Het tandwiel in de kop opent:
+
+- **Het beeld onder de plaatsen** (zie "Kant-en-klare kaarten" hieronder): upload je eigen beeld, kies een kant-en-klare kaart of schakel over naar het gestippelde raster. Het wijzigen ervan behoudt waar de plaatsen staan; sleep de plaatsen daarna erop.
+- **Arrange the places again** zet elke plaats terug naar de automatische indeling (het vraagt eerst). De wegen blijven.
+
+## Reizen met een tik
+
+Kies een plaats waar het verhaal zich niet in bevindt en druk op de pijl op haar kaartje (naast de drie puntjes) ("Go to this place"). Een klein venster opent:
+
+- **Hoe:** te voet, rijdend of de weg overslaan. Rijdend duurt 0,4 van de wandeltijd; de weg overslaan vraagt het antwoord om hoogstens één regel.
+- **Minuten:** berekend uit de afstand tussen de twee plaatsen op het bord (10 bordeeneenheden per minuut, afgerond op 5), en door jou aan te passen. Ze worden op de weg bewaard, dus de volgende reis tussen dezelfde twee plaatsen begint ermee. **Ask the model** (naast de minuten) doet één aanroep op het model van de World DM: het leest wat het boek over de twee plaatsen zegt en de afstand, en geeft de wandeltijd, die het veld vult. Het kost één kleine aanroep, alleen wanneer je erop drukt, en het is uit terwijl de World DM uit is.
+- **Road name:** optioneel. Wordt op de weg bewaard; de volgende reis zegt het antwoord zich aan die weg te houden, zodat dezelfde straat opnieuw wordt bewandeld. Leeg gelaten verzint het antwoord een korte naam. Wanneer de weg er geen heeft en de World DM aan is, leest één kleine aanroep op zijn model het antwoord na de reis en verschijnt er een regel onder de kop: "The reply called this road ..." met **Keep**. Keep zet de naam op de weg; negeer het en er verandert niets. Er wordt niets gelezen wanneer je de weg al een naam hebt gegeven.
+- **Road event** (uit tot je het aanzet, per chat in deze browser onthouden): wanneer de DM al een gebeurtenis vasthoudt, speelt die op de weg. Anders wordt er met een vaste seed een dobbelsteen geworpen tegen de kans die je instelt (25% om te beginnen): het venster toont de worp voordat je verzendt, en bij een treffer noemt het een klein soort gebeurtenis (een vreemdeling, een obstakel, het weer, een vondst, een gevoel van bespied te worden, een reiziger in nood, een gerucht, een waarschuwingsbord) die het antwoord invult. Dezelfde worp verschijnt als je het venster opnieuw opent, en ze staat in de instructiechip op je bericht.
+- **Jouw zet:** de regel die in de chat gaat, standaard "I head to ...", door jou te herschrijven.
+
+**Go** verzendt je zet met een verborgen instructie voor dat ene antwoord: waar vandaan, waar naartoe, hoe, ongeveer hoe lang, om de weg in een paar regels te vertellen en dan de aankomst, en om de nieuwe tijd van de dag te tonen. Het kost het antwoord en niets meer. De klok van het Dashboard wordt niet door de kaart verzet: die volgt het antwoord, zoals na Skip time, dus een weggeveegd antwoord neemt de tijd mee terug. De instructie verschijnt als een chip op je bericht. Op een telefoon vouwt de kaart na Go op zodat je het antwoord kunt lezen.
+
+Wanneer de kaart niet weet waar het verhaal zich bevindt (de regel onder de kop zegt dat), heeft de reis geen weg en geen tijd: alleen de zet en de aankomst. Een kamer van de plaats waarin het verhaal zich bevindt is een beweging daarbinnen, ook zonder tijd.
+
+## Kant-en-klare kaarten en het beeld onder de plaatsen
+
+Een kaart zonder keuze is niet kaal: de app toont een kant-en-klaar, geschilderd plan dat bij de plaatsen past (een huisplattegrond voor kamers, grotten voor kelders en kerkers, een kust voor de zee, een ommuurde stad of een dorp voor straten en winkels, de wildernis voor bossen en rivieren, anders een regio; een modern plan, zoals een downtown, een suburb, een industrial district, een airport of een campus, wanneer de plaatsen van een moderne stad zijn: een hospital, een police station, een cinema, een bank...). Het plan wordt door code uit de namen gekozen, elke keer hetzelfde voor een chat, en kost niets.
+
+Het tandwielmenu heeft de rest:
+- **Choose a ready map** opent de galerij van de pakketten van de engine per soort (Region, Wilderness, Coast, Walled town, Village, Harbour town, House plan, Caves; Downtown, Suburb, Industrial district, Campus, Waterfront, Old town, Airport, Metropolis, City park, Small town), vier kaarten elk. Kies er een en ze blijft op deze chat.
+- **Upload a map picture** zet je eigen beeld onder de plaatsen, in het bord passend met behoud van zijn verhouding.
+- **No picture (the dotted grid)** haalt het beeld weg; het menu biedt dan **Use the automatic map again** aan.
+
+De plaatsen verplaatsen of het beeld wijzigen verplaatst nooit het ene in het andere: de plaatsen behouden waar je ze hebt gezet.
+
+## Wat ze niet doet
+
+Ze tekent de wereld niet en verzint geen plaatsen (dat doet de World DM, zie [[world-dm]]). Plaatsen die de DM heeft opgeheven verlaten de kaart.

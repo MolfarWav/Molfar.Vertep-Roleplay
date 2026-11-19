@@ -1,56 +1,56 @@
-<!-- source: 8601aebf3a12 -->
+<!-- source: 63580e32deab -->
 # Personagens, personas e grupos
 
-Tudo com que você joga vive em quatro seções: Characters, Groups, Personas e Marketplace. Esta página diz para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
+Tudo o que você usa para jogar fica em quatro seções: Characters, Groups, Personas e Marketplace. Esta página explica para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
 
-## Cartões
+## Cards
 
-Um cartão é um personagem: descrição, personalidade, cenário e uma primeira mensagem. Uma tag escrita `group: Guild of Ravens` ou `faction: Guild of Ravens` também coloca o personagem do cartão nesse grupo, então um fato de memória contado ao grupo é conhecido por eles ([[litopys]]). A seção Characters mostra seus cartões como grade ou lista, com busca, tags, pastas, favoritos (uma estrela) e várias ordenações. Abra um cartão para editá-lo. As edições ficam em um rascunho até "Save changes"; sair com edições não salvas pergunta primeiro.
+Um card é um personagem: descrição, personalidade, cenário e uma primeira mensagem. Uma tag escrita `group: Guild of Ravens` ou `faction: Guild of Ravens` também coloca o personagem do card nesse grupo, então um fato de memória contado ao grupo é conhecido por eles ([[litopys]]). A seção Characters mostra seus cards como grade ou lista, com busca, tags, pastas, favoritos (uma estrela) e várias ordenações. Abra um card para editá-lo. As edições ficam em um rascunho até "Save changes"; sair com edições não salvas pergunta antes.
 
 O editor tem seis abas:
 
-- **Core**: o texto do cartão, o diálogo e a saudação.
-- **Profile**: a mesma descrição dividida em campos estruturados (identidade, aparência, objetivos). Cada salvamento os escreve de volta no texto do cartão. Um cartão narrador pode descrever um elenco inteiro aqui.
-- **Soul**: como o personagem reage a você, mais hábitos. Veja [[soul]].
-- **Memory**: chats concluídos de que o personagem se lembra. Veja [[memory]].
-- **Lorebook**: livros vinculados a este cartão.
+- **Core**: o texto do card, diálogo e saudação.
+- **Profile**: a mesma descrição dividida em campos estruturados (identidade, aparência, objetivos). Cada salvamento os grava de volta no texto do card. Um card de narrador pode descrever um elenco inteiro aqui.
+- **Soul**: como o personagem reage a você, além de hábitos. Veja [[soul]].
+- **Memory**: conversas encerradas que o personagem lembra. Veja [[memory]].
+- **Lorebook**: livros vinculados a este card.
 - **More**: cores e vozes, sprites (veja [[sprites]]), galeria, regex, configurações avançadas.
 
-Um cartão pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Colors, "Voices" dá a cada falante sua própria cor. Se você não listar vozes, o chat faz isso por você: um cartão que contém vários personagens (seções com o nome de cada um) colore sozinho as falas de cada personagem, cada um com uma cor diferente, e isso fica salvo com o chat. Em qualquer outro chat, abra o menu do chat, "Voice colors", e ligue o interruptor; "Spread colors" dá uma cor diferente a todos que você não escolheu. Isso precisa do Relationship dashboard, que fornece a lista de personagens.
-
-## Cartas dos cartões
-
-Um cartão que você não joga há algum tempo pode lhe escrever um bilhete curto com a própria voz. O bilhete cai na Inbox (o "Waiting on you" da Home, o botão da Inbox na barra lateral) como uma Letter verde; ao abri-lo você vai para o chat antigo, ou começa um chat com um cartão com o qual você nunca jogou. Uma carta nunca escreve dentro de um chat e nunca inventa eventos.
-
-Ela fica **desligada até você ligá-la**. Enquanto estiver desligada, um cartão verde "Let your characters write to you" fica no topo da seção Characters e em "Waiting on you" da Home: **Turn on** a liga na hora, **Not now** esconde o cartão de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um mesmo cartão, o modelo de escrita) e os cartões que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat parado há 14 dias, um cartão que você nunca jogou há 14 dias, e um cartão jogado sem Soul (uma vez). Se o modelo de escrita falhar três verificações seguidas (ou nenhum estiver definido), a Inbox mostra uma falha vermelha "Letters" com o motivo, e **Open** leva você às configurações de cartas; uma carta que chega, outro modelo ou desligar as cartas a limpa.
+Um card pode interpretar vários personagens ao mesmo tempo (um narrador ou mestre de jogo). Em Colors, "Voices" dá a cada falante sua própria cor. Se você não listar nenhuma voz, o chat faz isso por você: um card que contém vários personagens (seções nomeadas após cada um) colore as falas de cada personagem por conta própria, cada uma com uma cor diferente, mantida com o chat. Em qualquer outro chat, abra o menu do chat, "Voice colors", e ative o interruptor; "Spread colors" dá a todos que você não escolheu uma cor diferente. Isso precisa do Dashboard de Relationship, que fornece a lista de personagens.
 
 ## Personas
 
-Uma persona é você: nome, pronomes, descrição, avatar. O modelo a vê onde quer que o prompt fale do usuário. "Use this persona" a torna seu padrão e troca o chat aberto para ela. Uma persona pode carregar seus próprios lorebooks e pode ser fixada a personagens escolhidos, para que chats novos com eles comecem com ela.
+Uma persona é você: nome, pronomes, descrição, avatar. O modelo a vê onde quer que o prompt fale do usuário. "Use this persona" a torna sua padrão e muda o chat aberto para ela. Uma persona pode carregar seus próprios lorebooks e pode ser fixada a personagens escolhidos, para que novos chats com eles comecem com ela. A aba Lorebooks de uma persona lista os livros que ela carrega (abra um, desvincule-o, adicione mais de uma lista que você pode pesquisar, ou comece um novo). Uma persona pode ter um livro próprio ("New book" em uma aba vazia o cria, "Replace" o troca): ele viaja dentro do arquivo da persona, então Export e Backup o carregam e importar o arquivo em outro dispositivo o traz de volta, vinculado. Livros que ela apenas vincula ficam na biblioteca daquele dispositivo; um vínculo cujo livro está faltando aparece como uma linha "Not in your library" que você pode remover. Import na tela Personas aceita uma persona de outro app (um nome e uma descrição), um backup de várias, ou uma lista `{ name: description }`; uma persona que nomeia livros que você ainda não importou é importada mesmo assim, com uma nota de quais estão faltando.
 
-## Grupos
+## Groups
 
-Um grupo coloca vários personagens em um chat. "New group" permite escolher os membros. O editor tem Overview, Members, Scene, Turns, Lore e Chats. A aba Turns decide quem responde: Narrator (uma resposta dá voz a todos) ou Each in turn. Um grupo novo começa como Narrator.
+Um grupo coloca vários personagens em um chat. "New group" permite escolher membros. O editor tem Overview, Members, Scene, Turns, Lore e Chats. A aba Turns decide quem responde: Narrator (uma resposta dá voz a todos) ou Each in turn. Um novo grupo começa como Narrator.
 
-A aba Turns também tem **How they talk**: **Interrupções** (Interruptions): os membros se intrometem, falam por cima uns dos outros ou ignoram uma pergunta quando isso combina com o personagem. **Autogols** (Own goals): os membros objetam, negociam ou recusam quando um plano vai contra quem são, mesmo que isso crie tensão com você. **Trazer os membros calados** (Draw in quiet members): quem ficou quieto por um tempo tem mais chances de responder, e uma cena narrada é instruída a trazê-lo para a conversa. As duas primeiras opções são Off, Can ou Should: Can permite quando combina com a cena, Should espera isso, e se cada resposta virar uma discussão, volte para Can. Grupos novos começam com Can e com a opção de trazer os calados ligada; grupos antigos mantêm tudo desligado até você ligar. O próprio botão Turns do chat pode mudar isso só para aquele chat. Na aba Members, abra a seção "In this group" de um membro para dar a ele uma **voice** que só este grupo usa: até dois hábitos de fala (fala em fragmentos, nunca faz perguntas) e até cinco frases de exemplo. Algumas frases ensinam o ritmo melhor do que adjetivos, e personagens diferentes devem responder de forma diferente à mesma notícia.
+A aba Turns também tem **How they talk**: **Interruptions** (membros interrompem, falam por cima uns dos outros ou ignoram uma pergunta quando combina com o personagem), **Own goals** (membros objetam, barganham ou recusam quando um plano vai contra quem eles são, mesmo que crie tensão com você) e **Draw in quiet members** (alguém que está quieto há um tempo recebe mais chances de responder, e uma cena narrada é solicitada a trazê-lo). Os dois primeiros são Off, Can ou Should: Can permite quando combina com a cena, Should espera isso, e se toda resposta vira uma discussão, volte para Can. Novos grupos começam com Can e Draw in ativados; grupos mais antigos mantêm tudo desligado até você ativar. O botão Turns do próprio chat pode alterá-los apenas para um chat. Na aba Members, abra a seção "In this group" de um membro para dar a ele uma **voice** que só este grupo usa: até dois hábitos de fala (fala em fragmentos, nunca faz perguntas) e até cinco falas de exemplo. Algumas linhas ensinam o ritmo melhor que adjetivos, e personagens diferentes devem responder à mesma notícia de formas diferentes.
 
-Um grupo não é um cartão: apagar um grupo apaga seus chats, nunca seus membros. Membros sem uma cor própria recebem cores diferentes automaticamente.
+Um grupo não é um card: excluir um grupo exclui seus chats, nunca seus membros. Membros sem cor própria recebem cores diferentes automaticamente.
 
-## Obtendo cartões
+## Obtendo cards
 
 - "Import card" aceita arquivos PNG ou JSON, um ou muitos, e links para Chub, RisuRealm, CharaVault, Botbooru ou um arquivo direto.
-- O Marketplace busca em várias fontes ao mesmo tempo; abra um resultado para ler o cartão completo antes de importar. Cada fonte tem sua própria ordenação e filtro adulto, e algumas precisam de download manual.
-- Exportar grava um PNG com o cartão dentro.
-- "With Molfar" na Home (e em Lorebooks) pede ao Molfar que rascunhe um cartão ou um lorebook com você. Veja [[vertep:molfar]].
+- O Marketplace pesquisa várias fontes ao mesmo tempo; abra um resultado para ler o card completo antes de importar. Cada fonte tem sua própria ordenação e filtro adulto, e algumas precisam de download manual.
+- Export grava um PNG com o card dentro.
+- "With Molfar" em Home (e em Lorebooks) pede ao Molfar para rascunhar um card ou um lorebook com você. Veja [[vertep:molfar]].
 
-## Retratos para cartões sem um
+## Cartas dos cards
 
-Um cartão sem imagem própria (nenhuma, ou o avatar padrão) pode ser desenhado. **Um cartão:** no editor do cartão, "Draw" sob o retrato abre uma janela: escolha o modelo de imagem; um modelo de texto (o modelo de Card tasks) escreve uma descrição do cartão, que você pode editar, e o modelo de imagem a desenha. A imagem vai para a Gallery do cartão na hora, e "Use as portrait" a torna o avatar. **Muitos cartões:** em Characters, More, "Draw missing portraits (N)" pergunta qual modelo e depois os desenha um após o outro pelo cartão de progresso; Cancel para entre um cartão e outro, e um cartão que falha aparece listado com o motivo.
+Um card que você não joga há um tempo pode escrever uma nota curta na própria voz dele. A nota chega na caixa de entrada ("Waiting on you" do Home, o botão de caixa de entrada na barra lateral) como uma Letter verde; abri-la leva você ao chat antigo, ou inicia um chat para um card que você nunca jogou. Uma carta nunca escreve em um chat e nunca inventa eventos.
 
-"Draw with" lista os modelos de imagem de Settings > Images: um ComfyUI ou Forge local ao lado de modelos de API. A primeira escolha é o modelo de imagem do próprio app (Extensions > Image generation); uma escolha aqui é lembrada só para retratos. Um modelo treinado por tags recebe uma linha de tags, um modelo de API recebe um parágrafo. Um cartão só com nome não tem o que descrever, e a janela avisa. A geração de imagens precisa estar ligada (Extensions); as janelas avisam e a abrem para você.
+Fica **desligado até você ativar**. Enquanto está desligado, um card verde "Let your characters write to you" aparece no topo da seção Characters e em "Waiting on you" do Home: **Turn on** ativa na hora, **Not now** esconde o card de vez. Os números (dias de inatividade, cartas por dia, dias entre cartas de um card, o modelo de escrita) e os cards que você parou ficam em Characters, More, Letters from cards. As cartas são verificadas a cada poucas horas enquanto o app está aberto: um chat inativo por 14 dias, um card que você nunca jogou por 14 dias, e um card jogado sem Soul (uma vez). Se o modelo de escrita falhar três verificações seguidas (ou nenhum estiver definido), a caixa de entrada mostra uma falha vermelha "Letters" com o motivo, e Open leva você às configurações de Letters; uma carta que chega, um modelo diferente ou desligar as cartas limpa isso.
 
-## O que um cartão não guarda
+## Retratos para cards sem um
 
-O estado do Dashboard, capítulos e fatos pertencem a cada chat, não ao cartão. A memória do cartão também não faz parte do cartão e nunca aparece em uma exportação. A Soul, em contraste, é salva no cartão.
+Um card sem imagem própria (nada, ou o avatar padrão) pode ser desenhado. **Um card:** no editor do card, "Draw" sob o retrato abre um diálogo: escolha o modelo de imagem, um modelo de texto (o modelo de Card tasks) escreve uma descrição do card, que você pode editar, e o modelo de imagem a desenha. A imagem vai para a Gallery do card na hora e "Use as portrait" a torna o avatar. **Muitos cards:** Characters, More, "Draw missing portraits (N)" pergunta qual modelo e depois os desenha um após o outro pelo card de progresso; Cancel para entre cards e um card que falha é listado com o motivo.
 
-Próximo: [[first-story]] para o primeiro chat, ou [[soul]] para o perfil de reação.
+"Draw with" lista os modelos de imagem de Settings > Images: um ComfyUI ou Forge local ao lado de modelos de API. A primeira escolha é o modelo de imagem do próprio app (Extensions > Image generation); uma escolha aqui é lembrada apenas para retratos. Um modelo treinado em tags recebe uma linha de tags, um modelo de API um parágrafo. Um card que tem apenas um nome não tem nada a descrever, e o diálogo avisa isso. A geração de imagem precisa estar ativada (Extensions); os diálogos avisam e a abrem para você.
+
+## O que um card não guarda
+
+O estado do Dashboard, capítulos e fatos pertencem a cada chat, não ao card. A memória do card também não faz parte do card e nunca aparece em uma exportação. O Soul, em contrapartida, é salvo no card.
+
+A seguir: [[first-story]] para o primeiro chat, ou [[soul]] para o perfil de reação.

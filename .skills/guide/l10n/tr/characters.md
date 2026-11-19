@@ -1,56 +1,56 @@
-<!-- source: 8601aebf3a12 -->
+<!-- source: 63580e32deab -->
 # Karakterler, personalar ve gruplar
 
-Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne işe yaradığını söyler; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makaleleri ayrıntıları içerir.
+Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne için olduğunu anlatır; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makalelerinde ayrıntılar bulunur.
 
 ## Kartlar
 
-Bir kart bir karakterdir: açıklama, kişilik, senaryo ve bir ilk mesaj. `group: Guild of Ravens` ya da `faction: Guild of Ravens` olarak yazılmış bir etiket, kartın karakterini de o gruba koyar; böylece gruba söylenen bir bellek olgusu onlar tarafından bilinir ([[litopys]]). Characters bölümü kartlarınızı ızgara veya liste olarak; arama, etiketler, klasörler, favoriler (bir yıldız) ve çeşitli sıralamalarla gösterir. Düzenlemek için bir kartı açın. Düzenlemeler "Save changes"e basana kadar taslakta kalır; kaydedilmemiş düzenlemelerle ayrılmak önce sorar.
+Kart bir karakterdir: açıklama, kişilik, senaryo ve bir ilk mesaj. `group: Guild of Ravens` veya `faction: Guild of Ravens` şeklinde yazılmış bir etiket, kartın karakterini o gruba da koyar; böylece gruba söylenen bir hafıza bilgisi onlar tarafından da bilinir ([[litopys]]). Characters bölümü kartlarınızı ızgara veya liste olarak gösterir; arama, etiketler, klasörler, favoriler (bir yıldız) ve çeşitli sıralamalarla. Düzenlemek için bir kart açın. Düzenlemeler "Save changes" denene kadar taslakta kalır; kaydedilmemiş düzenlemelerle ayrılmak önce sorar.
 
 Düzenleyicinin altı sekmesi vardır:
 
-- **Core**: kart metni, diyalog ve selamlama.
-- **Profile**: aynı açıklama yapılandırılmış alanlara bölünmüş (kimlik, görünüm, hedefler). Her kayıt onları kart metnine geri yazar. Bir anlatıcı kartı burada bütün bir kadroyu tanımlayabilir.
-- **Soul**: karakterin size nasıl tepki verdiği, ayrıca alışkanlıklar. Bkz. [[soul]].
+- **Core**: kart metni, diyalog ve karşılama.
+- **Profile**: aynı açıklamanın yapılandırılmış alanlara bölünmüş hali (kimlik, görünüm, hedefler). Her kayıt bunları kart metnine geri yazar. Bir anlatıcı kartı burada bütün bir kadroyu tanımlayabilir.
+- **Soul**: karakterin size nasıl tepki verdiği, artı alışkanlıklar. Bkz. [[soul]].
 - **Memory**: karakterin hatırladığı bitmiş sohbetler. Bkz. [[memory]].
 - **Lorebook**: bu karta bağlı kitaplar.
 - **More**: renkler ve sesler, sprite'lar (bkz. [[sprites]]), galeri, regex, gelişmiş ayarlar.
 
-Bir kart aynı anda birkaç karakteri oynayabilir (bir anlatıcı veya oyun yöneticisi). Colors altında, "Voices" her konuşmacıya kendi rengini verir. Hiç ses listelemezseniz sohbet bunu sizin yerinize yapar: birkaç karakter içeren bir kart (her birinin adını taşıyan bölümlerle) her karakterin satırlarını kendiliğinden, her biri farklı bir renkle boyar ve bu renkler sohbetle birlikte saklanır. Başka herhangi bir sohbette sohbet menüsünü açın, "Voice colors"ı seçin ve anahtarı açın; "Spread colors" renk seçmediğiniz herkese farklı bir renk verir. Bunun için karakterlerin listesini sağlayan Relationship dashboard'u gerekir.
-
-## Bir karttan gelen mektuplar
-
-Uzun süredir oynamadığınız bir kart, kendi sesiyle size kısa bir not yazabilir. Not, gelen kutusuna (Home'daki "Waiting on you" ve rayın gelen kutusu düğmesi) yeşil bir Letter olarak düşer; onu açmak sizi eski sohbete götürür ya da hiç oynamadığınız bir kart için yeni bir sohbet başlatır. Bir mektup asla bir sohbete yazmaz ve olay uydurmaz.
-
-Mektup, siz açana kadar **kapalıdır**. Kapalıyken Characters bölümünün en üstünde ve Home'daki "Waiting on you" içinde yeşil bir "Let your characters write to you" kartı durur: **Turn on** bunu hemen açar, **Not now** kartı kalıcı olarak gizler. Sayılar (boşta geçen gün sayısı, günde mektup, bir karttan mektuplar arasındaki gün sayısı ve yazma modeli) ile durdurduğunuz kartlar Characters, More, Letters from cards içindedir. Uygulama açıkken mektuplar birkaç saatte bir kontrol edilir: 14 gün boşta kalmış bir sohbet, 14 gündür hiç oynanmamış bir kart ve Soul'u olmayan oynanmış bir kart (bir kez). Yazan model art arda üç kontrolde başarısız olursa (ya da hiç model seçilmemişse) gelen kutusunda nedeniyle birlikte kırmızı bir "Letters" hatası görünür ve **Open** sizi mektup ayarlarına götürür; gelen bir mektup, farklı bir model ya da mektupların kapatılması bu hatayı temizler.
+Bir kart aynı anda birkaç karakteri oynatabilir (bir anlatıcı veya oyun yöneticisi). Colors altında "Voices" her konuşmacıya kendi rengini verir. Hiç ses listelemezseniz sohbet bunu sizin için yapar: birkaç karakter barındıran bir kart (her biri adına göre adlandırılmış bölümlerle) her karakterin satırlarını kendiliğinden renklendirir, her biri farklı bir renkle ve sohbetle birlikte saklanır. Başka herhangi bir sohbette sohbet menüsünü açın, "Voice colors" ve anahtarı açın; "Spread colors" seçmediklerinizin her birine farklı bir renk verir. Bunun için karakter listesini sağlayan Relationship dashboard gerekir.
 
 ## Personalar
 
-Bir persona sizsiniz: ad, zamirler, açıklama, avatar. Model onu, istemin kullanıcıdan söz ettiği her yerde görür. "Use this persona" onu varsayılanınız yapar ve açık sohbeti ona geçirir. Bir persona kendi lorebook'larını taşıyabilir ve seçilen karakterlere kilitlenebilir; böylece onlarla yeni sohbetler onunla başlar.
+Persona sizsiniz: ad, zamirler, açıklama, avatar. Model bunu, istemin kullanıcıdan söz ettiği her yerde görür. "Use this persona" onu varsayılanınız yapar ve açık sohbeti ona geçirir. Bir persona kendi lorebook'larını taşıyabilir ve seçilen karakterlere kilitlenebilir; böylece onlarla yeni sohbetler onunla başlar. Bir personanın Lorebooks sekmesi taşıdığı kitapları listeler (birini açın, bağlantısını kaldırın, arayabileceğiniz bir listeden daha fazla ekleyin veya yeni bir tane başlatın). Bir persona kendi kitabına sahip olabilir (boş bir sekmede "New book" onu yapar, "Replace" değiştirir): personanın dosyası içinde yol alır, böylece Export ve Backup onu taşır ve dosyayı başka bir cihazda içe aktarmak onu bağlı olarak geri getirir. Yalnızca bağlantı verdiği kitaplar o cihazın kütüphanesinde kalır; kitabı eksik olan bir bağlantı, kaldırabileceğiniz bir "Not in your library" satırı olarak görünür. Personas ekranındaki içe aktarma, başka bir uygulamadan tek bir persona (bir ad ve bir açıklama), birkaçının yedeğini veya bir `{ name: description }` listesini alır; henüz içe aktarmadığınız kitapları adlandıran bir persona yine de içe aktarılır, hangilerinin eksik olduğuna dair bir notla.
 
 ## Gruplar
 
-Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üye seçmenizi sağlar. Düzenleyicide Overview, Members, Scene, Turns, Lore ve Chats bulunur. Turns sekmesi kimin yanıtlayacağına karar verir: Narrator (tek yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar.
+Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üyeleri seçmenizi sağlar. Düzenleyicide Overview, Members, Scene, Turns, Lore ve Chats vardır. Turns sekmesi kimin yanıt vereceğine karar verir: Narrator (tek bir yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar.
 
-Turns sekmesinde ayrıca **How they talk** bulunur: **Araya girme** (Interruptions): üyeler karaktere uyduğunda söze girer, birbirinin üstüne konuşur veya bir soruyu yok sayar. **Kendi golleri** (Own goals): bir plan üyenin kim olduğuna ters düştüğünde itiraz eder, pazarlık eder veya reddeder; sizinle gerilim yaratsa bile. **Sessiz üyeleri çekme** (Draw in quiet members): bir süredir sessiz kalan biri yanıt verme şansını artırır ve anlatılan bir sahnede onların da katılması istenir. İlk ikisi Off, Can veya Should olarak ayarlanır: Can, sahneye uyduğunda buna izin verir; Should bunu bekler; her yanıt bir tartışmaya dönüşürse Can'a geri dönün. Yeni gruplar Can ve sessizleri çekme açık olarak başlar; eski gruplar siz açana kadar her şeyi kapalı tutar. Sohbetin kendi Turns düğmesi bunları yalnızca o sohbet için değiştirebilir. Members sekmesinde bir üyenin "In this group" bölümünü açarak yalnızca bu grubun kullandığı bir **voice** (ses) verebilirsiniz: en fazla iki konuşma alışkanlığı (parça parça konuşur, hiç soru sormaz) ve en fazla beş örnek replik. Birkaç replik ritmi sıfatlardan daha iyi öğretir; farklı karakterler aynı habere farklı tepki vermelidir.
+Turns sekmesinde ayrıca **How they talk** vardır: **Interruptions** (üyeler karakterlerine uyduğunda söze girer, birbirinin üstüne konuşur veya bir soruyu görmezden gelir), **Own goals** (üyeler bir plan kim olduklarına aykırı düştüğünde, sizinle gerilim yaratsa bile itiraz eder, pazarlık eder veya reddeder) ve **Draw in quiet members** (bir süredir sessiz olan biri daha fazla yanıt şansı bulur ve anlatılan bir sahnenin onu içeri katması istenir). İlk ikisi Off, Can veya Should'dur: Can sahneye uyduğunda izin verir, Should bekler ve her yanıt bir tartışmaya dönüşüyorsa Can'a geri dönün. Yeni gruplar Can ve Draw in açık olarak başlar; eski gruplar siz açana kadar her şey kapalı kalır. Sohbetin kendi Turns düğmesi bunları yalnızca tek bir sohbet için değiştirebilir. Members sekmesinde bir üyenin "In this group" bölümünü açarak ona yalnızca bu grubun kullandığı bir **voice** verin: en fazla iki konuşma alışkanlığı (parçalar halinde konuşur, asla soru sormaz) ve en fazla beş örnek satır. Birkaç satır, sıfatlardan daha iyi ritim öğretir ve farklı karakterler aynı habere farklı yanıt vermelidir.
 
-Bir grup bir kart değildir: bir grubu silmek sohbetlerini siler, asla üyelerini silmez. Kendi rengi olmayan üyelere otomatik olarak farklı renkler verilir.
+Bir grup kart değildir: bir grubu silmek sohbetlerini siler, asla üyelerini değil. Kendi rengi olmayan üyeler otomatik olarak farklı renkler alır.
 
 ## Kart edinme
 
-- "Import card" PNG veya JSON dosyalarını (bir veya çok) kabul eder ve Chub, RisuRealm, CharaVault, Botbooru veya doğrudan bir dosyaya bağlantı verir.
-- Marketplace aynı anda birkaç kaynağı arar; içe aktarmadan önce tam kartı okumak için bir sonucu açın. Her kaynağın kendi sıralama düzeni ve yetişkin filtresi vardır ve bazıları elle indirme gerektirir.
-- Export, kartı içinde barındıran bir PNG yazar.
-- Home'daki (ve Lorebooks'taki) "With Molfar", Molfar'dan sizinle bir kart veya lorebook taslağı hazırlamasını ister. Bkz. [[vertep:molfar]].
+- "Import card" PNG veya JSON dosyalarını, bir veya çok, kabul eder ve Chub, RisuRealm, CharaVault, Botbooru veya doğrudan bir dosyaya bağlantı verir.
+- Marketplace aynı anda birkaç kaynakta arar; içe aktarmadan önce tam kartı okumak için bir sonucu açın. Her kaynağın kendi sıralama düzeni ve yetişkin filtresi vardır ve bazıları elle indirme gerektirir.
+- Export, kartın içinde olduğu bir PNG yazar.
+- Home'daki (ve Lorebooks'taki) "With Molfar", Molfar'dan sizinle birlikte bir kart veya bir lorebook taslağı hazırlamasını ister. Bkz. [[vertep:molfar]].
 
-## Kartı olmayanlar için portreler
+## Kartlardan mektuplar
 
-Kendi resmi olmayan bir kart (hiç yok ya da varsayılan avatar) çizilebilir. **Tek kart:** kart düzenleyicide portrenin altındaki "Draw" bir iletişim kutusu açar: bir görüntü modeli seçin; bir metin modeli (Card tasks modeli) kartın bir açıklamasını yazar, bunu düzenleyebilirsiniz; görüntü modeli çizer. Resim hemen kartın Gallery'sine gider ve "Use as portrait" onu avatar yapar. **Birçok kart:** Characters, More, "Draw missing portraits (N)" hangi modeli kullanacağınızı sorar ve sonra ilerleme kartı üzerinden birer birer çizer; Cancel kartlar arasında durdurur ve başarısız olan bir kart nedeniyle birlikte listelenir.
+Bir süredir oynamadığınız bir kart size kendi sesiyle kısa bir not yazabilir. Not, gelen kutusuna (Home'un "Waiting on you" bölümü, raydaki gelen kutusu düğmesi) yeşil bir Letter olarak düşer; açmak sizi eski sohbete götürür veya hiç oynamadığınız bir kart için bir sohbet başlatır. Bir mektup asla bir sohbete yazmaz ve asla olaylar uydurmaz.
 
-"Draw with" Settings > Images'in görüntü modellerini listeler: yerel bir ComfyUI ya da Forge ile API modelleri yan yana. İlk seçenek uygulamanın kendi görüntü modelidir (Extensions > Image generation); burada yapılan seçim yalnızca portreler için hatırlanır. Etiketle eğitilmiş bir model bir satır etiket, bir API modeli bir paragraf alır. Yalnızca adı olan bir kartın tarif edecek bir şeyi yoktur ve iletişim kutusu bunu söyler. Görüntü üretimi açık olmalıdır (Extensions); iletişim kutuları bunu söyler ve sizin için açar.
+**Siz açana kadar kapalıdır**. Kapalıyken, Characters bölümünün üstünde ve Home'un "Waiting on you" bölümünde yeşil bir "Let your characters write to you" kartı durur: **Turn on** onu hemen açar, **Not now** kartı kalıcı olarak gizler. Sayılar (boşta geçen günler, günde mektuplar, bir karttan mektuplar arasındaki günler, yazma modeli) ve durdurduğunuz kartlar Characters, More, Letters from cards altındadır. Mektuplar uygulama açıkken birkaç saatte bir kontrol edilir: 14 gün boşta kalan bir sohbet, 14 gündür oynamadığınız bir kart ve Soul'u olmayan oynanmış bir kart (bir kez). Yazma modeli üst üste üç kontrolde başarısız olursa (veya hiçbiri ayarlanmamışsa), gelen kutusu nedeniyle birlikte kırmızı bir "Letters" hatası gösterir ve Open sizi Letters ayarlarına götürür; gelen bir mektup, farklı bir model veya mektupları kapatmak bunu temizler.
 
-## Bir kartın tutmadıkları
+## Kendi resmi olmayan kartlar için portreler
 
-Dashboard durumu, bölümler ve olgular karta değil, her sohbete aittir. Kart belleği de kartın parçası değildir ve bir dışa aktarmada asla görünmez. Buna karşılık Soul, kartta kayıtlıdır.
+Kendi resmi olmayan (hiçbir şey veya varsayılan avatar) bir kart çizilebilir. **Tek kart:** kart düzenleyicisinde portrenin altındaki "Draw" bir iletişim kutusu açar: görüntü modelini seçin, bir metin modeli (Card tasks modeli) kartın bir açıklamasını yazar, bunu düzenleyebilirsiniz ve görüntü modeli onu çizer. Resim hemen kartın Gallery'sine gider ve "Use as portrait" onu avatar yapar. **Çok kart:** Characters, More, "Draw missing portraits (N)" hangi modeli sorar ve sonra ilerleme kartı aracılığıyla onları tek tek çizer; Cancel kartlar arasında durdurur ve başarısız olan bir kart nedeniyle listelenir.
+
+"Draw with", Settings > Images'ın görüntü modellerini listeler: API modellerinin yanında yerel bir ComfyUI veya Forge. İlk seçenek uygulamanın kendi görüntü modelidir (Extensions > Image generation); buradaki bir seçim yalnızca portreler için hatırlanır. Etiketle eğitilmiş bir model bir satır etiket alır, bir API modeli bir paragraf. Yalnızca bir adı olan bir kartın tanımlayacak hiçbir şeyi yoktur ve iletişim kutusu bunu söyler. Görüntü oluşturma açık olmalıdır (Extensions); iletişim kutuları bunu söyler ve sizin için açar.
+
+## Bir kartın tutmadığı şeyler
+
+Dashboard durumu, bölümler ve gerçekler karta değil her sohbete aittir. Kart hafızası da kartın parçası değildir ve asla bir dışa aktarmada görünmez. Soul ise tam tersine kartta kaydedilir.
 
 Sonraki: ilk sohbet için [[first-story]] veya tepki profili için [[soul]].
