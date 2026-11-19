@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { BOARD_H, BOARD_W, type MapNode, type MapPos, type MapRoute } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
-import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
+import { pickedIconPath, placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { cn } from '@/lib/utils'
 
 /** How far a press may wander and still be a tap (px). */
@@ -287,7 +287,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
         </svg>
         {shown.map((n) => {
           const kind = placeKind(...n.names)
-          const iconPath = placeIconPath(kind.id, n.id, iconIndex)
+          const iconPath = pickedIconPath(n.icon, iconIndex) ?? placeIconPath(kind.id, n.id, iconIndex)
           const icon = iconPath && !badIcons.has(iconPath) ? iconPath : null
           const size = icon ? (n.spot ? 42 : 60) : n.spot ? 32 : 44
           const selected = selectedId === n.id

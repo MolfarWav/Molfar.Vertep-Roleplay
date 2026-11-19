@@ -55,3 +55,20 @@ describe('place icons: which picture a place gets', () => {
     for (const id of ids) expect(id).toMatch(/^[a-z]+$/)
   })
 })
+
+describe('place icons: picked by hand', () => {
+  test('a picked key gives its file when the engine has it', async () => {
+    const { pickedIconPath, kindWords } = await import('../src/lib/place-icons')
+    expect(pickedIconPath('forest-2', INDEX)).toBe('/v1/place-icons/forest-2.webp')
+    expect(pickedIconPath('tavern-4', INDEX)).toBe('/v1/place-icons/tavern-4.webp')
+    expect(kindWords('battle-field')).toBe('battle field')
+  })
+  test('no file for a variant or a kind the engine does not have (an older set): the name icon shows instead', async () => {
+    const { pickedIconPath } = await import('../src/lib/place-icons')
+    expect(pickedIconPath('forest-4', INDEX)).toBeNull()
+    expect(pickedIconPath('castle-1', INDEX)).toBeNull()
+    expect(pickedIconPath('forest', INDEX)).toBeNull()
+    expect(pickedIconPath(null, INDEX)).toBeNull()
+    expect(pickedIconPath('forest-1', null)).toBeNull()
+  })
+})

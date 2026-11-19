@@ -3554,7 +3554,16 @@ function cleanPlaceMapMeta(v) {
     }
     if (Object.keys(labels).length) out.labels = labels;
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels ? out : null;
+  if (v.icons && typeof v.icons === "object" && !Array.isArray(v.icons)) {
+    const icons = {};
+    for (const [id, k] of Object.entries(v.icons)) {
+      if (!str(id) || typeof k !== "string" || !/^[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(k)) continue;
+      icons[id] = k;
+      if (Object.keys(icons).length >= 200) break;
+    }
+    if (Object.keys(icons).length) out.icons = icons;
+  }
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons ? out : null;
 }
 
 function cleanTurns(t) {

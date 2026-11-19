@@ -231,3 +231,30 @@ describe("roads drawn by hand", () => {
     expect(roadsOf(null, "n1")).toBe(0);
   });
 });
+
+describe("icons picked by hand", () => {
+  it("are kept clean: only <kind>-<n> keys of lowercase words, a number 1 to 99", () => {
+    const out = cleanPlaceMap({ v: 1, icons: { n1: "tavern-3", n2: "battle-field-12", n3: "Tavern-1", n4: "tavern", n5: "tavern-0", n6: "tavern-100", n7: 5, "": "inn-1" } });
+    expect(out?.icons).toEqual({ n1: "tavern-3", n2: "battle-field-12" });
+    expect(cleanPlaceMap({ v: 1, icons: {} })).toBeNull();
+    expect(cleanPlaceMap({ v: 1, icons: ["inn-1"] })).toBeNull();
+  });
+  it("show on the node; a bad key is ignored there too", () => {
+    const a = place("Corner");
+    const b = place("Other");
+    const { nodes } = layoutMap([a, b], { v: 1, nodes: {}, routes: [], icons: { [a.id]: "castle-2", [b.id]: "Not A Key" } }, null);
+    expect(nodes[0].icon).toBe("castle-2");
+    expect(nodes[1].icon).toBeNull();
+  });
+  it("setIcon puts one in, takes it off with null, and leaves the rest of the map alone", async () => {
+    const { setIcon } = await import("../src/lib/place-map");
+    const base = { v: 1 as const, nodes: { n1: { x: 100, y: 100 } }, routes: [], labels: { n1: "Home" } };
+    const one = setIcon(base, "n1", "inn-2");
+    expect(one).toMatchObject({ nodes: base.nodes, labels: base.labels, icons: { n1: "inn-2" } });
+    expect(setIcon(one, "n1", "bad key").icons).toBeUndefined();
+    const off = setIcon(one, "n1", null);
+    expect(off.icons).toBeUndefined();
+    expect(off.nodes).toEqual(base.nodes);
+    expect(setIcon(null, "n9", "inn-1").icons).toEqual({ n9: "inn-1" });
+  });
+});

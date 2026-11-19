@@ -30,6 +30,16 @@ export function placeIconPath(kindId: string, placeId: string, index: PlaceIconI
   return `/v1/place-icons/${kindId}-${variantOf(placeId, count)}.webp`
 }
 
+/** The path of an icon the player picked (`tavern-3`), or null when the engine has no such file (an older set): then the name's own icon shows. */
+export function pickedIconPath(key: string | null | undefined, index: PlaceIconIndex | null | undefined): string | null {
+  const m = key ? /^(.+)-([1-9][0-9]?)$/.exec(key) : null
+  const count = m ? index?.[m[1]!] : 0
+  return m && count && Number(m[2]) <= count ? `/v1/place-icons/${key}.webp` : null
+}
+
+/** A kind id as words for a person: `battle-field` -> `battle field`. */
+export const kindWords = (id: string): string => id.replace(/-/g, ' ')
+
 /** Every variant of a kind (for a picker or a test sheet). */
 export function placeIconVariants(kindId: string, index: PlaceIconIndex | null | undefined): string[] {
   const count = index?.[kindId] ?? 0

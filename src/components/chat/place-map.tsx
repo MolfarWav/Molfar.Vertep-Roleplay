@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, CornersOut, GearSix, ImageSquare, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
+import { PlaceIconDialog } from '@/components/chat/place-icon-dialog'
 import { PlaceTravelDialog } from '@/components/chat/place-travel-dialog'
 import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, setIcon, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
@@ -209,6 +210,9 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   useEffect(() => { setConnectFrom(null) }, [chat.id])
   // travel by a tap: the dialog for the picked place
+  // the icon picker for the picked place
+  const [iconOpen, setIconOpen] = useState(false)
+  useEffect(() => { setIconOpen(false) }, [selectedId, chat.id])
   const [travelOpen, setTravelOpen] = useState(false)
   const [travelRun, setTravelRun] = useState(0)
   useEffect(() => { setTravelOpen(false) }, [selectedId, chat.id])
@@ -424,6 +428,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
+            {draft === null && Object.keys(iconIndex ?? {}).length > 0 && (
+              <Button variant="ghost" size="icon" className={ctl} onClick={() => setIconOpen(true)} aria-label={t('placeMap.icon')} title={t('placeMap.icon')} data-testid="place-map-icon">
+                <ImageSquare className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             {draft === null && !selected.here && (
               <Button variant="ghost" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
                 <NavigationArrow className="size-4" aria-hidden="true" />
@@ -495,6 +504,16 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </span>
         </div>
       </div>
+      {selected && iconOpen && iconIndex && (
+        <PlaceIconDialog
+          key={selected.id}
+          node={selected}
+          index={iconIndex}
+          open={iconOpen}
+          onOpenChange={setIconOpen}
+          onPick={(key) => updateChat(chat.id, { placeMap: setIcon(withPositions(data, layout?.added ?? {}), selected.id, key) })}
+        />
+      )}
       {selected && (
         <PlaceTravelDialog
           key={`${selected.id}:${travelRun}`}
