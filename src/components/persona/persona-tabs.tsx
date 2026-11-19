@@ -10,6 +10,7 @@ import { MemorySection } from '@/components/character/memory-section'
 import { BookLinks } from '@/components/lore/book-links'
 import { useApp } from '@/lib/store'
 import { bookUsage } from '@/lib/lore-usage'
+import { bookPatchOf, bookSetOf } from '@/lib/persona-book'
 import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { PersonaDescriptionField, PersonaProfilePanel, type PersonaProfileState } from '@/components/persona/persona-profile'
 import { useT } from '@/hooks/use-t'
@@ -120,17 +121,18 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /** The body of one section; the same on desktop (beside the stat column) and on a phone (a page of its own). */
-/** The Lorebook tab: the books this persona carries (the shared `BookLinks` list, as on a card), not every book of the library. */
+/** The Lorebook tab: the books this persona carries (the shared `BookLinks` list, as on a card), not every book of the library. The
+ *  persona's own book travels inside its file; the others are links. */
 function PersonaBooks({ p, update, characters }: { p: Persona; update: (patch: Partial<Persona>) => void; characters: Character[] }) {
   const t = useT()
   const personas = useApp((s) => s.personas)
   return (
     <BookLinks
-      value={{ ownId: null, linkedIds: p.lorebookIds }}
-      onChange={(next) => update({ lorebookIds: next.linkedIds })}
+      value={bookSetOf(p)}
+      onChange={(next) => update(bookPatchOf(next))}
       ownerName={p.name}
       usedElsewhere={(id) => bookUsage(characters, id).users.length + personas.filter((x) => x.id !== p.id && x.lorebookIds.includes(id)).length}
-      allowOwn={false}
+      allowOwn
       testId="persona-books"
       empty={t('personas.page.booksEmpty')}
     />

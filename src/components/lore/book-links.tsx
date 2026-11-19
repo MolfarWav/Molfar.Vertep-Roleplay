@@ -81,7 +81,7 @@ export function BookLinks({
       <Warning className="size-4 shrink-0 text-amber-500" aria-hidden="true" />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="font-medium">{t('lore.cb.missingRow')}</span>
-        <span className="truncate text-[11px] text-muted-foreground">{id}</span>
+        <span className="truncate text-caption text-muted-foreground">{id}</span>
       </div>
       <Button variant="outline" size="sm" className="h-7 text-xs max-md:h-11" title={t('lore.cb.unlinkTip')} onClick={() => unlink(id, isOwn)}>
         <LinkBreak className="size-3.5" aria-hidden="true" />{t('lore.cb.unlink')}
@@ -94,9 +94,9 @@ export function BookLinks({
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-1.5">
           <span className="min-w-0 truncate font-medium">{b.name}</span>
-          {isOwn && <Badge variant="secondary" className="shrink-0 text-[10px]">{t('lore.cb.ownBadge')}</Badge>}
+          {isOwn && <Badge variant="secondary" className="shrink-0 text-caption">{t('lore.cb.ownBadge')}</Badge>}
         </span>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-caption text-muted-foreground">
           {t(entriesKey(bookEntryCount(b)), { n: bookEntryCount(b) })}
           {usedElsewhere(b.id) > 0 ? ` · ${t('lore.cb.alsoUsed', { n: usedElsewhere(b.id) })}` : ''}
         </span>
@@ -132,7 +132,7 @@ export function BookLinks({
           <Plus className="size-3.5" aria-hidden="true" />{t('lore.cb.new')}
         </Button>
       </div>
-      {globalCount > 0 && <p className="text-[11px] text-muted-foreground">{t('lore.cb.globals', { n: globalCount })}</p>}
+      {globalCount > 0 && <p className="text-caption text-muted-foreground">{t('lore.cb.globals', { n: globalCount })}</p>}
 
       <Dialog open={picker != null} onOpenChange={(o) => { if (!o) setPicker(null) }}>
         <DialogContent className="max-h-[70dvh] overflow-y-auto sm:max-w-sm">
@@ -155,7 +155,7 @@ export function BookLinks({
               <li key={b.id}>
                 <Button variant="outline" size="sm" className="w-full justify-start max-md:h-11" onClick={() => pick(b)}>
                   <span className="truncate">{b.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{t(entriesKey(bookEntryCount(b)), { n: bookEntryCount(b) })}</span>
+                  <span className="ml-auto shrink-0 text-caption text-muted-foreground">{t(entriesKey(bookEntryCount(b)), { n: bookEntryCount(b) })}</span>
                 </Button>
               </li>
             ))}

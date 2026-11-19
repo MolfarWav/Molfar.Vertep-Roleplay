@@ -21,6 +21,7 @@ import { personaTokens, profileFill } from '@/lib/persona-list'
 import { addGallery, isSection, type PersonaSection } from '@/lib/persona-page'
 import { useApp } from '@/lib/store'
 import { waitForPersona } from '@/lib/persona-new-api'
+import { personaForExport } from '@/lib/persona-book'
 import type { Persona } from '@/lib/types'
 
 const TAB_KEY = 'rp.personas.tab'
@@ -98,8 +99,9 @@ export function PersonaPage({ p, inUse, confirm, onBack, onUse, onDuplicate, onD
       toast.success('Avatar updated')
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
-  const exportOne = () => {
-    downloadTextFile(`persona-${slug(p.name)}.json`, JSON.stringify([p], null, 2), 'application/json')
+  const exportOne = async () => {
+    const record = await personaForExport(p, useApp.getState().loadBook)
+    downloadTextFile(`persona-${slug(p.name)}.json`, JSON.stringify([record], null, 2), 'application/json')
     toast.success(t('personas.exported', { n: 1 }))
   }
 
