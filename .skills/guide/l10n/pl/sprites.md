@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprite'y i okna sprite'ów
 
 Sprite'y to małe obrazki postaci, po jednym na każdą emocję, które pojawiają się nad czatem i zmieniają się wraz z biegiem historii. Ta strona jest dla tych, którzy chcą widzieć kilka postaci naraz, w grupie lub z kartą narratora, albo zbudować wygląd jak z visual novel.
 
 ## Czym jest okno sprite'a
 
-Okno sprite'a unosi się nad czatem i pokazuje **jedną postać**. Wybiera obrazek na podstawie ostatnich kwestii tej postaci (według tych samych reguł słów kluczowych co dotąd; żaden model nie jest wywoływany), a obrazek zostaje, dopóki postać znów się nie odezwie. Przeciągnij okno, gdzie chcesz, przeciągnij jego dolny róg, aby zmienić rozmiar (dwukrotne kliknięcie rogu przywraca rozmiar domyślny), i naciśnij **×**, aby zwinąć je do małej okrągłej pastylki; naciśnij pastylkę, aby je przywrócić.
+Okno sprite'a unosi się nad czatem i pokazuje **jedną postać**. Wybiera obrazek na podstawie ostatnich kwestii tej postaci (według tych samych reguł słów kluczowych co dotąd; żaden model nie jest wywoływany), a obrazek zostaje, dopóki postać znów się nie odezwie. Karta narratora, która zapisuje swoje postacie jako kwestie ("Aria: ..."), daje każdej z nich własne kwestie; ta, która pisze prozą ("Aria śmieje się z radości"), daje każdej z nich zdania, które je nazywają, a gdy nie pokazują one emocji, decyduje cała wiadomość. Przeciągnij okno, gdzie chcesz, przeciągnij jego dolny róg, aby zmienić rozmiar (dwukrotne kliknięcie rogu przywraca rozmiar domyślny), i naciśnij **×**, aby zwinąć je do małej okrągłej pastylki; naciśnij pastylkę, aby je przywrócić.
 
 Sprite'y dodajesz do karty w edytorze, w zakładce **More**, **Sprites**. W ustawieniach jest jeden przełącznik, "Expression Sprites", który wyłącza wszystkie okna.
 
@@ -36,7 +36,14 @@ Postać z więcej niż jednym strojem dostaje na oknie mały przełącznik stroj
 
 ## Na telefonie
 
-Telefon pokazuje **jedno okno**; pozostałe osoby ze sceny to małe okrągłe obrazki w lewym dolnym rogu. Dotknij jednego, aby pokazać tę postać w oknie, dotknij ponownie, aby wrócić do śledzenia mówiącego. Przezroczyste okna, rozmieszczanie i dodatkowe okna są dla tabletów i komputerów.
+Telefon pokazuje **jedno okno**, a wszystko zostaje nad polem wiadomości, gdziekolwiek rośnie:
+
+- **Obrazek przepuszcza dotknięcia.** Przesunięcie po nim przewija czat. Okno przesuwa się uchwytem w lewym górnym rogu, a zębatka (ustawienia), **×** (zwinięcie) i róg (zmiana rozmiaru) są zawsze widoczne. Okno zostaje w całości na ekranie i nad polem wiadomości; jeśli się nie mieści, schodzi niżej.
+- **Rząd nad polem wiadomości** ma **Auto** i wszystkich w scenie jako małe okrągłe obrazki. Postać w oknie ma obwódkę. Dotknij innej, aby pokazać ją tam: pinezka na jej obrazku oznacza, że okno zostaje na niej. Dotknij przypiętej albo **Auto**, a okno znów podąża za tym, kto mówi.
+- **Gdy piszesz**, okno i rząd ustępują, i wracają, gdy pole wiadomości jest puste albo je opuścisz.
+- Zwiniete okno to mała okrągła pastylka: dotknij jej, a okno otworzy się tam, gdzie jest pastylka, dociągnięte z powrotem na ekran.
+
+Przezroczyste okna, rozmieszczanie i dodatkowe okna są dla tabletów i komputerów.
 
 ## Czego nie robi
 

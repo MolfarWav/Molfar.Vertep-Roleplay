@@ -84,7 +84,13 @@ export function stageMembers(chatCard: Character | undefined, characters: readon
 // ── Who spoke, who is in the scene ──
 
 /** What one character last said: their text, how many assistant messages ago, and where in that message. */
-export interface Contribution { text: string; ago: number; order: number }
+export interface Contribution {
+  text: string
+  ago: number
+  order: number
+  /** the whole message the text comes from, when `text` is only a part of it (a voice's lines, the sentences that name them) */
+  whole?: string
+}
 
 const textOf = (m: Message) => m.swipes[m.activeSwipe]?.content ?? ''
 
@@ -100,20 +106,35 @@ function turns(messages: readonly Message[]): { msg: Message; text: string }[] {
 }
 
 /** A streaming reply re-reads the history on every token: a settled message is read for a member once. */
-const lineCache = new WeakMap<Message, Map<string, { text: string; hit: { text: string; order: number } | null }>>()
+const lineCache = new WeakMap<Message, Map<string, { text: string; hit: { text: string; order: number } | null; named: { text: string; order: number } | null }>>()
 
-/** The lines of a message that open with this member's label ("Aria: ..."), or null. */
-function labelledLines(m: StageMember, msg: Message, text: string): { text: string; order: number } | null {
+/** The sentences of a prose message (a Narrator card that does not label its lines): split at the end of a sentence or a line. */
+const sentencesOf = (text: string): string[] => text.split(/(?<=[.!?…»”"])\s+|\r?\n+/).map((x) => x.trim()).filter(Boolean)
+
+/**
+ * What a message says about this member: the lines that open with their label ("Aria: ..."), else the sentences
+ * that name them ("Aria laughs with joy"). A label ranks as the last speaker; sentences rank below any label, the one
+ * named first highest, since the subject of a sentence usually comes first.
+ */
+function linesOf(m: StageMember, msg: Message, text: string): { hit: { text: string; order: number } | null; named: { text: string; order: number } | null } {
   let per = lineCache.get(msg)
   if (!per) { per = new Map(); lineCache.set(msg, per) }
   const seen = per.get(m.key)
-  if (seen && seen.text === text) return seen.hit
+  if (seen && seen.text === text) return seen
   const mine: string[] = []
   let last = -1
   text.split(/\r?\n/).forEach((line, i) => { if (leadVoiceIn(line, [m.voice!])) { mine.push(line); last = i } })
   const hit = mine.length ? { text: mine.join('\n'), order: last } : null
-  per.set(m.key, { text, hit })
-  return hit
+  let named: { text: string; order: number } | null = null
+  if (!hit) {
+    const parts = sentencesOf(text)
+    const at = parts.flatMap((x, i) => (m.voice!.match.exec(x) ? [i] : []))
+    // ranked by where the name first stands in the message: sentence by sentence, then along the sentence
+    if (at.length) named = { text: at.map((i) => parts[i]!).join(' '), order: -(at[0]! * 100000 + (m.voice!.match.exec(parts[at[0]!]!)?.index ?? 0)) }
+  }
+  const entry = { text, hit, named }
+  per.set(m.key, entry)
+  return entry
 }
 
 /** The last thing each member said (null: nothing found within the scan). */
@@ -131,8 +152,10 @@ export function contributions(members: readonly StageMember[], messages: readonl
         if (!m.ownerId || from === null) found = { text, ago, order: 1e6 }
         continue
       }
-      const hit = labelledLines(m, msg, text)
-      if (hit) found = { text: hit.text, ago, order: hit.order }
+      const { hit, named } = linesOf(m, msg, text)
+      // a Narrator card's voice: their own lines, else the sentences that name them (a plain card's one voice has no owner either)
+      const part = hit ?? (m.ownerId ? null : named)
+      if (part) found = { text: part.text, ago, order: part.order, whole: text }
     }
     out.set(m.key, found)
   }
@@ -393,6 +416,15 @@ export function resolveWindows(layout: StageLayout, members: readonly StageMembe
 
 /** The sprite a member shows: their last line decides the emotion, and it stays until they speak again. */
 export function memberSprite(m: StageMember, said: Contribution | null, outfits: Record<string, string> | undefined): PickedSprite | null {
-  const labels = said ? detectExpressionLabels(said.text) : []
+  let labels = said ? detectExpressionLabels(said.text) : []
+  // their own lines show no emotion: the whole message does, as the message's own picture reads it
+  if (!labels.length && said?.whole) labels = detectExpressionLabels(said.whole)
   return pickSpriteFor(labels, m.card, m.character, outfits?.[m.outfitKey])
+}
+
+/** A box (`size`) moved the least that puts it wholly inside `bounds`; a box larger than the bounds sticks to their top-left. */
+export function fitIn(pos: { x: number; y: number }, size: { w: number; h: number }, bounds: Area): { x: number; y: number } {
+  const x = Math.min(Math.max(bounds.x, pos.x), Math.max(bounds.x, bounds.x + bounds.w - size.w))
+  const y = Math.min(Math.max(bounds.y, pos.y), Math.max(bounds.y, bounds.y + bounds.h - size.h))
+  return { x: Math.round(x), y: Math.round(y) }
 }

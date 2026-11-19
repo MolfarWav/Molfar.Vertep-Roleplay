@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprites et fenêtres de sprites
 
 Les sprites sont de petites images d'un personnage, une par émotion, qui apparaissent par-dessus le chat et changent au fil de l'histoire. Cette page s'adresse à ceux qui veulent voir plusieurs personnages à la fois, dans un groupe ou avec une carte de narrateur, ou qui veulent obtenir un rendu de visual novel.
 
 ## Ce qu'est une fenêtre de sprite
 
-Une fenêtre de sprite flotte au-dessus du chat et montre **un personnage**. Elle choisit l'image d'après les dernières répliques de ce personnage (avec les mêmes règles de mots-clés qu'avant ; aucun modèle n'est appelé), et l'image reste jusqu'à ce que le personnage reparle. Faites glisser une fenêtre où vous voulez, faites glisser son coin inférieur pour la redimensionner (double-clic sur le coin pour revenir à la taille par défaut) et appuyez sur **×** pour la replier en une petite pastille ronde ; appuyez sur la pastille pour la rouvrir.
+Une fenêtre de sprite flotte au-dessus du chat et montre **un personnage**. Elle choisit l'image d'après les dernières répliques de ce personnage (avec les mêmes règles de mots-clés qu'avant ; aucun modèle n'est appelé), et l'image reste jusqu'à ce que le personnage reparle. Une carte de narrateur qui écrit ses personnages sous forme de répliques (« Aria : ... ») donne à chacun ses propres répliques ; une carte qui écrit en prose (« Aria rit de joie ») donne à chacun les phrases qui le nomment, et quand celles-ci n'expriment aucune émotion, c'est tout le message qui décide. Faites glisser une fenêtre où vous voulez, faites glisser son coin inférieur pour la redimensionner (double-clic sur le coin pour revenir à la taille par défaut) et appuyez sur **×** pour la replier en une petite pastille ronde ; appuyez sur la pastille pour la rouvrir.
 
 Les sprites s'ajoutent à une carte dans l'éditeur, onglet **Plus**, **Sprites**. Les paramètres ont un interrupteur, « Expression Sprites », qui désactive toutes les fenêtres.
 
@@ -36,7 +36,14 @@ Un personnage qui a plus d'une tenue reçoit un petit sélecteur de tenue sur la
 
 ## Sur un téléphone
 
-Un téléphone affiche **une seule fenêtre** ; les autres personnes de la scène sont de petites images rondes en bas à gauche. Touchez-en une pour montrer ce personnage dans la fenêtre, touchez-la de nouveau pour revenir au suivi de celui qui parle. Les fenêtres transparentes, la disposition et les fenêtres supplémentaires sont réservées aux tablettes et aux ordinateurs.
+Un téléphone affiche **une seule fenêtre**, et tout reste au-dessus de la zone de saisie, quelle que soit la hauteur qu'elle prend :
+
+- **L'image laisse passer les touchers.** Un balayage dessus fait défiler le chat. La fenêtre se déplace avec la poignée en haut à gauche, et l'engrenage (paramètres), le **×** (replier) et le coin (redimensionner) sont toujours visibles. La fenêtre reste entièrement à l'écran et au-dessus de la zone de saisie ; si elle ne tient pas, elle descend.
+- **La rangée au-dessus de la zone de saisie** contient **Auto** et toutes les personnes de la scène sous forme de petites images rondes. Le personnage dans la fenêtre a un anneau. Touchez-en un autre pour l'y montrer : une épingle sur son image signifie que la fenêtre reste sur lui. Touchez celui qui est épinglé, ou **Auto**, et la fenêtre suit de nouveau celui qui parle.
+- **Pendant que vous tapez**, la fenêtre et la rangée s'écartent, et reviennent quand la zone de saisie est vide ou que vous la quittez.
+- Une fenêtre repliée est une petite pastille ronde : touchez-la et la fenêtre s'ouvre là où est la pastille, ramenée sur l'écran.
+
+Les fenêtres transparentes, la disposition et les fenêtres supplémentaires sont réservées aux tablettes et aux ordinateurs.
 
 ## Ce que cela ne fait pas
 

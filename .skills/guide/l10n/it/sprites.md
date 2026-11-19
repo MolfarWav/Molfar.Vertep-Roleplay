@@ -1,11 +1,11 @@
-<!-- source: f7cfe4722702 -->
+<!-- source: 4bee02775a17 -->
 # Sprite e finestre degli sprite
 
 Gli sprite sono piccole immagini di un personaggio, una per emozione, che compaiono sopra la chat e cambiano man mano che la storia procede. Questa pagina è per chi vuole vedere più personaggi insieme, in un gruppo o con una scheda narratore, o creare un aspetto da visual novel.
 
 ## Cos'è una finestra degli sprite
 
-Una finestra degli sprite fluttua sopra la chat e mostra **un personaggio**. Sceglie l'immagine dalle ultime battute di quel personaggio (con le stesse regole di parole chiave di prima; non viene chiamato nessun modello), e l'immagine resta finché il personaggio non parla di nuovo. Trascina una finestra dove vuoi, trascina il suo angolo inferiore per ridimensionarla (doppio clic sull'angolo per tornare alla dimensione predefinita) e premi **×** per ripiegarla in una piccola pastiglia rotonda; premi la pastiglia per riportarla.
+Una finestra degli sprite fluttua sopra la chat e mostra **un personaggio**. Sceglie l'immagine dalle ultime battute di quel personaggio (con le stesse regole di parole chiave di prima; non viene chiamato nessun modello), e l'immagine resta finché il personaggio non parla di nuovo. Una scheda narratore che scrive i suoi personaggi come battute ("Aria: ...") dà a ciascuno le proprie battute; una che scrive in prosa ("Aria ride di gioia") dà a ciascuno le frasi che li nominano, e quando queste non mostrano emozioni, decide l'intero messaggio. Trascina una finestra dove vuoi, trascina il suo angolo inferiore per ridimensionarla (doppio clic sull'angolo per tornare alla dimensione predefinita) e premi **×** per ripiegarla in una piccola pastiglia rotonda; premi la pastiglia per riportarla.
 
 Gli sprite si aggiungono a una scheda nell'editor, scheda **More**, **Sprites**. Le Impostazioni hanno un interruttore, "Expression Sprites", che spegne tutte le finestre.
 
@@ -36,7 +36,14 @@ Un personaggio con più di un outfit ottiene sulla finestra un piccolo selettore
 
 ## Su un telefono
 
-Un telefono mostra **una finestra**; le altre persone della scena sono piccole immagini rotonde in basso a sinistra. Toccane una per mostrare quel personaggio nella finestra, toccala di nuovo per tornare a seguire chi parla. Finestre trasparenti, disposizione e finestre aggiuntive sono per tablet e computer.
+Un telefono mostra **una finestra**, e tutto resta sopra la casella dei messaggi, ovunque essa arrivi:
+
+- **L'immagine lascia passare i tocchi.** Un swipe sopra di essa scorre la chat. La finestra si sposta con la maniglia nell'angolo in alto a sinistra, e l'ingranaggio (impostazioni), **×** (ripiega) e l'angolo (ridimensiona) sono sempre visibili. La finestra resta interamente sullo schermo e sopra la casella dei messaggi; se non ci sta, scende più in basso.
+- **La riga sopra la casella dei messaggi** ha **Auto** e tutti quelli nella scena come piccole immagini rotonde. Il personaggio nella finestra ha un anello. Toccane un altro per mostrarlo lì: uno spillo sulla sua immagine significa che la finestra resta su di lui. Tocca quello con lo spillo, o **Auto**, e la finestra torna a seguire chi parla.
+- **Mentre scrivi**, la finestra e la riga si fanno da parte, e tornano quando la casella dei messaggi è vuota o la lasci.
+- Una finestra ripiegata è una piccola pastiglia rotonda: toccala e la finestra si apre dove si trova la pastiglia, riportata sullo schermo.
+
+Finestre trasparenti, disposizione e finestre aggiuntive sono per tablet e computer.
 
 ## Cosa non fa
 

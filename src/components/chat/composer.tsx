@@ -542,6 +542,7 @@ export function Composer({ chatId }: { chatId: ID }) {
     // is a floating card that matches the chat column, with rounded edges
     // (user feedback: the bar should end where the chat ends).
     <div
+      data-chat-composer
       className={
         spanFull
           ? 'border-t border-border bg-card/80 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm'
