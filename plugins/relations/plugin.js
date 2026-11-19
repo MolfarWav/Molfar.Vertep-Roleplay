@@ -694,6 +694,19 @@ const QUEST_RULES_2 = [
   "- When a limit is full, first resolve the threads that are done, failed or dropped; only then open a new one.",
   '- Give the id of every thread you close in "resolved". In "open", list kept threads with their id and new ones with id null. Never list a thread you resolve in the same report.',
 ];
+// A demand on the user's character is no goal (#461): a character who presses the user's character for an answer, a
+// confession or a proof was written down as a thread and as that character's goal, then shown back as "Wants: ..." and
+// "the open threads are there to pull on", so the writer pressed again and the sensor saw it pursued again. Now such a
+// demand closes (dropped) once the user's character has answered, refused or turned it aside, and a question nobody put
+// is never opened.
+const QUEST_RULES_3 = QUEST_RULES_2.flatMap((rule) =>
+  rule.startsWith("- Every turn, check every open thread")
+    ? [
+        rule.replace("or nobody pursues it any more.", "nobody pursues it any more, or it is a demand on the user's character that they have answered, refused or turned aside once."),
+        "- A character pressing the user's character for an answer, a confession or a proof is a thread only until the user's character has answered, refused or turned it aside once; then resolve it as dropped, never open it again and never write it as that character's goal. Open a question as a thread only when the new messages put it: never one that nobody asked.",
+      ]
+    : [rule],
+);
 // the Threads block of the twenty-first sensor prompt and every one since quests (#117), before the closing rules of #400
 const THREADS_BLOCK_21 = [
   "Threads:",
@@ -798,7 +811,7 @@ export const DEFAULT_PROMPTS = {
     "- edges: for two present characters who are not the user, a one-word role and a one-word warmth.",
     "",
     "Threads:",
-    ...QUEST_RULES_2,
+    ...QUEST_RULES_3,
     "",
     "Keep the whole reply compact: short values, no filler.",
   ].join("\n"),
@@ -833,7 +846,9 @@ export const DEFAULT_PROMPTS = {
 // The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
 // The twenty-first sensor prompt (before quests got a "done when" and closed when done, failed or dropped, #400).
 // The twenty-second sensor prompt (before the clock rules: a duration the text states, time as the end of the messages, a day only for a jump; Molfar.Vertep#406).
-const SENSOR_PROMPT_22 = DEFAULT_PROMPTS.sensor.replace(CLOCK_RULES.join("\n"), CLOCK_RULES_22.join("\n"));
+// The twenty-third sensor prompt (before a demand on the user's character closed once answered, refused or turned aside, #461).
+const SENSOR_PROMPT_23 = DEFAULT_PROMPTS.sensor.replace(["Threads:", ...QUEST_RULES_3].join("\n"), ["Threads:", ...QUEST_RULES_2].join("\n"));
+const SENSOR_PROMPT_22 = SENSOR_PROMPT_23.replace(CLOCK_RULES.join("\n"), CLOCK_RULES_22.join("\n"));
 const SENSOR_PROMPT_21 = SENSOR_PROMPT_22.replace(["Threads:", ...QUEST_RULES_2].join("\n"), THREADS_BLOCK_21);
 const SENSOR_PROMPT_20 = SENSOR_PROMPT_21.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
 // The nineteenth sensor prompt (before an object was defined as a thing a hand can pick up or move).
@@ -907,7 +922,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22, SENSOR_PROMPT_23], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
