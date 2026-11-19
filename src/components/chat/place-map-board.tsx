@@ -45,7 +45,9 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
   hereLabel: string
   /** places do not move by a drag (a drag from one moves the map); a tap still picks one */
   locked?: boolean
-}>(function PlaceMapBoard({ nodes, routes, pictureUrl, selectedId, onSelect, onMoved, label, hereLabel, locked = false }, ref) {
+  /** a road is being drawn: rooms are not places a road can join, so they step back */
+  connecting?: boolean
+}>(function PlaceMapBoard({ nodes, routes, pictureUrl, selectedId, onSelect, onMoved, label, hereLabel, locked = false, connecting = false }, ref) {
   const stageRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 0.5 })
   const viewRef = useRef(view)
@@ -299,7 +301,7 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
                 aria-label={n.here ? `${n.name} (${hereLabel})` : n.name}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(n.id) } }}
                 className={cn('absolute flex flex-col items-center', locked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing', (live?.id === n.id || selected) && 'z-10')}
-                style={{ transform: `translate(-50%, -${size / 2}px) scale(${inv})`, transformOrigin: `50% ${size / 2}px`, opacity: n.visits === 0 && !n.here && !selected ? 0.72 : 1 }}
+                style={{ transform: `translate(-50%, -${size / 2}px) scale(${inv})`, transformOrigin: `50% ${size / 2}px`, opacity: connecting && n.spot ? 0.35 : n.visits === 0 && !n.here && !selected ? 0.72 : 1 }}
               >
                 {icon ? (
                   <span className="relative flex items-end justify-center" style={{ width: size, height: size }}>

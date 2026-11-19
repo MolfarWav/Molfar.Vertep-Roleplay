@@ -261,6 +261,19 @@ export function stepRoute(data: PlaceMapData | null, records: WorldRecord[], her
   return { ...base, routes, at: whole }
 }
 
+/** A road drawn by hand: joins two places, or takes the road between them away when there is one. `added` says which happened. */
+export function toggleRoute(data: PlaceMapData | null, a: string, b: string): { data: PlaceMapData; added: boolean } {
+  const base = data ?? emptyMap()
+  if (!a || !b || a === b) return { data: base, added: false }
+  const key = routeKey(a, b)
+  if (base.routes.some((r) => routeKey(r.a, r.b) === key)) return { data: { ...base, routes: base.routes.filter((r) => routeKey(r.a, r.b) !== key) }, added: false }
+  const route = a < b ? { a, b } : { a: b, b: a }
+  return { data: { ...base, routes: [...base.routes, route].slice(-MAX_ROUTES) }, added: true }
+}
+
+/** How many roads a place has. */
+export const roadsOf = (data: PlaceMapData | null, id: string): number => (data?.routes ?? []).filter((r) => r.a === id || r.b === id).length
+
 /** The routes whose two ends are both on the map. */
 export const visibleRoutes = (data: PlaceMapData | null, nodes: readonly MapNode[]): MapRoute[] => {
   const ids = new Set(nodes.map((n) => n.id))

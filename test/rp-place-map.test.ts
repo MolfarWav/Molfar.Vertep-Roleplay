@@ -1,6 +1,6 @@
 // The places map's logic (Molfar.Vertep#454): the kept shape, the layout of new nodes, a dragged node, the routes.
 import { describe, expect, it } from "bun:test";
-import { BOARD_H, BOARD_W, MAX_NODES, cleanPlaceMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, wholeOf, type PlaceMapData } from "../src/lib/place-map";
+import { BOARD_H, BOARD_W, MAX_NODES, cleanPlaceMap, layoutMap, moveNode, roadsOf, stepRoute, toggleRoute, visibleRoutes, withPositions, wholeOf, type PlaceMapData } from "../src/lib/place-map";
 import type { WorldRecord } from "../src/lib/world";
 
 let n = 0;
@@ -192,5 +192,42 @@ describe("map labels (a place renamed on the map only)", () => {
     const stepped = stepRoute(stepRoute(moved, [a, b], a.id), [a, b], b.id);
     expect(stepped?.labels).toEqual({ [a.id]: "Home" });
     expect(stepped?.routes.length).toBe(1);
+  });
+});
+
+describe("roads drawn by hand", () => {
+  it("toggleRoute joins two places, and a second call takes the road away", () => {
+    const one = toggleRoute(null, "n2", "n1");
+    expect(one.added).toBe(true);
+    expect(one.data.routes).toEqual([{ a: "n1", b: "n2" }]);
+    const two = toggleRoute(one.data, "n1", "n2");
+    expect(two.added).toBe(false);
+    expect(two.data.routes).toEqual([]);
+  });
+  it("ignores a road from a place to itself or an empty id", () => {
+    expect(toggleRoute(null, "n1", "n1")).toEqual({ data: { v: 1, nodes: {}, routes: [] }, added: false });
+    expect(toggleRoute(null, "", "n1").data.routes).toEqual([]);
+  });
+  it("keeps the rest of the map and the newest 400 roads", () => {
+    const base = { v: 1 as const, nodes: { n1: { x: 100, y: 100 } }, routes: [], at: "n1", labels: { n1: "Home" }, picture: { id: "p" } };
+    const r = toggleRoute(base, "n1", "n2").data;
+    expect(r).toMatchObject({ nodes: base.nodes, at: "n1", labels: base.labels, picture: base.picture });
+    let d: PlaceMapData = { ...base, routes: Array.from({ length: 400 }, (_, i) => ({ a: `a${String(i).padStart(3, "0")}`, b: `b${i}` })) };
+    d = toggleRoute(d, "x", "y").data;
+    expect(d.routes.length).toBe(400);
+    expect(d.routes[399]).toEqual({ a: "x", b: "y" });
+  });
+  it("a hand road and a tracked road are the same road: the tracker does not add it again", () => {
+    const a = place("A");
+    const b = place("B");
+    const hand = toggleRoute({ v: 1, nodes: {}, routes: [], at: a.id }, a.id, b.id).data;
+    const walked = stepRoute(hand, [a, b], b.id);
+    expect(walked?.routes.length).toBe(1);
+  });
+  it("roadsOf counts the roads at a place", () => {
+    const d = { v: 1 as const, nodes: {}, routes: [{ a: "n1", b: "n2" }, { a: "n1", b: "n3" }, { a: "n2", b: "n3" }] };
+    expect(roadsOf(d, "n1")).toBe(2);
+    expect(roadsOf(d, "n9")).toBe(0);
+    expect(roadsOf(null, "n1")).toBe(0);
   });
 });

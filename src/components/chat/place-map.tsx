@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, CornersOut, GearSix, LockSimple, LockSimpleOpen, MapTrifold, Minus, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { limitArea, stageArea, useComposer } from '@/components/chat/expression-
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { cleanLabel, emptyMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
@@ -204,7 +204,20 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     else labels[rec.id] = label
     updateChat(chat.id, { placeMap: { ...withPositions(data, layout?.added ?? {}), labels } })
   }
+  // drawing a road by hand: from the picked place to the next whole place that is tapped (a road that is there is taken away)
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  useEffect(() => { setConnectFrom(null) }, [chat.id])
   const nodes = layout?.nodes ?? []
+  const pick = (id: string | null) => {
+    if (!connectFrom) { setSelectedId(id); return }
+    const from = nodes.find((n) => n.id === connectFrom)
+    const to = id ? nodes.find((n) => n.id === id) : null
+    setConnectFrom(null)
+    if (!from || !to || to.spot || to.id === from.id) return
+    const done = toggleRoute(withPositions(data, layout?.added ?? {}), from.id, to.id)
+    updateChat(chat.id, { placeMap: done.data })
+    toast.success(t(done.added ? 'placeMap.roadAdded' : 'placeMap.roadRemoved', { a: from.name, b: to.name }))
+  }
   const selected = nodes.find((n) => n.id === selectedId) ?? null
   const selectedRecord = selected ? records?.find((r) => r.id === selected.id) ?? null : null
   const parentName = selected?.parentId ? nodes.find((n) => n.id === selected.parentId)?.name ?? null : null
@@ -352,13 +365,20 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.dmOff')}>{t('placeMap.dmOff')}</p>
         )}
 
+        {connectFrom && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border bg-primary/10 px-3 py-1 text-xs" role="status" data-testid="place-map-connecting">
+            <span className="min-w-0 flex-1 truncate" title={t('placeMap.connectMore', { name: nodes.find((n) => n.id === connectFrom)?.name ?? '' })}>{t('placeMap.connectHint', { name: nodes.find((n) => n.id === connectFrom)?.name ?? '' })}</span>
+            <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs max-md:h-9" onClick={() => setConnectFrom(null)} data-testid="place-map-connect-cancel">{t('placeMap.connectCancel')}</Button>
+          </div>
+        )}
+
         {!hereId && sceneText && (
           <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.sceneUnknown', { name: sceneText })} data-testid="place-map-scene">
             {t('placeMap.sceneUnknown', { name: sceneText })}
           </p>
         )}
 
-        {selected && (
+        {selected && !connectFrom && (
           // over the bottom of the board, so the board keeps its room
           <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-2 rounded-md border border-border bg-card/95 py-1 pl-2 pr-1 shadow-md max-md:bottom-3" style={{ marginRight: 32 }} data-testid="place-map-card">
             {thumb ? (
@@ -395,9 +415,15 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   selected.bookName !== selected.name ? t('placeMap.bookName', { name: selected.bookName }) : null,
                   parentName ? t('placeMap.inside', { name: parentName }) : null,
                   selected.visits > 0 ? t('placeMap.visits', { n: selected.visits }) : t('placeMap.neverVisited'),
+                  !selected.spot && roadsOf(data, selected.id) > 0 ? t('placeMap.roads', { n: roadsOf(data, selected.id) }) : null,
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
+            {draft === null && !selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
+              <Button variant="ghost" size="icon" className={ctl} onClick={() => setConnectFrom(selected.id)} aria-label={t('placeMap.connect')} title={t('placeMap.connect')} data-testid="place-map-connect">
+                <Path className="size-4" aria-hidden="true" />
+              </Button>
+            )}
             {draft === null && selectedRecord && (
               <Button variant="ghost" size="icon" className={ctl} onClick={() => setDraft(selected.name)} aria-label={t('placeMap.rename')} title={t('placeMap.rename')} data-testid="place-map-rename">
                 <PencilSimple className="size-4" aria-hidden="true" />
@@ -434,11 +460,12 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               routes={visibleRoutes(data, nodes)}
               pictureUrl={pictureUrl}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={pick}
               onMoved={onMoved}
               label={t('placeMap.board')}
               hereLabel={t('placeMap.here')}
               locked={pinned}
+              connecting={connectFrom !== null}
             />
           )}
           <span
