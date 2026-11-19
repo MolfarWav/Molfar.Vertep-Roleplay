@@ -228,6 +228,20 @@ export async function editWorldRecord(target: string | WorldRef, op: WorldRecord
   return (await j<{ records: WorldRecord[] }>('/world/records', { method: 'PUT', body: JSON.stringify({ ...refBody(target), op, record }) })).records
 }
 
+/** The walking time in minutes between two places, estimated by the DM's build model (one call, started by the player). */
+export async function askTravelTime(chatId: string, p: { from: string; to: string; distance: number; mode: 'foot' | 'ride' }): Promise<number> {
+  const r = await j<{ ok: boolean; minutes?: number; error?: string }>('/world/travel/time', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })
+  if (!r.ok || !r.minutes) throw new Error(r.error ?? 'no answer')
+  return r.minutes
+}
+
+/** The name a journey's reply gave the road ('' when it named none): one call on the DM's build model. */
+export async function askRoadName(chatId: string, p: { from: string; to: string; reply: string }): Promise<string> {
+  const r = await j<{ ok: boolean; name?: string; error?: string }>('/world/travel/road', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })
+  if (!r.ok) throw new Error(r.error ?? 'no answer')
+  return r.name ?? ''
+}
+
 /** The build model writes keys for the living records that have none (one call); changed = records given keys. */
 export async function fillWorldKeys(chatId: string): Promise<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }> {
   const r = await j<{ ok: boolean; changed?: number; error?: string; code?: WorldErrorCode }>('/world/records/keys', { method: 'POST', body: JSON.stringify({ chatId }) })

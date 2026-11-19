@@ -92,3 +92,59 @@ describe("what a road keeps", () => {
     expect(toggleRoute(d, "n1", "n2").data.routes).toEqual([]);
   });
 });
+
+import { CHANCE_DEFAULT, ROAD_EVENTS, loadEventPref, rollRoadEvent, saveEventPref } from "../src/lib/place-travel";
+
+describe("a road event", () => {
+  it("the same seed gives the same roll and the same kind", () => {
+    const a = rollRoadEvent("chat|12|n1|n2", 25);
+    expect(rollRoadEvent("chat|12|n1|n2", 25)).toEqual(a);
+    expect(a.roll).toBeGreaterThanOrEqual(1);
+    expect(a.roll).toBeLessThanOrEqual(100);
+    expect(a.hit).toBe(a.roll <= 25);
+    expect(rollRoadEvent("chat|13|n1|n2", 25).roll === a.roll && rollRoadEvent("chat|14|n1|n2", 25).roll === a.roll).toBe(false);
+  });
+  it("a hit names one of the kinds, a miss names none; 100 always hits", () => {
+    let hits = 0;
+    const kinds = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      const r = rollRoadEvent(`c|${i}|a|b`, 25);
+      if (r.hit) { hits++; expect(ROAD_EVENTS as readonly string[]).toContain(r.kind!); kinds.add(r.kind!); } else expect(r.kind).toBeNull();
+      expect(rollRoadEvent(`c|${i}|a|b`, 100).hit).toBe(true);
+    }
+    expect(hits).toBeGreaterThan(60);
+    expect(hits).toBeLessThan(140);
+    expect(kinds.size).toBeGreaterThan(3);
+  });
+  it("the chance is held to 1..100", () => {
+    expect(rollRoadEvent("s", 500).chance).toBe(100);
+    expect(rollRoadEvent("s", -3).chance).toBe(1);
+    expect(rollRoadEvent("s", NaN).chance).toBe(CHANCE_DEFAULT);
+  });
+  it("the direction says where the DM's event belongs, or names the kind the die gave", () => {
+    const base = { from: "Inn", to: "Forge", mode: "foot" as const, minutes: 20, via: null, within: false };
+    const dm = travelDirection({ ...base, event: { dm: true } });
+    expect(dm).toContain("The narrator holds an event for this turn: let it happen on the road if it fits.");
+    const die = travelDirection({ ...base, event: { kind: "a stranger on the road" } });
+    expect(die).toContain("Something small happens on the road: a stranger on the road.");
+    expect(die.indexOf("arrival at Forge")).toBeLessThan(die.indexOf("Something small"));
+    expect(die.indexOf("Something small")).toBeLessThan(die.indexOf("Show the new time of day"));
+    expect(travelDirection({ ...base, event: null })).not.toContain("happens");
+    // a skipped road or a move within a place has no event
+    expect(travelDirection({ ...base, mode: "skip", event: { dm: true } })).not.toContain("narrator");
+    expect(travelDirection({ ...base, within: true, event: { dm: true } })).not.toContain("narrator");
+  });
+  it("the switch and the chance are kept per chat, off and 25 until changed", () => {
+    const mem = new Map<string, string>();
+    const st = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+    expect(loadEventPref("c1", st)).toEqual({ on: false, chance: 25 });
+    saveEventPref("c1", { on: true, chance: 60 }, st);
+    expect(loadEventPref("c1", st)).toEqual({ on: true, chance: 60 });
+    expect(loadEventPref("c2", st)).toEqual({ on: false, chance: 25 });
+    saveEventPref("c1", { on: true, chance: 900 }, st);
+    expect(loadEventPref("c1", st).chance).toBe(100);
+    mem.set("rp.map.roadEvent.c3", "not json");
+    expect(loadEventPref("c3", st)).toEqual({ on: false, chance: 25 });
+    expect(loadEventPref("c1", null)).toEqual({ on: false, chance: 25 });
+  });
+});

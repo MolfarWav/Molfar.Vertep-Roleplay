@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, CornersOut, GearSix, ImageSquare, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, Check, CornersOut, DotsThree, GearSix, ImageSquare, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
 import { PlaceIconDialog } from '@/components/chat/place-icon-dialog'
-import { PlaceTravelDialog } from '@/components/chat/place-travel-dialog'
+import { PlaceTravelDialog, type TravelSent } from '@/components/chat/place-travel-dialog'
 import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, setIcon, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, routeOf, setIcon, setRouteInfo, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
 import { placeKind } from '@/lib/place-kinds'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
 import { setPlaceMapOpen } from '@/lib/place-map-open'
 import { loadLock, saveLock } from '@/lib/place-map-lock'
 import { useApp } from '@/lib/store'
 import type { Chat } from '@/lib/types'
-import { loadWorld, loadWorldHere, peekWorld, useWorldLive, type WorldRecord } from '@/lib/world'
+import { askRoadName, loadWorld, loadWorldHere, peekWorld, useWorldLive, type WorldRecord } from '@/lib/world'
 import { isRevealed, markRevealed, needsGate } from '@/lib/world-reveal'
 import { storeBackground } from '@/lib/webp'
 import { cn } from '@/lib/utils'
@@ -210,6 +210,34 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   useEffect(() => { setConnectFrom(null) }, [chat.id])
   // travel by a tap: the dialog for the picked place
+  // after a trip with an unnamed road: when its reply is in, one call asks what the reply called the road; the player keeps it or not
+  const streaming = useApp((s) => s.streaming)
+  const [journey, setJourney] = useState<{ chatId: string; baseId: string | null; sent: TravelSent } | null>(null)
+  const [roadOffer, setRoadOffer] = useState<{ chatId: string; a: string; b: string; name: string } | null>(null)
+  useEffect(() => {
+    if (!journey || journey.chatId !== chat.id || (streaming && streaming.chatId === chat.id)) return
+    const msgs = chat.messages ?? []
+    const base = journey.baseId ? msgs.findIndex((m) => m.id === journey.baseId) : -1
+    const after = msgs.slice(base + 1)
+    const last = after[after.length - 1]
+    if (after.length < 2 || !last || last.role !== 'assistant') return
+    const text = last.swipes[last.activeSwipe]?.content ?? ''
+    const { sent } = journey
+    setJourney(null)
+    if (!text.trim() || !sent.fromId) return
+    askRoadName(chat.id, { from: sent.from ?? '', to: sent.to, reply: text })
+      .then((name) => { if (name) setRoadOffer({ chatId: chat.id, a: sent.fromId!, b: sent.toId, name }) })
+      .catch(() => {})
+  }, [journey, streaming, chat.messages, chat.id])
+  useEffect(() => { setJourney(null); setRoadOffer(null) }, [chat.id])
+  const keepRoadName = () => {
+    if (!roadOffer) return
+    updateChat(chat.id, { placeMap: setRouteInfo(withPositions(data, layout?.added ?? {}), roadOffer.a, roadOffer.b, { via: roadOffer.name }) })
+    setRoadOffer(null)
+  }
+  // the card's less used actions live in a menu: rename, icon, road
+  const [moreOpen, setMoreOpen] = useState(false)
+  useEffect(() => { setMoreOpen(false) }, [selectedId, chat.id])
   // the icon picker for the picked place
   const [iconOpen, setIconOpen] = useState(false)
   useEffect(() => { setIconOpen(false) }, [selectedId, chat.id])
@@ -381,6 +409,14 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </div>
         )}
 
+        {roadOffer && roadOffer.chatId === chat.id && !routeOf(data, roadOffer.a, roadOffer.b)?.via && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border bg-primary/10 px-3 py-1 text-xs" role="status" data-testid="place-map-road-offer">
+            <span className="min-w-0 flex-1 truncate" title={t('placeMap.roadOffer', { name: roadOffer.name })}>{t('placeMap.roadOffer', { name: roadOffer.name })}</span>
+            <Button variant="secondary" size="sm" className="h-6 shrink-0 px-2 text-xs max-md:h-9" onClick={keepRoadName} data-testid="place-map-road-keep">{t('placeMap.roadKeep')}</Button>
+            <Button variant="ghost" size="icon" className="size-6 shrink-0 max-md:size-9" onClick={() => setRoadOffer(null)} aria-label={t('placeMap.close')} title={t('placeMap.close')}><X className="size-3.5" aria-hidden="true" /></Button>
+          </div>
+        )}
+
         {!hereId && sceneText && (
           <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.sceneUnknown', { name: sceneText })} data-testid="place-map-scene">
             {t('placeMap.sceneUnknown', { name: sceneText })}
@@ -428,25 +464,34 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
-            {draft === null && Object.keys(iconIndex ?? {}).length > 0 && (
-              <Button variant="ghost" size="icon" className={ctl} onClick={() => setIconOpen(true)} aria-label={t('placeMap.icon')} title={t('placeMap.icon')} data-testid="place-map-icon">
-                <ImageSquare className="size-4" aria-hidden="true" />
-              </Button>
-            )}
             {draft === null && !selected.here && (
-              <Button variant="ghost" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
+              <Button variant="secondary" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
                 <NavigationArrow className="size-4" aria-hidden="true" />
               </Button>
             )}
-            {draft === null && !selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
-              <Button variant="ghost" size="icon" className={ctl} onClick={() => setConnectFrom(selected.id)} aria-label={t('placeMap.connect')} title={t('placeMap.connect')} data-testid="place-map-connect">
-                <Path className="size-4" aria-hidden="true" />
-              </Button>
-            )}
-            {draft === null && selectedRecord && (
-              <Button variant="ghost" size="icon" className={ctl} onClick={() => setDraft(selected.name)} aria-label={t('placeMap.rename')} title={t('placeMap.rename')} data-testid="place-map-rename">
-                <PencilSimple className="size-4" aria-hidden="true" />
-              </Button>
+            {draft === null && (
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <PopoverTrigger className={cn('inline-flex items-center justify-center rounded-md hover:bg-muted', ctl)} aria-label={t('placeMap.more')} title={t('placeMap.more')} data-testid="place-map-more">
+                  <DotsThree className="size-5" weight="bold" aria-hidden="true" />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="flex w-64 flex-col gap-0.5 p-1">
+                  {selectedRecord && (
+                    <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setDraft(selected.name) }} data-testid="place-map-rename">
+                      <PencilSimple className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.rename')}
+                    </Button>
+                  )}
+                  {Object.keys(iconIndex ?? {}).length > 0 && (
+                    <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setIconOpen(true) }} data-testid="place-map-icon">
+                      <ImageSquare className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.icon')}
+                    </Button>
+                  )}
+                  {!selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
+                    <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setConnectFrom(selected.id) }} data-testid="place-map-connect">
+                      <Path className="size-4 shrink-0" aria-hidden="true" />{t('placeMap.connect')}
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
             )}
             <Button variant="ghost" size="icon" className={ctl} onClick={() => setSelectedId(null)} aria-label={t('placeMap.close')} title={t('placeMap.close')}>
               <X className="size-4" aria-hidden="true" />
@@ -525,7 +570,17 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           open={travelOpen}
           onOpenChange={setTravelOpen}
           onSaveMap={(next) => updateChat(chat.id, { placeMap: { ...next, nodes: { ...withPositions(data, layout?.added ?? {}).nodes } } })}
-          onSent={() => { if (phone) fold(true) }}
+          dmOn={view?.settings.level !== 'off'}
+          dmEvent={view?.eventWaiting === true}
+          messageCount={messageCount}
+          onSent={(sent) => {
+            // a road with no name yet: read the one the reply gives it
+            if (sent.fromId && !sent.within && sent.mode !== 'skip' && !sent.nameKnown && view?.settings.level !== 'off') {
+              const msgs = chat.messages ?? []
+              setJourney({ chatId: chat.id, baseId: msgs[msgs.length - 1]?.id ?? null, sent })
+            }
+            if (phone) fold(true)
+          }}
         />
       )}
       {confirmDialog}
