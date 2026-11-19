@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.139.1'
+export const APP_VERSION = '4.140.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.places-map',
+    since: '4.140.0',
+    help: 'world',
+    keywords: { en: 'places map world dm roads travel icons ready maps gallery picture rename lock road event minutes street', uk: 'мапа місць world dm дороги подорож іконки готові мапи галерея картинка перейменувати замок подія в дорозі хвилини вулиця' },
+    title: { en: 'The places map', uk: 'Мапа місць' },
+    body: {
+      en: 'When a chat has places in its World book, a round map button appears at the bottom left of the chat. The map shows the places as painted icons on a ready plan, draws the roads the story walked (or ones you draw), and a tap on a place lets you rename it on the map, change its icon, or go there: your move goes into the chat with a hidden instruction for the reply. Everything is free of model calls unless you press Ask the model.',
+      uk: 'Коли в книзі World чату є місця, унизу зліва в чаті з’являється кругла кнопка мапи. Мапа показує місця намальованими іконками на готовому плані, малює дороги, якими йшла історія (або ті, що ви провели), а дотик до місця дозволяє перейменувати його на мапі, змінити іконку чи піти туди: ваш хід іде в чат із прихованою вказівкою для відповіді. Без вашого натискання «Спитати модель» жодних викликів моделі немає.',
+    },
+  },
   {
     id: 'new.sprite-windows',
     since: '4.139.0',

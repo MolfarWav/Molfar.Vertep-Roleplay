@@ -19,6 +19,7 @@ Answer from these pages, not from the code. Read the page that fits:
 - `memory`: Dashboard, Litopys, card memory, lorebooks, Data Bank, author's note: which does what
 - `long-chats`: a chat that grew long: token cost, what trims it, continuing a story in a new chat
 - `world-dm`: the World DM and world profiles
+- `places-map`: the floating map of a chat's places: roads, rearranging, a map picture of your own
 - `agents`: agents and the agent forge
 - `settings`: where Roleplay's settings are
 

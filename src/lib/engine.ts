@@ -12,6 +12,7 @@ import type {
   Swipe, ID, ModelInfo, ModelPricing, PromptSection, DataBankFile, PromptFormatSequences, GroupConfig, ChatTurns,
 } from './types'
 import { uid } from './tokens'
+import { cleanPlaceMap as placeMapOf } from './place-map'
 import { flushDraft } from './drafts'
 import { cleanFolder, cleanFolderList, cleanFolderTones } from './lore-folders'
 import { beginImport } from './import-progress'
@@ -111,6 +112,7 @@ export interface EngineChatMeta {
   turns?: ChatTurns
   agents?: Chat['agents']
   spriteOutfits?: Record<string, string>
+  placeMap?: unknown
   parentChatId?: string | null
   parentMessageId?: string | null
   createdAt: number
@@ -1076,6 +1078,7 @@ export function engineChatToUI(meta: EngineChatMeta, msgs: EngineMessage[]): Cha
     ...(meta.turns && Object.keys(meta.turns).length ? { turns: meta.turns } : {}),
     ...(meta.agents && (meta.agents.preset || meta.agents.own) ? { agents: { ...(meta.agents.preset ? { preset: meta.agents.preset } : {}), ...(meta.agents.own ? { own: meta.agents.own.map((i) => ({ agent: i.agent })) } : {}) } } : {}),
     ...(meta.spriteOutfits && Object.keys(meta.spriteOutfits).length ? { spriteOutfits: meta.spriteOutfits } : {}),
+    ...(placeMapOf(meta.placeMap) ? { placeMap: placeMapOf(meta.placeMap)! } : {}),
     chatTags: meta.chatTags ?? [],
     backgroundId: meta.backgroundId ?? null,
     ...(meta.autoBackground && typeof meta.autoBackground === 'object' ? { autoBackground: meta.autoBackground } : {}),
@@ -1108,6 +1111,7 @@ export function chatPatchOf(p: Partial<Chat>): Record<string, unknown> {
   if ('fieldVariantSelection' in p) out.fieldVariantSelection = p.fieldVariantSelection
   if ('turns' in p) out.turns = p.turns && Object.keys(p.turns).length ? p.turns : null
   if ('spriteOutfits' in p) out.spriteOutfits = p.spriteOutfits && Object.keys(p.spriteOutfits).length ? p.spriteOutfits : null
+  if ('placeMap' in p) out.placeMap = placeMapOf(p.placeMap)
   return out
 }
 

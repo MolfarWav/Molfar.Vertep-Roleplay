@@ -3511,6 +3511,65 @@ function cleanSpriteOutfits(v) {
   return Object.keys(out).length ? out : null;
 }
 
+/** A chat's places map (#454): node positions in board units, routes between two places, the map picture's id, the place the
+ *  story was last seen in. Same rules as `cleanPlaceMap` in src/lib/place-map.ts; null when nothing is left. */
+function cleanPlaceMapMeta(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const BOARD_W = 1600, BOARD_H = 1000, MARGIN = 70;
+  const out = { v: 1, nodes: {}, routes: [] };
+  const str = (s) => typeof s === "string" && s.length > 0 && s.length <= 80;
+  if (v.nodes && typeof v.nodes === "object" && !Array.isArray(v.nodes)) {
+    for (const [id, p] of Object.entries(v.nodes)) {
+      if (!str(id) || !p || typeof p !== "object" || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+      out.nodes[id] = {
+        x: Math.round(Math.min(BOARD_W - MARGIN, Math.max(MARGIN, p.x))),
+        y: Math.round(Math.min(BOARD_H - MARGIN, Math.max(MARGIN, p.y))),
+      };
+      if (Object.keys(out.nodes).length >= 200) break;
+    }
+  }
+  if (Array.isArray(v.routes)) {
+    const seen = new Set();
+    for (const r of v.routes) {
+      if (!r || !str(r.a) || !str(r.b) || r.a === r.b) continue;
+      const a = r.a < r.b ? r.a : r.b;
+      const b = r.a < r.b ? r.b : r.a;
+      if (seen.has(a + "\n" + b)) continue;
+      seen.add(a + "\n" + b);
+      const minutes = Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 99999 ? r.minutes : 0;
+      const via = typeof r.via === "string" ? r.via.replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) : "";
+      out.routes.push({ a, b, ...(minutes ? { minutes } : {}), ...(via ? { via } : {}) });
+      if (out.routes.length >= 400) break;
+    }
+  }
+  if (v.picture && typeof v.picture === "object") {
+    if (typeof v.picture.id === "string" && v.picture.id && v.picture.id.length <= 200) out.picture = { id: v.picture.id };
+    else if (typeof v.picture.builtin === "string" && /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(v.picture.builtin)) out.picture = { builtin: v.picture.builtin };
+    else if (v.picture.none === true) out.picture = { none: true };
+  }
+  if (str(v.at)) out.at = v.at;
+  if (v.labels && typeof v.labels === "object" && !Array.isArray(v.labels)) {
+    const labels = {};
+    for (const [id, l] of Object.entries(v.labels)) {
+      const label = typeof l === "string" ? l.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+      if (!str(id) || !label) continue;
+      labels[id] = label;
+      if (Object.keys(labels).length >= 200) break;
+    }
+    if (Object.keys(labels).length) out.labels = labels;
+  }
+  if (v.icons && typeof v.icons === "object" && !Array.isArray(v.icons)) {
+    const icons = {};
+    for (const [id, k] of Object.entries(v.icons)) {
+      if (!str(id) || typeof k !== "string" || !/^[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(k)) continue;
+      icons[id] = k;
+      if (Object.keys(icons).length >= 200) break;
+    }
+    if (Object.keys(icons).length) out.icons = icons;
+  }
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons ? out : null;
+}
+
 function cleanTurns(t) {
   if (!t || typeof t !== "object" || Array.isArray(t)) return null;
   const out = {};
@@ -6935,9 +6994,11 @@ const toolX = (r) => ({
       const same = (x, y) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
       const keys = ["title", "presetId", "personaId", "model", "authorNote", "lorebookIds", "userName", "characterId", "groupId",
         "authorNoteObject", "folderId", "pinned", "archived", "chatTags", "backgroundId", "autoBackground", "temporary",
-        "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits", "css"];
+        "fieldVariantSelection", "parentChatId", "parentMessageId", "spriteOutfits", "placeMap", "css"];
       // spriteOutfits: the outfit each speaker's sprite wears in this chat, { voiceName | "": outfit }; null or {} clears it
       if ("spriteOutfits" in b) b.spriteOutfits = cleanSpriteOutfits(b.spriteOutfits);
+      // placeMap: the places map of this chat (#454), cleaned like cleanPlaceMap in src/lib/place-map.ts; null clears it
+      if ("placeMap" in b) b.placeMap = cleanPlaceMapMeta(b.placeMap);
       // css: this chat's own stylesheet (the chat view scopes it to the chat); a string up to 20000 characters, null or blank clears it
       if ("css" in b) b.css = cleanChatCss(b.css);
       // turns: the chat's own turn settings, replaced whole; null or {} = follow the group

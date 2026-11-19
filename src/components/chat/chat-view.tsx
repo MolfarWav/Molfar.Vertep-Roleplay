@@ -55,6 +55,7 @@ import { WorldStatusButton, useWorldDot } from '@/components/world/world-status'
 import { useGuidePlace } from '@/components/guide/place'
 import { GUIDE_MENU_EVENT, guideTarget } from '@/components/guide/events'
 import { ExpressionPanel } from './expression-panel'
+import { PlaceMap } from './place-map'
 import { ConvertToGroupDialog } from './convert-to-group-dialog'
 import { FieldVariantPicker } from './field-variant-picker'
 import { PresetNoteLine } from './preset-note'
@@ -1534,6 +1535,9 @@ export function ChatView() {
 
       {/* expression sprite for the latest speaker (emotion-detected) */}
       <ExpressionPanel chat={chat} />
+
+      {/* the map of the chat's places (a chip until opened; only when the World book has places) */}
+      <PlaceMap chat={chat} />
 
       {/* Convert solo chat to group */}
       {!character.isGroup && (

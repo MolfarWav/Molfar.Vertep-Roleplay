@@ -100,6 +100,7 @@ const SECTIONS: SectionDef[] = [
       { kind: "switch", key: "showGenTimer", label: "Show Generation Timer" },
       { kind: "switch", key: "expandMessageActions", label: "Expand Message Actions" },
       { kind: "switch", key: "showExpressionSprites", label: "Expression Sprites" },
+      { kind: "switch", key: "showPlaceMap", label: "Places Map" },
       { kind: "slider", key: "messagesToLoad", label: "Messages to Load", min: 10, max: 200, step: 10 },
     ],
   },

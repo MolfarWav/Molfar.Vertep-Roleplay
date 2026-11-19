@@ -1,56 +1,56 @@
-<!-- source: 8601aebf3a12 -->
+<!-- source: 63580e32deab -->
 # Personages, persona's en groepen
 
-Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina zegt waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* hebben de details.
+Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina legt uit waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* bevatten de details.
 
 ## Kaarten
 
-Een kaart is een personage: beschrijving, persoonlijkheid, scenario en een eerste bericht. Een tag die `group: Guild of Ravens` of `faction: Guild of Ravens` luidt, zet het personage van de kaart ook in die groep, zodat een geheugenfeit dat aan de groep wordt verteld ook hun bekend is ([[litopys]]). De sectie Personages toont je kaarten als raster of lijst, met zoeken, tags, mappen, favorieten (een ster) en meerdere sorteervolgordes. Open een kaart om hem te bewerken. Wijzigingen blijven in een concept tot "Save changes"; weggaan met niet-opgeslagen wijzigingen vraagt eerst om bevestiging.
+Een kaart is een personage: beschrijving, persoonlijkheid, scenario en een eerste bericht. Een tag `group: Guild of Ravens` of `faction: Guild of Ravens` plaatst het personage van de kaart ook in die groep, zodat een geheugenfeit dat aan de groep wordt verteld, bij hen bekend is ([[litopys]]). De sectie Personages toont je kaarten als een raster of lijst, met zoeken, tags, mappen, favorieten (een ster) en verschillende sorteermogelijkheden. Open een kaart om hem te bewerken. Bewerkingen blijven in een concept tot "Save changes"; weggaan met niet-opgeslagen bewerkingen vraagt eerst om bevestiging.
 
 De editor heeft zes tabbladen:
 
 - **Core**: de kaarttekst, dialoog en begroeting.
-- **Profile**: dezelfde beschrijving opgesplitst in gestructureerde velden (identiteit, uiterlijk, doelen). Elke opslag schrijft ze terug in de kaarttekst. Een vertellerkaart kan hier een hele cast beschrijven.
-- **Soul**: hoe het personage op jou reageert, plus gewoonten. Zie [[soul]].
-- **Memory**: afgeronde chats die het personage onthoudt. Zie [[memory]].
+- **Profile**: dezelfde beschrijving opgesplitst in gestructureerde velden (identiteit, uiterlijk, doelen). Elke opslag schrijft ze terug naar de kaarttekst. Een vertellerskaart kan hier een hele cast beschrijven.
+- **Soul**: hoe het personage op je reageert, plus gewoonten. Zie [[soul]].
+- **Memory**: afgeronde chats die het personage zich herinnert. Zie [[memory]].
 - **Lorebook**: boeken die aan deze kaart zijn gekoppeld.
 - **More**: kleuren en stemmen, sprites (zie [[sprites]]), galerij, regex, geavanceerde instellingen.
 
-Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Colors geeft "Voices" elke spreker een eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart die meerdere personages bevat (secties genoemd naar elk van hen) kleurt de regels van elk personage zelf, elk in een andere kleur, en dit blijft bij de chat bewaard. In elke andere chat open je het chatmenu, "Voice colors", en zet je de schakelaar aan; "Spread colors" geeft iedereen die je niet hebt gekozen een andere kleur. Dit heeft het Relationship-dashboard nodig, dat de lijst met personages levert.
-
-## Brieven van kaarten
-
-Een kaart die je een tijdje niet hebt gespeeld, kan je een korte brief in zijn eigen stem schrijven. De brief komt in de inbox terecht ("Waiting on you" op Home, de inbox-knop in de rail) als een groene Letter; als je hem opent, ga je naar de oude chat, of start je een chat voor een kaart die je nooit hebt gespeeld. Een brief schrijft nooit in een chat en verzint nooit gebeurtenissen.
-
-Hij staat **uit tot je hem aanzet**. Zolang hij uit staat, staat er bovenaan de sectie Personages en in "Waiting on you" op Home een groene kaart "Let your characters write to you": **Turn on** zet hem meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen van inactiviteit, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt gestopt staan in Personages, More, Letters from cards. Brieven worden om de paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen stilligt, een kaart die je 14 dagen nooit hebt gespeeld, en een gespeelde kaart zonder Soul (één keer). Als het schrijfmodel drie controles achter elkaar faalt (of er geen is ingesteld), toont de inbox een rode melding "Letters" met de reden, en **Open** brengt je naar de instellingen voor brieven; een brief die aankomt, een ander model of het uitzetten van brieven haalt de melding weg.
+Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Colors geeft "Voices" elke spreker zijn eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart met meerdere personages (secties vernoemd naar elk) kleurt de regels van elk personage vanzelf, elk met een andere kleur, bewaard bij de chat. In elke andere chat open je het chatmenu, "Voice colors", en zet je de schakelaar aan; "Spread colors" geeft iedereen die je niet hebt gekozen een andere kleur. Dit vereist het Relationship-dashboard, dat de lijst met personages levert.
 
 ## Persona's
 
-Een persona ben jij: naam, voornaamwoorden, beschrijving, avatar. Het model ziet hem overal waar de prompt over de gebruiker spreekt. "Use this persona" maakt hem je standaard en schakelt de open chat ernaar over. Een persona kan eigen lorebooks dragen en kan aan gekozen personages worden vastgemaakt, zodat nieuwe chats met hen ermee beginnen.
+Een persona ben jij: naam, voornaamwoorden, beschrijving, avatar. Het model ziet die overal waar de prompt over de gebruiker spreekt. "Use this persona" maakt het je standaard en schakelt de open chat erop over. Een persona kan eigen lorebooks meedragen en kan aan gekozen personages worden gekoppeld, zodat nieuwe chats met hen ermee beginnen. Het tabblad Lorebooks van een persona toont de boeken die het meedraagt (open er een, ontkoppel het, voeg meer toe uit een doorzoekbare lijst, of begin een nieuw boek). Een persona kan een eigen boek hebben ("New book" op een leeg tabblad maakt het, "Replace" wisselt het): het reist mee in het bestand van de persona, dus Export en Backup dragen het mee en het importeren van het bestand op een ander apparaat brengt het terug, gekoppeld. Boeken die het alleen koppelt, blijven in de bibliotheek van dat apparaat; een koppeling waarvan het boek ontbreekt, verschijnt als een rij "Not in your library" die je kunt verwijderen. Importeren op het scherm Persona's neemt één persona over uit een andere app (een naam en een beschrijving), een back-up van meerdere, of een lijst `{ name: description }`; een persona die boeken noemt die je nog niet hebt geïmporteerd, wordt toch geïmporteerd, met een melding welke ontbreken.
 
 ## Groepen
 
-Een groep zet meerdere personages in één chat. "New group" laat je leden kiezen. De editor heeft Overview, Members, Scene, Turns, Lore en Chats. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord vertolkt iedereen) of Each in turn. Een nieuwe groep begint als Narrator.
+Een groep zet meerdere personages in één chat. Met "New group" kies je leden. De editor heeft Overview, Members, Scene, Turns, Lore en Chats. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord verwoordt iedereen) of Each in turn. Een nieuwe groep begint als Narrator.
 
-Het tabblad Turns heeft ook **How they talk**: **Onderbrekingen** (Interruptions): leden vallen in, praten door elkaar heen of negeren een vraag wanneer dat bij hun personage past. **Eigen doelpunten** (Own goals): leden maken bezwaar, onderhandelen of weigeren wanneer een plan indruist tegen wie ze zijn, ook al ontstaat er spanning met jou. **Stille leden betrekken** (Draw in quiet members): wie een tijdje stil is geweest, krijgt meer kansen om te antwoorden, en een verteld tafereel wordt gevraagd hen erbij te betrekken. De eerste twee staan op Off, Can of Should: Can staat het toe wanneer het bij het tafereel past, Should verwacht het, en als elk antwoord een ruzie wordt, ga dan terug naar Can. Nieuwe groepen beginnen met Can en met het betrekken van stille leden aan; oudere groepen houden alles uit tot je het aanzet. De eigen Turns-knop van de chat kan ze voor die ene chat wijzigen. Open op het tabblad Members de sectie "In this group" van een lid om hem een **voice** te geven die alleen deze groep gebruikt: tot twee spreekgewoonten (praat in fragmenten, stelt nooit vragen) en tot vijf voorbeeldzinnen. Een paar zinnen leren het ritme beter dan bijvoeglijke naamwoorden, en verschillende personages moeten op hetzelfde nieuws verschillend reageren.
+Het tabblad Turns heeft ook **How they talk**: **Interruptions** (leden vallen in, praten door elkaar heen of negeren een vraag wanneer dat bij hun personage past), **Own goals** (leden maken bezwaar, onderhandelen of weigeren wanneer een plan ingaat tegen wie ze zijn, zelfs als dat spanning met jou oplevert) en **Draw in quiet members** (iemand die een tijdje stil is geweest, krijgt meer kansen om te antwoorden, en een vertelde scène wordt gevraagd hen erbij te betrekken). De eerste twee zijn Off, Can of Should: Can staat het toe wanneer het bij de scène past, Should verwacht het, en als elk antwoord in een ruzie verandert, ga je terug naar Can. Nieuwe groepen beginnen met Can en Draw in aan; oudere groepen houden alles uit tot je het aanzet. De Turns-knop van de chat zelf kan ze voor één chat alleen wijzigen. Open op het tabblad Members de sectie "In this group" van een lid om hen een **voice** te geven die alleen deze groep gebruikt: maximaal twee spraakgewoonten (spreekt in fragmenten, stelt nooit vragen) en maximaal vijf voorbeeldregels. Een paar regels leren het ritme beter dan bijvoeglijke naamwoorden, en verschillende personages zouden op hetzelfde nieuws verschillend moeten reageren.
 
 Een groep is geen kaart: een groep verwijderen verwijdert zijn chats, nooit zijn leden. Leden zonder eigen kleur krijgen automatisch verschillende kleuren.
 
 ## Kaarten verkrijgen
 
-- "Import card" accepteert PNG- of JSON-bestanden, één of meer, en linkt naar Chub, RisuRealm, CharaVault, Botbooru of een direct bestand.
-- De Marktplaats doorzoekt meerdere bronnen tegelijk; open een resultaat om de volledige kaart te lezen voordat je importeert. Elke bron heeft zijn eigen sorteervolgorde en volwassenenfilter, en sommige vereisen een handmatige download.
-- Exporteren schrijft een PNG met de kaart erin.
+- "Import card" accepteert PNG- of JSON-bestanden, één of vele, en links naar Chub, RisuRealm, CharaVault, Botbooru of een direct bestand.
+- De Marktplaats doorzoekt meerdere bronnen tegelijk; open een resultaat om de volledige kaart te lezen voordat je importeert. Elke bron heeft zijn eigen sorteervolgorde en adult-filter, en sommige vereisen een handmatige download.
+- Export schrijft een PNG met de kaart erin.
 - "With Molfar" op Home (en in Lorebooks) vraagt Molfar om samen met jou een kaart of een lorebook op te stellen. Zie [[vertep:molfar]].
 
-## Portretten voor kaarten zonder portret
+## Brieven van kaarten
 
-Een kaart zonder eigen afbeelding (niets, of de standaardavatar) kan worden getekend. **Eén kaart:** in de kaarteditor opent "Draw" onder het portret een dialoog: kies het beeldmodel; een tekstmodel (het model van Card tasks) schrijft een beschrijving van de kaart, die je kunt bewerken, en het beeldmodel tekent hem. De afbeelding gaat meteen naar de Gallery van de kaart en "Use as portrait" maakt hem de avatar. **Veel kaarten:** in Personages, More, vraagt "Draw missing portraits (N)" welk model je wilt, waarna ze één voor één worden getekend via de voortgangskaart; Cancel stopt het tussen twee kaarten, en een kaart die mislukt staat in de lijst met de reden.
+Een kaart die je een tijdje niet hebt gespeeld, kan je een kort briefje in zijn eigen stem schrijven. Het briefje komt in de inbox (Home's "Waiting on you", de inbox-knop in de zijbalk) als een groene Letter; door hem te openen ga je naar de oude chat, of begin je een chat voor een kaart die je nooit hebt gespeeld. Een brief schrijft nooit in een chat en verzint nooit gebeurtenissen.
 
-"Draw with" toont de beeldmodellen van Settings > Images: een lokale ComfyUI of Forge naast API-modellen. De eerste keuze is het eigen beeldmodel van de app (Extensions > Image generation); een keuze hier wordt alleen voor portretten onthouden. Een model dat op tags is getraind krijgt een regel tags, een API-model een alinea. Een kaart met alleen een naam heeft niets om te beschrijven, en de dialoog zegt dat. Beeldgeneratie moet aan staan (Extensions); de dialogen zeggen dat en openen het voor je.
+Het is **uit tot je het aanzet**. Zolang het uit is, staat er een groene kaart "Let your characters write to you" bovenaan de sectie Personages en in Home's "Waiting on you": **Turn on** zet het meteen aan, **Not now** verbergt de kaart voorgoed. De getallen (dagen inactief, brieven per dag, dagen tussen brieven van één kaart, het schrijfmodel) en de kaarten die je hebt stopgezet, staan in Personages, More, Letters from cards. Brieven worden elke paar uur gecontroleerd terwijl de app open is: een chat die 14 dagen inactief is, een kaart die je 14 dagen niet hebt gespeeld, en een gespeelde kaart zonder Soul (eenmalig). Als het schrijfmodel drie controles op rij faalt (of er is geen ingesteld), toont de inbox een rode "Letters"-fout met de reden, en Open brengt je naar de Letters-instellingen; een brief die aankomt, een ander model of brieven uitzetten wist het. 
+
+## Portretten voor kaarten zonder
+
+Een kaart zonder eigen afbeelding (niets, of de standaardavatar) kan worden getekend. **Eén kaart:** in de kaarteditor opent "Draw" onder het portret een dialoog: kies het beeldmodel, een tekstmodel (het Card tasks-model) schrijft een beschrijving van de kaart, die je kunt bewerken, en het beeldmodel tekent die. De afbeelding gaat meteen naar de Gallery van de kaart en "Use as portrait" maakt er de avatar van. **Veel kaarten:** Personages, More, "Draw missing portraits (N)" vraagt welk model en tekent ze dan één voor één via de voortgangskaart; Cancel stopt tussen kaarten en een kaart die faalt, wordt met de reden vermeld.
+
+"Draw with" toont de beeldmodellen van Settings > Images: een lokale ComfyUI of Forge naast API-modellen. De eerste keuze is het eigen beeldmodel van de app (Extensions > Image generation); een keuze hier wordt alleen voor portretten onthouden. Een op tags getraind model krijgt een regel tags, een API-model een paragraaf. Een kaart met alleen een naam heeft niets te beschrijven, en de dialoog zegt dat. Beeldgeneratie moet aan staan (Extensions); de dialogen zeggen dat en openen het voor je.
 
 ## Wat een kaart niet bevat
 
-De toestand van het Dashboard, hoofdstukken en feiten horen bij elke chat, niet bij de kaart. Kaartgeheugen hoort ook niet bij de kaart en verschijnt nooit in een export. De Soul daarentegen wordt in de kaart opgeslagen.
+De Dashboard-status, hoofdstukken en feiten horen bij elke chat, niet bij de kaart. Kaartgeheugen maakt ook geen deel uit van de kaart en verschijnt nooit in een export. De Soul daarentegen wordt in de kaart opgeslagen.
 
 Volgende: [[first-story]] voor de eerste chat, of [[soul]] voor het reactieprofiel.
