@@ -135,7 +135,15 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
   const movedRef = useRef(false)
   useEffect(() => {
+    const up = () => {
+      if (!resizeRef.current && !dragRef.current) return
+      resizeRef.current = null
+      dragRef.current = null
+      update((b) => b)
+    }
     const move = (e: PointerEvent) => {
+      // a button let go outside the page (an app frame does not always hear it): the drag is over
+      if (e.pointerType === 'mouse' && e.buttons === 0) { up(); return }
       const rs = resizeRef.current
       if (rs) {
         update((b) => resizeTo(b, { w: rs.w + (e.clientX - rs.x), h: rs.h + (e.clientY - rs.y) }, areaRef.current, phoneRef.current), true)
@@ -147,12 +155,6 @@ export function PlaceMap({ chat }: { chat: Chat }) {
       d.moved = true
       movedRef.current = true
       update((b) => dragTo(b, { x: e.clientX - d.dx, y: e.clientY - d.dy }, areaRef.current, phoneRef.current), true)
-    }
-    const up = () => {
-      if (!resizeRef.current && !dragRef.current) return
-      resizeRef.current = null
-      dragRef.current = null
-      update((b) => b)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -249,7 +251,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
       >
         <div
           className="flex shrink-0 cursor-grab touch-none select-none items-center gap-1 border-b border-border px-2 py-1 active:cursor-grabbing max-md:py-0.5"
-          onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('button, input')) startDrag(e) }}
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('button, input')) return
+            try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* a drag without capture still works */ }
+            startDrag(e)
+          }}
           title={t('placeMap.grip')}
           data-testid="place-map-bar"
         >
@@ -305,11 +311,12 @@ export function PlaceMap({ chat }: { chat: Chat }) {
         </div>
 
         {view?.settings.level === 'off' && (
-          <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">{t('placeMap.dmOff')}</p>
+          <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.dmOff')}>{t('placeMap.dmOff')}</p>
         )}
 
         {selected && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5" data-testid="place-map-card">
+          // over the bottom of the board, so the board keeps its room
+          <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-2 rounded-md border border-border bg-card/95 py-1 pl-2 pr-1 shadow-md max-md:bottom-3" style={{ marginRight: 32 }} data-testid="place-map-card">
             {thumb ? (
               <img src={thumb} alt="" draggable={false} className="size-10 shrink-0 rounded-md object-cover" />
             ) : (
@@ -365,6 +372,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           <span
             onPointerDown={(e) => {
               e.stopPropagation()
+              try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* a resize without capture still works */ }
               resizeRef.current = { x: e.clientX, y: e.clientY, w: r.w, h: r.h }
             }}
             onDoubleClick={() => update((b) => ({ ...b, w: null, h: null }))}

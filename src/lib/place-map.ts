@@ -96,8 +96,9 @@ const hashOf = (s: string): number => {
 }
 
 /** The nearest free spot on rings around `centre`: `gap` from everything in `taken`, inside the board. Null only if the board is full. */
-function freeSpot(centre: MapPos, ring: number, gap: number, taken: MapPos[], seed: string): MapPos | null {
-  const start = hashOf(seed) * Math.PI * 2
+function freeSpot(centre: MapPos, ring: number, gap: number, taken: MapPos[], seed: string, above = false): MapPos | null {
+  // a spot starts in the upper half around its place: the place's name hangs below it
+  const start = above ? -Math.PI * (0.85 - hashOf(seed) * 0.7) : hashOf(seed) * Math.PI * 2
   const free = (p: MapPos) => p.x >= MARGIN && p.x <= BOARD_W - MARGIN && p.y >= MARGIN && p.y <= BOARD_H - MARGIN && taken.every((t) => dist(t, p) >= gap)
   for (let r = ring; r <= 900; r += Math.max(gap * 0.7, 60)) {
     const slots = Math.max(6, Math.floor((2 * Math.PI * r) / gap))
@@ -128,7 +129,8 @@ export interface MapLayout {
  */
 export function layoutMap(records: WorldRecord[], data: PlaceMapData | null, hereId: string | null): MapLayout {
   const tree = buildPlaceTree(records, hereId)
-  const places = records.filter((r) => r.kind === 'place' && r.status === 'active')
+  // oldest first (n2 before n10), whatever order the book was read in: the first place goes in the middle
+  const places = records.filter((r) => r.kind === 'place' && r.status === 'active').sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }))
   const parentOf = new Map<string, string>()
   for (const root of tree.roots) for (const s of root.spots) parentOf.set(s.place.id, root.place.id)
   const kept = data?.nodes ?? {}
@@ -164,7 +166,7 @@ export function layoutMap(records: WorldRecord[], data: PlaceMapData | null, her
     const parent = parentOf.get(r.id)
     if (pos.has(r.id) || !parent) continue
     const centre = pos.get(parent) ?? { x: BOARD_W / 2, y: BOARD_H / 2 }
-    const p = freeSpot(centre, RING_SPOT, GAP_SPOT, taken(true), r.id)
+    const p = freeSpot(centre, RING_SPOT, GAP_SPOT, taken(true), r.id, true)
     give(r.id, p ?? clampPos({ x: centre.x + RING_SPOT, y: centre.y }))
   }
   const nodes: MapNode[] = places.map((r) => {

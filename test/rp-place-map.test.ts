@@ -50,6 +50,13 @@ describe("layoutMap", () => {
       for (const b of nodes) if (a !== b) expect(dist(a, b)).toBeGreaterThanOrEqual(119);
     }
   });
+  it("lays places out oldest first, so the first one is in the middle even when the book lists the newest first", () => {
+    const rs = [place("C"), place("B"), place("A")].reverse().reverse();
+    const newestFirst = [...rs].sort((x, y) => y.id.localeCompare(x.id, "en", { numeric: true }));
+    const { nodes } = layoutMap(newestFirst, null, null);
+    const oldest = [...rs].sort((x, y) => x.id.localeCompare(y.id, "en", { numeric: true }))[0];
+    expect(nodes.find((x) => x.id === oldest.id)).toMatchObject({ x: BOARD_W / 2, y: BOARD_H / 2 });
+  });
   it("is the same every time", () => {
     const rs = Array.from({ length: 6 }, (_, i) => place(`P${i}`));
     expect(layoutMap(rs, null, null)).toEqual(layoutMap(rs, null, null));

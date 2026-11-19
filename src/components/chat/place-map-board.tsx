@@ -210,8 +210,10 @@ export const PlaceMapBoard = forwardRef<PlaceMapBoardHandle, {
     return nodes.map((n) => (n.id === live.id ? { ...n, ...live.pos } : !base.spot && n.parentId === base.id ? { ...n, x: n.x + dx, y: n.y + dy } : n))
   }, [nodes, live])
   const at = useMemo(() => new Map(shown.map((n) => [n.id, n])), [shown])
-  const inv = 1 / view.k
-  const many = nodes.length > 40
+  // nodes keep their size on the screen, a little smaller when far out, and lose their names (but the current and the chosen one)
+  const inv = clamp(view.k / 0.6, 0.5, 1) / view.k
+  const farOut = view.k < 0.3
+  const many = nodes.length > 40 || farOut
   const showPicture = !!pictureUrl && imgBroken !== pictureUrl
 
   return (
