@@ -1,0 +1,384 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { ArrowCounterClockwise, CornersOut, GearSix, MapTrifold, Minus, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { useDashMaybe } from '@/components/dashboard/dash-context'
+import { useConfirm } from '@/components/ui/confirm'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
+import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { useT } from '@/hooks/use-t'
+import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
+import { emptyMap, layoutMap, moveNode, stepRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { placeKind } from '@/lib/place-kinds'
+import { setPlaceMapOpen } from '@/lib/place-map-open'
+import { useApp } from '@/lib/store'
+import type { Chat } from '@/lib/types'
+import { loadWorld, loadWorldHere, peekWorld, useWorldLive, type WorldRecord } from '@/lib/world'
+import { isRevealed, markRevealed, needsGate } from '@/lib/world-reveal'
+import { storeBackground } from '@/lib/webp'
+import { cn } from '@/lib/utils'
+
+const NAME = 'map'
+const storage = (): Storage | null => { try { return localStorage } catch { return null } }
+/** How far a press may wander and still be a tap on the chip (px). */
+const TAP_SLOP = 8
+
+/**
+ * The places map (Molfar.Vertep#454): a floating window over the chat, folded into a round chip, that shows the places of the
+ * chat's World book on a board you can pan, zoom and rearrange, with the roads the story has walked between them and,
+ * if you like, a picture of your own under them. Shows only in a chat whose book has places. Layout and roads are
+ * kept in the chat (`Chat.placeMap`); where the window stands is kept in this browser. No model is called.
+ */
+export function PlaceMap({ chat }: { chat: Chat }) {
+  const t = useT()
+  const show = useApp((s) => s.settings.showPlaceMap !== false)
+  const updateChat = useApp((s) => s.updateChat)
+  const backgrounds = useApp((s) => s.backgrounds)
+  const view = useWorldLive((s) => s.views[chat.id])
+  const dash = useDashMaybe()
+  const phone = useIsMobile()
+  const composer = useComposer(phone)
+  const [confirm, confirmDialog] = useConfirm()
+
+  const [box, setBox] = useState<FloatBox>(() => loadBox(NAME, chat.id, storage()))
+  const [forChat, setForChat] = useState(chat.id)
+  if (forChat !== chat.id) {
+    setForChat(chat.id)
+    setBox(loadBox(NAME, chat.id, storage()))
+  }
+  const boxRef = useRef(box)
+  boxRef.current = box
+  const update = useCallback((fn: (b: FloatBox) => FloatBox, transient = false) => {
+    const next = fn(boxRef.current)
+    boxRef.current = next
+    setBox(next)
+    if (!transient) saveBox(NAME, chat.id, next, storage())
+  }, [chat.id])
+
+  // the chat's World: how many places it has, and the places themselves
+  useEffect(() => {
+    if (show) void loadWorld(chat.id).catch(() => {})
+  }, [chat.id, show])
+  const places = view?.kinds.place ?? 0
+  const lastRunAt = view?.lastRunAt
+  const [book, setBook] = useState<{ chatId: string; records: WorldRecord[] } | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const records = book?.chatId === chat.id ? book.records : null
+  const wanted = show && places > 0
+  useEffect(() => {
+    if (!wanted) return
+    let live = true
+    peekWorld(chat.id)
+      .then((r) => { if (live) { setBook({ chatId: chat.id, records: r }); setFailed(false) } })
+      .catch(() => { if (live) setFailed(true) })
+    return () => { live = false }
+  }, [chat.id, wanted, lastRunAt, retry])
+
+  // where the story is now: after each Dashboard reading and each reply
+  const [here, setHere] = useState<{ chatId: string; id: string | null } | null>(null)
+  const hereId = here?.chatId === chat.id ? here.id : null
+  const sceneKey = `${dash?.view?.key ?? ''}|${dash?.view?.clock?.place ?? ''}`
+  const messageCount = chat.messages?.length ?? 0
+  useEffect(() => {
+    if (!wanted || !records) return
+    let live = true
+    loadWorldHere(chat.id).then((h) => { if (live) setHere({ chatId: chat.id, id: h?.place?.id ?? null }) }).catch(() => {})
+    return () => { live = false }
+  }, [chat.id, wanted, records, sceneKey, messageCount])
+
+  const data = chat.placeMap ?? null
+  const layout = useMemo(() => (records ? layoutMap(records, data, hereId) : null), [records, data, hereId])
+  // new places get their position, and the road the story just walked is kept, even while the window is folded
+  useEffect(() => {
+    if (!records || !layout) return
+    let next: PlaceMapData | null = Object.keys(layout.added).length ? withPositions(data, layout.added) : data
+    next = stepRoute(next, records, hereId)
+    if (next && next !== data) updateChat(chat.id, { placeMap: next })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, layout, hereId])
+
+  // the spoiler question of a world built before the story, as the World section asks it
+  const [, bumpReveal] = useState(0)
+  const ref = { chatId: chat.id }
+  const locked = needsGate(ref, view ? { origin: view.origin } : null) === true && !isRevealed(ref)
+  const askReveal = async () => {
+    if (!(await confirm({ title: t('world.peekTitle'), description: t('world.peekWarn'), actionLabel: t('world.peekGo'), destructive: false }))) return
+    markRevealed(ref)
+    bumpReveal((n) => n + 1)
+  }
+
+  // the room the window may stand in
+  const [, bump] = useState(0)
+  useEffect(() => {
+    const on = () => bump((n) => n + 1)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  const area = phone && composer.top !== null ? limitArea({ top: composer.logTop, bottom: composer.top }) : stageArea(chat.id)
+  const areaRef = useRef(area)
+  areaRef.current = area
+  const phoneRef = useRef(phone)
+  phoneRef.current = phone
+
+  const visible = show && places > 0
+  const open = visible && !box.folded
+  useEffect(() => {
+    setPlaceMapOpen(open)
+    return () => setPlaceMapOpen(false)
+  }, [open])
+
+  // dragging the window by its bar or the chip, and resizing it from its corner
+  const dragRef = useRef<{ dx: number; dy: number; sx: number; sy: number; moved: boolean } | null>(null)
+  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  const movedRef = useRef(false)
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const rs = resizeRef.current
+      if (rs) {
+        update((b) => resizeTo(b, { w: rs.w + (e.clientX - rs.x), h: rs.h + (e.clientY - rs.y) }, areaRef.current, phoneRef.current), true)
+        return
+      }
+      const d = dragRef.current
+      if (!d) return
+      if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < TAP_SLOP) return
+      d.moved = true
+      movedRef.current = true
+      update((b) => dragTo(b, { x: e.clientX - d.dx, y: e.clientY - d.dy }, areaRef.current, phoneRef.current), true)
+    }
+    const up = () => {
+      if (!resizeRef.current && !dragRef.current) return
+      resizeRef.current = null
+      dragRef.current = null
+      update((b) => b)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+  }, [update])
+  const startDrag = (e: React.PointerEvent) => {
+    const r = boxRect(boxRef.current, areaRef.current, phoneRef.current)
+    // the first drag fixes the place the box stands in now
+    update((b) => ({ ...b, x: r.x, y: r.y }), true)
+    dragRef.current = { dx: e.clientX - r.x, dy: e.clientY - r.y, sx: e.clientX, sy: e.clientY, moved: false }
+    movedRef.current = false
+  }
+  const fold = (v: boolean) => update((b) => setFolded(b, v, areaRef.current, phoneRef.current))
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const boardRef = useRef<PlaceMapBoardHandle>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { setSelectedId(null) }, [chat.id])
+
+  const nodes = layout?.nodes ?? []
+  const selected = nodes.find((n) => n.id === selectedId) ?? null
+  const selectedRecord = selected ? records?.find((r) => r.id === selected.id) ?? null : null
+  const parentName = selected?.parentId ? nodes.find((n) => n.id === selected.parentId)?.name ?? null : null
+  const thumb = selectedRecord?.background ? backgrounds.find((b) => b.id === selectedRecord.background && b.type === 'image')?.url ?? null : null
+  const pictureUrl = data?.picture?.id ? `/v1/assets/${data.picture.id}` : null
+
+  const baseData = () => withPositions(data, layout?.added ?? {})
+  const onMoved = (id: string, to: { x: number; y: number }) => {
+    const spots = nodes.filter((n) => n.parentId === id).map((n) => n.id)
+    updateChat(chat.id, { placeMap: moveNode(baseData(), id, to, spots) })
+  }
+  const upload = async (file: File) => {
+    try {
+      const stored = await storeBackground(file, 'places-map')
+      const id = stored.url.split('/').pop()
+      if (!id) throw new Error('no id')
+      updateChat(chat.id, { placeMap: { ...baseData(), picture: { id } } })
+      toast.success(t('placeMap.picked'))
+    } catch (e) {
+      toast.error(t('placeMap.uploadFail', { message: e instanceof Error ? e.message : String(e) }))
+    }
+  }
+  const removePicture = () => updateChat(chat.id, { placeMap: { ...(data ?? emptyMap()), picture: null } })
+  const resetLayout = async () => {
+    if (!(await confirm({ title: t('placeMap.resetTitle'), description: t('placeMap.resetBody'), actionLabel: t('placeMap.resetGo'), destructive: false }))) return
+    updateChat(chat.id, { placeMap: { ...(data ?? emptyMap()), nodes: {} } })
+  }
+
+  if (!visible) return confirmDialog
+  const hidden = phone && composer.typing
+  const r = boxRect(box, area, phone)
+
+  if (box.folded) {
+    return (
+      <>
+        <div
+          data-place-map
+          data-testid="place-map-chip"
+          className={cn('fixed z-30 touch-none select-none', hidden && 'hidden')}
+          style={{ left: r.x, top: r.y, width: CHIP, height: CHIP }}
+          onPointerDown={startDrag}
+        >
+          <button
+            type="button"
+            onClick={() => { if (movedRef.current) { movedRef.current = false; return } fold(false) }}
+            className="flex size-full items-center justify-center rounded-full border border-border/60 bg-card text-foreground shadow-lg ring-primary/50 hover:ring-2 focus-visible:ring-2"
+            aria-label={t('placeMap.chip')}
+            title={t('placeMap.chipHint')}
+          >
+            <MapTrifold className="size-6" weight="duotone" aria-hidden="true" />
+          </button>
+        </div>
+        {confirmDialog}
+      </>
+    )
+  }
+
+  const ctl = 'size-8 max-md:size-10 shrink-0'
+  const kind = selected ? placeKind(selected.name) : null
+  return (
+    <>
+      <div
+        data-place-map
+        data-testid="place-map"
+        role="dialog"
+        aria-label={t('placeMap.title')}
+        className={cn('fixed z-30 flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl', hidden && 'hidden')}
+        style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
+      >
+        <div
+          className="flex shrink-0 cursor-grab touch-none select-none items-center gap-1 border-b border-border px-2 py-1 active:cursor-grabbing max-md:py-0.5"
+          onPointerDown={(e) => { if (!(e.target as HTMLElement).closest('button, input')) startDrag(e) }}
+          title={t('placeMap.grip')}
+          data-testid="place-map-bar"
+        >
+          <MapTrifold className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{t('placeMap.title')}</span>
+          <Button variant="ghost" size="icon" className={ctl} onClick={() => boardRef.current?.zoom(1 / 1.3)} aria-label={t('placeMap.zoomOut')} title={t('placeMap.zoomOut')}>
+            <Minus className="size-4" aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" size="icon" className={ctl} onClick={() => boardRef.current?.zoom(1.3)} aria-label={t('placeMap.zoomIn')} title={t('placeMap.zoomIn')}>
+            <Plus className="size-4" aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" size="icon" className={ctl} onClick={() => boardRef.current?.fit()} aria-label={t('placeMap.fit')} title={t('placeMap.fit')}>
+            <CornersOut className="size-4" aria-hidden="true" />
+          </Button>
+          <Popover>
+            <PopoverTrigger
+              className={cn('inline-flex items-center justify-center rounded-md hover:bg-muted', ctl)}
+              aria-label={t('placeMap.menu')}
+              title={t('placeMap.menu')}
+              data-testid="place-map-menu"
+            >
+              <GearSix className="size-4" aria-hidden="true" />
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-72 flex-col gap-2 max-md:w-[calc(100vw-1.5rem)]">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                data-testid="place-map-file"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f) }}
+              />
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => fileRef.current?.click()}>
+                <UploadSimple className="size-4" aria-hidden="true" />
+                {t('placeMap.uploadPicture')}
+              </Button>
+              {pictureUrl && (
+                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={removePicture}>
+                  <Trash className="size-4" aria-hidden="true" />
+                  {t('placeMap.removePicture')}
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">{t('placeMap.pictureHint')}</p>
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => void resetLayout()}>
+                <ArrowCounterClockwise className="size-4" aria-hidden="true" />
+                {t('placeMap.reset')}
+              </Button>
+            </PopoverContent>
+          </Popover>
+          <Button variant="ghost" size="icon" className={ctl} onClick={() => fold(true)} aria-label={t('placeMap.fold')} title={t('placeMap.fold')} data-testid="place-map-fold">
+            <X className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        {view?.settings.level === 'off' && (
+          <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">{t('placeMap.dmOff')}</p>
+        )}
+
+        {selected && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5" data-testid="place-map-card">
+            {thumb ? (
+              <img src={thumb} alt="" draggable={false} className="size-10 shrink-0 rounded-md object-cover" />
+            ) : (
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-xl" aria-hidden="true">{kind?.emoji}</span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{selected.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {[
+                  selected.here ? t('placeMap.here') : null,
+                  parentName ? t('placeMap.inside', { name: parentName }) : null,
+                  selected.visits > 0 ? t('placeMap.visits', { n: selected.visits }) : t('placeMap.neverVisited'),
+                ].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" className={ctl} onClick={() => setSelectedId(null)} aria-label={t('placeMap.close')} title={t('placeMap.close')}>
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+
+        <div className="relative min-h-0 flex-1">
+          {locked ? (
+            <div className="flex h-full flex-col items-start gap-2 p-3" data-testid="place-map-gate">
+              <p className="text-sm">{t('world.places.lead')}</p>
+              <p className="text-xs text-muted-foreground">{t('world.runs.hidden')}</p>
+              <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => void askReveal()}>{t('world.places.show')}</Button>
+            </div>
+          ) : !records ? (
+            <div className="flex h-full flex-col items-start gap-2 p-3 text-sm text-muted-foreground" role="status">
+              {failed ? (
+                <>
+                  <p>{t('placeMap.failed')}</p>
+                  <Button variant="outline" size="sm" className="max-md:h-10" onClick={() => setRetry((n) => n + 1)}>{t('placeMap.retry')}</Button>
+                </>
+              ) : (
+                <p>{t('placeMap.loading')}</p>
+              )}
+            </div>
+          ) : (
+            <PlaceMapBoard
+              ref={boardRef}
+              nodes={nodes}
+              routes={visibleRoutes(data, nodes)}
+              pictureUrl={pictureUrl}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onMoved={onMoved}
+              label={t('placeMap.board')}
+              hereLabel={t('placeMap.here')}
+            />
+          )}
+          <span
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              resizeRef.current = { x: e.clientX, y: e.clientY, w: r.w, h: r.h }
+            }}
+            onDoubleClick={() => update((b) => ({ ...b, w: null, h: null }))}
+            className="absolute bottom-0 right-0 flex size-7 cursor-nwse-resize touch-none items-end justify-end p-1 text-muted-foreground max-md:size-10"
+            role="separator"
+            aria-label={t('placeMap.resize')}
+            title={t('placeMap.resize')}
+            data-testid="place-map-resize"
+          >
+            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden="true"><path d="M9 1 1 9M9 5 5 9" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" /></svg>
+          </span>
+        </div>
+      </div>
+      {confirmDialog}
+    </>
+  )
+}

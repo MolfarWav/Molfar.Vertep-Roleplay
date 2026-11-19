@@ -10,6 +10,7 @@ import {
   saveLayout, sceneKeys, speakerOf, stageMembers,
   type Area, type Contribution, type StageLayout, type StageMember, type StagePlace, type StageWindow,
 } from '@/lib/sprite-stage'
+import { usePlaceMapOpen } from '@/lib/place-map-open'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import type { Chat } from '@/lib/types'
@@ -20,7 +21,7 @@ const CHIP = 48
 const maxHeight = () => Math.round(window.innerHeight * 0.9)
 const storage = (): Storage | null => { try { return localStorage } catch { return null } }
 /** The chat's column on the page, where windows are laid out; the whole window when it cannot be found. */
-const stageArea = (chatId: string): Area => {
+export const stageArea = (chatId: string): Area => {
   const root = document.querySelector(`[data-chat-id="${CSS.escape(chatId)}"]`)
   const r = root?.getBoundingClientRect()
   if (!r || r.width <= 120 || r.height <= 200) return { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
@@ -32,15 +33,15 @@ const stageArea = (chatId: string): Area => {
 /** How far a finger or a mouse may wander between pressing and lifting and still count as a tap (px). */
 const TAP_SLOP = 8
 /** The part of the page a phone's window may stand on: from the top of the chat's messages to the top of the message box. */
-interface PhoneLimit { top: number; bottom: number }
-const limitArea = (l: PhoneLimit): Area => ({ x: 0, y: l.top, w: window.innerWidth, h: Math.max(0, l.bottom - l.top) })
+export interface PhoneLimit { top: number; bottom: number }
+export const limitArea =(l: PhoneLimit): Area => ({ x: 0, y: l.top, w: window.innerWidth, h: Math.max(0, l.bottom - l.top) })
 
 /**
  * A phone: where the message box starts and whether the user is typing in it. The windows and the chips of the
  * others stand just above the box, wherever it is (it grows with a long draft), and step aside while a draft is
  * being typed (Molfar.Vertep#464).
  */
-function useComposer(phone: boolean): { top: number | null; logTop: number; typing: boolean } {
+export function useComposer(phone: boolean): { top: number | null; logTop: number; typing: boolean } {
   const [state, setState] = useState<{ top: number | null; logTop: number; typing: boolean }>({ top: null, logTop: 0, typing: false })
   useEffect(() => {
     if (!phone) return
@@ -132,6 +133,8 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   const scene = useMemo(() => sceneKeys(members, said, present), [members, said, present])
   const view = useMemo(() => resolveWindows(layout, members, speaker, scene), [layout, members, speaker, scene])
   const composer = useComposer(phone)
+  // a phone: the places map open over the chat takes the room above the message box
+  const mapOpen = usePlaceMapOpen()
   const limit: PhoneLimit | null = phone && composer.top !== null ? { top: composer.logTop, bottom: composer.top } : null
 
   // who holds which window is kept, so nobody moves while they stay in the scene
@@ -181,7 +184,7 @@ export function ExpressionPanel({ chat }: { chat: Chat }) {
   }, [strip, chat.id])
 
   // a phone: the window and the chips step aside while a draft is being typed
-  if (!show || !members.length || (phone && composer.typing)) return null
+  if (!show || !members.length || (phone && (composer.typing || mapOpen))) return null
 
   const menuFor = (id: string) => (
     <StageMenu layout={layout} members={members} current={id} phone={phone} update={update} area={() => stageArea(chat.id)} />

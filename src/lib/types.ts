@@ -903,6 +903,8 @@ export interface AppSettings {
   expandMessageActions: boolean
   /** floating expression sprite for the latest speaker (when they have sprites) */
   showExpressionSprites: boolean
+  /** the floating map of the chat's places (shown in a chat whose World book has places); absent = on */
+  showPlaceMap: boolean
   reducedMotion: boolean
   autoScroll: boolean
   confirmDeletions: boolean
