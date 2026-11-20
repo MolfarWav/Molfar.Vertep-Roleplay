@@ -7,10 +7,22 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.143.0'
+export const APP_VERSION = '4.144.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.backstage',
+    since: '4.144.0',
+    target: 'chat.backstage',
+    open: { view: 'chat', narrowPanel: 'chat-menu' },
+    keywords: { en: 'backstage curtain card preset lorebook library world dashboard settings maker tone', uk: 'за лаштунками завіса картка пресет лорбук бібліотека світ дашборд налаштування тон' },
+    title: { en: 'Backstage: what makes the story', uk: 'За лаштунками: з чого зроблена історія' },
+    body: {
+      en: 'Chat header → Backstage (on a phone: Menu → Backstage) opens, over the chat, the places that make this story: the card, the preset, its lorebooks, What fired, the Library, the World and the Dashboard settings. Close the drawer and you are on the same message. Drawers of the maker’s side now wear a small Backstage chip and a slightly different tone.',
+      uk: 'Шапка чату → «За лаштунками» (на телефоні: Меню → «За лаштунками») відкриває поверх чату місця, з яких зроблена ця історія: картку, пресет, його лорбуки, «Що спрацювало», Library, World і налаштування Dashboard. Закрийте шухляду — і ви на тому самому повідомленні. Шухляди з боку творця тепер мають маленький значок Backstage і трохи інший тон.',
+    },
+  },
   {
     id: 'new.meanwhile',
     since: '4.143.0',

@@ -2,7 +2,7 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
-## Unreleased
+## 4.144.0 (2026-11-21)
 
 - Added: **a Backstage button in the chat header (Molfar.Vertep#448, step T3).** One button before the "More" menu (on a phone: a "Backstage" block in the chat menu) lists the places that make this story and opens the existing section drawer on them: the card of the character, the chat's preset, up to three of the character's lorebooks, What fired, the Library and the World of this chat, and the Dashboard settings. The chat stays under the drawer, so closing it returns to the same message. The rows come from `backstageTargets` (`src/lib/backstage-targets.ts`, tested); the button is `src/components/chat/backstage-menu.tsx`. Below 1300 px the button is an icon with its name in the label. No hotkey yet. The guide's index page names it.
 - Changed: **the Dashboard settings have their own door (Molfar.Vertep#448, step T4).** The Backstage menu's "Dashboard settings" row opens the settings view straight away (an empty dashboard opens its own settings sheet). The readable half of the Dashboard stays on the Stage and its gear stays as a second way in; nothing was removed. The store has a counter `dashSettingsOpen` (`openDashSettings`) like `openDashboard`. The Dashboard guide page names the new way.
