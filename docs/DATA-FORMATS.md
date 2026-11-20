@@ -1260,8 +1260,8 @@ editor imports it typed through `agent-check.d.ts`, and `agent.ts` only adds the
   and code that differs (an update, or a hand edit of the file) drops `run:code` from `needs` and `asked`, so the Allow page asks again.
   The sandbox is the engine's (engine 1.10.1+, `host.script`, the plugin permission `script`; an older engine fails the agent with
   "this Molfar Vertep is too old to run one"): QuickJS in a worker of its own, no clock (`Date`, timers, `performance`), no network,
-  no files, no `process` or `env`; `Math.random` follows `seed`, so a reply runs the same every time. Limits: about 500 ms of CPU,
-  16 MB of memory, 64 KB in, 32 KB out, 2.5 s of wall time for one script and 2 s for a pass, 16 scripts per pass. The code is
+  no files, no `process` or `env`; `Math.random` follows `seed`, so a reply runs the same every time. Limits: 1.5 s on the clock (it also counts time the device gave the engine no CPU; older engines allowed 0.5 s),
+  16 MB of memory, 64 KB in, 32 KB out, 3.5 s of wall time for one script and 4 s for a pass, 16 scripts per pass. The code is
   data, never the plugin's source. The Allow page lists every Script card's code under "Read the code". Editor trial: the page asks
   `POST /agents/script` `{ code, input, seed }` (answers `{ ok, value }` or `{ ok: false, error }`) and runs the agent again with the answers.
 - The `history` source takes `last` (the newest N messages, 1 to 60, default 10), `only` (`user` or `char`), `thinking`, and
@@ -1427,7 +1427,7 @@ beside it (a call the app makes when a send starts). The routes below and the ho
   `agent` runs that one agent by hand whatever its trigger says. A failed run is logged and leaves the state as it was.
   An agent whose last 3 runs in this chat all failed because a Script card was ended for taking too long (`scriptStuck`) is
   skipped with "Paused: its script ran out of time ..." until it is run by hand and a run works; each such run costs the
-  script's whole 2.5 s of wall time (#273).
+  script's whole 3.5 s of wall time (#273).
   A regenerated reply replaces the run of the same message instead of counting twice (only the newest run is undone this way).
   `phase` (default `after`) is `after` or `parallel`: with `parallel` the call comes from the app when a send starts, carries
   `userText` (what the user wrote, not saved yet) and runs the agents set to run `parallel`, and those set to run `before` with
