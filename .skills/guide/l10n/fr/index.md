@@ -1,7 +1,7 @@
-<!-- source: 660954abd188 -->
+<!-- source: 5cf403a40212 -->
 # Roleplay : vue d'ensemble
 
-Roleplay est l'application de récit de Molfar Vertep : vous conservez des fiches de personnages, jouez des discussions avec eux, et laissez l'application suivre la scène, se souvenir de l'histoire et faire vivre le monde autour de vous. Cette page est une carte. L'aide intégrée de l'application (**Help**, dans la barre latérale) contient un court article pour presque chaque écran ; ce guide explique comment les pièces s'assemblent. Les modèles et les connexions ne se configurent pas ici mais dans les Settings principaux : voir [[vertep:models]].
+Roleplay est l'application de récit de Molfar Vertep : vous conservez des fiches de personnages, jouez des discussions avec eux, et laissez l'application suivre la scène, se souvenir de l'histoire et faire vivre le monde autour de vous. Cette page est une carte. L'**aide** intégrée de l'application (dans la barre latérale) contient un court article pour presque chaque écran ; ce guide explique comment les pièces s'assemblent. Les modèles et les connexions ne se configurent pas ici mais dans les Settings principaux : voir [[vertep:models]].
 
 ## Où se trouvent les choses
 
@@ -33,6 +33,7 @@ Trois assistants observent le récit et coûtent des appels de modèle suppléme
 - [[sprites]] : sprites par-dessus la discussion, plusieurs fenêtres pour un groupe ou un narrateur, le look visual novel.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]] : la mécanique du récit.
 - [[places-map]] : la carte flottante des lieux de la discussion, avec des routes et une image qui vous est propre.
+- [[places-map-levels]] : plusieurs cartes dans une même discussion (un pays, une ville, un donjon) et dessiner une carte avec le modèle d'images.
 - [[memory]] : quel type de mémoire utiliser pour quoi.
 - [[canvas]] : liens de discussion, le tableau de prompts et la forge d'agents.
 - [[long-chats]] : pourquoi une longue discussion devient lente ou coûteuse, ce qui la réduit, et comment transporter un récit dans une nouvelle discussion.

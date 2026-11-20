@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, ArrowLeft, CaretDown, Check, CornersOut, DotsThree, GearSix, ImageSquare, ListChecks, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Sparkle, Stack, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowLeft, ArrowsOutCardinal, CaretDown, Check, CornersOut, DotsThree, GearSix, ImageSquare, ListChecks, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Sparkle, Stack, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ import { limitArea, stageArea, useComposer } from '@/components/chat/expression-
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { MAIN_LEVEL, addLevel, cleanLabel, layoutLevels, levelIds, levelInfo, levelOfPlan, levelSlice, moveNode, parentLevel, putSlice, removeLevel, roadsOf, routeOf, setIcon, setLevelInfo, setMembers, setRouteInfo, stepRoute, toggleRoute, visibleRoutes, wholePlaces, type PlaceMapData } from '@/lib/place-map'
+import { MAIN_LEVEL, addLevel, cleanLabel, handHere, layoutLevels, levelIds, levelInfo, levelOfPlan, levelSlice, moveNode, parentLevel, putSlice, removeLevel, roadsOf, routeOf, setHandHere, setIcon, setLevelInfo, setMembers, setRouteInfo, spreadPositions, stepRoute, toggleRoute, visibleRoutes, wholePlaces, type PlaceMapData } from '@/lib/place-map'
 import { loadLevel, saveLevel } from '@/lib/place-map-level'
 import { placeKind } from '@/lib/place-kinds'
 import { defaultMapKey, hasMap, mapPackUrl, useMapPacks } from '@/lib/map-packs'
@@ -103,7 +103,10 @@ export function PlaceMap({ chat }: { chat: Chat }) {
 
   // a chat can keep several maps (levels); `fullData` is all of them, `data` the one on view, as a map of its own
   const fullData = chat.placeMap ?? null
-  const lay = useMemo(() => (records ? layoutLevels(records, fullData, hereId) : null), [records, fullData, hereId])
+  // the place the story is in: the Dashboard's, else the one the player marked by hand (while the Dashboard names no place of the book)
+  const handId = handHere(fullData, records ?? [], hereId, sceneText)
+  const hereEff = hereId ?? handId
+  const lay = useMemo(() => (records ? layoutLevels(records, fullData, hereEff) : null), [records, fullData, hereEff])
   const baseFull = lay?.data ?? fullData
   const [levelPick, setLevelPick] = useState(() => loadLevel(chat.id, storage()))
   useEffect(() => { setLevelPick(loadLevel(chat.id, storage())) }, [chat.id])
@@ -117,14 +120,24 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     setSelectedId(null)
   }
   // keep what a change made to the map on view: the other maps stay as they are
-  const save = (slice: PlaceMapData) => updateChat(chat.id, { placeMap: putSlice(baseFull, level, slice) })
+  // two saves in one tick (a trip keeps the road, then the hand mark) must build on each other: `pendingFull` is what the last save wrote, until the page has it
+  const pendingFull = useRef<PlaceMapData | null>(null)
+  const fullRef = useRef(baseFull)
+  fullRef.current = baseFull
+  useEffect(() => { pendingFull.current = null }, [baseFull])
+  const latestFull = () => pendingFull.current ?? fullRef.current
+  const save = (slice: PlaceMapData) => {
+    const next = putSlice(latestFull(), level, slice)
+    pendingFull.current = next
+    updateChat(chat.id, { placeMap: next })
+  }
   // new places get their position, and the road the story just walked is kept, even while the window is folded
   useEffect(() => {
     if (!records || !lay) return
-    const next = stepRoute(lay.data, records, hereId)
+    const next = stepRoute(lay.data, records, hereEff)
     if (next && next !== fullData) updateChat(chat.id, { placeMap: next })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, lay, hereId])
+  }, [records, lay, hereEff])
 
   // the spoiler question of a world built before the story, as the World section asks it
   const [, bumpReveal] = useState(0)
@@ -313,6 +326,17 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     updateChat(chat.id, { placeMap: setMembers(putSlice(baseFull, level, { ...data, nodes: {} }), records ?? [], level, onMap) })
   }
 
+  // spread the places over the whole board (and the picture under them); the toast can take it back
+  const spread = () => {
+    const moved = spreadPositions(nodes)
+    if (!moved) { toast(t('placeMap.spreadNone')); return }
+    const before = data.nodes
+    save({ ...data, nodes: { ...data.nodes, ...moved } })
+    toast(t('placeMap.spreadDone'), {
+      action: { label: t('placeMap.spreadUndo'), onClick: () => save({ ...levelSlice(latestFull(), level), nodes: before }) },
+    })
+  }
+
   // the maps of the chat: the places that can stand on one, the dialogs and what they change
   const wholes = useMemo(() => (records ? wholePlaces(records, null).map((r) => ({ id: r.id, name: cleanLabel(baseFull?.labels?.[r.id]) ?? r.name, emoji: placeKind(r.name, ...(r.aliases ?? [])).emoji })) : []), [records, baseFull?.labels])
   const [levelsOpen, setLevelsOpen] = useState(false)
@@ -465,6 +489,10 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   {t('placeMap.placesOpen')}
                 </Button>
               )}
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={spread} data-testid="place-map-spread">
+                <ArrowsOutCardinal className={cn('size-4', TONES.emerald.ink)} aria-hidden="true" />
+                {t('placeMap.spread')}
+              </Button>
               <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => void resetLayout()}>
                 <ArrowCounterClockwise className={cn('size-4', TONES.amber.ink)} aria-hidden="true" />
                 {t('placeMap.reset')}
@@ -539,7 +567,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           </div>
         )}
 
-        {!hereId && sceneText && (
+        {!hereEff && sceneText && (
           <p className="shrink-0 truncate border-b border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground" title={t('placeMap.sceneUnknown', { name: sceneText })} data-testid="place-map-scene">
             {t('placeMap.sceneUnknown', { name: sceneText })}
           </p>
@@ -578,7 +606,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               )}
               <p className="line-clamp-2 break-words text-xs text-muted-foreground">
                 {[
-                  selected.here ? t('placeMap.here') : null,
+                  selected.here ? (handId === selected.id ? t('placeMap.hereHand') : t('placeMap.here')) : null,
                   selected.bookName !== selected.name ? t('placeMap.bookName', { name: selected.bookName }) : null,
                   parentName ? t('placeMap.inside', { name: parentName }) : null,
                   selected.visits > 0 ? t('placeMap.visits', { n: selected.visits }) : t('placeMap.neverVisited'),
@@ -610,6 +638,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   {Object.keys(iconIndex ?? {}).length > 0 && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setIconOpen(true) }} data-testid="place-map-icon">
                       <ImageSquare className={cn('size-4 shrink-0', TONES.violet.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.icon')}
+                    </Button>
+                  )}
+                  {!selected.spot && !hereId && (
+                    <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); save(setHandHere(data, handId === selected.id ? null : selected.id, sceneText)); if (handId !== selected.id) toast.success(t('placeMap.hereMarked', { name: selected.name })) }} data-testid="place-map-here">
+                      <NavigationArrow className={cn('size-4 shrink-0', TONES.sky.ink)} weight="fill" aria-hidden="true" />{handId === selected.id ? t('placeMap.hereUnmark') : t('placeMap.hereMark')}
                     </Button>
                   )}
                   {!selected.spot && !planLevel && (
@@ -760,6 +793,8 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               const msgs = chat.messages ?? []
               setJourney({ chatId: chat.id, baseId: msgs[msgs.length - 1]?.id ?? null, sent })
             }
+            // the Dashboard names no place of the book: the trip's end is where the story is now (until the Dashboard says otherwise)
+            if (!hereId && !sent.within) save(setHandHere(levelSlice(latestFull(), level), sent.toId, sceneText))
             if (phone) fold(true)
           }}
         />

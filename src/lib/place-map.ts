@@ -33,6 +33,8 @@ const BUILTIN_RE = /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/
 export const SCALES = ['town', 'region', 'world'] as const
 export type MapScale = (typeof SCALES)[number]
 export const MAX_LEVELS = 12
+/** How much of the Dashboard's place line a hand mark remembers. */
+export const HERE_SCENE_MAX = 120
 /** The id of the first map; the others are `l1`, `l2`... */
 export const MAIN_LEVEL = 'main'
 const LEVEL_ID = /^l[1-9][0-9]{0,2}$/
@@ -49,12 +51,17 @@ export interface MapLevel {
   picture?: MapPicture | null
 }
 
+/** "The story is here", marked by hand: the place, and the Dashboard's place line it was marked against (it holds only while that line stays as it was and names no place of the book). */
+export interface HandHere { id: string; scene: string }
+
 /** What a chat keeps. `at` is the whole place the tracker saw the story in last (routes start there). `nodes`, `routes`, `picture` (with `name` and `scale`) are the first map; `levels` are the others. */
 export interface PlaceMapData {
   v: 1
   nodes: Record<string, MapPos>
   routes: MapRoute[]
   picture?: MapPicture | null
+  /** the place the player marked as the one the story is in, for a story whose place the Dashboard cannot name (shared by all maps) */
+  here?: HandHere
   /** the first map's name and scale (default: "Map", town) */
   name?: string
   scale?: MapScale
@@ -128,6 +135,13 @@ const cleanPicture = (raw: unknown): MapPicture | undefined => {
   return undefined
 }
 
+const cleanHere = (raw: unknown): HandHere | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const { id, scene } = raw as Record<string, unknown>
+  if (typeof id !== 'string' || !id || id.length > 80) return null
+  return { id, scene: typeof scene === 'string' ? scene.replace(/\s+/g, ' ').trim().slice(0, HERE_SCENE_MAX) : '' }
+}
+
 /** A level's or the first map's name as it is kept: spaces squeezed, 1 to 40 characters, or null. */
 export const cleanMapName = (s: unknown): string | null => {
   if (typeof s !== 'string') return null
@@ -167,6 +181,8 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
     if (levels.length) out.levels = levels
   }
   if (typeof raw.at === 'string' && raw.at && raw.at.length <= 80) out.at = raw.at
+  const hand = cleanHere(raw.here)
+  if (hand) out.here = hand
   if (raw.labels && typeof raw.labels === 'object' && !Array.isArray(raw.labels)) {
     const labels: Record<string, string> = {}
     for (const [id, l] of Object.entries(raw.labels as Record<string, unknown>)) {
@@ -186,7 +202,7 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
     }
     if (Object.keys(icons).length) out.icons = icons
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons || out.levels || out.name || out.scale ? out : null
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null
 }
 
 export interface MapNode {
@@ -382,7 +398,7 @@ export function levelInfo(data: PlaceMapData | null, id: string, fallbackName = 
 /** One map as a map of its own: the places and roads and picture of that level, with what all levels share (the story's place, labels, icons). Every function above works on this. */
 export function levelSlice(data: PlaceMapData | null, id: string): PlaceMapData {
   const base = data ?? emptyMap()
-  const shared = { ...(base.at ? { at: base.at } : {}), ...(base.labels ? { labels: base.labels } : {}), ...(base.icons ? { icons: base.icons } : {}) }
+  const shared = { ...(base.at ? { at: base.at } : {}), ...(base.here ? { here: base.here } : {}), ...(base.labels ? { labels: base.labels } : {}), ...(base.icons ? { icons: base.icons } : {}) }
   const l = id === MAIN_LEVEL ? null : base.levels?.find((x) => x.id === id)
   if (!l) return { v: 1, nodes: base.nodes, routes: base.routes, ...(base.picture !== undefined ? { picture: base.picture } : {}), ...shared }
   return { v: 1, nodes: l.nodes, routes: l.routes, ...(l.picture !== undefined ? { picture: l.picture } : {}), ...shared }
@@ -391,8 +407,8 @@ export function levelSlice(data: PlaceMapData | null, id: string): PlaceMapData 
 /** The inverse of `levelSlice`: what a function changed on a slice goes back to the level it came from, the shared parts to the top. */
 export function putSlice(data: PlaceMapData | null, id: string, slice: PlaceMapData): PlaceMapData {
   const base = data ?? emptyMap()
-  const { at: _a, labels: _l, icons: _i, ...rest } = base
-  const top: PlaceMapData = { ...rest, ...(slice.at ? { at: slice.at } : {}), ...(slice.labels ? { labels: slice.labels } : {}), ...(slice.icons ? { icons: slice.icons } : {}) }
+  const { at: _a, here: _h, labels: _l, icons: _i, ...rest } = base
+  const top: PlaceMapData = { ...rest, ...(slice.at ? { at: slice.at } : {}), ...(slice.here ? { here: slice.here } : {}), ...(slice.labels ? { labels: slice.labels } : {}), ...(slice.icons ? { icons: slice.icons } : {}) }
   const pic = slice.picture !== undefined ? { picture: slice.picture } : {}
   if (id === MAIN_LEVEL || !base.levels?.some((x) => x.id === id)) {
     const { picture: _p, ...noPic } = top
@@ -594,4 +610,59 @@ export const roadsOf = (data: PlaceMapData | null, id: string): number => (data?
 export const visibleRoutes = (data: PlaceMapData | null, nodes: readonly MapNode[]): MapRoute[] => {
   const ids = new Set(nodes.map((n) => n.id))
   return (data?.routes ?? []).filter((r) => ids.has(r.a) && ids.has(r.b))
+}
+
+// ---------- the story's place by hand, and spreading the places over the picture ----------
+
+/** The Dashboard's place line as a hand mark remembers it: spaces squeezed, cut to HERE_SCENE_MAX. */
+export const sceneLine = (scene: string | null | undefined): string => (scene ?? '').replace(/\s+/g, ' ').trim().slice(0, HERE_SCENE_MAX)
+
+/**
+ * The place the player marked as the one the story is in, when it still holds: the Dashboard named no place of the book (`hereId`
+ * is null), the place line is the one the mark was made against, and the place is still an active place of the book. Else null.
+ */
+export function handHere(data: PlaceMapData | null, records: readonly WorldRecord[], hereId: string | null, scene: string | null | undefined): string | null {
+  const h = data?.here
+  if (!h || hereId) return null
+  if (h.scene !== sceneLine(scene)) return null
+  return records.some((r) => r.id === h.id && r.kind === 'place' && r.status === 'active') ? h.id : null
+}
+
+/** Mark a place as the one the story is in (or take the mark off with null), against the Dashboard's current place line. */
+export function setHandHere(data: PlaceMapData | null, id: string | null, scene: string | null | undefined): PlaceMapData {
+  const { here: _old, ...rest } = data ?? emptyMap()
+  return id ? { ...rest, here: { id, scene: sceneLine(scene) } } : rest
+}
+
+/** Room around the board's edge that spreading keeps free (the margin plus a name under the icon). */
+const SPREAD_EDGE = MARGIN + 50
+/** At most this much stretch on one axis, so a pair of near places does not become two far ones. */
+const SPREAD_MAX = 4
+
+/**
+ * New positions that spread the whole places over the board: the arrangement the player has (or the app gave) is stretched to fill the
+ * board, never squeezed, so nothing that was apart comes closer. Rooms keep their distance from their place and move with it. Returns
+ * null when there is nothing to do (fewer than two whole places, or they already fill the board).
+ */
+export function spreadPositions(nodes: readonly MapNode[]): Record<string, MapPos> | null {
+  const wholes = nodes.filter((n) => !n.spot)
+  if (wholes.length < 2) return null
+  const xs = wholes.map((n) => n.x)
+  const ys = wholes.map((n) => n.y)
+  const w = Math.max(...xs) - Math.min(...xs)
+  const h = Math.max(...ys) - Math.min(...ys)
+  const sx = w < 1 ? 1 : Math.min(SPREAD_MAX, Math.max(1, (BOARD_W - 2 * SPREAD_EDGE) / w))
+  const sy = h < 1 ? 1 : Math.min(SPREAD_MAX, Math.max(1, (BOARD_H - 2 * SPREAD_EDGE) / h))
+  if (sx < 1.05 && sy < 1.05) return null
+  const cx = (Math.max(...xs) + Math.min(...xs)) / 2
+  const cy = (Math.max(...ys) + Math.min(...ys)) / 2
+  const moved: Record<string, MapPos> = {}
+  for (const n of wholes) moved[n.id] = clampPos({ x: BOARD_W / 2 + (n.x - cx) * sx, y: BOARD_H / 2 + (n.y - cy) * sy })
+  for (const n of nodes) {
+    if (!n.spot) continue
+    const parent = nodes.find((p) => p.id === n.parentId)
+    const to = parent ? moved[parent.id] : undefined
+    moved[n.id] = parent && to ? clampPos({ x: to.x + (n.x - parent.x), y: to.y + (n.y - parent.y) }) : { x: n.x, y: n.y }
+  }
+  return moved
 }

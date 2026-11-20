@@ -235,6 +235,13 @@ export async function askTravelTime(chatId: string, p: { from: string; to: strin
   return r.minutes
 }
 
+/** One small road event the DM's build model made up from the book's people, things and places (one call, started by the player). */
+export async function askRoadEvent(chatId: string, p: { from: string; to: string; via?: string; mode?: string }): Promise<string> {
+  const r = await j<{ ok: boolean; event?: string; error?: string }>('/world/travel/event', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })
+  if (!r.ok || !r.event) throw new Error(r.error ?? 'no answer')
+  return r.event
+}
+
 /** The name a journey's reply gave the road ('' when it named none): one call on the DM's build model. */
 export async function askRoadName(chatId: string, p: { from: string; to: string; reply: string }): Promise<string> {
   const r = await j<{ ok: boolean; name?: string; error?: string }>('/world/travel/road', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })

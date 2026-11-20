@@ -3583,6 +3583,8 @@ function cleanPlaceMapMeta(v) {
     if (levels.length) out.levels = levels;
   }
   if (str(v.at)) out.at = v.at;
+  // the place the player marked by hand as the one the story is in, with the Dashboard's place line it was marked against
+  if (v.here && typeof v.here === "object" && !Array.isArray(v.here) && str(v.here.id)) out.here = { id: v.here.id, scene: typeof v.here.scene === "string" ? v.here.scene.replace(/\s+/g, " ").trim().slice(0, 120) : "" };
   if (v.labels && typeof v.labels === "object" && !Array.isArray(v.labels)) {
     const labels = {};
     for (const [id, l] of Object.entries(v.labels)) {
@@ -3602,7 +3604,7 @@ function cleanPlaceMapMeta(v) {
     }
     if (Object.keys(icons).length) out.icons = icons;
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons || out.levels || out.name || out.scale ? out : null;
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null;
 }
 
 function cleanTurns(t) {

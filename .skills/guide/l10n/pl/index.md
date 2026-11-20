@@ -1,4 +1,4 @@
-<!-- source: 660954abd188 -->
+<!-- source: 5cf403a40212 -->
 # Roleplay: przegląd
 
 Roleplay to aplikacja fabularna Molfar Vertep: przechowujesz karty postaci, prowadzisz z nimi czaty i pozwalasz aplikacji śledzić scenę, pamiętać historię i zarządzać światem wokół ciebie. Ta strona to mapa. Wbudowana **Help** aplikacji (w pasku bocznym) ma krótki artykuł do niemal każdego ekranu; ten przewodnik wyjaśnia, jak części pasują do siebie. Modele i połączenia konfiguruje się nie tutaj, lecz w głównych Ustawieniach: zobacz [[vertep:models]].
@@ -33,6 +33,7 @@ Trzy pomocniki obserwują opowieść i kosztują dodatkowe wywołania modelu, wi
 - [[sprites]]: sprite'y nad czatem, kilka okien dla grupy lub narratora, wygląd visual novel.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: mechanika opowieści.
 - [[places-map]]: pływająca mapa miejsc czatu, z drogami i własnym obrazem.
+- [[places-map-levels]]: kilka map w jednym czacie (kraj, miasto, loch) i rysowanie mapy modelem obrazowym.
 - [[memory]]: jakiego rodzaju pamięci użyć do czego.
 - [[canvas]]: linki czatów, tablica promptów i kuźnia agentów.
 - [[long-chats]]: dlaczego długi czat staje się wolny lub kosztowny, co go skraca i jak przenieść opowieść do nowego czatu.

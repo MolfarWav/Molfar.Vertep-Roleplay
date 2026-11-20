@@ -71,8 +71,8 @@ export interface TravelPlan {
   via: string | null
   /** the move is between rooms of one place, so there is no road and no time */
   within: boolean
-  /** a road event: the DM's own waiting event, or the kind the dice named; none when absent */
-  event?: { dm: true } | { kind: string } | null
+  /** a road event: the DM's own waiting event, the kind the dice named, or one the DM's model made up from the book; none when absent */
+  event?: { dm: true } | { kind: string } | { text: string } | null
 }
 
 /** The hidden direction that rides on the player's move. */
@@ -85,7 +85,7 @@ export function travelDirection(p: TravelPlan): string {
   if (p.mode === 'skip') return `[[Travel: ${who} goes from ${from} to ${to}. Skip the road: at most a line on it, then the arrival at ${to}.]]`
   const way = p.via ? `along the road known as "${name(p.via)}" (keep to it)` : 'along a road or street you name in a few words, so it can be walked the same way again'
   const how = p.mode === 'ride' ? 'riding' : p.mode === 'taxi' ? 'by taxi' : p.mode === 'metro' ? 'by metro' : 'on foot'
-  const happens = p.event && 'dm' in p.event ? ' The narrator holds an event for this turn: let it happen on the road if it fits.' : p.event && 'kind' in p.event ? ` Something small happens on the road: ${name(p.event.kind)}.` : ''
+  const happens = p.event && 'dm' in p.event ? ' The narrator holds an event for this turn: let it happen on the road if it fits.' : p.event && 'kind' in p.event ? ` Something small happens on the road: ${name(p.event.kind)}.` : p.event && 'text' in p.event ? ` Something happens on the road, and it is this (tell it, in your own words): ${cleanEventText(p.event.text)}` : ''
   return `[[Travel: ${who} goes from ${from} to ${to} ${how}, about ${spanOfMinutes(p.minutes)}. Narrate the way in a few lines, ${way}, then the arrival at ${to}.${happens} Show the new time of day.]]`
 }
 
@@ -114,6 +114,15 @@ const fnv = (s: string): number => {
   return h >>> 0
 }
 
+export const EVENT_TEXT_MAX = 300
+
+/** A road event written by the model as it is kept and sent: brackets out, spaces squeezed, 1 to EVENT_TEXT_MAX characters, or null. */
+export function cleanEventText(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const t = v.replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, EVENT_TEXT_MAX)
+  return t || null
+}
+
 export const CHANCE_DEFAULT = 25
 
 export interface RoadRoll { roll: number; chance: number; hit: boolean; kind: string | null }
@@ -126,19 +135,20 @@ export function rollRoadEvent(seed: string, chance: number): RoadRoll {
   return { roll, chance: c, hit, kind: hit ? ROAD_EVENTS[fnv(`${seed}|kind`) % ROAD_EVENTS.length]! : null }
 }
 
-export interface EventPref { on: boolean; chance: number }
+/** `concrete`: when the dice hit, the player may have the DM's model make the event up from the book (one call, on a button) instead of a kind from the list. */
+export interface EventPref { on: boolean; chance: number; concrete: boolean }
 
 const prefKey = (chatId: string) => `rp.map.roadEvent.${chatId}`
 
 /** The road event switch and chance, kept per chat in this browser (off, 25 until the player changes them). */
 export function loadEventPref(chatId: string, st: Pick<Storage, 'getItem'> | null): EventPref {
   try {
-    const raw = JSON.parse(st?.getItem(prefKey(chatId)) ?? 'null') as { on?: unknown; chance?: unknown } | null
+    const raw = JSON.parse(st?.getItem(prefKey(chatId)) ?? 'null') as { on?: unknown; chance?: unknown; concrete?: unknown } | null
     const chance = typeof raw?.chance === 'number' && Number.isFinite(raw.chance) ? Math.min(100, Math.max(1, Math.round(raw.chance))) : CHANCE_DEFAULT
-    return { on: raw?.on === true, chance }
-  } catch { return { on: false, chance: CHANCE_DEFAULT } }
+    return { on: raw?.on === true, chance, concrete: raw?.concrete === true }
+  } catch { return { on: false, chance: CHANCE_DEFAULT, concrete: false } }
 }
 
 export function saveEventPref(chatId: string, pref: EventPref, st: Pick<Storage, 'setItem'> | null): void {
-  try { st?.setItem(prefKey(chatId), JSON.stringify({ on: pref.on, chance: Math.min(100, Math.max(1, Math.round(pref.chance) || CHANCE_DEFAULT)) })) } catch { /* private mode */ }
+  try { st?.setItem(prefKey(chatId), JSON.stringify({ on: pref.on, chance: Math.min(100, Math.max(1, Math.round(pref.chance) || CHANCE_DEFAULT)), concrete: pref.concrete })) } catch { /* private mode */ }
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { NavigationArrow, Sparkle } from '@phosphor-icons/react'
+import { CircleNotch, NavigationArrow, Sparkle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,10 +10,10 @@ import { cn } from '@/lib/utils'
 import { ToggleChip } from '@/components/ui/toggle-chip'
 import { useT } from '@/hooks/use-t'
 import { routeOf, setRouteInfo, type MapNode, type MapScale, type PlaceMapData } from '@/lib/place-map'
-import { CHANCE_DEFAULT, cleanMinutes, cleanVia, footMinutes, loadEventPref, minutesFor, modesFor, rollRoadEvent, saveEventPref, travelDirection, type TravelMode } from '@/lib/place-travel'
+import { CHANCE_DEFAULT, cleanEventText, cleanMinutes, cleanVia, footMinutes, loadEventPref, minutesFor, modesFor, rollRoadEvent, saveEventPref, travelDirection, type TravelMode } from '@/lib/place-travel'
 import { useApp } from '@/lib/store'
 import type { ID } from '@/lib/types'
-import { askTravelTime } from '@/lib/world'
+import { askRoadEvent, askTravelTime } from '@/lib/world'
 
 /** What the map needs to know about a trip that was sent, to read the road's name from the reply that tells it. */
 export interface TravelSent { fromId: string | null; toId: string; from: string | null; to: string; mode: TravelMode; within: boolean; nameKnown: boolean }
@@ -69,9 +69,25 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, scale = '
 
   // the road event: the DM's own waiting event, else a seeded die; shown before it is sent, and it ends up in the direction's chip
   const dice = useMemo(() => (fromWhole ? rollRoadEvent(`${chatId}|${messageCount}|${fromWhole.id}|${toWhole.id}`, pref.chance) : null), [chatId, messageCount, fromWhole, toWhole, pref.chance])
-  const event = showsRoad && pref.on ? (dmEvent ? ({ dm: true } as const) : dice?.hit && dice.kind ? { kind: dice.kind } : null) : null
+  // an event the DM's model made up from the book (on a button, only when the dice hit and the DM has no event of its own waiting)
+  const [made, setMade] = useState<string | null>(null)
+  const [making, setMaking] = useState(false)
+  const concrete = pref.on && pref.concrete && dmOn && !dmEvent
+  const event = showsRoad && pref.on ? (dmEvent ? ({ dm: true } as const) : dice?.hit && dice.kind ? (concrete && made ? { text: made } : { kind: dice.kind }) : null) : null
   const changePref = (next: typeof pref) => { setPref(next); saveEventPref(chatId, next, safeStorage()) }
 
+  const makeEvent = async () => {
+    if (!fromWhole || making) return
+    setMaking(true)
+    try {
+      const text = cleanEventText(await askRoadEvent(chatId, { from: fromWhole.bookName, to: toWhole.bookName, ...(cleanVia(via) ? { via: cleanVia(via) as string } : {}), mode }))
+      if (text) setMade(text)
+    } catch (e) {
+      toast.error(t('placeMap.travelEventFail', { message: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setMaking(false)
+    }
+  }
   const ask = async () => {
     if (!fromWhole || asking) return
     setAsking(true)
@@ -178,14 +194,27 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, scale = '
                     %
                   </label>
                 )}
+                {pref.on && !dmEvent && (
+                  <ToggleChip pressed={pref.concrete && dmOn} disabled={!dmOn} onPressedChange={(v) => changePref({ ...pref, concrete: v })}>{t('placeMap.travelEventConcrete')}</ToggleChip>
+                )}
               </div>
+              {pref.on && !dmEvent && !dmOn && <p className="text-xs text-muted-foreground">{t('placeMap.travelEventConcreteOff')}</p>}
+              {concrete && dice?.hit && (
+                <div className="flex flex-col gap-1.5" data-testid="place-travel-event-made">
+                  <Button variant="outline" size="sm" className="self-start max-md:min-h-10" disabled={making} onClick={() => void makeEvent()} data-testid="place-travel-event-make">
+                    {making ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Sparkle className={cn('size-4', TONES.violet.ink)} weight="fill" aria-hidden="true" />}
+                    {making ? t('placeMap.travelEventMaking') : made ? t('placeMap.travelEventAgain') : t('placeMap.travelEventMake')}
+                  </Button>
+                  <p className="text-xs" data-testid="place-travel-event-text">{made ? made : t('placeMap.travelEventNotMade')}</p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground" data-testid="place-travel-event-log">
                 {!pref.on
                   ? t('placeMap.travelEventOff')
                   : dmEvent
                     ? t('placeMap.travelEventDm')
                     : dice?.hit && dice.kind
-                      ? t('placeMap.travelEventHit', { roll: dice.roll, chance: dice.chance, kind: dice.kind })
+                      ? (concrete && made ? t('placeMap.travelEventHitMade', { roll: dice.roll, chance: dice.chance }) : t('placeMap.travelEventHit', { roll: dice.roll, chance: dice.chance, kind: dice.kind }))
                       : t('placeMap.travelEventMiss', { roll: dice?.roll ?? 0, chance: dice?.chance ?? pref.chance })}
               </p>
             </div>

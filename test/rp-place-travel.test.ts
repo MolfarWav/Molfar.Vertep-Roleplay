@@ -137,14 +137,14 @@ describe("a road event", () => {
   it("the switch and the chance are kept per chat, off and 25 until changed", () => {
     const mem = new Map<string, string>();
     const st = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
-    expect(loadEventPref("c1", st)).toEqual({ on: false, chance: 25 });
-    saveEventPref("c1", { on: true, chance: 60 }, st);
-    expect(loadEventPref("c1", st)).toEqual({ on: true, chance: 60 });
-    expect(loadEventPref("c2", st)).toEqual({ on: false, chance: 25 });
-    saveEventPref("c1", { on: true, chance: 900 }, st);
+    expect(loadEventPref("c1", st)).toEqual({ on: false, chance: 25, concrete: false });
+    saveEventPref("c1", { on: true, chance: 60, concrete: true }, st);
+    expect(loadEventPref("c1", st)).toEqual({ on: true, chance: 60, concrete: true });
+    expect(loadEventPref("c2", st)).toEqual({ on: false, chance: 25, concrete: false });
+    saveEventPref("c1", { on: true, chance: 900, concrete: false }, st);
     expect(loadEventPref("c1", st).chance).toBe(100);
     mem.set("rp.map.roadEvent.c3", "not json");
-    expect(loadEventPref("c3", st)).toEqual({ on: false, chance: 25 });
-    expect(loadEventPref("c1", null)).toEqual({ on: false, chance: 25 });
+    expect(loadEventPref("c3", st)).toEqual({ on: false, chance: 25, concrete: false });
+    expect(loadEventPref("c1", null)).toEqual({ on: false, chance: 25, concrete: false });
   });
 });
