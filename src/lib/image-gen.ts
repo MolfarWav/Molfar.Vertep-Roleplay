@@ -119,6 +119,8 @@ export async function generateImage(opts: {
   prompt: string
   negativePrompt?: string
   model?: string
+  /** the shape of the picture: a wish, an engine that does not know it leaves it out */
+  aspect?: 'square' | 'wide' | 'tall'
   signal?: AbortSignal
 }): Promise<GeneratedImage> {
   // Most image models take a single positive prompt; the negative prompt is
@@ -130,7 +132,7 @@ export async function generateImage(opts: {
   const r = await fetch('/v1/images', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ prompt, ...(opts.model ? { model: opts.model } : {}) }),
+    body: JSON.stringify({ prompt, ...(opts.model ? { model: opts.model } : {}), ...(opts.aspect ? { aspect: opts.aspect } : {}) }),
     ...(opts.signal ? { signal: opts.signal } : {}),
   })
   const b = (await r.json().catch(() => ({}))) as { url?: string; mimeType?: string; model?: string; error?: string }

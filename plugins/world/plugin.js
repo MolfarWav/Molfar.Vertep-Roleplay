@@ -31,6 +31,7 @@
  *  GET  /world/peek?chatId=           the world book's records, for the player who asks (fronts and events stay hidden)
  *  GET  /world/here?chatId=           the Dashboard's Here and Outfit and things: the scene's place, the things here and asleep, what people carry, what the last run changed
  *  POST /world/travel/time            {chatId, from, to, distance, mode}: the places map's travel window asks the build model for the walking time (minutes); one call, started by the player
+ *  POST /world/travel/event           {chatId, from, to, via?, mode?}: the build model makes up one small road event from the book's people, things and places (the travel window's "Make it up" button); one call, started by the player
  *  POST /world/travel/road            {chatId, from, to, reply}: the build model reads the road's name from a journey's reply ('' when it names none); one call, started by the app after a trip with an unnamed road
  *  GET  /world/config?chatId=         the DM's models and reply limit (all chats), with the models in force
  *  PUT  /world/config {model?, buildModel?, maxTokens?, imageModel?, autoBackground?, defaultProfile?}   defaultProfile: the profile a new chat starts with ("" = the chronicler)
@@ -6811,65 +6812,92 @@ function backgroundsRoute(req, host) {
   return ok({ ok: true, images, imageModel: cfg.imageModel, model: built.run.model, usage: built.usage });
 }
 
-// ---------- travel on the places map (Molfar.Vertep#454, M3) ----------
-// Two small calls on the DM's build model, each started by the player (a button), never by the plugin on its own:
-// the walking time between two places, and the name a journey's reply gave the road.
-export const TRAVEL_TIME_SYSTEM = [
-  "You estimate how long a trip takes in a roleplay story, so the story clock can move.",
-  "You get two places with what the book says about them, the distance between them on the story's map (map units; the app's own default is about 10 units a minute on foot) and who travels.",
-  "Answer the time ON FOOT in whole minutes; the app works a ride out from it. A room to the next room is a few minutes, across a town tens of minutes, to the next village an hour or more, between distant cities hours or days. Go by what the places are, not by the units alone. Never 0.",
-  'Output: one JSON object and nothing else, no code fences: {"minutes": 25}',
-].join("\n");
-
-export const TRAVEL_ROAD_SYSTEM = [
-  "You read the telling of a journey in a roleplay story and give the name of the road, street, lane or path the characters walked, if the text names one.",
-  "- The name exactly as the text writes it, in the text's own language, without quotes. A street or road only: not the place they left or reached, not a district, not a building.",
-  "- If the text names no road, answer an empty string. Never invent a name.",
-  'Output: one JSON object and nothing else, no code fences: {"name": "Tanners\' Lane"}',
-].join("\n");
-
-const travelPlace = (state, name) => {
-  const e = findEntity(state.entities, { name: cut(str(name), NAME_MAX) });
-  return e && e.kind === "place" ? "- " + e.name + (e.text ? ": " + cut(str(e.text), 300) : "") : "- " + cut(str(name), NAME_MAX) + " (nothing in the book)";
-};
-
-function travelRoute(req, host, which) {
-  const fsx = host.fs;
-  const b = body(req);
-  const chatId = String(b.chatId || "");
-  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
-  const chat = readChat(fsx, chatId);
-  if (!chat) return ok({ error: "no such chat" }, 404);
-  const { state } = loadState(fsx, chatId);
-  const from = cut(str(b.from), NAME_MAX);
-  const to = cut(str(b.to), NAME_MAX);
-  if (!to) return ok({ error: "to required" }, 400);
-  const cfg = loadConfig(fsx);
-  let system;
-  let content;
-  if (which === "time") {
-    system = TRAVEL_TIME_SYSTEM;
-    const units = Math.round(num(b.distance));
-    content = ["From", travelPlace(state, from), "To", travelPlace(state, to), units > 0 ? "Distance on the map: " + units + " units." : "", "They go " + (b.mode === "ride" ? "riding" : "on foot") + ". Answer the time on foot."].filter(Boolean).join("\n");
-  } else {
-    const reply = cut(str(b.reply), 6000);
-    if (!reply) return ok({ error: "reply required" }, 400);
-    system = TRAVEL_ROAD_SYSTEM;
-    content = "The journey went from " + (from || "somewhere") + " to " + to + ".\n\nThe telling:\n" + reply;
-  }
-  const key = which === "time" ? "world_travel_time" : "world_travel_road";
-  const built = buildResult(host, key, buildAsk(host, fsx, cfg, chat.meta, system, content), isObj(req.stash) ? req.stash : {});
-  if (built.pending) return built.pending;
-  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
-  if (which === "time") {
-    const m = Math.round(num(built.out.minutes));
-    if (!(m >= 1)) return ok({ ok: false, error: "The build model gave no usable time.", code: "empty" });
-    return ok({ ok: true, minutes: Math.min(99999, m), model: built.run.model, usage: built.usage });
-  }
-  const name = cut(str(built.out.name).replace(/[\[\]"]/g, "").replace(/\s+/g, " ").trim(), 120);
-  return ok({ ok: true, name, model: built.run.model, usage: built.usage });
-}
-
+// ---------- travel on the places map (Molfar.Vertep#454, M3) ----------
+// Two small calls on the DM's build model, each started by the player (a button), never by the plugin on its own:
+// the walking time between two places, and the name a journey's reply gave the road.
+export const TRAVEL_TIME_SYSTEM = [
+  "You estimate how long a trip takes in a roleplay story, so the story clock can move.",
+  "You get two places with what the book says about them, the distance between them on the story's map (map units; the app's own default is about 10 units a minute on foot on a town map, about 1 unit in 3 minutes on a region map and 40 minutes a unit on a map of a country or a world) and who travels.",
+  "Answer the time ON FOOT in whole minutes; the app works a ride out from it. A room to the next room is a few minutes, across a town tens of minutes, to the next village an hour or more, between distant cities hours or days. Go by what the places are, not by the units alone. Never 0.",
+  'Output: one JSON object and nothing else, no code fences: {"minutes": 25}',
+].join("\n");
+
+export const TRAVEL_ROAD_SYSTEM = [
+  "You read the telling of a journey in a roleplay story and give the name of the road, street, lane or path the characters walked, if the text names one.",
+  "- The name exactly as the text writes it, in the text's own language, without quotes. A street or road only: not the place they left or reached, not a district, not a building.",
+  "- If the text names no road, answer an empty string. Never invent a name.",
+  'Output: one JSON object and nothing else, no code fences: {"name": "Tanners\' Lane"}',
+].join("\n");
+
+export const TRAVEL_EVENT_SYSTEM = [
+  "You make up one small event that happens on the road in a roleplay story, so a journey is not empty.",
+  "You get the two places, the way they travel and who and what the world has (people, things, places).",
+  "- Use something from the world when one fits (a known person met on the road, a thing lost or found, a place passed), else a plain stranger or sight.",
+  "- One or two sentences, concrete: who or what, where on the road, what it asks of the travellers. Leave the outcome to the story.",
+  "- Small: no battle, nothing that kills anyone or changes the course of the story. Not a thing the travellers already did.",
+  "- In the language of the book's texts.",
+  'Output: one JSON object and nothing else, no code fences: {"event": "A carter whose wheel has broken asks for a hand; he is hauling barrels marked with the Inn\'s sign."}',
+].join("\n");
+
+/** The living people, things and places of the book, short, for the road event's model (never the player's own record). */
+const travelCast = (state) => {
+  const live = (kind, n) => state.entities.filter((e) => e.kind === kind && e.status === "active" && e.id !== "user").slice(0, n).map((e) => "- " + cut(str(e.name), NAME_MAX) + (e.text ? ": " + cut(str(e.text), 120) : ""));
+  const block = (title, list) => (list.length ? title + ":\n" + list.join("\n") : "");
+  return [block("People", live("person", 12)), block("Things", live("thing", 8)), block("Places", live("place", 10))].filter(Boolean).join("\n\n");
+};
+
+const travelPlace = (state, name) => {
+  const e = findEntity(state.entities, { name: cut(str(name), NAME_MAX) });
+  return e && e.kind === "place" ? "- " + e.name + (e.text ? ": " + cut(str(e.text), 300) : "") : "- " + cut(str(name), NAME_MAX) + " (nothing in the book)";
+};
+
+function travelRoute(req, host, which) {
+  const fsx = host.fs;
+  const b = body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(fsx, chatId);
+  const from = cut(str(b.from), NAME_MAX);
+  const to = cut(str(b.to), NAME_MAX);
+  if (!to) return ok({ error: "to required" }, 400);
+  const cfg = loadConfig(fsx);
+  let system;
+  let content;
+  if (which === "time") {
+    system = TRAVEL_TIME_SYSTEM;
+    const units = Math.round(num(b.distance));
+    content = ["From", travelPlace(state, from), "To", travelPlace(state, to), units > 0 ? "Distance on the map: " + units + " units." : "", b.scale === "region" ? "This is a map of a region: places are towns, woods, roads between them, so a trip takes hours." : b.scale === "world" ? "This is a map of a country or a world: places are cities and lands far apart, so a trip takes days." : "", "They go " + (b.mode === "ride" ? "riding" : "on foot") + ". Answer the time on foot."].filter(Boolean).join("\n");
+  } else if (which === "event") {
+    system = TRAVEL_EVENT_SYSTEM;
+    const via = cut(str(b.via).replace(/[\[\]]/g, ""), 120);
+    const how = b.mode === "ride" ? "riding" : b.mode === "taxi" ? "by taxi" : b.mode === "metro" ? "by metro" : "on foot";
+    content = ["From", travelPlace(state, from), "To", travelPlace(state, to), via ? 'Along the road known as "' + via + '".' : "", "They go " + how + ".", travelCast(state)].filter(Boolean).join("\n");
+  } else {
+    const reply = cut(str(b.reply), 6000);
+    if (!reply) return ok({ error: "reply required" }, 400);
+    system = TRAVEL_ROAD_SYSTEM;
+    content = "The journey went from " + (from || "somewhere") + " to " + to + ".\n\nThe telling:\n" + reply;
+  }
+  const key = which === "time" ? "world_travel_time" : which === "event" ? "world_travel_event" : "world_travel_road";
+  const built = buildResult(host, key, buildAsk(host, fsx, cfg, chat.meta, system, content), isObj(req.stash) ? req.stash : {});
+  if (built.pending) return built.pending;
+  if (built.error) return ok({ ok: false, error: built.error.message, code: built.error.code });
+  if (which === "time") {
+    const m = Math.round(num(built.out.minutes));
+    if (!(m >= 1)) return ok({ ok: false, error: "The build model gave no usable time.", code: "empty" });
+    return ok({ ok: true, minutes: Math.min(999999, m), model: built.run.model, usage: built.usage });
+  }
+  if (which === "event") {
+    const event = cut(str(built.out.event).replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim(), 300);
+    if (!event) return ok({ ok: false, error: "The build model made up no event.", code: "empty" });
+    return ok({ ok: true, event, model: built.run.model, usage: built.usage });
+  }
+  const name = cut(str(built.out.name).replace(/[\[\]"]/g, "").replace(/\s+/g, " ").trim(), 120);
+  return ok({ ok: true, name, model: built.run.model, usage: built.usage });
+}
+
 /** A vision model names one background: {image: {data, mimeType}, model?, hint?} -> {file, tags}. */
 function nameImageRoute(req, host) {
   const b = body(req);
@@ -7630,6 +7658,7 @@ export function handleRoute(req, host) {
   if (path === "/world/here" && req.method === "GET") return hereRoute(req, host);
   if (path === "/world/travel/time" && req.method === "POST") return travelRoute(req, host, "time");
   if (path === "/world/travel/road" && req.method === "POST") return travelRoute(req, host, "road");
+  if (path === "/world/travel/event" && req.method === "POST") return travelRoute(req, host, "event");
   if (path === "/world/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (path === "/world/update" && req.method === "POST") return updateRoute(req, host);
   if (path === "/world/rollback" && req.method === "POST") return rollbackRoute(req, host);

@@ -486,6 +486,12 @@ describe("rp studio engine: chats + swipes", () => {
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: { picture?: unknown } }).placeMap?.picture).toEqual({ none: true });
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 80, y: 80 } }, picture: { builtin: "../x-1" } } } }, m);
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: { picture?: unknown } }).placeMap?.picture).toBeUndefined();
+    // more maps of the chat (#473): levels with their own places, roads and picture; a bad level or a long trip's minutes are handled
+    await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: { n1: { x: 80, y: 80 } }, here: { id: "n1", scene: "  On  the road " }, name: "  The  Vale ", scale: "region", levels: [{ id: "l1", name: "Oakford", scale: "town", plan: "n1", nodes: { n2: { x: 5, y: 5 } }, routes: [{ a: "n3", b: "n2", minutes: 120000 }], picture: { builtin: "default/city-1" } }, { id: "bad", name: "x" }, { id: "l2", name: "Sky", scale: "moon", nodes: {} }] } } }, m);
+    expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown }).placeMap).toEqual({
+      v: 1, nodes: { n1: { x: 80, y: 80 } }, routes: [], here: { id: "n1", scene: "On the road" }, name: "The Vale", scale: "region",
+      levels: [{ id: "l1", name: "Oakford", scale: "town", plan: "n1", nodes: { n2: { x: 70, y: 70 } }, routes: [{ a: "n2", b: "n3", minutes: 120000 }], picture: { builtin: "default/city-1" } }, { id: "l2", name: "Sky", scale: "town", nodes: {}, routes: [] }],
+    });
     await drive(engineUrl, { method: "PATCH", path: `/chats/${id}`, body: { placeMap: { nodes: {}, routes: [] } } }, m);
     expect(((await drive(engineUrl, { method: "GET", path: `/chats/${id}` }, m)).json.meta as { placeMap?: unknown }).placeMap ?? null).toBeNull();
 

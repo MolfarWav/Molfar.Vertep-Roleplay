@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { NavigationArrow, Sparkle } from '@phosphor-icons/react'
+import { CircleNotch, NavigationArrow, Sparkle } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -9,11 +9,11 @@ import { TONES } from '@/components/ui/tone'
 import { cn } from '@/lib/utils'
 import { ToggleChip } from '@/components/ui/toggle-chip'
 import { useT } from '@/hooks/use-t'
-import { routeOf, setRouteInfo, type MapNode, type PlaceMapData } from '@/lib/place-map'
-import { CHANCE_DEFAULT, TRAVEL_MODES, cleanMinutes, cleanVia, footMinutes, loadEventPref, minutesFor, rollRoadEvent, saveEventPref, travelDirection, type TravelMode } from '@/lib/place-travel'
+import { routeOf, setRouteInfo, type MapNode, type MapScale, type PlaceMapData } from '@/lib/place-map'
+import { CHANCE_DEFAULT, cleanEventText, cleanMinutes, cleanVia, footMinutes, loadEventPref, minutesFor, modesFor, rollRoadEvent, saveEventPref, travelDirection, type TravelMode } from '@/lib/place-travel'
 import { useApp } from '@/lib/store'
 import type { ID } from '@/lib/types'
-import { askTravelTime } from '@/lib/world'
+import { askRoadEvent, askTravelTime } from '@/lib/world'
 
 /** What the map needs to know about a trip that was sent, to read the road's name from the reply that tells it. */
 export interface TravelSent { fromId: string | null; toId: string; from: string | null; to: string; mode: TravelMode; within: boolean; nameKnown: boolean }
@@ -25,13 +25,15 @@ export interface TravelSent { fromId: string | null; toId: string; from: string 
  * trip is the same one. A road event (off by default) is the DM's own waiting event or a seeded die. Nothing here calls a model
  * unless the player presses "Ask the model".
  */
-export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmEvent, messageCount, open, onOpenChange, onSaveMap, onSent }: {
+export function PlaceTravelDialog({ chatId, target, from, nodes, data, scale = 'town', dmOn, dmEvent, messageCount, open, onOpenChange, onSaveMap, onSent }: {
   chatId: ID
   target: MapNode
   /** where the story is now (a place or a room of one), or null when the map does not know */
   from: MapNode | null
   nodes: MapNode[]
   data: PlaceMapData | null
+  /** how big the map is: a trip on it takes minutes, hours or days */
+  scale?: MapScale
   /** the World DM is on: its model can estimate the time and read the road's name */
   dmOn: boolean
   /** the DM is holding an event that has not played yet */
@@ -53,7 +55,7 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
   const within = !!fromWhole && fromWhole.id === toWhole.id
   const hasRoad = !!fromWhole && !within
   const road = hasRoad ? routeOf(data, fromWhole.id, toWhole.id) : null
-  const foot = useMemo(() => (road?.minutes ?? (fromWhole ? footMinutes(fromWhole, toWhole) : 5)), [road?.minutes, fromWhole, toWhole])
+  const foot = useMemo(() => (road?.minutes ?? (fromWhole ? footMinutes(fromWhole, toWhole, scale) : 5)), [road?.minutes, fromWhole, toWhole, scale])
   const [mode, setMode] = useState<TravelMode>('foot')
   const [minutes, setMinutes] = useState<string | null>(null)
   const [modelFoot, setModelFoot] = useState<number | null>(null)
@@ -67,14 +69,30 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
 
   // the road event: the DM's own waiting event, else a seeded die; shown before it is sent, and it ends up in the direction's chip
   const dice = useMemo(() => (fromWhole ? rollRoadEvent(`${chatId}|${messageCount}|${fromWhole.id}|${toWhole.id}`, pref.chance) : null), [chatId, messageCount, fromWhole, toWhole, pref.chance])
-  const event = showsRoad && pref.on ? (dmEvent ? ({ dm: true } as const) : dice?.hit && dice.kind ? { kind: dice.kind } : null) : null
+  // an event the DM's model made up from the book (on a button, only when the dice hit and the DM has no event of its own waiting)
+  const [made, setMade] = useState<string | null>(null)
+  const [making, setMaking] = useState(false)
+  const concrete = pref.on && pref.concrete && dmOn && !dmEvent
+  const event = showsRoad && pref.on ? (dmEvent ? ({ dm: true } as const) : dice?.hit && dice.kind ? (concrete && made ? { text: made } : { kind: dice.kind }) : null) : null
   const changePref = (next: typeof pref) => { setPref(next); saveEventPref(chatId, next, safeStorage()) }
 
+  const makeEvent = async () => {
+    if (!fromWhole || making) return
+    setMaking(true)
+    try {
+      const text = cleanEventText(await askRoadEvent(chatId, { from: fromWhole.bookName, to: toWhole.bookName, ...(cleanVia(via) ? { via: cleanVia(via) as string } : {}), mode }))
+      if (text) setMade(text)
+    } catch (e) {
+      toast.error(t('placeMap.travelEventFail', { message: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setMaking(false)
+    }
+  }
   const ask = async () => {
     if (!fromWhole || asking) return
     setAsking(true)
     try {
-      const n = await askTravelTime(chatId, { from: fromWhole.bookName, to: toWhole.bookName, distance: Math.round(Math.hypot(fromWhole.x - toWhole.x, fromWhole.y - toWhole.y)), mode: mode === 'ride' ? 'ride' : 'foot' })
+      const n = await askTravelTime(chatId, { from: fromWhole.bookName, to: toWhole.bookName, distance: Math.round(Math.hypot(fromWhole.x - toWhole.x, fromWhole.y - toWhole.y)), mode: mode === 'ride' ? 'ride' : 'foot', scale })
       setModelFoot(n)
       setMinutes(String(minutesFor(n, mode)))
     } catch (e) {
@@ -92,7 +110,7 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
       // the road keeps the walking time (a ride is derived from it) and its name; a skipped road is left as it is
       const info: { minutes?: number | null; via?: string | null } = {}
       if (mode === 'foot') info.minutes = mins
-      else if (mode === 'ride' && minutes === null && modelFoot) info.minutes = modelFoot
+      else if (mode !== 'skip' && minutes === null && modelFoot) info.minutes = modelFoot
       if (mode !== 'skip') info.via = name
       if (info.minutes !== undefined || info.via !== undefined || !road) onSaveMap(setRouteInfo(data, fromWhole.id, toWhole.id, info))
     }
@@ -115,7 +133,7 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
         <div className="flex flex-col gap-3">
           {hasRoad && (
             <div className="flex flex-wrap gap-2" role="group" aria-label={t('placeMap.travelMode')}>
-              {TRAVEL_MODES.map((m) => (
+              {modesFor(scale).map((m) => (
                 <ToggleChip key={m} pressed={mode === m} onPressedChange={() => { setMode(m); setMinutes(null); setModelFoot(null) }}>{t(`placeMap.travelMode.${m}`)}</ToggleChip>
               ))}
             </div>
@@ -125,14 +143,15 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
               <label className="flex items-center gap-2 text-sm">
                 <Input
                   inputMode="numeric"
-                  maxLength={5}
-                  className="w-24"
+                  maxLength={6}
+                  className="w-28"
                   value={shownMinutes}
                   aria-label={t('placeMap.travelMinutes')}
                   data-testid="place-travel-minutes"
                   onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))}
                 />
                 <span className="text-muted-foreground">{t('placeMap.travelMinutes')}</span>
+                {cleanMinutes(Number(shownMinutes)) !== null && Number(shownMinutes) >= 120 && <span className="text-xs text-muted-foreground" data-testid="place-travel-span">{t('placeMap.travelSpan', { span: spanShort(Number(shownMinutes), t('placeMap.unitDay'), t('placeMap.unitHour'), t('placeMap.unitMinute')) })}</span>}
               </label>
               <Button
                 variant="outline"
@@ -175,14 +194,27 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
                     %
                   </label>
                 )}
+                {pref.on && !dmEvent && (
+                  <ToggleChip pressed={pref.concrete && dmOn} disabled={!dmOn} onPressedChange={(v) => changePref({ ...pref, concrete: v })}>{t('placeMap.travelEventConcrete')}</ToggleChip>
+                )}
               </div>
+              {pref.on && !dmEvent && !dmOn && <p className="text-xs text-muted-foreground">{t('placeMap.travelEventConcreteOff')}</p>}
+              {concrete && dice?.hit && (
+                <div className="flex flex-col gap-1.5" data-testid="place-travel-event-made">
+                  <Button variant="outline" size="sm" className="self-start max-md:min-h-10" disabled={making} onClick={() => void makeEvent()} data-testid="place-travel-event-make">
+                    {making ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <Sparkle className={cn('size-4', TONES.violet.ink)} weight="fill" aria-hidden="true" />}
+                    {making ? t('placeMap.travelEventMaking') : made ? t('placeMap.travelEventAgain') : t('placeMap.travelEventMake')}
+                  </Button>
+                  <p className="text-xs" data-testid="place-travel-event-text">{made ? made : t('placeMap.travelEventNotMade')}</p>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground" data-testid="place-travel-event-log">
                 {!pref.on
                   ? t('placeMap.travelEventOff')
                   : dmEvent
                     ? t('placeMap.travelEventDm')
                     : dice?.hit && dice.kind
-                      ? t('placeMap.travelEventHit', { roll: dice.roll, chance: dice.chance, kind: dice.kind })
+                      ? (concrete && made ? t('placeMap.travelEventHitMade', { roll: dice.roll, chance: dice.chance }) : t('placeMap.travelEventHit', { roll: dice.roll, chance: dice.chance, kind: dice.kind }))
                       : t('placeMap.travelEventMiss', { roll: dice?.roll ?? 0, chance: dice?.chance ?? pref.chance })}
               </p>
             </div>
@@ -207,6 +239,14 @@ export function PlaceTravelDialog({ chatId, target, from, nodes, data, dmOn, dmE
       </DialogContent>
     </Dialog>
   )
+}
+
+/** "3 d 4 h", "5 h 30 min": a long trip in the interface's own short units. */
+function spanShort(minutes: number, day: string, hour: string, min: string): string {
+  const d = Math.floor(minutes / 1440)
+  const h = Math.floor((minutes % 1440) / 60)
+  const m = minutes % 60
+  return [d ? `${d} ${day}` : '', h ? `${h} ${hour}` : '', !d && m ? `${m} ${min}` : ''].filter(Boolean).join(' ')
 }
 
 const safeStorage = (): Storage | null => { try { return localStorage } catch { return null } }

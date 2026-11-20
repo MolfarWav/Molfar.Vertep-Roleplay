@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { TRAVEL_ROAD_SYSTEM, TRAVEL_TIME_SYSTEM, handleRoute } from "../plugins/world/plugin.js";
+import { TRAVEL_EVENT_SYSTEM, TRAVEL_ROAD_SYSTEM, TRAVEL_TIME_SYSTEM, handleRoute } from "../plugins/world/plugin.js";
 
 const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
 const eng = (await import(engineUrl)) as { handleRoute: Function };
@@ -123,5 +123,58 @@ describe("the road's name, read from the journey's reply", () => {
     expect(world("POST", "/world/travel/road", { chatId: id, to: "Old Forge" }).error).toBe("reply required");
     world("POST", "/world/travel/road", { ...body("x".repeat(20000)), chatId: id });
     expect((requests[0]!.spec.messages[0].content as string).length).toBeLessThan(6300);
+  });
+});
+
+describe("a road event the DM's model makes up from the book", () => {
+  const withCast = (chatId: string) => {
+    fs.mkdirSync(path.join(root, "world", "state"), { recursive: true });
+    fs.writeFileSync(path.join(root, "world", "state", chatId + ".json"), J({
+      chatId, settings: { level: "chronicler" },
+      entities: [
+        { id: "n1", kind: "place", name: "Hearthstone Inn", aliases: [], text: "A warm inn.", status: "active", uid: 0 },
+        { id: "n2", kind: "place", name: "Old Forge", aliases: [], text: "Anvils.", status: "active", uid: 0 },
+        { id: "n3", kind: "person", name: "Tamsin the Carter", aliases: [], text: "Hauls barrels for the inn.", status: "active", uid: 0 },
+        { id: "n4", kind: "person", name: "Gone Person", aliases: [], text: "Left.", status: "past", uid: 0 },
+        { id: "n5", kind: "thing", name: "Brass Lantern", aliases: [], text: "Lost on the north road.", status: "active", uid: 0 },
+        { id: "user", kind: "person", name: "Player Persona", aliases: [], text: "secret", status: "active", uid: 0 },
+      ],
+    }));
+  };
+  const b = (chatId: string) => ({ chatId, from: "Hearthstone Inn", to: "Old Forge", via: "Tanners' [Lane]", mode: "taxi" });
+  it("sends the two places, the way and the living people, things and places; never the player's own record", () => {
+    const id = newChat();
+    withCast(id);
+    expect(world("POST", "/world/travel/event", b(id)).__llmPending).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.key).toBe("world_travel_event");
+    expect(requests[0]!.spec.systemPrompt).toBe(TRAVEL_EVENT_SYSTEM);
+    const ask = requests[0]!.spec.messages[0].content as string;
+    expect(ask).toContain("Hearthstone Inn: A warm inn.");
+    expect(ask).toContain("Tanners' Lane");
+    expect(ask).not.toContain("[Lane]");
+    expect(ask).toContain("by taxi");
+    expect(ask).toContain("Tamsin the Carter: Hauls barrels for the inn.");
+    expect(ask).toContain("Brass Lantern");
+    expect(ask).not.toContain("Gone Person");
+    expect(ask).not.toContain("Player Persona");
+  });
+  it("gives the event cleaned and cut; an empty answer says so", () => {
+    const id = newChat();
+    withCast(id);
+    world("POST", "/world/travel/event", b(id));
+    results.world_travel_event = { text: J({ event: "  Tamsin's [cart] has a broken wheel.  " }), model: "b/build" };
+    expect(world("POST", "/world/travel/event", b(id))).toMatchObject({ ok: true, event: "Tamsin's cart has a broken wheel.", model: "b/build" });
+    results.world_travel_event = { text: J({ event: "x".repeat(900) }), model: "b/build" };
+    expect(((world("POST", "/world/travel/event", b(id)) as any).event as string).length).toBe(300);
+    results.world_travel_event = { text: J({ event: "" }), model: "b/build" };
+    expect(world("POST", "/world/travel/event", b(id))).toMatchObject({ ok: false, code: "empty" });
+  });
+  it("needs a chat and a destination", () => {
+    expect(world("POST", "/world/travel/event", { to: "x" }).error).toBe("chatId required");
+    const id = newChat();
+    withCast(id);
+    expect(world("POST", "/world/travel/event", { chatId: id }).error).toBe("to required");
+    expect(requests).toHaveLength(0);
   });
 });

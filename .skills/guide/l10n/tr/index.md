@@ -1,4 +1,4 @@
-<!-- source: 660954abd188 -->
+<!-- source: 5cf403a40212 -->
 # Roleplay: genel bakış
 
 Roleplay, Molfar Vertep'in hikâye uygulamasıdır: karakter kartları tutarsınız, onlarla sohbetler oynarsınız ve uygulamanın sahneyi izlemesine, hikâyeyi hatırlamasına ve etrafınızdaki dünyayı yönetmesine izin verirsiniz. Bu sayfa bir haritadır. Uygulamanın kendi **Help** bölümünde (kenar çubuğunda) neredeyse her ekran için kısa bir makale vardır; bu kılavuz ise parçaların nasıl bir araya geldiğini açıklar. Modeller ve bağlantılar burada değil, ana Settings bölümünde ayarlanır: bkz. [[vertep:models]].
@@ -33,6 +33,7 @@ Hikâyeyi üç yardımcı izler ve ekstra model çağrılarına mal olur, bu yü
 - [[sprites]]: sohbet üzerinde sprite'lar, bir grup veya anlatıcı için birkaç pencere, görsel roman görünümü.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: hikâye mekanizması.
 - [[places-map]]: sohbetin yerlerinin yüzen haritası, yollar ve kendi resminizle.
+- [[places-map-levels]]: tek bir sohbette birkaç harita (bir ülke, bir şehir, bir zindan) ve görsel modeliyle harita çizme.
 - [[memory]]: hangi hafıza türünün ne için kullanılacağı.
 - [[canvas]]: sohbet bağlantıları, prompt panosu ve agent forge.
 - [[long-chats]]: uzun bir sohbet neden yavaşlar veya pahalılaşır, bunu ne keser ve bir hikâye yeni bir sohbete nasıl taşınır.

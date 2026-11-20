@@ -229,10 +229,17 @@ export async function editWorldRecord(target: string | WorldRef, op: WorldRecord
 }
 
 /** The walking time in minutes between two places, estimated by the DM's build model (one call, started by the player). */
-export async function askTravelTime(chatId: string, p: { from: string; to: string; distance: number; mode: 'foot' | 'ride' }): Promise<number> {
+export async function askTravelTime(chatId: string, p: { from: string; to: string; distance: number; mode: 'foot' | 'ride'; scale?: 'town' | 'region' | 'world' }): Promise<number> {
   const r = await j<{ ok: boolean; minutes?: number; error?: string }>('/world/travel/time', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })
   if (!r.ok || !r.minutes) throw new Error(r.error ?? 'no answer')
   return r.minutes
+}
+
+/** One small road event the DM's build model made up from the book's people, things and places (one call, started by the player). */
+export async function askRoadEvent(chatId: string, p: { from: string; to: string; via?: string; mode?: string }): Promise<string> {
+  const r = await j<{ ok: boolean; event?: string; error?: string }>('/world/travel/event', { method: 'POST', body: JSON.stringify({ chatId, ...p }) })
+  if (!r.ok || !r.event) throw new Error(r.error ?? 'no answer')
+  return r.event
 }
 
 /** The name a journey's reply gave the road ('' when it named none): one call on the DM's build model. */

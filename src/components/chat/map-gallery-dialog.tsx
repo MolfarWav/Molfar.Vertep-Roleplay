@@ -4,24 +4,12 @@ import { useT } from '@/hooks/use-t'
 import { mapKindWords, mapPackUrl, type MapPack } from '@/lib/map-packs'
 import { cn } from '@/lib/utils'
 
-/**
- * Pick a ready map for the places map (Molfar.Vertep#454): the engine's packs of painted plans, by kind (a region, a walled town, a
- * village, a coast, a house plan, caves...). Thumbnails only; the full picture loads when the map is chosen.
- */
-export function MapGalleryDialog({ packs, current, open, onOpenChange, onPick }: {
-  packs: MapPack[]
-  /** `<pack>/<map id>` of the ready map in use, or null */
-  current: string | null
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  onPick: (key: string) => void
-}) {
-  const t = useT()
-  const kinds = useMemo(() => [...new Set(packs.flatMap((p) => p.maps.map((m) => m.kind)))], [packs])
-  const [kind, setKind] = useState<string>(() => (current ? (packs.flatMap((p) => p.maps.map((m) => ({ key: `${p.id}/${m.id}`, kind: m.kind }))).find((m) => m.key === current)?.kind ?? kinds[0]) : kinds[0]) ?? '')
-  const maps = packs.flatMap((p) => p.maps.filter((m) => m.kind === kind).map((m) => ({ key: `${p.id}/${m.id}`, pack: p.name, id: m.id })))
-  const names: Record<string, string> = {
+/** The words for each kind of map (the gallery's chips and the generate window's). */
+export function mapKindLabels(t: ReturnType<typeof useT>): Record<string, string> {
+  return {
     region: t('placeMap.mapKind.region'),
+    continent: t('placeMap.mapKind.continent'),
+    dungeon: t('placeMap.mapKind.dungeon'),
     wilds: t('placeMap.mapKind.wilds'),
     coast: t('placeMap.mapKind.coast'),
     city: t('placeMap.mapKind.city'),
@@ -40,6 +28,25 @@ export function MapGalleryDialog({ packs, current, open, onOpenChange, onPick }:
     'modern-park': t('placeMap.mapKind.modern-park'),
     'modern-small-town': t('placeMap.mapKind.modern-small-town'),
   }
+}
+
+/**
+ * Pick a ready map for the places map (Molfar.Vertep#454): the engine's packs of painted plans, by kind (a region, a walled town, a
+ * village, a coast, a house plan, caves...). Thumbnails only; the full picture loads when the map is chosen.
+ */
+export function MapGalleryDialog({ packs, current, open, onOpenChange, onPick }: {
+  packs: MapPack[]
+  /** `<pack>/<map id>` of the ready map in use, or null */
+  current: string | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onPick: (key: string) => void
+}) {
+  const t = useT()
+  const kinds = useMemo(() => [...new Set(packs.flatMap((p) => p.maps.map((m) => m.kind)))], [packs])
+  const [kind, setKind] = useState<string>(() => (current ? (packs.flatMap((p) => p.maps.map((m) => ({ key: `${p.id}/${m.id}`, kind: m.kind }))).find((m) => m.key === current)?.kind ?? kinds[0]) : kinds[0]) ?? '')
+  const maps = packs.flatMap((p) => p.maps.filter((m) => m.kind === kind).map((m) => ({ key: `${p.id}/${m.id}`, pack: p.name, id: m.id })))
+  const names = mapKindLabels(t)
   const label = (k: string) => names[k] ?? mapKindWords(k)
 
   return (
