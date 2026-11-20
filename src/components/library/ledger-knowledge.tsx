@@ -21,7 +21,7 @@ function Cell({ state, who, label }: { state: KnowState; who: string; label: str
     <span className="inline-flex size-6 items-center justify-center" role="img" aria-label={`${who}: ${label}`} title={`${who}: ${label}`}>
       {state === 'knows' && <Check weight="bold" className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />}
       {state === 'suspects' && <Question weight="bold" className="size-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />}
-      {state === 'none' && <Minus className="size-3.5 text-muted-foreground/60" aria-hidden="true" />}
+      {state === 'none' && <Minus className="size-3.5 text-muted-foreground" aria-hidden="true" />}
     </span>
   )
 }
