@@ -30,7 +30,7 @@ const NOT_NAMES = new Set([
 
 const WORD = /\p{L}[\p{L}'’-]*/gu
 
-const isVerb = (w: string): boolean => {
+export const isSpeechVerb = (w: string): boolean => {
   const l = w.toLowerCase()
   return EN.has(l) || STEMS.some((s) => l.startsWith(s))
 }
@@ -41,14 +41,14 @@ const isCapital = (w: string): boolean => w[0] !== w[0]!.toLowerCase() && w[0] =
 export function speakerNameIn(text: string): string | null {
   const toks = [...text.matchAll(WORD)].map((m) => m[0])
   for (let i = 0; i < toks.length; i++) {
-    if (!isVerb(toks[i]!)) continue
+    if (!isSpeechVerb(toks[i]!)) continue
     // after the verb
     if (i + 1 < toks.length && isCapital(toks[i + 1]!)) {
-      return i + 2 < toks.length && isCapital(toks[i + 2]!) && !isVerb(toks[i + 2]!) ? `${toks[i + 1]} ${toks[i + 2]}` : toks[i + 1]!
+      return i + 2 < toks.length && isCapital(toks[i + 2]!) && !isSpeechVerb(toks[i + 2]!) ? `${toks[i + 1]} ${toks[i + 2]}` : toks[i + 1]!
     }
     // before the verb
-    if (i >= 1 && isCapital(toks[i - 1]!) && !isVerb(toks[i - 1]!)) {
-      return i >= 2 && isCapital(toks[i - 2]!) && !isVerb(toks[i - 2]!) ? `${toks[i - 2]} ${toks[i - 1]}` : toks[i - 1]!
+    if (i >= 1 && isCapital(toks[i - 1]!) && !isSpeechVerb(toks[i - 1]!)) {
+      return i >= 2 && isCapital(toks[i - 2]!) && !isSpeechVerb(toks[i - 2]!) ? `${toks[i - 2]} ${toks[i - 1]}` : toks[i - 1]!
     }
   }
   return null

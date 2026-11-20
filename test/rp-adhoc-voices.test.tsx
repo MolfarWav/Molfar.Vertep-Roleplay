@@ -73,3 +73,27 @@ describe("two people nobody listed, in one reply", () => {
     expect(c[2]).not.toBe(RED);
   });
 });
+
+describe("a short quote inside a sentence is a term, not speech (#477)", () => {
+  const qs = (md: string) => [...renderToStaticMarkup(<Markdown content={md} />).matchAll(/<q>([\s\S]*?)<\/q>/g)].map((m) => m[1]);
+  it("one or two words after a plain word, with no dash after them, are left as plain text", () => {
+    expect(qs("Она дотрагивается до «бондажа» и злополучного лифа.")).toEqual([]);
+    expect(qs("Она назвала это «предательством».")).toEqual([]);
+    expect(qs('He called it "treason" and left.')).toEqual([]);
+    expect(qs("the so-called “golden rule” of the guild")).toEqual([]);
+  });
+  it("speech stays speech: a colon, a dash, a speech verb, the start of a line, or more than two words", () => {
+    expect(qs("Она кивнула: «Да».")).toHaveLength(1);
+    expect(qs("«Да», — сказала она.")).toHaveLength(1);
+    expect(qs('"Yes," she said.')).toHaveLength(1);
+    expect(qs("Она сказала «да» и ушла.")).toHaveLength(1);
+    expect(qs('He whispered "no" and turned.')).toHaveLength(1);
+    expect(qs("Она ответила «я не пойду туда одна» и ушла.")).toHaveLength(1);
+    expect(qs('Rhea steps forward. "Come." She waits.')).toHaveLength(1);
+  });
+  it("a term does not take a voice's colour", () => {
+    const voices = mk([["Рика", RED]]);
+    const html = renderToStaticMarkup(<DialogueVoices.Provider value={voices}><Markdown content={"Рика касается «бондажа». — Идём, — говорит Рика."} /></DialogueVoices.Provider>);
+    expect([...html.matchAll(/<q(?: style="[^"]*")?>/g)]).toHaveLength(1);
+  });
+});

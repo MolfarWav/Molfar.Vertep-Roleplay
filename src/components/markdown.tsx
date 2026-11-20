@@ -1,5 +1,5 @@
 
-import { adhocVoice, speakerNameIn } from '@/lib/adhoc-voices'
+import { adhocVoice, isSpeechVerb, speakerNameIn } from '@/lib/adhoc-voices'
 import { genderCue, learnGender, voiceOfGender, type GenderBook } from '@/lib/speaker-gender'
 import { Children, createContext, isValidElement, cloneElement, memo, useContext, useRef, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -40,6 +40,15 @@ const SCAN_RE = /["“”«»]|\n|[—–]/g
 /** Punctuation a spaced dash may follow when it opens or closes a line of dialogue (— Hi, — she said.) */
 const DASH_AFTER = /[,.!?…:;]/
 
+/** A short quote in the middle of a sentence ("назвала это «предательством» и") is a term, not speech: one or two words, no sentence marks, and no dash
+ *  with the author's words after it ("«Да», — сказала она" is speech). The caller has already checked what stands before it. */
+function isQuotedTerm(group: ReactNode[], rest: string): boolean {
+  if (!group.every((g) => typeof g === 'string')) return false
+  const inner = (group as string[]).join('').slice(1, -1)
+  if (!inner.trim() || inner.length > 30 || inner.trim().split(/\s+/).length > 2 || /[.,!?…:;—–]/.test(inner)) return false
+  return !/^\s*[,.!?…]?\s*[—–]/.test(rest)
+}
+
 /** Elements whose text is code/markup — never re-tint inside them. */
 const OPAQUE = new Set(['code', 'pre', 'kbd', 'samp'])
 
@@ -74,9 +83,15 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   let open: QuoteKind | null = null
   let lineStart = true // nothing but spaces yet on this line
   let key = 0
+  let tail = '' // the last of the text outside quotes, to see what stands before a quote
+  let openTerm = false // the open quote stands inside a sentence after a plain word: it may be a term, not speech
 
-  const flush = () => {
-    if (group.length > 0) {
+  const flush = (asText = false) => {
+    if (asText) {
+      // a quoted term, not speech: the marks stay, the dialogue colour does not
+      out.push(...group)
+      group = []
+    } else if (group.length > 0) {
       // `<q>` would add its own marks; globals.css disables that so the
       // author's original quotation characters survive verbatim.
       out.push(<q key={`q${key++}`}>{group}</q>)
@@ -96,7 +111,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
     if (!text) return
     if (/\S/.test(text)) lineStart = false
     if (open && open !== 'remark') group.push(text)
-    else out.push(text)
+    else {
+      out.push(text)
+      tail = (tail + text).slice(-40)
+    }
   }
   const lineEnds = () => {
     if (open === 'dash') flush()
@@ -146,9 +164,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
         } else if (open) {
           if (CLOSERS[token] === open) {
             group.push(token)
-            flush()
+            flush(openTerm && isQuotedTerm(group, child.slice(from)))
           } else group.push(token)
         } else if (OPENERS[token]) {
+          openTerm = !lineStart && /[\p{L}\p{N}]\s*$/u.test(tail) && !isSpeechVerb(tail.trimEnd().split(/\s+/).pop() ?? '')
           open = OPENERS[token]
           group.push(token)
           lineStart = false
