@@ -115,12 +115,20 @@ describe("labels the model writes in its own way (a name nobody knows must not b
     expect(leadVoiceIn("Wait. Aria: hi", voices)?.name).toBeUndefined();
     expect(leadVoiceIn("Bo says: hi", voices)).toBeNull();
   });
-  it("a line led by a name the card does not know takes the theme colour, not the name of whoever it mentions", () => {
-    expect(tint('Nurse: "Tell Aria to come."')).toEqual(["theme"]);
-    expect(tint('Aria: "One."\n\nNurse: "Two."\n\nToda: "Three."')).toEqual(["111111", "theme", "333333"]);
+  it("a line led by a name the card does not know is a speaker of its own: not the theme colour, not the colour of whoever it mentions", () => {
+    const [nurse] = tint('Nurse: "Tell Aria to come."');
+    expect(nurse).not.toBe("theme");
+    expect(nurse).not.toBe("111111");
+    const three = tint('Aria: "One."\n\nNurse: "Two."\n\nToda: "Three."');
+    expect(three[0]).toBe("111111");
+    expect(three[1]).toBe(nurse); // the same name, the same colour in every message
+    expect(three[2]).toBe("333333");
   });
-  it("the unknown label also ends the carry: its next line is not Aria's", () => {
-    expect(tint('Aria: "One."\nNurse: "Two."\n"Three."')).toEqual(["111111", "theme", "theme"]);
+  it("the unknown label also ends the carry: its next line is the nurse's, not Aria's", () => {
+    const t = tint('Aria: "One."\nNurse: "Two."\n"Three."');
+    expect(t[0]).toBe("111111");
+    expect(t[1]).not.toBe("111111");
+    expect(t[2]).toBe(t[1]);
   });
   it("an unlabelled line still takes the first voice named in it", () => {
     expect(tint('Aria turns. "Hello there."')).toEqual(["111111"]);

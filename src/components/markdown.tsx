@@ -1,4 +1,5 @@
 
+import { adhocVoice, speakerNameIn } from '@/lib/adhoc-voices'
 import { genderCue, learnGender, voiceOfGender, type GenderBook } from '@/lib/speaker-gender'
 import { Children, createContext, isValidElement, cloneElement, memo, useContext, useRef, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -13,7 +14,7 @@ import { cn, storedMediaUrl } from '@/lib/utils'
 import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
 import { rehypeSafeStyle, safeRuleBody, stripRiskyAtRules } from '@/lib/safe-style'
-import { firstVoiceIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { firstVoiceIn, leadLabelIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -190,8 +191,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
 /** The group voices a narrator's message is coloured by (none outside such messages). */
 export const DialogueVoices = createContext<DialogueVoice[]>([])
 
-/** What the pronouns of this reply taught about who is a she and who a he (see speaker-gender.ts); filled paragraph by paragraph, in reading order. */
-const GenderBookContext = createContext<GenderBook | null>(null)
+/** What this reply taught, filled paragraph by paragraph in reading order: who is a she and who a he (speaker-gender.ts), and the speakers the chat's
+ *  people list does not know, found beside a speech verb (adhoc-voices.ts). */
+export type SpeakerBook = { genders: GenderBook; extra: DialogueVoice[] }
+const GenderBookContext = createContext<SpeakerBook | null>(null)
 
 /** True in the player's own message: a quote takes a character's colour only on a line that opens with
  *  `Name:` (and the lines after it, until another label), never from a name said in the narration. */
@@ -216,32 +219,47 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
   return lines
 }
 
-/** Who speaks on each line: a `Name:` lead wins (a name nobody knows hands the line back to the base colour), else the first voice named in the line,
- *  else the one voice whose gender the line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the
- *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: GenderBook): (DialogueVoice | null)[] {
+/** Who speaks on each line: a `Name:` lead wins (a known voice takes the line; a name nobody listed gets a colour of its own, not the last speaker's),
+ *  else the first voice named in the line, else a speaker named beside a speech verb ("— …, — говорит Эш"), else the one voice whose gender the
+ *  line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the previous line's speaker (the one the paragraph
+ *  before carried in, for the first lines); null before anyone is named. */
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): (DialogueVoice | null)[] {
   let carry: DialogueVoice | null = carryIn
   const lines = lineTexts(children)
-  if (book && !leadOnly) for (const line of lines) learnGender(line, voices, book)
+  const known = () => (book && book.extra.length ? [...voices, ...book.extra] : voices)
+  if (book && !leadOnly) for (const line of lines) learnGender(line, known(), book.genders)
   return lines.map((line) => {
     if (leadOnly) {
       // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
       if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
       return carry
     }
-    // a line that opens with a label belongs to that label: a known voice
-    // takes it, but a name nobody knows (Nurse, Dr. Toda) hands the line
-    // back to the card's own Dialogue highlight instead of borrowing
-    // the last speaker's colour
+    const all = known()
+    // a line that opens with a label belongs to that label: a known voice takes it; a name nobody listed (Nurse) is a speaker of its own
+    // and gets its own colour, never the colour of whoever the line mentions or spoke before
     if (opensWithLabel(line)) {
-      carry = leadVoiceIn(line, voices)
+      let lead = leadVoiceIn(line, all)
+      if (!lead && book) {
+        const label = leadLabelIn(line)
+        lead = label ? adhocVoice(label, all) : null
+        if (lead) book.extra.push(lead)
+      }
+      carry = lead
       return carry
     }
-    const named = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices)
+    const named = leadVoiceIn(line, all) ?? firstVoiceIn(line, all)
     if (named) carry = named
     else if (book) {
-      const g = genderCue(line)
-      carry = (g ? voiceOfGender(g, voices, book) : null) ?? carry
+      const who = speakerNameIn(line)
+      const found = who ? adhocVoice(who, all) : null
+      if (found) {
+        book.extra.push(found)
+        learnGender(line, [...all, found], book.genders)
+        carry = found
+      } else {
+        const g = genderCue(line)
+        carry = (g ? voiceOfGender(g, all, book.genders) : null) ?? carry
+      }
     }
     return carry
   })
@@ -402,8 +420,8 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
   const voices = useContext(DialogueVoices)
   const leadOnly = useContext(VoiceLeadOnly)
   // a fresh book for every render of the reply: the paragraphs below fill it in reading order
-  const book = useRef<GenderBook>(new Map())
-  book.current = new Map()
+  const book = useRef<SpeakerBook>({ genders: new Map(), extra: [] })
+  book.current = { genders: new Map(), extra: [] }
   return (
     <div
       className={cn(
