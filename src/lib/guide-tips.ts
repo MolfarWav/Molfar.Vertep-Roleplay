@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.141.0'
+export const APP_VERSION = '4.142.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.places-map-levels',
+    since: '4.142.0',
+    help: 'world',
+    keywords: { en: 'places map levels several maps country city dungeon scale hours days taxi metro draw map image model spread places story is here mark road event', uk: 'мапа місць рівні кілька мап країна місто підземелля масштаб години дні таксі метро намалювати мапу модель зображень розкласти місця історія тут позначка подія дороги' },
+    title: { en: 'Several maps, and drawing a map', uk: 'Кілька мап і малювання мапи' },
+    body: {
+      en: 'A chat can now have several maps (a country, a city, a dungeon), each with its own picture, places and roads: open the places map, then the gear and Maps of this chat. The scale sets the trip time (minutes, hours or days), and travel gains taxi and metro. The gear can also draw a map with your image model, spread the places over the picture, and a place’s menu can mark by hand where the story is.',
+      uk: 'У чаті тепер може бути кілька мап (країна, місто, підземелля), кожна зі своєю картинкою, місцями й дорогами: відкрийте мапу місць, потім шестірню й «Карти цього чату». Масштаб визначає час подорожі (хвилини, години чи дні), а ще з’явилися таксі й метро. Шестірня також малює мапу вашою моделлю зображень і розкладає місця по картинці, а в меню місця можна вручну позначити, де зараз історія.',
+    },
+  },
   {
     id: 'new.voice-speakers',
     since: '4.141.0',
