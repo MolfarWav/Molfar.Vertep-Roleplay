@@ -3,15 +3,16 @@
 // of this chat, and What fired. The chat stays under the drawer, so closing it returns to the same message.
 // The targets come from `backstageTargets` (src/lib/backstage-targets.ts), a pure function a test can read.
 
-import { Brain, BookOpenText, GlobeHemisphereWest, Lightning, MaskHappy, SlidersHorizontal, User } from '@phosphor-icons/react'
+import { Brain, BookOpenText, Faders, GlobeHemisphereWest, Lightning, MaskHappy, SlidersHorizontal, User } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useT } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
+import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { backstageTargets, type BackstageKey, type TargetInput } from '@/lib/backstage-targets'
 
-const ICON: Record<BackstageKey, PhosphorIcon> = { card: User, preset: SlidersHorizontal, book: BookOpenText, library: Brain, world: GlobeHemisphereWest, fired: Lightning }
+const ICON: Record<BackstageKey, PhosphorIcon> = { card: User, preset: SlidersHorizontal, book: BookOpenText, library: Brain, world: GlobeHemisphereWest, fired: Lightning, dash: Faders }
 
 export interface BackstageRow {
   id: string
@@ -34,7 +35,10 @@ export function useBackstageRows(
   const focusLorebook = useApp((s) => s.focusLorebook)
   const focusLibraryChat = useApp((s) => s.focusLibraryChat)
   const focusWorldChat = useApp((s) => s.focusWorldChat)
-  return backstageTargets({ character, preset, lorebooks }).map((tg): BackstageRow => {
+  const openDashSettings = useApp((s) => s.openDashSettings)
+  const dashStatus = useDashMaybe()?.status
+  const hasDashboard = !!dashStatus && dashStatus !== 'absent' && dashStatus !== 'loading'
+  return backstageTargets({ character, preset, lorebooks, hasDashboard }).map((tg): BackstageRow => {
     const name = tg.objectName ?? ''
     const base = { id: tg.id, icon: ICON[tg.key] }
     switch (tg.key) {
@@ -44,6 +48,7 @@ export function useBackstageRows(
       case 'fired': return { ...base, label: t('backstage.fired'), onSelect: onFired }
       case 'library': return { ...base, label: t('backstage.library'), onSelect: () => focusLibraryChat(chatId) }
       case 'world': return { ...base, label: t('backstage.world'), onSelect: () => focusWorldChat(chatId) }
+      case 'dash': return { ...base, label: t('dash.set.title'), onSelect: openDashSettings }
     }
   })
 }

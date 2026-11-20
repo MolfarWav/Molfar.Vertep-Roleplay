@@ -49,3 +49,21 @@ describe("backstageTargets", () => {
     expect(new Set(t.map((x) => x.id)).size).toBe(t.length);
   });
 });
+
+describe("the Dashboard settings row (#448, T4)", () => {
+  const base = { character: { id: "c1", name: "Ada" }, preset: null, lorebooks: [] };
+  it("is listed last, and only when the Dashboard is present for the chat", () => {
+    expect(backstageTargets(base).some((x) => x.key === "dash")).toBe(false);
+    const t = backstageTargets({ ...base, hasDashboard: true });
+    expect(t[t.length - 1]?.key).toBe("dash");
+  });
+});
+
+describe("the Backstage surface (#448, T5)", () => {
+  it("is mixed from tokens, never a hex, so every theme follows", async () => {
+    const { BACKSTAGE_SURFACE } = await import("../src/lib/backstage-tone");
+    expect(BACKSTAGE_SURFACE).toContain("var(--popover)");
+    expect(BACKSTAGE_SURFACE).toContain("var(--primary)");
+    expect(BACKSTAGE_SURFACE).not.toMatch(/#[0-9a-f]{3,8}/i);
+  });
+});

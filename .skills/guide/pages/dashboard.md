@@ -50,7 +50,7 @@ Open a lie and you see **Believe it:** with a button for each person who still b
 
 ## When it updates
 
-The "Settings" button inside the Dashboard opens its settings; the Sensor tab has the mode:
+The "Settings" button inside the Dashboard opens its settings, and so does **Backstage > Dashboard settings** in the chat header (on a phone: Menu > Backstage), which goes straight there; the Sensor tab has the mode:
 
 - **Sensor** (default): after each reply a model reads the new messages and reports what happened.
 - **Fast: inside the story reply**: for strong models. The story model writes the report itself at the end of its reply, with no separate call, adding some tokens to every reply. If it leaves the report out, the usual sensor runs.

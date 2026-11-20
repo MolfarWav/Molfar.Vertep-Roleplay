@@ -1,5 +1,7 @@
 
 import { Fragment, useEffect, useState } from 'react'
+import { BACKSTAGE_SURFACE } from '@/lib/backstage-tone'
+import { BackstageChip } from '@/components/shell/backstage-chip'
 import { ArrowsIn, ArrowsOut, CircleNotch, CaretLeft, CaretRight, Question, Tray } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
@@ -243,6 +245,8 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
   const canvasBoard = useCanvasBoard()
   const item = drawer ? sectionItemOf(drawer, canvasBoard) : undefined
   const label = item ? t(item.labelKey) : ''
+  // a section of the maker's floor (#448): its drawer takes the Backstage surface and a chip in the header
+  const backstage = item?.tier === 'backstage'
   const railOffset = !isDesktop ? 'top-11' : wide ? 'left-[206px]' : 'left-12'
   return (
     // non-modal and without pointer dismissal: the rail (or the chat's section
@@ -254,12 +258,14 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         // above it on mobile
         side={isDesktop ? 'left' : 'top'}
         aria-label={label}
+        data-tier={item?.tier}
         // the drawer and its dim sit beside the rail / below the section bar,
         // never over it: it stays clickable to flip sections or close
         overlayClassName={cn('bg-black/45', railOffset)}
         onOverlayClick={closeDrawer}
         className={cn(
           'gap-0',
+          backstage && BACKSTAGE_SURFACE,
           isDesktop
             ? cn(
                 // the Library holds a timeline, character cards and a ledger side by side: it gets more room
@@ -280,6 +286,7 @@ function SectionDrawer({ isDesktop }: { isDesktop: boolean }) {
         {isDesktop && (
           <div data-guide={drawer ? `${drawer}.title` : undefined} className="flex h-11 shrink-0 items-center gap-2 border-b border-border pr-12 pl-4 font-heading text-[17px]">
             <span className="min-w-0 flex-1 truncate">{label}</span>
+            {backstage && <BackstageChip />}
             <Button
               variant="ghost"
               size="icon-sm"

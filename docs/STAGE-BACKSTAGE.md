@@ -1,6 +1,6 @@
 # Stage and Backstage: where a feature goes (Molfar.Vertep#448)
 
-Status: T1 (the inventory) and T2 (the `tier` field) are done. T3 to T5 wait for the owner's word, see the end.
+Status: T1 to T5 are built (T3 variant A, T4 for the Dashboard, T5 tone and chip); see the end.
 
 ## The rule
 A vertep is a box theatre with two floors, and a lobby.
@@ -62,12 +62,22 @@ in a running app. Dashboard sensor settings and the agent permission panels are 
 `SectionItem.tier` is `'playbill' | 'backstage'` (a section never is the Stage; the Stage is the chat). The rail groups are unchanged on
 purpose: they already follow the tiers, T2 only names them, so the later steps read the field and not a group number.
 
-## T3 to T5: UI plan, waiting for the owner
-- **T3, the curtain.** One control in a fixed place (the chat header, and the rail's foot) and one shortcut. Backstage opens at what you were
-  looking at: from a reply to What fired for that reply, from a character to its card, from a lore highlight to that entry. Coming back returns
-  to the same message. Where it starts: the chat. Steps: one tap. Variants: (A) a curtain button that opens the existing section drawers
-  at the right place (smallest; the five tools stay), (B) A plus a collapsed story tools row (the row moves behind the curtain),
-  (C) a pinned Backstage panel beside the chat on a wide desktop. Recommended: A first, then B.
-- **T4, split the mixed features** (Dashboard first): readable view on the Stage, settings Backstage.
-- **T5, the Backstage surface tone and the transition**, through tokens, never hex.
-Each of these changes screens the owner uses every day, so each goes through `ux-review` with a written plan and is shown before it is built.
+## T3: the curtain (built, variant A)
+A **Backstage** button in the chat header (a block in the phone menu) lists the places that make this story and opens the existing section
+drawers on them: the card, the preset, up to three lorebooks of the character, What fired, the Library and the World of this chat, and the
+Dashboard settings. The chat stays under the drawer, so closing it returns to the same message. The rows come from `backstageTargets`
+(`src/lib/backstage-targets.ts`, pure, tested); the UI is `src/components/chat/backstage-menu.tsx`. Owner's picks (2026-11-20): the button
+sits before the kebab, all those rows, no hotkey for now. Variants B (the story tools row folded behind the curtain) and C (a pinned panel) are not built.
+
+## T4: the Dashboard split (built)
+The Dashboard's readable half (the strip, the wide sheet, the phone sheet) stays on the Stage. Its settings are the maker's half and now have
+their own door: the curtain's "Dashboard settings" row opens the settings view directly (`openDashSettings` in the store, a counter like
+`openDashboard`; an empty dashboard opens its own settings sheet). The gear inside the readable sheet stays as a second way in, on purpose:
+nothing was taken away. Library and World are still mixed (their reader's view and settings share a screen); they are the next candidates.
+
+## T5: the Backstage surface (built)
+A drawer of a section whose `tier` is `backstage`, and the Dashboard settings sheet, take `BACKSTAGE_SURFACE` (`src/lib/backstage-tone.ts`: the
+popover colour with 5% of the primary mixed in, from tokens so every theme follows) and show a **Backstage** chip in the header
+(`src/components/shell/backstage-chip.tsx`), so the tone is never the only cue. The drawer's slide is the transition; nothing else animates.
+Left on purpose: the Characters, Groups and Personas drawers keep the Stage tone even when opened from the curtain to edit a card (their tier is
+the lobby, see line 5 of the list above); on a phone a drawer has no header of its own, so only the tone shows there, the settings sheet carries the chip.
