@@ -1,26 +1,26 @@
-<!-- source: 5cf403a40212 -->
-# Roleplay: la descripción general
+<!-- source: 18811dcf7969 -->
+# Juego de rol: la visión general
 
-Roleplay es la app de historias de Molfar Vertep: guardas tarjetas de personajes, juegas chats con ellos y dejas que la app siga la escena, recuerde la historia y haga funcionar el mundo a tu alrededor. Esta página es un mapa. La propia **Help** de la app (en la barra lateral) tiene un artículo breve para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí sino en los ajustes principales: consulta [[vertep:models]].
+El juego de rol es la app de historias de Molfar Vertep: guardas cartas de personajes, juegas chats con ellos y dejas que la app siga la escena, recuerde la historia y haga funcionar el mundo a tu alrededor. Esta página es un mapa. El propio **Help** de la app (en la barra lateral) tiene un artículo breve para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí, sino en los Ajustes principales: consulta [[vertep:models]].
 
 ## Dónde está cada cosa
 
-La barra lateral de la izquierda (una barra de pestañas en la parte inferior en un teléfono) agrupa las secciones:
+La barra de la izquierda (una barra de pestañas en la parte inferior en un teléfono) agrupa las secciones:
 
 - **Home** y **Chats**: continúa donde lo dejaste o abre cualquier chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: las personas. Consulta [[characters]].
 - **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: la memoria y la maquinaria de la historia. Consulta [[memory]], [[litopys]], [[canvas]], [[world-dm]] y [[agents]].
 - **Presets**: cómo se construye la petición al modelo.
 - **Shortcuts** y **Tools**: respuestas rápidas, regex, traducción, imágenes, voz, el Data Bank y más. Consulta [[settings]].
-- **Inbox** y **Help** abajo. El Inbox enumera lo que espera por ti: tareas en segundo plano fallidas, sugerencias de Library y souls propuestos.
+- **Inbox** y **Help** abajo del todo. El Inbox enumera lo que te espera: trabajos en segundo plano fallidos, sugerencias de la Library y almas propuestas.
 
-Los ajustes propios de Roleplay no tienen elemento en la barra lateral. Ábrelos con el botón "Roleplay settings" en la cabecera de Home (en un teléfono, en el menú).
+Los ajustes propios del juego de rol no tienen elemento en la barra. Ábrelos con el botón "Roleplay settings" en la cabecera de Home (en un teléfono, en el menú).
 
 ## Dentro de un chat
 
-La cabecera del chat contiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, consulta [[memory]]), **Record** y **World**. La píldora junto a ella abre pestañas para Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto al cuadro de mensaje contiene Polish, Regenerate with a hint, Stage direction, generación de imágenes y más.
+La cabecera del chat contiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, consulta [[memory]]), **Record** y **World**. La píldora que hay al lado abre pestañas para Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto al cuadro de mensaje contiene Polish, Regenerate with a hint, Stage direction, generación de imágenes y más.
 
-Tres ayudantes vigilan la historia y cuestan llamadas adicionales al modelo, así que vale la pena conocerlos:
+Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que vale la pena conocerlos:
 
 - El **Dashboard** lee cada escena: [[dashboard]], con una entrada, el [[soul]] de un personaje.
 - **Litopys** escribe capítulos y hechos: [[litopys]].
@@ -29,10 +29,11 @@ Tres ayudantes vigilan la historia y cuestan llamadas adicionales al modelo, as�
 ## Páginas de esta guía
 
 - [[first-story]]: desde cero hasta tu primera respuesta, y qué desactivar en un modelo pequeño o lento.
-- [[characters]]: tarjetas, el editor de tarjetas, personas, grupos, importación.
+- [[characters]]: cartas, el editor de cartas, personas, grupos, importación.
 - [[sprites]]: sprites sobre el chat, varias ventanas para un grupo o un narrador, el aspecto de novela visual.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: la maquinaria de la historia.
-- [[places-map]]: el mapa flotante de los lugares del chat, con caminos y una imagen propia.
+- [[meanwhile]]: las personas fuera de pantalla actúan entre escenas (una versión de prueba, desactivada por defecto).
+- [[places-map]]: el mapa flotante de los lugares del chat, con caminos y una imagen tuya.
 - [[places-map-levels]]: varios mapas en un chat (un país, una ciudad, una mazmorra) y dibujar un mapa con el modelo de imágenes.
 - [[memory]]: qué tipo de memoria usar para qué.
 - [[canvas]]: enlaces de chat, el tablero de prompts y la forja de agentes.

@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.142.0'
+export const APP_VERSION = '4.143.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.meanwhile',
+    since: '4.143.0',
+    help: 'world',
+    keywords: { en: 'meanwhile life off screen people away events secrets who knows rumours journal world sheet test version', uk: 'тим часом життя за кадром люди поза сценою події таємниці хто знає журнал вікно світу тестова версія' },
+    title: { en: 'Meanwhile: life off screen, and who knows what', uk: 'Тим часом: життя за кадром і хто що знає' },
+    body: {
+      en: 'A test version, off by default: open the World sheet and switch on Meanwhile. When a scene ends or hours of story pass, people who are not in the scene act, and only they and their witnesses know it; the events reach replies as memory and show in the Dashboard journal as the card allows. The Library has a new Who knows tab: a map of secrets and who knows them.',
+      uk: 'Тестова версія, типово вимкнена: відкрийте вікно World і ввімкніть «Тим часом». Коли сцена закінчується або минають години історії, люди поза сценою діють, і знають про це лише вони та свідки; події потрапляють у відповіді як пам’ять і показуються в журналі Dashboard так, як дозволяє картка. У Library є нова вкладка «Хто знає»: мапа таємниць і того, хто їх знає.',
+    },
+  },
   {
     id: 'new.places-map-levels',
     since: '4.142.0',
