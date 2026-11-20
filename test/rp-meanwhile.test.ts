@@ -77,7 +77,10 @@ describe("cleanEvent", () => {
     expect(only({ type: "front_clock", front: "f7" }).ok).toBe(false);
     expect(only({ type: "kill", who: "p1" }).ok).toBe(false);
     expect(only({ type: "relation", a: "p1", b: "p1", change: "closer" }).ok).toBe(false);
-    expect(only({ type: "relation", a: "p1", b: "p3", change: "closer" }).ok).toBe(false);
+    expect(only({ type: "relation", a: "p1", b: "p3", change: "closer" }).ok).toBe(false); // p3 is in the scene
+    // one side in the event is enough: Elena begs Bram, and Bram is only named
+    expect(clean(ev({ who: ["p1"], effects: [{ type: "relation", a: "p1", b: "p2", change: "cooler" }] })).ok).toBe(true);
+    expect(clean(ev({ who: ["p1"], effects: [{ type: "relation", a: "p2", b: "p5", change: "cooler" }] })).ok).toBe(false);
     expect(only({ type: "relation", a: "p1", b: "p2", change: "marry" }).ok).toBe(false);
     expect(only({ type: "npc_moved", who: "p3", to: "l1" }).ok).toBe(false);
     expect(only({ type: "npc_moved", who: "p1", to: "Rome" }).ok).toBe(false);

@@ -163,7 +163,9 @@ function cleanEffect(ctx, raw, involved, knowers) {
     if (!b.ok) return b;
     if (a.id === b.id) return bad("effect: a relation needs two people");
     if (!RELATION_CHANGES.includes(raw.change)) return bad("effect: relation change not in the list");
-    if (!knowers.includes(a.id) || !knowers.includes(b.id)) return bad("effect: a relation of someone the event does not involve");
+    // one side must be in the event; the other may be anyone off screen (a model often writes "Elena begs Bram", with Bram only named)
+    if (!knowers.includes(a.id) && !knowers.includes(b.id)) return bad("effect: a relation of people the event does not involve");
+    if (ctx.present.has(a.id) || ctx.present.has(b.id)) return bad("effect: a relation of someone in the scene");
     return { ok: true, effect: { type, a: a.id, b: b.id, change: raw.change } };
   }
   if (type === "item_moved") {
