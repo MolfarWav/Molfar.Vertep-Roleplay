@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.140.0'
+export const APP_VERSION = '4.141.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.voice-speakers',
+    since: '4.141.0',
+    help: 'characters',
+    keywords: { en: 'voice colors colours dialogue speaker she he pronoun quote term unknown character who speaks why switch narrator group', uk: 'кольори голосів діалог мовець вона він займенник цитата невідомий персонаж хто говорить чому перемикач оповідач група' },
+    title: { en: 'Dialogue colors find their speaker', uk: 'Кольори діалогу краще знаходять мовця' },
+    body: {
+      en: 'In a chat with voice colors, a line now takes the color of whoever speaks it: the name that opens it, a name beside a speech verb, or a “she” or “he” that points at the one character of that gender named earlier. A speaker the chat does not list gets a color of their own, and a short quoted word inside a sentence is no longer painted as speech. To see why a line got its color, turn on “Show who speaks and why” in the chat menu, Voice colors.',
+      uk: 'У чаті з кольорами голосів репліка тепер бере колір того, хто її каже: ім’я на початку, ім’я біля дієслова мовлення або «вона»/«він», що вказує на єдиного персонажа цієї статі, названого раніше. Мовець, якого немає в списку чату, дістає власний колір, а коротке слово в лапках усередині речення більше не фарбується як мова. Щоб побачити, чому репліка має такий колір, увімкніть «Показувати, хто говорить і чому» в меню чату, Кольори голосів.',
+    },
+  },
   {
     id: 'new.places-map',
     since: '4.140.0',

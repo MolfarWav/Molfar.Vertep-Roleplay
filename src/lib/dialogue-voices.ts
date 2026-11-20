@@ -110,13 +110,13 @@ export function leadVoiceIn(line: string, voices: DialogueVoice[]): DialogueVoic
 
 const escRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-/** The one-word speaker label a line opens with (`Name:`, `**Name:**`), or null. */
+/** The one-word speaker label a line opens with (`Name:`, `**Name:**`, `Dr. Toda:` gives `Toda`, `Toda-sensei:`), or null. A title with its period, a hyphenated name and the braille blank some models use as a space all count; a sentence end does not. */
 export function leadLabelIn(line: string): string | null {
-  return /^[\s*_~"“«(\[]*(\p{L}[\p{L}'’]*)[\s*_~)\]]*[:：]/u.exec(line)?.[1] ?? null
+  return /^[\s\u2800*_~"“«(\[]*(?:(?:Dr|Mr|Mrs|Ms|Mx|Prof|St|Sgt|Capt|Col|Gen|Lt|Fr)\.[\s\u2800]+)?(\p{L}[\p{L}'’]*(?:-\p{L}[\p{L}'’]*)*)[\s\u2800*_~)\]]*[:：]/u.exec(line)?.[1] ?? null
 }
 
-/** Does the line open like a speaker label of one to three words (`Mary Jane:`)? Whose it is does not matter. */
-export const opensWithLabel = (line: string): boolean => /^[\s*_~"“«(\[]*\p{L}[\p{L}'’]*(?:[ \u00a0]\p{L}[\p{L}'’]*){0,2}[\s*_~)\]]*[:：]/u.test(line)
+/** Does the line open like a speaker label of one to three words (`Mary Jane:`, `Dr. Toda:`, `Toda-sensei:`)? Whose it is does not matter. */
+export const opensWithLabel = (line: string): boolean => /^[\s\u2800*_~"“«(\[]*(?:(?:Dr|Mr|Mrs|Ms|Mx|Prof|St|Sgt|Capt|Col|Gen|Lt|Fr)\.[\s\u2800]+)?\p{L}[\p{L}'’]*(?:-\p{L}[\p{L}'’]*)*(?:[ \u00a0\u2800]+\p{L}[\p{L}'’]*(?:-\p{L}[\p{L}'’]*)*){0,2}[\s\u2800*_~)\]]*[:：]/u.test(line)
 
 /** The base colour of the quotes in a single card's own replies: the card's "Dialogue highlight". A voice named on a line
  *  paints that line over it; a group member's colour comes from memberColor; the player's lines have the persona's. */

@@ -1,5 +1,8 @@
 
-import { Children, createContext, isValidElement, cloneElement, memo, useContext, useState, type ReactNode, type ReactElement } from 'react'
+import { adhocVoice, isSpeechVerb, speakerNameIn } from '@/lib/adhoc-voices'
+import { useVoiceDebugOn, WHY_TEXT, type SpeakerWhy } from '@/lib/voice-debug'
+import { genderCue, learnGender, voiceOfGender, type GenderBook } from '@/lib/speaker-gender'
+import { Children, createContext, isValidElement, cloneElement, memo, useContext, useRef, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -12,7 +15,7 @@ import { cn, storedMediaUrl } from '@/lib/utils'
 import { proxyUrl } from '@/lib/engine'
 import { scopeCss } from '@/lib/scope-css'
 import { rehypeSafeStyle, safeRuleBody, stripRiskyAtRules } from '@/lib/safe-style'
-import { firstVoiceIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
+import { firstVoiceIn, leadLabelIn, leadVoiceIn, opensWithLabel, voiceInk, type DialogueVoice } from '@/lib/dialogue-voices'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -37,6 +40,15 @@ const SCAN_RE = /["“”«»]|\n|[—–]/g
 
 /** Punctuation a spaced dash may follow when it opens or closes a line of dialogue (— Hi, — she said.) */
 const DASH_AFTER = /[,.!?…:;]/
+
+/** A short quote in the middle of a sentence ("назвала это «предательством» и") is a term, not speech: one or two words, no sentence marks, and no dash
+ *  with the author's words after it ("«Да», — сказала она" is speech). The caller has already checked what stands before it. */
+function isQuotedTerm(group: ReactNode[], rest: string): boolean {
+  if (!group.every((g) => typeof g === 'string')) return false
+  const inner = (group as string[]).join('').slice(1, -1)
+  if (!inner.trim() || inner.length > 30 || inner.trim().split(/\s+/).length > 2 || /[.,!?…:;—–]/.test(inner)) return false
+  return !/^\s*[,.!?…]?\s*[—–]/.test(rest)
+}
 
 /** Elements whose text is code/markup — never re-tint inside them. */
 const OPAQUE = new Set(['code', 'pre', 'kbd', 'samp'])
@@ -72,9 +84,15 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
   let open: QuoteKind | null = null
   let lineStart = true // nothing but spaces yet on this line
   let key = 0
+  let tail = '' // the last of the text outside quotes, to see what stands before a quote
+  let openTerm = false // the open quote stands inside a sentence after a plain word: it may be a term, not speech
 
-  const flush = () => {
-    if (group.length > 0) {
+  const flush = (asText = false) => {
+    if (asText) {
+      // a quoted term, not speech: the marks stay, the dialogue colour does not
+      out.push(...group)
+      group = []
+    } else if (group.length > 0) {
       // `<q>` would add its own marks; globals.css disables that so the
       // author's original quotation characters survive verbatim.
       out.push(<q key={`q${key++}`}>{group}</q>)
@@ -94,7 +112,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
     if (!text) return
     if (/\S/.test(text)) lineStart = false
     if (open && open !== 'remark') group.push(text)
-    else out.push(text)
+    else {
+      out.push(text)
+      tail = (tail + text).slice(-40)
+    }
   }
   const lineEnds = () => {
     if (open === 'dash') flush()
@@ -144,9 +165,10 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
         } else if (open) {
           if (CLOSERS[token] === open) {
             group.push(token)
-            flush()
+            flush(openTerm && isQuotedTerm(group, child.slice(from)))
           } else group.push(token)
         } else if (OPENERS[token]) {
+          openTerm = !lineStart && /[\p{L}\p{N}]\s*$/u.test(tail) && !isSpeechVerb(tail.trimEnd().split(/\s+/).pop() ?? '')
           open = OPENERS[token]
           group.push(token)
           lineStart = false
@@ -189,6 +211,11 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
 /** The group voices a narrator's message is coloured by (none outside such messages). */
 export const DialogueVoices = createContext<DialogueVoice[]>([])
 
+/** What this reply taught, filled paragraph by paragraph in reading order: who is a she and who a he (speaker-gender.ts), and the speakers the chat's
+ *  people list does not know, found beside a speech verb (adhoc-voices.ts). */
+export type SpeakerBook = { genders: GenderBook; extra: DialogueVoice[] }
+const GenderBookContext = createContext<SpeakerBook | null>(null)
+
 /** True in the player's own message: a quote takes a character's colour only on a line that opens with
  *  `Name:` (and the lines after it, until another label), never from a name said in the narration. */
 export const VoiceLeadOnly = createContext(false)
@@ -212,24 +239,72 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
   return lines
 }
 
-/** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
- *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false): (DialogueVoice | null)[] {
+/** Who speaks on each line, and which rule said so: a `Name:` lead wins (a known voice takes the line; a name nobody listed gets a colour of its own, not
+ *  the last speaker's), else the first voice named in the line, else a speaker named beside a speech verb ("— …, — говорит Эш"), else the one voice
+ *  whose gender the line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the previous line's speaker (the one the
+ *  paragraph before carried in, for the first lines); nobody before anyone is named. */
+export function lineSpeakersWhy(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): { voice: DialogueVoice | null; why: SpeakerWhy }[] {
   let carry: DialogueVoice | null = carryIn
-  return lineTexts(children).map((line) => {
+  const lines = lineTexts(children)
+  const known = () => (book && book.extra.length ? [...voices, ...book.extra] : voices)
+  if (book && !leadOnly) for (const line of lines) learnGender(line, known(), book.genders)
+  return lines.map((line) => {
+    const keep = (): { voice: DialogueVoice | null; why: SpeakerWhy } => ({ voice: carry, why: carry ? 'carry' : 'none' })
     if (leadOnly) {
       // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
-      if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
-      return carry
+      if (opensWithLabel(line)) {
+        carry = leadVoiceIn(line, voices)
+        return { voice: carry, why: carry ? 'label' : 'none' }
+      }
+      return keep()
     }
-    carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
-    return carry
+    const all = known()
+    // a line that opens with a label belongs to that label: a known voice takes it; a name nobody listed (Nurse) is a speaker of its own
+    // and gets its own colour, never the colour of whoever the line mentions or spoke before
+    if (opensWithLabel(line)) {
+      let lead = leadVoiceIn(line, all)
+      let why: SpeakerWhy = 'label'
+      if (!lead && book) {
+        const label = leadLabelIn(line)
+        lead = label ? adhocVoice(label, all) : null
+        if (lead) book.extra.push(lead)
+        why = 'label-new'
+      }
+      carry = lead
+      return { voice: carry, why: carry ? why : 'none' }
+    }
+    const named = leadVoiceIn(line, all) ?? firstVoiceIn(line, all)
+    if (named) {
+      carry = named
+      return { voice: carry, why: 'name' }
+    }
+    if (book) {
+      const who = speakerNameIn(line)
+      const found = who ? adhocVoice(who, all) : null
+      if (found) {
+        book.extra.push(found)
+        learnGender(line, [...all, found], book.genders)
+        carry = found
+        return { voice: carry, why: 'tag' }
+      }
+      const g = genderCue(line)
+      const byGender = g ? voiceOfGender(g, all, book.genders) : null
+      if (byGender) {
+        carry = byGender
+        return { voice: carry, why: 'pronoun' }
+      }
+    }
+    return keep()
   })
+}
+
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): (DialogueVoice | null)[] {
+  return lineSpeakersWhy(children, voices, carryIn, leadOnly, book).map((x) => x.voice)
 }
 
 /** Paints each tinted quote with the colour of the voice that says it (see lineSpeakers); before anyone
  *  is named, the theme's colour stays. */
-function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st: { line: number }, depth = 0): ReactNode[] {
+function voiceQuotes(children: ReactNode, speakers: { voice: DialogueVoice | null; why: SpeakerWhy }[], st: { line: number }, mark: boolean, depth = 0): ReactNode[] {
   const out: ReactNode[] = []
   for (const child of Children.toArray(children)) {
     if (typeof child === 'string') {
@@ -242,12 +317,20 @@ function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st
     const tag = typeof el.type === 'string' ? el.type : ''
     if (tag === 'br') { st.line++; out.push(child); continue }
     if (tag === 'q') {
-      const who = speakers[st.line]
+      const at = speakers[st.line]
+      const who = at?.voice ?? null
       out.push(who ? cloneElement(el, { style: { ...(el.props.style ?? {}), '--tap-quotes': voiceInk(who.color) } }) : child)
+      if (mark) {
+        out.push(
+          <sup key={`why${st.line}-${out.length}`} className="voice-why ml-0.5 whitespace-nowrap font-sans text-[10px] not-italic text-muted-foreground" title={WHY_TEXT[at?.why ?? 'none']} data-voice-why={at?.why ?? 'none'}>
+            {who ? who.name : '–'} · {at?.why ?? 'none'}
+          </sup>,
+        )
+      }
       continue
     }
     if (OPAQUE.has(tag) || el.props?.children == null || depth > 6) { out.push(child); continue }
-    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, speakers, st, depth + 1)))
+    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, speakers, st, mark, depth + 1)))
   }
   return out
 }
@@ -291,9 +374,11 @@ const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | '
   function Tinted({ children, ...rest }: { children?: ReactNode; 'data-carry'?: string }) {
     const voices = useContext(DialogueVoices)
     const leadOnly = useContext(VoiceLeadOnly)
+    const book = useContext(GenderBookContext)
+    const mark = useVoiceDebugOn()
     const tinted = tintQuotes(children)
     const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn, leadOnly), { line: 0 }) : tinted}</Tag>
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakersWhy(tinted, voices, carryIn, leadOnly, book ?? undefined), { line: 0 }, mark) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -380,6 +465,9 @@ function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?:
 export const Markdown = memo(function Markdown({ content, className, scope }: { content: string; className?: string; scope?: string }) {
   const voices = useContext(DialogueVoices)
   const leadOnly = useContext(VoiceLeadOnly)
+  // a fresh book for every render of the reply: the paragraphs below fill it in reading order
+  const book = useRef<SpeakerBook>({ genders: new Map(), extra: [] })
+  book.current = { genders: new Map(), extra: [] }
   return (
     <div
       className={cn(
@@ -401,6 +489,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
       )}
     >
       <StyleScope.Provider value={scope ?? '.mes_text'}>
+      <GenderBookContext.Provider value={book.current}>
         <ReactMarkdown
           // remark-breaks: single newlines render as breaks
           remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
@@ -419,6 +508,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
         >
           {content}
         </ReactMarkdown>
+      </GenderBookContext.Provider>
       </StyleScope.Provider>
     </div>
   )
