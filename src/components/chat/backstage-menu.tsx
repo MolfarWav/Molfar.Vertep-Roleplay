@@ -92,7 +92,8 @@ export function BackstagePhoneBlock({ closeMenu, ...p }: MenuProps & { closeMenu
   return (
     <div className="flex flex-col" data-guide="chat.backstage" data-testid="backstage-phone">
       <p className="px-3 pt-2 pb-1 text-caption uppercase tracking-wider text-muted-foreground">{t('backstage.button')}</p>
-      {rows.map((r) => (
+      {/* What fired already has its tile at the top of this menu */}
+      {rows.filter((r) => r.id !== 'fired').map((r) => (
         <button
           key={r.id}
           type="button"
