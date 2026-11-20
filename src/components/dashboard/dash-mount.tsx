@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { setOwnPortraits, useOwnPortraits, usePortraitMap } from '@/lib/portraits'
 import { reportDashFailure, useApp } from '@/lib/store'
 import { PortraitDialog } from '@/components/library/portrait-dialog'
+import { BACKSTAGE_SURFACE } from '@/lib/backstage-tone'
 import { DashCtx, useDashMaybe } from './dash-context'
 import { CarriedBack, CarriedBanner } from './dash-carried'
 import { DashEmpty } from './dash-empty'
@@ -60,8 +61,8 @@ type DashTarget = ReturnType<typeof useApp.getState>['dashTarget']
  * only to a change after it mounted, and only when its own layout is the one on screen: both
  * mounts are always in the tree, CSS hides one (the strip from 1024 px, the phone bar below).
  */
-function useDashOpenRequest(wide: boolean, onOpen: (target: DashTarget) => void) {
-  const counter = useApp((s) => s.dashOpen)
+function useDashOpenRequest(wide: boolean, onOpen: (target: DashTarget) => void, which: 'dashOpen' | 'dashSettingsOpen' = 'dashOpen') {
+  const counter = useApp((s) => s[which])
   const seen = useRef(counter)
   const open = useRef(onOpen)
   open.current = onOpen
@@ -149,7 +150,7 @@ function EmptySettingsSheet({ chatId, open, onClose, side }: { chatId: string; o
       <SheetContent
         side={side}
         showCloseButton={false}
-        className={side === 'right' ? 'gap-0 p-0 data-[side=right]:w-[min(1180px,calc(100vw-48px))] data-[side=right]:sm:max-w-none' : 'h-[85dvh] gap-0 p-0'}
+        className={cn(BACKSTAGE_SURFACE, side === 'right' ? 'gap-0 p-0 data-[side=right]:w-[min(1180px,calc(100vw-48px))] data-[side=right]:sm:max-w-none' : 'h-[85dvh] gap-0 p-0')}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>{t('dash.set.title')}</SheetTitle>
@@ -195,6 +196,12 @@ export function DashStripMount({ chatId }: { chatId: string }) {
     if (target.who) dash?.setFocus(target.who)
     setTabAsk((a) => ({ tab: target.tab, n: (a?.n ?? 0) + 1 }))
   })
+  // the Backstage menu's "Dashboard settings": straight to the settings view, an empty dashboard's own sheet included
+  useDashOpenRequest(true, () => {
+    if (dash?.status === 'empty') { setExpanded(true); writeExpanded(true); setSettings(true); return }
+    setWideOpen(true)
+    setSettings(true)
+  }, 'dashSettingsOpen')
   if (!dash || dash.status === 'absent' || dash.status === 'loading' || (archived && dash.status === 'empty')) return null
   const toggle = () => setExpanded((v) => { writeExpanded(!v); return !v })
 
@@ -276,7 +283,7 @@ export function DashStripMount({ chatId }: { chatId: string }) {
         <SheetContent
           side="right"
           showCloseButton={false}
-          className={cn('gap-0 p-0 data-[side=right]:sm:max-w-none', full ? 'data-[side=right]:w-screen' : 'data-[side=right]:w-[min(1180px,calc(100vw-48px))]')}
+          className={cn('gap-0 p-0 data-[side=right]:sm:max-w-none', settings && BACKSTAGE_SURFACE, full ? 'data-[side=right]:w-screen' : 'data-[side=right]:w-[min(1180px,calc(100vw-48px))]')}
           data-fullscreen={full ? 'true' : undefined}
         >
           <SheetHeader className="sr-only">
@@ -339,6 +346,11 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
     if (target?.who) dash?.setFocus(target.who)
     setOpen(true)
   })
+  useDashOpenRequest(false, () => {
+    if (dash?.status === 'empty') { setSettings(true); return }
+    setOpen(true)
+    setSettings(true)
+  }, 'dashSettingsOpen')
   if (!dash || dash.status === 'absent' || dash.status === 'loading' || (archived && dash.status === 'empty')) return null
 
   if (dash.status === 'empty') {
@@ -378,7 +390,7 @@ export function DashPhoneMount({ chatId }: { chatId: string }) {
           })()
         }}
       >
-        <SheetContent side="bottom" className="h-[85dvh] gap-0 p-0">
+        <SheetContent side="bottom" className={cn('h-[85dvh] gap-0 p-0', settings && BACKSTAGE_SURFACE)}>
           {settings ? (
             <>
               <SheetHeader className="sr-only">

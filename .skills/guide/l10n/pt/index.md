@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Roleplay: a visão geral
 
 Roleplay é o app de histórias do Molfar Vertep: você mantém fichas de personagens, joga conversas com eles e deixa o app acompanhar a cena, lembrar da história e mover o mundo ao seu redor. Esta página é um mapa. O próprio **Help** do app (na barra lateral) tem um artigo curto para quase toda tela; este guia explica como as partes se encaixam. Modelos e conexões não são configurados aqui, mas nas Configurações principais: veja [[vertep:models]].
@@ -18,7 +18,7 @@ As configurações do próprio Roleplay não têm item na barra lateral. Abra-as
 
 ## Dentro de uma conversa
 
-O cabeçalho da conversa reúne as ferramentas da história: **Note** (nota do autor), **Fired** (o que entrou no prompt, veja [[memory]]), **Record** e **World**. A pílula ao lado abre abas para Preset, Persona, Model e Agents desta conversa. O botão "More" em cada mensagem abre suas ações, e o menu "+" ao lado da caixa de mensagem tem Polish, Regenerate with a hint, Stage direction, geração de imagem e mais.
+O cabeçalho da conversa reúne as ferramentas da história: **Note** (nota do autor), **Fired** (o que entrou no prompt, veja [[memory]]), **Record** e **World**. O botão **Backstage** ao lado do menu abre, sobre a conversa, os lugares que fazem esta história: a ficha deste personagem, o preset, seus lorebooks, a Library e o World desta conversa, e o que disparou. Feche a gaveta e você está na mesma mensagem. As gavetas do lado de quem cria (Lorebooks, Library, World, Presets e as outras seções desse andar, e as configurações do **Dashboard**) trazem um pequeno selo **Backstage** e um tom de página um pouco diferente, para você perceber de imediato que está nos bastidores. A pílula ao lado abre abas para Preset, Persona, Model e Agents desta conversa. O botão "More" em cada mensagem abre suas ações, e o menu "+" ao lado da caixa de mensagem tem Polish, Regenerate with a hint, Stage direction, geração de imagem e mais.
 
 Três auxiliares observam a história e custam chamadas extras ao modelo, então vale conhecê-los:
 

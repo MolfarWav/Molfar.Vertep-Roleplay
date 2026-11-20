@@ -240,6 +240,9 @@ interface AppState {
   dashTarget: { tab: 'person' | 'here' | 'quests'; who?: string } | null
   /** Asks the open chat's dashboard to open (wide sheet on desktop, bottom sheet on a phone). With a target (a change under the newest reply): the strip unfolds on that tab, the phone sheet opens on it. */
   openDashboard: (target?: { tab: 'person' | 'here' | 'quests'; who?: string }) => void
+  /** Counter, not persisted: bumped by openDashSettings(); the mounted dashboard opens its settings when it changes (the Backstage menu's row, #448). */
+  dashSettingsOpen: number
+  openDashSettings: () => void
   focusPreset: (presetId: ID) => void
   focusPersona: (personaId: ID) => void
   focusLorebook: (bookId: ID) => void
@@ -691,6 +694,8 @@ export const useApp = create<AppState>()(
       dashOpen: 0,
       dashTarget: null,
       openDashboard: (target) => set((s) => ({ dashOpen: s.dashOpen + 1, dashTarget: target ?? null })),
+      dashSettingsOpen: 0,
+      openDashSettings: () => set((s) => ({ dashSettingsOpen: s.dashSettingsOpen + 1 })),
       focusPresetId: null,
       litopysSettings: false,
       focusLibraryChatId: null,

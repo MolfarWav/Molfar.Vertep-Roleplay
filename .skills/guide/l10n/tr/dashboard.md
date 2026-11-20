@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # Sahne Panosu
 
 Pano, sohbetin yanında yer alan ve sahneyi takip eden bir panel: kimlerin orada olduğunu, her karakterin size karşı ne hissettiğini, ne giydiklerini ve neleri bildiklerini, açık hikâye konularını gösterir. Hikâyenin yanıtlar arasında ilişkileri ve ayrıntıları hatırlamasını isteyen herkes içindir. *Scene dashboard* Yardım makalesi alanlarını listeler.
@@ -51,7 +51,7 @@ Bir yalanı açtığınızda **Believe it:** görürsünüz: hâlâ ona inanan h
 
 ## Ne zaman güncellenir
 
-Pano içindeki "Settings" düğmesi ayarlarını açar; Sensor sekmesinde mod vardır:
+Pano içindeki "Settings" düğmesi ayarlarını açar; sohbet başlığındaki **Backstage > Dashboard settings** de aynısını yapar (telefonda: Menu > Backstage) ve doğrudan oraya gider; Sensor sekmesinde mod vardır:
 
 - **Sensor** (varsayılan): her yanıttan sonra bir model yeni mesajları okur ve ne olduğunu bildirir.
 - **Fast: inside the story reply**: güçlü modeller için. Hikâye modeli raporu yanıtının sonunda kendisi yazar, ayrı bir çağrı olmadan, her yanıta biraz token ekleyerek. Raporu atlarsa olağan sensör çalışır.

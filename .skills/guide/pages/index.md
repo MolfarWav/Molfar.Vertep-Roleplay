@@ -17,7 +17,7 @@ Roleplay's own settings have no rail item. Open them with the "Roleplay settings
 
 ## Inside a chat
 
-The chat header holds the story tools: **Note** (author's note), **Fired** (what went into the prompt, see [[memory]]), **Record** and **World**. The pill next to it opens tabs for Preset, Persona, Model and Agents of this chat. The "More" button on every message opens its actions, and the "+" menu next to the message box holds Polish, Regenerate with a hint, Stage direction, image generation and more.
+The chat header holds the story tools: **Note** (author's note), **Fired** (what went into the prompt, see [[memory]]), **Record** and **World**. The **Backstage** button next to the menu opens, over the chat, the places that make this story: the card of this character, the preset, its lorebooks, the Library and the World of this chat, and what fired. Close the drawer and you are on the same message. The drawers of the maker's side (Lorebooks, Library, World, Presets and the other sections of that floor, and the Dashboard settings) wear a small **Backstage** chip and a slightly different tone of the page, so you can tell at a glance that you are behind the scenes. The pill next to it opens tabs for Preset, Persona, Model and Agents of this chat. The "More" button on every message opens its actions, and the "+" menu next to the message box holds Polish, Regenerate with a hint, Stage direction, image generation and more.
 
 Three helpers watch the story and cost extra model calls, so it is worth knowing them:
 

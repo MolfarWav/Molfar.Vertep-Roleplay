@@ -77,6 +77,7 @@ import { OpeningHint } from '@/components/chat/opening-hint'
 import { RequestSizeButton, RequestSizeDialog, useRequestSize } from '@/components/chat/request-size'
 import { shortTokens } from '@/lib/long-chat'
 import { continueInNewChat } from '@/lib/continue-chat'
+import { BackstageButton, BackstagePhoneBlock } from '@/components/chat/backstage-menu'
 import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -851,6 +852,8 @@ export function ChatView() {
             <HeaderIcon label="Find in chat (Ctrl+F)" tone="teal" onClick={() => setFindOpen((o) => !o)}>
               <MagnifyingGlass aria-hidden="true" />
             </HeaderIcon>
+            {/* The curtain (#448): the Backstage drawers at the objects this chat uses */}
+            <BackstageButton character={character} preset={chatPreset} chatId={chat.id} onFired={toolHandlers.lore} labelled={toolMode === 'labelled'} />
             {/* All chat tools behind one kebab, every width */}
             <div>
               <DropdownMenu open={kebabOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d.event)) return; setKebabOpen(o) }}>
@@ -939,6 +942,8 @@ export function ChatView() {
                 onSelect: () => { const next = charChats[(chatIndex + 1) % charChats.length]; if (next) openChat(next.id) },
               })}
               <div data-guide="menu.tools" className="flex flex-col">{phoneActions.map(sheetRow)}</div>
+              <div className="my-1 h-px bg-border" />
+              <BackstagePhoneBlock character={character} preset={chatPreset} chatId={chat.id} onFired={toolHandlers.lore} closeMenu={() => setMenuOpen(false)} />
               <div className="my-1 h-px bg-border" />
               <div data-guide="menu.manage" className="flex flex-col">{chatManage.map(sheetRow)}</div>
             </div>

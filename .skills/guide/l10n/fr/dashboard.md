@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # Le tableau de bord de scène
 
 Le tableau de bord est un panneau à côté du chat qui suit la scène : qui est présent, ce que chaque personnage ressent pour vous, ce qu'ils portent et savent, les intrigues ouvertes. Il est fait pour quiconque veut que l'histoire se souvienne des relations et des détails entre les réponses. L'article d'aide *Scene dashboard* énumère ses champs.
@@ -51,7 +51,7 @@ Ouvrez un mensonge et vous voyez **Believe it:** avec un bouton pour chaque pers
 
 ## Quand il se met à jour
 
-Le bouton « Settings » dans le tableau de bord ouvre ses réglages ; l'onglet Sensor contient le mode :
+Le bouton « Settings » dans le tableau de bord ouvre ses réglages, et **Backstage > Dashboard settings** dans l'en-tête du chat aussi (sur un téléphone : Menu > Backstage), ce qui y mène directement ; l'onglet Sensor contient le mode :
 
 - **Sensor** (par défaut) : après chaque réponse, un modèle lit les nouveaux messages et rapporte ce qui s'est passé.
 - **Fast: inside the story reply** : pour les modèles puissants. Le modèle d'histoire écrit lui-même le rapport à la fin de sa réponse, sans appel séparé, ce qui ajoute quelques tokens à chaque réponse. S'il omet le rapport, le capteur habituel s'exécute.

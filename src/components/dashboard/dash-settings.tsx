@@ -4,6 +4,7 @@
 // unsaved state and one save never discards the other's edits.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { BackstageChip } from '@/components/shell/backstage-chip'
 import { ArrowClockwise, ArrowLeft, BookOpenText, CaretDown, CaretRight, Check, Compass, Eye, Plus, Sparkle, Trash, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -449,6 +450,7 @@ export function DashSettings({ chatId, view, onBack, onSaved, onDirty }: {
           <ArrowLeft />
         </Button>
         <h2 className="min-w-0 truncate font-heading text-heading">{t('dash.set.title')}</h2>
+        <BackstageChip />
       </div>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 md:w-52 md:flex-col md:overflow-x-visible md:border-r md:border-b-0 md:p-3">

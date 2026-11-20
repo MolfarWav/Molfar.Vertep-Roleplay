@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # Panel sceny
 
 Panel to panel obok czatu, który śledzi scenę: kto jest obecny, co każda postać do ciebie czuje, co noszą i wiedzą, otwarte wątki fabularne. Jest dla każdego, kto chce, aby historia pamiętała relacje i szczegóły między odpowiedziami. Artykuł pomocy *Panel sceny* wymienia jego pola.
@@ -51,7 +51,7 @@ Otwórz kłamstwo, a zobaczysz **Believe it:** z przyciskiem dla każdej osoby, 
 
 ## Kiedy się aktualizuje
 
-Przycisk "Settings" w Panelu otwiera jego ustawienia; karta Sensor ma tryb:
+Przycisk "Settings" w Panelu otwiera jego ustawienia, a **Backstage > Dashboard settings** w nagłówku czatu (na telefonie: Menu > Backstage) prowadzi prosto tam; karta Sensor ma tryb:
 
 - **Sensor** (domyślnie): po każdej odpowiedzi model czyta nowe wiadomości i zgłasza, co się stało.
 - **Fast: inside the story reply**: dla mocnych modeli. Model historii sam pisze raport na końcu swojej odpowiedzi, bez osobnego wywołania, dodając trochę tokenów do każdej odpowiedzi. Jeśli pominie raport, uruchamia się zwykły sensor.

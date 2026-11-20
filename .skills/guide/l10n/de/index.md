@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Rollenspiel: die Übersicht
 
 Rollenspiel ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Landkarte. Die **Help** der App (in der Leiste) hat einen kurzen Artikel für fast jeden Bildschirm; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden nicht hier eingerichtet, sondern in den Haupt-Settings: siehe [[vertep:models]].
@@ -18,7 +18,7 @@ Die eigenen Einstellungen von Rollenspiel haben keinen Eintrag in der Leiste. Ö
 
 ## In einem Chat
 
-Die Chat-Kopfzeile enthält die Werkzeuge für die Geschichte: **Note** (Autorennotiz), **Fired** (was in den Prompt geflossen ist, siehe [[memory]]), **Record** und **World**. Die Pille daneben öffnet Tabs für Preset, Persona, Model und Agents dieses Chats. Der Button "More" an jeder Nachricht öffnet ihre Aktionen, und das "+"-Menü neben dem Nachrichtenfeld enthält Polish, Regenerate with a hint, Stage direction, Bildgenerierung und mehr.
+Die Chat-Kopfzeile enthält die Werkzeuge für die Geschichte: **Note** (Autorennotiz), **Fired** (was in den Prompt geflossen ist, siehe [[memory]]), **Record** und **World**. Der Button **Backstage** neben dem Menü öffnet über dem Chat die Orte, die diese Geschichte ausmachen: die Karte dieses Charakters, das Preset, seine Lorebooks, die Library und die World dieses Chats, und was gefeuert hat. Schließe die Schublade und du bist bei derselben Nachricht. Die Schubladen der Macherseite (Lorebooks, Library, World, Presets und die anderen Bereiche dieser Etage, und die Dashboard settings) tragen einen kleinen **Backstage**-Chip und einen etwas anderen Ton der Seite, damit du auf einen Blick erkennst, dass du hinter den Kulissen bist. Die Pille daneben öffnet Tabs für Preset, Persona, Model und Agents dieses Chats. Der Button "More" an jeder Nachricht öffnet ihre Aktionen, und das "+"-Menü neben dem Nachrichtenfeld enthält Polish, Regenerate with a hint, Stage direction, Bildgenerierung und mehr.
 
 Drei Helfer beobachten die Geschichte und kosten zusätzliche Modellaufrufe, deshalb lohnt es sich, sie zu kennen:
 
