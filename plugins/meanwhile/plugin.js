@@ -4,7 +4,8 @@
  * This file is the PURE part, written first so the rules are tested before any model is called: what an event may be
  * (`cleanEvent`, `buildEvents`), when a pass is due (`dueReason`), how a swipe or a delete takes events back (`reconcile`),
  * what the model is asked (`buildPrompt`), how its answer is read (`parseEvents`), what Litopys is told (`factDraft`) and what
- * the panel may show (`spoilerView`). There are no routes and no model call yet (M1b); `handleRoute` answers nothing.
+ * the panel may show (`spoilerView`). M1b adds the routes at the end of the file: a pass reads the chat, asks the model once (a
+ * retry for an empty or rate-limited answer), keeps what passes the rules and writes a log; nothing reaches Litopys yet (M2a).
  *
  * The rules (owner, 2026-11-11 and 2026-11-18; decisions in .fork/handoff/meanwhile-449/DESIGN.md of the engine repo):
  *  - an event is `{ id, who[], what, where, when, witnesses[], visibility, effects[] }`; who and witnesses are registry ids of
@@ -13,13 +14,21 @@
  *  - an event is tied to the message key (`id#swipe`) of the reply after which it happened; a swipe or delete takes it back;
  *  - the player's character never knows an event: `factDraft` names only the people it happened to or who saw it.
  *
- * State (M1b writes it): meanwhile/<chatId>.json
- *  { v: 1, chatId, cursor: "<message key of the last pass>", next: <number for the next event id>,
- *    passes: [{ key, at, reason, ids: ["m1", ...] }],
- *    events: [{ id, who, what, where, whereName, when, witnesses, visibility, effects, afterKey, at, status: "active" | "undone" }] }
+ * Routes (under /v1/apps/roleplay/):
+ *  GET  /meanwhile/state?chatId=      {config, model, due, events (as the spoiler setting allows), log, usage}
+ *  PUT  /meanwhile/config {enabled?, model?, k?, clockHours?, minReplies?, spoilers?, offCards?}
+ *  POST /meanwhile/run {chatId, force?}   one pass if due (force: now). {ok, kept, dropped, events} | {ok:false, reason}
+ *       reason: off | combat | no-dashboard | few | quiet | cooldown | nobody | no-model | no-chat | busy | empty | bad-reply | error
+ *
+ * Files (fs root = the app's data/):
+ *  meanwhile/config.json              what differs from DEFAULT_CONFIG
+ *  meanwhile/state/<chatId>.json      { v: 1, chatId, cursor: "<message key of the last pass>", next: <number of the next event id>,
+ *    passes: [{ key, at, reason, ids }], events: [{ id, who, what, where, whereName, when, witnesses, visibility, effects, afterKey, at,
+ *    status: "active" | "undone" }], log: [{ at, reason, from, to, model, ms, offered, kept, dropped: [text], events: [{ id, who, visibility }], usage?, retried?, error? }],
+ *    usage: { input, output, cost, runs }, lastFailAt }
  */
 
-export const DEFAULT_CONFIG = { enabled: false, model: "", k: 3, clockHours: 6, minReplies: 2, spoilers: "hints" };
+export const DEFAULT_CONFIG = { enabled: false, model: "", k: 3, clockHours: 6, minReplies: 2, spoilers: "hints", offCards: [] };
 
 const VISIBILITY = ["secret", "local", "public"];
 const SPOILERS = ["none", "hints", "all"];
@@ -33,6 +42,9 @@ const PEOPLE_MAX = 4;
 const EFFECTS_MAX = 3;
 const PASSES_KEEP = 24;
 const EVENTS_KEEP = 200;
+const LOG_KEEP = 30;
+const OFF_CARDS_MAX = 60;
+const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const PLACE_ID = /^l\d{1,6}$/;
 const PERSON_ID = /^p\d{1,6}$/;
 const THING_ID = /^o\d{1,6}$/;
@@ -61,11 +73,13 @@ export function cleanConfig(raw) {
     clockHours: num(r.clockHours, 1, 168, DEFAULT_CONFIG.clockHours),
     minReplies: num(r.minReplies, 1, 20, DEFAULT_CONFIG.minReplies),
     spoilers: SPOILERS.includes(r.spoilers) ? r.spoilers : DEFAULT_CONFIG.spoilers,
+    // card ids whose character must not act off screen (the per-card switch)
+    offCards: unique(arr(r.offCards).filter((c) => typeof c === "string" && ID.test(c))).slice(0, OFF_CARDS_MAX),
   };
 }
 
 export function emptyState(chatId) {
-  return { v: 1, chatId, cursor: "", next: 1, passes: [], events: [] };
+  return { v: 1, chatId, cursor: "", next: 1, passes: [], events: [], log: [], usage: { input: 0, output: 0, cost: 0, runs: 0 }, lastFailAt: 0 };
 }
 
 /** A loaded file made safe: wrong shapes become empty, unknown statuses become active. */
@@ -83,6 +97,9 @@ export function cleanState(raw, chatId) {
     next: num(raw.next, 1, 1e9, events.length + 1),
     passes,
     events: events.slice(-EVENTS_KEEP),
+    log: arr(raw.log).filter(isObj).slice(-LOG_KEEP),
+    usage: { ...base.usage, ...(isObj(raw.usage) ? Object.fromEntries(Object.entries(raw.usage).filter(([k, v]) => k in base.usage && Number.isFinite(v))) : {}) },
+    lastFailAt: Number.isFinite(raw.lastFailAt) ? raw.lastFailAt : 0,
   };
 }
 
@@ -91,8 +108,8 @@ export function cleanState(raw, chatId) {
 /**
  * The registry's entities by id, merged ones followed to their target. `entities` is the `entities` array of
  * registry/<chatId>.json: [{ id, kind: person | thing | place, name, aliases: [{ text }], merged? }].
- * Names are matched here by plain lower case; M1b should match the Dashboard's `present` names with the registry's
- * own `resolveName` (a transliterated or one-letter-off spelling is not found by this).
+ * Names are matched by plain lower case and, in `presentIds`, through the Dashboard's `personIds` (name -> registry id), which has
+ * already resolved a transliterated or one-letter-off spelling; a name the Dashboard never resolved is matched by plain lower case only.
  */
 export function registryIndex(entities) {
   const byId = new Map();
@@ -108,9 +125,14 @@ export function registryIndex(entities) {
 const namesOf = (e) => [str(e.name), ...arr(e.aliases).map((a) => str(isObj(a) ? a.text : a))].filter(Boolean);
 
 /** Registry ids of the people who stand in the scene, found by name, alias, or the id itself. */
-export function presentIds(index, presentNames) {
+export function presentIds(index, presentNames, personIds) {
   const want = new Set(arr(presentNames).map((n) => str(n).toLowerCase()).filter(Boolean));
   const out = new Set();
+  // the Dashboard's own name -> registry id map (state.personIds) has resolved the spelling already
+  if (isObj(personIds)) for (const [name, id] of Object.entries(personIds)) {
+    const e = want.has(name.toLowerCase()) && typeof id === "string" ? index.resolve(id) : null;
+    if (e && e.kind === "person") out.add(str(e.id));
+  }
   for (const [id] of index.byId) {
     const e = index.resolve(id);
     if (!e || e.kind !== "person") continue;
@@ -460,7 +482,235 @@ export function spoilerView(event, mode, index) {
   return { ...hint, what: event.what, witnesses: event.witnesses.map(nameOf), effects: event.effects };
 }
 
-/** No routes yet: M1b adds them. */
-export function handleRoute() {
-  return null;
+// ---------- routes (M1b) ----------
+
+const CONFIG_FILE = "meanwhile/config.json";
+const STATE_DIR = "meanwhile/state/";
+const COOLDOWN_MS = 10 * 60 * 1000;
+const MODEL_REF = /^\S{1,200}$/;
+const OWN_SRC = ["persona", "card", "soul", "group"];
+const MAX_TOKENS = 1500;
+const RETRY_TOKENS = 6000;
+
+const ok = (json, status) => ({ status: status || 200, json });
+const readJson = (fsx, path, dflt) => {
+  try {
+    return JSON.parse(fsx.read(path));
+  } catch {
+    return dflt;
+  }
+};
+export const readConfig = (fsx) => cleanConfig(readJson(fsx, CONFIG_FILE, {}));
+const stateFile = (chatId) => STATE_DIR + chatId + ".json";
+const loadState = (fsx, chatId) => cleanState(readJson(fsx, stateFile(chatId), null), chatId);
+const saveState = (fsx, st) => fsx.write(stateFile(st.chatId), JSON.stringify(st, null, 2));
+const registryOf = (fsx, chatId) => {
+  const reg = readJson(fsx, "registry/" + chatId.replace(/[^\w-]/g, "_") + ".json", null);
+  return registryIndex(isObj(reg) ? reg.entities : []);
+};
+
+function readChat(fsx, chatId) {
+  const meta = readJson(fsx, "chats/" + chatId + ".meta.json", null);
+  if (!isObj(meta)) return null;
+  const msgs = [];
+  try {
+    for (const line of String(fsx.read("chats/" + chatId + ".jsonl")).split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const m = JSON.parse(line);
+        if (isObj(m) && m.id !== undefined && m.id !== null && m.id !== "") msgs.push(m);
+      } catch {}
+    }
+  } catch {}
+  return { meta, msgs };
+}
+
+/** The model in force and where it comes from: this plugin's, else the World's, the Dashboard sensor's, Litopys's, the chat's, the app's. */
+export function modelFor(fsx, cfg, meta) {
+  const world = readJson(fsx, "world/config.json", null);
+  const dash = readJson(fsx, "dashboard/config.json", null);
+  const lit = readJson(fsx, "litopys/config.json", null);
+  const settings = readJson(fsx, "settings.json", null);
+  const list = [
+    ["meanwhile", cfg.model],
+    ["world", isObj(world) ? world.model : ""],
+    ["sensor", isObj(dash) ? dash.sensorModel : ""],
+    ["litopys", isObj(lit) ? lit.model : ""],
+    ["chat", meta && meta.model],
+    ["default", isObj(settings) ? settings.model : ""],
+  ];
+  const hit = list.find(([, m]) => typeof m === "string" && MODEL_REF.test(m.trim()));
+  return hit ? { model: hit[1].trim(), from: hit[0] } : { model: "", from: "none" };
+}
+
+/** What a pass reads: the scene at message `due.to`, the world's fronts and people, the cards that are away, the places. */
+export function gatherInput(fsx, chatId, state, cfg, due) {
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const snaps = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : {};
+  const last = isObj(snaps[due.to]) ? snaps[due.to] : {};
+  const index = registryOf(fsx, chatId);
+  const presentNames = arr(last.present).map(str).filter(Boolean).slice(0, 12);
+  const present = presentIds(index, presentNames, isObj(dash) ? dash.personIds : null);
+  const world = readJson(fsx, "world/state/" + chatId + ".json", null);
+  const fronts = arr(isObj(world) ? world.fronts : []).filter((x) => isObj(x) && x.status !== "past" && /^f\d{1,6}$/.test(str(x.id)));
+  const regIds = isObj(world) && isObj(world.regIds) ? world.regIds : {};
+  const seen = new Set();
+  const take = (id) => {
+    const e = index.resolve(id);
+    if (!e || e.kind !== "person" || e.id === "user" || present.has(str(e.id)) || seen.has(str(e.id))) return null;
+    seen.add(str(e.id));
+    return e;
+  };
+  const npcs = [];
+  for (const rec of arr(isObj(world) ? world.entities : [])) {
+    if (!isObj(rec) || rec.kind !== "person" || rec.status === "past" || rec.status === "dormant") continue;
+    const e = typeof regIds[rec.id] === "string" ? take(regIds[rec.id]) : null;
+    if (!e || OWN_SRC.includes(e.src)) continue;
+    npcs.push({ id: str(e.id), name: str(e.name), goal: str(rec.text), where: "" });
+  }
+  const absent = [];
+  for (const e0 of index.byId.values()) {
+    if (e0.kind !== "person" || e0.src !== "card" || cfg.offCards.includes(str(e0.card))) continue;
+    const e = take(str(e0.id));
+    if (e) absent.push({ id: str(e.id), name: str(e.name), goal: "", where: "" });
+  }
+  const places = [...index.byId.values()].filter((e) => e.kind === "place" && !str(e.merged)).map((e) => ({ id: str(e.id), name: str(e.name) }));
+  const input = {
+    k: cfg.k,
+    scene: { place: isObj(last.clock) ? str(last.clock.place) : "", present: presentNames },
+    span: due.spanMinutes || 0,
+    fronts: fronts.map((x) => ({ id: str(x.id), name: str(x.name), goal: str(x.goal), clock: x.clock, size: x.size })),
+    npcs: npcs.slice(0, 12),
+    absent: absent.slice(0, 10),
+    places: places.slice(0, 12),
+    recent: state.events.filter((e) => e.status === "active").slice(-6).map((e) => e.what),
+  };
+  return { input, ctx: { index, present, fronts: fronts.map((x) => str(x.id)) }, people: npcs.length + absent.length };
+}
+
+const requestFor = (input, model, maxTokens) => {
+  const p = buildPrompt(input);
+  // NEVER set a reasoning field: the pass is a small structured answer
+  return { ...(model ? { model } : {}), systemPrompt: p.system, messages: [{ role: "user", content: p.user }], presetParams: { temperature: 0.7, max_tokens: maxTokens } };
+};
+
+/** Takes back what a swipe or a delete removed. M2a will retire the events' Litopys facts first; until then there are none. */
+function settle(fsx, state, msgs) {
+  const r = reconcile(state, msgs);
+  if (!r.undone.length && r.state.cursor === state.cursor && r.state.passes.length === state.passes.length) return state;
+  const next = dropUndone(r.state, r.undone.map((e) => e.id));
+  saveState(fsx, next);
+  return next;
+}
+
+const dueFor = (state, cfg, chat, fsx, chatId, force) => {
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const snaps = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : {};
+  const d = dueReason({ state, cfg: force ? { ...cfg, minReplies: 1 } : cfg, msgs: chat.msgs, snaps });
+  return force && !d.due && d.reason === "quiet" ? { ...d, due: true, reason: "manual" } : d;
+};
+
+const thinkingOnly = (r) => !r.error && !str(r.text) && !!str(r.reasoning);
+const isRateLimit = (r) => /429|rate.?limit|too many requests/i.test(String((r && r.error) || ""));
+const usageOf = (r) => (isObj(r.usage) ? { input: Number(r.usage.input) || 0, output: Number(r.usage.output) || 0, cost: r.usage.priced === false ? 0 : Number(r.usage.costTotal) || 0 } : null);
+
+function runRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ ok: false, error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ ok: false, reason: "no-chat" }, 404);
+  const cfg = readConfig(fsx);
+  const now = Date.now();
+  const state = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  const res = host.llm && isObj(host.llm.results) ? host.llm.results : {};
+  const r = res.meanwhile_retry || res.meanwhile;
+  const stash = isObj(req.stash) ? req.stash : {};
+  if (!r) {
+    if (!cfg.enabled) return ok({ ok: false, reason: "off" });
+    if (b.force !== true && state.lastFailAt && now - state.lastFailAt < COOLDOWN_MS) return ok({ ok: false, reason: "cooldown" });
+    const due = dueFor(state, cfg, chat, fsx, chatId, b.force === true);
+    if (!due.due) return ok({ ok: false, reason: due.reason });
+    const g = gatherInput(fsx, chatId, state, cfg, due);
+    if (!g.people) return ok({ ok: false, reason: "nobody" });
+    const pick = modelFor(fsx, cfg, chat.meta);
+    if (!pick.model) return ok({ ok: false, reason: "no-model" });
+    host.llm.request("meanwhile", requestFor(g.input, pick.model, MAX_TOKENS));
+    return { __llmPending: true, stash: { due, model: pick.model, started: now, retry: false } };
+  }
+  // the answer: the pass is pinned to the message it was started at
+  const due = isObj(stash.due) ? stash.due : null;
+  if (!due || !due.to) return ok({ ok: false, reason: "error", message: "the pass lost its start" });
+  const g = gatherInput(fsx, chatId, state, cfg, due);
+  const retry = stash.retry === true;
+  const again = (maxTokens) => {
+    host.llm.request("meanwhile_retry", requestFor(g.input, stash.model, maxTokens));
+    return { __llmPending: true, stash: { ...stash, retry: true } };
+  };
+  if (!retry && r.error && isRateLimit(r)) return again(MAX_TOKENS);
+  if (!retry && !r.error && !str(r.text)) return again(thinkingOnly(r) ? RETRY_TOKENS : MAX_TOKENS);
+  const usage = usageOf(r);
+  const started = Number(stash.started) || now;
+  const base = { at: now, reason: due.reason, from: due.from, to: due.to, model: str(r.model) && r.model !== "error" ? str(r.model) : stash.model, ms: Math.round(Number(r.genTimeMs) || now - started), ...(usage ? { usage } : {}), ...(retry ? { retried: true } : {}) };
+  const count = (st) => ({ ...st, usage: { input: st.usage.input + (usage ? usage.input : 0), output: st.usage.output + (usage ? usage.output : 0), cost: st.usage.cost + (usage ? usage.cost : 0), runs: st.usage.runs + 1 } });
+  const fail = (reason, message) => {
+    const st = count({ ...state, lastFailAt: now, log: [...state.log, { ...base, offered: 0, kept: 0, dropped: [], error: reason + ": " + message }].slice(-LOG_KEEP) });
+    saveState(fsx, st);
+    return ok({ ok: false, reason, message });
+  };
+  if (r.error) return fail("error", String(r.error).split("\n")[0].slice(0, 300));
+  if (!str(r.text)) return fail("empty", thinkingOnly(r) ? "the model spent its whole limit thinking" : "the model returned nothing");
+  const raw = parseEvents(r.text);
+  if (!raw) return fail("bad-reply", "no events list in the answer");
+  const built = buildEvents(raw, g.ctx, { k: cfg.k, afterKey: due.to, next: state.next, now });
+  let st = recordPass(state, { events: built.events, next: built.next, key: due.to, at: now, reason: due.reason });
+  st = count({ ...st, lastFailAt: 0, log: [...st.log, { ...base, offered: raw.length, kept: built.events.length, dropped: built.dropped.map((d) => d.reason).slice(0, 10), events: built.events.map((e) => ({ id: e.id, who: e.who, visibility: e.visibility })) }].slice(-LOG_KEEP) });
+  saveState(fsx, st);
+  return ok({ ok: true, kept: built.events.length, offered: raw.length, dropped: built.dropped.length, events: built.events.map((e) => spoilerView(e, cfg.spoilers, g.ctx.index)) });
+}
+
+function stateRoute(req, host) {
+  const fsx = host.fs;
+  const chatId = String((req.query && req.query.chatId) || "");
+  if (!ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const cfg = readConfig(fsx);
+  const state = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  const index = registryOf(fsx, chatId);
+  const nameOf = (id) => {
+    const e = index.resolve(id);
+    return e && str(e.name) ? str(e.name) : id;
+  };
+  const due = dueFor(state, cfg, chat, fsx, chatId, false);
+  const log = state.log.slice().reverse().map((l) => ({ ...l, events: arr(l.events).map((e) => (cfg.spoilers === "none" ? { id: e.id, visibility: e.visibility } : { ...e, who: arr(e.who).map(nameOf) })) }));
+  return ok({
+    config: cfg,
+    model: modelFor(fsx, cfg, chat.meta),
+    due: { due: due.due, reason: due.reason, replies: due.replies || 0, spanMinutes: due.spanMinutes || 0 },
+    events: state.events.filter((e) => e.status === "active").reverse().map((e) => spoilerView(e, cfg.spoilers, index)),
+    log,
+    usage: state.usage,
+  });
+}
+
+function configRoute(req, host) {
+  const fsx = host.fs;
+  if (req.method === "GET") {
+    const cfg = readConfig(fsx);
+    return ok({ config: cfg, model: modelFor(fsx, cfg, null) });
+  }
+  const next = cleanConfig({ ...readConfig(fsx), ...(isObj(req.body) ? req.body : {}) });
+  fsx.write(CONFIG_FILE, JSON.stringify({ v: 1, ...next }, null, 2));
+  return ok({ config: next, model: modelFor(fsx, next, null) });
+}
+
+export function handleRoute(req, host) {
+  const path = String((req && req.path) || "").split("?")[0];
+  if (path !== "/meanwhile" && !path.startsWith("/meanwhile/")) return null;
+  if (path === "/meanwhile/state" && req.method === "GET") return stateRoute(req, host);
+  if (path === "/meanwhile/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
+  if (path === "/meanwhile/run" && req.method === "POST") return runRoute(req, host);
+  return ok({ error: "not found" }, 404);
 }

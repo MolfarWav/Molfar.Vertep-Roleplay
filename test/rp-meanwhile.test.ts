@@ -284,7 +284,7 @@ describe("what the app gets", () => {
     expect(all.witnesses).toEqual(["Cora"]);
   });
 
-  it("has no routes yet", () => {
-    expect(mw.handleRoute({ path: "/meanwhile", method: "GET" })).toBeNull();
+  it("answers only its own paths", () => {
+    expect(mw.handleRoute({ path: "/world/state", method: "GET" }, {})).toBeNull();
   });
 });
