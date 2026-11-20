@@ -4,6 +4,8 @@ import type { MsgKey } from '@/lib/i18n'
 import type { CanvasBoardKey } from '@/lib/canvas-board'
 import type { RailHue } from '@/components/shell/rail-hues'
 
+export type SectionTier = 'playbill' | 'backstage'
+
 export interface SectionItem {
   key: ViewKey
   /** English fallback (and the aria text where no translation is wired). */
@@ -15,6 +17,10 @@ export interface SectionItem {
    *  between groups. 'none' is a section that is not on the rail (it opens
    *  from elsewhere: Roleplay settings from Home and the phone menu). */
   group: number | 'none'
+  /** Where the section sits in the two-floor map (docs/STAGE-BACKSTAGE.md, #448): the lobby where a story is picked,
+   *  or the maker's floor. The Stage is the chat itself, so no section has it. The rail's groups follow the tiers;
+   *  later steps read this field, not a group number. */
+  tier: SectionTier
   /** The icon's hue (one per item, all different). */
   hue: RailHue
   /** A link to a view of another section, not a section of its own: it opens `key` on this Canvas board
@@ -31,21 +37,21 @@ export const itemId = (item: SectionItem): string => item.id ?? item.key
  *  Groups: Home and Chats | the people (Characters, Groups, Marketplace, Personas) | the technical block
  *  (Lorebooks, Library, Canvas, World, Agents) | Presets | Shortcuts and Tools. */
 export const SECTIONS: SectionItem[] = [
-  { key: 'home', label: 'Home', labelKey: 'nav.home', icon: House, group: 0, hue: 'sky' },
-  { key: 'chats', label: 'Chats', labelKey: 'nav.chats', icon: Chats, group: 0, hue: 'rose' },
-  { key: 'characters', label: 'Characters', labelKey: 'nav.characters', icon: User, group: 1, hue: 'violet' },
-  { key: 'groups', label: 'Groups', labelKey: 'nav.groups', icon: UsersThree, group: 1, hue: 'cyan' },
-  { key: 'marketplace', label: 'Marketplace', labelKey: 'nav.marketplace', icon: Storefront, group: 1, hue: 'amber' },
-  { key: 'personas', label: 'Personas', labelKey: 'nav.personas', icon: UserCircle, group: 1, hue: 'fuchsia' },
-  { key: 'lorebooks', label: 'Lorebooks', labelKey: 'nav.lorebooks', icon: BookOpenText, group: 2, hue: 'emerald' },
-  { key: 'litopys', label: 'Library', labelKey: 'nav.litopys', icon: Scroll, group: 2, hue: 'orange' },
-  { key: 'canvas', label: 'Canvas', labelKey: 'nav.canvas', icon: Graph, group: 2, hue: 'indigo' },
-  { key: 'world', label: 'World', labelKey: 'nav.world', icon: GlobeHemisphereWest, group: 2, hue: 'lime' },
-  { key: 'canvas', id: 'agents', board: 'agents', label: 'Agents', labelKey: 'nav.agents', icon: Robot, group: 2, hue: 'teal' },
-  { key: 'presets', label: 'Presets', labelKey: 'nav.presets', icon: SlidersHorizontal, group: 3, hue: 'blue' },
-  { key: 'quickreplies', label: 'Shortcuts', labelKey: 'nav.quickreplies', icon: Lightning, group: 4, hue: 'yellow' },
-  { key: 'extensions', label: 'Tools', labelKey: 'nav.extensions', icon: PuzzlePiece, group: 4, hue: 'zinc' },
-  { key: 'settings', label: 'Roleplay settings', labelKey: 'nav.settings', icon: Gear, group: 'none', hue: 'zinc' },
+  { key: 'home', label: 'Home', labelKey: 'nav.home', icon: House, group: 0, tier: 'playbill', hue: 'sky' },
+  { key: 'chats', label: 'Chats', labelKey: 'nav.chats', icon: Chats, group: 0, tier: 'playbill', hue: 'rose' },
+  { key: 'characters', label: 'Characters', labelKey: 'nav.characters', icon: User, group: 1, tier: 'playbill', hue: 'violet' },
+  { key: 'groups', label: 'Groups', labelKey: 'nav.groups', icon: UsersThree, group: 1, tier: 'playbill', hue: 'cyan' },
+  { key: 'marketplace', label: 'Marketplace', labelKey: 'nav.marketplace', icon: Storefront, group: 1, tier: 'playbill', hue: 'amber' },
+  { key: 'personas', label: 'Personas', labelKey: 'nav.personas', icon: UserCircle, group: 1, tier: 'playbill', hue: 'fuchsia' },
+  { key: 'lorebooks', label: 'Lorebooks', labelKey: 'nav.lorebooks', icon: BookOpenText, group: 2, tier: 'backstage', hue: 'emerald' },
+  { key: 'litopys', label: 'Library', labelKey: 'nav.litopys', icon: Scroll, group: 2, tier: 'backstage', hue: 'orange' },
+  { key: 'canvas', label: 'Canvas', labelKey: 'nav.canvas', icon: Graph, group: 2, tier: 'backstage', hue: 'indigo' },
+  { key: 'world', label: 'World', labelKey: 'nav.world', icon: GlobeHemisphereWest, group: 2, tier: 'backstage', hue: 'lime' },
+  { key: 'canvas', id: 'agents', board: 'agents', label: 'Agents', labelKey: 'nav.agents', icon: Robot, group: 2, tier: 'backstage', hue: 'teal' },
+  { key: 'presets', label: 'Presets', labelKey: 'nav.presets', icon: SlidersHorizontal, group: 3, tier: 'backstage', hue: 'blue' },
+  { key: 'quickreplies', label: 'Shortcuts', labelKey: 'nav.quickreplies', icon: Lightning, group: 4, tier: 'backstage', hue: 'yellow' },
+  { key: 'extensions', label: 'Tools', labelKey: 'nav.extensions', icon: PuzzlePiece, group: 4, tier: 'backstage', hue: 'zinc' },
+  { key: 'settings', label: 'Roleplay settings', labelKey: 'nav.settings', icon: Gear, group: 'none', tier: 'backstage', hue: 'zinc' },
 ]
 
 /** What the desktop rail draws: every section that has a group. */
