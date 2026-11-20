@@ -1921,7 +1921,7 @@ const SCRIPT_STUCK_RUNS = 3;
 const SCRIPT_ENDED = /did not stop in [\d.]+ s and was ended|used up their time/i;
 
 /**
- * An agent whose last runs all failed because a Script card ran out of time: each run costs the 2.5 s the script is
+ * An agent whose last runs all failed because a Script card ran out of time: each run costs the 3.5 s the script is
  * given and nothing would ever change, so the agent is skipped (a hand run, "Run again", goes ahead; one that works
  * ends the streak). `runs` is the chat's run log, oldest first.
  */
