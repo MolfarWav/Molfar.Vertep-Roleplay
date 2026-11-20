@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Juego de rol: la visión general
 
 El juego de rol es la app de historias de Molfar Vertep: guardas cartas de personajes, juegas chats con ellos y dejas que la app siga la escena, recuerde la historia y haga funcionar el mundo a tu alrededor. Esta página es un mapa. El propio **Help** de la app (en la barra lateral) tiene un artículo breve para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí, sino en los Ajustes principales: consulta [[vertep:models]].
@@ -18,7 +18,7 @@ Los ajustes propios del juego de rol no tienen elemento en la barra. Ábrelos co
 
 ## Dentro de un chat
 
-La cabecera del chat contiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, consulta [[memory]]), **Record** y **World**. La píldora que hay al lado abre pestañas para Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto al cuadro de mensaje contiene Polish, Regenerate with a hint, Stage direction, generación de imágenes y más.
+La cabecera del chat contiene las herramientas de la historia: **Note** (nota del autor), **Fired** (lo que entró en el prompt, consulta [[memory]]), **Record** y **World**. El botón **Backstage** que hay junto al menú abre, sobre el chat, los lugares que hacen esta historia: la carta de este personaje, el preset, sus lorebooks, la Library y el World de este chat, y lo que se disparó. Cierra el cajón y sigues en el mismo mensaje. Los cajones del lado del creador (Lorebooks, Library, World, Presets y las demás secciones de ese piso, y los Dashboard settings) llevan un pequeño chip **Backstage** y un tono de página ligeramente distinto, para que sepas de un vistazo que estás detrás del escenario. La píldora que hay al lado abre pestañas para Preset, Persona, Model y Agents de este chat. El botón "More" de cada mensaje abre sus acciones, y el menú "+" junto al cuadro de mensaje contiene Polish, Regenerate with a hint, Stage direction, generación de imágenes y más.
 
 Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que vale la pena conocerlos:
 

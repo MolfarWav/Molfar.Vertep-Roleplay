@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Rol yapma: genel bakış
 
 Rol yapma, Molfar Vertep'in hikâye uygulamasıdır: karakter kartları tutarsınız, onlarla sohbetler oynatırsınız ve uygulamanın sahneyi izlemesine, hikâyeyi hatırlamasına ve etrafınızdaki dünyayı yürütmesine izin verirsiniz. Bu sayfa bir haritadır. Uygulamanın kendi **Help** bölümünde (kenar çubuğunda) neredeyse her ekran için kısa bir makale vardır; bu kılavuz parçaların nasıl bir araya geldiğini açıklar. Modeller ve bağlantılar burada değil, ana Ayarlar'da kurulur: bkz. [[vertep:models]].
@@ -18,7 +18,7 @@ Rol yapmanın kendi ayarlarının kenar çubuğunda bir öğesi yoktur. Bunları
 
 ## Bir sohbetin içinde
 
-Sohbet başlığı hikâye araçlarını barındırır: **Note** (yazar notu), **Fired** (istemde yer alanlar, bkz. [[memory]]), **Record** ve **World**. Yanındaki hap, bu sohbetin Preset, Persona, Model ve Agents sekmelerini açar. Her mesajdaki "More" düğmesi eylemlerini açar ve mesaj kutusunun yanındaki "+" menüsü Polish, Regenerate with a hint, Stage direction, görsel üretimi ve daha fazlasını içerir.
+Sohbet başlığı hikâye araçlarını barındırır: **Note** (yazar notu), **Fired** (istemde yer alanlar, bkz. [[memory]]), **Record** ve **World**. Menünün yanındaki **Backstage** düğmesi, sohbetin üzerinde bu hikâyeyi oluşturan yerleri açar: bu karakterin kartı, preset, lorebook'ları, bu sohbetin Library'si ve World'ü ve istemde yer alanlar. Çekmeceyi kapatırsınız ve aynı mesajda kalırsınız. Yapımcı tarafının çekmeceleri (Lorebooks, Library, World, Presets ve o kattaki diğer bölümler ile Dashboard settings) küçük bir **Backstage** rozeti ve sayfanın biraz farklı bir tonunu taşır, böylece perde arkasında olduğunuzu bir bakışta anlarsınız. Yanındaki hap, bu sohbetin Preset, Persona, Model ve Agents sekmelerini açar. Her mesajdaki "More" düğmesi eylemlerini açar ve mesaj kutusunun yanındaki "+" menüsü Polish, Regenerate with a hint, Stage direction, görsel üretimi ve daha fazlasını içerir.
 
 Üç yardımcı hikâyeyi izler ve ek model çağrılarına mal olur, bu yüzden onları bilmeye değer:
 

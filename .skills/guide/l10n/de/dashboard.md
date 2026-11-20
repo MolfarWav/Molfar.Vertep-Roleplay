@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # Das Szenen-Dashboard
 
 Das Dashboard ist ein Panel neben dem Chat, das die Szene verfolgt: wer anwesend ist, wie jeder Charakter über dich denkt, was sie tragen und wissen, die offenen Handlungsstränge. Es ist für alle, die möchten, dass sich die Geschichte zwischen den Antworten an Beziehungen und Details erinnert. Der Hilfe-Artikel *Scene dashboard* listet seine Felder auf.
@@ -51,7 +51,7 @@ Wenn ein Charakter vor anderen lügt, nehmen die anderen sie als wahr. Ihre näc
 
 ## Wann es aktualisiert wird
 
-Der Button "Settings" im Dashboard öffnet seine Einstellungen; der Sensor-Tab hat den Modus:
+Der Button "Settings" im Dashboard öffnet seine Einstellungen, und **Backstage > Dashboard settings** in der Chat-Kopfzeile (auf einem Telefon: Menu > Backstage) führt direkt dorthin; der Sensor-Tab hat den Modus:
 
 - **Sensor** (Standard): Nach jeder Antwort liest ein Modell die neuen Nachrichten und meldet, was passiert ist.
 - **Fast: inside the story reply**: Für starke Modelle. Das Story-Modell schreibt den Bericht selbst am Ende seiner Antwort, ohne separaten Aufruf, was jeder Antwort einige Tokens hinzufügt. Wenn es den Bericht auslässt, läuft der übliche Sensor.

@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # O Painel da cena
 
 O Painel é um painel ao lado do chat que acompanha a cena: quem está presente, como cada personagem se sente em relação a você, o que vestem e sabem, os fios da história em aberto. É para quem quer que a história lembre relacionamentos e detalhes entre respostas. O artigo de Ajuda *Scene dashboard* lista seus campos.
@@ -51,7 +51,7 @@ Abra uma mentira e você vê **Believe it:** com um botão para cada pessoa que 
 
 ## Quando ele atualiza
 
-O botão "Settings" dentro do Painel abre suas configurações; a aba Sensor tem o modo:
+O botão "Settings" dentro do Painel abre suas configurações, e **Backstage > Dashboard settings** no cabeçalho do chat também (no celular: Menu > Backstage), que vai direto para lá; a aba Sensor tem o modo:
 
 - **Sensor** (padrão): após cada resposta, um modelo lê as novas mensagens e relata o que aconteceu.
 - **Fast: inside the story reply**: para modelos fortes. O modelo da história escreve o relato ele mesmo no fim de sua resposta, sem uma chamada separada, adicionando alguns tokens a cada resposta. Se ele deixar o relato de fora, o sensor usual roda.

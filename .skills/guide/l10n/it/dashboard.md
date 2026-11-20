@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # La Dashboard della scena
 
 La Dashboard è un pannello accanto alla chat che tiene traccia della scena: chi è presente, come ogni personaggio si sente nei tuoi confronti, cosa indossano e cosa sanno, i fili narrativi aperti. È per chiunque voglia che la storia ricordi relazioni e dettagli tra una risposta e l'altra. L'articolo di aiuto *Scene dashboard* elenca i suoi campi.
@@ -51,7 +51,7 @@ Apri una bugia e vedi **Believe it:** con un pulsante per ogni persona che ancor
 
 ## Quando si aggiorna
 
-Il pulsante "Settings" dentro la Dashboard apre le sue impostazioni; la scheda Sensor ha la modalità:
+Il pulsante "Settings" dentro la Dashboard apre le sue impostazioni, e lo fa anche **Backstage > Dashboard settings** nell'intestazione della chat (sul telefono: Menu > Backstage), che va dritto lì; la scheda Sensor ha la modalità:
 
 - **Sensor** (predefinita): dopo ogni risposta un modello legge i nuovi messaggi e segnala cosa è successo.
 - **Fast: inside the story reply**: per modelli forti. Il modello della storia scrive da sé il resoconto alla fine della sua risposta, senza una chiamata separata, aggiungendo qualche token a ogni risposta. Se omette il resoconto, parte il sensore abituale.

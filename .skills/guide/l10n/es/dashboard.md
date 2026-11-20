@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # El panel de escena
 
 El panel de escena es un panel junto al chat que sigue la escena: quién está presente, cómo se siente cada personaje hacia ti, qué llevan puesto y qué saben, los hilos narrativos abiertos. Es para cualquiera que quiera que la historia recuerde relaciones y detalles entre respuestas. El artículo de ayuda *Scene dashboard* enumera sus campos.
@@ -51,7 +51,7 @@ Abre una mentira y ves **Believe it:** con un botón por cada persona que aún s
 
 ## Cuándo se actualiza
 
-El botón "Settings" dentro del panel de escena abre sus ajustes; la pestaña Sensor tiene el modo:
+El botón "Settings" dentro del panel de escena abre sus ajustes, y también lo hace **Backstage > Dashboard settings** en el encabezado del chat (en un teléfono: Menu > Backstage), que va directo allí; la pestaña Sensor tiene el modo:
 
 - **Sensor** (por defecto): tras cada respuesta un modelo lee los mensajes nuevos y reporta lo que pasó.
 - **Fast: inside the story reply**: para modelos fuertes. El modelo de historia escribe el reporte él mismo al final de su respuesta, sin llamada aparte, añadiendo algunos tokens a cada respuesta. Si omite el reporte, se ejecuta el sensor habitual.

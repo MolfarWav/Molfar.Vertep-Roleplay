@@ -1,4 +1,4 @@
-<!-- source: c78f11b8720c -->
+<!-- source: 8bd97ce516d1 -->
 # Het scènepaneel
 
 Het Dashboard is een paneel naast de chat dat het scène bijhoudt: wie aanwezig is, hoe elk personage zich tegenover jou voelt, wat ze dragen en weten, de open verhaallijnen. Het is voor iedereen die wil dat het verhaal relaties en details tussen antwoorden onthoudt. Het Help-artikel *Scene dashboard* somt de velden op.
@@ -51,7 +51,7 @@ Open een leugen en je ziet **Believe it:** met een knop voor elke persoon die he
 
 ## Wanneer het bijwerkt
 
-De knop "Settings" in het Dashboard opent de instellingen; het tabblad Sensor heeft de modus:
+De knop "Settings" in het Dashboard opent de instellingen, en **Backstage > Dashboard settings** in de chatkop (op een telefoon: Menu > Backstage) gaat er direct naartoe; het tabblad Sensor heeft de modus:
 
 - **Sensor** (standaard): na elk antwoord leest een model de nieuwe berichten en meldt wat er gebeurde.
 - **Fast: inside the story reply**: voor sterke modellen. Het verhaal模型的 schrijft het rapport zelf aan het einde van zijn antwoord, zonder aparte aanroep, wat tokens aan elk antwoord toevoegt. Als het het rapport weglaat, draait de gebruikelijke sensor.

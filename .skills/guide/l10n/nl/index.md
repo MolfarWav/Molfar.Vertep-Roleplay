@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Roleplay: het overzicht
 
 Roleplay is de verhalen-app van Molfar Vertep: je bewaart personagekaarten, speelt chats met ze en laat de app het tafereel volgen, het verhaal onthouden en de wereld om je heen laten draaien. Deze pagina is een kaart. De eigen **Help** van de app (in de rail) heeft een kort artikel voor bijna elk scherm; deze gids legt uit hoe de onderdelen samenhangen. Modellen en verbindingen stel je niet hier in maar in de hoofdinstellingen: zie [[vertep:models]].
@@ -18,7 +18,7 @@ De eigen instellingen van Roleplay hebben geen plek in de rail. Open ze met de k
 
 ## In een chat
 
-De kop van de chat bevat de verhaalgereedschappen: **Note** (auteursnotitie), **Fired** (wat in de prompt terechtkwam, zie [[memory]]), **Record** en **World**. De pil ernaast opent tabs voor Preset, Persona, Model en Agents van deze chat. De knop "More" op elk bericht opent de acties ervan, en het "+"-menu naast het berichtvak bevat Polish, Regenerate with a hint, Stage direction, beeldgeneratie en meer.
+De kop van de chat bevat de verhaalgereedschappen: **Note** (auteursnotitie), **Fired** (wat in de prompt terechtkwam, zie [[memory]]), **Record** en **World**. De **Backstage**-knop naast het menu opent, over de chat heen, de plekken die dit verhaal maken: de kaart van dit personage, de preset, de bijbehorende lorebooks, de Library en de World van deze chat, en wat er is afgevuurd. Sluit de lade en je staat op hetzelfde bericht. De lades aan de makerskant (Lorebooks, Library, World, Presets en de andere secties van die verdieping, en de Dashboard settings) dragen een kleine **Backstage**-chip en een iets andere toon van de pagina, zodat je in één oogopslag ziet dat je achter de schermen bent. De pil ernaast opent tabs voor Preset, Persona, Model en Agents van deze chat. De knop "More" op elk bericht opent de acties ervan, en het "+"-menu naast het berichtvak bevat Polish, Regenerate with a hint, Stage direction, beeldgeneratie en meer.
 
 Drie helpers kijken mee met het verhaal en kosten extra modelaanroepen, dus het loont ze te kennen:
 

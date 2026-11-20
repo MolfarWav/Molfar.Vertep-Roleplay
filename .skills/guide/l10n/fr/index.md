@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # Roleplay : la vue d'ensemble
 
 Roleplay est l'application de récit de Molfar Vertep : vous gardez des fiches de personnages, jouez des conversations avec eux, et laissez l'application suivre la scène, se souvenir de l'histoire et faire tourner le monde autour de vous. Cette page est une carte. Le **Help** de l'application (dans la barre latérale) contient un court article pour presque chaque écran ; ce guide explique comment les parties s'assemblent. Les modèles et les connexions ne se règlent pas ici mais dans les Settings principaux : voir [[vertep:models]].
@@ -18,7 +18,7 @@ Les réglages propres à Roleplay n'ont pas d'élément dans la barre latérale.
 
 ## Dans une conversation
 
-L'en-tête de la conversation contient les outils du récit : **Note** (note de l'auteur), **Fired** (ce qui est entré dans le prompt, voir [[memory]]), **Record** et **World**. La pastille à côté ouvre des onglets pour Preset, Persona, Model et Agents de cette conversation. Le bouton "More" sur chaque message ouvre ses actions, et le menu "+" à côté de la zone de message contient Polish, Regenerate with a hint, Stage direction, la génération d'images et plus encore.
+L'en-tête de la conversation contient les outils du récit : **Note** (note de l'auteur), **Fired** (ce qui est entré dans le prompt, voir [[memory]]), **Record** et **World**. Le bouton **Backstage** à côté du menu ouvre, par-dessus la conversation, les lieux qui font ce récit : la fiche de ce personnage, le preset, ses lorebooks, la Library et le World de cette conversation, et ce qui a fired. Fermez le tiroir et vous êtes sur le même message. Les tiroirs du côté du créateur (Lorebooks, Library, World, Presets et les autres sections de cet étage, et les Dashboard settings) portent une petite pastille **Backstage** et un ton de page légèrement différent, pour que vous puissiez voir d'un coup d'œil que vous êtes dans les coulisses. La pastille à côté ouvre des onglets pour Preset, Persona, Model et Agents de cette conversation. Le bouton "More" sur chaque message ouvre ses actions, et le menu "+" à côté de la zone de message contient Polish, Regenerate with a hint, Stage direction, la génération d'images et plus encore.
 
 Trois assistants surveillent le récit et coûtent des appels de modèle supplémentaires, donc cela vaut la peine de les connaître :
 

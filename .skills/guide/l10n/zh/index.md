@@ -1,4 +1,4 @@
-<!-- source: 18811dcf7969 -->
+<!-- source: 69fea5c3637d -->
 # 角色扮演：总览
 
 角色扮演是 Molfar Vertep 的故事应用：你保存角色卡，与他们进行聊天扮演，并让应用追踪场景、记住故事、运行你周围的世界。本页是一张地图。应用自带的 **Help**（在侧边栏中）几乎为每个界面都有一篇短文；本指南解释各部分如何组合在一起。模型和连接不在这里设置，而是在主设置中：参见 [[vertep:models]]。
@@ -18,7 +18,7 @@
 
 ## 在聊天内部
 
-聊天标题栏中放着故事工具：**Note**（作者注）、**Fired**（进入了提示词的内容，参见 [[memory]]）、**Record** 和 **World**。旁边的胶囊按钮打开此聊天的 Preset、Persona、Model 和 Agents 标签。每条消息上的 "More" 按钮打开其操作，消息框旁边的 "+" 菜单包含 Polish、Regenerate with a hint、Stage direction、图像生成等。
+聊天标题栏中放着故事工具：**Note**（作者注）、**Fired**（进入了提示词的内容，参见 [[memory]]）、**Record** 和 **World**。菜单旁边的 **Backstage** 按钮会在聊天上方打开构成这个故事的地方：这个角色的卡片、预设、它的 lorebook、Library 和此聊天的 World，以及进入了什么。关闭抽屉后，你仍在同一条消息上。制作者一侧的抽屉（Lorebooks、Library、World、Presets 以及那一层的其他部分，还有 Dashboard settings）带有一个小小的 **Backstage** 标签和略微不同的页面色调，这样你一眼就能看出自己身处幕后。旁边的胶囊按钮打开此聊天的 Preset、Persona、Model 和 Agents 标签。每条消息上的 "More" 按钮打开其操作，消息框旁边的 "+" 菜单包含 Polish、Regenerate with a hint、Stage direction、图像生成等。
 
 有三个助手会观察故事并消耗额外的模型调用，所以值得了解它们：
 
