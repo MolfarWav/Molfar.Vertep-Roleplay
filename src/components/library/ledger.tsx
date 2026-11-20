@@ -15,6 +15,8 @@ import { BookDialog } from '@/components/memory/book-dialog'
 import { ArcNotice } from './arcs'
 import { ScenesCard } from './scenes-card'
 import { FactsTab } from './ledger-facts'
+import { KnowledgeTab } from './ledger-knowledge'
+import { knowledgeMap } from '@/lib/knowledge-map'
 import { TurnsTab } from './ledger-turns'
 import { activeTurnCount } from './turns-util'
 import { ChaptersTab } from './ledger-chapters'
@@ -24,13 +26,14 @@ import { HabitsTab } from './ledger-habits'
 import { OverviewBody } from './overview'
 import { SettingsTab, chatConfigCount } from './ledger-settings'
 
-const TAB_IDS = ['chapters', 'facts', 'turns', 'proposals', 'habits', 'activity', 'settings'] as const
+const TAB_IDS = ['chapters', 'facts', 'knows', 'turns', 'proposals', 'habits', 'activity', 'settings'] as const
 type TabId = (typeof TAB_IDS)[number]
 
-function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.turns' | 'lit.proposals' | 'lit.habits' | 'lit.activity' | 'lit.settings' {
+function tabLabel(id: TabId): 'lit.chapters' | 'lit.facts' | 'lit.kn.tab' | 'lit.turns' | 'lit.proposals' | 'lit.habits' | 'lit.activity' | 'lit.settings' {
   switch (id) {
     case 'chapters': return 'lit.chapters'
     case 'facts': return 'lit.facts'
+    case 'knows': return 'lit.kn.tab'
     case 'turns': return 'lit.turns'
     case 'proposals': return 'lit.proposals'
     case 'habits': return 'lit.habits'
@@ -152,6 +155,7 @@ export function LedgerChat({
   const tabs: { id: TabId; count: number }[] = [
     { id: 'chapters', count: chat.chapters.length },
     { id: 'facts', count: activeFacts },
+    { id: 'knows', count: knowledgeMap(chat).rows.length },
     { id: 'turns', count: activeTurns },
     { id: 'proposals', count: pending },
     { id: 'habits', count: sk.earned },
@@ -256,6 +260,7 @@ export function LedgerChat({
 
             {tab === 'chapters' && <ChaptersTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'facts' && <FactsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
+            {tab === 'knows' && <KnowledgeTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'turns' && <TurnsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'proposals' && <ProposalsTab chat={chat} onChat={onChat} onRefresh={refresh} />}
             {tab === 'habits' && <HabitsTab chat={chat} onChat={onChat} onRefresh={refresh} />}

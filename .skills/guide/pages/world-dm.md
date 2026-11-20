@@ -79,4 +79,4 @@ Memory also shows **Kept on purpose**: records you pinned, wrote or brought back
 
 In Memory you can also read the rules in force (a tag says whether a rule is for this chat or for all chats), change or remove one, add a rule by hand, see **Remembered exactly** (the names you deleted, which the DM is told not to write again) and clear them, or **Reset all**. A rule for all chats reaches each chat the next time it is opened, and new chats; a value you set by hand in a chat afterwards stays. Rules do not travel with a saved world. The profile editor ends with a read-only card, **Learned memory**, showing what is added to the DM's input. In the chat's World DM sheet the card **What the DM learns** has a switch ("Propose from my edits"), the switch **Tell the reply model too**, the things setting, how many learned rules are in force and a log of every proposal and answer.
 
-Related: [[memory]], [[dashboard]]. The Help articles *World profiles* and *Starting a world* have the screens.
+Related: [[memory]], [[dashboard]], [[meanwhile]]. The Help articles *World profiles* and *Starting a world* have the screens.

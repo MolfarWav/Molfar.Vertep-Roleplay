@@ -1,0 +1,8 @@
+{
+  "name": "Meanwhile",
+  "version": "0.1.0",
+  "description": "Life off screen (#449): when a scene closes or the story clock jumps, people who are not in the scene act, and what they did becomes knowledge. The rules are in code (what an event may be, when a pass is due, how a swipe takes events back, the prompt and the reader of the answer); the routes run one pass, keep a log and never write into Litopys yet.",
+  "origin": "local",
+  "permissions": ["routes", "llm", "fs"],
+  "priority": 40
+}

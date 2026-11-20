@@ -1280,16 +1280,16 @@
         "uk": "огляд деталі бібліотека вкладки розділи факти пропозиції часова шкала"
       },
       "short": {
-        "en": "Overview shows a chat's story as a timeline with its characters beside it. Details shows the same record as seven tabs: Chapters, Facts, Turning points, Proposals, Habits, Activity and Settings.",
-        "uk": "«Огляд» показує історію чату як часову шкалу з персонажами поруч. «Деталі» — той самий запис у семи вкладках: Розділи, Факти, Поворотні моменти, Пропозиції, Звички, Журнал і Налаштування."
+        "en": "Overview shows a chat's story as a timeline with its characters beside it. Details shows the same record as eight tabs: Chapters, Facts, Who knows, Turning points, Proposals, Habits, Activity and Settings.",
+        "uk": "«Огляд» показує історію чату як часову шкалу з персонажами поруч. «Деталі» — той самий запис у восьми вкладках: Розділи, Факти, Хто знає, Поворотні моменти, Пропозиції, Звички, Журнал і Налаштування."
       },
       "where": {
         "en": "Library view; the mode switch near the title.",
         "uk": "Бібліотека; перемикач режимів біля назви."
       },
       "details": {
-        "en": "What it is for. Two ways to read one record. Overview: the chapters as a timeline, arcs as bands over their chapters, a card per character, the waiting proposals, and the worker's line. Details: tabs for Chapters, Facts, Turning points, Proposals, Habits, Activity and Settings, with filters and search.\n\nHow to use it. Switch modes any time; the data is the same, only the layout changes. The mode you pick is saved for the next visit.\n\nIn Details you edit facts, accept proposals and read the Activity log. In Overview you see the whole story at a glance.\n\nWhat it does not do. Neither view writes the story itself: they only read and manage what the chronicler wrote.",
-        "uk": "Навіщо це. Два способи читати один запис. «Огляд»: розділи як часова шкала, арки смугами над своїми розділами, картка на кожного персонажа, пропозиції на черзі й рядок робітника. «Деталі»: вкладки Розділи, Факти, Поворотні моменти, Пропозиції, Звички, Журнал і Налаштування, з фільтрами й пошуком.\n\nЯк користуватися. Перемикайте режини будь-коли: дані ті самі, змінюється лише вигляд. Обраний режим зберігається до наступного візиту.\n\nУ «Деталях» ви редагуєте факти, приймаєте пропозиції й читаєте Журнал подій. У «Огляді» бачите всю історію одним поглядом.\n\nЧого це не робить. Жоден з режимів не пише саму історію: вони лише читають і керують тим, що написав літописець."
+        "en": "What it is for. Two ways to read one record. Overview: the chapters as a timeline, arcs as bands over their chapters, a card per character, the waiting proposals, and the worker's line. Details: tabs for Chapters, Facts, Who knows, Turning points, Proposals, Habits, Activity and Settings, with filters and search.\n\nHow to use it. Switch modes any time; the data is the same, only the layout changes. The mode you pick is saved for the next visit.\n\nIn Details you edit facts, accept proposals and read the Activity log. In Overview you see the whole story at a glance.\n\nWhat it does not do. Neither view writes the story itself: they only read and manage what the chronicler wrote.",
+        "uk": "Навіщо це. Два способи читати один запис. «Огляд»: розділи як часова шкала, арки смугами над своїми розділами, картка на кожного персонажа, пропозиції на черзі й рядок робітника. «Деталі»: вкладки Розділи, Факти, Хто знає, Поворотні моменти, Пропозиції, Звички, Журнал і Налаштування, з фільтрами й пошуком.\n\nЯк користуватися. Перемикайте режини будь-коли: дані ті самі, змінюється лише вигляд. Обраний режим зберігається до наступного візиту.\n\nУ «Деталях» ви редагуєте факти, приймаєте пропозиції й читаєте Журнал подій. У «Огляді» бачите всю історію одним поглядом.\n\nЧого це не робить. Жоден з режимів не пише саму історію: вони лише читають і керують тим, що написав літописець."
       },
       "related": [
         "kb.litopys",

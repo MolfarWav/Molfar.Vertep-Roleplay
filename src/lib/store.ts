@@ -45,6 +45,7 @@ import {
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI, updateMessageDirections,
 } from './engine'
 import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
+import { triggerMeanwhile } from './meanwhile'
 import { listAgentSets, listInstalledAgents, triggerAgentsRun, triggerParallelAgents } from './agents'
 import { offerShown } from './agent-offer'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
@@ -3115,7 +3116,7 @@ async function runStream(
     // then the World DM, if this chat's is due, then the chat's agents (one model call at a time: free models limit the rate)
     if (committed && queue.length === 0) {
       const busy = () => get().streaming?.chatId === chatId
-      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy)).then(() => triggerAgentsRun(chatId, busy))
+      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy)).then(() => triggerMeanwhile(chatId, busy)).then(() => triggerAgentsRun(chatId, busy))
     }
     if (committed && queue.length) {
       void (async () => {
