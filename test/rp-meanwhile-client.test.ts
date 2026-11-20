@@ -108,3 +108,22 @@ describe("the card's lines", () => {
     for (const reason of ["scene", "clock", "few", "quiet", "no-dashboard", "combat"]) expect(keys).toContain("world.mw.due." + reason);
   });
 });
+
+describe("what a character did off screen (the Dashboard journal)", () => {
+  const ev = (id: string, who: string[], more: Record<string, unknown> = {}) => ({ id, visibility: "secret", status: "active", who, where: "the harbour", when: "at dusk", ...more }) as any;
+  it("gives a character the events that name them, matching a full name by its first word, and none under Nothing", async () => {
+    const { awayEvents } = await import("../src/lib/meanwhile");
+    const list = [ev("m1", ["Ada Vale"]), ev("m2", ["Bram"]), ev("m3", ["Cora", "ada"]), { id: "m4", visibility: "local", status: "active" }];
+    expect(awayEvents(list, "Ada").map((e) => e.id)).toEqual(["m1", "m3"]);
+    expect(awayEvents(list, "Mira")).toEqual([]);
+    expect(awayEvents(list, "  ")).toEqual([]);
+  });
+
+  it("a line by the spoiler setting", async () => {
+    const { awayLine } = await import("../src/components/dashboard/dash-journal");
+    const t2 = (key: string, vars?: Record<string, string | number>) => t(key, vars);
+    expect(awayLine(t2 as any, ev("m1", ["Ada"]))).toBe("the harbour, at dusk · secret");
+    expect(awayLine(t2 as any, ev("m1", ["Ada"], { where: "", when: "" }))).toBe("Something happened off screen · secret");
+    expect(awayLine(t2 as any, ev("m1", ["Ada"], { what: "Ada hides the ledger.", visibility: "local" }))).toBe("Ada hides the ledger. · local");
+  });
+});

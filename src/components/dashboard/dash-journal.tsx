@@ -1,12 +1,14 @@
 // The Journal box of the open Dashboard (dash-wide.tsx): for the focused character, what it thinks right now, what it
-// thinks of each person (the sensor's lines and the user's), and what it recollects of closed Litopys chapters.
-// Read-only in this version. Off: one line says so.
+// thinks of each person (the sensor's lines and the user's), what it recollects of closed Litopys chapters, and what it did
+// off screen (Meanwhile, #449: read from the Meanwhile plugin, shown as its spoiler setting allows). Read-only. Off: one line says so.
 
 import { useEffect, useState } from 'react'
 import { BookOpenText } from '@phosphor-icons/react'
 import { fetchLitChat, type LitChapter } from '@/components/library/litopys-api'
 import { useT } from '@/hooks/use-t'
 import type { DashChar, JournalLine, JournalSettings } from '@/lib/dashboard'
+import { awayEvents, loadMeanwhile, meanwhileEnabled, type MeanwhileEvent } from '@/lib/meanwhile'
+import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { Box, Label, MARK } from './dash-common'
 
@@ -27,7 +29,18 @@ export function journalEntries(chapters: LitChapter[] | null | undefined, name: 
 /** The journal box as the Dashboard shows it: loads the chapter entries from Litopys; a failure shows no entries. */
 export function JournalBox({ chatId, name, char, turn, journal }: { chatId: string; name: string; char: DashChar; turn: number; journal: JournalSettings }) {
   const [entries, setEntries] = useState<JournalEntry[] | null>(null)
+  const [away, setAway] = useState<MeanwhileEvent[]>([])
   const on = journal.on
+  // what this character did off screen: nothing is asked of the plugin while Meanwhile is off
+  useEffect(() => {
+    if (!on) return
+    let alive = true
+    meanwhileEnabled()
+      .then((yes) => (yes ? loadMeanwhile(chatId) : null))
+      .then((s) => { if (alive) setAway(s ? awayEvents(s.events, name) : []) })
+      .catch(() => { if (alive) setAway([]) })
+    return () => { alive = false }
+  }, [chatId, name, turn, on])
   useEffect(() => {
     if (!on) return
     let alive = true
@@ -36,11 +49,19 @@ export function JournalBox({ chatId, name, char, turn, journal }: { chatId: stri
       .catch(() => { if (alive) setEntries(null) })
     return () => { alive = false }
   }, [chatId, name, turn, on])
-  return <JournalView name={name} char={char} turn={turn} journal={journal} entries={entries} />
+  return <JournalView name={name} char={char} turn={turn} journal={journal} entries={entries} away={away} />
+}
+
+/** One line of what the character did off screen, as the spoiler setting let it through: the text, or where and when, or only that it happened. */
+export function awayLine(t: ReturnType<typeof useT>, e: MeanwhileEvent): string {
+  const vis = t(`world.mw.vis.${e.visibility}` as MsgKey)
+  if (e.what) return `${e.what} · ${vis}`
+  const where = [e.where, e.when].filter(Boolean).join(', ')
+  return `${where || t('dash.journal.away.some')} · ${vis}`
 }
 
 /** The box's content, from data only (no fetch): what the tests render. */
-export function JournalView({ name, char, turn, journal, entries }: { name: string; char: DashChar; turn: number; journal: JournalSettings; entries: JournalEntry[] | null }) {
+export function JournalView({ name, char, turn, journal, entries, away = [] }: { name: string; char: DashChar; turn: number; journal: JournalSettings; entries: JournalEntry[] | null; away?: MeanwhileEvent[] }) {
   const t = useT()
   return (
     <Box title={t('dash.journal', { name })} tone="memory" icon={BookOpenText} className="max-h-[480px] overflow-y-auto">
@@ -63,6 +84,17 @@ export function JournalView({ name, char, turn, journal, entries }: { name: stri
               </ul>
             )}
           </section>
+
+          {away.length > 0 && (
+            <section className="flex min-w-0 flex-col gap-1" data-testid="dash-journal-away">
+              <Label>{t('dash.journal.away')}</Label>
+              <ul className="flex flex-col">
+                {away.slice(0, 8).map((e) => (
+                  <li key={e.id} data-testid="dash-journal-away-line" className="border-b border-dashed border-border py-1.5 text-sm leading-snug break-words first:pt-0 last:border-b-0 last:pb-0">{awayLine(t, e)}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {entries !== null && (
             <section className="flex min-w-0 flex-col gap-1">

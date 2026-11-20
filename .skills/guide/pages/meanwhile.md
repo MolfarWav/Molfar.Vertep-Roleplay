@@ -24,6 +24,10 @@ Each kept event becomes a memory of the people it happened to and of those who s
 
 If you switch Meanwhile off, the events stop reaching replies at once.
 
+## In the Dashboard's journal
+
+In the wide Dashboard, a character's **Journal** has an **Off screen (Meanwhile)** section with the events that happened to that character, newest first, as far as the card's setting lets them show: only where and when under Hints, the text under Everything, and nothing under Nothing. It only reads the Meanwhile file; it writes nothing into the Dashboard, so it goes with a swipe and needs no extra setting. On a phone the Journal is not shown.
+
 ## Swipes and deletes
 
 An event belongs to the reply after which it happened. If you regenerate that reply, the new version is written without the event; if you swipe or delete that reply, the events of that pass go too, from the story as well, and the next pass reads the story again from the last reply that is still there.

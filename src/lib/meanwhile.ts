@@ -98,6 +98,33 @@ export async function runMeanwhile(chatId: string, force = false): Promise<Meanw
 
 const running = new Set<string>()
 
+/** Whether Meanwhile is on, remembered ten minutes (and at once when the card changes it): a screen that would only read it asks here first. */
+export async function meanwhileEnabled(): Promise<boolean> {
+  if (!enabledCache || Date.now() - enabledCache.at > CACHE_MS) {
+    try {
+      const r = await j<{ config: MeanwhileConfig }>('/meanwhile/config')
+      enabledCache = { on: r.config.enabled, at: Date.now() }
+    } catch {
+      enabledCache = { on: false, at: Date.now() }
+    }
+  }
+  return enabledCache.on
+}
+
+const sameName = (a: string, b: string): boolean => {
+  const x = a.trim().toLowerCase()
+  const y = b.trim().toLowerCase()
+  return !!x && !!y && (x === y || x.split(/\s+/)[0] === y.split(/\s+/)[0])
+}
+
+/**
+ * The events that happened to one character, newest first, as the spoiler setting let them through. Under "Nothing" an event has no
+ * names, so none can be given to a character.
+ */
+export function awayEvents(events: MeanwhileEvent[], name: string): MeanwhileEvent[] {
+  return events.filter((e) => (e.who ?? []).some((w) => sameName(w, name)))
+}
+
 /**
  * The pass after a reply. The plugin costs a call even when it answers "off", so the switch is remembered here (ten minutes, and at
  * once when the card changes it) and a chat with the switch off makes no call at all. One pass at a time per chat.
@@ -107,15 +134,7 @@ export async function triggerMeanwhile(chatId: string, busy: () => boolean): Pro
   // taken before the first await, or two replies in a row would both pass the check
   running.add(chatId)
   try {
-    if (!enabledCache || Date.now() - enabledCache.at > CACHE_MS) {
-      try {
-        const r = await j<{ config: MeanwhileConfig }>('/meanwhile/config')
-        enabledCache = { on: r.config.enabled, at: Date.now() }
-      } catch {
-        enabledCache = { on: false, at: Date.now() }
-      }
-    }
-    if (!enabledCache.on) return
+    if (!(await meanwhileEnabled())) return
     await runMeanwhile(chatId)
   } finally {
     running.delete(chatId)

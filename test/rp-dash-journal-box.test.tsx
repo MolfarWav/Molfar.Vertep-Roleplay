@@ -114,3 +114,24 @@ describe("the journal's pure helpers", () => {
     expect(requestOrder(board, parts, spans).map((r) => r.item.key)).toEqual(["history", "plugin:said", "plugin:journal"]);
   });
 });
+
+describe("the Journal box: off screen (Meanwhile, #449)", () => {
+  const away = [{ id: "m1", visibility: "secret", status: "active", who: ["Aria"], where: "the harbour", when: "at dusk" }];
+  const renderAway = (list: typeof away) =>
+    renderToStaticMarkup(<JournalView name="Aria" char={char()} turn={7} journal={on} entries={null} away={list as never} />);
+
+  it("shows a section with one line for each event, only when there are some", () => {
+    const html = renderAway(away);
+    expect(html).toContain('data-testid="dash-journal-away"');
+    expect(count(html, 'data-testid="dash-journal-away-line"')).toBe(1);
+    expect(html).toContain("the harbour, at dusk");
+    expect(renderAway([])).not.toContain('data-testid="dash-journal-away"');
+    expect(render(char())).not.toContain('data-testid="dash-journal-away"');
+  });
+
+  it("the off line still shows alone when the journal is off", () => {
+    const html = renderToStaticMarkup(<JournalView name="Aria" char={char()} turn={7} journal={{ ...on, on: false }} entries={null} away={away as never} />);
+    expect(html).toContain('data-testid="dash-journal-off"');
+    expect(html).not.toContain('data-testid="dash-journal-away"');
+  });
+});
