@@ -1,5 +1,6 @@
 
-import { Children, createContext, isValidElement, cloneElement, memo, useContext, useState, type ReactNode, type ReactElement } from 'react'
+import { genderCue, learnGender, voiceOfGender, type GenderBook } from '@/lib/speaker-gender'
+import { Children, createContext, isValidElement, cloneElement, memo, useContext, useRef, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -189,6 +190,9 @@ function tintQuotes(children: ReactNode, depth = 0): ReactNode {
 /** The group voices a narrator's message is coloured by (none outside such messages). */
 export const DialogueVoices = createContext<DialogueVoice[]>([])
 
+/** What the pronouns of this reply taught about who is a she and who a he (see speaker-gender.ts); filled paragraph by paragraph, in reading order. */
+const GenderBookContext = createContext<GenderBook | null>(null)
+
 /** True in the player's own message: a quote takes a character's colour only on a line that opens with
  *  `Name:` (and the lines after it, until another label), never from a name said in the narration. */
 export const VoiceLeadOnly = createContext(false)
@@ -212,11 +216,14 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
   return lines
 }
 
-/** Who speaks on each line: a `Name:` lead wins (a name nobody knows hands the line back to the base colour), else the first voice named in the line, else the
+/** Who speaks on each line: a `Name:` lead wins (a name nobody knows hands the line back to the base colour), else the first voice named in the line,
+ *  else the one voice whose gender the line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the
  *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false): (DialogueVoice | null)[] {
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: GenderBook): (DialogueVoice | null)[] {
   let carry: DialogueVoice | null = carryIn
-  return lineTexts(children).map((line) => {
+  const lines = lineTexts(children)
+  if (book && !leadOnly) for (const line of lines) learnGender(line, voices, book)
+  return lines.map((line) => {
     if (leadOnly) {
       // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
       if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
@@ -230,7 +237,12 @@ export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carry
       carry = leadVoiceIn(line, voices)
       return carry
     }
-    carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry
+    const named = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices)
+    if (named) carry = named
+    else if (book) {
+      const g = genderCue(line)
+      carry = (g ? voiceOfGender(g, voices, book) : null) ?? carry
+    }
     return carry
   })
 }
@@ -299,9 +311,10 @@ const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | '
   function Tinted({ children, ...rest }: { children?: ReactNode; 'data-carry'?: string }) {
     const voices = useContext(DialogueVoices)
     const leadOnly = useContext(VoiceLeadOnly)
+    const book = useContext(GenderBookContext)
     const tinted = tintQuotes(children)
     const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn, leadOnly), { line: 0 }) : tinted}</Tag>
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn, leadOnly, book ?? undefined), { line: 0 }) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
@@ -388,6 +401,9 @@ function MessageImage({ src, alt, title }: { src?: string; alt?: string; title?:
 export const Markdown = memo(function Markdown({ content, className, scope }: { content: string; className?: string; scope?: string }) {
   const voices = useContext(DialogueVoices)
   const leadOnly = useContext(VoiceLeadOnly)
+  // a fresh book for every render of the reply: the paragraphs below fill it in reading order
+  const book = useRef<GenderBook>(new Map())
+  book.current = new Map()
   return (
     <div
       className={cn(
@@ -409,6 +425,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
       )}
     >
       <StyleScope.Provider value={scope ?? '.mes_text'}>
+      <GenderBookContext.Provider value={book.current}>
         <ReactMarkdown
           // remark-breaks: single newlines render as breaks
           remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
@@ -427,6 +444,7 @@ export const Markdown = memo(function Markdown({ content, className, scope }: { 
         >
           {content}
         </ReactMarkdown>
+      </GenderBookContext.Provider>
       </StyleScope.Provider>
     </div>
   )
