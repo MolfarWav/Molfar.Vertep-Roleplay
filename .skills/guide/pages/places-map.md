@@ -30,14 +30,16 @@ New places are placed by the app, not by a model: the first in the middle, the n
 The gear in the header opens:
 
 - **The picture under the places** (see "Ready maps" below): upload your own, choose a ready map, or switch to the dotted grid. Changing it keeps where the places stand; then drag the places onto it.
+- **Draw a map with the image model** (see "Draw a map" below).
+- **Maps of this chat** (see "Several maps" below), and, once there are several, **Places on this map**.
 - **Arrange the places again** puts every place back to the automatic layout (it asks first). The roads stay.
 
 ## Travel by a tap
 
 Pick a place the story is not in and press the arrow on its card (next to the three dots) ("Go to this place"). A small window opens:
 
-- **How:** on foot, riding or skip the road. Riding takes 0.4 of the walking time; skipping the road asks the reply for one line at most.
-- **Minutes:** worked out from the distance between the two places on the board (10 board units a minute, rounded to 5), and yours to change. They are kept on the road, so the next trip between the same two places starts from them. **Ask the model** (next to the minutes) makes one call on the World DM's model: it reads what the book says about the two places and the distance and gives the walking time, which fills the field. It costs one small call, only when you press it, and it is off while the World DM is off.
+- **How:** on foot, riding, by taxi, by metro or skip the road. Riding takes 0.4 of the walking time, a taxi 0.2, the metro a quarter plus ten minutes of waiting; skipping the road asks the reply for one line at most. Taxi is offered on town and region maps, the metro on town maps only (see "Several maps").
+- **Minutes:** worked out from the distance between the two places on the board and the map's scale (a town map: 10 board units a minute, rounded to 5; a region map and a world map are many times slower per unit, so a long trip is told in hours or days, and the window shows it next to the number, "= 2 d 4 h"), and yours to change. They are kept on the road, so the next trip between the same two places starts from them. **Ask the model** (next to the minutes) makes one call on the World DM's model: it reads what the book says about the two places and the distance and gives the walking time, which fills the field. It costs one small call, only when you press it, and it is off while the World DM is off.
 - **Road name:** optional. Kept on the road; the next trip tells the reply to keep to that road, so the same street is walked again. Left empty, the reply invents a short name. When the road has none and the World DM is on, one small call on its model reads the reply after the journey and a line appears under the header: "The reply called this road ..." with **Keep**. Keep puts the name on the road; ignore it and nothing changes. Nothing is read when you already named the road.
 - **Road event** (off until you switch it on, remembered per chat in this browser): when the DM is already holding an event, that one plays on the road. Otherwise a seeded die is rolled against the chance you set (25% to start): the window shows the roll before you send, and on a hit names a small kind of event (a stranger, an obstacle, the weather, a find, a feeling of being watched, a traveller in trouble, a rumour, a warning sign) that the reply fills in. The same roll shows if you reopen the window, and it is in the instruction chip on your message.
 - **Your move:** the line that goes into the chat, "I head to ..." by default, yours to rewrite.
@@ -57,6 +59,34 @@ The gear menu has the rest:
 
 Moving the places or changing the picture never moves one into the other: the places keep where you put them.
 
+## Several maps
+
+One chat can have more than one map: a country, a city's plan, a dungeon. Each has its own picture, places, roads and scale. Open the gear menu and choose **Maps of this chat**: the first map is listed, **Add a map** makes another. For each map you set:
+
+- **Name.**
+- **Scale:** Town (a trip takes minutes: streets, a building, a dungeon level), Region (hours: villages, woods and roads between them) or World (days: cities and lands far apart). The scale sets how long a trip on that map takes, and which ways of travel are offered: on foot, riding and skip the road everywhere, a taxi on town and region maps, the metro on town maps.
+- **Plan of:** the place this map is the plan of (the map of a city is the plan of that city), or none.
+
+Once there are several maps, a row under the header shows the map you are looking at with a caret: press it to switch, or to open the list again. The map you look at is remembered per chat in this browser. A map that is the plan of a place shows a back arrow to the map that holds that place.
+
+**A place stands only on the maps you put it on.** **Places on this map** (gear menu) lists every place with a tick: tick a place to show it on this map, untick to take it off this map only (its rooms go with it; a place on no map goes back to the map the story is on). A new place the DM adds goes to the map the story is on; a new city, village or castle also goes to the region and world maps. A new region or world map starts with the cities, villages and castles you already have. A new town map starts empty and says so, with a button for the same list.
+
+**A place that has a map of its own** gets an **Open the map of this place** button on its card; **Make a map of this place** in its three-dots menu creates an empty map that is its plan and opens it. A place you open from the country's map is the same place as on the city's map; the story's place on the country map is the city whose plan holds it (while the story is in the city's tavern, the country map marks the city).
+
+A road is kept on the map that has both its places. Travel is inside one map: on the world map you go from city to city and the story arrives at the city itself; to go to a tavern in it, open the city's map (the back arrow and the Open button move between them) and go from there.
+
+The picture of a map is chosen like any other (a ready map, your own, none, or drawn): a Region or World map starts from a region plan whatever the places are, a Town map from the plan that suits its places.
+
+## Draw a map
+
+**Draw a map with the image model** (gear menu) paints a picture for the map on view with the image model you chose in Settings > Images. The window has:
+
+- **What kind of map:** region, continent, walled town, harbour town, village, wilderness, coast, house plan, dungeon, caves, and the modern city's kinds (downtown, metropolis, suburb, industrial district, campus, waterfront, airport, small town). A Region map starts on Region, a World map on Continent.
+- **What to draw:** a prompt filled from the kind and the names of the places on the map. It asks for only the ground (land, water, roads, empty plots) because your places are icons laid on top. Change it as you like; picking another kind rewrites it until you have edited it.
+- A line with the image model and a reminder that each picture is one call that may cost money.
+
+**Draw the map** makes one call and shows the result in the window; nothing has changed yet. **Use this map** makes it this map's picture (the other maps keep theirs), **Draw again** goes back to the prompt. If no image model is set up, the call says so; add one in Settings > Images.
+
 ## What it does not do
 
-It does not draw the world and does not invent places (the World DM does, see [[world-dm]]). Places the DM has retired leave the map.
+It does not invent places (the World DM does, see [[world-dm]]). Places the DM has retired leave the map.

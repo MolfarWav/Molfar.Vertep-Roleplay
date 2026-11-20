@@ -3518,34 +3518,69 @@ function cleanPlaceMapMeta(v) {
   const BOARD_W = 1600, BOARD_H = 1000, MARGIN = 70;
   const out = { v: 1, nodes: {}, routes: [] };
   const str = (s) => typeof s === "string" && s.length > 0 && s.length <= 80;
-  if (v.nodes && typeof v.nodes === "object" && !Array.isArray(v.nodes)) {
-    for (const [id, p] of Object.entries(v.nodes)) {
+  const SCALES = ["town", "region", "world"];
+  const cleanNodes = (raw) => {
+    const nodes = {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return nodes;
+    for (const [id, p] of Object.entries(raw)) {
       if (!str(id) || !p || typeof p !== "object" || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-      out.nodes[id] = {
+      nodes[id] = {
         x: Math.round(Math.min(BOARD_W - MARGIN, Math.max(MARGIN, p.x))),
         y: Math.round(Math.min(BOARD_H - MARGIN, Math.max(MARGIN, p.y))),
       };
-      if (Object.keys(out.nodes).length >= 200) break;
+      if (Object.keys(nodes).length >= 200) break;
     }
-  }
-  if (Array.isArray(v.routes)) {
+    return nodes;
+  };
+  const cleanRoutes = (raw) => {
+    const routes = [];
+    if (!Array.isArray(raw)) return routes;
     const seen = new Set();
-    for (const r of v.routes) {
+    for (const r of raw) {
       if (!r || !str(r.a) || !str(r.b) || r.a === r.b) continue;
       const a = r.a < r.b ? r.a : r.b;
       const b = r.a < r.b ? r.b : r.a;
       if (seen.has(a + "\n" + b)) continue;
       seen.add(a + "\n" + b);
-      const minutes = Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 99999 ? r.minutes : 0;
+      const minutes = Number.isInteger(r.minutes) && r.minutes >= 1 && r.minutes <= 999999 ? r.minutes : 0;
       const via = typeof r.via === "string" ? r.via.replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) : "";
-      out.routes.push({ a, b, ...(minutes ? { minutes } : {}), ...(via ? { via } : {}) });
-      if (out.routes.length >= 400) break;
+      routes.push({ a, b, ...(minutes ? { minutes } : {}), ...(via ? { via } : {}) });
+      if (routes.length >= 400) break;
     }
-  }
-  if (v.picture && typeof v.picture === "object") {
-    if (typeof v.picture.id === "string" && v.picture.id && v.picture.id.length <= 200) out.picture = { id: v.picture.id };
-    else if (typeof v.picture.builtin === "string" && /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(v.picture.builtin)) out.picture = { builtin: v.picture.builtin };
-    else if (v.picture.none === true) out.picture = { none: true };
+    return routes;
+  };
+  const cleanPicture = (pic) => {
+    if (!pic || typeof pic !== "object") return null;
+    if (typeof pic.id === "string" && pic.id && pic.id.length <= 200) return { id: pic.id };
+    if (typeof pic.builtin === "string" && /^[a-z][a-z0-9-]{0,30}\/[a-z]+(?:-[a-z]+)*-[1-9][0-9]?$/.test(pic.builtin)) return { builtin: pic.builtin };
+    if (pic.none === true) return { none: true };
+    return null;
+  };
+  const cleanName = (n) => (typeof n === "string" ? n.replace(/\s+/g, " ").trim().slice(0, 40) : "");
+  out.nodes = cleanNodes(v.nodes);
+  out.routes = cleanRoutes(v.routes);
+  const picture = cleanPicture(v.picture);
+  if (picture) out.picture = picture;
+  const name = cleanName(v.name);
+  if (name) out.name = name;
+  if (SCALES.includes(v.scale) && v.scale !== "town") out.scale = v.scale;
+  // more maps of the chat (levels): a place stands on a level only where it has a position there
+  if (Array.isArray(v.levels)) {
+    const levels = [];
+    const ids = new Set();
+    for (const l of v.levels) {
+      if (!l || typeof l !== "object") continue;
+      const lname = cleanName(l.name);
+      if (typeof l.id !== "string" || !/^l[1-9][0-9]{0,2}$/.test(l.id) || ids.has(l.id) || !lname) continue;
+      ids.add(l.id);
+      const level = { id: l.id, name: lname, scale: SCALES.includes(l.scale) ? l.scale : "town", nodes: cleanNodes(l.nodes), routes: cleanRoutes(l.routes) };
+      if (str(l.plan)) level.plan = l.plan;
+      const lp = cleanPicture(l.picture);
+      if (lp) level.picture = lp;
+      levels.push(level);
+      if (levels.length >= 12) break;
+    }
+    if (levels.length) out.levels = levels;
   }
   if (str(v.at)) out.at = v.at;
   if (v.labels && typeof v.labels === "object" && !Array.isArray(v.labels)) {
@@ -3567,7 +3602,7 @@ function cleanPlaceMapMeta(v) {
     }
     if (Object.keys(icons).length) out.icons = icons;
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons ? out : null;
+  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.labels || out.icons || out.levels || out.name || out.scale ? out : null;
 }
 
 function cleanTurns(t) {

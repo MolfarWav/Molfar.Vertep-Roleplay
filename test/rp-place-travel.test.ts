@@ -28,7 +28,7 @@ describe("minutes of a trip", () => {
   });
   it("are kept only as whole numbers in range", () => {
     expect(cleanMinutes(25)).toBe(25);
-    for (const bad of [0, -1, 2.5, 100000, "5", null, NaN]) expect(cleanMinutes(bad as unknown)).toBeNull();
+    for (const bad of [0, -1, 2.5, 1000000, "5", null, NaN]) expect(cleanMinutes(bad as unknown)).toBeNull();
   });
 });
 

@@ -6816,7 +6816,7 @@ function backgroundsRoute(req, host) {
 // the walking time between two places, and the name a journey's reply gave the road.
 export const TRAVEL_TIME_SYSTEM = [
   "You estimate how long a trip takes in a roleplay story, so the story clock can move.",
-  "You get two places with what the book says about them, the distance between them on the story's map (map units; the app's own default is about 10 units a minute on foot) and who travels.",
+  "You get two places with what the book says about them, the distance between them on the story's map (map units; the app's own default is about 10 units a minute on foot on a town map, about 1 unit in 3 minutes on a region map and 40 minutes a unit on a map of a country or a world) and who travels.",
   "Answer the time ON FOOT in whole minutes; the app works a ride out from it. A room to the next room is a few minutes, across a town tens of minutes, to the next village an hour or more, between distant cities hours or days. Go by what the places are, not by the units alone. Never 0.",
   'Output: one JSON object and nothing else, no code fences: {"minutes": 25}',
 ].join("\n");
@@ -6850,7 +6850,7 @@ function travelRoute(req, host, which) {
   if (which === "time") {
     system = TRAVEL_TIME_SYSTEM;
     const units = Math.round(num(b.distance));
-    content = ["From", travelPlace(state, from), "To", travelPlace(state, to), units > 0 ? "Distance on the map: " + units + " units." : "", "They go " + (b.mode === "ride" ? "riding" : "on foot") + ". Answer the time on foot."].filter(Boolean).join("\n");
+    content = ["From", travelPlace(state, from), "To", travelPlace(state, to), units > 0 ? "Distance on the map: " + units + " units." : "", b.scale === "region" ? "This is a map of a region: places are towns, woods, roads between them, so a trip takes hours." : b.scale === "world" ? "This is a map of a country or a world: places are cities and lands far apart, so a trip takes days." : "", "They go " + (b.mode === "ride" ? "riding" : "on foot") + ". Answer the time on foot."].filter(Boolean).join("\n");
   } else {
     const reply = cut(str(b.reply), 6000);
     if (!reply) return ok({ error: "reply required" }, 400);
@@ -6864,7 +6864,7 @@ function travelRoute(req, host, which) {
   if (which === "time") {
     const m = Math.round(num(built.out.minutes));
     if (!(m >= 1)) return ok({ ok: false, error: "The build model gave no usable time.", code: "empty" });
-    return ok({ ok: true, minutes: Math.min(99999, m), model: built.run.model, usage: built.usage });
+    return ok({ ok: true, minutes: Math.min(999999, m), model: built.run.model, usage: built.usage });
   }
   const name = cut(str(built.out.name).replace(/[\[\]"]/g, "").replace(/\s+/g, " ").trim(), 120);
   return ok({ ok: true, name, model: built.run.model, usage: built.usage });

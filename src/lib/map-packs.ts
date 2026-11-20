@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { placeKind } from '@/lib/place-kinds'
 import type { WorldRecord } from '@/lib/world'
+import type { MapScale } from '@/lib/place-map'
 import { hashId } from '@/lib/place-icons'
 
 export interface MapEntry { id: string; kind: string; w: number; h: number }
@@ -107,10 +108,11 @@ export function defaultMapKind(kinds: readonly string[]): string {
 }
 
 /** The ready map a chat shows until the player picks something: the suiting kind, the variant fixed by the chat's id. */
-export function defaultMapKey(records: readonly WorldRecord[], chatId: string, packs: MapPack[] | null | undefined): string | null {
+export function defaultMapKey(records: readonly WorldRecord[], chatId: string, packs: MapPack[] | null | undefined, scale: MapScale = 'town'): string | null {
   if (!packs?.length) return null
   const kinds = records.filter((r) => r.kind === 'place' && r.status === 'active' && !r.inside).map((r) => placeKind(r.name, ...(r.aliases ?? [])).id)
-  const want = defaultMapKind(kinds)
+  // a region or world map is land with towns on it, whatever the towns are
+  const want = scale === 'town' ? defaultMapKind(kinds) : 'region'
   const all = packs.flatMap((p) => p.maps.map((m) => ({ key: `${p.id}/${m.id}`, kind: m.kind })))
   const of = (k: string) => all.filter((m) => m.kind === k)
   const pool = of(want).length ? of(want) : of('region').length ? of('region') : all

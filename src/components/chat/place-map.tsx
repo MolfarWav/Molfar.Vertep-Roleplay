@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, Check, CornersOut, DotsThree, GearSix, ImageSquare, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowLeft, CaretDown, Check, CornersOut, DotsThree, GearSix, ImageSquare, ListChecks, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Sparkle, Stack, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -8,13 +8,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { TONES } from '@/components/ui/tone'
 import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place-map-board'
 import { MapGalleryDialog } from '@/components/chat/map-gallery-dialog'
+import { MapGenerateDialog } from '@/components/chat/map-generate-dialog'
+import { MapLevelsDialog } from '@/components/chat/map-levels-dialog'
+import { MapPlacesDialog } from '@/components/chat/map-places-dialog'
 import { PlaceIconDialog } from '@/components/chat/place-icon-dialog'
 import { PlaceTravelDialog, type TravelSent } from '@/components/chat/place-travel-dialog'
 import { limitArea, stageArea, useComposer } from '@/components/chat/expression-panel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { cleanLabel, emptyMap, layoutMap, moveNode, roadsOf, routeOf, setIcon, setRouteInfo, stepRoute, toggleRoute, visibleRoutes, withPositions, type PlaceMapData } from '@/lib/place-map'
+import { MAIN_LEVEL, addLevel, cleanLabel, layoutLevels, levelIds, levelInfo, levelOfPlan, levelSlice, moveNode, parentLevel, putSlice, removeLevel, roadsOf, routeOf, setIcon, setLevelInfo, setMembers, setRouteInfo, stepRoute, toggleRoute, visibleRoutes, wholePlaces, type PlaceMapData } from '@/lib/place-map'
+import { loadLevel, saveLevel } from '@/lib/place-map-level'
 import { placeKind } from '@/lib/place-kinds'
 import { defaultMapKey, hasMap, mapPackUrl, useMapPacks } from '@/lib/map-packs'
 import { placeIconPath, usePlaceIconIndex } from '@/lib/place-icons'
@@ -97,16 +101,30 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     return () => { live = false }
   }, [chat.id, wanted, records, sceneKey, messageCount])
 
-  const data = chat.placeMap ?? null
-  const layout = useMemo(() => (records ? layoutMap(records, data, hereId) : null), [records, data, hereId])
+  // a chat can keep several maps (levels); `fullData` is all of them, `data` the one on view, as a map of its own
+  const fullData = chat.placeMap ?? null
+  const lay = useMemo(() => (records ? layoutLevels(records, fullData, hereId) : null), [records, fullData, hereId])
+  const baseFull = lay?.data ?? fullData
+  const [levelPick, setLevelPick] = useState(() => loadLevel(chat.id, storage()))
+  useEffect(() => { setLevelPick(loadLevel(chat.id, storage())) }, [chat.id])
+  const level = levelIds(baseFull).includes(levelPick) ? levelPick : MAIN_LEVEL
+  const info = levelInfo(baseFull, level, t('placeMap.mainName'))
+  const data = useMemo(() => levelSlice(baseFull, level), [baseFull, level])
+  const layout = lay?.layouts.find((l) => l.id === level) ?? null
+  const openLevel = (id: string) => {
+    setLevelPick(id)
+    saveLevel(chat.id, id, storage())
+    setSelectedId(null)
+  }
+  // keep what a change made to the map on view: the other maps stay as they are
+  const save = (slice: PlaceMapData) => updateChat(chat.id, { placeMap: putSlice(baseFull, level, slice) })
   // new places get their position, and the road the story just walked is kept, even while the window is folded
   useEffect(() => {
-    if (!records || !layout) return
-    let next: PlaceMapData | null = Object.keys(layout.added).length ? withPositions(data, layout.added) : data
-    next = stepRoute(next, records, hereId)
-    if (next && next !== data) updateChat(chat.id, { placeMap: next })
+    if (!records || !lay) return
+    const next = stepRoute(lay.data, records, hereId)
+    if (next && next !== fullData) updateChat(chat.id, { placeMap: next })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, layout, hereId])
+  }, [records, lay, hereId])
 
   // the spoiler question of a world built before the story, as the World section asks it
   const [, bumpReveal] = useState(0)
@@ -207,7 +225,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     const labels = { ...(data?.labels ?? {}) }
     if (!label || label === rec.name) delete labels[rec.id]
     else labels[rec.id] = label
-    updateChat(chat.id, { placeMap: { ...withPositions(data, layout?.added ?? {}), labels } })
+    save({ ...data, labels })
   }
   // drawing a road by hand: from the picked place to the next whole place that is tapped (a road that is there is taken away)
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
@@ -235,7 +253,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   useEffect(() => { setJourney(null); setRoadOffer(null) }, [chat.id])
   const keepRoadName = () => {
     if (!roadOffer) return
-    updateChat(chat.id, { placeMap: setRouteInfo(withPositions(data, layout?.added ?? {}), roadOffer.a, roadOffer.b, { via: roadOffer.name }) })
+    save(setRouteInfo(data, roadOffer.a, roadOffer.b, { via: roadOffer.name }))
     setRoadOffer(null)
   }
   // the card's less used actions live in a menu: rename, icon, road
@@ -254,8 +272,8 @@ export function PlaceMap({ chat }: { chat: Chat }) {
     const to = id ? nodes.find((n) => n.id === id) : null
     setConnectFrom(null)
     if (!from || !to || to.spot || to.id === from.id) return
-    const done = toggleRoute(withPositions(data, layout?.added ?? {}), from.id, to.id)
-    updateChat(chat.id, { placeMap: done.data })
+    const done = toggleRoute(data, from.id, to.id)
+    save(done.data)
     toast.success(t(done.added ? 'placeMap.roadAdded' : 'placeMap.roadRemoved', { a: from.name, b: to.name }))
   }
   const selected = nodes.find((n) => n.id === selectedId) ?? null
@@ -265,33 +283,56 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   // the picture under the places: the player's own, a ready map they chose, none (the grid), or by default a ready map that suits the places
   const packs = useMapPacks()
   const chosen = data?.picture ?? null
-  const autoKey = !chosen && records ? defaultMapKey(records, chat.id, packs) : null
+  const autoKey = !chosen && records ? defaultMapKey(records.filter((r) => data.nodes[r.id]), chat.id, packs, info.scale) : null
   const pictureKey = chosen && 'builtin' in chosen ? chosen.builtin : autoKey
   const pictureUrl = chosen && 'id' in chosen ? `/v1/assets/${chosen.id}` : chosen && 'none' in chosen ? null : pictureKey && hasMap(pictureKey, packs) ? mapPackUrl(pictureKey) : null
   const [galleryOpen, setGalleryOpen] = useState(false)
 
-  const baseData = () => withPositions(data, layout?.added ?? {})
   const onMoved = (id: string, to: { x: number; y: number }) => {
     const spots = nodes.filter((n) => n.parentId === id).map((n) => n.id)
-    updateChat(chat.id, { placeMap: moveNode(baseData(), id, to, spots) })
+    save(moveNode(data, id, to, spots))
   }
   const upload = async (file: File) => {
     try {
       const stored = await storeBackground(file, 'places-map')
       const id = stored.url.split('/').pop()
       if (!id) throw new Error('no id')
-      updateChat(chat.id, { placeMap: { ...baseData(), picture: { id } } })
+      save({ ...data, picture: { id } })
       toast.success(t('placeMap.picked'))
     } catch (e) {
       toast.error(t('placeMap.uploadFail', { message: e instanceof Error ? e.message : String(e) }))
     }
   }
-  const removePicture = () => updateChat(chat.id, { placeMap: { ...baseData(), picture: { none: true } } })
-  const autoPicture = () => { const { picture: _p, ...rest } = baseData(); updateChat(chat.id, { placeMap: rest }) }
-  const pickReady = (key: string) => updateChat(chat.id, { placeMap: { ...baseData(), picture: { builtin: key } } })
+  const removePicture = () => save({ ...data, picture: { none: true } })
+  const autoPicture = () => { const { picture: _p, ...rest } = data; save(rest) }
+  const pickReady = (key: string) => save({ ...data, picture: { builtin: key } })
   const resetLayout = async () => {
     if (!(await confirm({ title: t('placeMap.resetTitle'), description: t('placeMap.resetBody'), actionLabel: t('placeMap.resetGo'), destructive: false }))) return
-    updateChat(chat.id, { placeMap: { ...(data ?? emptyMap()), nodes: {} } })
+    // the places stay on this map, only their spots on it are laid out again
+    const onMap = Object.keys(data.nodes)
+    updateChat(chat.id, { placeMap: setMembers(putSlice(baseFull, level, { ...data, nodes: {} }), records ?? [], level, onMap) })
+  }
+
+  // the maps of the chat: the places that can stand on one, the dialogs and what they change
+  const wholes = useMemo(() => (records ? wholePlaces(records, null).map((r) => ({ id: r.id, name: cleanLabel(baseFull?.labels?.[r.id]) ?? r.name, emoji: placeKind(r.name, ...(r.aliases ?? [])).emoji })) : []), [records, baseFull?.labels])
+  const [levelsOpen, setLevelsOpen] = useState(false)
+  const [placesOpen, setPlacesOpen] = useState(false)
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [levelMenu, setLevelMenu] = useState(false)
+  const several = levelIds(baseFull).length > 1
+  const upLevel = parentLevel(baseFull, level)
+  const planLevel = selected && !selected.spot ? levelOfPlan(baseFull, selected.id) : null
+  const newLevel = (plan: string | null, name: string, scale: 'town' | 'region' | 'world') => {
+    const made = addLevel(baseFull, records ?? [], { name, scale, plan })
+    if (!made.id) { toast.error(t('placeMap.levelLimit')); return }
+    updateChat(chat.id, { placeMap: made.data })
+    openLevel(made.id)
+  }
+  const dropLevel = async (id: string) => {
+    const name = levelInfo(baseFull, id, t('placeMap.mainName')).name
+    if (!(await confirm({ title: t('placeMap.levelDeleteTitle', { name }), description: t('placeMap.levelDeleteBody'), actionLabel: t('placeMap.levelDeleteGo'), destructive: true }))) return
+    updateChat(chat.id, { placeMap: removeLevel(baseFull, id) ?? undefined })
+    if (level === id) openLevel(MAIN_LEVEL)
   }
 
   if (!visible) return confirmDialog
@@ -409,7 +450,21 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   {t('placeMap.removePicture')}
                 </Button>
               )}
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => setGenerateOpen(true)} data-testid="place-map-generate">
+                <Sparkle className={cn('size-4', TONES.violet.ink)} weight="fill" aria-hidden="true" />
+                {t('placeMap.generate')}
+              </Button>
               <p className="text-xs text-muted-foreground">{t('placeMap.pictureHint')}</p>
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => setLevelsOpen(true)} data-testid="place-map-levels-open">
+                <Stack className={cn('size-4', TONES.teal.ink)} weight="duotone" aria-hidden="true" />
+                {t('placeMap.levelsOpen')}
+              </Button>
+              {several && (
+                <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => setPlacesOpen(true)} data-testid="place-map-places-open">
+                  <ListChecks className={cn('size-4', TONES.emerald.ink)} weight="bold" aria-hidden="true" />
+                  {t('placeMap.placesOpen')}
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => void resetLayout()}>
                 <ArrowCounterClockwise className={cn('size-4', TONES.amber.ink)} aria-hidden="true" />
                 {t('placeMap.reset')}
@@ -437,6 +492,50 @@ export function PlaceMap({ chat }: { chat: Chat }) {
             <span className="min-w-0 flex-1 truncate" title={t('placeMap.roadOffer', { name: roadOffer.name })}>{t('placeMap.roadOffer', { name: roadOffer.name })}</span>
             <Button variant="secondary" size="sm" className="h-6 shrink-0 px-2 text-xs max-md:h-9" onClick={keepRoadName} data-testid="place-map-road-keep">{t('placeMap.roadKeep')}</Button>
             <Button variant="ghost" size="icon" className="size-6 shrink-0 max-md:size-9" onClick={() => setRoadOffer(null)} aria-label={t('placeMap.close')} title={t('placeMap.close')}><X className="size-3.5" aria-hidden="true" /></Button>
+          </div>
+        )}
+
+        {several && (
+          <div className="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 py-0.5" data-testid="place-map-levelbar">
+            {upLevel && (
+              <Button variant="ghost" size="icon" className="size-8 shrink-0 max-md:size-10" onClick={() => openLevel(upLevel)} aria-label={t('placeMap.levelUp', { name: levelInfo(baseFull, upLevel, t('placeMap.mainName')).name })} title={t('placeMap.levelUp', { name: levelInfo(baseFull, upLevel, t('placeMap.mainName')).name })} data-testid="place-map-up">
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </Button>
+            )}
+        <Popover open={levelMenu} onOpenChange={setLevelMenu}>
+          <PopoverTrigger
+            className="flex min-h-8 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-sm font-medium hover:bg-muted max-md:min-h-10"
+            aria-label={t('placeMap.levelSwitch', { name: info.name })}
+            title={t('placeMap.levelSwitchHint')}
+            data-testid="place-map-levels"
+          >
+            <span className="min-w-0 flex-1 truncate">{info.name}</span>
+            <CaretDown className="size-4 shrink-0" aria-hidden="true" />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="flex w-64 flex-col gap-0.5 p-1">
+            {levelIds(baseFull).map((id) => {
+              const li = levelInfo(baseFull, id, t('placeMap.mainName'))
+              return (
+                <Button
+                  key={id}
+                  variant={id === level ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-auto justify-between gap-2 whitespace-normal py-2 text-left max-md:min-h-11"
+                  onClick={() => { openLevel(id); setLevelMenu(false) }}
+                  aria-current={id === level ? 'true' : undefined}
+                  data-level-pick={id}
+                >
+                  <span className="min-w-0 flex-1 break-words">{li.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{t(`placeMap.scale.${li.scale}`)}</span>
+                </Button>
+              )
+            })}
+            <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setLevelMenu(false); setLevelsOpen(true) }} data-testid="place-map-levels-manage">
+              <Stack className={cn('size-4 shrink-0', TONES.teal.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.levelsManage')}
+            </Button>
+          </PopoverContent>
+        </Popover>
+            <span className="shrink-0 pr-1.5 text-xs text-muted-foreground">{t(`placeMap.scale.${info.scale}`)}</span>
           </div>
         )}
 
@@ -487,6 +586,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
+            {draft === null && planLevel && (
+              <Button variant="outline" size="icon" className={ctl} onClick={() => openLevel(planLevel)} aria-label={t('placeMap.levelEnter', { name: levelInfo(baseFull, planLevel, t('placeMap.mainName')).name })} title={t('placeMap.levelEnter', { name: levelInfo(baseFull, planLevel, t('placeMap.mainName')).name })} data-testid="place-map-enter">
+                <MapTrifold className={cn('size-4', TONES.teal.ink)} weight="duotone" aria-hidden="true" />
+              </Button>
+            )}
             {draft === null && !selected.here && (
               <Button variant="secondary" size="icon" className={ctl} onClick={() => { setTravelRun((n) => n + 1); setTravelOpen(true) }} aria-label={t('placeMap.travel')} title={t('placeMap.travel')} data-testid="place-map-travel">
                 <NavigationArrow className={cn('size-4', TONES.sky.ink)} weight="fill" aria-hidden="true" />
@@ -506,6 +610,11 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   {Object.keys(iconIndex ?? {}).length > 0 && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setIconOpen(true) }} data-testid="place-map-icon">
                       <ImageSquare className={cn('size-4 shrink-0', TONES.violet.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.icon')}
+                    </Button>
+                  )}
+                  {!selected.spot && !planLevel && (
+                    <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); newLevel(selected.id, selected.name, 'town') }} data-testid="place-map-make-level">
+                      <Stack className={cn('size-4 shrink-0', TONES.teal.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.levelMake')}
                     </Button>
                   )}
                   {!selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
@@ -555,6 +664,15 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               connecting={connectFrom !== null}
             />
           )}
+          {records && !locked && nodes.length === 0 && (
+            <div className="absolute inset-x-3 top-3 z-10 flex flex-col items-start gap-2 rounded-md border border-border bg-card/95 p-3 shadow-md" data-testid="place-map-empty">
+              <p className="text-sm font-medium">{t('placeMap.emptyTitle', { name: info.name })}</p>
+              <p className="text-xs text-muted-foreground">{t('placeMap.emptyBody')}</p>
+              <Button size="sm" className="max-md:min-h-10" onClick={() => setPlacesOpen(true)} data-testid="place-map-empty-add">
+                <ListChecks className="size-4" weight="bold" aria-hidden="true" />{t('placeMap.placesOpen')}
+              </Button>
+            </div>
+          )}
           <span
             onPointerDown={(e) => {
               e.stopPropagation()
@@ -575,6 +693,42 @@ export function PlaceMap({ chat }: { chat: Chat }) {
       {galleryOpen && packs && (
         <MapGalleryDialog packs={packs} current={pictureKey && hasMap(pictureKey, packs) && !(chosen && ('id' in chosen || 'none' in chosen)) ? pictureKey : null} open={galleryOpen} onOpenChange={setGalleryOpen} onPick={pickReady} />
       )}
+      {generateOpen && (
+        <MapGenerateDialog
+          key={`${level}:${generateOpen}`}
+          open={generateOpen}
+          onOpenChange={setGenerateOpen}
+          scale={info.scale}
+          mapName={info.name}
+          placeNames={nodes.filter((n) => !n.spot).map((n) => n.name)}
+          onUse={(id) => { save({ ...data, picture: { id } }); toast.success(t('placeMap.picked')) }}
+        />
+      )}
+      {levelsOpen && (
+        <MapLevelsDialog
+          open={levelsOpen}
+          onOpenChange={setLevelsOpen}
+          data={baseFull}
+          current={level}
+          places={wholes}
+          onRename={(id, name) => updateChat(chat.id, { placeMap: setLevelInfo(baseFull, id, { name }) })}
+          onScale={(id, scale) => updateChat(chat.id, { placeMap: setLevelInfo(baseFull, id, { scale }) })}
+          onPlan={(id, plan) => updateChat(chat.id, { placeMap: setLevelInfo(baseFull, id, { plan }) })}
+          onAdd={() => newLevel(null, t('placeMap.newLevelName', { n: levelIds(baseFull).length + 1 }), several ? 'town' : 'region')}
+          onDelete={(id) => void dropLevel(id)}
+          onOpenLevel={openLevel}
+        />
+      )}
+      {placesOpen && (
+        <MapPlacesDialog
+          open={placesOpen}
+          onOpenChange={setPlacesOpen}
+          mapName={info.name}
+          places={wholes}
+          on={new Set(Object.keys(data.nodes))}
+          onChange={(ids) => updateChat(chat.id, { placeMap: setMembers(baseFull, records ?? [], level, ids) })}
+        />
+      )}
       {selected && iconOpen && iconIndex && (
         <PlaceIconDialog
           key={selected.id}
@@ -582,7 +736,7 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           index={iconIndex}
           open={iconOpen}
           onOpenChange={setIconOpen}
-          onPick={(key) => updateChat(chat.id, { placeMap: setIcon(withPositions(data, layout?.added ?? {}), selected.id, key) })}
+          onPick={(key) => save(setIcon(data, selected.id, key))}
         />
       )}
       {selected && (
@@ -590,12 +744,13 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           key={`${selected.id}:${travelRun}`}
           chatId={chat.id}
           target={selected}
-          from={nodes.find((n) => n.id === hereId) ?? null}
+          from={nodes.find((n) => n.here) ?? null}
           nodes={nodes}
           data={data}
+          scale={info.scale}
           open={travelOpen}
           onOpenChange={setTravelOpen}
-          onSaveMap={(next) => updateChat(chat.id, { placeMap: { ...next, nodes: { ...withPositions(data, layout?.added ?? {}).nodes } } })}
+          onSaveMap={(next) => save({ ...next, nodes: data.nodes })}
           dmOn={view?.settings.level !== 'off'}
           dmEvent={view?.eventWaiting === true}
           messageCount={messageCount}
