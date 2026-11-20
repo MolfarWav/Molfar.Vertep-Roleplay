@@ -182,3 +182,34 @@ describe("the whole reply hook", () => {
     expect(textOf(L.llmRequest(ctx("Ada"), host))).not.toContain("Ada hides");
   });
 });
+
+describe("an event follows a message of the line", () => {
+  const ctxOp = (op: string, speakerName = "Ada") => ({ key: "reply", request: { messages: [{ role: "system", content: "sys" }, { role: "user", content: "hello" }] }, turn: { op, chatId: CHAT, speakerName } });
+  const textOf = (res: { messages: { content: string }[] } | null) => (res ? res.messages.map((m) => m.content).join("\n") : "");
+
+  it("meanwhileFacts drops an event whose message is off the line, and one that follows the reply being replaced", () => {
+    const host = mk();
+    seed([ev("m1", { afterKey: "m4#0" }), ev("m2", { afterKey: "m2#0", what: "Ada writes a long letter to the guild." })]);
+    expect(L.meanwhileFacts(host.fs, CHAT, canon).map((x: { id: string }) => x.id)).toEqual(["mw:m1", "mw:m2"]);
+    expect(L.meanwhileFacts(host.fs, CHAT, canon, { keys: new Set(["m1#0", "m2#0", "m3#0", "m4#0"]) })).toHaveLength(2);
+    expect(L.meanwhileFacts(host.fs, CHAT, canon, { keys: new Set(["m1#0", "m2#0", "m3#0"]) }).map((x: { id: string }) => x.id)).toEqual(["mw:m2"]);
+    expect(L.meanwhileFacts(host.fs, CHAT, canon, { keys: new Set(["m1#0", "m2#0", "m3#0", "m4#0"]), replacing: "m4#0" }).map((x: { id: string }) => x.id)).toEqual(["mw:m2"]);
+  });
+
+  it("a regenerate of the reply the event follows does not carry it; a new reply and a regenerate of another do", () => {
+    const host = mk();
+    seed([ev("m1", { afterKey: "m4#0" })]);
+    expect(textOf(L.llmRequest(ctxOp("swipe"), host))).not.toContain("Ada hides");
+    expect(textOf(L.llmRequest(ctxOp("send"), host))).toContain("Ada hides");
+    // the pass followed an earlier reply (m2): replacing m4 keeps it
+    seed([ev("m1", { afterKey: "m2#0" })]);
+    expect(textOf(L.llmRequest(ctxOp("swipe"), host))).toContain("Ada hides");
+  });
+
+  it("a deleted message takes its event out of the reply before the Meanwhile state settles", () => {
+    const host = mk();
+    seed([ev("m1", { afterKey: "m4#0" })]);
+    writeChat(CHAT, [U("m1"), A("m2"), U("m3")], { userName: "Mira" });
+    expect(textOf(L.llmRequest(ctxOp("send"), host))).not.toContain("Ada hides");
+  });
+});

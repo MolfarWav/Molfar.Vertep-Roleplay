@@ -2861,12 +2861,23 @@ const MEANWHILE_FACTS_MAX = 30;
  * Meanwhile stops feeding the story at once. Each fact is told to the people it happened to and those who saw it, by their canonical
  * names, and never to the player's character; a secret event is also marked secret (#416). The ordinary rules then decide who gets it:
  * a reply spoken by one of them, or a scene they are in. Same shape as plugins/meanwhile `factDraft` (a test holds the two together).
+ *
+ * `opts.keys` (the message keys `id#swipe` of the active line) drops an event whose message is no longer on it: a swipe or a delete
+ * has not yet been settled by the Meanwhile state, which does that on its next read. `opts.replacing` is the key of the reply this turn
+ * replaces (a regenerate): an event that follows that reply is not told to the reply that takes its place.
  */
-export function meanwhileFacts(fsx, chatId, canon) {
+export function meanwhileFacts(fsx, chatId, canon, opts) {
   const cfg = readJson(fsx, "meanwhile/config.json", null);
   if (!isObj(cfg) || cfg.enabled !== true) return [];
   const raw = readJson(fsx, "meanwhile/state/" + chatId + ".json", null);
-  const events = isObj(raw) ? arr(raw.events).filter((e) => isObj(e) && e.status !== "undone" && str(e.what) && str(e.id)).slice(-MEANWHILE_FACTS_MAX) : [];
+  const o = isObj(opts) ? opts : {};
+  const events = isObj(raw)
+    ? arr(raw.events)
+        .filter((e) => isObj(e) && e.status !== "undone" && str(e.what) && str(e.id))
+        .filter((e) => !(o.keys instanceof Set) || o.keys.has(str(e.afterKey)))
+        .filter((e) => !o.replacing || str(e.afterKey) !== o.replacing)
+        .slice(-MEANWHILE_FACTS_MAX)
+    : [];
   if (!events.length) return [];
   const reg = regLoad(fsx, chatId);
   const out = [];
@@ -2901,12 +2912,12 @@ export function meanwhileFacts(fsx, chatId, canon) {
 }
 
 /** The chat's record with the Meanwhile events laid over its facts (the record itself is not touched). */
-export function withMeanwhile(st, fsx, chatId, meta) {
+export function withMeanwhile(st, fsx, chatId, meta, opts) {
   if (!st) return st;
   const cfg = readJson(fsx, "meanwhile/config.json", null);
   if (!isObj(cfg) || cfg.enabled !== true) return st;
   try {
-    const extra = meanwhileFacts(fsx, chatId, litCanon(fsx, chatId, meta));
+    const extra = meanwhileFacts(fsx, chatId, litCanon(fsx, chatId, meta), opts);
     return extra.length ? { ...st, facts: [...arr(st.facts), ...extra] } : st;
   } catch {
     return st;
@@ -3614,10 +3625,13 @@ export function llmRequest(ctx, host) {
     const st = litOff ? null : loadChatFile(fsx, chatId);
     // the events Meanwhile kept, as facts for this reply only (#449); the record on disk is not touched
     // (a chat with no record yet still gets them: its story has not closed a scene, but people off screen have acted)
-    let stm = st ? withMeanwhile(st, fsx, chatId, rc.meta) : null;
+    // an event follows a message of the line; a regenerate replaces the last reply, so what follows it is not told to its replacement
+    const msgKey = (m) => str(m.id) + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0);
+    const mwOpts = { keys: new Set(line.map(msgKey)), replacing: ctx.turn.op === "swipe" && line.length ? msgKey(line[line.length - 1]) : "" };
+    let stm = st ? withMeanwhile(st, fsx, chatId, rc.meta, mwOpts) : null;
     if (!st && !litOff) {
       const blank = emptyChat(chatId);
-      const laid = withMeanwhile(blank, fsx, chatId, rc.meta);
+      const laid = withMeanwhile(blank, fsx, chatId, rc.meta, mwOpts);
       stm = laid === blank ? null : laid;
     }
     const scanText = req.messages

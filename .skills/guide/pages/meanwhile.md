@@ -26,6 +26,6 @@ If you switch Meanwhile off, the events stop reaching replies at once.
 
 ## Swipes and deletes
 
-An event belongs to the reply after which it happened. If you swipe or delete that reply, the events of that pass go too, from the story as well, and the next pass reads the story again from the last reply that is still there.
+An event belongs to the reply after which it happened. If you regenerate that reply, the new version is written without the event; if you swipe or delete that reply, the events of that pass go too, from the story as well, and the next pass reads the story again from the last reply that is still there.
 
 Related: [[world-dm]], [[dashboard]], [[litopys]]. See [[litopys]] "Who knows" for how secrets are shown.
