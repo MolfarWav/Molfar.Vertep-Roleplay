@@ -88,6 +88,7 @@ describe("the card's lines", () => {
     const base = { at: 1, reason: "scene", model: "m", ms: 5, offered: 3, kept: 2, dropped: [] };
     expect(logLine(t as any, base)).toBe("Scene closed: 2 of 3 events kept.");
     expect(logLine(t as any, { ...base, dropped: ["who: p3 is in the scene"] })).toBe("Scene closed: 2 of 3 events kept. Dropped: who: p3 is in the scene.");
+    expect(logLine(t as any, { ...base, undone: true })).toBe("Scene closed: 2 of 3 events kept. Taken back: the reply was swiped or deleted.");
     expect(logLine(t as any, { ...base, reason: "manual", error: "bad-reply: no events list in the answer" })).toBe("Run by hand: failed, bad-reply: no events list in the answer");
   });
 

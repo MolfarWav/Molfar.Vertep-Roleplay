@@ -153,7 +153,8 @@ describe("the routes", () => {
     const both = JSON.stringify({ events: [JSON.parse(good()).events[0], { who: ["p3"], what: "Cora leaves the mill quietly at dawn.", where: "l1", when: "", witnesses: [], visibility: "local", effects: [] }] });
     expect(run(h, [both]).json).toMatchObject({ ok: true, kept: 1, offered: 2, dropped: 1 });
     const log = state(h).log[0];
-    expect(log.dropped[0]).toMatch(/in the scene/);
+    // the reason says the name, not the id
+    expect(log.dropped[0]).toMatch(/Cora is in the scene/);
   });
 
   it("an empty answer is retried once with more room; a rate limit once as it was", () => {
@@ -216,6 +217,8 @@ describe("the routes", () => {
     const v = state(h);
     expect(v.events).toEqual([]);
     expect(JSON.parse(h.fs.read("meanwhile/state/" + CHAT + ".json"))).toMatchObject({ cursor: "", events: [], passes: [] });
+    // the log keeps the pass but says it was taken back
+    expect(v.log[0]).toMatchObject({ kept: 1, undone: true });
   });
 });
 

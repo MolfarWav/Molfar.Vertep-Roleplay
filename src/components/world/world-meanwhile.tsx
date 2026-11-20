@@ -38,7 +38,8 @@ export function logLine(t: T, l: MeanwhileLogEntry): string {
   const why = t(`world.mw.reason.${l.reason}` as MsgKey)
   if (l.error) return t('world.mw.log.failed', { why, error: l.error })
   const base = t('world.mw.log.line', { why, kept: l.kept, offered: l.offered })
-  return l.dropped.length ? `${base} ${t('world.mw.log.dropped', { reasons: l.dropped.join('; ') })}` : base
+  const line = l.dropped.length ? `${base} ${t('world.mw.log.dropped', { reasons: l.dropped.join('; ') })}` : base
+  return l.undone ? `${line} ${t('world.mw.log.undone')}` : line
 }
 
 /** What the next pass waits for, in words. */

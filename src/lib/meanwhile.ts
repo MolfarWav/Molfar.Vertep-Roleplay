@@ -41,6 +41,8 @@ export interface MeanwhileLogEntry {
   usage?: { input: number; output: number; cost: number }
   retried?: boolean
   error?: string
+  /** the reply the pass read was swiped or deleted: its events went, the line stays */
+  undone?: boolean
 }
 
 export interface MeanwhileState {

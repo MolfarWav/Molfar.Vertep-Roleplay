@@ -597,8 +597,12 @@ const requestFor = (input, model, maxTokens) => {
 /** Takes back what a swipe or a delete removed. M2a will retire the events' Litopys facts first; until then there are none. */
 function settle(fsx, state, msgs) {
   const r = reconcile(state, msgs);
-  if (!r.undone.length && r.state.cursor === state.cursor && r.state.passes.length === state.passes.length) return state;
-  const next = dropUndone(r.state, r.undone.map((e) => e.id));
+  // a log line of a pass whose reply is gone stays (it says what happened) but is marked, so it does not contradict the events
+  const line = new Set(arr(msgs).map(keyOf));
+  const marked = r.state.log.map((l) => (l.to && !l.undone && !line.has(l.to) ? { ...l, undone: true } : l));
+  const logChanged = marked.some((l, i) => l !== r.state.log[i]);
+  if (!r.undone.length && !logChanged && r.state.cursor === state.cursor && r.state.passes.length === state.passes.length) return state;
+  const next = { ...dropUndone(r.state, r.undone.map((e) => e.id)), log: marked };
   saveState(fsx, next);
   return next;
 }
@@ -684,7 +688,9 @@ function stateRoute(req, host) {
     return e && str(e.name) ? str(e.name) : id;
   };
   const due = dueFor(state, cfg, chat, fsx, chatId, false);
-  const log = state.log.slice().reverse().map((l) => ({ ...l, events: arr(l.events).map((e) => (cfg.spoilers === "none" ? { id: e.id, visibility: e.visibility } : { ...e, who: arr(e.who).map(nameOf) })) }));
+  // a dropped reason names registry ids ("p3 is in the scene"): say the names
+  const named = (text) => String(text).replace(/\b[plo]\d{1,6}\b/g, (id) => nameOf(id));
+  const log = state.log.slice().reverse().map((l) => ({ ...l, dropped: arr(l.dropped).map(named), events: arr(l.events).map((e) => (cfg.spoilers === "none" ? { id: e.id, visibility: e.visibility } : { ...e, who: arr(e.who).map(nameOf) })) }));
   return ok({
     config: cfg,
     model: modelFor(fsx, cfg, chat.meta),
