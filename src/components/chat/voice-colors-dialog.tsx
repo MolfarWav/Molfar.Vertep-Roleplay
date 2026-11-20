@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
 import { changeChatVoices, leavesVoicesAlone, useChatVoices, type VoiceOp } from '@/lib/chat-voices'
 import { voiceInk } from '@/lib/dialogue-voices'
+import { setVoiceDebug, useVoiceDebugOn } from '@/lib/voice-debug'
 
 /** A colour input that tells the server once the picking has paused: a picker fires on every step of a drag. */
 function Swatch({ color, disabled, label, onPick }: { color: string; disabled: boolean; label: string; onPick: (color: string) => void }) {
@@ -39,6 +40,7 @@ export function VoiceColorsDialog({ chatId, cardColor, open, onOpenChange }: { c
   const t = useT()
   const v = useChatVoices((s) => s.byChat[chatId])
   const [busy, setBusy] = useState(false)
+  const debug = useVoiceDebugOn()
   // an automatic chat whose card has its own colour is left alone until the switch is turned on by hand
   const alone = leavesVoicesAlone(v, cardColor)
   const on = !!v?.active && !alone
@@ -99,6 +101,13 @@ export function VoiceColorsDialog({ chatId, cardColor, open, onOpenChange }: { c
                   </Button>
                   <p className="text-xs text-muted-foreground">{t('voices.chat.spreadHint')}</p>
                 </div>
+                <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm max-md:min-h-12">
+                  <span className="min-w-0">
+                    {t('voices.chat.debug')}
+                    <span className="block text-xs text-muted-foreground">{t('voices.chat.debugHint')}</span>
+                  </span>
+                  <Switch checked={debug} onCheckedChange={setVoiceDebug} aria-label={t('voices.chat.debug')} data-testid="voice-debug" />
+                </label>
               </>
             )}
           </div>

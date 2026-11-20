@@ -97,3 +97,19 @@ describe("a short quote inside a sentence is a term, not speech (#477)", () => {
     expect([...html.matchAll(/<q(?: style="[^"]*")?>/g)]).toHaveLength(1);
   });
 });
+
+describe("the mark that says who was picked and why (#477)", () => {
+  it("shows the speaker and the rule after each quote when the switch is on, and nothing when it is off", async () => {
+    const { setVoiceDebug } = await import("../src/lib/voice-debug");
+    const voices = mk([["Рика", RED]]);
+    const md = "— Привал, — произносит Рика, и её голос слышен.\n\n— Идём, — говорит Эш.\n\n— Хорошо, — отвечает она.";
+    const render = () => renderToStaticMarkup(<DialogueVoices.Provider value={voices}><Markdown content={md} /></DialogueVoices.Provider>);
+    setVoiceDebug(false);
+    expect(render()).not.toContain("voice-why");
+    setVoiceDebug(true);
+    const html = render();
+    expect([...html.matchAll(/data-voice-why="([a-z-]+)"/g)].map((m) => m[1])).toEqual(["name", "tag", "pronoun"]);
+    expect(html).toContain("Эш · tag");
+    setVoiceDebug(false);
+  });
+});

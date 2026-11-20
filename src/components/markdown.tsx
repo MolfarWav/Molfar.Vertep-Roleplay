@@ -1,5 +1,6 @@
 
 import { adhocVoice, isSpeechVerb, speakerNameIn } from '@/lib/adhoc-voices'
+import { useVoiceDebugOn, WHY_TEXT, type SpeakerWhy } from '@/lib/voice-debug'
 import { genderCue, learnGender, voiceOfGender, type GenderBook } from '@/lib/speaker-gender'
 import { Children, createContext, isValidElement, cloneElement, memo, useContext, useRef, useState, type ReactNode, type ReactElement } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -238,55 +239,72 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
   return lines
 }
 
-/** Who speaks on each line: a `Name:` lead wins (a known voice takes the line; a name nobody listed gets a colour of its own, not the last speaker's),
- *  else the first voice named in the line, else a speaker named beside a speech verb ("— …, — говорит Эш"), else the one voice whose gender the
- *  line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the previous line's speaker (the one the paragraph
- *  before carried in, for the first lines); null before anyone is named. */
-export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): (DialogueVoice | null)[] {
+/** Who speaks on each line, and which rule said so: a `Name:` lead wins (a known voice takes the line; a name nobody listed gets a colour of its own, not
+ *  the last speaker's), else the first voice named in the line, else a speaker named beside a speech verb ("— …, — говорит Эш"), else the one voice
+ *  whose gender the line's pronouns point at ("— No, — she said." after Rhea was named beside a "she"), else the previous line's speaker (the one the
+ *  paragraph before carried in, for the first lines); nobody before anyone is named. */
+export function lineSpeakersWhy(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): { voice: DialogueVoice | null; why: SpeakerWhy }[] {
   let carry: DialogueVoice | null = carryIn
   const lines = lineTexts(children)
   const known = () => (book && book.extra.length ? [...voices, ...book.extra] : voices)
   if (book && !leadOnly) for (const line of lines) learnGender(line, known(), book.genders)
   return lines.map((line) => {
+    const keep = (): { voice: DialogueVoice | null; why: SpeakerWhy } => ({ voice: carry, why: carry ? 'carry' : 'none' })
     if (leadOnly) {
       // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
-      if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
-      return carry
+      if (opensWithLabel(line)) {
+        carry = leadVoiceIn(line, voices)
+        return { voice: carry, why: carry ? 'label' : 'none' }
+      }
+      return keep()
     }
     const all = known()
     // a line that opens with a label belongs to that label: a known voice takes it; a name nobody listed (Nurse) is a speaker of its own
     // and gets its own colour, never the colour of whoever the line mentions or spoke before
     if (opensWithLabel(line)) {
       let lead = leadVoiceIn(line, all)
+      let why: SpeakerWhy = 'label'
       if (!lead && book) {
         const label = leadLabelIn(line)
         lead = label ? adhocVoice(label, all) : null
         if (lead) book.extra.push(lead)
+        why = 'label-new'
       }
       carry = lead
-      return carry
+      return { voice: carry, why: carry ? why : 'none' }
     }
     const named = leadVoiceIn(line, all) ?? firstVoiceIn(line, all)
-    if (named) carry = named
-    else if (book) {
+    if (named) {
+      carry = named
+      return { voice: carry, why: 'name' }
+    }
+    if (book) {
       const who = speakerNameIn(line)
       const found = who ? adhocVoice(who, all) : null
       if (found) {
         book.extra.push(found)
         learnGender(line, [...all, found], book.genders)
         carry = found
-      } else {
-        const g = genderCue(line)
-        carry = (g ? voiceOfGender(g, all, book.genders) : null) ?? carry
+        return { voice: carry, why: 'tag' }
+      }
+      const g = genderCue(line)
+      const byGender = g ? voiceOfGender(g, all, book.genders) : null
+      if (byGender) {
+        carry = byGender
+        return { voice: carry, why: 'pronoun' }
       }
     }
-    return carry
+    return keep()
   })
+}
+
+export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false, book?: SpeakerBook): (DialogueVoice | null)[] {
+  return lineSpeakersWhy(children, voices, carryIn, leadOnly, book).map((x) => x.voice)
 }
 
 /** Paints each tinted quote with the colour of the voice that says it (see lineSpeakers); before anyone
  *  is named, the theme's colour stays. */
-function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st: { line: number }, depth = 0): ReactNode[] {
+function voiceQuotes(children: ReactNode, speakers: { voice: DialogueVoice | null; why: SpeakerWhy }[], st: { line: number }, mark: boolean, depth = 0): ReactNode[] {
   const out: ReactNode[] = []
   for (const child of Children.toArray(children)) {
     if (typeof child === 'string') {
@@ -299,12 +317,20 @@ function voiceQuotes(children: ReactNode, speakers: (DialogueVoice | null)[], st
     const tag = typeof el.type === 'string' ? el.type : ''
     if (tag === 'br') { st.line++; out.push(child); continue }
     if (tag === 'q') {
-      const who = speakers[st.line]
+      const at = speakers[st.line]
+      const who = at?.voice ?? null
       out.push(who ? cloneElement(el, { style: { ...(el.props.style ?? {}), '--tap-quotes': voiceInk(who.color) } }) : child)
+      if (mark) {
+        out.push(
+          <sup key={`why${st.line}-${out.length}`} className="voice-why ml-0.5 whitespace-nowrap font-sans text-[10px] not-italic text-muted-foreground" title={WHY_TEXT[at?.why ?? 'none']} data-voice-why={at?.why ?? 'none'}>
+            {who ? who.name : '–'} · {at?.why ?? 'none'}
+          </sup>,
+        )
+      }
       continue
     }
     if (OPAQUE.has(tag) || el.props?.children == null || depth > 6) { out.push(child); continue }
-    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, speakers, st, depth + 1)))
+    out.push(cloneElement(el, undefined, voiceQuotes(el.props.children, speakers, st, mark, depth + 1)))
   }
   return out
 }
@@ -349,9 +375,10 @@ const withTint = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'blockquote' | '
     const voices = useContext(DialogueVoices)
     const leadOnly = useContext(VoiceLeadOnly)
     const book = useContext(GenderBookContext)
+    const mark = useVoiceDebugOn()
     const tinted = tintQuotes(children)
     const carryIn = voices.find((v) => v.name === rest['data-carry']) ?? null
-    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakers(tinted, voices, carryIn, leadOnly, book ?? undefined), { line: 0 }) : tinted}</Tag>
+    return <Tag>{voices.length ? voiceQuotes(tinted, lineSpeakersWhy(tinted, voices, carryIn, leadOnly, book ?? undefined), { line: 0 }, mark) : tinted}</Tag>
   }
 
 /** The selector every per-message <style> block is rewritten under. The
