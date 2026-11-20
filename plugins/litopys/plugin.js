@@ -2852,6 +2852,67 @@ const CAST_TOKENS = 250;
  * knows them ("Only Aria and Bram know: ..."): the narrator sees at a glance what each character may use. Built from
  * the record, no model call. null when everyone here knows everything that is restricted, or nothing is.
  */
+/** Most Meanwhile events (#449) read as facts at once; older ones stay in their file but leave the memory. */
+const MEANWHILE_FACTS_MAX = 30;
+
+/**
+ * The events Meanwhile kept (#449, plugins/meanwhile), as facts for the insert. They are never stored in this chat's record: they
+ * live in meanwhile/state/<chat>.json, so a swipe or a delete that takes an event back takes its fact away with it, and a switched-off
+ * Meanwhile stops feeding the story at once. Each fact is told to the people it happened to and those who saw it, by their canonical
+ * names, and never to the player's character; a secret event is also marked secret (#416). The ordinary rules then decide who gets it:
+ * a reply spoken by one of them, or a scene they are in. Same shape as plugins/meanwhile `factDraft` (a test holds the two together).
+ */
+export function meanwhileFacts(fsx, chatId, canon) {
+  const cfg = readJson(fsx, "meanwhile/config.json", null);
+  if (!isObj(cfg) || cfg.enabled !== true) return [];
+  const raw = readJson(fsx, "meanwhile/state/" + chatId + ".json", null);
+  const events = isObj(raw) ? arr(raw.events).filter((e) => isObj(e) && e.status !== "undone" && str(e.what) && str(e.id)).slice(-MEANWHILE_FACTS_MAX) : [];
+  if (!events.length) return [];
+  const reg = regLoad(fsx, chatId);
+  const out = [];
+  for (const e of events) {
+    const names = [];
+    for (const id of [...arr(e.who), ...arr(e.witnesses)]) {
+      const p = typeof id === "string" && id !== "user" ? regGet(reg, id) : null;
+      if (!p || p.kind !== "person" || !str(p.name)) continue;
+      const n = typeof canon === "function" ? str(canon(str(p.name))) || str(p.name) : str(p.name);
+      if (!names.some((x) => x.toLowerCase() === n.toLowerCase())) names.push(n);
+    }
+    if (!names.length) continue;
+    const at = Number(e.at) || 0;
+    const to = str(e.afterKey).split("#")[0];
+    out.push({
+      id: "mw:" + str(e.id),
+      text: str(e.what),
+      subject: names[0],
+      knownBy: names,
+      type: "event",
+      weight: "everyday",
+      pinned: false,
+      status: "active",
+      ...(e.visibility === "secret" ? { secret: true } : {}),
+      origin: "meanwhile",
+      src: { from: null, to: to || null },
+      at,
+      updatedAt: at,
+    });
+  }
+  return out;
+}
+
+/** The chat's record with the Meanwhile events laid over its facts (the record itself is not touched). */
+export function withMeanwhile(st, fsx, chatId, meta) {
+  if (!st) return st;
+  const cfg = readJson(fsx, "meanwhile/config.json", null);
+  if (!isObj(cfg) || cfg.enabled !== true) return st;
+  try {
+    const extra = meanwhileFacts(fsx, chatId, litCanon(fsx, chatId, meta));
+    return extra.length ? { ...st, facts: [...arr(st.facts), ...extra] } : st;
+  } catch {
+    return st;
+  }
+}
+
 export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = [], canon }) {
   if (!st || !Array.isArray(line) || !line.length) return null;
   const kf = keyOf(canon);
@@ -2877,6 +2938,8 @@ export function castKnowledgeFor({ st, line, dash, meta, speakerName, notCast = 
     }
     const who = people.filter((n) => by.has(kf(n)));
     if (who.length === people.length) continue;
+    // an off-screen event nobody here knows stays out of the note: it would tell a narrator what the player must not read
+    if (f.origin === "meanwhile" && !who.length) continue;
     // #416: who only suspects it, and whether its knowers keep it secret
     const susBy = new Set(arr(f.suspectedBy).map((k) => kf(k)));
     const sus = people.filter((n) => !by.has(kf(n)) && susBy.has(kf(n)));
@@ -3549,6 +3612,14 @@ export function llmRequest(ctx, host) {
     // a chat that continues an earlier one gets its story from the first reply on, with or without a record of its own
     const back = litOff ? null : buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
     const st = litOff ? null : loadChatFile(fsx, chatId);
+    // the events Meanwhile kept, as facts for this reply only (#449); the record on disk is not touched
+    // (a chat with no record yet still gets them: its story has not closed a scene, but people off screen have acted)
+    let stm = st ? withMeanwhile(st, fsx, chatId, rc.meta) : null;
+    if (!st && !litOff) {
+      const blank = emptyChat(chatId);
+      const laid = withMeanwhile(blank, fsx, chatId, rc.meta);
+      stm = laid === blank ? null : laid;
+    }
     const scanText = req.messages
       .filter((m) => m && m.role !== "system" && typeof m.content === "string")
       .slice(-6)
@@ -3567,7 +3638,7 @@ export function llmRequest(ctx, host) {
     // the model that made the scan vector (the engine says it): vectors of another model are not compared
     const scanModel = scanVec && typeof ctx.turn.scanModel === "string" ? ctx.turn.scanModel : "";
     const vectors = scanVec && st ? loadVectors(fsx, chatId) : null;
-    const insert = !litOff && st && line.length ? buildInsert({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta) }) : null;
+    const insert = !litOff && stm && line.length ? buildInsert({ st: stm, line, dash: readDash(fsx, chatId), meta: rc.meta, cfg: sizedCfg, scanText, speakerName, used, scanVec, scanModel, vectors, promptCut: promptCutOf(fsx, chatId, line), voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta) }) : null;
     // the card's long memory: after what the story and the Dashboard already say, so it never says it twice
     // Only what does not change from reply to reply is compared with: the blocks sit above the history
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
@@ -3631,9 +3702,9 @@ export function llmRequest(ctx, host) {
     }
     // who knows what, for a reply that voices several characters (#184 P1d); a single character's reply is filtered already
     let castKn = null;
-    if (st && line.length && cfg.castKnowledge !== false && !soleVoice(fsx, rc.meta, speakerName)) {
+    if (stm && line.length && cfg.castKnowledge !== false && !soleVoice(fsx, rc.meta, speakerName)) {
       try {
-        castKn = castKnowledgeFor({ st, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta), canon: litCanon(fsx, chatId, rc.meta) });
+        castKn = castKnowledgeFor({ st: stm, line, dash: readDash(fsx, chatId), meta: rc.meta, speakerName, notCast: narratorNames(fsx, rc.meta), canon: litCanon(fsx, chatId, rc.meta) });
       } catch (e) {
         try {
           host.log("litopys who knows what: " + (e && e.message ? e.message : String(e)));
@@ -10715,7 +10786,7 @@ function firedRoute(fsx, query) {
   if (!rc) return { status: 404, json: { error: "no such chat" } };
   const log = readJson(fsx, FIRED_DIR + chatId + ".json", null);
   if (!isObj(log) || log.v !== 1) return { status: 200, json: { chatId, log: null } };
-  const st = loadChatFile(fsx, chatId);
+  const st = withMeanwhile(loadChatFile(fsx, chatId), fsx, chatId, rc.meta);
   const person = makePerson(fsx, chatId, rc);
   const cut = (t, n) => (str(t).length > n ? str(t).slice(0, n - 1).trimEnd() + "…" : str(t));
   const top = (map) => Object.entries(isObj(map) ? map : {}).sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at).slice(0, 30);
@@ -10762,7 +10833,7 @@ function traceRoute(fsx, query) {
   const last = entries.length ? entries[back] : null;
   const tr = last ? last.trace : null;
   if (!tr) return { status: 200, json: { chatId, trace: null, replies: [] } };
-  const st = loadChatFile(fsx, chatId);
+  const st = withMeanwhile(loadChatFile(fsx, chatId), fsx, chatId, rc.meta);
   const person = makePerson(fsx, chatId, rc);
   const cut = (t, n) => (str(t).length > n ? str(t).slice(0, n - 1).trimEnd() + "…" : str(t));
   const facts = new Map(arr(st && st.facts).filter(isObj).map((f) => [f.id, f]));
@@ -10850,7 +10921,7 @@ function carriesRoute(fsx, query) {
   const last = readJson(fsx, INSERT_DIR + chatId + ".json", null);
   let insert = null;
   try {
-    insert = st && line.length ? buildInsert({ st, line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta, dash) }) : null;
+    insert = st && line.length ? buildInsert({ st: withMeanwhile(st, fsx, chatId, rc.meta), line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta, dash) }) : null;
   } catch {}
   const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
   let card = null;

@@ -1,6 +1,6 @@
 # Meanwhile: life off screen
 
-Meanwhile lets the people who are not in the scene do things while the story goes on: Bram sells a horse at the harbour, Ada hides the ledger, a front moves a step closer to its goal. It is a test version: off by default, and it only writes down what happened and keeps it in a log. It does not yet put the events into the characters' memory, so nothing changes in your replies.
+Meanwhile lets the people who are not in the scene do things while the story goes on: Bram sells a horse at the harbour, Ada hides the ledger, a front moves a step closer to its goal. It is a test version, off by default.
 
 ## Turning it on
 
@@ -18,8 +18,14 @@ A pass asks for up to three small events. The app checks each one: the people mu
 - **Off screen so far**: the events, as that setting allows.
 - **Log**: every pass: why it ran (scene closed, time passed, by hand), how many events the model offered and how many were kept, why the rest were dropped, and the error when it failed.
 
+## What the events do to the story
+
+Each kept event becomes a memory of the people it happened to and of those who saw it, and of nobody else: never your character. It reaches a reply by the usual rules of the story record ([[litopys]]): when one of those people speaks, or one of them is in the scene for a narrator's or a group's reply. Someone who knows may then bring it up, hint at it or act on it; the others may not. A secret event is also marked "kept secret", so a group reply is told who keeps it. The events are not copied into the Library's Facts: they are read from the Meanwhile file for each reply, so they cost nothing to keep and leave with the swipe. The prompt's "What fired" panel lists them like any fact.
+
+If you switch Meanwhile off, the events stop reaching replies at once.
+
 ## Swipes and deletes
 
-An event belongs to the reply after which it happened. If you swipe or delete that reply, the events of that pass go too, and the next pass reads the story again from the last reply that is still there.
+An event belongs to the reply after which it happened. If you swipe or delete that reply, the events of that pass go too, from the story as well, and the next pass reads the story again from the last reply that is still there.
 
 Related: [[world-dm]], [[dashboard]], [[litopys]]. See [[litopys]] "Who knows" for how secrets are shown.
