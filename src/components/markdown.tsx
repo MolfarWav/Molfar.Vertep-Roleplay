@@ -212,7 +212,7 @@ function lineTexts(children: ReactNode, depth = 0, lines: string[] = ['']): stri
   return lines
 }
 
-/** Who speaks on each line: a `Name:` lead wins, else the first voice named in the line, else the
+/** Who speaks on each line: a `Name:` lead wins (a name nobody knows hands the line back to the base colour), else the first voice named in the line, else the
  *  previous line's speaker (the one the paragraph before carried in, for the first lines); null before anyone is named. */
 export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carryIn: DialogueVoice | null = null, leadOnly = false): (DialogueVoice | null)[] {
   let carry: DialogueVoice | null = carryIn
@@ -220,6 +220,14 @@ export function lineSpeakers(children: ReactNode, voices: DialogueVoice[], carry
     if (leadOnly) {
       // a label that names no voice (the player's own, or anyone else's) hands the lines back to the base colour
       if (opensWithLabel(line)) carry = leadVoiceIn(line, voices)
+      return carry
+    }
+    // a line that opens with a label belongs to that label: a known voice
+    // takes it, but a name nobody knows (Nurse, Dr. Toda) hands the line
+    // back to the card's own Dialogue highlight instead of borrowing
+    // the last speaker's colour
+    if (opensWithLabel(line)) {
+      carry = leadVoiceIn(line, voices)
       return carry
     }
     carry = leadVoiceIn(line, voices) ?? firstVoiceIn(line, voices) ?? carry

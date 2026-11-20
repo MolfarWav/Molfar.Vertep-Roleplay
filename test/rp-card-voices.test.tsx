@@ -100,3 +100,29 @@ describe("the player's own message paints other characters' labelled lines", () 
     expect(plain).not.toContain("--tap-quotes: color-mix");
   });
 });
+
+describe("labels the model writes in its own way (a name nobody knows must not borrow a colour)", () => {
+  const toda = cardVoices({ voices: [{ name: "Aria", color: "#111111" }, { name: "Toda", color: "#333333" }] });
+  const tint = (md: string) =>
+    [...renderToStaticMarkup(<DialogueVoices.Provider value={toda}><Markdown content={md} /></DialogueVoices.Provider>).matchAll(/<q(?: style="([^"]*)")?>/g)]
+      .map((m) => /#([0-9a-f]{6})/i.exec(m[1] ?? "")?.[1] ?? "theme");
+
+  it("a title, a hyphenated suffix and the braille blank do not hide a known name", () => {
+    for (const line of ["Dr. Toda: hi", "Mr. Toda: hi", "Toda-sensei: hi", "**Toda-sensei:** hi", "⠀Toda⠀: hi", "Toda⠀: hi"]) expect(leadVoiceIn(line, toda)?.name, line).toBe("Toda");
+  });
+  it("a sentence end or a verb is still not a label", () => {
+    expect(leadVoiceIn("Aria nods. Bo: hi", voices)).toBeNull();
+    expect(leadVoiceIn("Wait. Aria: hi", voices)?.name).toBeUndefined();
+    expect(leadVoiceIn("Bo says: hi", voices)).toBeNull();
+  });
+  it("a line led by a name the card does not know takes the theme colour, not the name of whoever it mentions", () => {
+    expect(tint('Nurse: "Tell Aria to come."')).toEqual(["theme"]);
+    expect(tint('Aria: "One."\n\nNurse: "Two."\n\nToda: "Three."')).toEqual(["111111", "theme", "333333"]);
+  });
+  it("the unknown label also ends the carry: its next line is not Aria's", () => {
+    expect(tint('Aria: "One."\nNurse: "Two."\n"Three."')).toEqual(["111111", "theme", "theme"]);
+  });
+  it("an unlabelled line still takes the first voice named in it", () => {
+    expect(tint('Aria turns. "Hello there."')).toEqual(["111111"]);
+  });
+});
