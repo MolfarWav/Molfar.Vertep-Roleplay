@@ -31,6 +31,7 @@ Three helpers watch the story and cost extra model calls, so it is worth knowing
 - [[characters]]: cards, the card editor, personas, groups, import.
 - [[sprites]]: sprites over the chat, several windows for a group or a narrator, the visual-novel look.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: the story machinery.
+- [[meanwhile]]: people off screen act between scenes (a test version, off by default).
 - [[places-map]]: the floating map of the chat's places, with roads and a picture of your own.
 - [[places-map-levels]]: several maps in one chat (a country, a city, a dungeon) and drawing a map with the image model.
 - [[memory]]: which kind of memory to use for what.

@@ -72,7 +72,7 @@
 | `agents/drafts/<name>.vertep-agent.json`, `agents/grants/<id>.json` | JSON | A draft waiting for the user to install it, and the permissions the user confirmed for an agent |
 | `agents/state/<chatId>/<id>.json`, `agents/runs/<chatId>.json`, `agents/inserts/<chatId>.json` | JSON | An agent's own state in a chat, the run log (newest 100), and prompt hints waiting for the next reply |
 | `agents/config.json`, `agents/settings.json`, `agents/presets/<id>.json` | JSON | The user's choices per agent (models, call limit), global agent settings, and agent presets (a named list of agents). DATA-FORMATS.md, "Agents" |
-| `meanwhile/config.json`, `meanwhile/<chatId>.json` | JSON | Meanwhile (#449): life off screen. Settings, and per chat the passes and the events with the message each follows. Not written yet (M1a holds only the rules). DATA-FORMATS.md, "Meanwhile" |
+| `meanwhile/config.json`, `meanwhile/state/<chatId>.json` | JSON | Meanwhile (#449): life off screen. Settings, and per chat the passes and the events with the message each follows. DATA-FORMATS.md, "Meanwhile" |
 | `letters/config.json`, `letters/inbox/<id>.json`, `letters/cards/<characterId>.json`, `letters/day.json` | JSON | Letters from cards: settings, unread letters, the cooldown and opt-out of each card, and the count of letters written today. DATA-FORMATS.md, "Letters from cards" |
 | `tools/<id>.json` | JSON | Tool definitions for model tool calls (dice, pictures, toy control, custom); built-ins seed themselves on first read (written by the `tools` plugin) |
 | `settings.json` | JSON | Settings: `model`, `personaId`, `ui` |
