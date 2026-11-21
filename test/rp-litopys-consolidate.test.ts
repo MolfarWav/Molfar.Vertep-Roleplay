@@ -106,11 +106,77 @@ describe("what a merge must do (#488)", () => {
     expect(s.proposals[0]).toMatchObject({ op: "merge", targets: ["f3", "f4"], status: "pending", origin: "consolidate" });
   });
 
-  it("the prompt names stale plans and deadlines, history that changed, and the length rule", () => {
-    expect(L.CONSOLIDATE_PROMPT).toContain("deadline");
-    expect(L.CONSOLIDATE_PROMPT).toContain("history, not a contradiction");
+  it("the prompt rewrites stale plans, keeps history, keeps details and names the limit", () => {
+    expect(L.CONSOLIDATE_PROMPT).toContain("still to come");
+    expect(L.CONSOLIDATE_PROMPT).toContain("rewrite it as what happened");
+    expect(L.CONSOLIDATE_PROMPT).toContain("is history");
+    expect(L.CONSOLIDATE_PROMPT).toContain("only a pure duplicate");
+    expect(L.CONSOLIDATE_PROMPT).toContain("keeps every concrete detail");
     expect(L.CONSOLIDATE_PROMPT).toContain("shorter than the facts it joins");
     expect(L.CONSOLIDATE_PROMPT).toContain(String(L.CONSOLIDATE_TEXT_MAX));
+    expect(L.CONSOLIDATE_PROMPT).toContain("{cut off:");
+  });
+});
+
+describe("fold and cut-off facts (#488)", () => {
+  const small = (i: number, text: string, extra: Record<string, unknown> = {}) => ({ ...fact(i, text), ...extra });
+  const st = () => ({
+    facts: [
+      small(1, "Vlad taught Ada the washing machine: a spoon of powder, the switch at 15."),
+      small(2, "Vlad brewed coffee for Ada in a copper cezve with cream."),
+      small(3, "Vlad showed Ada the laptop and the touchpad."),
+      small(4, "Ada is a goddess who moved into Vlad's flat.", { weight: "key" }),
+      small(5, "Ada keeps her true name secret.", { secret: true }),
+      small(6, "Vlad's neighbour Sanych lent a lamp.", { knownBy: ["Vlad", "Sanych"] }),
+    ],
+    proposals: [],
+    counters: { proposal: 0 },
+  });
+  const foldOf = (targets: string[], text: string) => ({ op: "merge", fold: true, targets, text, reason: "one evening" });
+  const dense = "Vlad showed Ada the household: the washing machine (powder, switch at 15), cezve coffee, the laptop.";
+
+  it("a fold reply is read as a merge marked fold", () => {
+    const ops = L.parseConsolidateReply(reply([{ op: "fold", ids: ["f1", "f2", "f3"], text: dense, reason: "r" }]), ["f1", "f2", "f3"]);
+    expect(ops).toEqual([{ op: "merge", targets: ["f1", "f2", "f3"], text: dense, reason: "r", fold: true }]);
+  });
+
+  it("is proposed only with the switch on, and only of small facts of one subject the same people know", () => {
+    expect(L.addConsolidateProposals(st(), [foldOf(["f1", "f2", "f3"], dense)], 5)).toBe(0);
+    const s = st();
+    expect(L.addConsolidateProposals(s, [foldOf(["f1", "f2", "f3"], dense)], 5, undefined, { fold: true })).toBe(1);
+    expect(s.proposals[0]).toMatchObject({ op: "merge", fold: true, targets: ["f1", "f2", "f3"], status: "pending" });
+    // a key fact, a secret, other knowers, another subject: never folded
+    for (const bad of [["f1", "f4"], ["f1", "f5"], ["f1", "f6"]]) {
+      expect(L.addConsolidateProposals(st(), [foldOf(bad, "Short.")], 5, undefined, { fold: true })).toBe(0);
+    }
+    const other = st();
+    other.facts[1] = { ...other.facts[1], subject: "Bram" };
+    expect(L.addConsolidateProposals(other, [foldOf(["f1", "f2"], "Short.")], 5, undefined, { fold: true })).toBe(0);
+  });
+
+  it("the request has the fold rule and marks small facts only when the switch is on", () => {
+    const facts = st().facts;
+    const off = L.buildConsolidateRequest(facts, { ...L.DEFAULT_CONFIG }, {}, null);
+    expect(off.systemPrompt).not.toContain("- fold:");
+    expect(off.messages[0].content).not.toContain("(small)");
+    const on = L.buildConsolidateRequest(facts, { ...L.DEFAULT_CONFIG, foldFacts: true }, {}, null);
+    expect(on.systemPrompt).toContain("- fold:");
+    expect(on.systemPrompt).toContain('"op":"fold"');
+    expect(on.messages[0].content).toContain("f1 [Aria] (small)");
+    expect(on.messages[0].content).not.toContain("f4 [Aria] (small)");
+    expect(on.messages[0].content).not.toContain("f5 [Aria] (small)");
+    expect(L.DEFAULT_CONFIG.foldFacts).toBe(false);
+  });
+
+  it("a merged fact stored cut off is shown with the texts it was made from", () => {
+    const cutText = `Reina turned back toward the coffee stand, fearing one careless word ${"could spread her secret ".repeat(12)}`.slice(0, 300).trimEnd();
+    const cutFact = { ...fact(7, cutText), origin: "merge", merges: ["f8", "f9"] };
+    expect(L.looksCut(cutFact)).toBe(true);
+    expect(L.looksCut({ ...cutFact, text: "A whole sentence." })).toBe(false);
+    expect(L.looksCut({ ...cutFact, origin: "chapter" })).toBe(false);
+    const parts: Record<string, string> = { f8: "Reina turned back toward the stand.", f9: "She left for the bank before eleven." };
+    const req = L.buildConsolidateRequest([cutFact], { ...L.DEFAULT_CONFIG }, {}, null, {}, (f: any) => f.merges.map((id: string) => parts[id]));
+    expect(req.messages[0].content).toContain("{cut off: Reina turned back toward the stand. | She left for the bank before eleven.}");
   });
 });
 
