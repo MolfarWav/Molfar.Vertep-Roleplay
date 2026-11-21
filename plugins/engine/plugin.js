@@ -2221,17 +2221,14 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
   if (litOn) {
     // the card's long memory and its habits: only the speaker's, so the biggest of the cards in the chat
     const cardIds = [m.characterId, ...members].map((x) => String(x || "")).filter((x) => SAFE_RESERVE_ID.test(x));
-    let mem = 0;
     let habits = 0;
     for (const id of new Set(cardIds)) {
       const f = jsonAt(fsx, "characters/" + id + "/memory.json");
       if (!f) continue;
       const i = f.inject && typeof f.inject === "object" ? f.inject : {};
       if (i.enabled === false) continue;
-      if (Array.isArray(f.sources) && f.sources.some((x) => x && x.on !== false)) mem = Math.max(mem, clampInt(i.maxTokens, 100, 1500, 400));
       if (Array.isArray(f.habits ?? f.skills) && (f.habits ?? f.skills).length) habits = Math.max(habits, clampInt(i.habitsMaxTokens ?? i.skillsMaxTokens, 50, 800, 250));
     }
-    if (!off("plugin:cardmemory")) add("litopys card memory", mem);
     if (!off("plugin:cardhabits") && !off("plugin:cardskills")) add("litopys habits", habits);
     // a persona's and a world's memory are the chat's own opt-in (meta.memory.persona / .world)
     const taken = m.memory && typeof m.memory === "object" ? m.memory : {};
@@ -4702,9 +4699,6 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (isOff("plugin:journal")) {
     omit("dashboard", "Character journal", "off for this chat", undefined, "plugin:journal");
   }
-  if (isOff("plugin:cardmemory")) {
-    omit("memory", "Character memory", "off for this chat", undefined, "plugin:cardmemory");
-  }
   if (isOff("plugin:cardhabits")) {
     omit("memory", "Character habits", "off for this chat", undefined, "plugin:cardhabits");
   }
@@ -4932,7 +4926,6 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   board.push({ key: "plugin:relations", label: "Relationship dashboard", kind: "dashboard", state: isOff("plugin:relations") ? "off" : "on" });
   board.push({ key: "plugin:said", label: "What characters said", kind: "dashboard", state: isOff("plugin:said") ? "off" : "on" });
   board.push({ key: "plugin:journal", label: "Character journal", kind: "dashboard", state: isOff("plugin:journal") ? "off" : "on" });
-  board.push({ key: "plugin:cardmemory", label: "Character memory", kind: "memory", state: isOff("plugin:cardmemory") ? "off" : "on" });
   board.push({ key: "plugin:cardhabits", label: "Character habits", kind: "memory", state: isOff("plugin:cardhabits") ? "off" : "on" });
   board.push({ key: "plugin:cardgrowth", label: "Character growth", kind: "memory", state: isOff("plugin:cardgrowth") ? "off" : "on" });
   board.push({ key: "plugin:recollections", label: "What the characters remember", kind: "memory", state: isOff("plugin:recollections") ? "off" : "on" });

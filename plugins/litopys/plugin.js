@@ -3335,16 +3335,13 @@ export function insertCeiling(ctx, host) {
     // a chat that continues an earlier one also gets its backstory block (linkBudget)
     if (linked && cfg.linkBudget > 0) add("litopys backstory", cfg.linkBudget + 100);
   }
-  // the card's long memory and its habits: only the speaker's, so the biggest of the cards in the chat
-  let mem = 0;
+  // the card's habits: only the speaker's, so the biggest of the cards in the chat (its stories are not sent any more, #492)
   let habits = 0;
   for (const id of new Set([meta.characterId, ...members].map((x) => str(x)).filter((x) => SAFE_ID.test(x)))) {
     const f = loadMemory(fsx, id, "card");
     if (!f.inject.enabled) continue;
-    if (f.sources.some((s) => s.on !== false)) mem = Math.max(mem, f.inject.maxTokens);
     if (f.habits.length) habits = Math.max(habits, f.inject.habitsMaxTokens);
   }
-  if (!off("plugin:cardmemory")) add("litopys card memory", mem);
   if (!off("plugin:cardhabits") && !off("plugin:cardskills")) add("litopys habits", habits);
   // a persona's and a world's memory are the chat's own opt-in (meta.memory.persona / .world)
   const taken = isObj(meta.memory) ? meta.memory : {};
@@ -3674,26 +3671,8 @@ export function llmRequest(ctx, host) {
     // (like the backstory), so a text that moved with the scene or the Dashboard would break the provider's
     // prompt cache every turn. The story so far is stable between chapters; the per-reply tail is not used.
     const stable = [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n"));
-    let cardMem = null;
-    if (!offForChat(fsx, chatId, "plugin:cardmemory")) {
-      try {
-        cardMem = cardMemoryFor({
-          fsx,
-          chatId,
-          meta: rc.meta,
-          speakerName,
-          chosen: stable,
-          dash: readDash(fsx, chatId),
-          cfg,
-        });
-      } catch (e) {
-        try {
-          host.log("litopys card memory: " + (e && e.message ? e.message : String(e)));
-        } catch {}
-      }
-    }
-    // the player's character and the world, when this chat took their memory in: after the character's own, so a line
-    // the card memory already carries is not said again
+    // the player's character and the world, when this chat took their memory in. The card's own stories are not sent any more
+    // (#492): Litopys keeps the facts. A story already saved on a card stays in its file and is ignored.
     const memoryOwn = (kind, taken, prior) => {
       if (!taken) return null;
       try {
@@ -3705,9 +3684,8 @@ export function llmRequest(ctx, host) {
         return null;
       }
     };
-    const cardLines = cardMem ? String(cardMem.text).split("\n") : [];
-    const personaMem = memoryOwn("persona", takesPersona, cardLines);
-    const worldMem = memoryOwn("world", takesWorld, [...cardLines, ...(personaMem ? String(personaMem.text).split("\n") : [])]);
+    const personaMem = memoryOwn("persona", takesPersona, []);
+    const worldMem = memoryOwn("world", takesWorld, personaMem ? String(personaMem.text).split("\n") : []);
     // what the character does, from its card's habits (#106): rules, so they need no story and no Litopys record
     let habits = null;
     if (!offForChat(fsx, chatId, "plugin:cardhabits")) {
@@ -3812,7 +3790,7 @@ export function llmRequest(ctx, host) {
         } catch {}
       }
     }
-    if (!insert && !back && !cardMem && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim && !(presence && presence.cut > 0) && !(remote && remote.notes > 0)) return null;
+    if (!insert && !back && !personaMem && !worldMem && !habits && !recall && !castKn && !verbatim && !(presence && presence.cut > 0) && !(remote && remote.notes > 0)) return null;
     // #184 P6: the trace of the reply before this one moves into a short ring (the newest stays in the insert file)
     try {
       if (isObj(prevInsert) && isObj(prevInsert.trace)) pushTraceRing(fsx, chatId, prevInsert);
@@ -3836,7 +3814,6 @@ export function llmRequest(ctx, host) {
           ...(insert && insert.trace ? { trace: { ...insert.trace, op: str(ctx.turn.op), speaker: str(speakerName), sem: semOf(fsx, chatId, insert.trace.sem, scanModel, scanVec ? scanVec.length : 0) } } : {}),
           ...causeRecord(prevInsert, insert),
           ...(back ? { backstory: { from: back.from, ...(back.chain ? { chain: back.chain } : {}), tokens: back.tokens, facts: back.facts, chapters: back.chapters, ...(back.turns ? { turns: back.turns } : {}), ...(back.far ? { far: { chats: back.far.chats, first: back.far.first, last: back.far.last, tokens: back.far.tokens, turns: back.far.turns, facts: back.far.facts, units: back.far.units } } : {}) } } : {}),
-          ...(cardMem ? { cardMemory: { cardId: cardMem.cardId, tokens: cardMem.tokens, sources: cardMem.sources, dupes: cardMem.dupes } } : {}),
           ...(personaMem ? { personaMemory: { personaId: personaMem.ownerId, tokens: personaMem.tokens, sources: personaMem.sources, dupes: personaMem.dupes } } : {}),
           ...(worldMem ? { worldMemory: { worldId: worldMem.ownerId, tokens: worldMem.tokens, sources: worldMem.sources, dupes: worldMem.dupes } } : {}),
           ...(habits ? { cardHabits: { cardId: habits.cardId, tokens: habits.tokens, habits: habits.habits, dupes: habits.dupes } } : {}),
@@ -3874,11 +3851,6 @@ export function llmRequest(ctx, host) {
       const t_back_text = said(back.text);
       messages = withInsert(messages, t_back_text);
       promptSources.parts.push({ kind: "memory", label: "Litopys · backstory", text: t_back_text.trim() });
-    }
-    if (cardMem) {
-      const t_cardMem_text = said(cardMem.text);
-      messages = withInsert(messages, t_cardMem_text);
-      promptSources.parts.push({ kind: "memory", label: "Litopys · character memory", text: t_cardMem_text.trim() });
     }
     if (personaMem) {
       const t_personaMem_text = said(personaMem.text);
@@ -10142,30 +10114,6 @@ export function cardMemoryText(mem, card, opts) {
   return { text, tokens: estimateTokens(text), dupes, sources: used };
 }
 
-/** The card behind this reply, and what the Litopys insert and the Dashboard already say, for the block above. */
-export function cardMemoryFor({ fsx, chatId, meta, speakerName, chosen, dash, cfg }) {
-  const hit = cardOfReply(fsx, meta, speakerName);
-  if (!hit) return null;
-  const { card, cardId } = hit;
-  const mem = loadMemory(fsx, cardId);
-  if (!mem.sources.length) return null;
-  const { exclude, seen } = storyChain(fsx, chatId);
-  const mc = isObj(meta.memory) ? meta.memory : {};
-  // What it is compared with must not move between replies (the block sits above the history, so a moving text
-  // would break the provider's prompt cache every turn): the active facts of the chat's own Litopys record and of
-  // its chain (not the few the scene picks this time), and the notes and said lines the chat carried in at its
-  // start. The Dashboard's live notes change every turn and are left out: a fresh note that repeats a card line
-  // is rare, and the next import of that chat will not offer it twice.
-  const stableFacts = [...seen].flatMap((id) => arr((loadChatFile(fsx, id) || {}).facts).filter((f) => isObj(f) && f.status === "active").map((f) => str(f.text)));
-  const carried = [];
-  for (const bag of [dash && dash.notebook, dash && dash.said]) {
-    for (const list of Object.values(isObj(bag) ? bag : {})) for (const n of arr(list)) if (isObj(n) && n.src === "inherit") carried.push(str(n.text));
-  }
-  const own = sourceSentences(fsx, meta);
-  const res = cardMemoryText(mem, card, { exclude, only: isObj(mc.sources) ? mc.sources : null, chosen: [...arr(chosen), ...stableFacts, ...carried, ...habitLines(mem)].filter(Boolean), cardSentences: own, rule: cfg && cfg.cardMemory });
-  return res ? { ...res, cardId } : null;
-}
-
 /** The story this chat already carries by itself: itself and the chats of its backstory chain (ids, and the same as an ordered set). */
 function storyChain(fsx, chatId) {
   const exclude = new Set([chatId]);
@@ -10999,7 +10947,7 @@ export function verbatimRows(_fsx, insertFile) {
 
 /**
  * GET /litopys/carries?chatId=&speaker=: the parts that go into a reply besides the history, as they would be built
- * now (reading only): the card's memory, the Litopys backstory and the chat's own Litopys insert, with their token
+ * now (reading only): the Litopys backstory and the chat's own Litopys insert, with their token
  * counts and exact texts, and the chat's own switches. The Dashboard and the said part report their own numbers
  * (/dashboard/state, insert.tokens and insert.saidTokens).
  */
@@ -11020,21 +10968,12 @@ function carriesRoute(fsx, query) {
     insert = st && line.length ? buildInsert({ st: withMeanwhile(st, fsx, chatId, rc.meta), line, dash, meta: rc.meta, cfg, scanText: "", speakerName, used: {}, voices: soleVoice(fsx, rc.meta, speakerName), canon: litCanon(fsx, chatId, rc.meta, dash) }) : null;
   } catch {}
   const back = buildBackstory({ fsx, chatId, line, meta: rc.meta, cfg, speakerName, voices: soleVoice(fsx, rc.meta, speakerName) });
-  let card = null;
-  try {
-    card = cardMemoryFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")), dash, cfg });
-  } catch {}
-  let cardName = "";
-  if (card) {
-    const c = cardOf(fsx, card.cardId);
-    cardName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
-  }
   let habits = null;
   try {
     habits = cardHabitsFor({ fsx, chatId, meta: rc.meta, speakerName, chosen: [insert && insert.head].filter(Boolean).flatMap((t) => String(t).split("\n")) });
   } catch {}
-  let habitsName = cardName;
-  if (habits && !habitsName) {
+  let habitsName = "";
+  if (habits) {
     const c = cardOf(fsx, habits.cardId);
     habitsName = str(c && (c.name || (isObj(c.data) ? c.data.name : "")));
   }
@@ -11050,7 +10989,7 @@ function carriesRoute(fsx, query) {
     let res = null;
     if (taken) {
       try {
-        res = ownerMemoryFor({ fsx, kind, chatId, meta: rc.meta, chosen: [...stableHead, ...(card ? String(card.text).split("\n") : [])], dash });
+        res = ownerMemoryFor({ fsx, kind, chatId, meta: rc.meta, chosen: stableHead, dash });
       } catch {}
     }
     return {
@@ -11094,7 +11033,6 @@ function carriesRoute(fsx, query) {
       backstoryFar: back && back.far ? { chats: back.far.chats, first: back.far.first, last: back.far.last, tokens: back.far.tokens, turns: back.far.turns, facts: back.far.facts, units: back.far.units, text: str(back.far.text) } : null,
       opening: greetingOpening(fsx, chatId, line, titleOf),
       world: level === "off" ? null : { level, insert: wset.insert !== false, waiting, tokens: waiting ? estimateTokens(str(ev.text)) : 0, text: waiting ? str(ev.text) : "" },
-      cardMemory: card ? { cardId: card.cardId, name: cardName, tokens: card.tokens, dupes: card.dupes, sources: card.sources, text: card.text } : null,
       cardHabits: habits ? { cardId: habits.cardId, name: habitsName, tokens: habits.tokens, dupes: habits.dupes, habits: habits.habits, text: habits.text } : null,
       personaMemory: sharedMemory("persona"),
       worldMemory: sharedMemory("world"),

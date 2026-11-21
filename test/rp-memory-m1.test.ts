@@ -245,13 +245,15 @@ describe("M1.1 history budget in tokens, with reserves", () => {
 });
 
 describe("M1.1 the reserve counts the memory blocks beside the dashboard and Litopys (#184)", () => {
-  it("a card's long memory takes room off the history", async () => {
+  it("a card's habits take room off the history; a story saved on the card does not (#492)", async () => {
     const preset = { openai_max_context: 4000, openai_max_tokens: 256 };
     const normal = (await trimmedFor(preset)).trimmed;
     writeJson("characters/aria/memory.json", { v: 1, sources: [{ id: "s1", on: true, arc: "x" }], inject: { enabled: true, maxTokens: 800 } });
-    const withMemory = (await trimmedFor(preset)).trimmed;
-    expect(withMemory).toBeGreaterThan(normal);
-    // a chat that switched the card memory off keeps the room
+    expect((await trimmedFor(preset)).trimmed).toBe(normal);
+    writeJson("characters/aria/memory.json", { v: 1, sources: [], habits: [{ id: "k1", name: "n", rule: "r", on: true, state: "accepted" }], inject: { enabled: true, habitsMaxTokens: 250 } });
+    const withHabits = (await trimmedFor(preset)).trimmed;
+    expect(withHabits).toBeGreaterThan(normal);
+    // without the file the room comes back
     fs.rmSync(path.join(root, "characters", "aria", "memory.json"));
     expect((await trimmedFor(preset)).trimmed).toBe(normal);
   });

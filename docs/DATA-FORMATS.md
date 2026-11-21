@@ -137,14 +137,7 @@ dialog sent `arcText`, the text the user settled on there (up to 1500 characters
 summary of the whole chat (`POST /litopys/story-summary { chatId, op: "start"|"cancel" }`, a job on the chat's
 record in `litopys/chats/<chatId>.json`: `storySummary: { state: "working"|"done"|"failed", at, sig, text?, model?,
 error? }`; `sig` is the record it was written from, so the preview says `stale` once a chapter changed; its prompt is
-`summary` in the Litopys config). Nothing reaches the card but what the user ticks. In a reply the Litopys plugin builds one part, "Litopys · character memory" (own Prompt
-board switch `plugin:cardmemory`), after the backstory and before the story so far: for the card of a chat (in a
-group, the speaker's card), skipping a source whose `chatId` is the chat itself or a chat of its backstory chain,
-a source that is off, and a `separate` canon unless the chat's meta `memory.sources[<id>]` is `true`; a line is left
-out when the chat's Litopys record or its chain's (active facts), the story so far, the notes and said lines the chat carried
-in at its start, the card's own text or an earlier source already say it (Dice similarity 0.85, or contained); the
-Dashboard's live notes are not compared, so the text above the history stays the same from reply to reply and the
-provider's prompt cache holds. Budget `inject.maxTokens` (100 to 1500, default 400).
+`summary` in the Litopys config). Since #492 the card's saved stories are not used: no part "Litopys · character memory" is built, nothing is reserved for it, `GET /litopys/carries` has no `cardMemory`, and the Memory tab has no Stories block for a card (a persona's and a saved world's Memory keep theirs). The `sources` already in a file stay as they are and are ignored; the import, preview and line routes still answer. `inject.maxTokens` is kept for the file's shape but is not used for a card.
 
 **The card's habits** (#106; called skills until Roleplay 4.67.0, and files with the old keys `skills`, `nextSkill`,
 `inject.skillsMaxTokens` are still read and are written back with the new ones) are in the same file, key `habits`: short rule blocks for how the character acts (not
@@ -156,7 +149,7 @@ A `proposed` habit (written by Molfar or proposed from a story) waits in the Mem
 never injected before it; an accepted habit that is `on` is. Routes: `PUT /litopys/card-memory` with `habit: {
 name, rule, when? }` (add), `{ id, name?, rule?, when?, on?, state?: "accepted" }` (change or confirm) and
 `DELETE ...?cardId=&habitId=`. In a reply the Litopys plugin builds one more part, "Litopys · character habits"
-(own Prompt board switch `plugin:cardhabits`), right after the character memory: the card's habits that are on and
+(own Prompt board switch `plugin:cardhabits`), after the backstory: the card's habits that are on and
 accepted, in the order of the file, until the room is spent; a habit whose every sentence the card's own text or a
 line already in the prompt says is left out, and a memory fact that only repeats a habit's rule is left out of the
 memory part. The text depends only on the file and the card, so it does not move between replies. A habit needs

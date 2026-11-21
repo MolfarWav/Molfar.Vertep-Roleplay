@@ -50,6 +50,6 @@ A card with no picture of its own (nothing, or the default avatar) can be drawn.
 
 ## What a card does not hold
 
-The Dashboard state, chapters and facts belong to each chat, not to the card. Card memory is also not part of the card and never appears in an export. The Soul, in contrast, is saved in the card.
+The Dashboard state, chapters and facts belong to each chat, not to the card. The card's Memory tab (kept habits, "How they changed") is also not part of the card and never appears in an export. The Soul, in contrast, is saved in the card.
 
 Next: [[first-story]] for the first chat, or [[soul]] for the reaction profile.
