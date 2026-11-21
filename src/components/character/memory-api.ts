@@ -187,8 +187,19 @@ export interface GrowthEntry {
   origin: 'agent' | 'user'
   agent?: string
   from?: { chatId: string; title: string; at: number }
+  /** Where the block acts (#450): 'story' = the chat it came from, the chats that continue it and the ones in `chats`; none = every chat of the card. */
+  scope?: 'story'
+  /** A story block: chats the user added to it. */
+  chats?: string[]
+  /** Chats where the block is switched off, whatever its scope. */
+  skip?: string[]
+  /** A story block: the chats that continue the chat it came from (the server reads the chat links). */
+  continues?: string[]
   at: number
 }
+
+/** Why a block acts in a chat, or not (#450). */
+export type GrowthReach = 'card' | 'source' | 'continues' | 'chosen' | 'skipped' | 'none'
 
 export interface GrowthView {
   growth: { v: 2; next: number; entries: GrowthEntry[]; inject: { enabled: boolean; maxTokens: number; remind?: boolean } }
@@ -198,8 +209,10 @@ export interface GrowthView {
   cast?: string[]
   /** What the portrait costs in a prompt now: tokens used of the room, blocks sent / left out for lack of room / live (accepted and on). */
   tokens: { used: number; room: number; sent: number; omitted: number; live: number }
-  /** The part exactly as the prompt gets it ('' when nothing would be sent). */
+  /** The part exactly as the prompt gets it ('' when nothing would be sent). With a chat asked for: as that chat gets it. */
   text?: string
+  /** Only when a chat was asked for: why each block acts there or not, by block id (#450). */
+  reach?: Record<string, GrowthReach>
 }
 
 /** The fields of a block the user writes or edits. */
@@ -212,6 +225,8 @@ export type GrowthPatch =
   | { op: 'on'; id: string; on: boolean }
   | { op: 'delete'; id: string }
   | { op: 'revert'; id: string }
+  | { op: 'scope'; id: string; scope: 'card' | 'story' }
+  | { op: 'chat'; id: string; chatId: string; apply: boolean }
   | { op: 'inject'; enabled?: boolean; maxTokens?: number; remind?: boolean }
 
 export const GROWTH_TEXT_MAX = 1200
@@ -220,10 +235,22 @@ export const GROWTH_BASIS_MAX = 120
 export const GROWTH_MIN_TOKENS = 100
 export const GROWTH_MAX_TOKENS = 8000
 
-export const loadGrowth = (cardId: string) => j<GrowthView>(`/agents/growth?cardId=${q(cardId)}`)
+/** The portrait of a card; with a chat, the numbers and `text` are what THAT chat is sent and `reach` says why (#450). */
+export const loadGrowth = (cardId: string, chatId?: string) => j<GrowthView>(`/agents/growth?cardId=${q(cardId)}${chatId ? `&chatId=${q(chatId)}` : ''}`)
 
-export const putGrowth = (cardId: string, patch: GrowthPatch) =>
-  j<GrowthView>('/agents/growth', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })
+export const putGrowth = (cardId: string, patch: GrowthPatch, forChat?: string) =>
+  j<GrowthView>('/agents/growth', { method: 'PUT', body: JSON.stringify({ cardId, ...(forChat ? { forChat } : {}), ...patch }) })
+
+/** Why a block acts in a chat, from the block alone (the server's `continues` list stands for the chat links). Mirrors the plugin's `growthReach`. */
+export function growthReach(e: Pick<GrowthEntry, 'scope' | 'from' | 'chats' | 'skip' | 'continues'>, chatId: string): GrowthReach {
+  if (e.skip?.includes(chatId)) return 'skipped'
+  if (e.scope !== 'story' || !e.from?.chatId) return 'card'
+  if (e.from.chatId === chatId) return 'source'
+  if (e.continues?.includes(chatId)) return 'continues'
+  if (e.chats?.includes(chatId)) return 'chosen'
+  return 'none'
+}
+export const growthActs = (r: GrowthReach) => r !== 'skipped' && r !== 'none'
 
 /** The hand button: one bigger look at a chat of this card; up to 4 blocks come back as proposals. `added` is how many were stored. */
 export const updateGrowthFromStory = (cardId: string, chatId: string) =>

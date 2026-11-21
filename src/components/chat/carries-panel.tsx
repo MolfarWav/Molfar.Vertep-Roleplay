@@ -15,6 +15,7 @@ import { announceEarned } from '@/lib/habit-earned-toast'
 import { estimateTokens } from '@/lib/tokens'
 import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
 import { fetchCardMemory, loadGrowth } from '@/components/character/memory-api'
+import { GrowthChoices } from './carries-growth'
 import { StoryChoices } from './carries-stories'
 import { loadFiredBrief } from '@/lib/fired-load'
 import { cn } from '@/lib/utils'
@@ -51,7 +52,8 @@ async function growthCarry(chatId: string): Promise<CarriesAnswer['cardGrowth']>
   const card = chat?.characterId ? st.characters.find((x) => x.id === chat.characterId && !x.isGroup) : undefined
   if (!card) return null
   try {
-    const v = await loadGrowth(card.id)
+    // asked for this chat: the numbers and the text are what THIS chat is sent (#450); the row stays while the card has live blocks, so the choice can be made
+    const v = await loadGrowth(card.id, chatId)
     if (!v.growth.inject.enabled || v.tokens.live === 0) return null
     return { cardId: card.id, name: card.name, tokens: v.tokens.used, blocks: v.tokens.sent, omitted: v.tokens.omitted, text: v.text ?? '' }
   } catch {
@@ -329,6 +331,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         )}
       </div>
       {part.kind === 'memory' && !!cm && <StoryChoices chatId={chatId} cardId={cm.cardId} t={t} onChanged={onChanged} />}
+      {!!cg && <GrowthChoices chatId={chatId} cardId={cg.cardId} t={t} onChanged={onChanged} />}
       {shown && !!text && (
         <pre id={textId} aria-label={t('carries.text')} tabIndex={0} data-testid={textId} className="max-h-56 overflow-y-auto rounded-md border border-border bg-muted p-2 text-xs break-words whitespace-pre-wrap">{text}</pre>
       )}
