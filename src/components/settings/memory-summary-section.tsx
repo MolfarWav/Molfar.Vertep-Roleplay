@@ -249,6 +249,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
           <p className="text-xs text-muted-foreground">{cfg.proposals === 'quiet' ? t('lit.set.proposalsHint') : cfg.proposals === 'risky' ? t('lit.set.proposalsHintRisky') : t('lit.set.proposalsHintAsk')}</p>
         </Field>
         {switchRow('lit-auto-consolidate', t('lit.set.autoConsolidate'), t('lit.set.autoConsolidateHint'), cfg.autoConsolidate ?? (cfg.proposals === 'quiet' || cfg.proposals === 'risky'), (v) => save({ autoConsolidate: v }))}
+        {switchRow('lit-fold-facts', t('lit.set.foldFacts'), t('lit.set.foldFactsHint'), cfg.foldFacts === true, (v) => save({ foldFacts: v }))}
       </SettingsBlock>
 
       <SettingsBlock tone="people" icon={PenNib} title={t('lit.blk.writing')} hint={t('lit.blk.writingHint')} summary={t('lit.sum.writing', { model: cfg.model || t('lit.sum.modelDefault'), min: cfg.scene.minMessages, max: cfg.scene.maxMessages })}>

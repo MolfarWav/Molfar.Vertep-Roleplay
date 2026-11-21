@@ -402,8 +402,10 @@ export interface LitConfig {
   arcNotice?: 'pending' | 'done'
   /** 'ask': every proposal waits for a click; 'risky': every one is applied by itself and can be undone except the risky ones; 'quiet': a pin or a rewrite is applied by itself and can be undone */
   proposals?: 'ask' | 'risky' | 'quiet'
-  /** Consolidate facts by itself after 30 new facts; null/absent = on only while proposals are quiet */
+  /** Consolidate facts by itself after 15 facts written since its last pass (#488); null/absent = on only while proposals are quiet */
   autoConsolidate?: boolean | null
+  /** Consolidate may also fold small everyday facts into one (#488); off when absent */
+  foldFacts?: boolean
   arcKeep: number
   arcThreshold: number
   arcSizeMin: number

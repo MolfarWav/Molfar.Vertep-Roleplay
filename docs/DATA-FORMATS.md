@@ -446,6 +446,10 @@ rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatCo
   count; before a first run every fact does; #488) and none is running and none of its proposals waits. Its proposals
   follow `proposals`. A merged or rewritten sentence over 300 characters is dropped, not cut, and a merge no shorter than
   its parts together is not proposed.
+- `foldFacts` (`true` or `false`, default `false`; #488): Consolidate may also propose a fold: a merge of two or more
+  small facts (`weight: everyday`, not pinned, not `secret`, not a belief) of one subject that the same people know.
+  It is stored as a `merge` proposal with `fold: true` and applied like one. A merged fact stored cut off before
+  4.145.0 (`origin: "merge"`, 300 characters, no sentence end) is shown to the model with the texts of its `merges`.
 
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written

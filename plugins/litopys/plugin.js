@@ -1093,6 +1093,8 @@ export const DEFAULT_CONFIG = {
   proposals: "ask",
   // Consolidate facts runs by itself after this many new facts; null = on only while proposals are "quiet"
   autoConsolidate: null,
+  // #488: Consolidate may also fold small everyday facts of one stretch into one dense fact; off until the user turns it on
+  foldFacts: false,
   arcKeep: 4,
   arcThreshold: 0,
   arcSizeMin: 5,
@@ -1469,6 +1471,7 @@ export function loadConfig(fsx) {
   cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
   cfg.proposals = PROPOSAL_MODES.includes(cfg.proposals) ? cfg.proposals : DEFAULT_CONFIG.proposals;
   cfg.autoConsolidate = typeof cfg.autoConsolidate === "boolean" ? cfg.autoConsolidate : null;
+  cfg.foldFacts = cfg.foldFacts === true;
   cfg.arcKeep = clamp(intOf(cfg.arcKeep, 4), 1, 50);
   cfg.arcThreshold = arcThresholdValue(cfg.arcThreshold);
   cfg.arcSizeMin = clamp(intOf(cfg.arcSizeMin, 5), 2, 20);
@@ -1573,6 +1576,7 @@ export function patchConfig(fsx, body) {
   if (b.arcNotice !== undefined) next.arcNotice = "done";
   if (b.proposals !== undefined) next.proposals = PROPOSAL_MODES.includes(str(b.proposals)) ? str(b.proposals) : DEFAULT_CONFIG.proposals;
   if (b.autoConsolidate !== undefined) next.autoConsolidate = typeof b.autoConsolidate === "boolean" ? b.autoConsolidate : null;
+  if (b.foldFacts !== undefined) next.foldFacts = b.foldFacts === true;
   if (b.arcKeep !== undefined) next.arcKeep = clamp(intOf(b.arcKeep, 4), 1, 50);
   if (b.arcThreshold !== undefined) next.arcThreshold = arcThresholdValue(b.arcThreshold);
   if (b.arcSizeMin !== undefined) next.arcSizeMin = clamp(intOf(b.arcSizeMin, 5), 2, 20);
@@ -6699,13 +6703,14 @@ export const CONSOLIDATE_PROMPT = [
   "You keep the story record of an ongoing roleplay. Below are facts from that record, one per line, each with its id and subject.",
   "Find only real problems and propose fixes:",
   "- merge: two or more facts that say the same thing, or that repeat the same detail. Give the ids and the one merged sentence.",
-  "  The merged sentence is about one thing and is shorter than the facts it joins put together (at most 300 characters): keep what matters, drop what repeats. Never chain different events or thoughts with 'and'; leave those apart.",
+  "  The merged sentence is about one thing and keeps every concrete detail of its parts (names, numbers, objects, places, times, plans, who said what); only words that repeat may go, so it is shorter than the facts it joins put together (at most 300 characters). If that cannot be done, do not merge. Never chain different events or thoughts with 'and'; leave those apart.",
   "  Some facts end with {scene N, when}: the scene and the story time where it was told. Facts from different scenes are different moments.",
   "  When a merge joins an action or event that happened more than once, keep how many times and when in the sentence (for example 'twice: on arrival and on leaving'). If the sentence cannot keep that, do not merge them.",
   "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence.",
-  "- retire: a fact that a later fact makes untrue or that is a pure duplicate of another one you keep. Give the id.",
-  "- A plan, a promise, a deadline or a threat that a later fact shows done, kept, paid or missed is no longer true as written: retire it, or rewrite it as what happened.",
-  "- A past event stays true when things changed later (clothes changed, a place left, a mood passed): that is history, not a contradiction. Do not retire it for that.",
+  "- retire: only a pure duplicate of a fact you keep (it adds nothing at all), or a fact a later fact proves false. Give the id.",
+  "- A fact written as still to come or still going on ('must pay by noon', 'will take her shopping', 'is staying until Friday') whose outcome a later fact tells (paid, went, left) is no longer true as written: rewrite it as what happened, in the past tense, keeping its details.",
+  "- A fact that tells what someone did, said, asked, promised, warned or felt at some moment is history: it stays true when things changed later or a later fact tells what came of it. Never retire such a fact, and never retire a fact only because another fact repeats part of it.",
+  "- A fact marked {cut off: ...} was stored incomplete. Rewrite it as one whole sentence from what its parts said (shown after 'cut off:'), at most 300 characters.",
   "Each with a short reason (at most 15 words). Most facts need nothing: leave them out. Propose nothing when nothing is wrong.",
   "Never invent: use only what the facts say. Keep every name exactly as written. Write in the language the facts are in.",
   "",
@@ -6713,6 +6718,32 @@ export const CONSOLIDATE_PROMPT = [
 ].join("\n");
 export const CONSOLIDATE_SHAPE =
   '{"ops":[{"op":"merge","ids":["f1","f2"],"text":"one sentence","reason":""},{"op":"rewrite","id":"f3","text":"one sentence","reason":""},{"op":"retire","id":"f4","reason":""}]}';
+
+/** #488: the fold rule, only when the user switched "Fold small facts" on (config `foldFacts`). */
+export const CONSOLIDATE_FOLD = [
+  "- fold: two or more small everyday facts about the same person or thing from one stretch of the story (the same or neighbouring scenes) that read better as one dense sentence. Give the ids and the sentence.",
+  "  The sentence is shorter than the facts together (at most 300 characters) and keeps every concrete detail a later scene could need (names, numbers, objects, places). Fold only facts marked (small) that the same people know; leave the rest apart.",
+].join("\n");
+const CONSOLIDATE_FOLD_SHAPE = ',{"op":"fold","ids":["f5","f6","f7"],"text":"one dense sentence","reason":""}';
+
+/** A merged fact stored cut at the old limit before #488: 300 characters, no sentence end. A pass asks to rewrite it whole. */
+export function looksCut(f) {
+  const t = str(isObj(f) && f.text).trimEnd();
+  return isObj(f) && f.origin === "merge" && t.length >= CONSOLIDATE_TEXT_MAX && !/[.!?…"'»”)\]]$/.test(t);
+}
+
+/** A small fact a fold may take: `everyday`, not pinned, not kept secret, not a belief. */
+export function smallFact(f) {
+  return isObj(f) && f.weight === "everyday" && f.pinned !== true && f.secret !== true && f.type !== "belief";
+}
+
+/** Can these facts be folded into one: two or more small facts of one subject that the same people know. */
+export function foldable(parts) {
+  if (!Array.isArray(parts) || parts.length < 2 || !parts.every(smallFact)) return false;
+  const who = (f) => (f.knownBy === "all" ? "all" : JSON.stringify(arr(f.knownBy).map((n) => str(n).toLowerCase()).sort()));
+  const subj = (f) => str(f.subject).toLowerCase();
+  return parts.every((f) => subj(f) === subj(parts[0]) && who(f) === who(parts[0]));
+}
 
 /** Active fact ids in batches, one subject's facts kept together so its duplicates meet. */
 export function consolidateBatches(st) {
@@ -6807,14 +6838,26 @@ export function mergeAnchors(parts, anchorsOf) {
   return out.slice(0, WHENS_MAX);
 }
 
-export function buildConsolidateRequest(facts, cfg, meta, anchorsOf, who = {}) {
+/**
+ * `partsOf(fact)`: the texts a merged fact was made from, for a fact that `looksCut` (#488). With `cfg.foldFacts` the
+ * fold rule is added and the small facts are marked, so the model knows which may be folded.
+ */
+export function buildConsolidateRequest(facts, cfg, meta, anchorsOf, who = {}, partsOf = null) {
   const model = cfg && cfg.model && str(cfg.model) ? str(cfg.model) : meta && meta.model ? meta.model : "";
+  const fold = !!(cfg && cfg.foldFacts === true);
   const lines = facts.map((f) => {
     const at = typeof anchorsOf === "function" ? arr(anchorsOf(f)).map(anchorText).filter(Boolean).join("; ") : "";
-    return f.id + " [" + (str(f.subject) || "world") + "] " + str(f.text) + (at ? " {" + at + "}" : "");
+    const parts = looksCut(f) && typeof partsOf === "function" ? arr(partsOf(f)).map(str).filter(Boolean) : [];
+    const small = fold && smallFact(f) ? " (small)" : "";
+    return (
+      f.id + " [" + (str(f.subject) || "world") + "]" + small + " " + str(f.text) + (at ? " {" + at + "}" : "") +
+      (parts.length ? " {cut off: " + parts.join(" | ") + "}" : "")
+    );
   });
+  const shape = fold ? CONSOLIDATE_SHAPE.replace(/\]\}$/, CONSOLIDATE_FOLD_SHAPE + "]}") : CONSOLIDATE_SHAPE;
+  const rules = fold ? CONSOLIDATE_PROMPT.replace("\n- rewrite:", "\n" + CONSOLIDATE_FOLD + "\n- rewrite:") : CONSOLIDATE_PROMPT;
   const req = {
-    systemPrompt: CONSOLIDATE_PROMPT + "\n\nOutput shape\n" + CONSOLIDATE_SHAPE,
+    systemPrompt: rules + "\n\nOutput shape\n" + shape,
     messages: [{ role: "user", content: expandNames("Facts\n\n" + lines.join("\n"), who.user || str(meta && meta.userName), who.char) }],
     presetParams: { temperature: 0.2, max_tokens: 1500 },
   };
@@ -6845,10 +6888,11 @@ export function parseConsolidateReply(text, batchIds) {
     if (!isObj(o)) continue;
     const op = str(o.op).toLowerCase();
     const reason = cut(str(o.reason), 200);
-    if (op === "merge") {
+    if (op === "merge" || op === "fold") {
       const ids = [...new Set(arr(o.ids).map(str))].filter((id) => inBatch.has(id));
       const t = whole(o.text);
-      if (ids.length >= 2 && t) out.push({ op, targets: ids, text: t, reason });
+      // a fold is a merge of small facts (#488): it is applied as one, and `addConsolidateProposals` checks the parts
+      if (ids.length >= 2 && t) out.push({ op: "merge", targets: ids, text: t, reason, ...(op === "fold" ? { fold: true } : {}) });
     } else if (op === "rewrite") {
       const id = str(o.id);
       const t = whole(o.text);
@@ -6866,7 +6910,7 @@ export function parseConsolidateReply(text, batchIds) {
  * run does not repeat itself), a rewrite to the same text is skipped, the pending list stays at
  * most PROPOSALS_KEEP. Returns how many were added.
  */
-export function addConsolidateProposals(st, ops, now, anchorsOf) {
+export function addConsolidateProposals(st, ops, now, anchorsOf, opts = {}) {
   const active = new Map(st.facts.filter((f) => isObj(f) && f.status === "active").map((f) => [f.id, f]));
   const busy = new Set(st.proposals.filter((p) => p.status === "pending").flatMap((p) => arr(p.targets)));
   let added = 0;
@@ -6874,13 +6918,15 @@ export function addConsolidateProposals(st, ops, now, anchorsOf) {
     if (st.proposals.filter((p) => p.status === "pending").length >= PROPOSALS_KEEP) break;
     const targets = arr(o.targets);
     if (!targets.length || targets.some((id) => !active.has(id) || busy.has(id))) continue;
+    // #488: a fold only when the user switched it on, and only of small facts the same people know
+    if (o.fold && (opts.fold !== true || !foldable(targets.map((id) => active.get(id))))) continue;
     if (o.op === "rewrite" && str(active.get(targets[0]).text) === str(o.text)) continue;
     // #488: a merge must compress; one as long as its parts together only glues them ("X, and Y, and Z")
     if (o.op === "merge" && str(o.text).length >= targets.reduce((n, id) => n + str(active.get(id).text).length, 0)) continue;
     st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;
     // #153: a merge remembers where its parts were told, so the merged fact still says when
     const whens = o.op === "merge" && typeof anchorsOf === "function" ? mergeAnchors(targets.map((id) => active.get(id)), anchorsOf) : [];
-    st.proposals.push({ id: "p" + st.counters.proposal, op: o.op, targets, ...(o.text ? { text: o.text } : {}), ...(whens.length ? { whens } : {}), reason: o.reason || "consolidate", status: "pending", origin: "consolidate", at: now });
+    st.proposals.push({ id: "p" + st.counters.proposal, op: o.op, targets, ...(o.text ? { text: o.text } : {}), ...(whens.length ? { whens } : {}), ...(o.fold ? { fold: true } : {}), reason: o.reason || "consolidate", status: "pending", origin: "consolidate", at: now });
     for (const id of targets) busy.add(id);
     added++;
   }
@@ -6928,7 +6974,7 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now, line, dash) {
         delete cur.consolidate.batches;
         addActivity(cur, "worker", "consolidate.fail", "Consolidating facts failed: " + str(reply.error || "empty or invalid reply"), [], now, {});
       } else {
-        const added = addConsolidateProposals(cur, ops, now, factAnchors(cur, line || [], dash));
+        const added = addConsolidateProposals(cur, ops, now, factAnchors(cur, line || [], dash), { fold: cfg && cfg.foldFacts === true });
         applyQuiet(cur, cfg, now);
         applyRisky(cur, cfg, now);
         cur.consolidate = { ...cur.consolidate, next: next + 1, proposed: (Number(cur.consolidate.proposed) || 0) + added };
@@ -6947,7 +6993,9 @@ function consolidateStep(fsx, host, chatId, st, cfg, meta, now, line, dash) {
     return true;
   }
   beat(fsx, chatId, now);
-  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta, factAnchors(st, line || [], dash), helperNames(fsx, meta)));
+  // #488: a merged fact stored cut off is shown with the texts it was made from, so the model can rewrite it whole
+  const partsOf = (f) => arr(f.merges).map((id) => str((st.facts.find((x) => x.id === id) || {}).text));
+  if (host.llm && typeof host.llm.request === "function") host.llm.request(key, buildConsolidateRequest(facts, cfg, meta, factAnchors(st, line || [], dash), helperNames(fsx, meta), partsOf));
   return true;
 }
 
