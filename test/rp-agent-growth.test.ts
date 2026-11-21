@@ -35,6 +35,14 @@ const put = (body: Json) => j("/agents/growth", "PUT", { cardId: "aria", ...body
 const disk = (rel: string) => JSON.parse(fs.readFileSync(path.join(root, rel), "utf8"));
 const exists = (rel: string) => fs.existsSync(path.join(root, rel));
 const growthOf = () => disk("characters/aria/growth.json");
+/** Makes a block the user typed (card-wide, no chat) look like one an agent wrote in chat c1: bound to that story. */
+function asStoryOf(id: string, chatId = "c1") {
+  const g = growthOf();
+  const e = g.entries.find((x: Json) => x.id === id);
+  e.from = { chatId, title: "Night in the keep", at: 1 };
+  e.scope = "story";
+  fs.writeFileSync(path.join(root, "characters/aria/growth.json"), JSON.stringify(g));
+}
 
 function makeChat(id: string, msgs: [string, string][], meta: Json = {}) {
   fs.mkdirSync(path.join(root, "chats"), { recursive: true });
@@ -117,6 +125,8 @@ describe("proposing a block (#396)", () => {
     expect(g.entries).toHaveLength(1);
     expect(g.entries[0]).toMatchObject({ id: "g1", section: "personality", kind: "changed", text: "She sits next to you and does not pull away.", title: "I stay by the fire.", state: "proposed", on: true, origin: "agent", agent: "grower" });
     expect(g.entries[0].from).toMatchObject({ chatId: "c1", title: "Night in the keep" });
+    // a block from a chat is bound to that story (#450)
+    expect(g.entries[0].scope).toBe("story");
     expect(g.next).toBe(2);
     // nothing reaches the prompt before the user says yes
     expect(reply(PROMPT())).toBeNull();
@@ -169,6 +179,7 @@ describe("what the user decides, and what goes into the prompt (#396)", () => {
 
   it("a block about a section that already has an accepted one is a revision: accepting replaces the text, keeps the old one, and can go back", () => {
     put({ op: "add", section: "personality", text: "Sharp-tongued, denies her feelings." });
+    asStoryOf("g1");
     propose("personality", "changed");
     const proposed = growthOf().entries.find((e: Json) => e.state === "proposed");
     expect(proposed.revises).toBe("g1");
@@ -180,6 +191,19 @@ describe("what the user decides, and what goes into the prompt (#396)", () => {
     expect(back.growth.entries[0].text).toBe("Sharp-tongued, denies her feelings.");
     expect(back.growth.entries[0].prev).toBeUndefined();
     expect(call("PUT", "/agents/growth", { cardId: "aria", op: "revert", id: "g1" }).status).toBe(400);
+  });
+
+  it("a story's proposal does not rewrite a card-wide block (#450): both stay, the card-wide one is not changed", () => {
+    put({ op: "add", section: "personality", text: "Sharp-tongued, denies her feelings." });
+    propose("personality", "changed");
+    const proposed = growthOf().entries.find((e: Json) => e.state === "proposed");
+    expect(proposed.revises).toBeUndefined();
+    const after = put({ op: "accept", id: proposed.id });
+    expect(after.growth.entries).toHaveLength(2);
+    expect(after.growth.entries[0]).toMatchObject({ id: "g1", text: "Sharp-tongued, denies her feelings." });
+    const text = (reply(PROMPT()) as Json).messages[1].content as string;
+    expect(text).toContain("Sharp-tongued");
+    expect(text).toContain("does not pull away");
   });
 
   it("is off when the block is switched off, the whole thing is off, or the Prompt board switch is off for the chat", () => {
@@ -323,6 +347,7 @@ describe("the hand button: Update from the story (#396)", () => {
 
   it("a block about an accepted section is a revision, a repeated text is not added twice", () => {
     put({ op: "add", section: "personality", kind: "changed", text: "Cold and proud." });
+    asStoryOf("g1");
     const r = update({ cardId: "aria", chatId: "c1" }, answerWith([{ section: "personality", kind: "changed", text: "Warm in private." }, { section: "personality", kind: "changed", text: "cold and proud." }]));
     expect(r.done.json!.added).toBe(1);
     const e = growthOf().entries.find((x: Json) => x.agent === "hand");
