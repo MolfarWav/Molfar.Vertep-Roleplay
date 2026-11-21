@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Characters, Groups, Personas e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* contengono i dettagli.
@@ -51,6 +51,6 @@ Una scheda senza un'immagine propria (niente, o l'avatar predefinito) può esser
 
 ## Cosa non contiene una scheda
 
-Lo stato della Dashboard, i capitoli e i fatti appartengono a ogni chat, non alla scheda. Anche la memoria della scheda non fa parte della scheda e non appare mai in un export. Il Soul, invece, è salvato nella scheda.
+Lo stato di Dashboard, i capitoli e i fatti appartengono a ogni chat, non alla card. Anche la tab Memory della card (abitudini mantenute, "How they changed") non fa parte della card e non compare mai in un export. La Soul, al contrario, è salvata nella card.
 
 Poi: [[first-story]] per la prima chat, o [[soul]] per il profilo di reazione.

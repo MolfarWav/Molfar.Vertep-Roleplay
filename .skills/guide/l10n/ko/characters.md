@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # 캐릭터, 페르소나 및 그룹
 
 플레이하는 모든 것은 네 개의 섹션에 있습니다: Characters, Groups, Personas, Marketplace. 이 페이지는 각각의 용도를 설명합니다. 세부 사항은 도움말 문서 *Your characters*, *The card editor tabs*, *Groups of characters*에 있습니다.
@@ -51,6 +51,6 @@ Turns 탭에는 **How they talk**도 있습니다: **Interruptions**(멤버들�
 
 ## 카드가 보유하지 않는 것
 
-Dashboard 상태, 챕터, 사실은 카드가 아닌 각 채팅에 속합니다. 카드 기억도 카드의 일부가 아니며 내보내기에 절대 나타나지 않습니다. 반면 Soul은 카드에 저장됩니다.
+Dashboard 상태, 챕터, 팩트는 카드가 아니라 각 채팅에 속합니다. 카드의 Memory 탭(유지된 습관, "How they changed")도 카드의 일부가 아니며 내보내기에 절대 나타나지 않습니다. 반면 Soul은 카드에 저장됩니다.
 
 다음: 첫 채팅은 [[first-story]], 반응 프로필은 [[soul]].

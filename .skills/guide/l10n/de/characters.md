@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Charaktere, Personas und Gruppen
 
 Alles, womit du spielst, lebt in vier Bereichen: Characters, Groups, Personas und Marketplace. Diese Seite erklärt, wofür jeder da ist; die Hilfeartikel *Your characters*, *The card editor tabs* und *Groups of characters* enthalten die Details.
@@ -51,6 +51,6 @@ Eine Karte ohne eigenes Bild (nichts oder der Standard-Avatar) kann gezeichnet w
 
 ## Was eine Karte nicht enthält
 
-Der Dashboard-Zustand, Kapitel und Fakten gehören zu jedem Chat, nicht zur Karte. Auch das Karten-Gedächtnis ist nicht Teil der Karte und erscheint nie in einem Export. Die Soul hingegen wird in der Karte gespeichert.
+Der Zustand von Dashboard, Kapiteln und Fakten gehört zu jedem Chat, nicht zur Karte. Der Memory-Tab der Karte (beibehaltene Gewohnheiten, "How they changed") ist ebenfalls nicht Teil der Karte und erscheint nie in einem Export. Die Soul hingegen wird in der Karte gespeichert.
 
 Weiter: [[first-story]] für den ersten Chat oder [[soul]] für das Reaktionsprofil.

@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne için olduğunu anlatır; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makalelerinde ayrıntılar bulunur.
@@ -51,6 +51,6 @@ Kendi resmi olmayan (hiçbir şey veya varsayılan avatar) bir kart çizilebilir
 
 ## Bir kartın tutmadığı şeyler
 
-Dashboard durumu, bölümler ve gerçekler karta değil her sohbete aittir. Kart hafızası da kartın parçası değildir ve asla bir dışa aktarmada görünmez. Soul ise tam tersine kartta kaydedilir.
+Dashboard durumu, bölümler ve gerçekler her sohbete aittir, karta değil. Kartın Memory sekmesi (korunan alışkanlıklar, "How they changed") de karta dahil değildir ve hiçbir zaman bir dışa aktarımda görünmez. Soul ise tam tersine kartta kaydedilir.
 
 Sonraki: ilk sohbet için [[first-story]] veya tepki profili için [[soul]].
