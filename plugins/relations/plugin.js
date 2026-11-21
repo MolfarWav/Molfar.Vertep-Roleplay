@@ -4751,6 +4751,7 @@ export function remoteSenses(kind, names, user) {
   if (kind === "video") return who + (one ? " sees " : " see ") + "only what is in " + user + "'s camera and " + (one ? "hears" : "hear") + " what is near it.";
   return who + (one ? " knows " : " know ") + "only the words " + user + " sends; what " + user + " does meanwhile, " + who + (one ? " does" : " do") + " not know.";
 }
+const CLOCK_DAY_MAX = 99999;
 const BAND_WORDS = ["dawn", "morning", "late morning", "day", "evening", "night"];
 
 function bandOfHour(h) {
@@ -4778,8 +4779,12 @@ const hhmm = (total) => pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
  * that moment, not the start of the part. `hint` is what readTimeWords found in the story text: a jump of more than one
  * day needs words behind it (a sensor that invents "day 3" after a night's sleep moves the day by one at most).
  */
+// A clock the user set by hand (`hand`, Molfar.Vertep#490) stands where the user put it: minutes move it on, but a time or a part
+// of the day the sensor names is taken only when the player's own lines state one (`hint`); the sensor's guess is not news.
+// A time the text states clears the mark.
 export function advanceClock(prevClock, out, op, hint) {
   const c = { day: 1, time: null, minutes: 0, band: null, place: null, weather: null, ...(prevClock || {}) };
+  if (c.hand === true && !(hint && (hint.time || hint.band))) out = { ...out, time: undefined };
   // the date is worked out from the chat's calendar when the clock is read, never kept in a snapshot
   delete c.date;
   const prevDay = c.day;
@@ -4806,6 +4811,7 @@ export function advanceClock(prevClock, out, op, hint) {
       stated = at;
       fixed = true;
       delete c.approx;
+      delete c.hand;
     }
   } else if (BAND_WORDS.includes(t.toLowerCase())) {
     const band = t.toLowerCase();
@@ -4824,6 +4830,7 @@ export function advanceClock(prevClock, out, op, hint) {
       }
       c.band = band;
       fixed = true;
+      delete c.hand;
     }
   }
   // a new day the sensor claims while the time it names is later than the clock's (no midnight between), and no word in the text
@@ -8993,6 +9000,47 @@ function calendarRoute(req, fsx) {
   return ok({ ok: true, calendar: calendarView(state, day), date: dateOf(state.calendar, day), dateText: dateTextOf(state.calendar, day), day });
 }
 
+/**
+ * POST /dashboard/clock { chatId, time?, day?, auto? } (#490): the user corrects the story clock the sensor let drift. `time`
+ * "HH:MM" and `day` (a whole number from 1) change the newest reading of the chat's active line, the one the next reply's scene
+ * line is built from; the next reading goes on from there (minutes move it, the sensor's own named time does not, see
+ * advanceClock). The clock is marked `hand`. `auto` true alone drops the mark and keeps the value. A swipe of the reply the
+ * reading belongs to takes the edit away with it. Answers the clock with its date.
+ */
+function clockRoute(req, fsx) {
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = str(b.chatId);
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 400);
+  const hm = typeof b.time === "string" ? /^(\d{1,2}):(\d{2})$/.exec(b.time.trim()) : null;
+  if ("time" in b && b.time !== null && !(hm && Number(hm[1]) < 24 && Number(hm[2]) < 60)) return ok({ error: "time must be HH:MM" }, 400);
+  const day = "day" in b && b.day !== null ? Number(b.day) : null;
+  if (day !== null && !(Number.isInteger(day) && day >= 1 && day <= CLOCK_DAY_MAX)) return ok({ error: "day must be a whole number from 1 to " + CLOCK_DAY_MAX }, 400);
+  if (!hm && day === null && b.auto !== true) return ok({ error: "nothing to change" }, 400);
+  const { state } = loadStateFor(fsx, chatId);
+  const keys = activeLine(chat.msgs).map((l) => l.key);
+  const i = nearestSnapshot(state, keys, keys.length);
+  const snap = i >= 0 ? state.snapshots[keys[i]] : null;
+  if (!snap || !isObj(snap.clock)) return ok({ error: "the Dashboard has no reading of this chat yet" }, 400);
+  const c = { ...snap.clock };
+  if (!hm && day === null) delete c.hand;
+  else {
+    if (hm) {
+      c.time = pad2(Number(hm[1])) + ":" + hm[2];
+      c.band = bandOfHour(Number(hm[1]));
+      delete c.approx;
+    }
+    if (day !== null) c.day = day;
+    // the move this reading made is no longer what the clock shows
+    c.minutes = 0;
+    c.hand = true;
+  }
+  snap.clock = c;
+  fsx.write(STATE_DIR + chatId + ".json", JSON.stringify(state, null, 2));
+  return ok({ ok: true, clock: clockWithDate(c, state.calendar) });
+}
+
 function readState(req, fsx) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -9725,6 +9773,7 @@ export function handleRoute(req, host) {
   if (path === "/dashboard/state" && method === "GET") return readState(req, fsx);
   if (path === "/dashboard/inherit" && method === "POST") return inheritRoute(req, fsx);
   if (path === "/dashboard/calendar" && method === "POST") return calendarRoute(req, fsx);
+  if (path === "/dashboard/clock" && method === "POST") return clockRoute(req, fsx);
   if (path === "/dashboard/leak" && method === "POST") return leakRoute(req, fsx);
   if (path === "/dashboard/preview" && method === "GET") return previewInsert(req, fsx);
   if (path === "/dashboard/notice" && method === "GET") {

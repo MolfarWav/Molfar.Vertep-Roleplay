@@ -32,6 +32,8 @@ export interface UseDashboard {
   here: WorldHere | null
   /** the story's date: set it ("YYYY-MM-DD"), back to automatic (null) or hide/show it (POST /dashboard/calendar) */
   setCalendar: (body: { date?: string | null; off?: boolean; custom?: CustomCalendar | null; present?: CustomDate }) => Promise<boolean>
+  /** correct the story clock (#490): the time ("HH:MM") and/or the day, or `auto` to drop the "set by hand" mark (POST /dashboard/clock) */
+  setClock: (body: { time?: string; day?: number; auto?: boolean }) => Promise<boolean>
   refreshing: boolean
   now: number
 }
@@ -145,6 +147,20 @@ export function useDashboard(chatId: string): UseDashboard {
     }
   }, [load])
 
+  const setClock = useCallback(async (body: { time?: string; day?: number; auto?: boolean }): Promise<boolean> => {
+    const id = chatRef.current
+    if (!id) return false
+    try {
+      const r = await j<{ ok?: boolean; error?: string }>('/dashboard/clock', { method: 'POST', body: JSON.stringify({ chatId: id, ...body }) })
+      if (r?.ok === false) { toast.error(tRef.current('dash.clock.error', { message: r.error || 'unknown error' })); return false }
+      await load()
+      return true
+    } catch (e) {
+      toast.error(tRef.current('dash.clock.error', { message: String((e as Error)?.message ?? e) }))
+      return false
+    }
+  }, [load])
+
   const mine = data && data.chatId === chatId ? data.res : null
   const view = mine?.view ?? null
   const status: DashStatus = failed === chatId && !mine ? 'absent' : !mine ? 'loading' : !mine.exists || !view ? 'empty' : 'ready'
@@ -155,5 +171,5 @@ export function useDashboard(chatId: string): UseDashboard {
   const reload = useCallback(async () => { await Promise.all([load(), loadHere()]) }, [load, loadHere])
   const here = hereState && hereState.chatId === chatId ? hereState.here : null
 
-  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload, here, act, setCalendar, refreshing, now }
+  return { status, data: mine, view, focus, setFocus: setPicked, refresh, reload, here, act, setCalendar, setClock, refreshing, now }
 }

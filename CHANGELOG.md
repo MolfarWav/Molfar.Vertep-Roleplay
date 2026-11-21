@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Added: **edit the story clock by hand (Molfar.Vertep#490).** The pencil next to the date in the Dashboard now also sets the **time** and the **day** (`POST /dashboard/clock`), for when the sensor drifts. It changes the newest reading, so the next reply's scene line carries it; the clock shows "set by hand" (`clock.hand`). The next readings go on from the edit: minutes move it, but a time the sensor names alone is ignored, and a time the player's own line states takes over and clears the mark. **Automatic again** drops the mark and keeps the value; a swipe of the reply the reading belongs to takes the edit away. Tests: `test/rp-dash-clock-edit.test.ts`. Not checked: a real model; the phone popover with the app's tour closed.
+
 ## 4.146.0 (2026-11-21)
 
 - Added: **"Fold small facts" (Molfar.Vertep#488).** A switch under "Tidy facts automatically" (Litopys settings, off by default, config `foldFacts`). With it on, Consolidate may also fold two or more small facts (`everyday`, not pinned, not secret, not a belief) of one person from the same stretch of the story into one shorter fact that keeps their details; it marks those facts "(small)" for the model, and code checks every fold (same subject, the same people knowing them, shorter than the parts). A fold is a merge proposal with `fold: true` and waits for your yes in every proposals mode. In replays on three of the owner's chats, 23 of 25 folds kept every detail (checked by a model of another family; the two others lost a small detail: someone knelt, a machine was started).

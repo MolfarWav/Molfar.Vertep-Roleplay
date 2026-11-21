@@ -112,6 +112,7 @@ export function SceneBlock({ clock, calendar, weatherSize = 52, prev }: { clock:
             {clock.time && band && <span className={cn('flex items-center gap-1', bandTextClass(clock.band))}><BandMark band={clock.band} />{band}</span>}
             <span>{t('dash.day', { n: clock.day })}</span>
             {clock.minutes > 0 && <span>{t('dash.minutes', { n: clock.minutes })}</span>}
+            {clock.hand && <span data-testid="dash-clock-hand">{t('dash.clock.hand')}</span>}
             <DateEdit clock={clock} calendar={calendar ?? null} />
           </div>
         </div>
@@ -133,7 +134,23 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
   const [busy, setBusy] = useState(false)
   const [own, setOwn] = useState(false)
   const [pop, setPop] = useState(false)
+  const [timeDraft, setTimeDraft] = useState('')
+  const [dayDraft, setDayDraft] = useState('')
   if (!dash || !calendar) return null
+  const clockHm = /^(\d{1,2}):(\d{2})$/.exec(clock.time ?? '')
+  const clockTime = clockHm ? `${clockHm[1]!.padStart(2, '0')}:${clockHm[2]}` : ''
+  const dayNo = Number(dayDraft)
+  const dayOk = Number.isInteger(dayNo) && dayNo >= 1
+  const timeChanged = /^\d{2}:\d{2}$/.test(timeDraft) && timeDraft !== clockTime
+  const dayChanged = dayOk && dayNo !== clock.day
+  const runClock = async (body: Parameters<typeof dash.setClock>[0]): Promise<void> => {
+    setBusy(true)
+    try {
+      await dash.setClock(body)
+    } finally {
+      setBusy(false)
+    }
+  }
   const hidden = calendar.off
   const custom = calendar.custom ?? null
   const run = async (body: Parameters<typeof dash.setCalendar>[0]): Promise<boolean> => {
@@ -149,7 +166,7 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
     <CalendarDialog open={own} onOpenChange={setOwn} current={custom} today={calendar.today ?? null} busy={busy}
       onSave={(c, present) => void run({ custom: c, present }).then((done) => { if (done) setOwn(false) })}
       onReal={() => void run({ custom: null }).then((done) => { if (done) setOwn(false) })} />
-    <Popover open={pop} onOpenChange={(open) => { setPop(open); if (open) setDraft(clock.date ?? '') }}>
+    <Popover open={pop} onOpenChange={(open) => { setPop(open); if (open) { setDraft(clock.date ?? ''); setTimeDraft(clockTime); setDayDraft(String(clock.day)) } }}>
       <PopoverTrigger
         render={
           <button
@@ -164,6 +181,53 @@ function DateEdit({ clock, calendar }: { clock: Clock; calendar: DashView['calen
         <PencilSimple className="size-3.5" aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-72 flex-col gap-3 font-sans text-xs">
+        <div className="flex flex-col gap-1.5" data-testid="dash-clock-edit">
+          <div className="flex flex-col gap-0.5">
+            <p className="text-sm font-medium">{t('dash.clock.title')}</p>
+            <p className="text-muted-foreground">{t(clock.hand ? 'dash.clock.from.hand' : 'dash.clock.from.sensor')}</p>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <label htmlFor="dash-clock-time" className="font-medium">{t('dash.clock.time')}</label>
+              <input
+                id="dash-clock-time"
+                type="time"
+                value={timeDraft}
+                onChange={(e) => setTimeDraft(e.target.value)}
+                className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm max-md:h-10"
+              />
+            </div>
+            <div className="flex w-20 flex-col gap-1">
+              <label htmlFor="dash-clock-day" className="font-medium">{t('dash.clock.day')}</label>
+              <input
+                id="dash-clock-day"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={dayDraft}
+                onChange={(e) => setDayDraft(e.target.value)}
+                className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm max-md:h-10"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-9 max-md:h-10"
+              disabled={busy || (!timeChanged && !dayChanged)}
+              data-testid="dash-clock-set"
+              onClick={() => void runClock({ ...(timeChanged ? { time: timeDraft } : {}), ...(dayChanged ? { day: dayNo } : {}) })}
+            >
+              {t('dash.clock.set')}
+            </Button>
+          </div>
+          <p className="text-muted-foreground">{t('dash.clock.hint')}</p>
+          {clock.hand && (
+            <Button variant="ghost" size="sm" className="h-8 self-start max-md:h-10" disabled={busy} data-testid="dash-clock-auto" onClick={() => void runClock({ auto: true })}>
+              {t('dash.clock.auto')}
+            </Button>
+          )}
+        </div>
+        <div className="border-t border-border" />
         <div className="flex flex-col gap-0.5">
           <p className="text-sm font-medium">{t('dash.date.title')}</p>
           <p className="text-muted-foreground">{t(`dash.date.from.${calendar.source}` as MsgKey)}</p>
