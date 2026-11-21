@@ -204,14 +204,25 @@ describe("automatic Consolidate", () => {
     expect(L.autoConsolidateDue(facts(40), cfgOf({ proposals: "ask", autoConsolidate: true }))).toBe(true);
   });
 
-  it("waits for 30 new active facts since the last run, and for the minimum", () => {
+  it("waits for 15 facts written since the last run began, and for the minimum of 20 active (#488)", () => {
     const on = cfgOf({ autoConsolidate: true });
-    expect(L.autoConsolidateDue(facts(29), on)).toBe(false);
-    expect(L.autoConsolidateDue(facts(30), on)).toBe(true);
-    expect(L.autoConsolidateDue({ ...facts(59), consolidateAt: { active: 30, at: 1 } }, on)).toBe(false);
-    expect(L.autoConsolidateDue({ ...facts(60), consolidateAt: { active: 30, at: 1 } }, on)).toBe(true);
+    // before a first run every fact counts, so the minimum decides
+    expect(L.autoConsolidateDue(facts(19), on)).toBe(false);
+    expect(L.autoConsolidateDue(facts(20), on)).toBe(true);
+    // after a run only the facts written after it began count (the old fixture writes every fact at 1)
+    const later = (st: any, n: number, at = 5) => ({ ...st, facts: st.facts.map((f: any, i: number) => (i < n ? { ...f, at } : f)) });
+    const ran = { ...facts(60), consolidateAt: { active: 60, at: 2 } };
+    expect(L.autoConsolidateDue(later(ran, 14), on)).toBe(false);
+    expect(L.autoConsolidateDue(later(ran, 15), on)).toBe(true);
+    // the run's own merges lowering the total do not hold it back: 50 active now, 15 of them new
+    expect(L.autoConsolidateDue(later({ ...facts(50), consolidateAt: { active: 64, at: 2 } }, 15), on)).toBe(true);
+    // a fact a merge made is the run's work, not new
+    const merged = later(ran, 15);
+    merged.facts = merged.facts.map((f: any, i: number) => (i === 0 ? { ...f, origin: "merge" } : f));
+    expect(L.consolidateNewCount(merged)).toBe(14);
+    expect(L.autoConsolidateDue(merged, on)).toBe(false);
     // facts that are not active do not count
-    const old = { ...facts(40), facts: facts(40).facts.map((f: any, i: number) => (i < 15 ? { ...f, status: "retired" } : f)) };
+    const old = { ...facts(40), facts: facts(40).facts.map((f: any, i: number) => (i < 25 ? { ...f, status: "retired" } : f)) };
     expect(L.autoConsolidateDue(old, on)).toBe(false);
   });
 
