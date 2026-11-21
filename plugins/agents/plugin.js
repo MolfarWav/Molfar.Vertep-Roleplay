@@ -3162,7 +3162,10 @@ export function handleRoute(req, host) {
 // means no lost update against Litopys, which owns characters/<id>/memory.json). It is not part of card.json or an export.
 //   { v: 2, next: <n>, entries: [ { id: "g1", section, kind: "changed"|"added", title?, text, basis?, prev?: [text],
 //     revises?: <id>, on, state: "proposed"|"accepted", origin: "agent"|"user", agent?, runKey?, from?: { chatId, title, at },
-//     at } ], inject: { enabled, maxTokens } }
+//     scope?: "story", chats?: [chatId], skip?: [chatId], at } ], inject: { enabled, maxTokens } }
+// Where a block acts (#450): with no scope it acts in every chat of the card (as before). scope "story" (a block an agent or the hand
+// button wrote) acts in the chat it came from (from.chatId) and in the chats that continue it (litopys/links.json), plus the chats
+// the user chose (chats); skip lists chats where the block is off whatever the scope says.
 // An entry is a BLOCK of the portrait, named by the sections of the Profile tab: a "changed" block says how that part of the
 // character is now, an "added" block is something that came out in the story (a relationship, a secret, a skill, the past).
 // v1 entries { was, now } are read as one "changed" block of the section "other". A "proposed" block waits for the user and is
@@ -3170,7 +3173,7 @@ export function handleRoute(req, host) {
 // they win over what the card says. A proposed block about a section that already has an accepted one REVISES it: accepting
 // it replaces the text and keeps the old one in `prev`, from where the user can revert.
 
-const GROWTH = { entries: 200, text: 1200, title: 80, basis: 120, perRun: 2, roomMin: 100, roomMax: 8000, room: 1500, prev: 3 };
+const GROWTH = { entries: 200, text: 1200, title: 80, basis: 120, perRun: 2, roomMin: 100, roomMax: 8000, room: 1500, prev: 3, chats: 60 };
 /**
  * The Profile's sections that a story can change, in the order its text is compiled, and `other` for what fits none. Identity
  * (the name, age, birthday) and appearance are left out on purpose: they hardly ever change, and the rare scar or new haircut
@@ -3198,7 +3201,54 @@ function cleanGrowthEntry(x) {
   if (/^[A-Za-z0-9_-]{1,64}$/.test(str(x.agent))) e.agent = str(x.agent);
   if (str(x.runKey)) e.runKey = clip(str(x.runKey), 200);
   if (isObj(x.from)) e.from = { chatId: str(x.from.chatId).slice(0, 120), title: str(x.from.title).slice(0, 120), at: Number.isFinite(x.from.at) ? x.from.at : 0 };
+  // where it acts (#450): a block with no chat it came from cannot be bound to a story
+  if (x.scope === "story" && e.from && AG_CHAT.test(e.from.chatId)) e.scope = "story";
+  const ids = (v) => [...new Set((Array.isArray(v) ? v : []).map(str).filter((c) => AG_CHAT.test(c)))].slice(-GROWTH.chats);
+  if (ids(x.chats).length) e.chats = ids(x.chats);
+  if (ids(x.skip).length) e.skip = ids(x.skip);
   return e;
+}
+
+const arr = (v) => (Array.isArray(v) ? v : []);
+/** The chats' backstory links (litopys/links.json, { child: { from: earlier chat } }), read-only here: Litopys owns the file. */
+function readLinks(fsx) {
+  const f = readJsonAt(fsx, "litopys/links.json", null);
+  return isObj(f) && isObj(f.links) ? f.links : {};
+}
+/** The chats a chat continues, nearest first. */
+function chatAncestors(links, chatId) {
+  const out = [];
+  const seen = new Set([chatId]);
+  for (let cur = isObj(links[chatId]) ? str(links[chatId].from) : ""; cur && !seen.has(cur) && out.length < 64; cur = isObj(links[cur]) ? str(links[cur].from) : "") {
+    seen.add(cur);
+    out.push(cur);
+  }
+  return out;
+}
+/**
+ * Why a block acts, or not, in a chat: "skipped" (the user switched it off here), "card" (it acts in every chat of the card), "source"
+ * (the chat it came from), "continues" (a chat that continues that one), "chosen" (the user added this chat), "none" (a story block
+ * that has nothing to do with this chat). No chat id = no chat to ask about: "card".
+ */
+function growthReach(e, chatId, links) {
+  if (!chatId) return "card";
+  if (arr(e.skip).includes(chatId)) return "skipped";
+  if (e.scope !== "story" || !e.from || !e.from.chatId) return "card";
+  if (e.from.chatId === chatId) return "source";
+  if (chatAncestors(links, chatId).includes(e.from.chatId)) return "continues";
+  if (arr(e.chats).includes(chatId)) return "chosen";
+  return "none";
+}
+const growthActs = (reach) => reach !== "skipped" && reach !== "none";
+/** The file as one chat sees it: only the blocks that act there. */
+function growthForChat(g, chatId, links) {
+  if (!chatId) return g;
+  return { ...g, entries: g.entries.filter((e) => growthActs(growthReach(e, chatId, links))) };
+}
+/** The chats that continue the chat a story block came from (none for a card-wide block). */
+function growthContinues(e, links) {
+  if (e.scope !== "story" || !e.from) return [];
+  return Object.keys(links).filter((c) => c !== e.from.chatId && chatAncestors(links, c).includes(e.from.chatId)).slice(0, 100);
 }
 
 function readGrowth(fsx, cardId) {
@@ -3364,7 +3414,10 @@ function growthPart(fsx, meta, opts) {
   if (off.includes("plugin:cardgrowth")) return null;
   const o = opts || {};
   const ids = growthMembers(fsx, meta, str(o.speakerId), o.worst === true);
-  const members = ids.map((id) => ({ id, g: readGrowth(fsx, id), name: cardNameOf(fsx, id) })).filter((m) => m.g.inject.enabled && m.g.entries.some((e) => e.state === "accepted" && e.on));
+  // only the blocks that act in THIS chat (#450)
+  const chatId = str(o.chatId) || str(meta.id);
+  const links = chatId ? readLinks(fsx) : {};
+  const members = ids.map((id) => ({ id, g: growthForChat(readGrowth(fsx, id), chatId, links), name: cardNameOf(fsx, id) })).filter((m) => m.g.inject.enabled && m.g.entries.some((e) => e.state === "accepted" && e.on));
   if (!members.length) return null;
   const parts = [];
   if (ids.length > 1 && !soloCardOf(meta) && groupInfo(fsx, meta).mode === "swap") {
@@ -3407,13 +3460,19 @@ function growthRemindFor(members) {
 }
 
 /** The Growth routes' answer: the file as it is now and what the part would cost. */
-function growthAnswer(fsx, cardId) {
+function growthAnswer(fsx, cardId, chatId) {
   const g = readGrowth(fsx, cardId);
   const live = g.entries.filter((e) => e.state === "accepted" && e.on).length;
   const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
-  const lay = growthLayout(g, isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "");
+  const chat = AG_CHAT.test(str(chatId)) ? str(chatId) : "";
+  const links = readLinks(fsx);
+  // with a chat: what THAT chat would be sent, and why each block does or does not act there (#450)
+  const seen = growthForChat(g, chat, links);
+  const lay = growthLayout(seen, isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "");
   const cast = castOf(fsx, cardId);
-  return { growth: g, sections: GROWTH_SECTIONS, ...(cast ? { cast: cast.map((c) => c.name) } : {}), tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live }, text: lay ? lay.text : "" };
+  const entries = g.entries.map((e) => (e.scope === "story" ? { ...e, continues: growthContinues(e, links) } : e));
+  const reach = chat ? Object.fromEntries(g.entries.map((e) => [e.id, growthReach(e, chat, links)])) : undefined;
+  return { growth: { ...g, entries }, sections: GROWTH_SECTIONS, ...(cast ? { cast: cast.map((c) => c.name) } : {}), ...(reach ? { reach } : {}), tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live }, text: lay ? lay.text : "" };
 }
 
 /**
@@ -3500,9 +3559,13 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
     if (str(w.title)) e.title = clip(str(w.title), GROWTH.title);
     if (str(w.basis)) e.basis = clip(str(w.basis), GROWTH.basis);
     if (of) e.of = of;
+    // a block from a chat acts in that story (#450); a chat with no usable id cannot be one
+    if (AG_CHAT.test(e.from.chatId)) e.scope = "story";
     if (kind === "changed" && section !== "other") {
       // a block revises only a block about the same character (#450: another character's relationships are not its text)
-      const old = g.entries.filter((x) => x.state === "accepted" && x.kind === "changed" && x.section === section && (x.of || "") === of).sort((a, b) => b.at - a.at)[0];
+      // and only one that acts in this chat in the same way: a story's block does not rewrite another story's, nor a card-wide one
+      const links = readLinks(fsx);
+      const old = g.entries.filter((x) => x.state === "accepted" && x.kind === "changed" && x.section === section && (x.of || "") === of && (x.scope || "") === (e.scope || "") && growthActs(growthReach(x, e.from.chatId, links))).sort((a, b) => b.at - a.at)[0];
       if (old) e.revises = old.id;
     }
     g.next++;
@@ -3583,7 +3646,9 @@ function growthRoute(req, host) {
   const fsx = host.fs;
   const cardId = str((req.query && req.query.cardId) || (isObj(req.body) && req.body.cardId));
   if (!cardExists(fsx, cardId)) return ok({ error: "cardId of an existing card required" }, 400);
-  if (req.method === "GET") return ok(growthAnswer(fsx, cardId));
+  // a chat id (query or body) makes the answer about that chat: what it is sent and why (#450)
+  const forChat = str((req.query && req.query.chatId) || (isObj(req.body) && req.body.forChat));
+  if (req.method === "GET") return ok(growthAnswer(fsx, cardId, forChat));
   const b = isObj(req.body) ? req.body : {};
   const g = readGrowth(fsx, cardId);
   const find = () => g.entries.find((e) => e.id === str(b.id));
@@ -3634,6 +3699,39 @@ function growthRoute(req, host) {
       if ("title" in b) { if (str(b.title)) e.title = clip(str(b.title), GROWTH.title); else delete e.title; }
       if ("basis" in b) { if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis); else delete e.basis; }
     }
+  } else if (op === "scope" || op === "chat") {
+    // where a block acts (#450): "scope" sets card-wide or story; "chat" switches it on or off for one chat
+    const e = find();
+    if (!e) return bad("no such entry", 404);
+    if (op === "scope") {
+      if (!["card", "story"].includes(str(b.scope))) return bad("scope is card or story");
+      if (b.scope === "story") {
+        if (!e.from || !AG_CHAT.test(str(e.from.chatId))) return bad("this block has no chat it came from, so it cannot be bound to a story");
+        e.scope = "story";
+      } else {
+        delete e.scope;
+        delete e.chats;
+      }
+    } else {
+      const chat = str(b.chatId);
+      if (!AG_CHAT.test(chat)) return bad("chatId required");
+      const links = readLinks(fsx);
+      const drop = (key, id) => {
+        const rest = arr(e[key]).filter((c) => c !== id);
+        if (rest.length) e[key] = rest;
+        else delete e[key];
+      };
+      const add = (key, id) => {
+        e[key] = [...arr(e[key]).filter((c) => c !== id), id].slice(-GROWTH.chats);
+      };
+      if (b.apply === false) {
+        drop("chats", chat);
+        if (growthActs(growthReach(e, chat, links))) add("skip", chat);
+      } else {
+        drop("skip", chat);
+        if (!growthActs(growthReach(e, chat, links))) add("chats", chat);
+      }
+    }
   } else if (op === "inject") {
     if ("enabled" in b) g.inject.enabled = b.enabled !== false;
     if ("remind" in b) g.inject.remind = b.remind === true;
@@ -3641,9 +3739,9 @@ function growthRoute(req, host) {
       if (!Number.isInteger(b.maxTokens) || b.maxTokens < GROWTH.roomMin || b.maxTokens > GROWTH.roomMax) return bad("maxTokens is a whole number from " + GROWTH.roomMin + " to " + GROWTH.roomMax);
       g.inject.maxTokens = b.maxTokens;
     }
-  } else return bad("op is add, accept, edit, on, delete, revert or inject");
+  } else return bad("op is add, accept, edit, on, delete, revert, scope, chat or inject");
   writeGrowth(fsx, cardId, g);
-  return ok(growthAnswer(fsx, cardId));
+  return ok(growthAnswer(fsx, cardId, forChat));
 }
 
 // ---------- the hint for the next reply ----------
@@ -3693,7 +3791,7 @@ export function insertCeiling(ctx, host) {
   if (!fsx || !/^[A-Za-z0-9_-]{1,128}$/.test(chatId)) return { ceilings: [] };
   const f = readJsonAt(fsx, insertsPath(chatId), null);
   // what the card's character has become (growth.json) is on disk too, so its part is counted exactly
-  const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {}, { worst: true });
+  const grow = growthPart(fsx, readJsonAt(fsx, "chats/" + chatId + ".meta.json", null) || {}, { worst: true, chatId });
   const growTokens = grow ? grow.tokens + 4 + (grow.remind ? grow.remind.tokens : 0) : 0;
   if (!isObj(f) || !Array.isArray(f.items)) return ceilingAnswer(growTokens);
   const tokens = (text) => {
@@ -3733,7 +3831,7 @@ export function llmRequest(ctx, host) {
     const live = items.length ? new Set(chatAgents(fsx, meta).filter((it) => it.on).map((it) => it.agent)) : null;
     const send = items.filter((x) => isObj(x) && live.has(x.agent) && typeof x.text === "string" && x.text.trim());
     // what the card's character has become: one part at the end of the leading system block, after the card's own sections
-    const grow = growthPart(fsx, meta, { speakerId: str(ctx.turn && ctx.turn.speakerId) });
+    const grow = growthPart(fsx, meta, { speakerId: str(ctx.turn && ctx.turn.speakerId), chatId });
     if (!send.length && !grow) return null;
     let messages = send.length ? withInserts(req.messages, send) : req.messages;
     const parts = send.map((x) => ({ kind: "plugin", label: "Agent: " + (str(x.label) || x.agent), text: x.text }));

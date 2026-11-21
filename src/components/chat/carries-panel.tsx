@@ -6,16 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { useT } from '@/hooks/use-t'
-import { buildCarries, flipOff, ownStoryChats, type CarriesAnswer, type CarriesResult, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
+import { buildCarries, flipOff, type CarriesAnswer, type CarriesResult, type CarryKind, type CarryPart, type DashCarries } from '@/lib/carries'
 import type { MsgKey } from '@/lib/i18n'
 import { getChatPromptBoard, j, setChatMemoryOwner, setChatPromptBoard } from '@/lib/engine'
 import { useApp } from '@/lib/store'
 import { habitCounts } from '@/lib/habit-earned'
 import { announceEarned } from '@/lib/habit-earned-toast'
 import { estimateTokens } from '@/lib/tokens'
-import { fetchLitChat, fetchLitLinks } from '@/components/library/litopys-api'
-import { fetchCardMemory, loadGrowth } from '@/components/character/memory-api'
-import { StoryChoices } from './carries-stories'
+import { fetchLitChat } from '@/components/library/litopys-api'
+import { loadGrowth } from '@/components/character/memory-api'
+import { GrowthChoices } from './carries-growth'
 import { loadFiredBrief } from '@/lib/fired-load'
 import { cn } from '@/lib/utils'
 
@@ -27,23 +27,6 @@ interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
   inherit?: DashCarries['inherit']
 }
-/** The card has stories that would normally reach this chat but none does now (the chat left them out, or a "separate" one is not let in):
- *  the answer carries no memory, so the part is made up with 0 tokens, to let the user choose stories again. */
-async function withIdleMemory(c: CarriesAnswer, chatId: string): Promise<CarriesAnswer> {
-  const st = useApp.getState()
-  const chat = st.chats.find((x) => x.id === chatId)
-  const card = chat?.characterId ? st.characters.find((x) => x.id === chat.characterId) : undefined
-  if (!card || c.off.includes('plugin:cardmemory')) return c
-  try {
-    const [mem, links] = await Promise.all([fetchCardMemory(card.id), fetchLitLinks().then((r) => r.links).catch(() => ({}))])
-    const mine = ownStoryChats(chatId, links)
-    if (!mem.memory.inject.enabled || !mem.memory.sources.some((s) => s.on && !(s.chatId && mine.has(s.chatId)))) return c
-    return { ...c, cardMemory: { cardId: card.id, name: card.name, tokens: 0, dupes: 0, sources: [], text: '' } }
-  } catch {
-    return c
-  }
-}
-
 /** The card's living portrait as the chat would send it, from the agents plugin; null when the card has none that is on (or the app has no agents plugin). */
 async function growthCarry(chatId: string): Promise<CarriesAnswer['cardGrowth']> {
   const st = useApp.getState()
@@ -51,7 +34,8 @@ async function growthCarry(chatId: string): Promise<CarriesAnswer['cardGrowth']>
   const card = chat?.characterId ? st.characters.find((x) => x.id === chat.characterId && !x.isGroup) : undefined
   if (!card) return null
   try {
-    const v = await loadGrowth(card.id)
+    // asked for this chat: the numbers and the text are what THIS chat is sent (#450); the row stays while the card has live blocks, so the choice can be made
+    const v = await loadGrowth(card.id, chatId)
     if (!v.growth.inject.enabled || v.tokens.live === 0) return null
     return { cardId: card.id, name: card.name, tokens: v.tokens.used, blocks: v.tokens.sent, omitted: v.tokens.omitted, text: v.text ?? '' }
   } catch {
@@ -99,9 +83,8 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
       loadFiredBrief(chatId),
     ])
     if (mine !== seq.current) return
-    const withMemory = carries && !carries.cardMemory ? await withIdleMemory(carries, chatId) : carries
-    const cardGrowth = withMemory ? await growthCarry(chatId) : null
-    const carriesOut = withMemory && cardGrowth ? { ...withMemory, cardGrowth } : withMemory
+    const cardGrowth = carries ? await growthCarry(chatId) : null
+    const carriesOut = carries && cardGrowth ? { ...carries, cardGrowth } : carries
     if (mine !== seq.current) return
     const view = dash?.view
     const dashPart: DashCarries | null = view
@@ -328,7 +311,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); onOpenFired() }}>{t('carries.litopys.why')}</Button>
         )}
       </div>
-      {part.kind === 'memory' && !!cm && <StoryChoices chatId={chatId} cardId={cm.cardId} t={t} onChanged={onChanged} />}
+      {!!cg && <GrowthChoices chatId={chatId} cardId={cg.cardId} t={t} onChanged={onChanged} />}
       {shown && !!text && (
         <pre id={textId} aria-label={t('carries.text')} tabIndex={0} data-testid={textId} className="max-h-56 overflow-y-auto rounded-md border border-border bg-muted p-2 text-xs break-words whitespace-pre-wrap">{text}</pre>
       )}

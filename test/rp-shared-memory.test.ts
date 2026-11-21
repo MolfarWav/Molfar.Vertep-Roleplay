@@ -252,13 +252,13 @@ describe("persona and world memory: the prompt", () => {
     expect(route(host, "GET", "/litopys/memory", undefined, { kind: "persona", id: "pers_jude" }).status).toBe(404);
   });
 
-  it("what the card's own memory does is unchanged: card routes still answer, and the card block does not need the opt-in", () => {
+  it("the card's own memory: its routes still answer, but its stories go into no prompt (#492)", () => {
     seedWinter();
     const { host } = mockHost();
     route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f5"] });
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     const res = L.llmRequest(ctx("next"), host);
-    expect(memoryParts(res)).toEqual(["Litopys · character memory"]);
+    expect(memoryParts(res)).toEqual([]);
     expect(route(host, "GET", "/litopys/card-memory", undefined, { cardId: "aria" }).json.kind).toBe("card");
   });
 });

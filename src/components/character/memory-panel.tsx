@@ -131,6 +131,7 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{t(txt.intro, { name: owner.name })}</p>
 
+      {!isCard && (
       <Block tone="sky" icon={BookOpenText} title={t('mem.stories')} count={sources.length}>
         {sources.length === 0 ? (
           <Empty className="gap-3 border border-dashed border-border p-5" data-testid="mem-empty">
@@ -192,6 +193,7 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
           </>
         )}
       </Block>
+      )}
 
       {isCard && card && <HabitsBlock c={card} data={data} t={t} apply={apply} />}
 
@@ -246,20 +248,24 @@ function InjectBlock({ owner, data, t, apply }: { owner: MemoryOwner; data: Memo
   const txt = MEMORY_TEXT[owner.kind]
   return (
     <Block tone="emerald" icon={Waves} title={t(txt.injectTitle)}>
-      <label className="flex min-h-8 items-center gap-3 text-sm max-md:min-h-10">
-        <Switch checked={inject.enabled} onCheckedChange={(v) => void apply(() => putMemory(owner, { inject: { enabled: v } }))} aria-label={t(txt.injectSwitch)} className="max-md:after:-inset-y-4" />
-        {t(txt.injectSwitch)}
-      </label>
-      <TokenField
-        id={`mem-budget-${owner.kind}-${owner.id}`}
-        label={t('mem.inject.tokens')}
-        unit={t('mem.inject.unit')}
-        value={inject.maxTokens}
-        min={MEM_MIN_TOKENS}
-        max={MEM_MAX_TOKENS}
-        onCommit={(v) => apply(() => putMemory(owner, { inject: { maxTokens: v } }))}
-      />
-      <p className="text-xs text-muted-foreground">{inject.enabled ? t(txt.injectHint, { tokens: data.tokens, budget: data.budget }) : t(txt.injectOff)}</p>
+      {owner.kind !== 'card' && (
+        <>
+          <label className="flex min-h-8 items-center gap-3 text-sm max-md:min-h-10">
+            <Switch checked={inject.enabled} onCheckedChange={(v) => void apply(() => putMemory(owner, { inject: { enabled: v } }))} aria-label={t(txt.injectSwitch)} className="max-md:after:-inset-y-4" />
+            {t(txt.injectSwitch)}
+          </label>
+          <TokenField
+            id={`mem-budget-${owner.kind}-${owner.id}`}
+            label={t('mem.inject.tokens')}
+            unit={t('mem.inject.unit')}
+            value={inject.maxTokens}
+            min={MEM_MIN_TOKENS}
+            max={MEM_MAX_TOKENS}
+            onCommit={(v) => apply(() => putMemory(owner, { inject: { maxTokens: v } }))}
+          />
+          <p className="text-xs text-muted-foreground">{inject.enabled ? t(txt.injectHint, { tokens: data.tokens, budget: data.budget }) : t(txt.injectOff)}</p>
+        </>
+      )}
       {owner.kind === 'card' && (
         <TokenField
           id={`mem-habits-budget-${owner.id}`}

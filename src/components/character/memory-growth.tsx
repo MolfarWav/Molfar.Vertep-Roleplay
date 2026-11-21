@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, ArrowsClockwise, BookOpenText, Check, CircleNotch, DotsThree, PencilSimple, Trash, TrendUp, Warning, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowsClockwise, BookOpenText, Check, CircleNotch, DotsThree, GitBranch, PencilSimple, Trash, TrendUp, Warning, X } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -32,6 +32,7 @@ import {
   updateGrowthFromStory,
 } from './memory-api'
 import { AddButton, Block } from './memory-block'
+import { type CardChat, WhereChip, WhereDialog } from './memory-growth-where'
 import { TokenField } from './memory-token-field'
 
 type T = ReturnType<typeof useT>
@@ -185,12 +186,16 @@ export function GrowthBlock({ card }: { card: Character }) {
       </Block>
     )
   }
-  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory() }} />
+  // the chats the "Where it acts" dialog lists: this card's own and those of a group it is in (#450)
+  const cardChats: CardChat[] = chats.filter((c) => (c.characterId === card.id || groupIds.has(c.characterId)) && !c.temporary).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt }))
+  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} chats={cardChats} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory() }} />
 }
 
 /** The block itself, from a loaded list. Split from `GrowthBlock` so it renders without a server. */
-export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean; story?: StoryRead }) {
+export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean; story?: StoryRead; chats?: CardChat[] }) {
   const [confirm, confirmDialog] = useConfirm()
+  // the block whose "Where it acts" dialog is open (read again from the list, so it shows what is saved)
+  const [whereId, setWhereId] = useState<string | null>(null)
   // the add form sits under the list; a block being edited opens in a dialog
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<GrowthEntry | null>(null)
@@ -307,6 +312,7 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
                         </div>
                         <FoldText text={e.text} t={t} muted={!on} />
                         <span className="break-words text-caption text-muted-foreground">{origin(e, t)}</span>
+                        <WhereChip entry={e} name={card.name} label={growthLabel(e)} t={t} onOpen={() => setWhereId(e.id)} />
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="max-md:size-10" aria-label={t('mem.grow.menu', { name: growthLabel(e) })} />}>
@@ -314,6 +320,7 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-40">
                           <DropdownMenuItem className="max-md:min-h-10" onClick={() => setEditing(e)}><PencilSimple aria-hidden="true" />{t('mem.grow.edit')}</DropdownMenuItem>
+                          <DropdownMenuItem className="max-md:min-h-10" onClick={() => setWhereId(e.id)}><GitBranch aria-hidden="true" />{t('mem.grow.where')}</DropdownMenuItem>
                           {older > 0 && <DropdownMenuItem className="max-md:min-h-10" disabled={busy} onClick={() => void revert(e)}><ArrowCounterClockwise aria-hidden="true" />{t('mem.grow.revert', { n: older })}</DropdownMenuItem>}
                           <DropdownMenuItem className="text-destructive max-md:min-h-10" onClick={() => void remove(e)}><Trash aria-hidden="true" />{t('mem.grow.delete')}</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -392,12 +399,16 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
           )}
         </DialogContent>
       </Dialog>
+      {(() => {
+        const where = whereId ? entries.find((x) => x.id === whereId && x.state === 'accepted') : undefined
+        return where ? <WhereDialog entry={where} name={card.name} label={growthLabel(where, 40)} chats={chats} t={t} act={act} busy={busy} onClose={() => setWhereId(null)} /> : null
+      })()}
       {confirmDialog}
     </Block>
   )
 }
 
-const origin = (e: GrowthEntry, t: T) => (e.origin === 'user' ? t('mem.grow.by.user') : e.from?.title ? t('mem.grow.from.chat', { title: e.from.title }) : t('mem.grow.from.agent'))
+const origin = (e: GrowthEntry, t: T) => (e.origin === 'user' ? t('mem.grow.by.user') : e.from?.title ? t(e.state === 'proposed' && e.scope === 'story' ? 'mem.grow.from.chat.story' : 'mem.grow.from.chat', { title: e.from.title }) : t('mem.grow.from.agent'))
 
 /** The small tags of a block: its section (in a proposal, where no section heading is above it) and whether it updates the card or adds to it. */
 function Chips({ e, t, section }: { e: GrowthEntry; t: T; section?: boolean }) {

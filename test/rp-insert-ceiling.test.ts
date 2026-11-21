@@ -99,13 +99,15 @@ describe("each plugin's ceiling is the table's row for the same chat", () => {
   it("card memory and habits, a group's biggest member, the switches", () => {
     seedCards();
     writeJson("characters/aria/memory.json", memory({ inject: { maxTokens: 300, habitsMaxTokens: 100 } }));
-    writeJson("characters/bram/memory.json", memory({ inject: { maxTokens: 1200 } }));
+    writeJson("characters/bram/memory.json", memory({ inject: { maxTokens: 1200, habitsMaxTokens: 500 } }));
     agree({ characterId: "aria" });
     agree({ groupId: "g1" }, undefined, ["dashboard"]);
-    agree({ groupId: "g1", promptBoard: { off: ["plugin:cardmemory", "plugin:cardskills"] } }, undefined, ["dashboard"]);
-    expect(byId(askAll("c1"))["litopys card memory"]).toBeUndefined(); // muted for this chat
+    agree({ groupId: "g1", promptBoard: { off: ["plugin:cardskills"] } }, undefined, ["dashboard"]);
+    expect(byId(askAll("c1"))["litopys habits"]).toBeUndefined(); // muted for this chat
     chat({ groupId: "g1" });
-    expect(byId(askAll("c1"))["litopys card memory"]).toBe(1200);
+    expect(byId(askAll("c1"))["litopys habits"]).toBe(500);
+    // a story saved on the card reserves nothing (#492)
+    expect(byId(askAll("c1"))["litopys card memory"]).toBeUndefined();
   });
   it("persona and world memory the chat took in, recollections, who knows what and the hidden plan", () => {
     seedCards();

@@ -105,6 +105,14 @@ const narrator = () => {
 };
 const growthN = () => disk("characters/narrator/growth.json");
 const putN = (body: Json) => j("/agents/growth", "PUT", { cardId: "narrator", ...body });
+/** Makes a block the user typed look like one an agent wrote in chat n1: bound to that story (#450). */
+function asStoryN(id: string, chatId = "n1") {
+  const g = growthN();
+  const e = g.entries.find((x: Json) => x.id === id);
+  e.from = { chatId, title: "A chat", at: 1 };
+  e.scope = "story";
+  fs.writeFileSync(path.join(root, "characters/narrator/growth.json"), JSON.stringify(g));
+}
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "agents-growth-cast-"));
@@ -170,6 +178,7 @@ describe("a block names its character (#450)", () => {
 
   it("another character's block is not a revision of Marina's (the old rule keyed on the section alone)", () => {
     putN({ op: "add", section: "relationships", kind: "changed", text: "Marina fears the player.", of: "Marina" });
+    asStoryN("g1");
     update({ cardId: "narrator", chatId: "n1" }, blocks([rel("Torgrim respects the player.", "Torgrim"), rel("Marina begins to trust the player.", "Marina")]));
     const e = growthN().entries;
     const torgrim = e.find((x: Json) => x.of === "Torgrim");

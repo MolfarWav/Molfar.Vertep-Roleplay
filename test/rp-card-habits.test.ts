@@ -159,7 +159,7 @@ describe("card habits: the prompt block", () => {
     expect(textOf(L.llmRequest(ctx("g", "Bram"), host))).toContain("hums while he thinks");
   });
 
-  it("a fact in the card memory that repeats a habit's rule is left out of the memory block", () => {
+  it("the habit goes in once, and a story saved on the card is not sent beside it (#492)", () => {
     seedCard();
     writeChat("winter", story(8), { title: "Winter watch", characterId: "aria" });
     writeJson("litopys/chats/winter.json", {
@@ -175,7 +175,7 @@ describe("card habits: the prompt block", () => {
     put(host, SILENCE);
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     const text = textOf(L.llmRequest(ctx("next"), host));
-    expect(text).toContain("brass key on a cord");
+    expect(text).not.toContain("brass key on a cord");
     expect(text.split("says nothing and keeps working").length - 1).toBe(1);
     expect(text).toContain("[Character habits");
   });
@@ -188,6 +188,6 @@ describe("card habits: the prompt block", () => {
     const r = route(host, "GET", "/litopys/carries", undefined, { chatId: "next", speaker: "Aria" });
     expect(r.json.cardHabits).toMatchObject({ cardId: "aria", name: "Aria", habits: ["k1"] });
     expect(r.json.cardHabits.tokens).toBeGreaterThan(0);
-    expect(r.json.cardMemory).toBeNull();
+    expect(r.json.cardMemory).toBeUndefined();
   });
 });

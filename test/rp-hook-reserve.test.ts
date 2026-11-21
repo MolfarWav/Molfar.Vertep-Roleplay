@@ -108,32 +108,30 @@ describe("hook reserve: the Dashboard journal", () => {
   });
 });
 
-describe("hook reserve: the card's memory and habits", () => {
-  it("only when the card has them: sources count for the memory, habits for the habits; the ceilings are the file's", () => {
+describe("hook reserve: the card's habits (its stories reserve nothing since #492)", () => {
+  it("only when the card has habits, and the ceiling is the file's; a saved story reserves nothing", () => {
     seedCards();
-    expect(byId(rows({ characterId: "aria" }))["litopys card memory"]).toBeUndefined();
+    expect(byId(rows({ characterId: "aria" }))["litopys habits"]).toBeUndefined();
     writeJson("characters/aria/memory.json", memory());
     let r = byId(rows({ characterId: "aria" }));
-    expect(r["litopys card memory"]).toBe(400);
+    expect(r["litopys card memory"]).toBeUndefined();
     expect(r["litopys habits"]).toBe(250);
     writeJson("characters/aria/memory.json", memory({ inject: { enabled: true, maxTokens: 900, habitsMaxTokens: 600 } }));
     r = byId(rows({ characterId: "aria" }));
-    expect(r["litopys card memory"]).toBe(900);
+    expect(r["litopys card memory"]).toBeUndefined();
     expect(r["litopys habits"]).toBe(600);
-    // a memory with no habits and no sources
-    writeJson("characters/aria/memory.json", memory({ sources: [], habits: [] }));
-    expect(byId(rows({ characterId: "aria" }))["litopys card memory"]).toBeUndefined();
+    // a memory with no habits: a story alone reserves nothing
+    writeJson("characters/aria/memory.json", memory({ habits: [] }));
     expect(byId(rows({ characterId: "aria" }))["litopys habits"]).toBeUndefined();
   });
   it("a group counts the biggest member, a switch off for the chat or in the file counts nothing", () => {
     seedCards();
-    writeJson("characters/aria/memory.json", memory({ inject: { maxTokens: 300 } }));
-    writeJson("characters/bram/memory.json", memory({ inject: { maxTokens: 1200 } }));
-    expect(byId(rows({ groupId: "g1" }))["litopys card memory"]).toBe(1200);
-    expect(byId(rows({ groupId: "g1", promptBoard: { off: ["plugin:cardmemory"] } }))["litopys card memory"]).toBeUndefined();
+    writeJson("characters/aria/memory.json", memory({ inject: { habitsMaxTokens: 300 } }));
+    writeJson("characters/bram/memory.json", memory({ inject: { habitsMaxTokens: 700 } }));
+    expect(byId(rows({ groupId: "g1" }))["litopys habits"]).toBe(700);
     expect(byId(rows({ groupId: "g1", promptBoard: { off: ["plugin:cardskills"] } }))["litopys habits"]).toBeUndefined();
     writeJson("characters/bram/memory.json", memory({ inject: { enabled: false } }));
-    expect(byId(rows({ groupId: "g1" }))["litopys card memory"]).toBe(300);
+    expect(byId(rows({ groupId: "g1" }))["litopys habits"]).toBe(300);
   });
   it("Litopys off (the global insert switch) takes the card's memory with it, as the plugin does", () => {
     seedCards();

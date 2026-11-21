@@ -136,7 +136,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
     <SwitchRow id={id} label={label} hint={hint} checked={checked} onChange={onChange} />
   )
   /** A prompt text: its label with Restore default, the box, an optional hint. */
-  const textField = (key: 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory', label: string, rows: number, hint?: string) => (
+  const textField = (key: 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues', label: string, rows: number, hint?: string) => (
     <Field key={key}>
       <PromptLabel id={`lit-${key}`} label={label} changed={changed(key)} onRestore={() => restore(key)} />
       <Textarea
@@ -154,7 +154,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
   // what a folded block says about itself, so nothing has to be opened to see what is set
   const sizeText = cfg.budgetMode === 'auto' ? t('lit.set.sizeAuto') : t('lit.sum.tokens', { n: cfg.budget })
   const modeText = { ask: t('lit.set.arcAsk'), auto: t('lit.set.arcAuto'), off: t('lit.set.arcOff') }[cfg.arcMode]
-  const textKeys: LitPromptKey[] = ['chapter', 'arc', 'summary', 'remembers', 'continues', 'cardMemory']
+  const textKeys: LitPromptKey[] = ['chapter', 'arc', 'summary', 'remembers', 'continues']
   const changedTexts = cfg.custom ? textKeys.filter((k) => cfg.custom?.includes(k)).length : null
   const onOff = (on: boolean) => (on ? t('lit.sum.on') : t('lit.sum.off'))
 
@@ -351,7 +351,7 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
         {textField('chapter', t('lit.set.prompt'), 5)}
         {textField('arc', t('lit.set.arcPrompt'), 5)}
         {textField('summary', t('lit.set.summaryPrompt'), 5, t('lit.set.summaryPromptHint'))}
-        {(['remembers', 'continues', 'cardMemory'] as const).map((key) => textField(key, t(`lit.set.${key}`), 3, t(`lit.set.${key}Hint`)))}
+        {(['remembers', 'continues'] as const).map((key) => textField(key, t(`lit.set.${key}`), 3, t(`lit.set.${key}Hint`)))}
       </SettingsBlock>
     </div>
   )
