@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # 角色扮演：总览
 
 角色扮演是 Molfar Vertep 的故事应用：你保存角色卡，与他们进行聊天扮演，并让应用追踪场景、记住故事、运行你周围的世界。本页是一张地图。应用自带的 **Help**（在侧边栏中）几乎为每个界面都有一篇短文；本指南解释各部分如何组合在一起。模型和连接不在这里设置，而是在主设置中：参见 [[vertep:models]]。
@@ -9,7 +9,7 @@
 
 - **Home** 和 **Chats**：从你停下的地方继续，或打开任意聊天。
 - **Characters**、**Groups**、**Marketplace**、**Personas**：人物。参见 [[characters]]。
-- **Lorebooks**、**Library**、**Canvas**、**World**、**Agents**：故事的记忆和机制。参见 [[memory]]、[[litopys]]、[[canvas]]、[[world-dm]] 和 [[agents]]。
+- **Lorebooks**、**Library**、**Canvas**、**World**、**DM**、**Agents**：故事的记忆和机制。DM 会打开 World 部分的 DM 标签页（DM 的等级、配置文件和 Memory）。参见 [[memory]]、[[litopys]]、[[canvas]]、[[world-dm]] 和 [[agents]]。
 - **Presets**：发给模型的请求是如何构建的。
 - **Shortcuts** 和 **Tools**：快捷回复、正则、翻译、图片、语音、Data Bank 等。参见 [[settings]]。
 - **Inbox** 和 **Help** 在底部。Inbox 列出等待你处理的事项：失败的后台任务、Library 建议和提议的灵魂。

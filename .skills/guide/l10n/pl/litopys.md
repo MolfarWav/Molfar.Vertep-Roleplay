@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: kronika opowieści
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta opowieść w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które opowieść ustanowiła. Gdy czat staje się zbyt długi dla okna modelu, kronika niesie opowieść dalej. Używaj jej do długich opowieści; nie musisz jej uruchamiać.
@@ -61,7 +61,7 @@ Zakładka **Settings** kroniki czatu (w panelu bocznym Record i w Library, obok 
 
 ## Sugestie i porządkowanie
 
-"Suggestions" ma trzy opcje. "Ask me first": każda sugestia czeka na twoje tak. "Only risky ones" (domyślne dla nowej instalacji): rutynowe sugestie są stosowane od razu, zapisane w Activity z Undo, a czekają tylko ryzykowne, każda z powodem: scalenie, które powiedziałoby więcej osobom fakt znany tylko niektórym, zmiana faktu, który przypiąłeś, napisałeś, edytowałeś lub oznaczyłeś jako key, trwała zmiana lub przekonanie oraz nowy fakt, który może przeczyć temu, co przypiąłeś. Ten sam powód pokazuje się w Inbox. "Apply pins and rewrites quietly": przechodzą tylko przypięcia i przeredagowania; wycofywanie i scalanie czekają na ciebie. "Tidy facts automatically" szuka duplikatów i sprzeczności po 30 nowych faktach, po jednym dodatkowym wywołaniu modelu na 60 faktów.
+"Suggestions" ma trzy opcje. "Ask me first": każda sugestia czeka na twoje tak. "Only risky ones" (domyślne dla nowej instalacji): rutynowe sugestie są stosowane od razu, zapisane w Activity z Undo, a czekają tylko ryzykowne, każda z powodem: scalenie, które powiedziałoby więcej osobom fakt znany tylko niektórym, zmiana faktu, który przypiąłeś, napisałeś, edytowałeś lub oznaczyłeś jako key, trwała zmiana lub przekonanie oraz nowy fakt, który może przeczyć temu, co przypiąłeś. Ten sam powód pokazuje się w Inbox. "Apply pins and rewrites quietly": przechodzą tylko przypięcia i przeredagowania; wycofywanie i scalanie czekają na ciebie. "Tidy facts automatically" szuka duplikatów i sprzeczności po 15 nowych faktach od ostatniego przebiegu, po jednym dodatkowym wywołaniu modelu na 60 faktów. Wycofuje też plan lub termin, który późniejszy fakt pokazuje jako wykonany lub miniony (rachunek, który został już opłacony), i zachowuje przeszłe zdarzenie, nawet gdy później coś się zmieniło. Proponowane scalenie musi być krótsze niż fakty, które łączy; dłuższe jest odrzucane, a nie zapisywane w skróconej formie. Dokładniejszy model popełnia mniej błędnych sugestii, więc zostaw "Ask me first" lub "Only risky ones", jeśli twój model Litopys jest mały.
 
 ### Powiadomienia w czacie
 

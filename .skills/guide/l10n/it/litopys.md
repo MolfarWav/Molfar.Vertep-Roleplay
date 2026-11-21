@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: il resoconto della storia
 
 Litopys (la cronaca) è la memoria lunga di una chat. Legge la storia in background e scrive un capitolo per ogni scena conclusa, più i fatti che la storia ha stabilito. Quando una chat diventa troppo lunga per la finestra del modello, il resoconto porta avanti la storia. Usalo per storie lunghe; non devi avviarlo.
@@ -61,7 +61,7 @@ La scheda **Settings** del resoconto di una chat (nel pannello laterale Record e
 
 ## Suggerimenti e riordino
 
-"Suggestions" ha tre scelte. "Ask me first": ogni suggerimento aspetta il tuo sì. "Only risky ones" (la predefinita per una nuova installazione): i suggerimenti di routine vengono applicati subito, registrati in Activity con un Undo, e solo quelli rischiosi aspettano, ciascuno con il motivo sopra: un'unione che direbbe a più persone un fatto che solo alcuni conoscevano, una modifica a un fatto che hai fissato, scritto, modificato o marcato come chiave, un cambiamento duraturo o una convinzione, e un nuovo fatto che potrebbe contraddire uno che hai fissato. Lo stesso motivo appare nell'Inbox. "Apply pins and rewrites quietly": passano solo fissaggi e riscritture; ritiri e unioni aspettano te. "Tidy facts automatically" cerca duplicati e contraddizioni dopo 30 nuovi fatti, a una chiamata extra al modello ogni 60 fatti.
+"Suggestions" ha tre scelte. "Ask me first": ogni suggerimento aspetta il tuo sì. "Only risky ones" (la predefinita per una nuova installazione): i suggerimenti di routine vengono applicati subito, registrati in Activity con un Undo, e solo quelli rischiosi aspettano, ciascuno con il motivo sopra: un'unione che direbbe a più persone un fatto che solo alcuni conoscevano, una modifica a un fatto che hai fissato, scritto, modificato o marcato come chiave, un cambiamento duraturo o una convinzione, e un nuovo fatto che potrebbe contraddire uno che hai fissato. Lo stesso motivo appare nell'Inbox. "Apply pins and rewrites quietly": passano solo fissaggi e riscritture; ritiri e unioni aspettano te. "Tidy facts automatically" cerca duplicati e contraddizioni dopo 15 nuovi fatti dall'ultimo passaggio, a una chiamata extra al modello ogni 60 fatti. Ritira anche un piano o una scadenza che un fatto successivo mostra come fatto o mancato (una bolletta nel frattempo pagata), e conserva un evento passato anche quando le cose sono cambiate in seguito. Un'unione che propone deve essere più breve dei fatti che unisce; una più lunga viene scartata invece che memorizzata tagliata. Un modello più accurato fa meno suggerimenti sbagliati, quindi mantieni "Ask me first" o "Only risky ones" se il tuo modello Litopys è piccolo.
 
 ### Avvisi nella chat
 

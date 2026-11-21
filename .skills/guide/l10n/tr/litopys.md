@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: hikâye kaydı
 
 Litopys (vakayiname), bir sohbetin uzun hafızasıdır. Hikâyeyi arka planda okur ve tamamlanan her sahne için bir bölüm, ayrıca hikâyenin kurduğu olguları yazar. Bir sohbet modelin penceresi için fazla uzadığında, kayıt hikâyeyi ileri taşır. Uzun hikâyeler için kullanın; başlatmanıza gerek yok.
@@ -61,7 +61,7 @@ Bir sohbetin kaydının **Settings** sekmesi (Record yan panelinde ve Kütüphan
 
 ## Öneriler ve düzenleme
 
-"Suggestions"ın üç seçeneği vardır. "Ask me first": her öneri sizin evetinizi bekler. "Only risky ones" (yeni bir kurulum için varsayılan): rutin öneriler hemen uygulanır, Activity'de bir Undo ile kaydedilir ve yalnızca riskli olanlar bekler, her birinde gerekçesiyle: yalnızca bazılarının bildiği bir olguyu daha çok kişiye söyleyecek bir birleştirme, sabitlediğiniz, yazdığınız, düzenlediğiniz ya da anahtar olarak işaretlediğiniz bir olguda bir değişiklik, kalıcı bir değişiklik ya da bir inanç ve sabitlediğiniz bir olguyla çelişebilecek yeni bir olgu. Aynı gerekçe Inbox'ta da görünür. "Apply pins and rewrites quietly": yalnızca sabitlemeler ve yeniden yazmalar geçer; emekliye ayırma ve birleştirme sizi bekler. "Tidy facts automatically" 30 yeni olgudan sonra yinelenenleri ve çelişkileri arar, her 60 olgu için bir ek model çağrısıyla.
+"Suggestions"ın üç seçeneği vardır. "Ask me first": her öneri sizin evetinizi bekler. "Only risky ones" (yeni bir kurulum için varsayılan): rutin öneriler hemen uygulanır, Activity'de bir Undo ile kaydedilir ve yalnızca riskli olanlar bekler, her birinde gerekçesiyle: yalnızca bazılarının bildiği bir olguyu daha çok kişiye söyleyecek bir birleştirme, sabitlediğiniz, yazdığınız, düzenlediğiniz ya da anahtar olarak işaretlediğiniz bir olguda bir değişiklik, kalıcı bir değişiklik ya da bir inanç ve sabitlediğiniz bir olguyla çelişebilecek yeni bir olgu. Aynı gerekçe Inbox'ta da görünür. "Apply pins and rewrites quietly": yalnızca sabitlemeler ve yeniden yazmalar geçer; emekliye ayırma ve birleştirme sizi bekler. "Tidy facts automatically" son geçişinden bu yana 15 yeni olgudan sonra yinelenenleri ve çelişkileri arar, her 60 olgu için bir ek model çağrısıyla. Ayrıca sonraki bir olgunun tamamlandığını ya da kaçırıldığını gösterdiği bir planı veya teslim tarihini emekliye ayırır (o tarihten sonra ödenmiş bir fatura) ve sonradan işler değişse bile geçmiş bir olayı saklar. Önerdiği bir birleştirme, birleştirdiği olgulardan daha kısa olmalıdır; daha uzun olan, kesilmiş olarak saklanmak yerine atılır. Daha dikkatli bir model daha az yanlış öneri yapar, bu yüzden Litopys modeliniz küçük bir modelse "Ask me first" veya "Only risky ones" seçeneğini koruyun.
 
 ### Sohbetteki bildirimler
 

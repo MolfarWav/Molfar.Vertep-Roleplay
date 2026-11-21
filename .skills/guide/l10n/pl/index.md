@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # Roleplay: przegląd
 
 Roleplay to aplikacja do opowiadania historii w Molfar Vertep: przechowujesz karty postaci, prowadzisz z nimi czaty, a aplikacja śledzi scenę, pamięta historię i prowadzi świat wokół ciebie. Ta strona to mapa. Wbudowana **Help** aplikacji (w panelu bocznym) ma krótki artykuł do niemal każdego ekranu; ten przewodnik wyjaśnia, jak wszystko do siebie pasuje. Modele i połączenia ustawia się nie tutaj, lecz w głównych Ustawieniach: zobacz [[vertep:models]].
@@ -9,7 +9,7 @@ Panel po lewej (na telefonie pasek zakładek na dole) grupuje sekcje:
 
 - **Home** i **Chats**: kontynuuj tam, gdzie skończysz, albo otwórz dowolny czat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: ludzie. Zobacz [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: pamięć i maszyneria historii. Zobacz [[memory]], [[litopys]], [[canvas]], [[world-dm]] i [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: pamięć i maszyneria historii. DM otwiera sekcję World na jej zakładce DM (poziomy MG, profile i Memory). Zobacz [[memory]], [[litopys]], [[canvas]], [[world-dm]] i [[agents]].
 - **Presets**: jak budowane jest zapytanie do modelu.
 - **Shortcuts** i **Tools**: szybkie odpowiedzi, regex, tłumaczenie, obrazki, głos, Data Bank i więcej. Zobacz [[settings]].
 - **Inbox** i **Help** na dole. Inbox pokazuje, co na ciebie czeka: nieudane zadania w tle, sugestie z Library i proponowane dusze.

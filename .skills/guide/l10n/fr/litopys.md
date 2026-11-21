@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys : la chronique de l'histoire
 
 Litopys (la chronique) est la longue mémoire d'un chat. Elle lit l'histoire en arrière-plan et écrit un chapitre pour chaque scène terminée, ainsi que les faits que l'histoire a établis. Quand un chat devient trop long pour la fenêtre du modèle, la chronique fait avancer l'histoire. Utilisez-la pour les longues histoires ; vous n'avez pas besoin de l'activer.
@@ -61,7 +61,7 @@ L'onglet **Settings** de la chronique d'un chat (dans le panneau latéral Record
 
 ## Suggestions et rangement
 
-"Suggestions" a trois choix. "Ask me first" : chaque suggestion attend votre oui. "Only risky ones" (le défaut d'une nouvelle installation) : les suggestions de routine sont appliquées aussitôt, journalisées dans Activity avec un Undo, et seules les risquées attendent, chacune avec sa raison indiquée : une fusion qui révélerait à plus de gens un fait que seuls quelques-uns connaissaient, une modification d'un fait que vous avez épinglé, écrit, édité ou marqué key, un changement durable ou une croyance, et un nouveau fait qui pourrait contredire un fait que vous avez épinglé. La même raison s'affiche dans l'Inbox. "Apply pins and rewrites quietly" : seuls les épinglages et les reformulations passent ; le retrait et la fusion attendent votre accord. "Tidy facts automatically" cherche les doublons et les contradictions après 30 nouveaux faits, à un appel de modèle supplémentaire pour 60 faits.
+"Suggestions" a trois choix. "Ask me first" : chaque suggestion attend votre oui. "Only risky ones" (le défaut d'une nouvelle installation) : les suggestions de routine sont appliquées aussitôt, journalisées dans Activity avec un Undo, et seules les risquées attendent, chacune avec sa raison indiquée : une fusion qui révélerait à plus de gens un fait que seuls quelques-uns connaissaient, une modification d'un fait que vous avez épinglé, écrit, édité ou marqué key, un changement durable ou une croyance, et un nouveau fait qui pourrait contredire un fait que vous avez épinglé. La même raison s'affiche dans l'Inbox. "Apply pins and rewrites quietly" : seuls les épinglages et les reformulations passent ; le retrait et la fusion attendent votre accord. "Tidy facts automatically" cherche les doublons et les contradictions après 15 nouveaux faits depuis son dernier passage, à un appel de modèle supplémentaire pour 60 faits. Il retire aussi un plan ou une échéance qu'un fait ultérieur montre accompli ou manqué (une facture depuis payée), et conserve un événement passé même si les choses ont changé par la suite. Une fusion qu'il propose doit être plus courte que les faits qu'elle joint ; une plus longue est abandonnée plutôt que stockée tronquée. Un modèle plus prudent fait moins de suggestions erronées, alors gardez "Ask me first" ou "Only risky ones" si votre modèle Litopys est petit.
 
 ### Notices dans le chat
 

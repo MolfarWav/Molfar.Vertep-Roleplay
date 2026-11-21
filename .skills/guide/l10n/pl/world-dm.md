@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # Mistrz Świata
 
 Mistrz Świata (World DM) to mistrz gry dla świata jednego czatu. Po odpowiedziach czyta historię i zapisuje osoby, miejsca i rzeczy, które spotyka, w lorebooku czatu, zwanym księgą świata. Na wyższych poziomach porusza też światem i wysyła wydarzenia do sceny. Użyj go, gdy chcesz, by świat wydawał się żywy i spójny.
 
 ## Poziomy
 
-Otwórz go z nagłówka czatu "World" (na telefonie Menu, potem World) albo z sekcji **World** na pasku. Wybierz, co robi mistrz:
+Otwórz go z nagłówka czatu "World" (na telefonie Menu, potem World) albo z sekcji **World** na pasku. Element **DM** tuż pod World na pasku (na telefonie kafelek w sekcji All) otwiera sekcję World od razu na jej zakładce DM, z poziomami, własnymi profilami i Memory. Wybierz, co robi mistrz:
 
 - **Off**: bez wydarzeń i bez kości. Księga świata wciąż zapełnia się z historii: gdy scena wymienia nowe miejsce lub rzecz, jedno małe wywołanie pyta model mistrza, czy to zapisać.
 - **Chronicler**: tylko zapisuje i nie dodaje własnych wydarzeń.
@@ -70,7 +70,7 @@ Każdy poziom to wbudowany profil: tych pięć trzyma prompty mistrza, a możesz
 
 ## Czego uczy się mistrz
 
-Zakładka **DM** (Chats | Worlds | DM) zaczyna się wierszem **Memory**; kropka na zakładce i na wierszu oznacza, że czeka na ciebie propozycja. Mistrz zauważa, co usuwasz i przepisujesz w księdze świata, i sam nigdy tego nie zmienia: gdy wzorzec jest jasny, **Memory** pokazuje propozycję z dowodami (co usunąłeś, ile to rekordów samego mistrza, próg) i trzy odpowiedzi: **This chat**, **All chats** lub **No**. Nie jest wołany żaden model. Odpowiedź zmienia jedno dokładne ustawienie: nowe ustawienie **Things in the book** (wszystkie, tylko z powodem lub żadne), długość tekstu rekordu albo to, jak często osoby wracają. "Nie" nie jest pytane ponownie, dopóki nowe edycje się nie zbiorą.
+Zakładka **DM** (Chats | Worlds | DM) zaczyna się wierszem **Memory**; kropka na zakładce i na wierszu oznacza, że czeka na ciebie propozycja, a pozycja **DM** na pasku pokazuje, ile czeka propozycji. Mistrz zauważa, co usuwasz i przepisujesz w księdze świata, i sam nigdy tego nie zmienia: gdy wzorzec jest jasny, **Memory** pokazuje propozycję z dowodami (co usunąłeś, ile to rekordów samego mistrza, próg) i trzy odpowiedzi: **This chat**, **All chats** lub **No**. Nie jest wołany żaden model. Odpowiedź zmienia jedno dokładne ustawienie: nowe ustawienie **Things in the book** (wszystkie, tylko z powodem lub żadne), długość tekstu rekordu albo to, jak często osoby wracają. "Nie" nie jest pytane ponownie, dopóki nowe edycje się nie zbiorą.
 
 Osoby, miejsca i grupy nie mają ustawienia do przełączenia. Gdy usuniesz wiele tych, które napisał mistrz, Memory pokazuje zamiast tego **regułę słowną**: otwarcie Memory robi jedno małe wywołanie modelu budowania, który pisze regułę (jedna linia) z tego, co usunąłeś i co zachowałeś, albo nie znajduje wzorca. **Suggest a rule from my edits** prosi o nią ręcznie. Odpowiadasz tak samo; reguła dla wszystkich czatów pyta jeszcze raz w oknie dialogowym, które ją pokazuje. Mistrz czyta twoje reguły jako krótki blok, *what this player prefers* (tego czatu i wszystkich czatów razem, od najnowszej, najwyżej 10 reguł i 600 znaków; starsze, które się nie mieszczą, zostają w Memory z tagiem), a **Add a rule** też przyjmuje regułę słowną.
 

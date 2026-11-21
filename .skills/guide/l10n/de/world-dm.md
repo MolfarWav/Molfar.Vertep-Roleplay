@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # Welt-DM
 
 Der Welt-DM ist ein Spielleiter für die Welt eines Chats. Nach den Antworten liest er die Geschichte und behält die Personen, Orte und Dinge, die ihm begegnen, im eigenen Lorebook des Chats, dem Weltbuch. Auf höheren Stufen bewegt er außerdem die Welt und schickt Ereignisse in die Szene. Nutze ihn, wenn sich die Welt lebendig und stimmig anfühlen soll.
 
 ## Stufen
 
-Öffne ihn über den Chat-Kopf "World" (auf dem Handy: Menü, dann World) oder über den Bereich **World** in der Leiste. Wähle, was der DM tut:
+Öffne ihn über den Chat-Kopf "World" (auf dem Handy: Menü, dann World) oder über den Bereich **World** in der Leiste. Der Eintrag **DM** direkt unter World in der Leiste (auf dem Handy eine Kachel in Alle Bereiche) öffnet den World-Bereich direkt auf seinem DM-Tab, mit den Levels, deinen eigenen Profilen und Memory. Wähle, was der DM tut:
 
 - **Off**: keine Ereignisse und keine Würfel. Das Weltbuch füllt sich trotzdem aus der Geschichte: Wenn die Szene einen neuen Ort oder ein neues Ding nennt, fragt ein kleiner Aufruf das DM-Modell, ob es aufgenommen werden soll.
 - **Chronicler**: nur aufnehmen, keine eigenen Ereignisse.
@@ -70,7 +70,7 @@ Jede Stufe ist ein eingebautes Profil: Die fünf halten die Prompts des DM, und 
 
 ## Was der DM lernt
 
-Der **DM**-Tab (Chats | Worlds | DM) beginnt mit einer **Memory**-Zeile; ein Punkt am Tab und an der Zeile bedeutet, dass ein Vorschlag auf dich wartet. Der DM bemerkt, was du im Weltbuch löschst und umschreibst und selbst nie ändert: Wenn ein Muster klar ist, zeigt **Memory** einen Vorschlag mit den Belegen (was du entfernt hast, wie viele von den eigenen Einträgen des DM das ist, die Schwelle) und drei Antworten: **This chat**, **All chats** oder **No**. Dafür wird kein Modell aufgerufen. Eine Antwort ändert eine exakte Einstellung: die neue Einstellung **Things in the book** (alle, nur mit einem reason oder keine), die Länge des Textes eines Eintrags oder wie oft Personen zurückkommen. Ein "no" wird nicht erneut gefragt, bis neue Bearbeitungen sich sammeln.
+Der **DM**-Tab (Chats | Worlds | DM) beginnt mit einer **Memory**-Zeile; ein Punkt am Tab und an der Zeile bedeutet, dass ein Vorschlag auf dich wartet, und der **DM**-Eintrag in der Leiste zeigt an, wie viele warten. Der DM bemerkt, was du im Weltbuch löschst und umschreibst und selbst nie ändert: Wenn ein Muster klar ist, zeigt **Memory** einen Vorschlag mit den Belegen (was du entfernt hast, wie viele von den eigenen Einträgen des DM das ist, die Schwelle) und drei Antworten: **This chat**, **All chats** oder **No**. Dafür wird kein Modell aufgerufen. Eine Antwort ändert eine exakte Einstellung: die neue Einstellung **Things in the book** (alle, nur mit einem reason oder keine), die Länge des Textes eines Eintrags oder wie oft Personen zurückkommen. Ein "no" wird nicht erneut gefragt, bis neue Bearbeitungen sich sammeln.
 
 Personen, Orte und Gruppen haben keine Einstellung zum Umlegen. Wenn du viele davon löschst, die der DM geschrieben hat, zeigt Memory stattdessen eine **Regel in Worten**: Das Öffnen von Memory macht einen kleinen Aufruf an das Build-Modell, das die Regel (eine Zeile) aus dem schreibt, was du entfernt und was du behalten hast, oder kein Muster findet. **Suggest a rule from my edits** fragt von Hand nach einer. Du antwortest auf die gleiche Weise; eine Regel für alle Chats fragt in einem Dialog, der sie zeigt, noch einmal nach. Der DM liest deine Regeln als kurzen Block, *what this player prefers* (die dieses Chats und die aller Chats zusammen, neueste zuerst, höchstens 10 Regeln und 600 Zeichen; ältere, die nicht passen, bleiben in Memory mit einem Tag), und **Add a rule** nimmt ebenfalls eine Regel in Worten.
 

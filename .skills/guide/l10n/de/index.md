@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # Rollenspiel: die Übersicht
 
 Rollenspiel ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Landkarte. Die **Help** der App (in der Leiste) hat einen kurzen Artikel für fast jeden Bildschirm; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden nicht hier eingerichtet, sondern in den Haupt-Settings: siehe [[vertep:models]].
@@ -9,7 +9,7 @@ Die Leiste links (auf dem Handy eine Leiste mit Tabs unten) gruppiert die Bereic
 
 - **Home** und **Chats**: mach dort weiter, wo du aufgehört hast, oder öffne einen beliebigen Chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: die Personen. Siehe [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: das Gedächtnis und die Maschinerie der Geschichte. Siehe [[memory]], [[litopys]], [[canvas]], [[world-dm]] und [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: das Gedächtnis und die Maschinerie der Geschichte. DM öffnet den World-Bereich auf seinem DM-Tab (die Stufen, Profile und Memory des DM). Siehe [[memory]], [[litopys]], [[canvas]], [[world-dm]] und [[agents]].
 - **Presets**: wie die Anfrage an das Modell aufgebaut wird.
 - **Shortcuts** und **Tools**: Schnellantworten, Regex, Übersetzung, Bilder, Stimme, die Data Bank und mehr. Siehe [[settings]].
 - **Inbox** und **Help** unten. Die Inbox listet auf, was auf dich wartet: fehlgeschlagene Hintergrundjobs, Library-Vorschläge und vorgeschlagene Souls.

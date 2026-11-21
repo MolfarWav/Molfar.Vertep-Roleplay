@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: o registro da história
 
 Litopys (a crônica) é a memória longa de um chat. Ela lê a história em segundo plano e escreve um capítulo para cada cena encerrada, além dos fatos que a história estabeleceu. Quando um chat fica longo demais para a janela do modelo, o registro leva a história adiante. Use para histórias longas; você não precisa iniciá-lo.
@@ -61,7 +61,7 @@ A aba **Settings** do registro de um chat (no painel lateral Record e na Library
 
 ## Sugestões e arrumação
 
-"Suggestions" tem três escolhas. "Ask me first": toda sugestão espera pelo seu sim. "Only risky ones" (o padrão de uma instalação nova): sugestões de rotina são aplicadas na hora, registradas na Activity com um Undo, e só as arriscadas esperam, cada uma com o motivo indicado: uma mesclagem que contaria a mais pessoas um fato que só algumas conheciam, uma mudança em um fato que você fixou, escreveu, editou ou marcou como key, uma mudança duradoura ou uma crença, e um fato novo que pode contradizer um que você fixou. O mesmo motivo aparece na Inbox. "Apply pins and rewrites quietly": só pins e rewrites passam; aposentar e mesclar esperam por você. "Tidy facts automatically" procura duplicatas e contradições após 30 fatos novos, a uma chamada extra de modelo por 60 fatos.
+"Suggestions" tem três escolhas. "Ask me first": toda sugestão espera pelo seu sim. "Only risky ones" (o padrão de uma instalação nova): sugestões de rotina são aplicadas na hora, registradas na Activity com um Undo, e só as arriscadas esperam, cada uma com o motivo indicado: uma mesclagem que contaria a mais pessoas um fato que só algumas conheciam, uma mudança em um fato que você fixou, escreveu, editou ou marcou como key, uma mudança duradoura ou uma crença, e um fato novo que pode contradizer um que você fixou. O mesmo motivo aparece na Inbox. "Apply pins and rewrites quietly": só pins e rewrites passam; aposentar e mesclar esperam por você. "Tidy facts automatically" procura duplicatas e contradições após 15 fatos novos desde sua última passagem, a uma chamada extra de modelo por 60 fatos. Também aposenta um plano ou um prazo que um fato posterior mostra como concluído ou perdido (uma conta que foi paga depois), e mantém um evento passado mesmo quando as coisas mudaram depois. Uma mesclagem que ele propõe deve ser mais curta que os fatos que ela une; uma mais longa é descartada em vez de armazenada cortada. Um modelo mais cuidadoso faz menos sugestões erradas, então mantenha "Ask me first" ou "Only risky ones" se o seu modelo do Litopys for pequeno.
 
 ### Avisos no chat
 

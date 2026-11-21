@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: het verhaalverslag
 
 Litopys (de kroniek) is het langetermijngeheugen van één chat. Het leest het verhaal op de achtergrond en schrijft een hoofdstuk voor elke afgeronde scène, plus de feiten die het verhaal heeft vastgesteld. Wanneer een chat te lang wordt voor het venster van het model, draagt het verslag het verhaal verder. Gebruik het voor lange verhalen; je hoeft het niet te starten.
@@ -61,7 +61,7 @@ Het tabblad **Settings** van het verslag van een chat (in het Record-zijpaneel e
 
 ## Suggesties en opruimen
 
-"Suggestions" heeft drie opties. "Ask me first": elke suggestie wacht op jouw ja. "Only risky ones" (de standaard voor een nieuwe installatie): routine-suggesties worden meteen toegepast, gelogd in Activity met een Undo, en alleen de riskante wachten, elk met de reden erop: een samenvoeging die een feit aan meer mensen zou vertellen dan alleen sommigen kenden, een wijziging aan een feit dat je vastpinde, schreef, bewerkte of als key markeerde, een blijvende verandering of een overtuiging, en een nieuw feit dat een door jou vastgepind feit kan tegenspreken. Dezelfde reden verschijnt in de Inbox. "Apply pins and rewrites quietly": alleen pins en herschrijvingen gaan door; laten vervallen en samenvoegen wachten op jou. "Tidy facts automatically" zoekt naar duplicaten en tegenstellingen na 30 nieuwe feiten, met één extra modelaanroep per 60 feiten.
+"Suggestions" heeft drie opties. "Ask me first": elke suggestie wacht op jouw ja. "Only risky ones" (de standaard voor een nieuwe installatie): routine-suggesties worden meteen toegepast, gelogd in Activity met een Undo, en alleen de riskante wachten, elk met de reden erop: een samenvoeging die een feit aan meer mensen zou vertellen dan alleen sommigen kenden, een wijziging aan een feit dat je vastpinde, schreef, bewerkte of als key markeerde, een blijvende verandering of een overtuiging, en een nieuw feit dat een door jou vastgepind feit kan tegenspreken. Dezelfde reden verschijnt in de Inbox. "Apply pins and rewrites quietly": alleen pins en herschrijvingen gaan door; laten vervallen en samenvoegen wachten op jou. "Tidy facts automatically" zoekt naar duplicaten en tegenstellingen na 15 nieuwe feiten sinds de laatste ronde, met één extra modelaanroep per 60 feiten. Het laat ook een plan of een deadline vervallen waaruit een later feit blijkt dat die gedaan of gemist is (een rekening die sindsdien betaald is), en houdt een gebeurtenis uit het verleden, zelfs wanneer dingen later veranderden. Een samenvoeging die het voorstelt moet korter zijn dan de feiten die het samenvoegt; een langere wordt verworpen in plaats van afgekapt opgeslagen. Een zorgvuldiger model maakt minder foute suggesties, dus houd "Ask me first" of "Only risky ones" aan als je Litopys-model een klein model is.
 
 ### Meldingen in de chat
 

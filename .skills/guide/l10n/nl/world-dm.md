@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # Wereld-DM
 
 De Wereld-DM is een spelleider voor de wereld van één chat. Na antwoorden leest hij het verhaal en houdt de mensen, plaatsen en dingen die hij tegenkomt bij in het eigen lorebook van de chat, het wereldboek genaamd. Op hogere niveaus beweegt hij ook de wereld en stuurt gebeurtenissen de scène in. Gebruik hem wanneer je wilt dat de wereld levend en consistent aanvoelt.
 
 ## Niveaus
 
-Open hem vanuit de chatkop "World" (op een telefoon, Menu, dan World), of vanuit het **World**-gedeelte van de rail. Kies wat de DM doet:
+Open hem vanuit de chatkop "World" (op een telefoon, Menu, dan World), of vanuit het **World**-gedeelte van de rail. Het **DM**-item direct onder World op de rail (op een telefoon een tegel in Alle secties) opent het World-gedeelte direct op het DM-tabblad, met de levels, je eigen profielen en Memory. Kies wat de DM doet:
 
 - **Off**: geen gebeurtenissen en geen dobbelstenen. Het wereldboek vult zich nog steeds vanuit het verhaal: wanneer de scène een nieuwe plaats of ding noemt, vraagt één kleine call het DM-model of het opgenomen moet worden.
 - **Chronicler**: alleen vastleggen, en voegt zelf geen gebeurtenissen toe.
@@ -70,7 +70,7 @@ Elk niveau is een ingebouwd profiel: de vijf ervan bevatten de prompts van de DM
 
 ## Wat de DM leert
 
-Het tabblad **DM** (Chats | Worlds | DM) begint met een **Memory**-rij; een puntje op het tabblad en op de rij betekent dat er een voorstel op je wacht. De DM merkt op wat je verwijdert en herschrijft in het wereldboek en verandert zelf nooit: wanneer een patroon duidelijk is, toont **Memory** een voorstel met het bewijs (wat je verwijderde, hoeveel van de eigen records van de DM dat is, de drempel) en drie antwoorden: **This chat**, **All chats** of **No**. Er wordt geen model voor dit aangeroepen. Een antwoord wijzigt één exacte instelling: de nieuwe instelling **Things in the book** (alle, alleen met een reason, of geen), de lengte van de tekst van een record, of hoe vaak mensen terugkomen. Een "nee" wordt niet opnieuw gevraagd totdat nieuwe bewerkingen zich opstapelen.
+Het tabblad **DM** (Chats | Worlds | DM) begint met een **Memory**-rij; een puntje op het tabblad en op de rij betekent dat er een voorstel op je wacht, en het **DM**-item op de rail toont hoeveel er wachten. De DM merkt op wat je verwijdert en herschrijft in het wereldboek en verandert zelf nooit: wanneer een patroon duidelijk is, toont **Memory** een voorstel met het bewijs (wat je verwijderde, hoeveel van de eigen records van de DM dat is, de drempel) en drie antwoorden: **This chat**, **All chats** of **No**. Er wordt geen model voor dit aangeroepen. Een antwoord wijzigt één exacte instelling: de nieuwe instelling **Things in the book** (alle, alleen met een reason, of geen), de lengte van de tekst van een record, of hoe vaak mensen terugkomen. Een "nee" wordt niet opnieuw gevraagd totdat nieuwe bewerkingen zich opstapelen.
 
 Mensen, plaatsen en groepen hebben geen instelling om te kantelen. Wanneer je veel daarvan verwijdert die de DM schreef, toont Memory in plaats daarvan een **regel in woorden**: het openen van Memory doet één kleine call naar het bouwmodel dat de regel (één regel) schrijft uit wat je verwijderde en wat je hield, of geen patroon vindt. **Suggest a rule from my edits** vraagt er een met de hand. Je antwoordt op dezelfde manier; een regel voor alle chats vraagt nog eens in een dialoog die hem toont. De DM leest je regels als een kort blok, *wat deze speler verkiest* (die van deze chat en van alle chats samen, nieuwste eerst, hoogstens 10 regels en 600 tekens; oudere die niet passen blijven in Memory met een tag), en **Add a rule** neemt ook een regel in woorden aan.
 
