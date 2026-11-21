@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Changed: **the regex scripts are read in one call (Molfar.Vertep#432).** The engine, Litopys and the Dashboard sensor read each of the regex scripts as its own host call: 161 scripts cost 440 to 530 ms a pass in the real sandbox (the same measure after: 35 ms). They now ask the engine for all of them at once when it has `fs.readMany` (engine 1.21.0), and read them one by one when it has not, so an older engine works as before. The scripts and their order are the same either way. Tests: `test/rp-regex-readmany.test.ts`. Not checked: a phone; the end-to-end time of a send on a big workspace (the 161 scripts of the bench were synthetic).
+
 ## 4.146.0 (2026-11-21)
 
 - Added: **"Fold small facts" (Molfar.Vertep#488).** A switch under "Tidy facts automatically" (Litopys settings, off by default, config `foldFacts`). With it on, Consolidate may also fold two or more small facts (`everyday`, not pinned, not secret, not a belief) of one person from the same stretch of the story into one shorter fact that keeps their details; it marks those facts "(small)" for the model, and code checks every fold (same subject, the same people knowing them, shorter than the parts). A fold is a merge proposal with `fold: true` and waits for your yes in every proposals mode. In replays on three of the owner's chats, 23 of 25 folds kept every detail (checked by a model of another family; the two others lost a small detail: someone knelt, a machine was started).
