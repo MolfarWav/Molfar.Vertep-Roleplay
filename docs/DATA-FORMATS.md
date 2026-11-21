@@ -441,8 +441,11 @@ rebuild, 404 for a chat with no record yet); `GET /litopys/chat` returns `chatCo
   (`GET /litopys/chats`) carries `why: { code: n }` for the pending proposals that have a reason. Only `risky` queues adds; in
   `ask` and `quiet` a new fact is added at once as before, and a rebuild's new generation never queues.
 - `autoConsolidate` (`true`, `false`, or `null` = on only while `proposals` is `quiet`): starts Consolidate facts by
-  itself when the chat's active facts grew by 30 or more since the last run (`consolidateAt: { active, at }` on the
-  chat record, set by every run) and none is running and none of its proposals waits. Its proposals follow `proposals`.
+  itself when the chat has 20 or more active facts, 15 or more of them written since the last run began
+  (`consolidateAt: { active, at }` on the chat record, set by every run; a fact a merge made, `origin: "merge"`, does not
+  count; before a first run every fact does; #488) and none is running and none of its proposals waits. Its proposals
+  follow `proposals`. A merged or rewritten sentence over 300 characters is dropped, not cut, and a merge no shorter than
+  its parts together is not proposed.
 
 To change a profiled card's text, change the profile fields and leave `description` / `personality`
 alone (the next save in the app would rewrite them), or set `free: true` first. A profile written

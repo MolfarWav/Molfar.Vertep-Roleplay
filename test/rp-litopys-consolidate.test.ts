@@ -63,6 +63,55 @@ describe("batches and parsing", () => {
     ]);
     expect(L.parseConsolidateReply("no json here", ["f1"])).toBeNull();
   });
+
+  // #488: a sentence over the limit was cut to 300 characters and stored mid-word
+  it("drops a merge or rewrite over the limit instead of cutting it", () => {
+    const long = `Aria ${"remembers the long evening ".repeat(15)}`;
+    expect(long.length).toBeGreaterThan(L.CONSOLIDATE_TEXT_MAX);
+    const ops = L.parseConsolidateReply(
+      reply([
+        { op: "merge", ids: ["f1", "f2"], text: long },
+        { op: "rewrite", id: "f3", text: long },
+        { op: "merge", ids: ["f1", "f2"], text: "Aria remembers both." },
+      ]),
+      ["f1", "f2", "f3"],
+    );
+    expect(ops).toEqual([{ op: "merge", targets: ["f1", "f2"], text: "Aria remembers both.", reason: "" }]);
+  });
+});
+
+describe("what a merge must do (#488)", () => {
+  const st = () => ({
+    facts: [
+      fact(1, "Ada showed Vlad the laptop and taught her the touchpad."),
+      fact(2, "Vlad brewed coffee in a copper cezve for Ada."),
+      fact(3, "Reina must pay 340,000 yen to the clinic by noon on the 19th."),
+      fact(4, "Reina paid the 340,000 yen clinic bill in cash at 10:52."),
+    ],
+    proposals: [],
+    counters: { proposal: 0 },
+  });
+
+  it("is not proposed when it only glues its parts (as long as they are together)", () => {
+    const s = st();
+    const glued = "Ada showed Vlad the laptop and taught her the touchpad, and Vlad brewed coffee in a copper cezve for Ada.";
+    expect(L.addConsolidateProposals(s, [{ op: "merge", targets: ["f1", "f2"], text: glued, reason: "same scene" }], 5)).toBe(0);
+    expect(s.proposals).toHaveLength(0);
+  });
+
+  it("is proposed when it is shorter than its parts together", () => {
+    const s = st();
+    const dense = "Reina paid the 340,000 yen clinic bill in cash at 10:52, before the noon deadline.";
+    expect(L.addConsolidateProposals(s, [{ op: "merge", targets: ["f3", "f4"], text: dense, reason: "deadline met" }], 5)).toBe(1);
+    expect(s.proposals[0]).toMatchObject({ op: "merge", targets: ["f3", "f4"], status: "pending", origin: "consolidate" });
+  });
+
+  it("the prompt names stale plans and deadlines, history that changed, and the length rule", () => {
+    expect(L.CONSOLIDATE_PROMPT).toContain("deadline");
+    expect(L.CONSOLIDATE_PROMPT).toContain("history, not a contradiction");
+    expect(L.CONSOLIDATE_PROMPT).toContain("shorter than the facts it joins");
+    expect(L.CONSOLIDATE_PROMPT).toContain(String(L.CONSOLIDATE_TEXT_MAX));
+  });
 });
 
 describe("the Consolidate run", () => {

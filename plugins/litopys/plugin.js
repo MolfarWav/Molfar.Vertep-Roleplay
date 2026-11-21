@@ -6691,16 +6691,21 @@ export function arcRoute(fsx, body) {
 export const CONSOLIDATE_MIN = 20;
 /** Facts per model call: fits the small context windows of free models. */
 export const CONSOLIDATE_BATCH = 60;
+/** The longest merged or rewritten sentence kept (the prompt says so); a longer one is dropped, never cut (#488). */
+export const CONSOLIDATE_TEXT_MAX = 300;
 const PROPOSALS_KEEP = 100;
 
 export const CONSOLIDATE_PROMPT = [
   "You keep the story record of an ongoing roleplay. Below are facts from that record, one per line, each with its id and subject.",
   "Find only real problems and propose fixes:",
-  "- merge: two or more facts that say the same thing, or that belong in one sentence. Give the ids and the one merged sentence.",
+  "- merge: two or more facts that say the same thing, or that repeat the same detail. Give the ids and the one merged sentence.",
+  "  The merged sentence is about one thing and is shorter than the facts it joins put together (at most 300 characters): keep what matters, drop what repeats. Never chain different events or thoughts with 'and'; leave those apart.",
   "  Some facts end with {scene N, when}: the scene and the story time where it was told. Facts from different scenes are different moments.",
   "  When a merge joins an action or event that happened more than once, keep how many times and when in the sentence (for example 'twice: on arrival and on leaving'). If the sentence cannot keep that, do not merge them.",
   "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence.",
   "- retire: a fact that a later fact makes untrue or that is a pure duplicate of another one you keep. Give the id.",
+  "- A plan, a promise, a deadline or a threat that a later fact shows done, kept, paid or missed is no longer true as written: retire it, or rewrite it as what happened.",
+  "- A past event stays true when things changed later (clothes changed, a place left, a mood passed): that is history, not a contradiction. Do not retire it for that.",
   "Each with a short reason (at most 15 words). Most facts need nothing: leave them out. Propose nothing when nothing is wrong.",
   "Never invent: use only what the facts say. Keep every name exactly as written. Write in the language the facts are in.",
   "",
@@ -6831,17 +6836,22 @@ export function parseConsolidateReply(text, batchIds) {
   if (!list) return null;
   const inBatch = new Set(arr(batchIds));
   const out = [];
+  // #488: a longer sentence was cut to the limit and stored mid-word ("...before the tel"); it is dropped instead
+  const whole = (s) => {
+    const t = str(s).trim();
+    return t.length <= CONSOLIDATE_TEXT_MAX ? t : "";
+  };
   for (const o of list) {
     if (!isObj(o)) continue;
     const op = str(o.op).toLowerCase();
     const reason = cut(str(o.reason), 200);
     if (op === "merge") {
       const ids = [...new Set(arr(o.ids).map(str))].filter((id) => inBatch.has(id));
-      const t = cut(str(o.text), 300);
+      const t = whole(o.text);
       if (ids.length >= 2 && t) out.push({ op, targets: ids, text: t, reason });
     } else if (op === "rewrite") {
       const id = str(o.id);
-      const t = cut(str(o.text), 300);
+      const t = whole(o.text);
       if (inBatch.has(id) && t) out.push({ op, targets: [id], text: t, reason });
     } else if (op === "retire") {
       const id = str(o.id);
@@ -6865,6 +6875,8 @@ export function addConsolidateProposals(st, ops, now, anchorsOf) {
     const targets = arr(o.targets);
     if (!targets.length || targets.some((id) => !active.has(id) || busy.has(id))) continue;
     if (o.op === "rewrite" && str(active.get(targets[0]).text) === str(o.text)) continue;
+    // #488: a merge must compress; one as long as its parts together only glues them ("X, and Y, and Z")
+    if (o.op === "merge" && str(o.text).length >= targets.reduce((n, id) => n + str(active.get(id).text).length, 0)) continue;
     st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;
     // #153: a merge remembers where its parts were told, so the merged fact still says when
     const whens = o.op === "merge" && typeof anchorsOf === "function" ? mergeAnchors(targets.map((id) => active.get(id)), anchorsOf) : [];
@@ -6945,8 +6957,19 @@ function finishConsolidate(st, now) {
   addActivity(st, "worker", "consolidate.done", proposed ? "Consolidating facts proposed " + proposed + " changes" : "Consolidating facts found nothing to change", [], now, { proposed });
 }
 
-/** Active facts the chat must have gained since the last Consolidate for the automatic one to start. */
-export const CONSOLIDATE_AUTO_GROWTH = 30;
+/** Facts the chat must have written since the last Consolidate began for the automatic one to start (#488). It counted
+ *  the growth of the active total (30) before, which the run's own merges pulled down: one chat waited from 64 active
+ *  facts to 94 while 20-odd new ones sat next to the old ones they repeated. */
+export const CONSOLIDATE_AUTO_NEW = 15;
+
+/** Active facts written since the last Consolidate began (`consolidateAt.at`; every fact counts before a first run).
+ *  A fact a merge made is the run's own work, not new; a fact without a time is old. */
+export function consolidateNewCount(st) {
+  const since = isObj(st && st.consolidateAt) ? Number(st.consolidateAt.at) || 0 : null;
+  return arr(st && st.facts).filter(
+    (f) => isObj(f) && f.status === "active" && str(f.text) && f.origin !== "merge" && (since === null || Number(f.at) > since),
+  ).length;
+}
 
 /** Does the chat's Consolidate run by itself now: switched on, enough new facts, no run or proposal of its own waiting. */
 export function autoConsolidateDue(st, cfg) {
@@ -6955,8 +6978,7 @@ export function autoConsolidateDue(st, cfg) {
   if (isObj(st.consolidate) && st.consolidate.state === "working") return false;
   if (arr(st.proposals).some((p) => isObj(p) && p.status === "pending" && p.origin === "consolidate")) return false;
   const active = consolidateBatches(st).reduce((n, x) => n + x.length, 0);
-  const was = isObj(st.consolidateAt) ? Number(st.consolidateAt.active) || 0 : 0;
-  return active >= CONSOLIDATE_MIN && active - was >= CONSOLIDATE_AUTO_GROWTH;
+  return active >= CONSOLIDATE_MIN && consolidateNewCount(st) >= CONSOLIDATE_AUTO_NEW;
 }
 
 /** Starts a Consolidate run on the record (asked by the user, or by itself); the tick sends its batches. */
