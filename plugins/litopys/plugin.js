@@ -1236,7 +1236,7 @@ export const WORKER_SHAPE =
 /** Added to the chapter prompt while habits are on (#106), so a customised chapter prompt keeps working. */
 export const HABITS_RULE = [
   "Habits (look at each named character in every scene):",
-  "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, and not something listed under Already on the card.",
+  "- A habit is a habit or reaction a character clearly showed in this scene and will show again in any story: how they act in a situation. Not an ability, not a fact about the story, not a mood, and not something listed under Already on the card, not even in other words.",
   "- Add one when a character did something characteristic, in their own way and not just what anyone would do: {who, name, rule, when, evidence}. At most 2 per scene. Never for the user's character. Leave the list empty when no one did.",
   "- name: 2-6 words. rule: 1-3 short lines saying what they do. when: one short line, or \"\". evidence: a short quote or one line on what they did in this scene.",
   "- When a Known habit showed again, give {reinforce: its id, evidence} and no new habit.",
@@ -2464,7 +2464,7 @@ export function buildWorkerRequest(st, work, line, dash, cfg, meta, opts = {}) {
       .map((k) => k.id + ": " + k.who + " - " + k.name + ": " + str(k.rule).split("\n").join(" "));
     if (known.length) parts.splice(parts.length - 1, 0, "Known habits\n" + known.join("\n"));
     // what the card already keeps as a habit: the worker would otherwise earn it a second time
-    const onCard = arr(opts.cardRules).map((r) => cut(str(r).split("\n").join(" "), 160)).filter(Boolean).slice(0, 8);
+    const onCard = arr(opts.cardRules).map((r) => cut(str(r).split("\n").join(" "), 200)).filter(Boolean).slice(0, 14);
     if (onCard.length) parts.splice(parts.length - 1, 0, "Already on the card (do not report these again)\n" + onCard.map((r) => "- " + r).join("\n"));
   }
   const userText = parts.join("\n\n");
@@ -9755,17 +9755,53 @@ const habitRule = (v) =>
     700,
   );
 
-/** The rules already on the chat's card(s): a habit the card keeps is not earned a second time. */
-function cardHabitRules(fsx, meta) {
+/**
+ * The lines of a card that already say how the character acts (#270): a labelled line ("Quirks: ...", "Under stress: ...",
+ * "Body language: ...") from the description or personality. (Free sentences such as "she always ..." are left out: on real
+ * cards they were mostly instructions to the writer, not habits.) The worker is shown these as "Already on the card":
+ * without them it earned "adjusts her hair clip when thinking" a second time, in other words, which no text comparison
+ * after the fact separates from a new habit (real chats: repeats and new habits both sit at 0.3 to 0.45 by Dice).
+ */
+const CARD_BEHAVIOUR_LABEL = /(quirk|habit|mannerism|\btics?\b|\btells?\b|stress|pressure|body language|reaction|coping|peeve|nervous|anxious|embarrass|fluster|\bangry\b|\banger\b|\u043f\u0440\u0438\u0432\u044b\u0447|\u043f\u0440\u0438\u0447\u0443\u0434|\u043c\u0430\u043d\u0435\u0440|\u0441\u0442\u0440\u0435\u0441\u0441|\u0437\u0432\u0438\u0447\u043a|\u0434\u0438\u0432\u0430\u0446\u0442\u0432|\u0440\u0435\u0430\u043a\u0446)/i;
+export function cardBehaviourLines(card, limit = 6) {
+  if (!isObj(card)) return [];
+  const out = [];
+  const seen = new Set();
+  const add = (s) => {
+    const t = cut(s.replace(/\s+/g, " ").trim(), 200);
+    const k = t.toLowerCase();
+    if (t.length < 12 || seen.has(k) || out.length >= limit) return;
+    seen.add(k);
+    out.push(t);
+  };
+  for (const field of ["description", "personality"]) {
+    for (const raw of str(card[field]).split(/\r?\n/)) {
+      const line = raw.replace(/^[\s>*#\-\u2022]+/, "").replace(/\*\*/g, "").trim();
+      const m = /^([^:\n]{2,32}):\s*(\S.*)$/.exec(line);
+      if (m && CARD_BEHAVIOUR_LABEL.test(m[1])) add(line);
+    }
+  }
+  return out;
+}
+
+/**
+ * What the chat's card(s) already say about how the character acts: the habits the user accepted on the card, then the card's
+ * own behaviour lines (#270). A habit the card keeps is not earned a second time. In a group each line carries its card's name.
+ */
+export function cardHabitRules(fsx, meta) {
   const ids = [];
   if (meta && meta.groupId) for (const id of arr((readJson(fsx, "groups/" + str(meta.groupId) + ".json", null) || {}).memberIds)) ids.push(str(id));
   else if (meta && meta.characterId) ids.push(str(meta.characterId));
   const out = [];
+  const lines = [];
   for (const id of ids) {
     if (!SAFE_ID.test(id)) continue;
     for (const k of loadMemory(fsx, id).habits) if (k.state === "accepted") out.push(k.rule);
+    const card = readJson(fsx, "characters/" + id + "/card.json", null);
+    const tag = ids.length > 1 && isObj(card) && str(card.name) ? str(card.name) + " - " : "";
+    for (const l of cardBehaviourLines(card, ids.length > 1 ? 4 : 6)) lines.push(tag + l);
   }
-  return out;
+  return [...out, ...lines];
 }
 
 /**
