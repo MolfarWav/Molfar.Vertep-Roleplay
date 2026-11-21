@@ -7,10 +7,23 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.146.0'
+export const APP_VERSION = '4.147.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.clock-edit',
+    since: '4.147.0',
+    target: 'dash.clock',
+    open: { view: 'chat', panel: 'dashboard' },
+    help: 'story',
+    keywords: { en: 'story clock time day wrong shifted edit by hand pencil dashboard sensor', uk: 'годинник історії час день неправильний збився виправити вручну олівець дашборд сенсор' },
+    title: { en: 'Fix the story clock by hand', uk: 'Час історії можна виправити вручну' },
+    body: {
+      en: 'When the Dashboard drifts to a wrong time, tap the pencil next to the date: the top of the popover sets the time and the day. The next reply is written against what you set, and the clock goes on from there by itself; it takes a new time only when your own line states one. "Automatic again" drops the mark and keeps the value.',
+      uk: 'Якщо Дашборд збився на неправильний час, торкніться олівця біля дати: угорі віконця задаються час і день. Наступна відповідь пишеться відносно того, що ви задали, а годинник далі йде сам; новий час він бере лише тоді, коли його називає ваш власний рядок. «Automatic again» знімає позначку й лишає значення.',
+    },
+  },
   {
     id: 'new.fold-facts',
     since: '4.146.0',

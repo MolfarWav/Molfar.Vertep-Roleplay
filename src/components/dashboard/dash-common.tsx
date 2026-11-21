@@ -86,7 +86,7 @@ export function SceneBlock({ clock, calendar, weatherSize = 52, prev }: { clock:
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className={cn('grid min-w-0 items-center gap-x-3 gap-y-1', hasWeather ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1')}>
-        <div className={cn('flex min-w-0 flex-col gap-1', hasWeather && 'max-w-[150px]')}>
+        <div data-guide="dash.clock" className={cn('flex min-w-0 flex-col gap-1', hasWeather && 'max-w-[150px]')}>
           {clock.time && prev && (prev.time !== clock.time || prev.day !== clock.day) && (
             // the clock before, small, above the new one: the time is seen running (12:51 → 12:56)
             <div className="flex items-baseline gap-1 font-mono text-caption leading-none text-muted-foreground tabular-nums" data-testid="dash-time-was" title={t('dash.time.was', { time: prev.time })}>
