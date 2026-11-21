@@ -4,7 +4,7 @@ The World DM is a game master for the world of one chat. After replies it reads 
 
 ## Levels
 
-Open it from the chat header "World" (on a phone, Menu, then World), or from the **World** section of the rail. Pick what the DM does:
+Open it from the chat header "World" (on a phone, Menu, then World), or from the **World** section of the rail. The **DM** item right under World on the rail (on a phone, a tile in All sections) opens the World section straight on its DM tab, with the levels, your own profiles and Memory. Pick what the DM does:
 
 - **Off**: no events and no dice. The world book still fills from the story: when the scene names a new place or thing, one small call asks the DM model whether to record it.
 - **Chronicler**: records only, and adds no events of its own.
@@ -69,7 +69,7 @@ Each level is a built-in profile: the five of them hold the DM's prompts, and yo
 
 ## What the DM learns
 
-The **DM** tab (Chats | Worlds | DM) starts with a **Memory** row; a dot on the tab and on the row means a proposal waits for you. The DM notices what you delete and rewrite in the world book and never changes itself: when a pattern is clear, **Memory** shows a proposal with the evidence (what you removed, how many of the DM's own records that is, the threshold) and three answers: **This chat**, **All chats** or **No**. No model is called for this. An answer changes one exact setting: the new **Things in the book** setting (all, only with a reason, or none), the length of a record's text, or how often people come back. A "no" is not asked again until fresh edits gather.
+The **DM** tab (Chats | Worlds | DM) starts with a **Memory** row; a dot on the tab and on the row means a proposal waits for you, and the **DM** item on the rail shows how many wait. The DM notices what you delete and rewrite in the world book and never changes itself: when a pattern is clear, **Memory** shows a proposal with the evidence (what you removed, how many of the DM's own records that is, the threshold) and three answers: **This chat**, **All chats** or **No**. No model is called for this. An answer changes one exact setting: the new **Things in the book** setting (all, only with a reason, or none), the length of a record's text, or how often people come back. A "no" is not asked again until fresh edits gather.
 
 People, places and groups have no setting to flip. When you delete many of those the DM wrote, Memory shows a **rule in words** instead: opening Memory makes one small call to the build model that writes the rule (one line) from what you removed and what you kept, or finds no pattern. **Suggest a rule from my edits** asks for one by hand. You answer the same way; a rule for all chats asks once more in a dialog that shows it. The DM reads your rules as a short block, *what this player prefers* (this chat's and all chats' together, newest first, at most 10 rules and 600 characters; older ones that do not fit stay in Memory with a tag), and **Add a rule** takes a rule in words too.
 

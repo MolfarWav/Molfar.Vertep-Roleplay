@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Added: **a DM item on the rail (Molfar.Vertep#183).** Right under World (on a phone, a tile in All sections), with a theatre-mask icon of its own colour, it opens the World section on its DM tab: the DM's levels, your own profiles and Memory, one click instead of two. It is a link like Agents (a Canvas board): current only while that tab is open, and World is current on Chats and Worlds. The World section's Chats | Worlds | DM switch is now shared state (`useWorldTop`, `src/lib/world-nav.ts`, kept for the session), so the rail knows which tab is open; World remembers the tab within a session instead of always starting on Chats. The item carries the count of DM Memory proposals that wait, the same as the dot on the DM tab (one read of `/world/learned` when the rail mounts; on a phone only while the sheet is open). Tested in `test/rp-dm-rail-link.test.ts`; the guide's index and World DM pages name it.
+
 ## 4.144.0 (2026-11-21)
 
 - Added: **a Backstage button in the chat header (Molfar.Vertep#448, step T3).** One button before the "More" menu (on a phone: a "Backstage" block in the chat menu) lists the places that make this story and opens the existing section drawer on them: the card of the character, the chat's preset, up to three of the character's lorebooks, What fired, the Library and the World of this chat, and the Dashboard settings. The chat stays under the drawer, so closing it returns to the same message. The rows come from `backstageTargets` (`src/lib/backstage-targets.ts`, tested); the button is `src/components/chat/backstage-menu.tsx`. Below 1300 px the button is an icon with its name in the label. No hotkey yet. The guide's index page names it.

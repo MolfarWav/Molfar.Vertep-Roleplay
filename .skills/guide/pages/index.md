@@ -8,7 +8,7 @@ The rail on the left (a bar of tabs at the bottom on a phone) groups the section
 
 - **Home** and **Chats**: continue where you stopped, or open any chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: the people. See [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: the story's memory and machinery. See [[memory]], [[litopys]], [[canvas]], [[world-dm]] and [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: the story's memory and machinery. DM opens the World section on its DM tab (the DM's levels, profiles and Memory). See [[memory]], [[litopys]], [[canvas]], [[world-dm]] and [[agents]].
 - **Presets**: how the request to the model is built.
 - **Shortcuts** and **Tools**: quick replies, regex, translation, pictures, voice, the Data Bank and more. See [[settings]].
 - **Inbox** and **Help** at the bottom. The Inbox lists what waits on you: failed background jobs, Library suggestions and proposed souls.

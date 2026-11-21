@@ -5,9 +5,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
-import { PHONE_MORE_TILES, PHONE_TABS, itemId } from '@/components/shell/sections'
+import { PHONE_MORE_TILES, PHONE_TABS, itemActive, itemId, prepareItem } from '@/components/shell/sections'
 import { RAIL_HUES } from '@/components/shell/rail-hues'
-import { useCanvasBoard, writeCanvasBoard } from '@/lib/canvas-board'
+import { useCanvasBoard } from '@/lib/canvas-board'
+import { useWorldTop } from '@/lib/world-nav'
+import { useMemoryOverview } from '@/components/world/world-memory'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { GUIDE_MORE_CLOSE_EVENT, GUIDE_MORE_EVENT, guideTarget } from '@/components/guide/events'
@@ -20,6 +22,7 @@ export function MobileTabBar() {
   const view = useApp((s) => s.view)
   const navigate = useApp((s) => s.navigate)
   const canvasBoard = useCanvasBoard()
+  const worldTop = useWorldTop()
   const setGuideHelpOpen = useApp((s) => s.setGuideHelpOpen)
   const t = useT()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -98,15 +101,15 @@ export function MobileTabBar() {
           </div>
           <div className="grid grid-cols-4 gap-2 px-4 pb-2">
             {moreItems.map((item) => {
-              // Agents is a link to a Canvas board, not a section: current only while that board is open (as on the rail)
-              const active = item.key === 'canvas' ? view === 'canvas' && (canvasBoard === 'agents') === !!item.board : view === item.key
+              // Agents and DM are links to a Canvas board and a World tab, not sections: current only while that board or tab is open (as on the rail)
+              const active = itemActive(item, view === item.key, canvasBoard, worldTop)
               return (
                 <button
                   key={itemId(item)}
                   type="button"
                   data-guide={`nav.${itemId(item)}`}
                   onClick={() => {
-                    if (item.key === 'canvas') writeCanvasBoard(item.board ?? (canvasBoard === 'agents' ? 'links' : canvasBoard))
+                    prepareItem(item, canvasBoard, worldTop)
                     navigate(item.key)
                     setMoreOpen(false)
                   }}
@@ -120,6 +123,7 @@ export function MobileTabBar() {
                   <span className="relative inline-flex">
                     <item.icon className={cn('size-5', RAIL_HUES[item.hue])} aria-hidden="true" />
                     {item.key === 'litopys' && <LibraryDot />}
+                    {item.worldTop === 'dm' && <DmDot />}
                   </span>
                   {t(item.labelKey)}
                 </button>
@@ -143,4 +147,9 @@ export function MobileTabBar() {
 
 function LibraryDot() {
   return <NeedsYouBadge count={useSectionAttention('litopys')} dot />
+}
+
+/** The World DM's Memory proposals that wait (the DM tab's dot), on the DM tile; read only while the sheet is open. */
+function DmDot() {
+  return <NeedsYouBadge count={useMemoryOverview()?.waiting ?? 0} dot />
 }

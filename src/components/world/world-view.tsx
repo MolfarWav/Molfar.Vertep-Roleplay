@@ -16,7 +16,7 @@ import { listWorldChats, useWorldLive, type WorldChat, type WorldRecord } from '
 import { formatK, LevelChip, type OpenWorldSettings } from '@/components/world/world-common'
 import { WorldControls } from '@/components/world/world-controls'
 import { WorldBackgrounds } from '@/components/world/world-backgrounds'
-import { WORLD_TAB_KEY, takeWorldTab } from '@/lib/world-nav'
+import { WORLD_TAB_KEY, takeWorldTab, useWorldTop, writeWorldTop, type WorldTop } from '@/lib/world-nav'
 import { WorldRuns } from '@/components/world/world-runs'
 import { WorldRecords } from '@/components/world/world-records'
 import { WorldPlaces } from '@/components/world/world-places'
@@ -59,7 +59,8 @@ type ChatListProps = {
   onSelect: (id: string) => void
 }
 
-type Top = 'chats' | 'worlds' | 'dm'
+// shared with the rail, whose DM item opens this tab (#183)
+type Top = WorldTop
 
 /** The left pane's head: the section title, World settings, and the switch Chats | Worlds | DM (a dot on DM when a proposal waits). */
 function PaneHeader({ top, onTop, onOpenSettings, waiting }: { top: Top; onTop: (v: Top) => void; onOpenSettings: () => void; waiting: boolean }) {
@@ -215,7 +216,8 @@ export function WorldView() {
     setSettingsOpen(true)
   }
   const [tab, setTab] = useState<Tab>(readTab)
-  const [top, setTop] = useState<Top>('chats')
+  const top = useWorldTop()
+  const setTop = writeWorldTop
   const [profileId, setProfileId] = useState<string | null>(null)
   // the chat the Memory view is read for: the one asked for, else the chat open in the Chats tab
   const [memoryPick, setMemoryPick] = useState<string | null>(null)
