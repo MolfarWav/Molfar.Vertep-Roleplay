@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez se trouve dans quatre sections : Characters, Groups, Personas et Marketplace. Cette page explique à quoi sert chacune ; les articles d'aide *Your characters*, *The card editor tabs* et *Groups of characters* donnent les détails.
@@ -51,6 +51,6 @@ Une carte sans image propre (rien, ou l'avatar par défaut) peut être dessinée
 
 ## Ce qu'une carte ne contient pas
 
-L'état du Dashboard, les chapitres et les faits appartiennent à chaque conversation, pas à la carte. La mémoire de carte ne fait pas non plus partie de la carte et n'apparaît jamais dans un export. Le Soul, en revanche, est enregistré dans la carte.
+L'état du Dashboard, les chapitres et les faits appartiennent à chaque chat, pas à la carte. L'onglet Memory de la carte (habitudes conservées, "How they changed") ne fait pas non plus partie de la carte et n'apparaît jamais dans un export. Le Soul, en revanche, est enregistré dans la carte.
 
 Ensuite : [[first-story]] pour la première conversation, ou [[soul]] pour le profil de réaction.

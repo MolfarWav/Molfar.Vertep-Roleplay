@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # キャラクター、ペルソナ、グループ
 
 遊ぶものはすべて4つのセクションに分かれています：Characters、Groups、Personas、Marketplace。このページではそれぞれの役割を説明します。詳細はヘルプ記事「*Your characters*」「*The card editor tabs*」「*Groups of characters*」をご覧ください。
@@ -51,6 +51,6 @@ Turnsタブには**How they talk**もあります：**Interruptions**（メン�
 
 ## カードが保持しないもの
 
-Dashboardの状態、チャプター、事実は各チャットに属し、カードには属しません。カードの記憶もカードの一部ではなく、エクスポートに現れることはありません。対照的に、Soulはカードに保存されます。
+Dashboardの状態、チャプター、ファクトはカードではなく各チャットに属します。カードのMemoryタブ（続けている習慣、「How they changed」）もカードの一部ではなく、エクスポートに含まれることはありません。これに対し、Soulはカードに保存されます。
 
 次へ：最初のチャットについては [[first-story]]、反応プロファイルについては [[soul]] をご覧ください。

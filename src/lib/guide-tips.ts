@@ -7,10 +7,32 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.147.0'
+export const APP_VERSION = '4.148.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.growth-where',
+    since: '4.148.0',
+    help: 'characters',
+    keywords: { en: 'how they changed growth portrait blocks where it acts story chats choose switch carries card memory', uk: 'як змінився персонаж портрет блоки де діє історія чати обрати перемикач що несе чат пам’ять картки' },
+    title: { en: 'A character’s growth acts in its own story', uk: 'Зміни персонажа діють у своїй історії' },
+    body: {
+      en: 'A block of How they changed that an agent or Update from the story writes now acts in the story it came from: that chat and the chats that continue it, not in a fresh chat of the same character. Under each accepted block in the card’s Memory tab a button says where it acts; open it to choose Only this story or Every chat, and to switch the block on or off chat by chat. In a chat, What this chat carries has Growth blocks in this chat with one switch per block. Blocks you wrote and blocks from before this update still act in every chat.',
+      uk: 'Блок «Як змінився персонаж», який пише агент або «Update from the story», тепер діє в історії, з якої він узявся: у цьому чаті й чатах, що його продовжують, а не в новому чаті того самого персонажа. Під кожним прийнятим блоком у вкладці Memory картки кнопка показує, де він діє; відкрийте її, щоб обрати «Лише ця історія» чи «Усі чати» і вмикати блок по чатах. У чаті «Що несе цей чат» має «Блоки у цьому чаті» з перемикачем на кожен блок. Ваші власні блоки й блоки з часів до цього оновлення діють у всіх чатах, як і раніше.',
+    },
+  },
+  {
+    id: 'new.stories-gone',
+    since: '4.148.0',
+    help: 'characters',
+    keywords: { en: 'card memory stories removed litopys facts memory tab habits', uk: 'пам’ять картки історії прибрано літопис факти вкладка memory звички' },
+    title: { en: 'The card’s Stories are gone', uk: 'Історії картки прибрано' },
+    body: {
+      en: 'The Stories block of a character card’s Memory tab is removed: Litopys already keeps the facts of a story per chat, and a chat that continues another brings them as its backstory. Stories you had saved stay in the card’s file but are no longer sent in any prompt. Habits and How they changed stay in the Memory tab, and a persona’s and a world’s memory are unchanged.',
+      uk: 'Блок «Історії» у вкладці Memory картки персонажа прибрано: Літопис і так зберігає факти історії для кожного чату, а чат, що продовжує інший, отримує їх як передісторію. Історії, які ви вже зберегли, лишаються у файлі картки, але більше не йдуть у жоден промпт. Звички й «Як змінився персонаж» лишаються у вкладці Memory, а пам’ять персони й світу без змін.',
+    },
+  },
   {
     id: 'new.clock-edit',
     since: '4.147.0',

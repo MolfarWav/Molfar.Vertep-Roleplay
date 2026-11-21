@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, znajduje się w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego służy każda z nich; szczegóły znajdziesz w artykułach pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -51,6 +51,6 @@ Karta bez własnego obrazu (nic lub domyślny awatar) może zostać narysowana. 
 
 ## Czego karta nie przechowuje
 
-Stan Dashboardu, rozdziały i fakty należą do każdego czatu, nie do karty. Pamięć karty również nie jest częścią karty i nigdy nie pojawia się w eksporcie. Natomiast Soul jest zapisywany w karcie.
+Stan Dashboard, rozdziały i fakty należą do każdego czatu, a nie do karty. Zakładka Memory karty (zachowane nawyki, "How they changed") również nie jest częścią karty i nigdy nie pojawia się w eksporcie. Natomiast Soul jest zapisywany w karcie.
 
 Dalej: [[first-story]] o pierwszym czacie lub [[soul]] o profilu reakcji.

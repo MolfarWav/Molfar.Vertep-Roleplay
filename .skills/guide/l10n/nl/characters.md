@@ -1,4 +1,4 @@
-<!-- source: 1057467e9411 -->
+<!-- source: 637184c0cc50 -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina legt uit waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* bevatten de details.
@@ -51,6 +51,6 @@ Een kaart zonder eigen afbeelding (niets, of de standaardavatar) kan worden gete
 
 ## Wat een kaart niet bevat
 
-De Dashboard-status, hoofdstukken en feiten horen bij elke chat, niet bij de kaart. Kaartgeheugen maakt ook geen deel uit van de kaart en verschijnt nooit in een export. De Soul daarentegen wordt in de kaart opgeslagen.
+De Dashboard-status, hoofdstukken en feiten horen bij elke chat, niet bij de kaart. Het tabblad Memory van de kaart (aangehouden gewoontes, "How they changed") maakt ook geen deel uit van de kaart en verschijnt nooit in een export. De Soul daarentegen wordt wel in de kaart opgeslagen.
 
 Volgende: [[first-story]] voor de eerste chat, of [[soul]] voor het reactieprofiel.
