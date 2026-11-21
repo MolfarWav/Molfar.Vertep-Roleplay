@@ -7,10 +7,23 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.145.0'
+export const APP_VERSION = '4.146.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.fold-facts',
+    since: '4.146.0',
+    target: 'lit.settings',
+    open: { view: 'litopys' },
+    help: 'story',
+    keywords: { en: 'fold small facts tidy consolidate merge compact litopys memory', uk: 'згортати дрібні факти впорядкування злиття стиснути літопис памʼять' },
+    title: { en: 'Fold small facts', uk: 'Згортати дрібні факти' },
+    body: {
+      en: 'Library → Litopys settings → Changes to facts has a new switch, off by default: tidying may fold several small everyday facts about one person into one shorter fact that keeps their details, and each fold waits for your yes. Tidying now also rewrites a plan that came true as what happened instead of offering to retire it.',
+      uk: 'Library → налаштування Litopys → «Changes to facts» має новий перемикач, типово вимкнений: упорядкування може згорнути кілька дрібних побутових фактів про одну людину в один коротший факт, що зберігає їхні деталі, і кожна згортка чекає вашого «так». Також план, що здійснився, тепер переписується як те, що сталося, а не пропонується до вилучення.',
+    },
+  },
   {
     id: 'new.dm-rail',
     since: '4.145.0',
