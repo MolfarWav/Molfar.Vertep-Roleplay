@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # MJ du monde
 
 Le MJ du monde est un maître de jeu pour le monde d'un seul chat. Après les réponses, il lit l'histoire et conserve les personnes, les lieux et les choses qu'il rencontre dans le livre de lore propre au chat, appelé livre du monde. Aux niveaux plus élevés, il fait aussi bouger le monde et envoie des événements dans la scène. Utilisez-le quand vous voulez que le monde paraisse vivant et cohérent.
 
 ## Niveaux
 
-Ouvrez-le depuis l'en-tête du chat "World" (sur téléphone, Menu, puis World), ou depuis la section **World** du rail. Choisissez ce que fait le MJ :
+Ouvrez-le depuis l'en-tête du chat "World" (sur téléphone, Menu, puis World), ou depuis la section **World** du rail. L'élément **MJ** juste sous World sur le rail (sur téléphone, une tuile dans Toutes les sections) ouvre la section World directement sur son onglet MJ, avec les niveaux, vos propres profils et Memory. Choisissez ce que fait le MJ :
 
 - **Off** : aucun événement et aucun dé. Le livre du monde se remplit quand même à partir de l'histoire : quand la scène nomme un nouveau lieu ou une nouvelle chose, un petit appel demande au modèle MJ s'il faut l'enregistrer.
 - **Chronicler** : enregistre seulement, et n'ajoute aucun événement de son cru.
@@ -70,7 +70,7 @@ Chaque niveau est un profil intégré : les cinq contiennent les prompts du MJ, 
 
 ## Ce que le MJ apprend
 
-L'onglet **DM** (Chats | Worlds | DM) commence par une ligne **Memory** ; un point sur l'onglet et sur la ligne signifie qu'une proposition vous attend. Le MJ remarque ce que vous supprimez et réécrivez dans le livre du monde et ne change jamais de lui-même : quand un motif est clair, **Memory** montre une proposition avec les preuves (ce que vous avez retiré, combien de fiches du MJ cela représente, le seuil) et trois réponses : **This chat**, **All chats** ou **No**. Aucun modèle n'est appelé pour cela. Une réponse change un réglage précis : le nouveau réglage **Things in the book** (toutes, seulement avec une reason, ou aucune), la longueur du texte d'une fiche, ou la fréquence des retours de personnes. Un "non" n'est pas redemandé avant que de nouvelles modifications s'accumulent.
+L'onglet **DM** (Chats | Worlds | DM) commence par une ligne **Memory** ; un point sur l'onglet et sur la ligne signifie qu'une proposition vous attend, et l'élément **DM** sur le rail indique combien vous en attendent. Le MJ remarque ce que vous supprimez et réécrivez dans le livre du monde et ne change jamais de lui-même : quand un motif est clair, **Memory** montre une proposition avec les preuves (ce que vous avez retiré, combien de fiches du MJ cela représente, le seuil) et trois réponses : **This chat**, **All chats** ou **No**. Aucun modèle n'est appelé pour cela. Une réponse change un réglage précis : le nouveau réglage **Things in the book** (toutes, seulement avec une reason, ou aucune), la longueur du texte d'une fiche, ou la fréquence des retours de personnes. Un "non" n'est pas redemandé avant que de nouvelles modifications s'accumulent.
 
 Les personnes, les lieux et les groupes n'ont pas de réglage à basculer. Quand vous en supprimez beaucoup que le MJ a écrits, Memory montre à la place une **règle en mots** : ouvrir Memory déclenche un petit appel au modèle de construction qui écrit la règle (une ligne) à partir de ce que vous avez retiré et de ce que vous avez gardé, ou ne trouve aucun motif. **Suggest a rule from my edits** en demande une à la main. Vous répondez de la même façon ; une règle pour tous les chats redemande une fois dans une boîte de dialogue qui l'affiche. Le MJ lit vos règles comme un court bloc, *what this player prefers* (celles de ce chat et de tous les chats ensemble, les plus récentes d'abord, au plus 10 règles et 600 caractères ; les plus anciennes qui ne rentrent pas restent dans Memory avec une étiquette), et **Add a rule** accepte aussi une règle en mots.
 

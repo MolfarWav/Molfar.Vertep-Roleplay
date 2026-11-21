@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # Dünya DM'i
 
 Dünya DM'i, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı kişileri, yerleri ve şeyleri sohbetin kendi bilgi kitabında, yani dünya kitabında tutar. Daha yüksek seviyelerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissettirmesini istediğinde kullan.
 
 ## Seviyeler
 
-Sohbet başlığındaki "World"ten (telefonda Menu, sonra World) ya da rayın **World** bölümünden aç. DM'in ne yapacağını seç:
+Sohbet başlığındaki "World"ten (telefonda Menu, sonra World) ya da rayın **World** bölümünden aç. Ray üzerinde World'ün hemen altındaki **DM** öğesi (telefonda Tüm bölümler'de bir karo), World bölümünü seviyeleri, kendi profillerini ve Memory'yi içeren DM sekmesinde doğrudan açar. DM'in ne yapacağını seç:
 
 - **Off**: olay yok, zar yok. Dünya kitabı yine hikâyeden dolar: sahne yeni bir yer ya da şey adlandırdığında, küçük bir çağrı DM modeline bunun kaydedilip kaydedilmeyeceğini sorar.
 - **Chronicler**: yalnızca kaydeder, kendi olaylarını eklemez.
@@ -70,7 +70,7 @@ Her seviye yerleşik bir profildir: beşi DM'in istemlerini tutar ve birini aç�
 
 ## DM'in öğrendikleri
 
-**DM** sekmesi (Chats | Worlds | DM) bir **Memory** satırıyla başlar; sekmedeki ve satırdaki bir nokta, seni bekleyen bir öneri olduğu anlamına gelir. DM, dünya kitabında sildiğini ve yeniden yazdığını fark eder ve kendini asla değiştirmez: bir örüntü netleştiğinde, **Memory** kanıtla birlikte bir öneri gösterir (neyi kaldırdın, bu DM'in kendi kayıtlarından kaç tanesi, eşik) ve üç yanıt sunar: **This chat**, **All chats** ya da **No**. Bunun için hiçbir model çağrılmaz. Bir yanıt tam olarak bir ayarı değiştirir: yeni **Things in the book** ayarını (hepsi, yalnızca bir reason'ı olanlar ya da hiçbiri), bir kaydın metninin uzunluğunu ya da kişilerin ne sıklıkla geri geldiğini. Bir "no", yeni düzenlemeler birikene kadar yeniden sorulmaz.
+**DM** sekmesi (Chats | Worlds | DM) bir **Memory** satırıyla başlar; sekmedeki ve satırdaki bir nokta, seni bekleyen bir öneri olduğu anlamına gelir ve kenar çubuğundaki **DM** öğesi kaç tanesinin beklediğini gösterir. DM, dünya kitabında sildiğini ve yeniden yazdığını fark eder ve kendini asla değiştirmez: bir örüntü netleştiğinde, **Memory** kanıtla birlikte bir öneri gösterir (neyi kaldırdın, bu DM'in kendi kayıtlarından kaç tanesi, eşik) ve üç yanıt sunar: **This chat**, **All chats** ya da **No**. Bunun için hiçbir model çağrılmaz. Bir yanıt tam olarak bir ayarı değiştirir: yeni **Things in the book** ayarını (hepsi, yalnızca bir reason'ı olanlar ya da hiçbiri), bir kaydın metninin uzunluğunu ya da kişilerin ne sıklıkla geri geldiğini. Bir "no", yeni düzenlemeler birikene kadar yeniden sorulmaz.
 
 Kişilerin, yerlerin ve grupların çevrilecek bir ayarı yoktur. DM'in yazdıklarından çoğunu sildiğinde, Memory bunun yerine **rule in words** gösterir: Memory'yi açmak, kaldırdıkların ve tuttuklarından kuralı (tek satır) yazan ya da hiçbir örüntü bulamayan build modeline küçük bir çağrı yapar. **Suggest a rule from my edits**, elle bir kural ister. Aynı şekilde yanıtlarsın; tüm sohbetler için bir kural, onu gösteren bir iletişim kutusunda bir kez daha sorar. DM kurallarını kısa bir blok olarak okur, *what this player prefers* (bu sohbetin ve tüm sohbetlerin birlikte, en yeniden eskiye, en fazla 10 kural ve 600 karakter; sığmayan eskiler bir etiketle Memory'de kalır) ve **Add a rule** da sözcüklerle bir kural alır.
 

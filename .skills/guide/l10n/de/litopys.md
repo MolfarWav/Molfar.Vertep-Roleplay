@@ -1,4 +1,4 @@
-<!-- source: 2b4254528c2d -->
+<!-- source: c344ac23f215 -->
 # Litopys: der Geschichtsverlauf
 
 Litopys (die Chronik) ist das Langzeitgedächtnis eines Chats. Sie liest die Geschichte im Hintergrund und schreibt für jede abgeschlossene Szene ein Kapitel, dazu die Fakten, die die Geschichte etabliert hat. Wenn ein Chat zu lang für das Fenster des Modells wird, trägt der Verlauf die Geschichte weiter. Nutze ihn für lange Geschichten; du musst ihn nicht starten.
@@ -61,7 +61,7 @@ Der **Settings**-Tab des Verlaufs eines Chats (im Record-Seitenbereich und in de
 
 ## Vorschläge und Aufräumen
 
-"Suggestions" hat drei Möglichkeiten. "Ask me first": Jeder Vorschlag wartet auf dein Ja. "Only risky ones" (der Standard bei einer neuen Installation): Routine-Vorschläge werden sofort angewendet, in Activity mit einem Undo protokolliert, und nur die riskanten warten, jeder mit dem Grund darauf: ein Merge, der mehr Leuten einen Fakt verraten würde, den nur einige kannten, eine Änderung an einem Fakt, den du angepinnt, geschrieben, bearbeitet oder als Key markiert hast, eine bleibende Änderung oder eine Überzeugung, und ein neuer Fakt, der einem von dir angepinnten widersprechen könnte. Derselbe Grund zeigt sich im Inbox. "Apply pins and rewrites quietly": Nur Pins und Rewrites gehen durch; Zurückziehen und Mergen warten auf dich. "Tidy facts automatically" sucht nach 30 neuen Fakten nach Duplikaten und Widersprüchen, mit einem zusätzlichen Modellaufruf pro 60 Fakten.
+"Suggestions" hat drei Möglichkeiten. "Ask me first": Jeder Vorschlag wartet auf dein Ja. "Only risky ones" (der Standard bei einer neuen Installation): Routine-Vorschläge werden sofort angewendet, in Activity mit einem Undo protokolliert, und nur die riskanten warten, jeder mit dem Grund darauf: ein Merge, der mehr Leuten einen Fakt verraten würde, den nur einige kannten, eine Änderung an einem Fakt, den du angepinnt, geschrieben, bearbeitet oder als Key markiert hast, eine bleibende Änderung oder eine Überzeugung, und ein neuer Fakt, der einem von dir angepinnten widersprechen könnte. Derselbe Grund zeigt sich im Inbox. "Apply pins and rewrites quietly": Nur Pins und Rewrites gehen durch; Zurückziehen und Mergen warten auf dich. "Tidy facts automatically" sucht nach 15 neuen Fakten seit dem letzten Durchlauf nach Duplikaten und Widersprüchen, mit einem zusätzlichen Modellaufruf pro 60 Fakten. Es zieht außerdem einen Plan oder eine Deadline zurück, die ein späterer Fakt als erledigt oder verpasst zeigt (eine Rechnung, die inzwischen bezahlt wurde), und behält ein vergangenes Ereignis, auch wenn sich später Dinge geändert haben. Ein Merge, den es vorschlägt, muss kürzer sein als die Fakten, die er zusammenführt; ein längerer wird verworfen, statt abgeschnitten gespeichert. Ein sorgfältigeres Modell macht weniger falsche Vorschläge, also behalte "Ask me first" oder "Only risky ones", wenn dein Litopys-Modell ein kleines ist.
 
 ### Hinweise im Chat
 

@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # 역할극: 개요
 
 역할극은 Molfar Vertep의 스토리 앱입니다. 캐릭터 카드를 보관하고, 그들과 채팅을 하며, 앱이 장면을 추적하고, 이야기를 기억하고, 주변 세계를 돌아가게 합니다. 이 페이지는 지도입니다. 앱 자체의 **Help**(레일에 있음)에는 거의 모든 화면에 대한 짧은 글이 있고, 이 가이드는 각 부분이 어떻게 맞물리는지 설명합니다. 모델과 연결은 여기서 설정하지 않고 메인 Settings에서 설정합니다: [[vertep:models]]를 보세요.
@@ -9,7 +9,7 @@
 
 - **Home**과 **Chats**: 멈춘 곳에서 이어가거나 아무 채팅이나 엽니다.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: 사람들. [[characters]]를 보세요.
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: 이야기의 기억과 장치. [[memory]], [[litopys]], [[canvas]], [[world-dm]], [[agents]]를 보세요.
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: 이야기의 기억과 장치. DM은 World 섹션을 DM 탭(DM의 레벨, 프로필, Memory)에서 엽니다. [[memory]], [[litopys]], [[canvas]], [[world-dm]], [[agents]]를 보세요.
 - **Presets**: 모델로 가는 요청이 어떻게 만들어지는지.
 - **Shortcuts**와 **Tools**: 빠른 답장, 정규식, 번역, 그림, 음성, Data Bank 등등. [[settings]]를 보세요.
 - **Inbox**와 **Help**는 맨 아래에 있습니다. Inbox에는 여러분을 기다리는 것들이 나열됩니다: 실패한 백그라운드 작업, Library 제안, 제안된 소울.

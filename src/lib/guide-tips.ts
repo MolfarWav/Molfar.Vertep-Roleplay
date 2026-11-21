@@ -7,10 +7,23 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.144.0'
+export const APP_VERSION = '4.145.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.dm-rail',
+    since: '4.145.0',
+    target: 'nav.dm',
+    open: { view: 'home' },
+    help: 'world',
+    keywords: { en: 'dm game master rail world levels profiles memory proposals mask', uk: 'дм майстер гри панель світ рівні профілі пам’ять пропозиції маска' },
+    title: { en: 'The DM has its own place on the rail', uk: 'У ДМ тепер своє місце на панелі' },
+    body: {
+      en: 'The DM item right under World (on a phone, a tile in All sections) opens the World section straight on its DM tab: the levels, your own profiles and Memory. Its number shows how many Memory proposals wait for your answer.',
+      uk: 'Пункт ДМ одразу під World (на телефоні — плитка в All sections) відкриває розділ World одразу на вкладці DM: рівні, ваші профілі й Memory. Число на ньому показує, скільки пропозицій Memory чекають на вашу відповідь.',
+    },
+  },
   {
     id: 'new.backstage',
     since: '4.144.0',

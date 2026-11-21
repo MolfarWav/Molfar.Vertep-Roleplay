@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # ロールプレイ: 概要
 
 ロールプレイはMolfar Vertepのストーリーアプリです。キャラクターカードを保管し、彼らとチャットで遊び、アプリに場面を追跡させ、物語を記憶させ、あなたの周りの世界を動かすことができます。このページは地図です。アプリ自身の**Help**(レール内)にはほぼすべての画面についての短い記事がありますが、このガイドでは各部分がどのように組み合わさっているかを説明します。モデルと接続はここではなく、メインのSettingsで設定します: [[vertep:models]]をご覧ください。
@@ -9,7 +9,7 @@
 
 - **Home**と**Chats**: 続きから再開するか、任意のチャットを開きます。
 - **Characters**、**Groups**、**Marketplace**、**Personas**: 人物たち。[[characters]]をご覧ください。
-- **Lorebooks**、**Library**、**Canvas**、**World**、**Agents**: 物語の記憶と仕組み。[[memory]]、[[litopys]]、[[canvas]]、[[world-dm]]、[[agents]]をご覧ください。
+- **Lorebooks**、**Library**、**Canvas**、**World**、**DM**、**Agents**: 物語の記憶と仕組み。DMはWorldセクションをDMタブで開きます(DMのレベル、プロフィール、Memory)。[[memory]]、[[litopys]]、[[canvas]]、[[world-dm]]、[[agents]]をご覧ください。
 - **Presets**: モデルへのリクエストがどのように組み立てられるか。
 - **Shortcuts**と**Tools**: クイック返信、正規表現、翻訳、画像、音声、Data Bankなど。[[settings]]をご覧ください。
 - **Inbox**と**Help**が一番下にあります。Inboxにはあなたを待っているもの(失敗したバックグラウンドジョブ、Libraryの提案、提案されたsoul)が一覧表示されます。

@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # Roleplay: het overzicht
 
 Roleplay is de verhalen-app van Molfar Vertep: je bewaart personagekaarten, speelt chats met ze en laat de app het tafereel volgen, het verhaal onthouden en de wereld om je heen laten draaien. Deze pagina is een kaart. De eigen **Help** van de app (in de rail) heeft een kort artikel voor bijna elk scherm; deze gids legt uit hoe de onderdelen samenhangen. Modellen en verbindingen stel je niet hier in maar in de hoofdinstellingen: zie [[vertep:models]].
@@ -9,7 +9,7 @@ De rail links (op een telefoon een balk met tabs onderaan) groepeert de secties:
 
 - **Home** en **Chats**: ga verder waar je gebleven was, of open een chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: de mensen. Zie [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: het geheugen en de machinerie van het verhaal. Zie [[memory]], [[litopys]], [[canvas]], [[world-dm]] en [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: het geheugen en de machinerie van het verhaal. DM opent het World-gedeelte op het DM-tabblad (de levels, profielen en Memory van de DM). Zie [[memory]], [[litopys]], [[canvas]], [[world-dm]] en [[agents]].
 - **Presets**: hoe het verzoek aan het model wordt opgebouwd.
 - **Shortcuts** en **Tools**: snelle antwoorden, regex, vertaling, plaatjes, stem, de Data Bank en meer. Zie [[settings]].
 - **Inbox** en **Help** onderaan. De Inbox laat zien wat op je wacht: mislukte achtergrondtaken, Library-suggesties en voorgestelde souls.

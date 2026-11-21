@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # Rol yapma: genel bakış
 
 Rol yapma, Molfar Vertep'in hikâye uygulamasıdır: karakter kartları tutarsınız, onlarla sohbetler oynatırsınız ve uygulamanın sahneyi izlemesine, hikâyeyi hatırlamasına ve etrafınızdaki dünyayı yürütmesine izin verirsiniz. Bu sayfa bir haritadır. Uygulamanın kendi **Help** bölümünde (kenar çubuğunda) neredeyse her ekran için kısa bir makale vardır; bu kılavuz parçaların nasıl bir araya geldiğini açıklar. Modeller ve bağlantılar burada değil, ana Ayarlar'da kurulur: bkz. [[vertep:models]].
@@ -9,7 +9,7 @@ Soldaki kenar çubuğu (telefonda alttaki sekme çubuğu) bölümleri gruplar:
 
 - **Home** ve **Chats**: kaldığınız yerden devam edin veya herhangi bir sohbeti açın.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: kişiler. Bkz. [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: hikâyenin hafızası ve mekanizması. Bkz. [[memory]], [[litopys]], [[canvas]], [[world-dm]] ve [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: hikâyenin hafızası ve mekanizması. DM, World bölümünü DM sekmesinde açar (DM'in seviyeleri, profilleri ve Memory). Bkz. [[memory]], [[litopys]], [[canvas]], [[world-dm]] ve [[agents]].
 - **Presets**: modele gönderilen isteğin nasıl kurulduğu.
 - **Shortcuts** ve **Tools**: hızlı yanıtlar, regex, çeviri, resimler, ses, Veri Bankası ve daha fazlası. Bkz. [[settings]].
 - En altta **Inbox** ve **Help**. Inbox, sizi bekleyenleri listeler: başarısız arka plan işleri, Library önerileri ve önerilen ruhlar.

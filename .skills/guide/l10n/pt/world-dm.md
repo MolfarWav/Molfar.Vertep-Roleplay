@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # Mestre do Mundo
 
 O Mestre do Mundo é um mestre de jogo para o mundo de um chat. Depois das respostas, ele lê a história e mantém as pessoas, lugares e coisas que encontra no livro de tradições do próprio chat, chamado livro do mundo. Em níveis mais altos, ele também move o mundo e envia eventos para a cena. Use-o quando quiser que o mundo pareça vivo e consistente.
 
 ## Níveis
 
-Abra-o no cabeçalho do chat "World" (no celular, Menu, depois World), ou na seção **World** da barra lateral. Escolha o que o Mestre faz:
+Abra-o no cabeçalho do chat "World" (no celular, Menu, depois World), ou na seção **World** da barra lateral. O item **DM** logo abaixo de World na barra lateral (no celular, um bloco em Todas as seções) abre a seção World diretamente na aba DM, com os níveis, seus próprios perfis e a Memória. Escolha o que o Mestre faz:
 
 - **Off**: sem eventos e sem dados. O livro do mundo ainda se preenche a partir da história: quando a cena nomeia um novo lugar ou coisa, uma pequena chamada pergunta ao modelo do Mestre se deve registrá-lo.
 - **Chronicler**: apenas registra, e não adiciona eventos próprios.
@@ -70,7 +70,7 @@ Cada nível é um perfil embutido: os cinco guardam os prompts do Mestre, e voc�
 
 ## O que o Mestre aprende
 
-A aba **DM** (Chats | Worlds | DM) começa com uma linha **Memory**; um ponto na aba e na linha significa que uma proposta espera por você. O Mestre percebe o que você exclui e reescreve no livro do mundo e nunca muda sozinho: quando um padrão é claro, a **Memory** mostra uma proposta com as evidências (o que você removeu, quantos dos próprios registros do Mestre isso representa, o limite) e três respostas: **This chat**, **All chats** ou **No**. Nenhum modelo é chamado para isso. Uma resposta muda uma configuração exata: a nova configuração **Things in the book** (todas, apenas com um reason, ou nenhuma), o tamanho do texto de um registro, ou com que frequência as pessoas voltam. Um "no" não é perguntado de novo até que novas edições se acumulem.
+A aba **DM** (Chats | Worlds | DM) começa com uma linha **Memory**; um ponto na aba e na linha significa que uma proposta espera por você, e o item **DM** na barra lateral mostra quantas esperam. O Mestre percebe o que você exclui e reescreve no livro do mundo e nunca muda sozinho: quando um padrão é claro, a **Memory** mostra uma proposta com as evidências (o que você removeu, quantos dos próprios registros do Mestre isso representa, o limite) e três respostas: **This chat**, **All chats** ou **No**. Nenhum modelo é chamado para isso. Uma resposta muda uma configuração exata: a nova configuração **Things in the book** (todas, apenas com um reason, ou nenhuma), o tamanho do texto de um registro, ou com que frequência as pessoas voltam. Um "no" não é perguntado de novo até que novas edições se acumulem.
 
 Pessoas, lugares e grupos não têm configuração para mudar. Quando você exclui muitos daqueles que o Mestre escreveu, a Memory mostra uma **regra em palavras** em vez disso: abrir a Memory faz uma pequena chamada ao modelo de construção que escreve a regra (uma linha) a partir do que você removeu e do que você manteve, ou não encontra padrão. **Suggest a rule from my edits** pede uma à mão. Você responde da mesma forma; uma regra para todos os chats pergunta mais uma vez em um diálogo que a mostra. O Mestre lê suas regras como um bloco curto, *what this player prefers* (as deste chat e as de todos os chats juntas, mais novas primeiro, no máximo 10 regras e 600 caracteres; as mais antigas que não couberem ficam na Memory com uma etiqueta), e **Add a rule** também aceita uma regra em palavras.
 

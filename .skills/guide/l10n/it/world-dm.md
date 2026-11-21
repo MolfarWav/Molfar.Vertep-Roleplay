@@ -1,11 +1,11 @@
-<!-- source: 3ea577f4b9af -->
+<!-- source: d9b96976e29b -->
 # DM del Mondo
 
 Il DM del Mondo è un game master per il mondo di una chat. Dopo le risposte legge la storia e conserva le persone, i luoghi e le cose che incontra nel lorebook della chat stessa, chiamato world book. Ai livelli più alti muove anche il mondo e manda eventi nella scena. Usalo quando vuoi che il mondo sembri vivo e coerente.
 
 ## Livelli
 
-Aprilo dall'intestazione della chat "World" (su un telefono, Menu, poi World), o dalla sezione **World** della barra. Scegli cosa fa il DM:
+Aprilo dall'intestazione della chat "World" (su un telefono, Menu, poi World), o dalla sezione **World** della barra. La voce **DM** proprio sotto World sulla barra (su un telefono, una tile in Tutte le sezioni) apre la sezione World direttamente sulla sua scheda DM, con i livelli, i tuoi profili e Memory. Scegli cosa fa il DM:
 
 - **Off**: nessun evento e nessun dado. Il world book si riempie comunque dalla storia: quando la scena nomina un nuovo luogo o una nuova cosa, una piccola chiamata chiede al modello DM se registrarla.
 - **Chronicler**: solo registra, e non aggiunge eventi propri.
@@ -70,7 +70,7 @@ Ogni livello è un profilo integrato: i cinque contengono i prompt del DM, e puo
 
 ## Cosa impara il DM
 
-La scheda **DM** (Chats | Worlds | DM) inizia con una riga **Memory**; un puntino sulla scheda e sulla riga significa che ti aspetta una proposta. Il DM nota cosa elimini e riscrivi nel world book e non cambia mai da solo: quando uno schema è chiaro, **Memory** mostra una proposta con le prove (cosa hai rimosso, quanti dei record del DM stesso è, la soglia) e tre risposte: **This chat**, **All chats** o **No**. Non viene chiamato nessun modello per questo. Una risposta cambia una sola impostazione esatta: la nuova impostazione **Things in the book** (tutte, solo con una reason, o nessuna), la lunghezza del testo di un record, o quanto spesso le persone tornano. Un "no" non viene chiesto di nuovo finché non si accumulano nuove modifiche.
+La scheda **DM** (Chats | Worlds | DM) inizia con una riga **Memory**; un puntino sulla scheda e sulla riga significa che ti aspetta una proposta, e la voce **DM** nella barra laterale mostra quante sono in attesa. Il DM nota cosa elimini e riscrivi nel world book e non cambia mai da solo: quando uno schema è chiaro, **Memory** mostra una proposta con le prove (cosa hai rimosso, quanti dei record del DM stesso è, la soglia) e tre risposte: **This chat**, **All chats** o **No**. Non viene chiamato nessun modello per questo. Una risposta cambia una sola impostazione esatta: la nuova impostazione **Things in the book** (tutte, solo con una reason, o nessuna), la lunghezza del testo di un record, o quanto spesso le persone tornano. Un "no" non viene chiesto di nuovo finché non si accumulano nuove modifiche.
 
 Persone, luoghi e gruppi non hanno un'impostazione da cambiare. Quando ne elimini molti di quelli scritti dal DM, Memory mostra invece una **regola a parole**: aprire Memory fa una piccola chiamata al modello di costruzione che scrive la regola (una riga) da ciò che hai rimosso e ciò che hai tenuto, o non trova alcuno schema. **Suggest a rule from my edits** ne chiede una a mano. Rispondi allo stesso modo; una regola per tutte le chat chiede ancora una volta in un dialogo che la mostra. Il DM legge le tue regole come un breve blocco, *what this player prefers* (quelle di questa chat e di tutte le chat insieme, più recenti prima, al massimo 10 regole e 600 caratteri; quelle più vecchie che non ci stanno restano in Memory con un tag), e **Add a rule** prende anch'esso una regola a parole.
 

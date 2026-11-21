@@ -1,4 +1,4 @@
-<!-- source: 69fea5c3637d -->
+<!-- source: e7e10ee9c3f1 -->
 # Juego de rol: la visión general
 
 El juego de rol es la app de historias de Molfar Vertep: guardas cartas de personajes, juegas chats con ellos y dejas que la app siga la escena, recuerde la historia y haga funcionar el mundo a tu alrededor. Esta página es un mapa. El propio **Help** de la app (en la barra lateral) tiene un artículo breve para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí, sino en los Ajustes principales: consulta [[vertep:models]].
@@ -9,7 +9,7 @@ La barra de la izquierda (una barra de pestañas en la parte inferior en un tel�
 
 - **Home** y **Chats**: continúa donde lo dejaste o abre cualquier chat.
 - **Characters**, **Groups**, **Marketplace**, **Personas**: las personas. Consulta [[characters]].
-- **Lorebooks**, **Library**, **Canvas**, **World**, **Agents**: la memoria y la maquinaria de la historia. Consulta [[memory]], [[litopys]], [[canvas]], [[world-dm]] y [[agents]].
+- **Lorebooks**, **Library**, **Canvas**, **World**, **DM**, **Agents**: la memoria y la maquinaria de la historia. DM abre la sección World en su pestaña DM (los niveles del DM, los perfiles y la Memory). Consulta [[memory]], [[litopys]], [[canvas]], [[world-dm]] y [[agents]].
 - **Presets**: cómo se construye la petición al modelo.
 - **Shortcuts** y **Tools**: respuestas rápidas, regex, traducción, imágenes, voz, el Data Bank y más. Consulta [[settings]].
 - **Inbox** y **Help** abajo del todo. El Inbox enumera lo que te espera: trabajos en segundo plano fallidos, sugerencias de la Library y almas propuestas.
