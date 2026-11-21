@@ -80,14 +80,18 @@ export const editPatch = (id: string, v: GrowthFields): GrowthPatch => ({
   title: v.kind === 'added' ? (v.title ?? '').trim() : '',
   text: v.text.trim(),
   basis: (v.basis ?? '').trim(),
+  ...(v.of !== undefined ? { of: v.of } : {}),
 })
 
 /** The body of an add call: only what is filled in is sent. */
 export const addPatch = (v: GrowthFields): GrowthPatch => {
   const title = v.kind === 'added' ? (v.title ?? '').trim() : ''
   const basis = (v.basis ?? '').trim()
-  return { op: 'add', section: v.section, kind: v.kind, text: v.text.trim(), ...(title ? { title } : {}), ...(basis ? { basis } : {}) }
+  return { op: 'add', section: v.section, kind: v.kind, text: v.text.trim(), ...(title ? { title } : {}), ...(basis ? { basis } : {}), ...(v.of ? { of: v.of } : {}) }
 }
+
+/** The form's value for "the card as a whole" (a Select cannot hold an empty one). */
+const CARD_ITSELF = '_card'
 
 const sectionLabel = (t: T, s: string) => t(`mem.grow.sec.${SECTION_ORDER.includes(s as GrowthSection) ? s : 'other'}` as MsgKey)
 
@@ -196,7 +200,10 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
   const { growth, tokens } = data
   const entries = growth.entries
   const { proposed, accepted } = splitGrowth(entries)
-  const groups = groupBySection(accepted, data.sections?.length ? data.sections : SECTION_ORDER)
+  // a card that voices several characters shows a portrait for each: the card's own blocks first, then one heading per character (#450)
+  const ofs = [...new Set([...(accepted.some((e) => !e.of) ? [''] : []), ...(data.cast ?? []), ...accepted.map((e) => e.of ?? '')])].filter((o) => accepted.some((e) => (e.of ?? '') === o))
+  const byOf = ofs.map((o) => ({ of: o, groups: groupBySection(accepted.filter((e) => (e.of ?? '') === o), data.sections?.length ? data.sections : SECTION_ORDER) }))
+  const named = byOf.some((o) => o.of !== '')
   const none = entries.length === 0
 
   const setOn = (e: GrowthEntry, on: boolean) => {
@@ -280,9 +287,12 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
         </Empty>
       ) : (
         <>
-          {groups.map((g) => (
-            <section key={g.section} className="flex flex-col" aria-labelledby={`${card.id}-grow-sec-${g.section}`} data-testid={`mem-grow-section-${g.section}`}>
-              <h4 id={`${card.id}-grow-sec-${g.section}`} className="text-body font-medium">{sectionLabel(t, g.section)}</h4>
+          {byOf.map((o, oi) => (
+          <div key={o.of} className={named ? 'flex flex-col gap-3 border-t border-border pt-3 first:border-t-0 first:pt-0' : 'flex flex-col gap-3'} data-testid={named ? 'mem-grow-character' : undefined}>
+          {named && <h3 className="text-body font-semibold text-sky-700 dark:text-sky-300" data-testid="mem-grow-character-name">{o.of || t('mem.grow.of.card', { name: card.name })}</h3>}
+          {o.groups.map((g) => (
+            <section key={g.section} className="flex flex-col" aria-labelledby={`${card.id}-grow-sec-${oi}-${g.section}`} data-testid={`mem-grow-section-${g.section}`}>
+              <h4 id={`${card.id}-grow-sec-${oi}-${g.section}`} className="text-body font-medium">{sectionLabel(t, g.section)}</h4>
               <ul className="flex flex-col">
                 {g.entries.map((e) => {
                   const on = pending[e.id] ?? e.on
@@ -314,8 +324,10 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
               </ul>
             </section>
           ))}
+          </div>
+          ))}
           {adding ? (
-            <GrowthForm key="new" t={t} sections={data.sections} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '' }} submitLabel={t('mem.grow.form.add')} onCancel={() => setAdding(false)} onSubmit={(v) => add(v)} />
+            <GrowthForm key="new" t={t} sections={data.sections} cast={data.cast} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '', of: '' }} submitLabel={t('mem.grow.form.add')} onCancel={() => setAdding(false)} onSubmit={(v) => add(v)} />
           ) : (
             <div className="flex flex-col gap-3">
               <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} />
@@ -371,7 +383,7 @@ export function GrowthBody({ card, data, t, act, busy, story }: { card: Pick<Cha
               t={t}
               sections={data.sections}
               bare
-              initial={{ section: editing.section, kind: editing.kind, title: editing.title ?? '', text: editing.text, basis: editing.basis ?? '' }}
+              cast={data.cast} initial={{ section: editing.section, kind: editing.kind, title: editing.title ?? '', text: editing.text, basis: editing.basis ?? '', of: editing.of ?? '' }}
               submitLabel={t('mem.grow.form.save')}
               acceptLabel={editing.state === 'proposed' ? t(revisedBlock(editing, entries) ? 'mem.grow.form.saveUpdate' : 'mem.grow.form.saveAccept') : undefined}
               onCancel={() => setEditing(null)}
@@ -392,6 +404,7 @@ function Chips({ e, t, section }: { e: GrowthEntry; t: T; section?: boolean }) {
   const added = e.kind === 'added'
   return (
     <span className="flex flex-wrap items-center gap-1.5">
+      {section && e.of && <Badge variant="outline" className="w-fit" data-testid="mem-grow-chip-of">{e.of}</Badge>}
       {section && <Badge variant="secondary" className="w-fit" data-testid="mem-grow-chip-section">{sectionLabel(t, e.section)}</Badge>}
       <Badge variant="outline" className={`w-fit ${added ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300'}`} data-testid="mem-grow-chip-kind">
         {t(added ? 'mem.grow.kind.added' : 'mem.grow.kind.changed')}
@@ -423,7 +436,7 @@ function FoldText({ text, t, muted }: { text: string; t: T; muted?: boolean }) {
 
 /** The form for one block: add (under the list) and edit (in the dialog). It is not a <form>: Enter makes a new line in the text,
  *  Ctrl+Enter or the button saves, Esc cancels. A proposal can also be saved and accepted at once (`acceptLabel`). */
-export function GrowthForm({ t, sections, initial, submitLabel, acceptLabel, onCancel, onSubmit, bare }: { t: T; sections?: readonly string[]; initial: GrowthFields; submitLabel: string; acceptLabel?: string; onCancel: () => void; onSubmit: (v: GrowthFields, thenAccept: boolean) => Promise<boolean>; bare?: boolean }) {
+export function GrowthForm({ t, sections, cast, initial, submitLabel, acceptLabel, onCancel, onSubmit, bare }: { t: T; sections?: readonly string[]; cast?: readonly string[]; initial: GrowthFields; submitLabel: string; acceptLabel?: string; onCancel: () => void; onSubmit: (v: GrowthFields, thenAccept: boolean) => Promise<boolean>; bare?: boolean }) {
   const uid = useId()
   const [v, setV] = useState<GrowthFields>(initial)
   const [busy, setBusy] = useState(false)
@@ -440,6 +453,18 @@ export function GrowthForm({ t, sections, initial, submitLabel, acceptLabel, onC
   }
   return (
     <div className={bare ? 'flex flex-col gap-3' : 'flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-2.5'} data-testid="mem-grow-form">
+      {cast && cast.length > 0 && (
+        <label className="flex flex-col gap-1 text-caption font-medium">
+          {t('mem.grow.form.of')}
+          <Select value={v.of || CARD_ITSELF} onValueChange={(x) => x && setV({ ...v, of: String(x) === CARD_ITSELF ? '' : String(x) })}>
+            <SelectTrigger className="w-full max-md:h-10" data-testid="mem-grow-select-of"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CARD_ITSELF} className="max-md:min-h-10">{t('mem.grow.form.ofCard')}</SelectItem>
+              {cast.map((n) => <SelectItem key={n} value={n} className="max-md:min-h-10">{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-caption font-medium">
           {t('mem.grow.form.section')}

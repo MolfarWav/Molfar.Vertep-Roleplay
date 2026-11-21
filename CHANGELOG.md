@@ -2,6 +2,10 @@
 
 Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
+## Unreleased
+
+- Changed: **character growth on a card that voices several characters (Molfar.Vertep#450).** A narrator card used to get ONE portrait, so the agent wrote a block about whichever character the story last touched onto the narrator, and a new block about one character's relationships proposed replacing another's. The portrait is now per character, taken from the card's souls: an entry has `of`, the Memory tab shows a heading per character and an "About" list in the forms, the prompt carries each character's blocks under their name, and a block revises only a block about the same character. The ready agent **Character growth** (now 2.1.0, reinstall it from the Agents board to get it) and the "Update from the story" button are told who the card voices and name the character in `who`; a block with no name is taken from its text when it names exactly one character, else it is refused. Old blocks stay as they are (no `of`) under the card's own name; the user can give them a character from the block's Edit dialog. A card that is one character works as before. Tests: `test/rp-agent-growth-cast.test.ts`. Not checked: a real model on a real narrator card; the Memory tab in a browser.
+
 ## 4.146.0 (2026-11-21)
 
 - Added: **"Fold small facts" (Molfar.Vertep#488).** A switch under "Tidy facts automatically" (Litopys settings, off by default, config `foldFacts`). With it on, Consolidate may also fold two or more small facts (`everyday`, not pinned, not secret, not a belief) of one person from the same stretch of the story into one shorter fact that keeps their details; it marks those facts "(small)" for the model, and code checks every fold (same subject, the same people knowing them, shorter than the parts). A fold is a merge proposal with `fold: true` and waits for your yes in every proposals mode. In replays on three of the owner's chats, 23 of 25 folds kept every detail (checked by a model of another family; the two others lost a small detail: someone knelt, a machine was started).

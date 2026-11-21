@@ -176,6 +176,8 @@ export interface GrowthEntry {
   text: string
   /** A few words: what in the card this replaces. */
   basis?: string
+  /** A card that voices several characters keeps a portrait of each: the one this block is about. None = the card as a whole (#450). */
+  of?: string
   /** Older texts of this block, newest first (up to 3). */
   prev?: string[]
   /** A proposal that revises this accepted block: accepting it merges into that block. */
@@ -192,6 +194,8 @@ export interface GrowthView {
   growth: { v: 2; next: number; entries: GrowthEntry[]; inject: { enabled: boolean; maxTokens: number; remind?: boolean } }
   /** The section names in the order the portrait shows them. */
   sections: GrowthSection[]
+  /** The characters this card voices (its souls), when it voices several; absent for a card that is one character (#450). */
+  cast?: string[]
   /** What the portrait costs in a prompt now: tokens used of the room, blocks sent / left out for lack of room / live (accepted and on). */
   tokens: { used: number; room: number; sent: number; omitted: number; live: number }
   /** The part exactly as the prompt gets it ('' when nothing would be sent). */
@@ -199,7 +203,7 @@ export interface GrowthView {
 }
 
 /** The fields of a block the user writes or edits. */
-export interface GrowthFields { section: GrowthSection; kind: GrowthKind; title?: string; text: string; basis?: string }
+export interface GrowthFields { section: GrowthSection; kind: GrowthKind; title?: string; text: string; basis?: string; of?: string }
 
 export type GrowthPatch =
   | ({ op: 'add' } & GrowthFields)
