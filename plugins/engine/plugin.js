@@ -785,16 +785,27 @@ function regexScopeRank(s) {
   return 2;
 }
 
+/**
+ * The regex scripts of "regex/", parsed (a script that does not parse is left out). One host call for all of them when the engine has
+ * `fs.readMany` (Molfar.Vertep#432: 161 scripts read one call each cost about half a second a pass; one call costs 35 ms), else one
+ * call each, as before.
+ */
+function readRegexScripts(fsx, names) {
+  const paths = names.map((f) => "regex/" + f);
+  let texts = null;
+  if (typeof fsx.readMany === "function") { try { texts = fsx.readMany(paths); } catch {} }
+  if (!Array.isArray(texts) || texts.length !== paths.length) texts = paths.map((p) => { try { return fsx.read(p); } catch { return null; } });
+  return texts.map((t) => { try { return t == null ? null : JSON.parse(t); } catch { return null; } }).filter(Boolean);
+}
+
 const regexCache = new WeakMap();
-function loadRegexScripts(fsx) {
+export function loadRegexScripts(fsx) {
   let names = [];
   try { names = fsx.list("regex").filter((f) => f.endsWith(".json")); } catch {}
   const key = names.join("\n");
   const hit = fsx && typeof fsx === "object" ? regexCache.get(fsx) : null;
   if (hit && hit.key === key) return hit.scripts;
-  const scripts = names
-    .map((f) => { try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; } })
-    .filter(Boolean);
+  const scripts = readRegexScripts(fsx, names);
   scripts.sort((a, b) =>
     regexScopeRank(a) - regexScopeRank(b) ||
     ((a.order ?? 0) - (b.order ?? 0)) ||

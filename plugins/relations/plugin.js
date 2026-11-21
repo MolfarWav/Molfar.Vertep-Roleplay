@@ -3942,6 +3942,20 @@ function notebookTexts(ctx) {
   return out;
 }
 
+/**
+ * The regex scripts of "regex/", parsed (a script that does not parse is left out). One host call for all of them when the engine has
+ * `fs.readMany` (Molfar.Vertep#432: 161 scripts read one call each cost about half a second a pass; one call costs 35 ms), else one
+ * call each, as before.
+ */
+function readRegexFilesR(fsx, names) {
+  const paths = names.map((f) => "regex/" + f);
+  let texts = null;
+  if (typeof fsx.readMany === "function") { try { texts = fsx.readMany(paths); } catch {} }
+  if (!Array.isArray(texts) || texts.length !== paths.length) texts = paths.map((p) => { try { return fsx.read(p); } catch { return null; } });
+  return texts.map((t) => { try { return t == null ? null : JSON.parse(t); } catch { return null; } }).filter(Boolean);
+}
+
+
 /** The story as the model reads it. A preset hides blocks of a reply (a plan, an inner voice, a log) with prompt-only
  *  regex scripts that delete them; a cut of a reply must not spend its characters on those. Returns (text, role) -> text
  *  for one chat. Only scripts that replace a match with nothing are run (no macros, no depth limits), the stored text
@@ -3967,9 +3981,7 @@ export function storyView(fsx, meta) {
   const wheres = (s) => (Array.isArray(s.placement) ? s.placement : []);
   let found = [];
   try {
-    found = fsx.list("regex").filter((f) => f.endsWith(".json")).map((f) => {
-      try { return JSON.parse(fsx.read("regex/" + f)); } catch { return null; }
-    }).filter(Boolean);
+    found = readRegexFilesR(fsx, fsx.list("regex").filter((f) => f.endsWith(".json")));
   } catch { return (text) => text; }
   const compiled = [];
   for (const s of found) {
