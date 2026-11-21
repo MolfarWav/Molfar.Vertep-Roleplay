@@ -3191,6 +3191,8 @@ function cleanGrowthEntry(x) {
   };
   if (str(x.title)) e.title = clip(str(x.title), GROWTH.title);
   if (str(x.basis)) e.basis = clip(str(x.basis), GROWTH.basis);
+  // which character of a card that voices several this block is about (#450); none = the card as a whole
+  if (str(x.of)) e.of = clip(str(x.of), 60);
   if (Array.isArray(x.prev)) { const p = x.prev.map(str).filter(Boolean).slice(0, GROWTH.prev).map((s) => clip(s, GROWTH.text)); if (p.length) e.prev = p; }
   if (/^g[0-9]{1,6}$/.test(str(x.revises))) e.revises = str(x.revises);
   if (/^[A-Za-z0-9_-]{1,64}$/.test(str(x.agent))) e.agent = str(x.agent);
@@ -3220,6 +3222,41 @@ function soloCardOf(meta) {
   return ids.size === 1 && AG_CHAT.test([...ids][0]) ? [...ids][0] : "";
 }
 
+/**
+ * The characters one card voices (#450): the souls of a card that has several (`extensions.molfar_soul.characters`, keyed by the
+ * name the story uses, with `aliases`), or one soul on a narrator card. null for a card that is one character: its portrait
+ * needs no name. Up to 64 names.
+ */
+function castOf(fsx, cardId) {
+  const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
+  if (!isObj(cd)) return null;
+  const ext = isObj(cd.extensions) ? cd.extensions : isObj(cd.data) && isObj(cd.data.extensions) ? cd.data.extensions : {};
+  const souls = isObj(ext.molfar_soul) && isObj(ext.molfar_soul.characters) ? ext.molfar_soul.characters : {};
+  const names = Object.keys(souls).filter((n) => n.trim()).slice(0, 64);
+  if (names.length < 2 && !(names.length === 1 && str(ext.molfar_card_type) === "narrator")) return null;
+  return names.map((name) => {
+    const s = souls[name];
+    return { name, aliases: isObj(s) && Array.isArray(s.aliases) ? s.aliases.map(str).filter(Boolean).slice(0, 16) : [] };
+  });
+}
+
+/** The name of the cast member `who` points to (its name or an alias, case does not matter), "" when none. */
+function castPick(cast, who) {
+  const w = str(who).trim().toLowerCase();
+  if (!w) return "";
+  const hit = cast.find((c) => c.name.toLowerCase() === w || c.aliases.some((a) => a.toLowerCase() === w));
+  return hit ? hit.name : "";
+}
+
+/** The one cast member a text names (a name or an alias as a whole word); "" when it names none or several. */
+function castInText(cast, text) {
+  const hits = cast.filter((c) => [c.name, ...c.aliases].some((n) => {
+    const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("(?<![\\p{L}\\p{N}])" + esc + "(?![\\p{L}\\p{N}])", "iu").test(text);
+  }));
+  return hits.length === 1 ? hits[0].name : "";
+}
+
 /** The heading and body of one block as the prompt carries it. */
 const growthHeading = (e) => (e.kind === "added" ? (e.title || GROWTH_LABEL[e.section] + " (new)") : GROWTH_LABEL[e.section] + " (now)");
 
@@ -3232,23 +3269,37 @@ function growthLayout(g, name, room) {
   const cap = Number.isInteger(room) ? Math.max(0, room) : g.inject.maxTokens;
   const live = g.entries.filter((e) => e.state === "accepted" && e.on);
   if (!live.length) return null;
-  const head = "How " + (name || "the character") + " has changed and what has come out over the story so far. Where this differs from the character description and personality above, this is more recent and wins.";
+  // a card that voices several characters keeps a portrait of each (#450): blocks carry `of`, and are written under that name
+  const named = live.some((e) => e.of);
+  const head = named
+    ? "How the characters of " + (name || "this card") + " have changed and what has come out over the story so far. Where this differs from a character's description above, this is more recent and wins."
+    : "How " + (name || "the character") + " has changed and what has come out over the story so far. Where this differs from the character description and personality above, this is more recent and wins.";
   let used = approxTokens(head) + 4;
   const keep = [];
   const order = [...live].sort((a, b) => b.at - a.at);
   for (const e of order) {
-    const t = approxTokens(e.text) + approxTokens(growthHeading(e)) + 4;
+    const t = approxTokens(e.text) + approxTokens(growthHeading(e)) + 4 + (named ? 3 : 0);
     if (used + t > cap) continue;
     used += t;
     keep.push(e);
   }
   if (!keep.length) return { text: "", tokens: 0, count: 0, omitted: live.length };
-  const blocks = [];
-  for (const s of GROWTH_SECTIONS) {
-    const inSection = keep.filter((e) => e.section === s).sort((a, b) => a.at - b.at);
-    const changed = inSection.filter((e) => e.kind === "changed");
-    if (changed.length) blocks.push("## " + GROWTH_LABEL[s] + " (now)\n" + changed.map((e) => e.text).join("\n\n"));
-    for (const e of inSection.filter((x) => x.kind === "added")) blocks.push("## " + growthHeading(e) + "\n" + e.text);
+  const sectionBlocks = (list) => {
+    const blocks = [];
+    for (const s of GROWTH_SECTIONS) {
+      const inSection = list.filter((e) => e.section === s).sort((a, b) => a.at - b.at);
+      const changed = inSection.filter((e) => e.kind === "changed");
+      if (changed.length) blocks.push("## " + GROWTH_LABEL[s] + " (now)\n" + changed.map((e) => e.text).join("\n\n"));
+      for (const e of inSection.filter((x) => x.kind === "added")) blocks.push("## " + growthHeading(e) + "\n" + e.text);
+    }
+    return blocks;
+  };
+  let blocks;
+  if (!named) blocks = sectionBlocks(keep);
+  else {
+    // the card's own blocks (written before names existed) first, then one heading per character in the order they first came
+    const who = [...new Set([...keep].sort((a, b) => a.at - b.at).map((e) => e.of || ""))].sort((a, b) => (a === "" ? -1 : b === "" ? 1 : 0));
+    blocks = who.map((w) => "# " + (w || name || "The card itself") + "\n\n" + sectionBlocks(keep.filter((e) => (e.of || "") === w)).join("\n\n"));
   }
   const text = head + "\n\n" + blocks.join("\n\n");
   return { text, tokens: approxTokens(text), count: keep.length, omitted: live.length - keep.length };
@@ -3265,7 +3316,7 @@ function growthRemind(g, name) {
   const live = g.entries.filter((e) => e.state === "accepted" && e.on).sort((a, b) => b.at - a.at).slice(0, GROWTH_REMIND.blocks).reverse();
   if (!live.length) return null;
   const who = name || "the character";
-  const text = "(Reminder: this is how " + who + " is now, and it wins over the card.)\n" + live.map((e) => "- " + growthHeading(e) + ": " + clip(e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
+  const text = "(Reminder: this is how " + who + " is now, and it wins over the card.)\n" + live.map((e) => "- " + (e.of ? e.of + ", " : "") + growthHeading(e) + ": " + clip(e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
   return { text, tokens: approxTokens(text) + 4 };
 }
 
@@ -3351,7 +3402,7 @@ function growthRemindFor(members) {
   const all = on.flatMap((m) => m.g.entries.filter((e) => e.state === "accepted" && e.on).map((e) => ({ e, name: m.name })));
   const live = all.sort((x, y) => y.e.at - x.e.at).slice(0, GROWTH_REMIND.blocks).reverse();
   if (!live.length) return null;
-  const text = "(Reminder: this is how they are now, and it wins over the cards.)\n" + live.map((x) => "- " + (x.name || "A member") + ", " + growthHeading(x.e) + ": " + clip(x.e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
+  const text = "(Reminder: this is how they are now, and it wins over the cards.)\n" + live.map((x) => "- " + (x.e.of || x.name || "A member") + ", " + growthHeading(x.e) + ": " + clip(x.e.text.replace(/\s+/g, " "), GROWTH_REMIND.chars)).join("\n");
   return { text, tokens: approxTokens(text) + 4 };
 }
 
@@ -3361,7 +3412,8 @@ function growthAnswer(fsx, cardId) {
   const live = g.entries.filter((e) => e.state === "accepted" && e.on).length;
   const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
   const lay = growthLayout(g, isObj(cd) ? str(cd.name) || (isObj(cd.data) ? str(cd.data.name) : "") : "");
-  return { growth: g, sections: GROWTH_SECTIONS, tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live }, text: lay ? lay.text : "" };
+  const cast = castOf(fsx, cardId);
+  return { growth: g, sections: GROWTH_SECTIONS, ...(cast ? { cast: cast.map((c) => c.name) } : {}), tokens: { used: lay ? lay.tokens : 0, room: g.inject.maxTokens, sent: lay ? lay.count : 0, omitted: lay ? lay.omitted : 0, live }, text: lay ? lay.text : "" };
 }
 
 /**
@@ -3375,9 +3427,12 @@ function growthText(fsx, meta) {
 function growthTextOf(fsx, cardId) {
   const rows = readGrowth(fsx, cardId).entries.slice(-20).map((e) => {
     const body = e.text.replace(/\s+/g, " ");
-    return "- [" + e.section + (e.kind === "added" ? ", new" : "") + "] " + (e.title ? e.title + ": " : "") + clip(body, 220) + (e.state === "proposed" ? " (waiting for the user)" : "");
+    return "- [" + (e.of ? e.of + ", " : "") + e.section + (e.kind === "added" ? ", new" : "") + "] " + (e.title ? e.title + ": " : "") + clip(body, 220) + (e.state === "proposed" ? " (waiting for the user)" : "");
   });
-  return rows.length ? rows.join("\n") : "(nothing yet)";
+  const cast = castOf(fsx, cardId);
+  // a card that voices several characters says so here, so an agent that reads this knows whom a block may be about (#450)
+  const note = cast ? "This card voices several characters: " + cast.map((c) => c.name).join(", ") + ". A block is about exactly ONE of them (not the narrator itself): name it in `who`, spelled as written here. Blocks below with no name were written about the card as a whole.\n" : "";
+  return note + (rows.length ? rows.join("\n") : "(nothing yet)");
 }
 
 /**
@@ -3397,6 +3452,8 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
   // in a group each block says which member it is about (`who`, the member's name); every member has a file of their own
   const byName = gi ? new Map(gi.memberIds.map((id) => [cardNameOf(fsx, id).trim().toLowerCase(), id])) : null;
   const files = new Map();
+  const castCache = new Map();
+  const castFor = (id) => { if (!castCache.has(id)) castCache.set(id, castOf(fsx, id)); return castCache.get(id); };
   const open = (cardId) => {
     if (!files.has(cardId)) {
       const g = readGrowth(fsx, cardId);
@@ -3413,9 +3470,25 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
     const text = clip(str(w.text), GROWTH.text);
     if (!text) continue;
     let cardId = solo;
-    if (gi) {
+    let of = "";
+    if (str(w.card) && (str(w.card) === solo || (gi && gi.memberIds.includes(str(w.card))))) cardId = str(w.card);
+    else if (gi) {
       cardId = byName.get(str(w.who).trim().toLowerCase()) || "";
+      if (!cardId) {
+        // a character a member's card voices (#450)
+        for (const id of gi.memberIds) {
+          const c = castFor(id);
+          const hit = c ? castPick(c, w.who) : "";
+          if (hit) { cardId = id; of = hit; break; }
+        }
+      }
       if (!cardId) { refused.push("growth: in a group chat say which member the block is about (who); " + (str(w.who) ? "\"" + clip(str(w.who), 40) + "\" is not one" : "none was given")); continue; }
+    }
+    // a card that voices several characters keeps a portrait of each: the block names one (who), or the text names exactly one
+    const cast = castFor(cardId);
+    if (cast && !of) {
+      of = castPick(cast, w.who) || castInText(cast, text);
+      if (!of) { refused.push("growth: this card voices several characters (" + cast.map((c) => c.name).join(", ") + "); say which one the block is about (who)"); continue; }
     }
     const f = open(cardId);
     const g = f.g;
@@ -3426,8 +3499,10 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
     const e = { id: "g" + g.next, section, kind, text, on: true, state: "proposed", origin: "agent", agent: agentId, runKey: turnKey, from: { chatId: str(view.chatId), title: str(view.meta && view.meta.title), at: now }, at: now };
     if (str(w.title)) e.title = clip(str(w.title), GROWTH.title);
     if (str(w.basis)) e.basis = clip(str(w.basis), GROWTH.basis);
+    if (of) e.of = of;
     if (kind === "changed" && section !== "other") {
-      const old = g.entries.filter((x) => x.state === "accepted" && x.kind === "changed" && x.section === section).sort((a, b) => b.at - a.at)[0];
+      // a block revises only a block about the same character (#450: another character's relationships are not its text)
+      const old = g.entries.filter((x) => x.state === "accepted" && x.kind === "changed" && x.section === section && (x.of || "") === of).sort((a, b) => b.at - a.at)[0];
       if (old) e.revises = old.id;
     }
     g.next++;
@@ -3446,7 +3521,7 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
  * the first asks the model, the second reads the answer. A solo chat of this card only.
  */
 const GROWTH_UPDATE_MAX = 4;
-const GROWTH_UPDATE_PROMPT = "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card of {{name}}:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe story so far (it may have other characters too; write only about {{name}}):\n{{story}}\n\nLook over the whole story above. Which LASTING changes has it made in {{name}} (how they think, act, treat someone, what they want), and what new has it shown about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not the mood of one scene. Write up to " + GROWTH_UPDATE_MAX + " blocks, the most important first, none if nothing lasting happened. For each: section is the part of the character it belongs to (one of " + GROWTH_SECTIONS.join(", ") + "); kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). Answer with JSON only, in the form {\"blocks\":[{\"section\":\"...\",\"kind\":\"...\",\"title\":\"...\",\"text\":\"...\",\"basis\":\"...\"}]}.";
+const GROWTH_UPDATE_PROMPT = "You keep the living portrait of a character, so that a storyteller understands them better as the story goes on.\n\nThe character card of {{name}}:\n{{card}}\n\nBlocks of the portrait already written (never repeat them; to update one, write the new version of that section):\n{{known}}\n\nThe story so far (it may have other characters too; write only about {{name}}):\n{{story}}\n\nLook over the whole story above. Which LASTING changes has it made in {{name}} (how they think, act, treat someone, what they want), and what new has it shown about them (a relationship that has grown, a secret, a skill, a piece of the past)? Not the mood of one scene. Write up to " + GROWTH_UPDATE_MAX + " blocks, the most important first, none if nothing lasting happened. For each: section is the part of the character it belongs to (one of " + GROWTH_SECTIONS.join(", ") + "); kind is \"changed\" when it updates what the card says about that part, or \"added\" when it is something new; title is two to five words (used for \"added\"); text is the block itself, 2 to 5 sentences in the card's own style and language, concrete, in the third person, saying how the character is NOW; basis is a few words of what the card says that this replaces (empty when it is new). Answer with JSON only, in the form {\"blocks\":[{\"section\":\"...\",\"kind\":\"...\",\"title\":\"...\",\"text\":\"...\",\"basis\":\"...\"}]}.{{castnote}}";
 
 /** The blocks in a model's answer: the first JSON object in the text, its `blocks` list, at most GROWTH_UPDATE_MAX. */
 export function parseGrowthBlocks(text) {
@@ -3457,7 +3532,7 @@ export function parseGrowthBlocks(text) {
   let o;
   try { o = JSON.parse(t.slice(a, z + 1)); } catch { return []; }
   const list = isObj(o) && Array.isArray(o.blocks) ? o.blocks : [];
-  return list.filter((x) => isObj(x) && str(x.text).trim()).slice(0, GROWTH_UPDATE_MAX).map((x) => ({ op: "growth.add", text: str(x.text), section: str(x.section), kind: str(x.kind), title: str(x.title), basis: str(x.basis) }));
+  return list.filter((x) => isObj(x) && str(x.text).trim()).slice(0, GROWTH_UPDATE_MAX).map((x) => ({ op: "growth.add", text: str(x.text), section: str(x.section), kind: str(x.kind), title: str(x.title), basis: str(x.basis), who: str(x.who) }));
 }
 
 function growthUpdateRoute(req, host) {
@@ -3480,9 +3555,12 @@ function growthUpdateRoute(req, host) {
     const who = helperNames(fsx, view.meta);
     const cd = readJsonAt(fsx, "characters/" + cardId + "/card.json", null);
     const cardText = isObj(cd) ? clip([cd.name, cd.description, cd.personality, cd.scenario].filter((x) => typeof x === "string" && x.trim()).join("\n\n"), 4000) : "";
-    const parts = { card: cardText || "(no card text)", known: growthTextOf(fsx, cardId), story, name: name || "the character" };
+    const cast = castOf(fsx, cardId);
+    // a card that voices several characters: each block is about one of them and says which (#450)
+    const castnote = cast ? "\n\nThis card voices several characters: " + cast.map((c) => c.name).join(", ") + ". Each block is about exactly ONE of them, never the narrator itself: add \"who\" to the block with that name, spelled as written here, and write only about that character." : "";
+    const parts = { card: cardText || "(no card text)", known: growthTextOf(fsx, cardId), story, name: cast ? "the characters voiced by " + (name || "this card") : name || "the character", castnote };
     // one pass, so text inside the card or the story that looks like a slot is never filled
-    const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story|name)}}/g, (_m, k) => parts[k]);
+    const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story|name|castnote)}}/g, (_m, k) => parts[k]);
     const model = trialModel(fsx, view.meta, "fast", "growth", "");
     host.llm.request("growth_update", {
       ...(model ? { model } : {}),
@@ -3495,7 +3573,7 @@ function growthUpdateRoute(req, host) {
   const a = packDry(fresh);
   if (!a || a.error || !String(a.text || "").trim()) return ok({ error: (a && a.error) || "the model sent no answer" }, 502);
   // the blocks are about the card the button is on, also when the chat is a group's
-  const writes = parseGrowthBlocks(a.text).map((w) => ({ ...w, who: name }));
+  const writes = parseGrowthBlocks(a.text).map((w) => ({ ...w, card: cardId, who: castOf(fsx, cardId) ? w.who : name }));
   const done = applyGrowthWrites(fsx, view, "hand", writes, "hand:" + Date.now(), GROWTH_UPDATE_MAX);
   return ok({ ...growthAnswer(fsx, cardId), added: done.applied, refused: done.refused, model: a.model || "" });
 }
@@ -3514,12 +3592,18 @@ function growthRoute(req, host) {
   const bad = (m, s) => ok({ error: m }, s || 400);
   if ("section" in b && !GROWTH_SECTIONS.includes(str(b.section))) return bad("section is one of " + GROWTH_SECTIONS.join(", "));
   if ("kind" in b && !["changed", "added"].includes(str(b.kind))) return bad("kind is changed or added");
+  // which character of a card that voices several the block is about (#450); empty = the card as a whole
+  const cast = castOf(fsx, cardId);
+  const ofPick = () => (cast ? castPick(cast, b.of) : "");
+  const ofBad = () => ("of" in b && str(b.of).trim() && !ofPick() ? (cast ? "of is one of: " + cast.map((c) => c.name).join(", ") : "this card voices one character: leave of empty") : "");
   if (op === "add") {
     if (!text(b.text)) return bad("text is required");
     if (g.entries.length >= GROWTH.entries) return bad("the list is full");
+    if (ofBad()) return bad(ofBad());
     const e = { id: "g" + g.next, section: str(b.section) || "other", kind: str(b.kind) === "added" ? "added" : "changed", text: text(b.text), on: true, state: "accepted", origin: "user", at: Date.now() };
     if (str(b.title)) e.title = clip(str(b.title), GROWTH.title);
     if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis);
+    if (ofPick()) e.of = ofPick();
     g.next++;
     g.entries.push(e);
   } else if (op === "accept" || op === "edit" || op === "on" || op === "delete" || op === "revert") {
@@ -3546,6 +3630,7 @@ function growthRoute(req, host) {
       if ("text" in b) { if (!text(b.text)) return bad("text cannot be empty"); e.text = text(b.text); }
       if ("section" in b) e.section = str(b.section);
       if ("kind" in b) e.kind = str(b.kind);
+      if ("of" in b) { if (ofBad()) return bad(ofBad()); if (ofPick()) e.of = ofPick(); else delete e.of; }
       if ("title" in b) { if (str(b.title)) e.title = clip(str(b.title), GROWTH.title); else delete e.title; }
       if ("basis" in b) { if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis); else delete e.basis; }
     }

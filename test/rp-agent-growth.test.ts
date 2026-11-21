@@ -253,7 +253,7 @@ describe("the ready agent 'Character growth' (#396)", () => {
   const recipe = () => JSON.parse(fs.readFileSync(new URL("../.skills/agent-craft/references/recipe-growth.vertep-agent.json", import.meta.url), "utf8"));
   const install = () => { const r = j("/agents/install", "PUT", { file: compileAgent(recipe()).file, grant: true }); useAgent("character-growth"); return r; };
   const says = (o: Json) => () => ({ text: JSON.stringify(o) });
-  const nothing = { changed: false, section: "other", kind: "changed", title: "", text: "", basis: "" };
+  const nothing = { changed: false, section: "other", kind: "changed", title: "", text: "", basis: "", who: "" };
 
   it("installs with the permissions the Allow page lists, and costs one call every eighth reply", () => {
     const r = install();
@@ -273,7 +273,7 @@ describe("the ready agent 'Character growth' (#396)", () => {
     expect(asked[0]).toContain("(nothing yet)");
     expect(exists("characters/aria/growth.json")).toBe(false);
     replies(16);
-    runChat("c1", says({ changed: true, section: "personality", kind: "changed", title: "Open now", text: "Aria no longer hides what she feels: she teases, and says so when she is glad.", basis: "tsundere, denies her feelings" }));
+    runChat("c1", says({ changed: true, section: "personality", kind: "changed", title: "Open now", text: "Aria no longer hides what she feels: she teases, and says so when she is glad.", basis: "tsundere, denies her feelings", who: "" }));
     const g = growthOf();
     expect(g.entries).toHaveLength(1);
     expect(g.entries[0]).toMatchObject({ section: "personality", kind: "changed", title: "Open now", basis: "tsundere, denies her feelings", state: "proposed", agent: "character-growth" });
