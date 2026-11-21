@@ -23,6 +23,8 @@ export interface Clock {
   weather: string | null
   /** the time was worked out from the part of the day, not stated by the story (#113) */
   approx?: boolean
+  /** the user set the time or the day by hand (#490): the sensor's own guess does not move it */
+  hand?: boolean
   /** "YYYY-MM-DD" from the chat's calendar; null when it is hidden or there is none yet (#113) */
   date?: string | null
   /** the date as words under a world's own calendar ("3 Frostmoon 1204 AR"); then `date` is null (#272) */
