@@ -3,8 +3,10 @@
  * a candidate, a second chapter earns it, and an earned habit acts in this chat at once, can be switched off, rejected
  * or kept on the card. Most scenes give nothing.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "bun:test";
-import { L, line, mockHost, readJson, story, useRoot, writeChat, writeJson } from "./rp-memory-m2-kit";
+import { L, env, line, mockHost, readJson, story, useRoot, writeChat, writeJson } from "./rp-memory-m2-kit";
 
 useRoot();
 
@@ -268,5 +270,32 @@ describe("chat habits: what already stands on the card (#270)", () => {
     expect(all).toContain("She never raises her voice at anyone. Even when she is angry.");
     const off = L.buildWorkerRequest(st, work, ln, {}, { ...cfg, habits: false }, { userName: "You" }, { cardRules: ["x rule"] });
     expect(JSON.stringify(off.messages ?? off)).not.toContain("Already on the card");
+  });
+
+  it("the card's own behaviour lines are what the worker is shown: labelled lines only, nothing about looks and no free sentences", () => {
+    const card = {
+      name: "Kaede",
+      description: "Full name: Kaede Fuji\nAge: 20\nHair: long black hair\nQuirks: Twirls a strand of hair when anxious; adjusts her green hair clip when thinking.\n**Under stress:** Her voice goes flat and she looks away.\n- Turn-ons: sincere compliments",
+      personality: "Kind and stubborn. She always counts the exits when she enters a room. Likes tea.\nBody language: arms folded when she disagrees.",
+    };
+    const lines = L.cardBehaviourLines(card);
+    expect(lines).toEqual([
+      "Quirks: Twirls a strand of hair when anxious; adjusts her green hair clip when thinking.",
+      "Under stress: Her voice goes flat and she looks away.",
+      "Body language: arms folded when she disagrees.",
+    ]);
+    expect(L.cardBehaviourLines({ description: "Quirks: a b" })).toEqual([]);
+    expect(L.cardBehaviourLines(null)).toEqual([]);
+    expect(L.cardBehaviourLines({ description: Array.from({ length: 20 }, (_, i) => `Quirk ${i}: does the thing number ${i}`).join("\n") })).toHaveLength(6);
+  });
+
+  it("cardHabitRules gives the accepted habits first, then the card's lines, and tags them by card in a group", () => {
+    writeJson("characters/aria/card.json", { name: "Aria", description: "Quirks: hums while she works." });
+    writeJson("characters/bo/card.json", { name: "Bo", description: "Habits: cracks his knuckles before a lie." });
+    const fsx = { read: (rel: string) => readFileSync(resolve(env.root, rel), "utf8") };
+    expect(L.cardHabitRules(fsx, { characterId: "aria" })).toEqual(["Quirks: hums while she works."]);
+    writeJson("groups/g1.json", { memberIds: ["aria", "bo"] });
+    expect(L.cardHabitRules(fsx, { groupId: "g1" })).toEqual(["Aria - Quirks: hums while she works.", "Bo - Habits: cracks his knuckles before a lie."]);
+    expect(L.cardHabitRules(fsx, { characterId: "../x" })).toEqual([]);
   });
 });
