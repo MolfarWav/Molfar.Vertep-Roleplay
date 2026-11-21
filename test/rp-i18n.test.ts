@@ -88,7 +88,7 @@ describe("rail groups", () => {
     expect(groups).toEqual([
       ["home", "chats"],
       ["characters", "groups", "marketplace", "personas"],
-      ["lorebooks", "litopys", "canvas", "world", "agents"],
+      ["lorebooks", "litopys", "canvas", "world", "dm", "agents"],
       ["presets"],
       ["quickreplies", "extensions"],
     ]);

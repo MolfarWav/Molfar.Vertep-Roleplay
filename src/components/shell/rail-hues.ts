@@ -2,7 +2,7 @@
 // only; the label stays neutral and the icon shapes differ, so colour is never the only cue. Plain Tailwind classes,
 // written out in full so the class scanner finds them.
 
-export type RailHue = 'sky' | 'rose' | 'violet' | 'cyan' | 'amber' | 'fuchsia' | 'emerald' | 'orange' | 'indigo' | 'lime' | 'blue' | 'yellow' | 'teal' | 'zinc'
+export type RailHue = 'sky' | 'rose' | 'violet' | 'cyan' | 'amber' | 'fuchsia' | 'emerald' | 'orange' | 'indigo' | 'lime' | 'blue' | 'yellow' | 'teal' | 'red' | 'zinc'
 
 export const RAIL_HUES: Record<RailHue, string> = {
   sky: 'text-sky-600 dark:text-sky-400',
@@ -18,5 +18,6 @@ export const RAIL_HUES: Record<RailHue, string> = {
   blue: 'text-blue-600 dark:text-blue-400',
   yellow: 'text-yellow-600 dark:text-yellow-400',
   teal: 'text-teal-600 dark:text-teal-400',
+  red: 'text-red-600 dark:text-red-400',
   zinc: 'text-zinc-500 dark:text-zinc-400',
 }

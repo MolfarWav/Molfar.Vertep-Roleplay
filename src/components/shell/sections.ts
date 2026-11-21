@@ -1,7 +1,8 @@
-import { House, Chats, User, UsersThree, UserCircle, SlidersHorizontal, BookOpenText, Scroll, Lightning, PuzzlePiece, Gear, Storefront, Graph, GlobeHemisphereWest, Robot } from '@phosphor-icons/react'
+import { House, Chats, User, UsersThree, UserCircle, SlidersHorizontal, BookOpenText, Scroll, Lightning, PuzzlePiece, Gear, Storefront, Graph, GlobeHemisphereWest, Robot, MaskHappy } from '@phosphor-icons/react'
 import type { ViewKey } from '@/lib/store'
 import type { MsgKey } from '@/lib/i18n'
-import type { CanvasBoardKey } from '@/lib/canvas-board'
+import { writeCanvasBoard, type CanvasBoardKey } from '@/lib/canvas-board'
+import { writeWorldTop, type WorldTop } from '@/lib/world-nav'
 import type { RailHue } from '@/components/shell/rail-hues'
 
 export type SectionTier = 'playbill' | 'backstage'
@@ -26,8 +27,30 @@ export interface SectionItem {
   /** A link to a view of another section, not a section of its own: it opens `key` on this Canvas board
    *  and is current only while that board is open. */
   board?: CanvasBoardKey
-  /** Unique id when two items share a `key` (Canvas and Agents); the key is used otherwise. */
+  /** A link to a tab of the World section (DM, #183), not a section of its own: it opens `world` on this tab
+   *  and is current only while that tab is open. */
+  worldTop?: WorldTop
+  /** Unique id when two items share a `key` (Canvas and Agents, World and DM); the key is used otherwise. */
   id?: string
+}
+
+/** A link item (a Canvas board or a World tab), not a section of its own. */
+export const isLinkItem = (item: SectionItem): boolean => !!item.board || !!item.worldTop
+
+/** Whether a rail or sheet item is the current one, given where the section is open: a link item is current
+ *  only while its board or tab is open, the item of its section only while it is not. */
+export function itemActive(item: SectionItem, open: boolean, canvasBoard: CanvasBoardKey, worldTop: WorldTop): boolean {
+  if (!open) return false
+  if (item.key === 'canvas') return (canvasBoard === 'agents') === !!item.board
+  if (item.key === 'world') return (worldTop === 'dm') === !!item.worldTop
+  return true
+}
+
+/** Before navigating to an item: a link item opens its board or tab; its section's own item leaves the link's
+ *  board or tab for the section's usual one (Canvas from Agents goes to Chat links, World from DM to Chats). */
+export function prepareItem(item: SectionItem, canvasBoard: CanvasBoardKey, worldTop: WorldTop): void {
+  if (item.key === 'canvas') writeCanvasBoard(item.board ?? (canvasBoard === 'agents' ? 'links' : canvasBoard))
+  if (item.key === 'world') writeWorldTop(item.worldTop ?? (worldTop === 'dm' ? 'chats' : worldTop))
 }
 
 /** The id that tells two rail items apart. */
@@ -47,6 +70,7 @@ export const SECTIONS: SectionItem[] = [
   { key: 'litopys', label: 'Library', labelKey: 'nav.litopys', icon: Scroll, group: 2, tier: 'backstage', hue: 'orange' },
   { key: 'canvas', label: 'Canvas', labelKey: 'nav.canvas', icon: Graph, group: 2, tier: 'backstage', hue: 'indigo' },
   { key: 'world', label: 'World', labelKey: 'nav.world', icon: GlobeHemisphereWest, group: 2, tier: 'backstage', hue: 'lime' },
+  { key: 'world', id: 'dm', worldTop: 'dm', label: 'DM', labelKey: 'nav.dm', icon: MaskHappy, group: 2, tier: 'backstage', hue: 'red' },
   { key: 'canvas', id: 'agents', board: 'agents', label: 'Agents', labelKey: 'nav.agents', icon: Robot, group: 2, tier: 'backstage', hue: 'teal' },
   { key: 'presets', label: 'Presets', labelKey: 'nav.presets', icon: SlidersHorizontal, group: 3, tier: 'backstage', hue: 'blue' },
   { key: 'quickreplies', label: 'Shortcuts', labelKey: 'nav.quickreplies', icon: Lightning, group: 4, tier: 'backstage', hue: 'yellow' },
@@ -81,4 +105,4 @@ export const sectionItemOf = (key: ViewKey, canvasBoard?: CanvasBoardKey): Secti
   (canvasBoard ? SECTIONS.find((s) => s.key === key && s.board === canvasBoard) : undefined) ?? SECTIONS.find((s) => s.key === key)
 
 export const sectionsFor =(keys: ViewKey[]): SectionItem[] =>
-  keys.flatMap((k) => SECTIONS.filter((s) => s.key === k && !s.board))
+  keys.flatMap((k) => SECTIONS.filter((s) => s.key === k && !isLinkItem(s)))

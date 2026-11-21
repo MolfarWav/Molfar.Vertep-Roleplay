@@ -440,6 +440,9 @@ Three corrections to 8.1:
 - **Memory tab in Roleplay settings** (owner's mark on a screenshot): it holds only a pointer, "Story record (Litopys): Litopys settings are in
   the Library now, next to the record they shape. [Open in the Library]". An empty tab is a blind step; remove the tab (and the key
   `settings.memory`) and keep the pointer where people look for it, in the Library. Done in the example (`example/shell-settings.html` has no Memory tab).
+- **DM under World** (owner, 2026-11-21, Molfar.Vertep#183): a rail item (theatre mask, red) right after World that opens World on its DM tab,
+  built like Agents: `sections.ts` gives it `worldTop: 'dm'`, the World tab is shared state (`useWorldTop` in `src/lib/world-nav.ts`), and the
+  item is current only while that tab is open. Its count is the DM Memory proposals that wait (the same as the dot on the DM tab).
 
 **Confirmed (owner, 2026-10-31): the Memory tab of the Roleplay settings is removed** (the pointer to Litopys stays in the Library).
 Still waiting for the owner's confirmation: moving the Roleplay settings page into the shell Settings (8.2), which changes the 2026-10-11 line of `ux-review`.

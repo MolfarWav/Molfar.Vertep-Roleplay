@@ -29,6 +29,7 @@ Tiers are a field on a section (`tier` in `src/components/shell/sections.ts`); t
 | Library (Litopys) | backstage | **mixed**: the Overview tab and the "Who knows" tab are read by the reader; the Ledger's Settings, Proposals, Habits, Activity are the maker's |
 | Canvas | backstage | |
 | World | backstage | **mixed**: the Overview and World book are the maker's; the chat's world state is readable |
+| DM | backstage | a link to the World section's DM tab (#183), like Agents to its Canvas board |
 | Agents | backstage | |
 | Presets | backstage | |
 | Shortcuts | backstage | quick replies run on the Stage, their editor is Backstage |
@@ -52,7 +53,7 @@ Tiers are a field on a section (`tier` in `src/components/shell/sections.ts`); t
 1. **The story tools row** puts five Backstage tools into the Stage header, always visible. A newcomer sees "What fired" before a first reply.
 2. **Library, World and the Dashboard** each hold a reader's view and a maker's settings in one place.
 3. **The header pill** (preset, persona, model) is a maker's choice on the reader's floor.
-4. **Agents** is a Canvas board: its rail item and Canvas share a key, so the two are one place with two names.
+4. **Agents** is a Canvas board: its rail item and Canvas share a key, so the two are one place with two names. **DM** is the same for the World section's DM tab.
 5. **Characters and Groups** are Playbill (pick a story) and Backstage (edit a card) in one list.
 
 Not verified: the inventory is read from `sections.ts`, `chat-tools.tsx`, the handbook pages and the component names, not by walking every panel

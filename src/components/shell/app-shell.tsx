@@ -38,9 +38,11 @@ import { GuideHost } from '@/components/guide/guide-host'
 import { PresetImportReportHost } from '@/components/presets/import-report-dialog'
 import { HelpDialog } from '@/components/chat/help-dialog'
 import { MobileTabBar } from '@/components/shell/mobile-tab-bar'
-import { SECTIONS, itemId, sectionItemOf, sectionGroups, type SectionItem } from '@/components/shell/sections'
+import { SECTIONS, itemActive, itemId, prepareItem, sectionItemOf, sectionGroups, type SectionItem } from '@/components/shell/sections'
 import { RAIL_HUES, type RailHue } from '@/components/shell/rail-hues'
-import { useCanvasBoard, writeCanvasBoard } from '@/lib/canvas-board'
+import { useCanvasBoard } from '@/lib/canvas-board'
+import { useWorldTop } from '@/lib/world-nav'
+import { useMemoryOverview } from '@/components/world/world-memory'
 import { NeedsYouBadge, useSectionAttention } from '@/components/shell/needs-you-badge'
 import { InboxDrawer, useInbox, useInboxBadge } from '@/components/shell/inbox'
 import { ImportProgressCard } from '@/components/shell/import-progress-card'
@@ -329,6 +331,7 @@ function IconRail() {
   const wide = roomy && !railCollapsed
   const t = useT()
   const canvasBoard = useCanvasBoard()
+  const worldTop = useWorldTop()
 
   const toggleLabel = t(wide ? 'nav.hideRail' : 'nav.showRail')
   const toggle = !roomy ? null : wide ? (
@@ -373,11 +376,12 @@ function IconRail() {
         <Fragment key={String(group[0]!.group)}>
           {gi > 0 && <RailDivider wide={wide} pinned={false} />}
           {group.map((item) => {
-            // Agents is a link to a Canvas board, not a section: it is current only while that board is open
+            // Agents and DM are links to a Canvas board and a World tab, not sections: current only while that board or tab is open
             const open = drawer ? drawer === item.key : view === item.key || (view === 'chat' && item.key === 'chats')
-            const active = item.key === 'canvas' ? open && (canvasBoard === 'agents') === !!item.board : open
+            const active = itemActive(item, open, canvasBoard, worldTop)
+            const Item = item.worldTop === 'dm' ? DmRailItem : SectionRailItem
             return (
-              <SectionRailItem
+              <Item
                 key={itemId(item)}
                 data-guide={`nav.${itemId(item)}`}
                 item={item}
@@ -388,7 +392,7 @@ function IconRail() {
                   // clicking the open drawer's icon toggles it shut; anything
                   // else navigates (a section over a chat becomes its drawer)
                   if (active && drawer === item.key) { closeDrawer(); return }
-                  if (item.key === 'canvas') writeCanvasBoard(item.board ?? (canvasBoard === 'agents' ? 'links' : canvasBoard))
+                  prepareItem(item, canvasBoard, worldTop)
                   navigate(item.key)
                 }}
               />
@@ -479,6 +483,13 @@ function RailItem({ item, wide, label, active, onClick, 'data-guide': guide, bad
 function SectionRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & { item: SectionItem }) {
   const badge = useSectionAttention(props.item.key)
   return <RailItem {...props} hue={props.item.hue} badge={badge} />
+}
+
+/** The DM link's rail item (#183): its count is the World DM's Memory proposals that wait for an answer (the dot on
+ *  the DM tab), so they are seen without opening World. */
+function DmRailItem(props: Omit<Parameters<typeof RailItem>[0], 'badge'> & { item: SectionItem }) {
+  const memory = useMemoryOverview()
+  return <RailItem {...props} hue={props.item.hue} badge={memory?.waiting ?? 0} />
 }
 
 /** The inbox (#55): everything that waits on the player, one button above Help. It opens the inbox drawer. */
