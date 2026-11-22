@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.149.0'
+export const APP_VERSION = '4.150.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.direction-rules',
+    since: '4.150.0',
+    help: 'characters',
+    keywords: { en: 'direction genre rules rom-com interrupted moment alone someone walks in fire now cooldown payoff dice 2d6 next note', uk: 'режисура жанр правила ром-ком перерваний момент наодинці хтось заходить запустити зараз перерва розв’язка кубики 2d6 нотатка' },
+    title: { en: 'Direction: genre rules bring people in', uk: 'Режисура: правила жанру вводять людей у сцену' },
+    body: {
+      en: 'Direction can now follow a genre. Open Rules in the Direction bar and pick School rom-com: when you stay alone with one member for a few replies, someone walks in; when nobody is around, someone comes by; on a break a friend joins. Code decides by chance (a roll of two dice, a cooldown, a rest after a payoff), the next reply gets a short stage note, and a small line under the reply says whether they came. Fire now and Skip are in the sheet; the Log tab shows every roll. A chat starts with no genre, so nothing changes until you pick one.',
+      uk: 'Режисура тепер може йти за жанром. Відкрийте Rules у плашці Direction і оберіть School rom-com: якщо ви кілька відповідей наодинці з одним учасником, хтось заходить; якщо нікого немає поруч, хтось заглядає; на перерві долучається друг. Рішення ухвалює код за випадком (кидок двох кубиків, перерва, відпочинок після розв’язки), наступна відповідь отримує коротку сценічну нотатку, а маленький рядок під відповіддю каже, чи прийшли. «Запустити зараз» і «Пропустити» — у листі; вкладка Log показує кожен кидок. Чат починається без жанру, тож нічого не змінюється, доки ви його не оберете.',
+    },
+  },
   {
     id: 'new.direction',
     since: '4.149.0',
