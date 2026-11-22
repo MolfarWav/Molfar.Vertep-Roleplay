@@ -2,10 +2,10 @@
 // Pure functions, so the bar's states are tested without a browser.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Lang, MsgKey, Vars } from './i18n'
+import { DICTIONARIES, t as translateNow, type Lang, type MsgKey, type Vars } from './i18n'
 import {
-  BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, DIRECTION_TAGS, loadDirection, needPercent, useDirectionLive, useDirectionMarks,
-  type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionBeatWhen, type DirectionFire, type DirectionFrom, type DirectionLogEntry, type DirectionNext, type DirectionNoteKind, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionScene, type DirectionState, type DirectionTag, type DirectionWorldPerson,
+  BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, DIRECTION_BASE_TAGS, loadDirection, needPercent, useDirectionLive, useDirectionMarks,
+  type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionBeatTemplate, type DirectionBeatWhen, type DirectionRuleDefaults, type DirectionFire, type DirectionFrom, type DirectionLogEntry, type DirectionNext, type DirectionNoteKind, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionScene, type DirectionState, type DirectionTag, type DirectionWorldPerson,
 } from './direction'
 
 /** How a member stands in the scene: `unknown` = nothing says (no report, no Dashboard), so no marks at all. */
@@ -99,7 +99,7 @@ export function publishMarks(chatId: string, state: DirectionState | null): void
     chat: {
       chatId,
       fires,
-      rules: { ...Object.fromEntries((state.rules?.items ?? []).map((r) => [r.id, r.name])), ...Object.fromEntries((state.plan?.beats ?? []).map((b) => [beatRuleId(b.id), b.text])) },
+      rules: { ...Object.fromEntries((state.rules?.items ?? []).map((r) => [r.id, ruleTitle((key, vars) => translateNow(key, undefined, vars), r)])), ...Object.fromEntries((state.plan?.beats ?? []).map((b) => [beatRuleId(b.id), b.text])) },
       members: Object.fromEntries(state.members.map((m) => [m.id, m.name])),
       people: Object.fromEntries(worldPeople(state).map((p) => [p.id, p.name])),
     },
@@ -123,8 +123,18 @@ export function ruleOf(state: DirectionState, id: string): DirectionRule | undef
   return state.rules?.items.find((r) => r.id === id)
 }
 
-export function ruleName(state: DirectionState, id: string): string {
-  return ruleOf(state, id)?.name ?? id
+/** A set's or a rule's name in the app's language: the `dir.set.<id>` / `dir.rulename.<id>` string when there is one, else the plugin's own name. */
+function named(t: Tr | undefined, prefix: 'dir.set.' | 'dir.rulename.', id: string, fallback: string): string {
+  const key = `${prefix}${id}`
+  return t && key in DICTIONARIES.en ? t(key as MsgKey) : fallback
+}
+export const setName = (t: Tr | undefined, set: { id: string; name: string }): string => named(t, 'dir.set.', set.id, set.name)
+export const ruleTitle = (t: Tr | undefined, rule: { id: string; name: string }): string => named(t, 'dir.rulename.', rule.id, rule.name)
+
+/** A rule's name for the log and the callout (`t` given: in the app's language); an id the state lacks reads as the id. */
+export function ruleName(state: DirectionState, id: string, t?: Tr): string {
+  const r = ruleOf(state, id)
+  return r ? ruleTitle(t, r) : id
 }
 
 // ---------- the beat plan (phase 3a) ----------
@@ -145,7 +155,7 @@ export function beatShort(text: string, max = 48): string {
 
 /** "Beat «text»" for a ledger id: a beat that is gone from the plan falls back to a plain word. */
 function ruleLabel(t: Tr, state: DirectionState, rule: string): string {
-  if (!isBeatRule(rule)) return ruleName(state, rule)
+  if (!isBeatRule(rule)) return ruleName(state, rule, t)
   const b = beatOf(state, rule)
   return b ? t('dir.beat.label', { text: beatShort(b.text, 60) }) : t('dir.beat.gone')
 }
@@ -162,7 +172,7 @@ export function nextAct(t: Tr, state: DirectionState, next: Pick<DirectionNext, 
 
 /** The name the callout puts in brackets: the rule's name, or "Plan" for a beat. */
 export function nextSource(t: Tr, state: DirectionState, next: Pick<DirectionNext, 'kind' | 'rule'>): string {
-  return next.kind === 'beat' ? t('dir.plan') : ruleName(state, next.rule)
+  return next.kind === 'beat' ? t('dir.plan') : ruleName(state, next.rule, t)
 }
 
 /** What a rule does to the scene, with names: "Yuzu walks in on Kaito and Hana" (the mark leaves the `with` out). */
@@ -181,22 +191,64 @@ export function ruleSentenceKey(rule: Pick<DirectionRule, 'id' | 'kind'>): MsgKe
   return rule.kind === 'interrupt' ? 'dir.rule.kind.interrupt' : rule.kind === 'join' ? 'dir.rule.kind.join' : 'dir.rule.kind.return'
 }
 
-/** The numbers a built-in rule starts with, to know when "Restore defaults" is worth showing (the state does not carry them). */
-export const RULE_DEFAULTS: Record<string, { need: number; cooldown: number; k: number; m: number; from: DirectionFrom }> = {
+/**
+ * The numbers the rom-com rules start with: only the fallback for a plugin older than phase 4, whose rule items carry no `defaults`
+ * (from phase 4 on the state sends them for every rule of every set, so the client keeps no copy).
+ */
+export const RULE_DEFAULTS: Record<string, DirectionRuleDefaults> = {
   interrupted: { need: 8, cooldown: 5, k: 3, m: 4, from: 'members' },
   nobody: { need: 7, cooldown: 4, k: 0, m: 0, from: 'members' },
   crowd: { need: 9, cooldown: 6, k: 0, m: 0, from: 'members' },
 }
 
+/** The built-in numbers of a rule: the state's own `defaults`, else the fallback table, else none. */
+export function ruleDefaults(rule: Pick<DirectionRule, 'id' | 'defaults'>): DirectionRuleDefaults | null {
+  return rule.defaults ?? RULE_DEFAULTS[rule.id] ?? null
+}
+
 export function ruleEdited(rule: DirectionRule): boolean {
-  const d = RULE_DEFAULTS[rule.id]
+  const d = ruleDefaults(rule)
   return !!d && (rule.need !== d.need || rule.cooldown !== d.cooldown || rule.k !== d.k || rule.m !== d.m || (rule.from ?? 'members') !== d.from)
 }
 
 /** What "Restore defaults" sends: the built-in numbers, and "Who comes" back to members when the plugin has the choice. */
 export function ruleRestorePatch(rule: DirectionRule): { need: number; cooldown: number; k: number; m: number; from?: DirectionFrom } | null {
-  const d = RULE_DEFAULTS[rule.id]
+  const d = ruleDefaults(rule)
   return d ? { need: d.need, cooldown: d.cooldown, k: d.k, m: d.m, ...(rule.from ? { from: d.from } : {}) } : null
+}
+
+/** The scene kinds of a rule's condition as one lowercase list in the language's own "or": "meal, outing or event". */
+function tagList(t: Tr, tags: string[], lang: Lang): string {
+  const words = tags.map((tag) => t(tagKey(tag as DirectionTag)).toLocaleLowerCase(lang))
+  try {
+    return new Intl.ListFormat(lang, { style: 'long', type: 'disjunction' }).format(words)
+  } catch {
+    return words.join(', ')
+  }
+}
+
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : 0)
+const tagsOf = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && `dir.tag.${x}` in DICTIONARIES.en) : [])
+
+/**
+ * The rule's one sentence in plain words. The three rom-com rules keep their own sentences; any other rule is composed from its
+ * condition (alone N, nobody N, a scene kind, at most N present, not a kind) and what it does, so 27 rules need no 27 sentences.
+ * A rule whose condition the app cannot read falls back to what it does.
+ */
+export function ruleSentence(t: Tr, rule: Pick<DirectionRule, 'id' | 'kind' | 'when'>, lang: Lang): string {
+  if (rule.id === 'interrupted' || rule.id === 'nobody' || rule.id === 'crowd') return t(ruleSentenceKey(rule))
+  const w = rule.when ?? {}
+  const tags = tagsOf(w.tag)
+  const not = tagsOf(w.tagNot)
+  const max = num(w.max)
+  let when = ''
+  if (num(w.alone)) when = t('dir.rule.when.alone', { n: num(w.alone) })
+  else if (num(w.empty)) when = t('dir.rule.when.empty', { n: num(w.empty) })
+  else if (tags.length) when = max ? t('dir.rule.when.tagMax', { tags: tagList(t, tags, lang), max }) : t('dir.rule.when.tag', { tags: tagList(t, tags, lang) })
+  else if (max) when = t('dir.rule.when.max', { max })
+  if (!when) return t(ruleSentenceKey(rule))
+  if (not.length) when = t('dir.rule.when.unless', { when, tags: tagList(t, not, lang) })
+  return t('dir.rule.compose', { when, act: t(`dir.rule.do.${rule.kind}` as const) })
 }
 
 /** The "Who comes" choice of a rule: members, World people or either (a plugin without phase 3b has none). */
@@ -287,7 +339,8 @@ export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lan
     return { line: t(r === 'came' ? 'dir.log.came' : r === 'mentioned' ? 'dir.log.mentioned' : 'dir.log.missedCome', { rule, who: who(e.who, e.npc) }), detail: '' }
   }
   if (e.kind === 'rules') {
-    const set = state.rules?.sets.find((s) => s.id === e.set)?.name ?? e.set ?? ''
+    const found = state.rules?.sets.find((s) => s.id === e.set)
+    const set = found ? setName(t, found) : e.set ?? ''
     return { line: !e.set ? t('dir.log.genreNone') : t(e.on ? 'dir.log.genreOn' : 'dir.log.genreOff', { genre: set }), detail: '' }
   }
   if (e.kind === 'skip') return { line: e.who?.length ? t('dir.log.skip', { rule, who: who(e.who) }) : t('dir.log.skipBare', { rule }), detail: '' }
@@ -296,9 +349,9 @@ export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lan
 
 // ---------- the Plan tab: words, states and the list that goes back to the plugin ----------
 
-/** The scene kinds a "scene" beat can wait for, in the order the plugin lists them (fallback: the app's own list). */
+/** The scene kinds a "scene" beat can wait for: the kinds this chat offers (base ten + the genre's), in the plugin's order; an older plugin: the base ten. */
 export function planTags(state: DirectionState): DirectionTag[] {
-  return state.plan?.tags?.length ? state.plan.tags : [...DIRECTION_TAGS]
+  return state.plan?.tags?.length ? state.plan.tags : [...DIRECTION_BASE_TAGS]
 }
 
 /** "After 3 replies", "At once", "When the scene is a break", "When the story is at «roof»", "When you fire it". */
@@ -421,3 +474,53 @@ export function planMoved(list: BeatDraft[], id: string, delta: -1 | 1): BeatDra
   out.splice(j, 0, list[i] as BeatDraft)
   return out
 }
+
+// ---------- phase 4: ready-made beats and the draft from the cards ----------
+
+const sameText = (a: string, b: string): boolean => a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase()
+
+/** The genre's ready-made beats; `[]` with no genre or with an older plugin. */
+export function planTemplates(state: DirectionState): DirectionBeatTemplate[] {
+  return state.plan?.templates ?? []
+}
+
+/** A ready-made beat whose text is already a beat of the plan (it is marked "in the plan" and not offered). */
+export function templateUsed(state: DirectionState, tpl: Pick<DirectionBeatTemplate, 'text'>): boolean {
+  return (state.plan?.beats ?? []).some((b) => sameText(b.text, tpl.text))
+}
+
+/** The editor's starting point for a ready-made beat: its text, when and wait; the player adds who takes part. */
+export function draftFromTemplate(tpl: DirectionBeatTemplate): BeatDraft {
+  return { text: tpl.text, who: [], npc: [], when: { ...tpl.when } as DirectionBeatWhen, wait: tpl.wait, skipped: false }
+}
+
+/** How many of `n` more beats do not fit under the plan's cap (0 = all fit). */
+export function overCap(have: number, add: number, max: number): number {
+  return Math.max(0, have + add - max)
+}
+
+/** The plan with the kept beats of a draft appended: the existing beats keep their ids, the new ones carry none. */
+export function planWithDraft(list: BeatDraft[], kept: BeatDraft[]): BeatDraft[] {
+  return [...list, ...kept.map((d) => { const { id: _id, ...rest } = cleanDraft(d); return rest })]
+}
+
+/** The reason a draft failed, as a message key. */
+export function draftErrorKey(reason?: string): MsgKey {
+  return reason === 'no-model' ? 'dir.plan.draftErr.no-model' : reason === 'not-group' ? 'dir.plan.draftErr.not-group' : reason === 'bad-reply' ? 'dir.plan.draftErr.bad-reply' : reason === 'empty' ? 'dir.plan.draftErr.empty' : 'dir.plan.draftErr.error'
+}
+
+// ---------- phase 4: the genre picker ----------
+
+/** The select's value for "no genre" (a select item needs a non-empty value; the plugin's own "none" is ""). */
+export const GENRE_NONE = 'none'
+
+/** The genre select's items: None first, then every set by its name in the app's language (the plugin's name when there is no string). */
+export function genreOptions(t: Tr, sets: { id: string; name: string }[]): { id: string; label: string }[] {
+  return [{ id: GENRE_NONE, label: t('dir.rules.genreNone') }, ...sets.map((s) => ({ id: s.id, label: setName(t, s) }))]
+}
+
+/** The select's value for a chat's or a group's set: a set the list lacks reads as None. */
+export const genreValue = (set: string, sets: { id: string }[]): string => (set && sets.some((s) => s.id === set) ? set : GENRE_NONE)
+
+/** What picking an item sends: the set's id, "" for None. */
+export const setFromGenreValue = (value: string): string => (value === GENRE_NONE ? '' : value)

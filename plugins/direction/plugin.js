@@ -47,7 +47,11 @@
  *    plan: { beats: [{ id, text, who, when: { kind, n | tag | place }, wait, skipped, skipN, addedN, dueKey, dueN, dueWhy }] } }
  */
 
-export const TAGS = ["lesson", "break", "lunch", "club", "commute", "group_out", "date", "alone_moment", "at_home", "event"];
+/** The scene kinds every chat's director offers (the school-flavoured list of phases 1 to 3). */
+export const BASE_TAGS = ["lesson", "break", "lunch", "club", "commute", "group_out", "date", "alone_moment", "at_home", "event"];
+/** Kinds a genre set adds to the list the director offers (phase 4); a chat with no set, or the rom-com set, offers none of them. */
+export const EXTRA_TAGS = ["work", "meal", "downtime", "argument", "travel", "danger", "investigation", "secret", "night"];
+export const TAGS = [...BASE_TAGS, ...EXTRA_TAGS];
 /** Alone with one member, these kinds become `alone_moment` (the bench: models ignore the rule, code applies it). */
 const ALONE_WINS = ["commute", "break", "lunch", "club"];
 export const DEFAULT_CONFIG = { model: "" };
@@ -105,6 +109,130 @@ export const SETS = {
     ],
   },
 };
+/** A rule of a built-in set: the numbers are first guesses, tuned in play. */
+const R = (id, name, when, kind, need, cooldown, payoff = null) => ({ id, name, when, do: { kind, count: 1 }, need, cooldown, payoff });
+/** A beat template of a set: text only (names are the player's to add), a condition and the wait. */
+const T = (id, text, when = { kind: "replies", n: 6 }, wait = true) => ({ id, text, when, wait });
+
+SETS.romcom.tags = [];
+SETS.romcom.templates = [
+  T("festival", "The school festival is announced, and the class has to decide what to do for it.", { kind: "replies", n: 8 }),
+  T("confession", "Someone is about to say something they have kept to themselves for a long time."),
+  T("rumour", "A rumour about the two of them starts going around the school.", { kind: "replies", n: 10 }),
+];
+SETS.harem = {
+  name: "Harem",
+  tags: ["meal", "downtime", "argument"],
+  rules: [
+    R("cutin", "Someone cuts in", { alone: 2 }, "interrupt", 8, 4, { k: 3, m: 3 }),
+    R("gather", "Everyone gathers", { tag: ["meal", "group_out", "event"], max: 2 }, "join", 8, 5),
+    R("leftout", "Left out", { empty: 2 }, "return", 7, 4),
+  ],
+  templates: [
+    T("jealous", "One of them notices how close the others have got, and cannot hide it."),
+    T("gift", "Someone brings a small gift and is a little too eager about it.", { kind: "replies", n: 8 }),
+    T("rivalry", "A friendly contest between two of them turns out to matter more than either admits.", { kind: "tag", tag: "argument" }, false),
+  ],
+};
+SETS.slice = {
+  name: "Slice of life",
+  tags: ["work", "meal", "downtime"],
+  rules: [
+    R("drop", "A neighbour drops by", { tag: ["at_home", "downtime", "meal"], max: 2 }, "join", 9, 6),
+    R("home", "Someone comes home", { empty: 3 }, "return", 7, 5),
+    R("quiet", "A quiet interruption", { alone: 4 }, "interrupt", 10, 8),
+  ],
+  templates: [
+    T("errand", "A small errand comes up that needs more than one pair of hands.", { kind: "replies", n: 5 }),
+    T("weather", "The weather turns, and plans for the day have to change.", { kind: "replies", n: 8 }),
+    T("memory", "Something ordinary brings back a memory one of them has not shared before.", { kind: "tag", tag: "downtime" }),
+  ],
+};
+SETS.drama = {
+  name: "Drama",
+  tags: ["argument", "secret", "night"],
+  rules: [
+    R("worst", "At the worst moment", { alone: 3 }, "interrupt", 8, 5, { k: 3, m: 4 }),
+    R("overheard", "Someone overhears", { tag: ["argument", "secret"], max: 2 }, "join", 8, 5),
+    R("return", "The absent one returns", { empty: 3 }, "return", 7, 5),
+  ],
+  templates: [
+    T("truth", "A truth that has been avoided comes up, and nobody can leave it alone.", { kind: "tag", tag: "argument" }, false),
+    T("letter", "A message arrives that changes what one of them thought they knew.", { kind: "replies", n: 8 }),
+    T("choice", "Someone has to choose between two people they care about.", { kind: "replies", n: 14 }),
+  ],
+};
+SETS.thriller = {
+  name: "Thriller",
+  tags: ["danger", "secret", "night"],
+  rules: [
+    R("ally", "An ally arrives", { tag: ["danger"], max: 2 }, "join", 8, 5),
+    R("followed", "Someone is watching", { alone: 3 }, "interrupt", 9, 6, { k: 3, m: 4 }),
+    R("back", "Back from the dark", { empty: 3 }, "return", 7, 5),
+  ],
+  templates: [
+    T("clock", "Word comes that they have less time than they thought.", { kind: "replies", n: 6 }),
+    T("betrayal", "One of the people they trust has been acting against them.", { kind: "replies", n: 14 }),
+    T("escape", "They have to leave this place now, and quietly.", { kind: "tag", tag: "danger" }, false),
+  ],
+};
+SETS.detective = {
+  name: "Detective",
+  tags: ["investigation", "work", "secret"],
+  rules: [
+    R("witness", "A witness turns up", { tag: ["investigation"], max: 2 }, "join", 8, 5),
+    R("lead", "A lead walks in", { alone: 3 }, "interrupt", 9, 6),
+    R("field", "Back from the field", { empty: 3 }, "return", 7, 5),
+  ],
+  templates: [
+    T("clue", "A detail that did not matter before starts to look like the key.", { kind: "replies", n: 6 }),
+    T("alibi", "Someone's account of that night does not hold together.", { kind: "tag", tag: "investigation" }),
+    T("warning", "A warning is left for them: stop looking.", { kind: "replies", n: 12 }),
+  ],
+};
+SETS.steamy = {
+  name: "Steamy romance",
+  tags: ["night", "secret", "downtime"],
+  rules: [
+    R("knock", "A knock at the door", { alone: 3 }, "interrupt", 8, 5, { k: 3, m: 5 }),
+    R("early", "Someone comes home early", { tag: ["at_home", "night"], max: 2 }, "interrupt", 9, 7),
+    R("wonder", "Left to wonder", { empty: 3 }, "return", 7, 5),
+  ],
+  templates: [
+    T("slow", "A moment of quiet between two of them lasts a little longer than it should.", { kind: "tag", tag: "alone_moment" }, false),
+    T("closer", "Something small forces them to stand closer than they meant to.", { kind: "replies", n: 6 }),
+    T("tension", "An unspoken thing between two of them becomes impossible to ignore.", { kind: "replies", n: 12 }),
+  ],
+};
+SETS.adventure = {
+  name: "Adventure",
+  tags: ["travel", "danger", "night"],
+  rules: [
+    R("companion", "A companion catches up", { tag: ["travel"], max: 2 }, "join", 8, 5),
+    R("trouble", "Trouble on the road", { alone: 3 }, "interrupt", 9, 6),
+    R("camp", "Back at camp", { empty: 3 }, "return", 7, 5),
+  ],
+  templates: [
+    T("crossroads", "The road splits, and nobody agrees which way is safer.", { kind: "tag", tag: "travel" }),
+    T("stranger", "A stranger offers help that comes with a price.", { kind: "replies", n: 8 }),
+    T("storm", "Bad weather closes in and they need shelter.", { kind: "replies", n: 12 }),
+  ],
+};
+SETS.horror = {
+  name: "Horror",
+  tags: ["danger", "night", "secret"],
+  rules: [
+    R("room", "Something is in the room", { alone: 3 }, "interrupt", 9, 6, { k: 3, m: 4 }),
+    R("apart", "Someone is missing", { empty: 3 }, "return", 7, 5),
+    R("noise", "A noise from the dark", { tag: ["night", "danger"], max: 2 }, "join", 8, 5),
+  ],
+  templates: [
+    T("wrong", "Something about this place is slightly wrong, and one of them has noticed.", { kind: "replies", n: 6 }),
+    T("light", "The lights fail, and for a moment nobody can see anything.", { kind: "tag", tag: "night" }, false),
+    T("gone", "One of them is not where they were a moment ago.", { kind: "replies", n: 14 }),
+  ],
+};
+
 /** Who a rule may bring (phase 3b): the group's members, people of the chat's World, or either. */
 export const FROMS = ["members", "world", "any"];
 /** A World record's id (a person on its bench). */
@@ -139,7 +267,7 @@ export function activeRules(rules) {
     const e = rules.edits[d.id] || {};
     const k = e.k !== undefined ? e.k : d.payoff ? d.payoff.k : 0;
     const m = e.m !== undefined ? e.m : d.payoff ? d.payoff.m : 0;
-    return { ...d, from: e.from || "members", on: e.on !== false, need: e.need !== undefined ? e.need : d.need, cooldown: e.cooldown !== undefined ? e.cooldown : d.cooldown, payoff: k > 0 && m > 0 ? { k, m } : null };
+    return { ...d, defaults: { need: d.need, cooldown: d.cooldown, k: d.payoff ? d.payoff.k : 0, m: d.payoff ? d.payoff.m : 0, from: "members" }, from: e.from || "members", on: e.on !== false, need: e.need !== undefined ? e.need : d.need, cooldown: e.cooldown !== undefined ? e.cooldown : d.cooldown, payoff: k > 0 && m > 0 ? { k, m } : null };
   });
 }
 
@@ -284,8 +412,22 @@ const TAG_WORDS = [
   "event (a festival, a party, a ceremony, a school event)",
 ];
 
+const EXTRA_TAG_WORDS = [
+  "work (at work, on a job, a task or a shift)",
+  "meal (a shared meal or a drink at a table)",
+  "downtime (quiet, unhurried time: resting, chores, a slow talk)",
+  "argument (a quarrel or a tense confrontation)",
+  "travel (on a journey, on the road, in transit)",
+  "danger (a threat, a chase, a fight, an emergency)",
+  "investigation (searching, questioning, following a lead)",
+  "secret (a hidden meeting, sneaking, something kept from others)",
+  "night (late at night, in the dark, everyone else asleep)",
+];
+/** The scene kinds the director offers in a chat with this genre set: the base ones, then the set's own. */
+export const tagsFor = (setId) => [...BASE_TAGS, ...arr(SETS[setId] && SETS[setId].tags).filter((t) => EXTRA_TAGS.includes(t))];
+
 /** The director's prompt: the members, its own log of the last turns, the reply before as background, and the new pair. */
-export function buildPrompt({ members, userName, log, prev, player, reply, others = [] }) {
+export function buildPrompt({ members, userName, log, prev, player, reply, others = [], extraTags = [] }) {
   const user = str(userName) || "the player";
   // phase 3b: asked only for the reply that carries a note naming people of the World (they are not members, so `present` cannot hold them)
   const askOthers = others.length > 0;
@@ -294,7 +436,7 @@ export function buildPrompt({ members, userName, log, prev, player, reply, other
     "Members: " + members.map((m) => m.name).join(", ") + ".",
     "",
     "Report:",
-    "- tag: the kind of scene at the end of the new messages, one of: " + TAG_WORDS.map((t) => t.replace(/\{user\}/g, user)).join("; ") + ".",
+    "- tag: the kind of scene at the end of the new messages, one of: " + [...TAG_WORDS, ...EXTRA_TAG_WORDS.filter((w) => extraTags.includes(w.split(" ")[0]))].map((t) => t.replace(/\{user\}/g, user)).join("; ") + ".",
     "- present: the members physically in the scene at the end of the new messages, with their names exactly as in the list above, never " + user + ". Someone who only texts, calls or is talked about is not present.",
     ...(askOthers ? ["- others: of these people, who are not members: " + others.join(", ") + ", the ones physically in the scene at the end of the new messages (the same rule as present); [] when none."] : []),
     "- sceneNew: true when the new messages move to another place or skip more than about 30 minutes.",
@@ -1007,7 +1149,7 @@ function inputFor(state, msgs, members, userName, people = []) {
   const queued = state.next && arr(state.next.npc).length ? state.next : null;
   const carrier = queued ? carrierOf(queued.after, msgs) : null;
   const asked = carrier && keyOf(carrier) === keyOf(reply) ? queued.npc.map((id) => people.find((p) => p.id === id)).filter(Boolean) : [];
-  return { key: keyOf(reply), asked, prompt: buildPrompt({ members, userName, log, prev, player, reply: String(reply.text || ""), others: asked.map((p) => p.name) }) };
+  return { key: keyOf(reply), asked, prompt: buildPrompt({ members, userName, log, prev, player, reply: String(reply.text || ""), others: asked.map((p) => p.name), extraTags: tagsFor(state.rules.set).filter((t) => EXTRA_TAGS.includes(t)) }) };
 }
 
 function runRoute(req, host) {
@@ -1102,6 +1244,7 @@ function stateRoute(req, host) {
     k: r.payoff ? r.payoff.k : 0,
     m: r.payoff ? r.payoff.m : 0,
     from: r.from,
+    defaults: r.defaults,
     when: r.when,
     ...ruleStatus(state, r, total),
   }));
@@ -1117,7 +1260,7 @@ function stateRoute(req, host) {
     rules: { set: state.rules.set, on: state.rules.on, sets: Object.entries(SETS).map(([id, s]) => ({ id, name: s.name })), items: rules },
     next: state.next && state.on === true ? { ...state.next, due: dueAfter(state.next.after, chat.msgs, "send") } : null,
     fires: state.fires.slice().reverse(),
-    plan: { beats: plan, whenKinds: WHEN_KINDS, tags: TAGS, boundaryWait: BOUNDARY_WAIT, max: BEATS_MAX, textMax: BEAT_TEXT_MAX },
+    plan: { beats: plan, whenKinds: WHEN_KINDS, tags: tagsFor(state.rules.set), templates: arr(SETS[state.rules.set] && SETS[state.rules.set].templates), boundaryWait: BOUNDARY_WAIT, max: BEATS_MAX, textMax: BEAT_TEXT_MAX },
     // people of this chat's World the player can bring in (phase 3b): ids as the beats and rules name them
     world: { people: people.map((x) => ({ id: x.id, name: x.name, ...(x.text ? { text: x.text } : {}), ...(x.noReturn ? { noReturn: true } : {}) })) },
   });
@@ -1292,6 +1435,107 @@ function skipRoute(req, host) {
   return ok({ next: null });
 }
 
+// ---------- a draft of a plan from the members' cards (phase 4) ----------
+const DRAFT_MAX_BEATS = 8;
+const CARD_CHARS = 700;
+const DRAFT_TOKENS = 1800;
+
+/** The members with the start of their cards, for the draft: [{ id, name, about }] (a card with no description reads as its name only). */
+function cardsOf(fsx, members) {
+  return members.map((m) => {
+    const card = readJson(fsx, "characters/" + m.id + "/card.json", {});
+    const about = [str(card.description).slice(0, CARD_CHARS), str(card.personality).slice(0, CARD_CHARS)].filter(Boolean).join(" ");
+    return { id: m.id, name: m.name, about };
+  });
+}
+
+/** The draft prompt: the group, the genre (when one is picked), the scene kinds a beat may wait for, the beats already written. */
+export function buildDraftPrompt({ cards, userName, setName, tags, existing }) {
+  const user = str(userName) || "the player";
+  const system = [
+    "You plan the story of a group roleplay. The player plays " + user + ". You do not write the story; you suggest beats: short stage directions the player can add to a plan. Each beat is one thing that happens, in one or two sentences, in the present tense.",
+    "Members:",
+    ...cards.map((c) => "- " + c.name + (c.about ? ": " + c.about : "")),
+    setName ? "Genre: " + setName + "." : "",
+    "",
+    "Write " + Math.min(DRAFT_MAX_BEATS, 6) + " to " + DRAFT_MAX_BEATS + " beats, in the order they should happen, built on who these members are and what they want. Spread them out. Do not repeat the beats already planned.",
+    'Each beat: { "text": "...", "who": ["member names that take part, exactly as listed; [] when none"], "when": { "kind": "replies", "n": 4 } or { "kind": "tag", "tag": "<one of: ' + tags.join(", ") + '>" } }. "replies" counts from when the beat before it is done (between 3 and 20).',
+    'Reply with one JSON object: { "beats": [ ... ] }. No prose, no code fences.',
+  ].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
+  const userText = existing.length ? "Beats already planned (do not repeat):\n" + existing.map((t) => "- " + t).join("\n") : "No beats are planned yet.";
+  return { system, user: userText };
+}
+
+/** The beats object out of a model's answer, or null. */
+export function parseDraft(text) {
+  const t = String(text || "").replace(/<think>[\s\S]*?<\/think>/g, "");
+  const start = t.indexOf("{");
+  if (start < 0) return null;
+  for (let end = t.lastIndexOf("}"); end > start; end = t.lastIndexOf("}", end - 1)) {
+    try {
+      const j = JSON.parse(t.slice(start, end + 1));
+      return isObj(j) && Array.isArray(j.beats) ? j.beats : null;
+    } catch {}
+  }
+  return null;
+}
+
+/** The model's beats as clean beats (no ids): names to member ids, a `when` the plan understands, no repeats of the plan, at most DRAFT_MAX_BEATS. */
+export function cleanDraft(raw, { named, tags, existing }) {
+  const seen = new Set(existing.map((t) => str(t).toLowerCase()));
+  const out = [];
+  for (const b of arr(raw)) {
+    if (!isObj(b)) continue;
+    const text = str(b.text).slice(0, BEAT_TEXT_MAX);
+    if (!text || seen.has(text.toLowerCase())) continue;
+    const w = isObj(b.when) ? b.when : {};
+    const when = w.kind === "tag" && tags.includes(w.tag) ? { kind: "tag", tag: w.tag } : { kind: "replies", n: clampInt(w.n, 1, 60, 5) };
+    seen.add(text.toLowerCase());
+    out.push({ text, who: matchMembers(arr(b.who), named), npc: [], when, wait: true });
+    if (out.length >= DRAFT_MAX_BEATS) break;
+  }
+  return out;
+}
+
+/** POST /direction/draft {chatId}: one call on the director's model; the beats come back as a draft and nothing is saved. */
+function draftRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ ok: false, error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ ok: false, reason: "no-chat" }, 404);
+  const gm = groupMembers(fsx, chat.meta);
+  if (!gm || !gm.members.length) return ok({ ok: false, reason: "not-group" });
+  const cfg = readConfig(fsx);
+  if (!cfg.model) return ok({ ok: false, reason: "no-model" });
+  const state = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  const userName = userNameOf(fsx, chat.meta);
+  const named = memberNames(gm.members, registryOf(fsx, chatId));
+  const tags = tagsFor(state.rules.set);
+  const existing = state.plan.beats.map((x) => x.text);
+  const prompt = buildDraftPrompt({ cards: cardsOf(fsx, gm.members), userName, setName: SETS[state.rules.set] ? SETS[state.rules.set].name : "", tags, existing });
+  const res = host.llm && isObj(host.llm.results) ? host.llm.results : {};
+  const r = res.direction_draft_retry || res.direction_draft;
+  const stash = isObj(req.stash) ? req.stash : {};
+  if (!r) {
+    host.llm.request("direction_draft", requestFor(prompt, cfg.model, DRAFT_TOKENS));
+    return { __llmPending: true, stash: { model: cfg.model, started: Date.now(), retry: false } };
+  }
+  const again = (maxTokens) => {
+    host.llm.request("direction_draft_retry", requestFor(prompt, stash.model || cfg.model, maxTokens));
+    return { __llmPending: true, stash: { ...stash, retry: true } };
+  };
+  if (stash.retry !== true && r.error && isRateLimit(r)) return again(DRAFT_TOKENS);
+  if (stash.retry !== true && !r.error && !str(r.text)) return again(thinkingOnly(r) ? RETRY_TOKENS : DRAFT_TOKENS);
+  if (r.error) return ok({ ok: false, reason: "error", message: String(r.error).split("\n")[0].slice(0, 300) });
+  const parsed = parseDraft(r.text);
+  if (!parsed) return ok({ ok: false, reason: "bad-reply", message: thinkingOnly(r) ? "the model spent its whole limit thinking" : "no beats in the answer" });
+  const beats = cleanDraft(parsed, { named, tags, existing });
+  if (!beats.length) return ok({ ok: false, reason: "empty", message: "the model gave no usable beats" });
+  return ok({ ok: true, beats, model: str(r.model) && r.model !== "error" ? str(r.model) : stash.model });
+}
+
 function configRoute(req, host) {
   const fsx = host.fs;
   if (req.method === "GET") return ok({ config: readConfig(fsx) });
@@ -1337,6 +1581,8 @@ export function handleRoute(req, host) {
   if (path === "/direction/fire" && req.method === "POST") return fireRoute(req, host);
   if (path === "/direction/skip" && req.method === "POST") return skipRoute(req, host);
   if (path === "/direction/plan" && req.method === "PUT") return planRoute(req, host);
+  if (path === "/direction/draft" && req.method === "POST") return draftRoute(req, host);
+  if (path === "/direction/sets" && req.method === "GET") return ok({ sets: Object.entries(SETS).map(([id, set]) => ({ id, name: set.name, tags: set.tags, rules: set.rules.map((r) => ({ id: r.id, name: r.name, kind: r.do.kind })), templates: set.templates.length })) });
   return ok({ error: "not found" }, 404);
 }
 

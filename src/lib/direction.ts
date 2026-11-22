@@ -4,7 +4,10 @@
 import { create } from 'zustand'
 import { ApiError, j } from './engine'
 
-export const DIRECTION_TAGS = ['lesson', 'break', 'lunch', 'club', 'commute', 'group_out', 'date', 'alone_moment', 'at_home', 'event'] as const
+/** The scene kinds every chat offers (phases 1 to 3), then the nine a genre set adds (phase 4): every kind a report, a rule or a beat may hold. */
+export const DIRECTION_BASE_TAGS = ['lesson', 'break', 'lunch', 'club', 'commute', 'group_out', 'date', 'alone_moment', 'at_home', 'event'] as const
+export const DIRECTION_EXTRA_TAGS = ['work', 'meal', 'downtime', 'argument', 'travel', 'danger', 'investigation', 'secret', 'night'] as const
+export const DIRECTION_TAGS = [...DIRECTION_BASE_TAGS, ...DIRECTION_EXTRA_TAGS] as const
 export type DirectionTag = (typeof DIRECTION_TAGS)[number]
 
 export interface DirectionReport {
@@ -72,6 +75,18 @@ export type DirectionRuleStatus = 'ready' | 'cooldown' | 'payoff' | 'off'
 /** a queued note or a firing is a rule's, or (phase 3) a beat's */
 export type DirectionNoteKind = DirectionRuleKind | 'beat'
 
+/** What a rule waits for: alone with one member N replies, nobody present N replies, a scene kind (and at most N present), or not a kind. */
+export interface DirectionRuleWhen {
+  alone?: number
+  empty?: number
+  tag?: string[]
+  tagNot?: string[]
+  min?: number
+  max?: number
+}
+/** The built-in numbers of a rule (what "Restore defaults" sends). */
+export interface DirectionRuleDefaults { need: number; cooldown: number; k: number; m: number; from: DirectionFrom }
+
 /** One genre rule of the chat's set, with the chat's edits applied and where it stands now. */
 export interface DirectionRule {
   id: string
@@ -84,7 +99,10 @@ export interface DirectionRule {
   /** payoff: every K-th firing the rule is quiet M replies more (0 = none) */
   k: number
   m: number
-  when?: Record<string, unknown>
+  /** the closed condition the rule reads (phase 2): see `DirectionRuleWhen` */
+  when?: DirectionRuleWhen
+  /** phase 4: the built-in numbers, so the client keeps no copy (an older plugin leaves it out) */
+  defaults?: DirectionRuleDefaults
   status: DirectionRuleStatus
   /** replies left of the cooldown or the payoff silence */
   left: number
@@ -168,10 +186,21 @@ export interface DirectionBeat {
   met?: boolean
 }
 
+/** A ready-made beat of the chat's genre (phase 4): text only, a condition and the wait; the player adds who takes part. */
+export interface DirectionBeatTemplate {
+  id: string
+  text: string
+  when: DirectionBeatWhen
+  wait: boolean
+}
+
 export interface DirectionPlan {
   beats: DirectionBeat[]
   whenKinds: string[]
+  /** the scene kinds offered in this chat: the base ten and the genre's own (an older plugin: the base ten) */
   tags: DirectionTag[]
+  /** phase 4: the genre's ready-made beats, `[]` with no genre (an older plugin leaves it out: nothing shows) */
+  templates?: DirectionBeatTemplate[]
   boundaryWait: number
   max: number
   textMax: number
@@ -216,8 +245,26 @@ export interface DirectionState {
 export interface DirectionWorldPerson { id: string; name: string; text?: string; noReturn?: boolean }
 export interface DirectionWorld { people: DirectionWorldPerson[] }
 
-/** The genre sets the plugin ships (the group editor has no chat to ask): id and the message key of the name. */
-export const DIRECTION_SETS = [{ id: 'romcom', nameKey: 'group.dir.set.romcom' }] as const
+/** One genre set as `GET /direction/sets` lists it: the group editor has no chat to ask the state route. */
+export interface DirectionSetInfo {
+  id: string
+  name: string
+  tags?: string[]
+  rules?: { id: string; name: string; kind: DirectionRuleKind }[]
+  templates?: number
+}
+/** What the group editor offers when the route is missing (an older plugin shipped only this set). */
+export const FALLBACK_SETS: DirectionSetInfo[] = [{ id: 'romcom', name: 'School rom-com' }]
+
+/** The plugin's genre sets (phase 4: nine). An older plugin or an app without it answers the rom-com entry only. */
+export async function fetchDirectionSets(): Promise<DirectionSetInfo[]> {
+  try {
+    const r = await j<{ sets?: DirectionSetInfo[] }>('/direction/sets')
+    return Array.isArray(r.sets) && r.sets.length ? r.sets : FALLBACK_SETS
+  } catch {
+    return FALLBACK_SETS
+  }
+}
 
 /** The chance of 2d6 reaching `need`, in percent: 2 is sure, 13 never. */
 export const needPercent: Record<number, number> = { 2: 100, 3: 97, 4: 92, 5: 83, 6: 72, 7: 58, 8: 42, 9: 28, 10: 17, 11: 8, 12: 3, 13: 0 }
@@ -310,6 +357,28 @@ export async function fireDirectionRule(chatId: string, rule: string): Promise<D
 export async function setDirectionPlan(chatId: string, beats: BeatDraft[]): Promise<void> {
   await j<{ plan: { beats: unknown[] } }>('/direction/plan', { method: 'PUT', body: JSON.stringify({ chatId, beats }) })
   bump()
+}
+
+/** What the draft route answers: the beats as the plugin wrote them (nothing saved), or a reason. */
+export interface DirectionDraft {
+  ok: boolean
+  beats?: BeatDraft[]
+  model?: string
+  reason?: 'no-model' | 'not-group' | 'no-chat' | 'bad-reply' | 'empty' | 'error' | 'no-plugin' | string
+  message?: string
+}
+
+/** A plan drafted from the members' cards: one slow model call (10 to 60 s), nothing is saved. Never rejects: a failure is `{ ok: false, reason }`. */
+export async function draftDirectionPlan(chatId: string): Promise<DirectionDraft> {
+  try {
+    const r = await j<DirectionDraft>('/direction/draft', { method: 'POST', body: JSON.stringify({ chatId }) })
+    if (!r.ok || !Array.isArray(r.beats)) return { ok: false, reason: r.reason ?? 'error', message: r.message }
+    return { ok: true, model: r.model, beats: r.beats.map((b) => ({ ...b, npc: b.npc ?? [], skipped: false })) }
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404 && !e.data?.reason) return { ok: false, reason: 'no-plugin' }
+    if (e instanceof ApiError && typeof e.data?.reason === 'string') return { ok: false, reason: e.data.reason, message: typeof e.data.message === 'string' ? e.data.message : undefined }
+    return { ok: false, reason: 'error', message: String((e as Error)?.message ?? e) }
+  }
 }
 
 /** "Fire now" for a beat: no condition, no wait; it rides the next reply. Rejects with the plugin's message when it cannot. */

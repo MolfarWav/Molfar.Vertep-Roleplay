@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Fold } from '@/components/ui/fold'
 import { NumTile, Segmented, SettingRow } from '@/components/ui/setting-row'
+import { GenreSelect } from '@/components/chat/genre-select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -12,10 +13,12 @@ import { DirectionLog } from '@/components/chat/direction-log'
 import { NextCallout } from '@/components/chat/direction-next'
 import { PlanTab } from '@/components/chat/direction-plan'
 import { useT } from '@/hooks/use-t'
+import { resolveLanguage } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { DIRECTION_FROMS, fireDirectionRule, setDirectionRules, skipDirectionNext, RULE_LIMITS, type DirectionFrom, type DirectionRule, type DirectionRules, type DirectionState, type RuleNumber } from '@/lib/direction'
-import { barMode, fireBlockedKey, needText, ruleEdited, ruleFrom, ruleRestorePatch, ruleSentenceKey, ruleStatusLine, worldPeople } from '@/lib/direction-ui'
+import { barMode, fireBlockedKey, needText, ruleEdited, ruleFrom, ruleRestorePatch, ruleSentence, ruleStatusLine, ruleTitle, worldPeople } from '@/lib/direction-ui'
 
 export type DirectionTab = 'rules' | 'plan' | 'log'
 
@@ -114,13 +117,7 @@ export function RulesTabView({ state, onSet, onOn, onRule, onFire, onSkip, folds
     <div className="flex flex-col gap-3" data-testid="rules-tab">
       <Card variant="rows">
         <SettingRow label={t('dir.rules.genre')} status={t('dir.rules.genreHint')} off={locked}>
-          <Segmented
-            label={t('dir.rules.genre')}
-            value={rules.set || 'none'}
-            disabled={locked}
-            onChange={(v) => onSet(v === 'none' ? '' : v)}
-            options={[{ id: 'none', label: t('dir.rules.genreNone') }, ...rules.sets.map((s) => ({ id: s.id, label: s.name }))]}
-          />
+          <GenreSelect label={t('dir.rules.genre')} value={rules.set} sets={rules.sets} disabled={locked} onChange={onSet} testId="rules-genre" />
         </SettingRow>
         <SettingRow label={t('dir.rules.use')} status={<span data-testid="rules-reason">{reason || t(rules.on ? 'dir.rules.status.on' : 'dir.rules.status.off')}</span>} off={locked || !rules.set}>
           <Switch checked={rules.on} disabled={locked || !rules.set} onCheckedChange={onOn} aria-label={t('dir.rules.on')} data-testid="rules-switch" />
@@ -159,16 +156,18 @@ function RuleCard({ rule, locked, noPeople, blocked, pending, foldOpen, onRule, 
   onFire: () => void
 }) {
   const t = useT()
+  const lang = resolveLanguage(useApp((s) => s.settings.language))
+  const name = ruleTitle(t, rule)
   const reasonId = useId()
   const dot = rule.status === 'ready' ? 'bg-cta' : rule.status === 'payoff' ? 'bg-primary' : rule.status === 'cooldown' ? 'bg-muted-foreground' : 'bg-border'
   return (
     <Card variant="rows" data-testid={`rule-${rule.id}`} data-status={rule.status}>
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
-          <p className={cn('text-body font-medium', !rule.on && 'text-muted-foreground')}>{rule.name}</p>
-          <p className="mt-0.5 text-caption text-muted-foreground">{t(ruleSentenceKey(rule))}</p>
+          <p className={cn('text-body font-medium', !rule.on && 'text-muted-foreground')}>{name}</p>
+          <p className="mt-0.5 text-caption text-muted-foreground" data-testid={`rule-sentence-${rule.id}`}>{ruleSentence(t, rule, lang)}</p>
         </div>
-        <Switch className="mt-0.5" checked={rule.on} disabled={locked} onCheckedChange={(on) => onRule({ on })} aria-label={t('dir.rules.switchAria', { name: rule.name })} data-testid={`rule-switch-${rule.id}`} />
+        <Switch className="mt-0.5" checked={rule.on} disabled={locked} onCheckedChange={(on) => onRule({ on })} aria-label={t('dir.rules.switchAria', { name })} data-testid={`rule-switch-${rule.id}`} />
       </div>
       <div className="flex flex-col gap-1 px-4 py-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
