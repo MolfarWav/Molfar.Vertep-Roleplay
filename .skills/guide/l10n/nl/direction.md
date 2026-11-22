@@ -1,70 +1,83 @@
-<!-- source: ae865b32181c -->
+<!-- source: 3fac4b007f13 -->
 # Richting: wie is er in de scène
 
-Richting is voor groepschats. Na elke reactie leest een klein, goedkoop "director"-model de scène en zegt wat voor soort scène het is (een les, een pauze, een alleen-moment, een date) en welke leden erin zitten. Leden die er niet zijn, stoppen met antwoorden en worden weggelaten uit de prompt tot het verhaal ze terugbrengt.
+Richting is voor groepschats. Na elke reactie leest een klein, goedkoop "director"-model de scène en zegt wat voor soort scène het is (een les, een pauze, een moment alleen, een date) en welke leden erin zitten. Leden die er niet zijn, stoppen met antwoorden en worden uit de prompt weggelaten totdat het verhaal ze terugbrengt.
 
 ## De balk
 
-In een groepschat zit er een dunne balk onder de ledenbalk, gemarkeerd met "Direction" (op een telefoon alleen het pictogram). Van links naar rechts:
+In een groepschat zit onder de ledenbalk een dunne balk, gemarkeerd met "Direction" (op een telefoon alleen het pictogram). Van links naar rechts:
 
-- **De scene chip**: het soort scène en wie er is ("Alleen-moment, met Yuzu" of "Les, 4 hier"). Tik erop om te zien wie er is en wie niet in de scène zit, wanneer het laatste rapport is gemaakt, en een **Report now**-knop die de director opnieuw vraagt. Terwijl de director leest, staat er "De scène lezen…" in de chip.
-- **De model chip**: het model van de director. Als er geen is gekozen, staat er **Pick a model**. Tik erop voor dezelfde modellenlijst als in de bovenbalk van de chat: favoriete modellen, dan elk model per verbinding, met een zoekvak.
-- **De schakelaar**: Richting aan of uit voor deze chat. Totdat een model is gekozen, is hij grijs en staat er "Pick a model first".
-- **Next**: een chip die verschijnt terwijl een genre-regel een notitie heeft die op de volgende reactie wacht ("Next: Yuzu"). De x slaat hem over.
-- **Rules**: opent het Richting-venster met twee tabbladen, **Rules** en **Log**. Naast de schakelaar, zodat het op een telefoon in beeld blijft (daar is het alleen een pictogram, met een stip als de regels aanstaan).
+- **De scènechip**: het soort scène en wie er zijn ("Moment alleen, met Yuzu" of "Les, 4 hier"). Tik erop om te zien wie er in de scène zitten en wie niet, wanneer het laatste rapport is gemaakt, en een **Report now**-knop die de director opnieuw vraagt. Terwijl de director leest, staat er "Reading the scene…" op de chip.
+- **De modelchip**: het model van de director. Als er nog geen is gekozen, staat er **Pick a model**. Tik erop voor dezelfde modellenlijst die de bovenbalk van de chat heeft: favoriete modellen, dan alle modellen per verbinding, met een zoekvak.
+- **De schakelaar**: Richting aan of uit voor deze chat. Tot er een model is gekozen, is hij grijs en staat er "Pick a model first".
+- **Next**: een chip die verschijnt zolang een genre-regel of een beat uit je plan een notitie heeft klaarstaan voor het volgende antwoord ("Next: Yuzu"). Met de x sla je hem over.
+- **Rules**: opent het Richting-venster met drie tabbladen, **Rules**, **Plan** en **Log**. Naast de schakelaar, zodat het op een telefoon zichtbaar blijft (daar is het alleen een pictogram, met een stip zolang de regels aan staan).
 
 Met de schakelaar uit klapt de balk in tot "Direction: off" en werkt de chat zoals voorheen.
 
 ## Genre-regels
 
-Een genre is een set kleine regels die mensen op toeval in de scène brengen, zodat een verhaal van dat genre niet vastloopt. Open **Rules** en kies een genre. Voorlopig is er één, **School rom-com**, met drie regels:
+Een genre is een set kleine regels die mensen op toeval in de scène brengen, zodat een verhaal van dat genre niet vastloopt. Open **Rules** en kies een genre. Voor nu is er één, **School rom-com**, met drie regels:
 
-- **Interrupted moment**: je bent drie reacties lang alleen geweest met één lid, en iemand komt binnen en onderbreekt jullie.
-- **Someone comes by**: niemand is drie reacties lang in de buurt geweest (niet thuis), en een lid komt langs.
-- **Friends join the break**: in een pauze, lunch of club waar één of twee aanwezig zijn, sluit een vriend aan.
+- **Interrupted moment**: je bent drie antwoorden lang alleen geweest met één lid, en iemand komt binnen en onderbreekt het moment.
+- **Someone comes by**: drie antwoorden lang is niemand in de buurt geweest (niet thuis), en een lid komt langs.
+- **Friends join the break**: in een pauze, lunch of club met één of twee aanwezigen, sluit een vriend aan.
 
-Een chat begint zonder genre en met de regels uit, dus er verandert niets tot je een genre kiest. Een genre kiezen zet de regels aan; **Rules in this chat** zet ze weer uit en houdt het genre. De regels hebben de director nodig: ze lezen zijn rapporten.
+Een chat begint zonder genre en met de regels uit, dus er verandert niets totdat je een genre kiest. Een genre kiezen zet de regels aan. **Rules in this chat** zet ze weer uit en houdt het genre. De regels hebben de director aan nodig: ze lezen zijn rapporten.
 
-Na elke reactie controleert de code (niet een model) de regels in volgorde. Een regel kan afgaan wanneer de voorwaarden gelden, hij niet rust, en een worp met twee dobbelstenen zijn getal bereikt. Als hij afgaat, krijgt de volgende reactie een korte fase-notitie ("Yuzu walks in on you and Hana and interrupts the moment") en telt de persoon als aanwezig in de scène, zodat hun kaart volledig wordt meegestuurd. Hoogstens één notitie per reactie. De lock, een terugkeer na de lock, en een gebeurtenis of een terugkerend persoon uit de Wereld gaan voor; de regel wacht dan op een volgende beurt.
+Na elke reactie controleert de code (niet een model) de regels in volgorde. Een regel kan afgaan wanneer de voorwaarden kloppen, hij niet aan het rusten is, en een worp met twee dobbelstenen zijn getal haalt. Als hij afgaat, krijgt het volgende antwoord een korte notitie over de fase ("Yuzu walks in on you and Hana and interrupts the moment"), en telt de persoon als aanwezig in de scène, zodat zijn of haar kaart volledig wordt meegestuurd. Hooguit één notitie per antwoord. De lock, een terugkeer na de lock, en een gebeurtenis of een terugkerend persoon uit de Wereld gaan voor; de regel wacht dan op een volgende beurt.
 
-Elke regelkaart toont zijn status: **Ready**, **Cooling down** (resterende reacties) of **Quiet for the payoff**, en hoe vaak hij richting de payoff is afgegaan. **Numbers** opent de instellingen:
+Elke regelkaart toont zijn status: **Ready**, **Cooling down** (aantal resterende antwoorden) of **Quiet for the payoff**, en hoe vaak hij richting de beloning is afgegaan. **Numbers** opent de instellingen:
 
 - **2d6 needed**: de worp moet dit getal halen; de tekst ernaast geeft het percentage worpen ("about 42%"). 2 gaat altijd af, 13 nooit.
-- **Cooldown**: het aantal reacties dat de regel stil blijft nadat hij is afgegaan.
-- **Payoff every** en **Then quiet**: elke K-de keer dat hij afgaat, rust de regel nog M reacties ("finally alone"). 0 zet de payoff uit.
+- **Cooldown**: het aantal antwoorden dat de regel stil blijft nadat hij is afgegaan.
+- **Payoff every** en **Then quiet**: elke K-de keer dat hij afgaat, rust de regel nog M antwoorden ("finally alone"). 0 zet de beloning uit.
 
-**Fire now** zet de notitie van de regel op de volgende reactie zonder worp, zonder cooldown en zonder mee te tellen voor de payoff; dit vereist dat iemand weg is. **Skip** laat een wachtende notitie vallen. Een notitie die je overslaat of een reactie die je verwijdert, wordt vergeten, met zijn cooldown; wie de reactie met een notitie wegveegt, geeft de nieuwe poging dezelfde notitie.
+**Fire now** zet de notitie van de regel op het volgende antwoord, zonder worp, zonder cooldown en zonder mee te tellen voor de beloning. Er moet dan wel iemand weg zijn. **Skip** laat een wachtende notitie vallen. Een notitie die je overslaat of een antwoord dat je verwijdert, wordt vergeten, samen met zijn cooldown. Als je het antwoord met een notitie wegveegt, krijgt de nieuwe poging dezelfde notitie.
 
-Onder de reactie die een notitie droeg, staat een kleine regel met wat er gebeurde: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". Het laatste woord is het latere rapport van de director: **came** (ze zijn in de scène), **only mentioned** of **did not come**. Het **Log**-tabblad toont hetzelfde, met de worp en de reden, ook regels die wierpen en misten.
+Onder het antwoord dat een notitie droeg, staat een kleine regel die zegt wat er gebeurde: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". Het laatste woord is het latere rapport van de director: **came** (ze zijn in de scène), **only mentioned** (alleen genoemd) of **did not come** (kwam niet). Het **Log**-tabblad toont hetzelfde, met de worp en de reden, ook regels die wierpen en misten.
 
-Een groep kan op het tabblad **Direction** een **default genre** instellen; nieuwe chats van die groep starten met dat genre aan. Getallen zijn eerste schattingen: pas ze in een chat aan als een regel te vaak of te zelden afgaat.
+Een groep kan op het tabblad **Direction** een **default genre** instellen. Nieuwe chats van die groep beginnen dan met dat genre aan. De getallen zijn eerste schattingen: verander ze in een chat als een regel te vaak of te zelden afgaat.
+
+## Het plan
+
+Een **beat** is iets wat je wilt dat gebeurt: "The bell rings and the class empties into the hall", "Mei brings a cake". Open **Plan** en tik op **Add beat**. Een beat heeft:
+
+- **What happens**: een of twee zinnen, als regieaanwijzing.
+- **Who takes part** (optioneel): leden die weg zijn, komen de scène in voor deze beat.
+- **When**: **After some replies** (geteld vanaf het moment dat de beat de volgende wordt; 0 betekent meteen), **Scene** (wanneer de director dat soort scène leest: een les, een pauze, een date...), **Place** (wanneer de plaats van het Dashboard je woorden bevat, zoals "roof"; hoofdletters worden genegeerd) of **By hand** (alleen wanneer je op **Fire now** drukt).
+- **Wait for a new scene**: standaard aan. Een beat die aan de beurt is, snijdt niet door het midden van een moment: hij wacht tot zes antwoorden lang tot het verhaal van plaats wisselt of in de tijd springt, en gaat dan hoe dan ook. Een plaatsbeat gaat op het moment dat het verhaal daar aankomt, en een beat op de hand alleen wanneer je hem afvuurt.
+
+Het plan gaat **in volgorde**: alleen de eerste beat die nog niet af is, wordt bekeken. De latere beats staan op "After the beats before it". Een beat is klaar wanneer hij is binnengekomen, wanneer hij is opgegeven (de director heeft hem twee keer zien ontbreken) of wanneer je hem **Skip**. De volgende beat telt zijn antwoorden vanaf het moment dat de vorige eindigde. Elke kaart laat zien waar zijn beat staat: **Waiting** (aantal resterende antwoorden), **Due, waiting for a new scene** (aantal resterende antwoorden), **Goes with the next reply**, **Delivered** (gekomen, alleen genoemd, of binnengegaan toen niemand werd genoemd), **Did not land**, **Skipped**. Als iets een beat tegenhoudt, zegt de kaart waarom: Richting staat uit, de scène is op slot, of de scène is expliciet (een beat gaat er nooit in; hij gaat wanneer de scène eruit stapt). **Edit**, **Move up**, **Move down** en **Delete** wijzigen de lijst. **Fire now** zet de beat meteen op het volgende antwoord, wat hij ook wacht.
+
+Een beat gebruikt dezelfde machinerie als een genre-regel. Na elk antwoord controleert de code het plan vóór de regels, de notitie rijdt mee op het volgende antwoord (één notitie per antwoord; de lock, een terugkeer na de lock, en een gebeurtenis of een terugkerend persoon uit de Wereld gaan voor, en de beat gaat dan bij het volgende antwoord opnieuw), en het latere rapport van de director zegt of ze **came**, **only mentioned** zijn, of dat het **did not land**. Een beat die niet is aangekomen, wordt nog één keer geprobeerd met een strengere notitie, en dan opgegeven. Een antwoord dat je wegveegt, geeft de nieuwe poging dezelfde notitie. Een antwoord dat je verwijdert, zet zijn beat terug in het plan.
 
 ## Het model kiezen
 
-Er is één director-model voor alle chats en alle groepen. Kies het vanuit elke balk, of op het tabblad **Direction** van de groep. Er is geen standaard: jij kiest. Een klein, snel model is genoeg: het kost één korte aanroep na elke reactie.
+Er is één director-model voor alle chats en alle groepen. Kies het vanuit elke balk, of op het tabblad **Direction** van de groep. Er is geen standaard: jij kiest. Een klein, snel model is genoeg: het kost één korte aanroep na elk antwoord.
 
-Een nieuwe groepschat start met Richting aan zodra een model is gekozen. Chats die je al had, worden niet aangeraakt. Elke chat heeft zijn eigen schakelaar.
+Een nieuwe groepschat start met Richting aan zodra er een model is gekozen. Chats die je al had, worden niet aangeraakt. Elke chat heeft zijn eigen schakelaar.
 
-## Wie is weg
+## Wie er niet zijn
 
-Een ledenchip verandert wanneer iemand buiten de scène is: de afbeelding is gedimd en heeft een klein deurteken. Een slotteken betekent dat de lock (hieronder) hen heeft weggelaten. Tik op een chip: de popover zegt "Here" of "Not in the scene".
+Een ledenchip verandert wanneer iemand buiten de scène is: de foto wordt gedimd en krijgt een klein deurteken. Een slotteken betekent dat de lock (hieronder) hem of haar heeft weggelaten. Tik op een chip: de popover zegt "Here" of "Not in the scene".
 
-Een afwezig lid neemt niet zelfstandig beurten, en hun kaart wordt niet naar het model gestuurd: alleen één regel zegt dat ze niet in de scène zijn. Als je ze in je bericht noemt, worden ze nog steeds opgeroepen. Wanneer de director ze weer ziet, keert hun volledige kaart terug.
+Een afwezig lid neemt niet zelfstandig beurten, en zijn of haar kaart wordt niet naar het model gestuurd: één regel zegt alleen dat die persoon niet in de scène is. Als je de naam in je bericht noemt, wordt hij of zij nog steeds opgeroepen. Wanneer de director ziet dat ze terug zijn, keert de volledige kaart terug.
 
 ## De lock en de terugkeer
 
-Om een scène met één persoon vast te houden, tik je op een ledenchip en kies je **Only <name> in the scene**. Een chip "Only Yuzu" verschijnt voor de scene chip, en de anderen blijven buiten, wat de director ook zegt. Tik op de x van die chip, of op **Release the lock** in de popover van een lid, om los te laten. Bij de volgende reactie krijgen de anderen te horen dat ze terug mogen, en wordt het verhaal gevraagd hen een manier naar binnen te geven.
+Om een scène met één persoon vast te houden, tik je op een ledenchip en kies je **Only <name> in the scene**. Vóór de scènechip verschijnt een chip "Only Yuzu", en de anderen blijven buiten, wat de director ook zegt. Tik op de x van die chip, of op **Release the lock** in de popover van een lid, om los te laten. Bij het volgende antwoord krijgen de anderen te horen dat ze terug mogen, en het verhaal wordt gevraagd hen een manier naar binnen te geven.
 
 ## Als de director faalt
 
-Als het antwoord van de director niet te lezen is, of de aanroep mislukt, toont de scene chip **No report**; open hem om te zien waarom. De chat gebruikt dan het Dashboard-idee van wie er is, of laat iedereen antwoorden zoals eerder. Niets in je verhaal gaat verloren.
+Als het antwoord van de director niet te lezen is, of de aanroep mislukt, toont de scènechip **No report**. Open hem om te zien waarom. De chat gebruikt dan het idee van het Dashboard over wie er zijn, of laat iedereen antwoorden zoals eerder. Niets van je verhaal gaat verloren.
 
 ## Nieuwe groepen
 
-**New group** opent een breed venster (volledig scherm op een telefoon). Geef de groep een naam, of laat de naam leeg om de eerste drie leden te gebruiken. Zoek, verfijn met **All**, **Favourites** en **Recent**, tag-chips en een sortering (Name, Recently used, Most chats), en tik op portretten om te kiezen. De gekozen leden staan bovenaan in een rij, in spreekvolgorde; de pijlen verplaatsen één plek eerder of later, de x verwijdert. **Next** vraagt om twee personages.
+**New group** opent een breed venster (op een telefoon het hele scherm). Geef de groep een naam, of laat de naam leeg om de eerste drie leden te gebruiken. Zoek, verfijn met **All**, **Favourites** en **Recent**, tagchips en een sortering (Name, Recently used, Most chats), en tik op portretten om te kiezen. De gekozen leden staan bovenaan op een rij, in spreekvolgorde. De pijltjes verplaatsen één plek eerder of later, de x verwijdert. **Next** heeft minstens twee personages nodig.
 
-Na **Next** wordt de groep gemaakt en opent de editor met een notitie: controleer hoe hij speelt, en start dan de eerste chat. **Start chat** is de hoofdknop. Het tabblad **Direction** bepaalt of nieuwe chats van deze groep starten met Richting aan, en toont het model van de director. Een groep op de Groups-pagina opent dezelfde editor, net als de groepsnaam bovenaan de chat.
+Na **Next** wordt de groep gemaakt en opent de editor met een notitie: controleer hoe het speelt, en start dan de eerste chat. **Start chat** is de hoofdknop. Het tabblad **Direction** bepaalt of nieuwe chats van deze groep starten met Richting aan, en toont het model van de director. Een groep op de Groups-pagina opent dezelfde editor, net als de groepsnaam bovenaan de chat.
 
-Wanneer je een latere chat van een groep start, heeft de korte stap vóór de chat een **Direction**-schakelaar: aan wanneer de standaard van de groep aan staat en een model is gekozen.
+Wanneer je een latere chat van een groep start, heeft de korte stap vóór de chat een **Direction**-schakelaar: aan wanneer de standaard van de groep aan staat en er een model is gekozen.
 
 Zie ook [[characters]] en [[dashboard]].

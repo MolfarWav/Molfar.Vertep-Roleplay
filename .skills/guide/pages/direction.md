@@ -9,8 +9,8 @@ In a group chat there is a thin bar under the member bar, marked "Direction" (on
 - **The scene chip**: the kind of scene and who is here ("Alone moment, with Yuzu" or "Lesson, 4 here"). Tap it to see who is here and who is not in the scene, when the last report was made, and a **Report now** button that asks the director again. While the director reads, the chip says "Reading the scene…".
 - **The model chip**: the director's model. If none is picked it shows **Pick a model**. Tap it for the same model list the chat's top bar has: starred models, then every model by connection, with a search box.
 - **The switch**: Direction on or off for this chat. Until a model is picked it is greyed out and says "Pick a model first".
-- **Next**: a chip that appears while a genre rule has a note waiting for the next reply ("Next: Yuzu"). The x skips it.
-- **Rules**: opens the Direction sheet with two tabs, **Rules** and **Log**. Beside the switch, so it stays in view on a phone (there it is only an icon, with a dot while the rules are on).
+- **Next**: a chip that appears while a genre rule or a beat of your plan has a note waiting for the next reply ("Next: Yuzu"). The x skips it.
+- **Rules**: opens the Direction sheet with three tabs, **Rules**, **Plan** and **Log**. Beside the switch, so it stays in view on a phone (there it is only an icon, with a dot while the rules are on).
 
 With the switch off, the bar folds to "Direction: off" and the chat works as it did before.
 
@@ -37,6 +37,19 @@ Each rule card shows its state: **Ready**, **Cooling down** (replies left) or **
 Under the reply that carried a note a small line says what happened: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". The last word is the director's later report: **came** (they are in the scene), **only mentioned**, or **did not come**. The **Log** tab lists the same, with the roll and why, also rules that rolled and missed.
 
 A group can set a **default genre** on its **Direction** tab; its new chats start with that genre on. Numbers are first guesses: change them in a chat if a rule fires too often or too rarely.
+
+## The plan
+
+A **beat** is something you want to happen: "The bell rings and the class empties into the hall", "Mei brings a cake". Open **Plan** and tap **Add beat**. A beat has:
+
+- **What happens**: a sentence or two, as a stage direction.
+- **Who takes part** (optional): members who are away come into the scene for it.
+- **When**: **After some replies** (counted from the moment the beat becomes the next one; 0 means at once), **Scene** (when the director reads that kind of scene: a lesson, a break, a date...), **Place** (when the Dashboard's place contains your words, such as "roof"; it ignores capitals) or **By hand** (only when you press **Fire now**).
+- **Wait for a new scene**: on by default. A beat that is due does not cut into the middle of a moment: it waits up to 6 replies for the story to change place or jump in time, then goes anyway. A place beat goes the moment the story gets there, and a by-hand beat only when you fire it.
+
+The plan goes **in order**: only the first beat that is not finished is looked at; the ones behind it say "After the beats before it". A beat is finished when it came in, when it was given up (the director saw it left out twice) or when you **Skip** it. The next beat counts its replies from the moment the one before ended. Each card says where its beat stands: **Waiting** (replies left), **Due, waiting for a new scene** (replies left), **Goes with the next reply**, **Delivered** (came, only mentioned, or went in when nobody was named), **Did not land**, **Skipped**. If something holds a beat back, the card says why: Direction is off, the scene is locked, or the scene is explicit (a beat never fires in one; it goes when the scene leaves it). **Edit**, **Move up**, **Move down** and **Delete** change the list; **Fire now** puts the beat on the next reply at once, whatever it waits for.
+
+A beat uses the same machinery as a genre rule: after each reply the code checks the plan before the rules, the note rides the next reply (one note per reply; the lock, a return after the lock, and an event or a returning person from World come first, and the beat then goes again at the next reply), and the director's later report says whether they **came**, were **only mentioned**, or it **did not land**. A beat that did not land is tried once more with a stricter note, then given up. A reply you swipe gives the new try the same note; a reply you delete takes its beat back.
 
 ## Picking the model
 

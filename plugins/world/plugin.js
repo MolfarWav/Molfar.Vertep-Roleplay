@@ -125,7 +125,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1138,6 +1138,8 @@ function cleanSettings(s) {
     tidy: typeof b.tidy === "boolean" ? b.tidy : DEFAULT_SETTINGS.tidy,
     // the cast deck (#424, step 4): new people drawn from cards; a file from before it has no value and stays off
     castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_SETTINGS.castDeck,
+    // a due person waits up to BOUNDARY_WAIT replies for a scene boundary (#496); on unless the player switched it off
+    castBoundary: typeof b.castBoundary === "boolean" ? b.castBoundary : DEFAULT_SETTINGS.castBoundary,
     castPer: Number.isFinite(Number(b.castPer)) && Number(b.castPer) >= 1 ? clamp(Math.round(Number(b.castPer)), 1, CAST_PER_MAX) : DEFAULT_SETTINGS.castPer,
     castLen: CAST_LENS.includes(b.castLen) ? b.castLen : DEFAULT_SETTINGS.castLen,
     // what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none; a lever the player's answers move
@@ -1459,6 +1461,8 @@ export function normalizeState(raw, chatId) {
   if (entrance) out.entrance = entrance;
   const lastEntrance = cleanLastEntrance(s.lastEntrance);
   if (lastEntrance) out.lastEntrance = lastEntrance;
+  // since which reply someone has been due and held back for a scene boundary (#496)
+  if (isObj(s.castWait) && Number.isInteger(s.castWait.n) && s.castWait.n >= 0) out.castWait = { n: s.castWait.n };
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
@@ -1591,7 +1595,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "tidy", "tidyLog"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "castWait", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -1865,11 +1869,18 @@ export function sceneOf(fsx, chatId, msgs) {
     stagnant++;
   }
   const sc = isObj(last.scene) ? last.scene : {};
+  // did the story just move (#496): the newest reply's snapshot says a new scene, or names another place than the snapshot before it.
+  // False while the Dashboard has not read the newest reply yet, so an old new scene is never counted twice.
+  const prevSn = line.length > 1 ? snaps[line[line.length - 2]] : null;
+  const snapPlace = (sn) => (isObj(sn) && isObj(sn.clock) ? str(sn.clock.place) : "");
+  const lastReplyMsg = msgs.filter(isReply).pop();
+  const moved = !!lastReplyMsg && keyOf(lastReplyMsg) === line[line.length - 1] && (sc.new === true || (!!prevSn && !!snapPlace(prevSn) && !!snapPlace(last) && placeKey(snapPlace(prevSn)) !== placeKey(snapPlace(last))));
   return {
     key: line[line.length - 1],
     direction: DIRECTIONS.includes(sc.direction) ? sc.direction : null,
     before: DIRECTIONS.includes(sc.before) ? sc.before : null,
     stagnant,
+    moved,
     // where the sensor puts the scene now (free text), and who is in it
     place: isObj(last.clock) ? cut(str(last.clock.place), NAME_MAX * 2) : "",
     // the registry id of that place, when the sensor's place was resolved (clock.placeId)
@@ -3527,6 +3538,51 @@ export function castGap(freq, last) {
   return lastWasMention(last) ? Math.ceil(CAST_GAP[freq] / 2) : CAST_GAP[freq];
 }
 
+/** Replies a due person waits for a scene boundary before coming anyway (#496, design note 3.3; a first guess, to be tuned in play). */
+export const BOUNDARY_WAIT = 6;
+
+/**
+ * Did the scene just change (a new place or a time jump)? The Dashboard's newest snapshot says it for the newest reply, and so does the
+ * Direction director's report of that reply. null when neither exists: nothing can tell, so nobody is made to wait.
+ */
+export function sceneBoundary(fsx, chatId, msgs, scene) {
+  let known = false;
+  let moved = false;
+  if (scene) {
+    known = true;
+    moved = scene.moved === true;
+  }
+  const dir = readJson(fsx, "direction/state/" + chatId + ".json", null);
+  const newest = msgs.filter(isReply).map(keyOf).pop();
+  if (isObj(dir) && dir.on === true && newest) {
+    const r = arr(dir.reports).find((x) => isObj(x) && x.key === newest);
+    if (r) {
+      known = true;
+      if (r.sceneNew === true) moved = true;
+    }
+  }
+  return known ? moved : null;
+}
+
+/**
+ * Does a due entrance wait for a scene boundary? True while none has come and fewer than BOUNDARY_WAIT replies passed since the person
+ * became due; `state.castWait` keeps the reply count it began at (cleared when the person goes, the switch is off, or nothing tells).
+ * Changes `state`; the caller saves.
+ */
+export function boundaryHold(state, boundary, replies) {
+  if (state.settings.castBoundary === false || boundary !== false) {
+    delete state.castWait;
+    return false;
+  }
+  const since = state.castWait && state.castWait.n <= replies ? state.castWait.n : replies;
+  if (replies - since >= BOUNDARY_WAIT) {
+    delete state.castWait;
+    return false;
+  }
+  state.castWait = { n: since };
+  return true;
+}
+
 /** The people who could come back, most overdue first: { rec, silence, seen, threshold, weight, score }. Nothing while the gap after the last return runs or when Frequency is off. */
 export function benchDue({ state, msgs, snaps, reg, personIds, freq }) {
   if (!CAST_SILENCE[freq]) return [];
@@ -3867,6 +3923,8 @@ export function castStatus(fsx, chatId) {
     wait: freq === "off" ? 0 : Math.max(0, CAST_FIRST - replies, state.lastEntrance ? castGap(freq, state.lastEntrance) - (replies - state.lastEntrance.n) : 0),
     entrance: state.entrance || null,
     last: state.lastEntrance || null,
+    // the scene-boundary wait (#496): the switch, whether someone is due and held back now, and the replies left of the wait
+    boundary: { on: state.settings.castBoundary !== false, wait: BOUNDARY_WAIT, holding: !!state.castWait, left: state.castWait ? Math.max(0, BOUNDARY_WAIT - (replies - state.castWait.n)) : 0 },
     people,
     // lorebook entries of the chat's cards the bench could be adopted from (0 = nothing to offer)
     lorePeople: chat ? benchEntries(fsx, chat.meta).length : 0,
@@ -4389,7 +4447,11 @@ export function llmRequest(ctx, host) {
         const args = { state, msgs: chat.msgs, snaps: castCtx.snaps, reg: castCtx.reg, personIds: castCtx.personIds, freq: castFreq, seed: replySeed(chatId, chat.msgs, turn) };
         // the bench has the first call; a new person from the deck comes when nobody who exists is due
         const plan = planEntrance(args) || planDeckEntrance({ ...args, place: scene ? placeRecordOf(state, scene, castCtx.reg) : null, present: scene ? arr(scene.present) : [] });
-        if (plan) state.entrance = plan;
+        const waitBefore = JSON.stringify(state.castWait || null);
+        // a person who is due waits up to BOUNDARY_WAIT replies for the scene to change (a new place or a time jump), then comes anyway (#496)
+        if (plan && !boundaryHold(state, sceneBoundary(fsx, chatId, chat.msgs, scene), chat.msgs.filter(isReply).length)) state.entrance = plan;
+        else if (!plan) delete state.castWait;
+        if (JSON.stringify(state.castWait || null) !== waitBefore) saveState(fsx, state);
       }
       castSent = sendEntrance(fsx, state, chat.msgs, op, parts);
     }
@@ -7102,7 +7164,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;

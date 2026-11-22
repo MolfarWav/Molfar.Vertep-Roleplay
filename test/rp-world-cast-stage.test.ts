@@ -180,7 +180,7 @@ describe("the hook: a mention instead of a visit", () => {
     "characters/odarka/card.json": JSON.stringify({ name: "Odarka" }),
     "settings.json": JSON.stringify({ model: "c/default" }),
     "registry/c1.json": JSON.stringify(REG()),
-    "world/state/c1.json": JSON.stringify(st({ settings: { level: "chronicler", everyN: 5, stagnation: 6, onTransition: true, onPlace: true, insert: true, cast: "normal" } })),
+    "world/state/c1.json": JSON.stringify(st({ settings: { level: "chronicler", everyN: 5, stagnation: 6, onTransition: true, onPlace: true, insert: true, cast: "normal", castBoundary: false } })),
   });
   const req = () => ({ key: "reply", request: { sessionId: "c1", messages: [{ role: "system", content: "sys" }, { role: "user", content: "We go on." }] }, turn: { op: "send" } });
   const rolls = (m: any) => JSON.parse(m.files["world/dice/c1.json"]!).rolls;
@@ -222,5 +222,36 @@ describe("the hook: a mention instead of a visit", () => {
     const plain = setup();
     llmRequest(req(), plain.host);
     expect(rolls(plain).at(-1).seen).toBeUndefined();
+  });
+
+  // #496: a due person waits for the scene to change, up to six replies, then comes anyway
+  const withBoundary = (snap: object | null) => {
+    const m = setup();
+    const w = JSON.parse(m.files["world/state/c1.json"]!);
+    w.settings.castBoundary = true;
+    m.files["world/state/c1.json"] = JSON.stringify(w);
+    if (snap) m.files["dashboard/state/c1.json"] = JSON.stringify({ snapshots: { [KEY(N - 1)]: snap } });
+    return m;
+  };
+  it("a due person is held while the Dashboard says the scene has not changed", () => {
+    const m = withBoundary(empty);
+    expect(llmRequest(req(), m.host)).toBe(null);
+    const s = JSON.parse(m.files["world/state/c1.json"]!);
+    expect(s.entrance).toBeUndefined();
+    expect(s.castWait).toEqual({ n: 50 });
+  });
+  it("the same person comes when the newest reply starts a new scene, and the wait is cleared", () => {
+    const m = withBoundary({ ...empty, scene: { new: true } });
+    const out = llmRequest(req(), m.host) as any;
+    expect(out.messages.at(-1).content).toContain("[CAST: Olya");
+    expect(JSON.parse(m.files["world/state/c1.json"]!).castWait).toBeUndefined();
+  });
+  it("with no Dashboard and no director nobody waits; and after six replies of waiting the person comes anyway", () => {
+    expect((llmRequest(req(), withBoundary(null).host) as any).messages.at(-1).content).toContain("[CAST: Olya");
+    const m = withBoundary(empty);
+    const w = JSON.parse(m.files["world/state/c1.json"]!);
+    w.castWait = { n: 50 - 6 };
+    m.files["world/state/c1.json"] = JSON.stringify(w);
+    expect((llmRequest(req(), m.host) as any).messages.at(-1).content).toContain("[CAST: Olya");
   });
 });

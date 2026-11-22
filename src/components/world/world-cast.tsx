@@ -78,6 +78,7 @@ function CastStatus({ chatId, stamp, lore }: { chatId: string; stamp: string; lo
           </p>
         )}
         {cast.freq !== 'off' && cast.wait > 0 && <p className="text-caption text-muted-foreground">{t('world.cast.wait', { n: cast.wait })}</p>}
+        {cast.boundary?.on && cast.boundary.holding && <p className="text-caption text-foreground" data-testid="cast-boundary-wait">{t('world.cast.boundaryWait', { n: cast.boundary.left })}</p>}
         {cast.people.length === 0 && <p className="text-caption text-muted-foreground">{t('world.cast.benchEmpty')}</p>}
         {cast.people.length > 0 && (
           <ul className="flex flex-col gap-1.5">
@@ -155,7 +156,7 @@ export function CastCard({ chatId, view, save, on }: {
   const [lorePeople, setLorePeople] = useState(0)
   const [adopting, setAdopting] = useState(false)
   // anything that can change the bench: a run, a save, the dice, a reply
-  const stamp = `${view.lastRunAt ?? 0}|${view.settings.cast}|${view.records}|${view.usage.runs}`
+  const stamp = `${view.lastRunAt ?? 0}|${view.settings.cast}|${view.settings.castBoundary}|${view.records}|${view.usage.runs}`
 
   const adopt = async () => {
     setAdopting(true)
@@ -200,6 +201,15 @@ export function CastCard({ chatId, view, save, on }: {
           disabled={!on}
           onCheckedChange={(v) => void save({ castShow: v }).then(() => refreshDice(chatId, true))}
           aria-label={t('world.cast.show')}
+        />
+      </SettingRow>
+      <SettingRow label={t('world.cast.boundary')} status={t('world.cast.boundaryHint')}>
+        <Switch
+          checked={view.settings.castBoundary !== false}
+          disabled={!on}
+          onCheckedChange={(v) => void save({ castBoundary: v })}
+          aria-label={t('world.cast.boundary')}
+          data-testid="cast-boundary"
         />
       </SettingRow>
       <CastStatus chatId={chatId} stamp={stamp} lore={setLorePeople} />

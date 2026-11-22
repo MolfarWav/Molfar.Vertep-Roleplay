@@ -1,7 +1,7 @@
-<!-- source: ae865b32181c -->
+<!-- source: 3fac4b007f13 -->
 # Yön: sahnede kim var
 
-Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yönetici" model sahneyi okur, ne tür bir sahne olduğunu (bir ders, bir ara, baş başa bir an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Orada olmayan üyeler cevap vermeyi bırakır ve hikaye onları geri getirene kadar istemden çıkarılır.
+Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yönetici" model sahneyi okur, ne tür bir sahne olduğunu (bir ders, bir ara, baş başa bir an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Orada olmayan üyeler cevap vermeyi bırakır ve hikâye onları geri getirene kadar istemden çıkarılır.
 
 ## Çubuk
 
@@ -17,10 +17,10 @@ Anahtar kapalıyken çubuk "Direction: off" olarak katlanır ve sohbet eskisi gi
 
 ## Tür kuralları
 
-Bir tür, insanları şansa bağlı olarak sahneye çeken küçük kurallar kümesidir; böylece o türdeki bir hikaye durmaz. **Rules** açın ve bir tür seçin. Şimdilik bir tür var, **School rom-com**, üç kuralıyla:
+Bir tür, insanları şansa bağlı olarak sahneye çeken küçük kurallar kümesidir; böylece o türdeki bir hikâye durmaz. **Rules** açın ve bir tür seçin. Şimdilik bir tür var, **School rom-com**, üç kuralıyla:
 
 - **Interrupted moment**: üç cevap boyunca bir üyeyle yalnız kaldınız ve biri içeri girip sizi bölüyor.
-- **Someone comes by**: üç cevap boyunca kimse yakında değildi (evde değil), ve bir üye uğruyor.
+- **Someone comes by**: üç cevap boyunca kimse yakında değildi (evde değil) ve bir üye uğruyor.
 - **Friends join the break**: bir ara, öğle yemeği ya da kulüp sırasında bir ya da iki kişi varken bir arkadaş katılıyor.
 
 Bir sohbet tür olmadan ve kurallar kapalı başlar; siz bir tür seçene kadar hiçbir şey değişmez. Bir tür seçmek kuralları açar; **Rules in this chat** onları yeniden kapatır ve türü saklar. Kurallar yöneticinin açık olmasını gerektirir: raporlarını okurlar.
@@ -37,13 +37,26 @@ Her kural kartı durumunu gösterir: **Ready**, **Cooling down** (kalan cevap sa
 
 Notu taşıyan cevabın altında, neler olduğunu anlatan küçük bir satır yer alır: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". Son kelime yöneticinin sonraki raporudur: **came** (sahnede), **only mentioned** (yalnızca anıldı) ya da **did not come** (gelmedi). **Log** sekmesi aynı şeyi, zar ve nedeniyle birlikte listeler; ayrıca atıp tutturamayan kuralları da.
 
-Bir grup, **Yön** sekmesinde bir **default genre** ayarlayabilir; o grubun yeni sohbetleri bu türle açık başlar. Sayılar ilk tahminlerdir: bir kural çok sık ya da çok seyrek tetikleniyorsa bir sohbette değiştirin.
+Bir grup, **Direction** sekmesinde bir **default genre** ayarlayabilir; o grubun yeni sohbetleri bu türle açık başlar. Sayılar ilk tahminlerdir: bir kural çok sık ya da çok seyrek tetikleniyorsa bir sohbette değiştirin.
+
+## Plan
+
+Bir **beat** (vuruş), olmasını istediğiniz bir şeydir: "Zil çalar ve sınıf koridora boşalır", "Mei bir pasta getirir". **Plan** sekmesini açın ve **Add beat** düğmesine dokunun. Bir beat şunlara sahiptir:
+
+- **What happens**: bir ya da iki cümle, sahne yönergesi olarak.
+- **Who takes part** (isteğe bağlı): yokta olan üyeler, bu beat için sahneye girer.
+- **When**: **After some replies** (beat sıradaki olduğu andan sayılır; 0 demek hemen demektir), **Scene** (yönetici o tür sahneyi okuduğunda: ders, ara, randevu...), **Place** (Dashboard'daki yer, "roof" gibi sözcüklerinizi içerdiğinde; büyük küçük harf fark etmez) ya da **By hand** (yalnızca **Fire now** düğmesine bastığınızda).
+- **Wait for a new scene**: varsayılan olarak açıktır. Zamanı gelen bir beat, bir an'ın ortasına girmez: hikâye yer değiştirene ya da zamanda atlayana kadar en fazla 6 cevap bekler, sonra yine de gider. Yer beat'i, hikâye oraya varır varmaz gider; elle beat ise yalnızca siz onu tetiklediğinizde.
+
+Plan **sıraya göre** işler: yalnızca bitmemiş ilk beat'e bakılır; arkasındakiler "After the beats before it" yazar. Bir beat, geldiğinde, vazgeçildiğinde (yönetici onun iki kez atlandığını gördüğünde) ya da siz **Skip** ettiğinizde bitmiş sayılır. Sonraki beat, bir öncekinin bittiği andan itibaren cevaplarını sayar. Her kart, beat'inin nerede durduğunu gösterir: **Waiting** (kalan cevap), **Due, waiting for a new scene** (kalan cevap), **Goes with the next reply**, **Delivered** (came, only mentioned ya da kimse anılmadan içeri girdi), **Did not land**, **Skipped**. Bir şey beat'i geri tutuyorsa kart nedenini söyler: Yön kapalı, sahne kilitli ya da sahne açık (bir beat asla açık bir sahnede tetiklenmez; sahne onu terk ettiğinde gider). **Edit**, **Move up**, **Move down** ve **Delete** listeyi değiştirir; **Fire now** beat'i, neyi beklediğine bakılmaksızın, hemen bir sonraki cevaba koyar.
+
+Bir beat, bir tür kuralıyla aynı mekanizmayı kullanır: her cevaptan sonra kod planı kurallardan önce kontrol eder, not bir sonraki cevabın yanında gider (cevap başına bir not; kilit, kilitten sonra dönüş ve Dünya'dan bir olay ya da geri dönen bir kişi önceliklidir ve beat bir sonraki cevapta yeniden gider) ve yöneticinin sonraki raporu, beat'in **came**, **only mentioned** ya da **did not land** olup olmadığını söyler. Tutmayan bir beat, daha sert bir notla bir kez daha denenir, sonra vazgeçilir. Kaydırdığınız bir cevap, yeni denemeye aynı notu verir; sildiğiniz bir cevap, beat'ini geri alır.
 
 ## Modeli seçme
 
-Tüm sohbetler ve tüm gruplar için tek bir yönetici modeli vardır. Herhangi bir çubuktan ya da grubun **Yön** sekmesinden seçin. Varsayılan yoktur: seçimi siz yaparsınız. Küçük ve hızlı bir model yeterlidir: her cevaptan sonra tek bir kısa çağrıya mal olur.
+Tüm sohbetler ve tüm gruplar için tek bir yönetici modeli vardır. Herhangi bir çubuktan ya da grubun **Direction** sekmesinden seçin. Varsayılan yoktur: seçimi siz yaparsınız. Küçük ve hızlı bir model yeterlidir: her cevaptan sonra tek bir kısa çağrıya mal olur.
 
-Yeni bir grup sohbeti, bir model seçilir seçilmez Yön açık olarak başlar. Zaten sahip olduğunuz sohbetlere dokunulmaz. Her sohbetin kendi anahtarı vardır.
+Yeni bir grup sohbeti, bir model seçilir seçilmez Direction açık olarak başlar. Zaten sahip olduğunuz sohbetlere dokunulmaz. Her sohbetin kendi anahtarı vardır.
 
 ## Kim uzakta
 
@@ -53,17 +66,17 @@ Olmayan bir üye kendi sırasını almaz ve kartı modele gönderilmez: yalnızc
 
 ## Kilit ve dönüş
 
-Sahneyi tek bir kişiyle tutmak için bir üye etiketine dokunun ve **Only <name> in the scene** seçeneğini seçin. Sahne etiketinin önünde "Only Yuzu" etiketi belirir ve diğerleri yönetici ne derse desin dışarıda kalır. Bırakmak için o etiketteki x'e ya da bir üyenin açılır penceresindeki **Release the lock** seçeneğine dokunun. Bir sonraki cevapta diğerlerine geri dönebilecekleri söylenir ve hikayeden onlara bir giriş yolu bulması istenir.
+Sahneyi tek bir kişiyle tutmak için bir üye etiketine dokunun ve **Only <name> in the scene** seçeneğini seçin. Sahne etiketinin önünde "Only Yuzu" etiketi belirir ve diğerleri yönetici ne derse desin dışarıda kalır. Bırakmak için o etiketteki x'e ya da bir üyenin açılır penceresindeki **Release the lock** seçeneğine dokunun. Bir sonraki cevapta diğerlerine geri dönebilecekleri söylenir ve hikâyeden onlara bir giriş yolu bulması istenir.
 
 ## Yönetici başarısız olursa
 
-Yöneticinin cevabı okunamazsa ya da çağrı başarısız olursa sahne etiketi **No report** yazar; nedenini görmek için açın. Sohbet o zaman Dashboard'un kimin burada olduğu bilgisini kullanır ya da herkesin eskisi gibi cevap vermesine izin verir. Hikayenizden hiçbir şey kaybolmaz.
+Yöneticinin cevabı okunamazsa ya da çağrı başarısız olursa sahne etiketi **No report** yazar; nedenini görmek için açın. Sohbet o zaman Dashboard'un kimin burada olduğu bilgisini kullanır ya da herkesin eskisi gibi cevap vermesine izin verir. Hikâyenizden hiçbir şey kaybolmaz.
 
 ## Yeni gruplar
 
 **New group** geniş bir pencere açar (telefonda tam ekran). Grubu adlandırın ya da ilk üç üyeyi kullanmak için adı boş bırakın. **All**, **Favourites** ve **Recent** ile arayın ve daraltın, etiket çiplerini ve bir sıralamayı (Name, Recently used, Most chats) kullanın, seçmek için portrelere dokunun. Seçilen üyeler konuşma sırasıyla üstte bir sırada durur; oklar birini bir önceki ya da sonraki konuma taşır, x ise kaldırır. **Next** iki karakter gerektirir.
 
-**Next**'ten sonra grup oluşturulur ve düzenleyicisi bir notla açılır: nasıl oynandığına bakın, sonra ilk sohbeti başlatın. **Start chat** ana düğmedir. **Direction** sekmesi, bu grubun yeni sohbetlerinin Yön açık olarak başlayıp başlamayacağını ayarlar ve yöneticinin modelini gösterir. Groups sayfasındaki bir grup aynı düzenleyiciyi açar; sohbetin üstündeki grup adı da öyle.
+**Next**'ten sonra grup oluşturulur ve düzenleyicisi bir notla açılır: nasıl oynandığına bakın, sonra ilk sohbeti başlatın. **Start chat** ana düğmedir. **Direction** sekmesi, bu grubun yeni sohbetlerinin Direction açık olarak başlayıp başlamayacağını ayarlar ve yöneticinin modelini gösterir. Groups sayfasındaki bir grup aynı düzenleyiciyi açar; sohbetin üstündeki grup adı da öyle.
 
 Bir grubun sonraki bir sohbetini başlattığınızda, sohbetten önceki kısa adımda bir **Direction** anahtarı bulunur: grubun varsayılanı açık ve bir model seçiliyse açıktır.
 
