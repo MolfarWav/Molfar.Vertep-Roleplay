@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina legt uit waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* bevatten de details.
@@ -24,7 +24,7 @@ Een persona ben jij: naam, voornaamwoorden, beschrijving, avatar. Het model ziet
 
 ## Groepen
 
-Een groep zet meerdere personages in één chat. Met "New group" kies je leden. De editor heeft Overview, Members, Scene, Turns, Lore en Chats. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord verwoordt iedereen) of Each in turn. Een nieuwe groep begint als Narrator.
+Een groep plaatst meerdere personages in één chat. "New group" opent een kiezer (zoeken, favorieten, tags, spreekvolgorde); "Next" maakt de groep en opent de editor, waar "Start chat" de eerste chat start. De editor heeft Overview, Members, Scene, Turns, Direction, Lore en Chats. Het tabblad Direction en de balk in een groepschat worden beschreven in [[direction]]. Het tabblad Turns bepaalt wie antwoordt: Narrator (één antwoord spreekt voor iedereen) of Each in turn. Een nieuwe groep start als Narrator.
 
 Het tabblad Turns heeft ook **How they talk**: **Interruptions** (leden vallen in, praten door elkaar heen of negeren een vraag wanneer dat bij hun personage past), **Own goals** (leden maken bezwaar, onderhandelen of weigeren wanneer een plan ingaat tegen wie ze zijn, zelfs als dat spanning met jou oplevert) en **Draw in quiet members** (iemand die een tijdje stil is geweest, krijgt meer kansen om te antwoorden, en een vertelde scène wordt gevraagd hen erbij te betrekken). De eerste twee zijn Off, Can of Should: Can staat het toe wanneer het bij de scène past, Should verwacht het, en als elk antwoord in een ruzie verandert, ga je terug naar Can. Nieuwe groepen beginnen met Can en Draw in aan; oudere groepen houden alles uit tot je het aanzet. De Turns-knop van de chat zelf kan ze voor één chat alleen wijzigen. Open op het tabblad Members de sectie "In this group" van een lid om hen een **voice** te geven die alleen deze groep gebruikt: maximaal twee spraakgewoonten (spreekt in fragmenten, stelt nooit vragen) en maximaal vijf voorbeeldregels. Een paar regels leren het ritme beter dan bijvoeglijke naamwoorden, en verschillende personages zouden op hetzelfde nieuws verschillend moeten reageren.
 

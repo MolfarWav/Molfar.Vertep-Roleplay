@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez se trouve dans quatre sections : Characters, Groups, Personas et Marketplace. Cette page explique à quoi sert chacune ; les articles d'aide *Your characters*, *The card editor tabs* et *Groups of characters* donnent les détails.
@@ -24,7 +24,7 @@ Une persona, c'est vous : nom, pronoms, description, avatar. Le modèle la voit 
 
 ## Groupes
 
-Un groupe réunit plusieurs personnages dans une seule conversation. "New group" vous laisse choisir les membres. L'éditeur comporte Overview, Members, Scene, Turns, Lore et Chats. L'onglet Turns décide qui répond : Narrator (une seule réponse fait parler tout le monde) ou Each in turn. Un nouveau groupe démarre en Narrator.
+Un groupe réunit plusieurs personnages dans un même chat. "New group" ouvre un sélecteur (recherche, favoris, tags, ordre de parole) ; "Next" crée le groupe et ouvre son éditeur, où "Start chat" démarre le premier chat. L'éditeur contient les onglets Overview, Members, Scene, Turns, Direction, Lore et Chats. L'onglet Direction et la barre dans un chat de groupe sont décrits dans [[direction]]. L'onglet Turns décide qui répond : Narrator (une réponse donne la parole à tout le monde) ou Each in turn. Un nouveau groupe commence en mode Narrator.
 
 L'onglet Turns contient aussi **How they talk** : **Interruptions** (les membres coupent la parole, parlent par-dessus les autres ou ignorent une question quand cela convient à leur personnage), **Own goals** (les membres objectent, négocient ou refusent quand un plan va à l'encontre de ce qu'ils sont, même si cela crée des tensions avec vous) et **Draw in quiet members** (quelqu'un qui est resté silencieux un moment a plus de chances de répondre, et une scène narrée est invitée à l'intégrer). Les deux premiers sont Off, Can ou Should : Can l'autorise quand cela convient à la scène, Should l'attend, et si chaque réponse tourne à la dispute, revenez à Can. Les nouveaux groupes démarrent avec Can et Draw in activés ; les groupes plus anciens gardent tout désactivé jusqu'à ce que vous l'activiez. Le bouton Turns propre à la conversation peut les modifier pour une seule conversation. Dans l'onglet Members, ouvrez la section "In this group" d'un membre pour lui donner une **voice** que seul ce groupe utilise : jusqu'à deux habitudes de parole (parle par fragments, ne pose jamais de questions) et jusqu'à cinq répliques d'exemple. Quelques lignes enseignent mieux le rythme que des adjectifs, et différents personnages devraient réagir différemment à la même nouvelle.
 

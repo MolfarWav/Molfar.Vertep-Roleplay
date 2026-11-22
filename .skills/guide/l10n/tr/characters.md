@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne için olduğunu anlatır; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makalelerinde ayrıntılar bulunur.
@@ -24,7 +24,7 @@ Persona sizsiniz: ad, zamirler, açıklama, avatar. Model bunu, istemin kullanı
 
 ## Gruplar
 
-Bir grup birkaç karakteri tek bir sohbete koyar. "New group" üyeleri seçmenizi sağlar. Düzenleyicide Overview, Members, Scene, Turns, Lore ve Chats vardır. Turns sekmesi kimin yanıt vereceğine karar verir: Narrator (tek bir yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar.
+Bir grup, birkaç karakteri tek bir sohbete koyar. "New group" bir seçici açar (arama, favoriler, etiketler, konuşma sırası); "Next" grubu oluşturur ve düzenleyicisini açar, burada "Start chat" ilk sohbeti başlatır. Düzenleyicide Overview, Members, Scene, Turns, Direction, Lore ve Chats bulunur. Direction sekmesi ve bir grup sohbetindeki çubuk [[direction]] içinde açıklanmıştır. Turns sekmesi kimin yanıtlayacağına karar verir: Narrator (bir yanıt herkesi seslendirir) veya Each in turn. Yeni bir grup Narrator olarak başlar.
 
 Turns sekmesinde ayrıca **How they talk** vardır: **Interruptions** (üyeler karakterlerine uyduğunda söze girer, birbirinin üstüne konuşur veya bir soruyu görmezden gelir), **Own goals** (üyeler bir plan kim olduklarına aykırı düştüğünde, sizinle gerilim yaratsa bile itiraz eder, pazarlık eder veya reddeder) ve **Draw in quiet members** (bir süredir sessiz olan biri daha fazla yanıt şansı bulur ve anlatılan bir sahnenin onu içeri katması istenir). İlk ikisi Off, Can veya Should'dur: Can sahneye uyduğunda izin verir, Should bekler ve her yanıt bir tartışmaya dönüşüyorsa Can'a geri dönün. Yeni gruplar Can ve Draw in açık olarak başlar; eski gruplar siz açana kadar her şey kapalı kalır. Sohbetin kendi Turns düğmesi bunları yalnızca tek bir sohbet için değiştirebilir. Members sekmesinde bir üyenin "In this group" bölümünü açarak ona yalnızca bu grubun kullandığı bir **voice** verin: en fazla iki konuşma alışkanlığı (parçalar halinde konuşur, asla soru sormaz) ve en fazla beş örnek satır. Birkaç satır, sıfatlardan daha iyi ritim öğretir ve farklı karakterler aynı habere farklı yanıt vermelidir.
 

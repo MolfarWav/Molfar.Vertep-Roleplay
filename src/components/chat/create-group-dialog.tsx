@@ -106,7 +106,7 @@ export function CreateGroupDialog({ open, onOpenChange }: { open: boolean; onOpe
                 <ol className="flex flex-wrap gap-1.5">
                   {members.map((c, i) => (
                     <li key={c.id} className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pr-0.5 pl-1.5 text-xs" data-testid="group-picker-chip">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-cta text-[12px] font-semibold text-cta-foreground tabular-nums">{i + 1}</span>
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-cta text-caption font-semibold text-cta-foreground tabular-nums">{i + 1}</span>
                       <span className="max-w-32 truncate">{c.name}</span>
                       <button type="button" disabled={i === 0} aria-label={t('grp.new.earlier', { name: c.name })} onClick={() => setChosen((cur) => moveInOrder(cur, c.id, -1))} className="flex size-7 items-center justify-center rounded-full hover:bg-accent disabled:opacity-30 max-md:size-10">
                         <ArrowLeft className="size-3.5" aria-hidden="true" />

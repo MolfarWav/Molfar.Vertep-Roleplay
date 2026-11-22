@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, znajduje się w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego służy każda z nich; szczegóły znajdziesz w artykułach pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -24,7 +24,7 @@ Persona to ty: imię, zaimki, opis, awatar. Model widzi ją wszędzie, gdzie pro
 
 ## Grupy
 
-Grupa umieszcza kilka postaci w jednym czacie. „New group" pozwala wybrać członków. Edytor ma Overview, Members, Scene, Turns, Lore i Chats. Zakładka Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wyraża wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator.
+Grupa umieszcza kilka postaci w jednym czacie. "New group" otwiera selektor (wyszukiwanie, ulubione, tagi, kolejność mówienia); "Next" tworzy grupę i otwiera jej edytor, gdzie "Start chat" rozpoczyna pierwszy czat. Edytor ma zakładki Overview, Members, Scene, Turns, Direction, Lore i Chats. Zakładka Direction oraz pasek w czacie grupowym są opisane w [[direction]]. Zakładka Turns decyduje, kto odpowiada: Narrator (jedna odpowiedź wypowiada wszystkich) lub Each in turn. Nowa grupa zaczyna jako Narrator.
 
 Zakładka Turns ma też **How they talk**: **Interruptions** (członkowie wtrącają się, mówią jeden przez drugiego lub ignorują pytanie, gdy pasuje to do ich charakteru), **Own goals** (członkowie sprzeciwiają się, targują lub odmawiają, gdy plan jest sprzeczny z tym, kim są, nawet jeśli tworzy to napięcie z tobą) i **Draw in quiet members** (ktoś, kto od dawna milczał, dostaje więcej szans na odpowiedź, a narratowana scena jest proszona o wciągnięcie go). Pierwsze dwie opcje to Off, Can lub Should: Can pozwala, gdy pasuje to do sceny, Should tego oczekuje, a jeśli każda odpowiedź zamienia się w kłótnię, wróć do Can. Nowe grupy zaczynają z Can i Draw in włączonymi; starsze grupy pozostają z wszystkim wyłączonym, dopóki tego nie włączysz. Przycisk Turns w czacie może je zmienić tylko dla jednego czatu. Na zakładce Members otwórz sekcję „In this group" członka, aby dać mu **voice**, którego używa tylko ta grupa: do dwóch nawyków mowy (mówi fragmentami, nigdy nie zadaje pytań) i do pięciu przykładowych kwestii. Kilka kwestii uczy rytmu lepiej niż przymiotniki, a różne postacie powinny odpowiadać na tę samą wiadomość inaczej.
 

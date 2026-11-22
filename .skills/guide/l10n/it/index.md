@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Roleplay: il quadro generale
 
 Roleplay è l'app di narrazione di Molfar Vertep: tieni le schede dei personaggi, giochi le chat con loro e lasci che l'app segua la scena, ricordi la storia e faccia girare il mondo intorno a te. Questa pagina è una mappa. L'**Help** dell'app stessa (nella barra laterale) ha un breve articolo per quasi ogni schermata; questa guida spiega come le parti stanno insieme. I modelli e le connessioni non si impostano qui ma nelle impostazioni principali: vedi [[vertep:models]].
@@ -32,6 +32,7 @@ Tre aiutanti osservano la storia e costano chiamate extra al modello, quindi val
 - [[characters]]: schede, l'editor delle schede, personas, gruppi, importazione.
 - [[sprites]]: sprite sopra la chat, diverse finestre per un gruppo o un narratore, l'aspetto da visual novel.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: i meccanismi della storia.
+- [[direction]]: in una chat di gruppo un piccolo modello direttore legge chi è nella scena; la barra, il lucchetto, nuovi gruppi.
 - [[meanwhile]]: le persone fuori scena agiscono tra una scena e l'altra (una versione di prova, disattivata di default).
 - [[places-map]]: la mappa fluttuante dei luoghi della chat, con strade e un'immagine tua.
 - [[places-map-levels]]: diverse mappe in una chat (un paese, una città, un dungeon) e disegnare una mappa con il modello di immagini.

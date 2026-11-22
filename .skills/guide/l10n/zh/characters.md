@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # 角色、人设与群组
 
 你游玩的一切都存在于四个板块中：角色、群组、人设和市场。本页说明各自的用途；帮助文章*你的角色*、*卡片编辑器标签页*和*角色群组*有详细说明。
@@ -24,7 +24,7 @@
 
 ## 群组
 
-群组把多个角色放进一个聊天。"New group" 让你挑选成员。编辑器有 Overview、Members、Scene、Turns、Lore 和 Chats。Turns 标签页决定谁来回答：Narrator（一条回复为所有人代言）或 Each in turn。新群组默认为 Narrator。
+一个群组可将多个角色置于同一聊天中。"New group"打开一个选择器（搜索、收藏、标签、发言顺序）；"Next"创建群组并打开其编辑器，在此处"Start chat"开始首次聊天。编辑器包含Overview、Members、Scene、Turns、Direction、Lore和Chats选项卡。Direction选项卡和群组聊天中的输入栏在[[direction]]中有详细说明。Turns选项卡决定谁将回复：Narrator（一次回复代表所有人发言）或Each in turn。新群组默认以Narrator模式开始。
 
 Turns 标签页还有 **How they talk**：**Interruptions**（成员会插话、互相抢话，或在符合其性格时忽略问题）、**Own goals**（当计划违背他们的本性时，成员会反对、讨价还价或拒绝，即使这会与你产生紧张关系）和 **Draw in quiet members**（沉默了一段时间的人会获得更多回答机会，旁白场景也会被要求把他们带入）。前两项为 Off、Can 或 Should：Can 在符合场景时允许，Should 则期望如此，如果每条回复都变成争吵，就回到 Can。新群组以 Can 和 Draw in 开启；旧群组在你开启之前保持全部关闭。聊天自身的 Turns 按钮可以仅为一个聊天更改它们。在 Members 标签页中，打开成员的 "In this group" 部分，给他们一个仅此群组使用的 **voice**：最多两种说话习惯（说话断断续续、从不提问）和最多五句示例台词。几句话比形容词更能教会节奏，不同角色对同一消息应有不同回应。
 

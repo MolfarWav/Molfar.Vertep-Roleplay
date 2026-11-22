@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Rol yapma: genel bakış
 
 Rol yapma, Molfar Vertep'in hikâye uygulamasıdır: karakter kartları tutarsınız, onlarla sohbetler oynatırsınız ve uygulamanın sahneyi izlemesine, hikâyeyi hatırlamasına ve etrafınızdaki dünyayı yürütmesine izin verirsiniz. Bu sayfa bir haritadır. Uygulamanın kendi **Help** bölümünde (kenar çubuğunda) neredeyse her ekran için kısa bir makale vardır; bu kılavuz parçaların nasıl bir araya geldiğini açıklar. Modeller ve bağlantılar burada değil, ana Ayarlar'da kurulur: bkz. [[vertep:models]].
@@ -32,6 +32,7 @@ Sohbet başlığı hikâye araçlarını barındırır: **Note** (yazar notu), *
 - [[characters]]: kartlar, kart düzenleyici, personalar, gruplar, içe aktarma.
 - [[sprites]]: sohbetin üzerinde sprite'lar, bir grup ya da anlatıcı için birkaç pencere, görsel roman görünümü.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: hikâye mekanizması.
+- [[direction]]: grup sohbetinde küçük bir yönetmen modeli sahnede kimin olduğunu okur; çubuk, kilit, yeni gruplar.
 - [[meanwhile]]: ekran dışındaki kişiler sahneler arasında hareket eder (bir test sürümü, varsayılan olarak kapalı).
 - [[places-map]]: sohbetin yerlerinin yüzen haritası, yollar ve kendi resminizle.
 - [[places-map-levels]]: bir sohbette birkaç harita (bir ülke, bir şehir, bir zindan) ve görsel modeliyle harita çizme.

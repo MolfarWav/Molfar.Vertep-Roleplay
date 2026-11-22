@@ -266,7 +266,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
               <label htmlFor="new-chat-direction-switch" className="flex items-center gap-1.5 text-xs font-medium">
                 <FilmSlate className="size-3.5" aria-hidden="true" />{t('dir.title')}
               </label>
-              <p className="mt-0.5 text-[11px] text-muted-foreground" data-testid="new-chat-direction-hint">
+              <p className="mt-0.5 text-caption text-muted-foreground" data-testid="new-chat-direction-hint">
                 {dirModel === null ? '…' : dirReady ? t('dir.step.hint', { model: dirEntry.label ?? dirModel }) : t('dir.step.noModel')}
               </p>
             </div>

@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # 캐릭터, 페르소나 및 그룹
 
 플레이하는 모든 것은 네 개의 섹션에 있습니다: Characters, Groups, Personas, Marketplace. 이 페이지는 각각의 용도를 설명합니다. 세부 사항은 도움말 문서 *Your characters*, *The card editor tabs*, *Groups of characters*에 있습니다.
@@ -24,7 +24,7 @@
 
 ## 그룹
 
-그룹은 여러 캐릭터를 하나의 채팅에 넣습니다. "New group"으로 멤버를 선택할 수 있습니다. 편집기에는 Overview, Members, Scene, Turns, Lore, Chats가 있습니다. Turns 탭은 누가 답할지 결정합니다: Narrator(한 답변이 모든 사람을 대변) 또는 Each in turn. 새 그룹은 Narrator로 시작합니다.
+## 그룹  그룹은 여러 캐릭터를 하나의 채팅에 넣습니다. "New group"은 선택기를 열고(검색, 즐겨찾기, 태그, 말하기 순서), "Next"는 그룹을 만들고 편집기를 열며, "Start chat"은 첫 번째 채팅을 시작합니다. 편집기에는 Overview, Members, Scene, Turns, Direction, Lore, Chats가 있습니다. Direction 탭과 그룹 채팅의 막대는 [[direction]]에 설명되어 있습니다. Turns 탭은 누가 응답할지 결정합니다: Narrator(한 번의 응답으로 모든 사람의 목소리를 냄) 또는 Each in turn. 새 그룹은 Narrator로 시작합니다.
 
 Turns 탭에는 **How they talk**도 있습니다: **Interruptions**(멤버들이 끼어들고, 서로 말을 겹치거나, 캐릭터에 맞을 때 질문을 무시), **Own goals**(계획이 자신의 정체성에 어긋날 때 멤버들이 반대하거나, 협상하거나, 거부하며, 당신과 긴장이 생기더라도), **Draw in quiet members**(한동안 조용했던 사람이 답할 기회를 더 많이 받고, 내레이션된 장면에서 그들을 끌어들이도록 요청). 처음 두 가지는 Off, Can, Should입니다: Can은 장면에 맞을 때 허용하고, Should는 기대하며, 모든 답변이 논쟁이 되면 Can으로 돌아가세요. 새 그룹은 Can과 Draw in이 켜진 상태로 시작하고, 기존 그룹은 켜기 전까지 모든 것이 꺼져 있습니다. 채팅 자체의 Turns 버튼으로 한 채팅에만 변경할 수 있습니다. Members 탭에서 멤버의 "In this group" 섹션을 열어 이 그룹만 사용하는 **voice**를 부여하세요: 최대 두 개의 말하기 습관(단편적으로 말함, 질문을 하지 않음)과 최대 다섯 개의 예시 대사. 몇 개의 대사가 형용사보다 리듬을 더 잘 가르치며, 서로 다른 캐릭터는 같은 소식에 다르게 답해야 합니다.
 
