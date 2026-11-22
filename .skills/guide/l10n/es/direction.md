@@ -1,17 +1,17 @@
-<!-- source: 3fac4b007f13 -->
+<!-- source: dbd568649975 -->
 # Direction: quién está en la escena
 
-Direction es para chats grupales. Después de cada respuesta, un modelo "director" pequeño y barato lee la escena y dice qué tipo de escena es (una lección, un descanso, un momento a solas, una cita) y qué miembros están en ella. Los miembros que no están dejan de responder y quedan fuera del prompt hasta que la historia los traiga de vuelta.
+Direction es para chats grupales. Después de cada respuesta, un modelo "director" pequeño y barato lee la escena y dice qué tipo de escena es (una lección, un descanso, un momento a solas, una cita) y qué miembros están en ella. Los miembros que no están dejan de responder y quedan fuera del prompt hasta que la historia los devuelve.
 
 ## La barra
 
-En un chat grupal hay una barra delgada debajo de la barra de miembros, marcada "Direction" (en un teléfono solo el ícono). De izquierda a derecha:
+En un chat grupal hay una barra delgada debajo de la barra de miembros, marcada "Direction" (en un teléfono, solo el icono). De izquierda a derecha:
 
 - **The scene chip**: el tipo de escena y quién está aquí ("Alone moment, with Yuzu" o "Lesson, 4 here"). Tócalo para ver quién está aquí y quién no está en la escena, cuándo se hizo el último informe, y un botón **Report now** que vuelve a preguntarle al director. Mientras el director lee, el chip dice "Reading the scene…".
 - **The model chip**: el modelo del director. Si no hay ninguno seleccionado, muestra **Pick a model**. Tócalo para ver la misma lista de modelos que tiene la barra superior del chat: modelos destacados, luego cada modelo por conexión, con un cuadro de búsqueda.
 - **The switch**: Direction activado o desactivado para este chat. Hasta que se seleccione un modelo, aparece atenuado y dice "Pick a model first".
 - **Next**: un chip que aparece mientras una regla de género o un beat de tu plan tiene una nota esperando la siguiente respuesta ("Next: Yuzu"). La x la omite.
-- **Rules**: abre la hoja de Direction con tres pestañas, **Rules**, **Plan** y **Log**. Está junto al interruptor, así que sigue visible en un teléfono (allí es solo un ícono, con un punto mientras las reglas están activas).
+- **Rules**: abre la hoja de Direction con tres pestañas, **Rules**, **Plan** y **Log**. Está junto al interruptor, así que sigue visible en un teléfono (allí es solo un icono, con un punto mientras las reglas están activas).
 
 Con el interruptor apagado, la barra se pliega a "Direction: off" y el chat funciona como antes.
 
@@ -39,14 +39,16 @@ Bajo la respuesta que llevó una nota, una pequeña línea dice lo que pasó: "D
 
 Un grupo puede fijar un **default genre** en su pestaña **Direction**; sus chats nuevos empiezan con ese género activado. Los números son primeras estimaciones: cámbialos en un chat si una regla se dispara demasiado o muy poco.
 
+**Who comes.** Cada tarjeta de regla tiene una opción **Who comes**: **Members** (el valor por defecto: alguien del grupo, el que lleva más tiempo fuera), **World people** (una persona del World de este chat, como un profesor o un vecino que la historia ya tiene) o **Either** (una moneda decide cuando existen ambos). Las personas del World vienen del libro World del chat; se dejan fuera las que están retiradas, las que están configuradas para no volver por su cuenta, y las que ya están en la escena. Sin personas en el World, las otras dos opciones aparecen atenuadas y dicen por qué. La nota de la siguiente respuesta dice quién es la persona, en una frase de su ficha, y que no es uno de los miembros del grupo; nadie aquí tiene su tarjeta, así que el modelo que escribe la interpreta a partir de esa frase. Una persona que solo está en el banquillo y no en tu grupo puede interrumpir, unirse o pasar por allí de esta forma.
+
 ## El plan
 
 Un **beat** es algo que quieres que ocurra: "Suena el timbre y la clase se vacía en el pasillo", "Mei trae un pastel". Abre **Plan** y pulsa **Add beat**. Un beat tiene:
 
 - **What happens**: una o dos frases, como acotación escénica.
-- **Who takes part** (opcional): los miembros que están fuera entran en la escena por él.
+- **Who takes part** (opcional): los miembros que están fuera entran en la escena por él. En **People from the World** también puedes elegir personas que la historia ya tiene (un profesor, un rival); la nota le dice al modelo que escribe quiénes son. Las personas se eligen del libro World del chat, así que no hay nada que elegir hasta que tenga alguna.
 - **When**: **After some replies** (contadas desde el momento en que el beat pasa a ser el siguiente; 0 significa de inmediato), **Scene** (cuando el director lee ese tipo de escena: una lección, un descanso, una cita...), **Place** (cuando el lugar del Dashboard contiene tus palabras, como "roof"; no distingue mayúsculas) o **By hand** (solo cuando pulsas **Fire now**).
-- **Wait for a new scene**: activado por defecto. Un beat que toca no corta en medio de un momento: espera hasta 6 respuestas a que la historia cambie de lugar o salte en el tiempo, y luego sale de todos modos. Un beat de lugar sale en el momento en que la historia llega allí, y un beat a mano solo cuando lo disparas.
+- **Wait for a new scene**: activado por defecto. Un beat que toca no corta en medio de un momento: espera hasta 6 respuestas a que la historia cambie de lugar o salte en el tiempo, y luego sale de todos modos. Un beat de lugar sale en el momento en que la historia llega allí, y un beat **By hand** solo cuando lo disparas.
 
 El plan va **en orden**: solo se mira el primer beat que no está terminado; los que vienen detrás dicen "After the beats before it". Un beat está terminado cuando ya ocurrió, cuando se abandonó (el director lo vio omitido dos veces) o cuando lo **Skip**eas. El siguiente beat cuenta sus respuestas desde que terminó el anterior. Cada tarjeta indica en qué punto está su beat: **Waiting** (respuestas que quedan), **Due, waiting for a new scene** (respuestas que quedan), **Goes with the next reply**, **Delivered** (came, only mentioned, o entró cuando nadie fue nombrado), **Did not land**, **Skipped**. Si algo retiene un beat, la tarjeta dice por qué: Direction está apagado, la escena está bloqueada o la escena es explícita (un beat nunca se dispara en una; sale cuando la escena la deja). **Edit**, **Move up**, **Move down** y **Delete** cambian la lista; **Fire now** pone el beat en la siguiente respuesta de inmediato, sea lo que sea lo que esté esperando.
 

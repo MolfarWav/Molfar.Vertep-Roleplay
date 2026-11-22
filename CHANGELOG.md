@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.152.0 (2026-11-22)
+
 - Added: **Direction phase 3b: people of the World in beats and genre rules (Molfar.Vertep#496).** A beat's **Who takes part** now has a second group, **People from the World** (people the chat's World book already has: a teacher, a rival), and every genre rule has a **Who comes** choice: **Members** (the default, so nothing changes until you pick), **World people** or **Either**. The writing model gets a note that names the person and says who they are in one sentence from their record, and that they are not one of the group. The director only knows the group's members, so for the one reply that carries such a note it is also asked whether those people are in the scene (`came`, `only mentioned` from the text, or `did not land`); every other reply's director prompt is unchanged. People set not to come back on their own and people the Dashboard already has in the scene are left out of a rule's pool; a beat may name any of them. The cast deck's people are not offered (a card is "who is this?", not your choice).
 
 ## 4.151.0 (2026-11-22)
