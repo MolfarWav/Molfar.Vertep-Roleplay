@@ -12,7 +12,7 @@ import { EffectiveParams } from '@/components/chat/effective-params'
 import { PresetPanel } from '@/components/chat/preset-panel'
 import { AgentsSheet, AgentsTabContext, AgentsTabItems, useAgentsData } from '@/components/chat/agents-panel'
 import { useT } from '@/hooks/use-t'
-import { canOpenModelSettings, openModelSettings } from '@/lib/shell-bridge'
+import { ModelPaletteGroups, setUpModels, itemCls, activeItemCls, actionCls, GROUP_CAP, GroupCapHint } from '@/components/chat/model-palette'
 import {
   CaretDown, Check, Cpu, GearSix, ListChecks, PencilSimple, Robot, SlidersHorizontal, User,
 } from '@phosphor-icons/react'
@@ -27,17 +27,6 @@ import {
  * one swaps the model for the NEXT generation — switching mid-RP never
  * touches chat content.
  */
-/** cmdk renders every item it's given — with years of presets/personas that's
- *  thousands of DOM nodes. Cap each group and tell the user to type. */
-const GROUP_CAP = 60
-function GroupCapHint({ hidden }: { hidden: number }) {
-  return (
-    <div className="px-2 py-1.5 text-[11px] text-muted-foreground" aria-live="polite">
-      +{hidden} more, keep typing to narrow
-    </div>
-  )
-}
-
 type Tab = 'preset' | 'persona' | 'profile' | 'agents'
 
 const TABS: { id: Tab; label: string; icon: typeof SlidersHorizontal }[] = [
@@ -46,22 +35,6 @@ const TABS: { id: Tab; label: string; icon: typeof SlidersHorizontal }[] = [
   { id: 'profile', label: 'Model', icon: Cpu },
   { id: 'agents', label: 'Agents', icon: Robot },
 ]
-
-/**
- * Card-like rows: every entity is its own bordered tile with a clear hover
- * (cmkd marks the hovered/keyboard row data-selected) and a distinct active
- * state, so dense two-line rows no longer melt into one list. Action rows
- * (edit/manage/save) sit behind a separator in a quieter tile.
- */
-const itemCls =
-  'my-0.5 rounded-lg border border-transparent px-2.5 py-2 ' +
-  'data-selected:border-border data-selected:bg-accent data-selected:text-foreground ' +
-  'hover:border-border hover:bg-accent'
-const activeItemCls = 'border-border/70 bg-accent/50'
-const actionCls =
-  'my-0.5 rounded-lg border border-dashed border-border/70 px-2.5 py-2 ' +
-  'data-selected:border-border data-selected:bg-accent data-selected:text-foreground ' +
-  'hover:border-border hover:bg-accent'
 
 /** 950 -> "950", 13640 -> "13.6k" */
 const compactTokens = (n: number) => (n < 1000 ? String(Math.round(n)) : `${(n / 1000).toFixed(1)}k`)
@@ -140,19 +113,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
   const starred = current ? favorites.find((f) => f.ref === current.ref) : undefined
   const modelLabel = starred?.name ?? (current ? shortModel(current.id) : null) ?? 'no model'
   // which models are offered and starred is chosen in the shell's Settings only
-  const setUp = (ref?: string | null) => {
-    if (!canOpenModelSettings()) {
-      toast.info('Models are set up in Settings › Connections and models')
-      return
-    }
-    void openModelSettings(ref).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))
-  }
-  const quick = favorites.flatMap((f) => {
-    const m = models.find((x) => x.ref === f.ref)
-    return m ? [{ m, name: f.name || shortModel(m.id) }] : []
-  })
-  const quickRefs = new Set(quick.map((q) => q.m.ref))
-  const others = models.filter((m) => !quickRefs.has(m.ref))
+  const setUp = setUpModels
   const choose = (ref: string, label: string, provider: string) =>
     pick(() => {
       void setChatModel(chatId, ref)
@@ -354,50 +315,7 @@ export function ChatQuickSwitch({ chatId, variant = 'pill', onNavigate }: { chat
               )}
 
               {tab === 'profile' && (
-                <>
-                  <CommandGroup heading={`★ Quick switch · ${quick.length}`} className="flex flex-col gap-0.5">
-                    {quick.length === 0 && (
-                      <div className="px-2 py-1.5 text-[11px] text-muted-foreground">Star models in Settings › Connections and models to switch between them here.</div>
-                    )}
-                    {quick.map(({ m, name }) => {
-                      const active = m.ref === current?.ref
-                      return (
-                        <CommandItem key={m.ref} value={`quick ${name} ${m.ref}`} className={cn(itemCls, active && activeItemCls)} onSelect={() => choose(m.ref, name, m.provider)}>
-                          <ModelMark model={m.ref} className={cn('size-4 shrink-0', active ? 'text-emerald-500' : 'text-muted-foreground')} />
-                          <span className="min-w-0 flex-1">
-                            <span className={cn('flex items-center gap-1 truncate text-xs', active && 'font-semibold')}>
-                              <span className="truncate">{name}</span>
-                              {active && <Check className="size-3 shrink-0 text-emerald-500" aria-hidden="true" />}
-                            </span>
-                            <span className="block truncate font-mono text-[10px] text-muted-foreground">{m.provider} · {m.id}</span>
-                          </span>
-                        </CommandItem>
-                      )
-                    })}
-                  </CommandGroup>
-                  {others.length > 0 && (
-                    <CommandGroup heading={`Models · ${others.length}`} className="flex flex-col gap-0.5">
-                      {others.slice(0, GROUP_CAP).map((m) => {
-                        const active = m.ref === current?.ref
-                        return (
-                          <CommandItem key={m.ref} value={`model ${m.id} ${m.ref} ${m.provider}`} className={cn(itemCls, active && activeItemCls)} onSelect={() => choose(m.ref, shortModel(m.id), m.provider)}>
-                            <ModelMark model={m.ref} className={cn('size-4 shrink-0', active ? 'text-emerald-500' : 'text-muted-foreground')} />
-                            <span className="min-w-0 flex-1">
-                              <span className={cn('block truncate text-xs', active && 'font-semibold')}>{shortModel(m.id)}</span>
-                              <span className="block truncate font-mono text-[10px] text-muted-foreground">{m.provider}</span>
-                            </span>
-                          </CommandItem>
-                        )
-                      })}
-                      {others.length > GROUP_CAP && <GroupCapHint hidden={others.length - GROUP_CAP} />}
-                    </CommandGroup>
-                  )}
-                  <CommandSeparator className="my-1.5" />
-                  <CommandItem value="choose models in settings" onSelect={() => go(() => setUp(null))} className={actionCls}>
-                    <GearSix className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="flex-1 text-xs">Choose models and the quick switch in Settings…</span>
-                  </CommandItem>
-                </>
+                <ModelPaletteGroups value={current?.ref ?? model} onPick={choose} onSettings={() => go(() => setUp(null))} />
               )}
             </CommandList>
           </Command>
