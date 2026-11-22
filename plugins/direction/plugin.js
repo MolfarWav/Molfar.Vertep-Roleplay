@@ -313,6 +313,8 @@ export function sceneNow(state, msgs, members, named, dashNames) {
   const ids = members.map((m) => m.id);
   const back = state.returning && returnDue(state, msgs, "send") ? state.returning.ids : [];
   if (state.lock) return { source: "lock", present: state.lock.ids.filter((id) => ids.includes(id)), tag: null };
+  // with the switch off the engine does not limit the scene (`directionScene`), so nothing is shown as limited either
+  if (state.on !== true) return { source: "none", present: [], tag: null };
   const report = newestReport(state, msgs);
   if (report) return { source: "director", present: [...new Set([...report.present, ...back])].filter((id) => ids.includes(id)), tag: report.tag };
   if (dashNames) return { source: "dashboard", present: [...new Set([...matchMembers(dashNames, named), ...back])], tag: null };

@@ -122,6 +122,9 @@ describe("direction: routes", () => {
   it("the scene comes from the lock first, then the director, then the Dashboard", () => {
     const files = world(LINES, { ["dashboard/state/" + CHAT + ".json"]: JSON.stringify({ snapshots: { a: { turn: 1, present: ["Юдзу"] } } }) });
     const host = makeHost(files);
+    // switch off: the engine does not limit the scene, so the bar shows nothing as limited
+    expect(d.handleRoute(get("/direction/state", { chatId: CHAT }), host).json.scene).toMatchObject({ source: "none", present: [] });
+    d.handleRoute(put("/direction/chat", { chatId: CHAT, on: true }), host);
     expect(d.handleRoute(get("/direction/state", { chatId: CHAT }), host).json.scene).toMatchObject({ source: "dashboard", present: ["yuzu"] });
     d.handleRoute(put("/direction/chat", { chatId: CHAT, lock: { ids: ["mei", "nobody"] } }), host);
     expect(d.handleRoute(get("/direction/state", { chatId: CHAT }), host).json.scene).toMatchObject({ source: "lock", present: ["mei"] });
