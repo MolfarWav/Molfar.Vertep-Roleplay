@@ -9,15 +9,15 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DirectionLog } from '@/components/chat/direction-log'
+import { NextCallout } from '@/components/chat/direction-next'
+import { PlanTab } from '@/components/chat/direction-plan'
 import { useT } from '@/hooks/use-t'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { resolveLanguage } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { fireDirectionRule, setDirectionRules, skipDirectionNext, RULE_LIMITS, type DirectionRule, type DirectionRules, type DirectionState, type RuleNumber } from '@/lib/direction'
-import { actLine, barMode, fireBlockedKey, needText, nameOf, RULE_DEFAULTS, ruleEdited, ruleOf, ruleSentenceKey, ruleStatusLine } from '@/lib/direction-ui'
+import { barMode, fireBlockedKey, needText, RULE_DEFAULTS, ruleEdited, ruleSentenceKey, ruleStatusLine } from '@/lib/direction-ui'
 
-export type DirectionTab = 'rules' | 'log'
+export type DirectionTab = 'rules' | 'plan' | 'log'
 
 type RulePatch = { on?: boolean; need?: number; cooldown?: number; k?: number; m?: number }
 
@@ -25,7 +25,7 @@ const NO_RULES: DirectionRules = { set: '', on: false, sets: [], items: [] }
 const fail = (e: unknown): void => { toast.error(String((e as Error)?.message ?? e)) }
 
 /**
- * The Direction sheet: a right-hand sheet on a desktop, a full-height bottom sheet on a phone, with the genre rules and the log
+ * The Direction sheet: a right-hand sheet on a desktop, a full-height bottom sheet on a phone, with the genre rules, the beat plan and the log
  * as tabs. The actions go to the plugin's routes; a refused one (Fire now with nobody away) shows the plugin's own message.
  */
 export function DirectionSheet({ chatId, state, open, onOpenChange, tab, onTab }: {
@@ -49,14 +49,20 @@ export function DirectionSheet({ chatId, state, open, onOpenChange, tab, onTab }
           <SheetTitle>{t('dir.title')}</SheetTitle>
           <SheetDescription className="sr-only">{t('dir.rules.aria')}</SheetDescription>
         </SheetHeader>
-        <Tabs value={tab} onValueChange={(v) => onTab(v === 'log' ? 'log' : 'rules')} className="min-h-0 flex-1 gap-3">
-          <TabsList className="mx-4 h-10 w-[calc(100%-2rem)] group-data-horizontal/tabs:h-10">
+        <Tabs value={tab} onValueChange={(v) => onTab(v === 'log' ? 'log' : v === 'plan' ? 'plan' : 'rules')} className="min-h-0 flex-1 gap-3">
+          <TabsList className="mx-4 h-10 w-[calc(100%-2rem)] group-data-horizontal/tabs:h-10 max-md:h-12 max-md:group-data-horizontal/tabs:h-12">
             <TabsTrigger value="rules" className="text-body" data-testid="director-rules-tab">{t('dir.rules')}</TabsTrigger>
+            {state.plan && <TabsTrigger value="plan" className="text-body" data-testid="director-plan-tab">{t('dir.plan')}</TabsTrigger>}
             <TabsTrigger value="log" className="text-body" data-testid="director-log">{t('dir.log')}</TabsTrigger>
           </TabsList>
           <TabsContent value="rules" className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
             <RulesTab chatId={chatId} state={state} />
           </TabsContent>
+          {state.plan && (
+            <TabsContent value="plan" className="min-h-0 flex-1 overflow-y-auto px-4 pb-6" data-testid="director-plan-panel">
+              <PlanTab chatId={chatId} state={state} />
+            </TabsContent>
+          )}
           <TabsContent value="log" className="min-h-0 flex-1 overflow-y-auto px-4 pb-6" data-testid="director-log-panel">
             <DirectionLog state={state} />
           </TabsContent>
@@ -92,14 +98,11 @@ export function RulesTabView({ state, onSet, onOn, onRule, onFire, onSkip, folds
   foldsOpen?: boolean
 }) {
   const t = useT()
-  const lang = resolveLanguage(useApp((s) => s.settings.language))
   const rules = state.rules ?? NO_RULES
   const mode = barMode(state)
   // the genre and the numbers are shown but not changed while the director is off or has no model
   const locked = mode === 'no-model' || mode === 'off'
   const reason = mode === 'no-model' ? t('dir.rules.needModel') : mode === 'off' ? t('dir.rules.needDirection') : !rules.set ? t('dir.rules.needGenre') : ''
-  const next = state.next?.due ? state.next : null
-  const nextRule = next ? ruleOf(state, next.rule) : undefined
   const blockedKey = fireBlockedKey(state)
   const [pending, setPending] = useState(false)
   const run = (fn: () => Promise<void> | void) => {
@@ -124,17 +127,7 @@ export function RulesTabView({ state, onSet, onOn, onRule, onFire, onSkip, folds
         </SettingRow>
       </Card>
 
-      {next && (
-        <div role="status" data-testid="rules-next" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-cta/40 bg-cta/10 px-4 py-3">
-          <p className="min-w-0 flex-[1_1_14rem] text-body">
-            {t(next.forced ? 'dir.rules.nextHand' : 'dir.rules.next', {
-              act: actLine(t, next.kind, next.who.map((id) => nameOf(state, id)), next.with.map((id) => nameOf(state, id)), lang),
-              rule: nextRule?.name ?? next.rule,
-            })}
-          </p>
-          <Button variant="outline" size="sm" className="max-md:h-10" disabled={pending} onClick={() => run(onSkip)} data-testid="rules-skip">{t('dir.rules.skip')}</Button>
-        </div>
-      )}
+      <NextCallout state={state} testId="rules" onSkip={onSkip} />
 
       {rules.items.map((r) => (
         <RuleCard

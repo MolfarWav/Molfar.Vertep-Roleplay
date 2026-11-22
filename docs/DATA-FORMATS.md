@@ -722,7 +722,7 @@ player switches it on for that chat. It writes:
     | big, silence, via: silence | life, sent, retried, n, roll?, d?, mod?, weight?, threshold?, tier?, seen?, floor?, after?, sentAt? }`; one at a time, rides like the
     event: `sent` counts the replies that carried it, `after` is the message the carrier followed, a carrier that is gone sends it again) and
     `lastEntrance` (`{ id, n, band, ok, res }`, `res` = `came` | `mentioned` | `missed` and `ok` is true only for `came`; an older file with `ok` alone reads as came or missed; the gap before the next one is counted from `n`, the number of replies then). Both are in the
-    rollback's core keys. A person is on stage in a message when the Dashboard's scene for it names them (the registry id first, else the name; a far person who texts or calls is in
+    rollback's core keys, and so is `castWait` (`{ n }`, #496: the reply count at which a due person began waiting for a scene boundary; up to 6 replies, setting `castBoundary`, default true; nothing waits when neither the Dashboard nor the Direction director can say). A person is on stage in a message when the Dashboard's scene for it names them (the registry id first, else the name; a far person who texts or calls is in
     the scene too, with a `contact`). A message with no Dashboard snapshot counts by its text instead: a name or alias (a name the registry gives to someone else is
     dropped). With a snapshot a name in the text is only a mention (4.132.2). Two silences, looking back 400 messages: `stage` = replies since the person was last on
     stage (it drives the threshold and the roll) and `mentioned` = replies since they were last named or on stage (shown, never more than `stage`). Without a
@@ -1178,6 +1178,12 @@ Optional (#72), off until the player turns it on in Characters > More > Letters 
   after, n, roll: { d1, d2, total, need } | null, tension, hold, payoff, result: came | mentioned | missed | yielded | null, carrier:
   "<msgId>#<swipe>" | "", forced, why, at }]` (the ledger the cooldown and the payoff are counted from; the newest 40; a firing whose
   `after` is gone from the line is dropped on the next read). The log gains `rule` (fired or missed, with the roll), `result`, `rules`, `skip`.
+- The beat plan (phase 3a), in the same state file: `plan: { beats: [{ id, text, who: [memberId], when: { kind: "replies", n } | { kind: "tag",
+  tag } | { kind: "place", place } | { kind: "manual" }, wait, skipped, skipN, addedN, dueKey, dueN, dueWhy }] }` (at most 20 beats, text at most
+  400 characters; `skipN`, `addedN` (reply count when added or skipped), `dueKey` (`<msgId>#<swipe>` of the reply it became due on), `dueN`, `dueWhy`
+  are the plugin's, never a client's). A beat's firing is a `fires` entry with `rule: "beat:<id>"`, `kind: "beat"`, a `next` of that kind
+  (`who` may be empty), and result `sent` when nobody was named; a beat's status (waiting, due, queued, delivered, skipped, failed) is derived
+  from the ledger. `dueKey` is cleared when its reply leaves the line. The log gains `beat` lines (`state: due | fired`).
 - A group file may carry `"direction": false`: its new chats start with Direction off. Absent = on once a model is picked.
   `"directionSet": "romcom"` makes its new chats start with that genre set on.
 - Read by the engine plugin (`directionScene`) as well as by the Direction plugin; change both readers together.

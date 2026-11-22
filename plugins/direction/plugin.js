@@ -22,6 +22,15 @@
  *  PUT  /direction/rules {chatId, set?, on?, rule?: { id, on?, need?, cooldown?, k?, m? }}   the chat's genre set, its switch, edits
  *  POST /direction/fire {chatId, rule}   "Fire now": the rule's note rides the next reply (no roll, no cooldown, no tension)
  *  POST /direction/skip {chatId}         drop the queued note
+ *  Phase 3 (beat plan):
+ *  PUT  /direction/plan {chatId, beats: [{ id?, text, who, when, wait, skipped }]}   the whole list; { plan: { beats } }
+ *  POST /direction/fire {chatId, beat}   also takes a beat id: "Fire now" for a beat
+ *  GET  /direction/state also returns plan: { beats: [{ id, text, who, when, wait, tries, status, left?, hold?, result? }], ... }
+ *       status: waiting | due | queued | delivered | skipped | failed | behind
+ *
+ * The plan: ordered beats the player wrote (text, who, when: after N replies / a scene kind / a place / by hand). The first unfinished
+ * beat is looked at after each report; when due it waits up to 6 replies for a scene boundary, then goes as a queued `next` of kind
+ * "beat" through the same ledger, note and judgement as a rule (a beat is decided before the rules; one note per reply).
  *
  * Genre rules: decided once per reported reply, by code: the rule's conditions over the director's reports, the cooldown, the
  * payoff silence, then 2d6. A decision is a queued `next` (the engine counts who comes as present for that reply); the reply
@@ -34,7 +43,8 @@
  *    usage: { input, output, runs },
  *    rules: { set, on, edits: { <ruleId>: { on?, need?, cooldown?, k?, m? } } },
  *    next: { id, rule, kind, who, with, after, forced, at } | null,   the note for the first reply after `after`
- *    fires: [{ id, rule, kind, who, with, after, n, roll, tension, hold, payoff, result, carrier, forced, why, at }] }
+ *    fires: [{ id, rule, kind, who, with, after, n, roll, tension, hold, payoff, result, carrier, forced, why, at }],   a beat's rule is "beat:<id>"
+ *    plan: { beats: [{ id, text, who, when: { kind, n | tag | place }, wait, skipped, skipN, addedN, dueKey, dueN, dueWhy }] } }
  */
 
 export const TAGS = ["lesson", "break", "lunch", "club", "commute", "group_out", "date", "alone_moment", "at_home", "event"];
@@ -66,13 +76,15 @@ export function cleanConfig(raw) {
 }
 
 export function emptyState(chatId) {
-  return { v: 1, chatId, on: null, lock: null, returning: null, reports: [], log: [], usage: { input: 0, output: 0, runs: 0 }, rules: { set: "", on: false, edits: {} }, next: null, fires: [] };
+  return { v: 1, chatId, on: null, lock: null, returning: null, reports: [], log: [], usage: { input: 0, output: 0, runs: 0 }, rules: { set: "", on: false, edits: {} }, next: null, fires: [], plan: { beats: [] } };
 }
 
 // ---------- genre rules (phase 2) ----------
 const FIRES_KEEP = 40;
-export const KINDS = ["interrupt", "join", "return"];
-export const RESULTS = ["came", "mentioned", "missed", "yielded"];
+/** What a queued note is: a rule's interrupt / join / return, or a beat of the plan (phase 3). */
+export const KINDS = ["interrupt", "join", "return", "beat"];
+/** `sent`: a beat with nobody to look for (an event only) went into a reply; there is nothing to judge it by. */
+export const RESULTS = ["came", "mentioned", "missed", "yielded", "sent"];
 const NEED_MIN = 2;
 const NEED_MAX = 13; // 13 = never (2d6 tops out at 12)
 
@@ -154,7 +166,8 @@ const nextOf = (f) => ({ id: f.id, rule: f.rule, kind: f.kind, who: f.who, with:
 function cleanNext(raw) {
   if (!isObj(raw) || !str(raw.id) || !str(raw.rule) || !KINDS.includes(raw.kind) || !str(raw.after)) return null;
   const who = refList(raw.who);
-  return who.length ? { id: str(raw.id).slice(0, 60), rule: str(raw.rule).slice(0, 60), kind: raw.kind, who, with: refList(raw.with), after: str(raw.after), forced: raw.forced === true, at: Number(raw.at) || 0 } : null;
+  // a beat may be an event with nobody to bring in; a rule always brings someone
+  return who.length || raw.kind === "beat" ? { id: str(raw.id).slice(0, 60), rule: str(raw.rule).slice(0, 60), kind: raw.kind, who, with: refList(raw.with), after: str(raw.after), forced: raw.forced === true, at: Number(raw.at) || 0 } : null;
 }
 
 /** A small seeded generator (the same algorithm as World's): one decision always rolls the same dice, a swiped reply rolls again. */
@@ -206,6 +219,7 @@ export function cleanState(raw, chatId) {
   st.rules = cleanRules(raw.rules);
   st.next = cleanNext(raw.next);
   st.fires = arr(raw.fires).map(cleanFire).filter(Boolean).slice(-FIRES_KEEP);
+  st.plan = cleanPlan(raw.plan);
   return st;
 }
 
@@ -336,8 +350,11 @@ export function reconcile(state, msgs) {
       if (!next && dueAfter(f.after, msgs, "send")) next = nextOf(f);
     } else fires.push(f);
   }
-  const changed = reports.length !== state.reports.length || returning !== state.returning || next !== state.next || firesChanged;
-  return changed ? { ...state, reports, returning, next, fires } : state;
+  // a beat that became due on a reply no longer on the line is not due any more (its condition is read again on the next report)
+  const stale = (b) => !!b.dueKey && !line.has(b.dueKey);
+  const plan = state.plan.beats.some(stale) ? { beats: state.plan.beats.map((b) => (stale(b) ? { ...b, dueKey: "", dueN: 0, dueWhy: "" } : b)) } : state.plan;
+  const changed = reports.length !== state.reports.length || returning !== state.returning || next !== state.next || firesChanged || plan !== state.plan;
+  return changed ? { ...state, reports, returning, next, fires, plan } : state;
 }
 
 /** The newest report whose reply is the newest reply of the line, or the newest on the line at all. */
@@ -509,7 +526,9 @@ export function judgeNext(state, report, msgs, named) {
   const text = String(carrier.text || "").toLowerCase();
   const sameReply = keyOf(carrier) === report.key;
   let result = "missed";
-  if (sameReply) {
+  // a beat with nobody to look for (an event only): it went into the reply, and nothing else can be judged
+  if (!next.who.length) result = "sent";
+  else if (sameReply) {
     if (next.who.some((id) => report.present.includes(id))) result = "came";
     else if (next.who.some((id) => ((named.find((n) => n.id === id) || {}).names || []).some((n) => n.length >= 3 && text.includes(n)))) result = "mentioned";
   }
@@ -556,6 +575,191 @@ export function sceneLines({ state, members, userName, msgs, op }) {
     }
   }
   return parts;
+}
+
+// ---------- the beat plan (phase 3) ----------
+/**
+ * A beat is a stage direction the player wrote: `text` (what happens), `who` (members who take part; those away come in), and `when`:
+ *  replies { n }   n replies after the beat became the next one (0 = at once)
+ *  tag { tag }     the director reads this scene kind
+ *  place { place } the Dashboard's place holds these words
+ *  manual          only "Fire now"
+ * The plan is ordered: only the first beat that is not finished is looked at (a beat finishes when it was delivered, given up after two
+ * misses, or skipped by hand). When the condition holds the beat is DUE and waits up to BOUNDARY_WAIT replies for a scene boundary (the
+ * director's `sceneNew`, or the Dashboard's new scene) so it does not cut into the middle of a moment; then it fires anyway. A beat set to
+ * not wait, and a place beat (arriving is the boundary), fire at once. Firing is the same queue as a rule's: a fire in the ledger
+ * (`rule: "beat:<id>"`) and a queued `next`; what came of it is the same judgement; a beat's status is derived from that ledger, so a
+ * swipe or a delete takes it back with no extra bookkeeping.
+ */
+export const WHEN_KINDS = ["replies", "tag", "place", "manual"];
+export const BOUNDARY_WAIT = 6;
+const BEATS_MAX = 20;
+const BEAT_TEXT_MAX = 400;
+const BEAT_ID = /^[a-z0-9]{1,40}$/;
+const DONE = ["came", "mentioned", "sent"];
+export const beatRuleId = (id) => "beat:" + id;
+
+export function cleanWhen(raw) {
+  const w = isObj(raw) ? raw : {};
+  if (w.kind === "tag" && TAGS.includes(w.tag)) return { kind: "tag", tag: w.tag };
+  if (w.kind === "place" && str(w.place)) return { kind: "place", place: str(w.place).slice(0, 80) };
+  if (w.kind === "manual") return { kind: "manual" };
+  return { kind: "replies", n: clampInt(w.n, 0, 200, 3) };
+}
+
+/** A beat as kept; the server's own fields (addedN, skipN, dueKey, dueN, dueWhy) are never taken from a client. */
+export function cleanBeat(raw) {
+  if (!isObj(raw) || !str(raw.text)) return null;
+  const id = str(raw.id);
+  return {
+    id: BEAT_ID.test(id) ? id : "",
+    text: str(raw.text).slice(0, BEAT_TEXT_MAX),
+    who: refList(raw.who),
+    when: cleanWhen(raw.when),
+    wait: raw.wait !== false,
+    skipped: raw.skipped === true,
+    skipN: Math.max(0, Math.round(Number(raw.skipN) || 0)),
+    addedN: Math.max(0, Math.round(Number(raw.addedN) || 0)),
+    dueKey: str(raw.dueKey),
+    dueN: Math.max(0, Math.round(Number(raw.dueN) || 0)),
+    dueWhy: str(raw.dueWhy).slice(0, 120),
+  };
+}
+
+export function cleanPlan(raw) {
+  const seen = new Set();
+  const beats = [];
+  for (const b of arr(isObj(raw) ? raw.beats : [])) {
+    const beat = cleanBeat(b);
+    if (!beat || !beat.id || seen.has(beat.id)) continue;
+    seen.add(beat.id);
+    beats.push(beat);
+  }
+  return { beats: beats.slice(0, BEATS_MAX) };
+}
+
+/** What became of a beat, from the ledger: skipped, delivered (came / mentioned / sent), failed (two misses), queued, or open (with `retry` after a miss or a yield). */
+export function beatOutcome(state, beat) {
+  const fires = state.fires.filter((f) => f.rule === beatRuleId(beat.id));
+  const misses = fires.filter((f) => f.result === "missed");
+  const done = fires.find((f) => DONE.includes(f.result));
+  if (beat.skipped) return { status: "skipped", end: beat.skipN, tries: misses.length };
+  if (done) return { status: "delivered", end: done.n, result: done.result, tries: misses.length };
+  if (misses.length >= 2) return { status: "failed", end: misses[misses.length - 1].n, tries: misses.length };
+  if (state.next && state.next.rule === beatRuleId(beat.id)) return { status: "queued", end: 0, tries: misses.length };
+  const lastFire = fires[fires.length - 1];
+  return { status: "open", end: 0, tries: misses.length, retry: !!lastFire && (lastFire.result === "missed" || lastFire.result === "yielded") };
+}
+
+/** The first beat not finished, with the reply count it counts from (its own creation, or when the one before it ended). */
+export function planHead(state, total) {
+  let prevEnd = 0;
+  for (const beat of state.plan.beats) {
+    const outcome = beatOutcome(state, beat);
+    if (outcome.status === "skipped" || outcome.status === "delivered" || outcome.status === "failed") {
+      prevEnd = Math.max(prevEnd, outcome.end);
+      continue;
+    }
+    return { beat, outcome, armed: Math.min(total, Math.max(beat.addedN, prevEnd)) };
+  }
+  return null;
+}
+
+/** Does the beat's `when` hold now? { met, why } or { met: false, left? } (left = replies still to count for a `replies` beat). */
+export function beatCondition(beat, { total, armed, report, place }) {
+  const w = beat.when;
+  if (w.kind === "replies") return total - armed >= w.n ? { met: true, why: w.n ? w.n + " replies passed" : "from the start" } : { met: false, left: armed + w.n - total };
+  if (w.kind === "tag") return report && report.tag === w.tag ? { met: true, why: "the scene is " + w.tag } : { met: false };
+  if (w.kind === "place") return place && place.toLowerCase().includes(w.place.toLowerCase()) ? { met: true, why: "the story is at " + place } : { met: false };
+  return { met: false };
+}
+
+/**
+ * The decision for the newest reported reply: the next beat of the plan, when its condition holds (and it has waited for a scene boundary,
+ * or its wait is over). Nothing under the lock, with the switch off, in an explicit scene, with a note queued already, or when the newest
+ * reply has no report. Returns { fire, beats, logs }: `beats` is the plan's new list when a beat became due, else null.
+ */
+export function decideBeat({ state, msgs, members, dashDirection, dashPlace, dashMoved, now }) {
+  const none = { fire: null, beats: null, logs: [] };
+  if (state.on !== true || state.lock || state.next) return none;
+  const rows = replyRows(state, msgs);
+  const last = rows[rows.length - 1];
+  if (!last || !last.report || state.fires.some((f) => f.after === last.key)) return none;
+  const total = rows.length;
+  const head = planHead(state, total);
+  if (!head || head.outcome.status === "queued") return none;
+  const { beat, outcome, armed } = head;
+  let beats = null;
+  let due = beat;
+  const logs = [];
+  if (!beat.dueKey) {
+    const cond = beatCondition(beat, { total, armed, report: last.report, place: dashPlace });
+    if (!cond.met) return none;
+    due = { ...beat, dueKey: last.key, dueN: total, dueWhy: cond.why };
+    beats = state.plan.beats.map((b) => (b.id === beat.id ? due : b));
+    logs.push({ at: now, key: last.key, kind: "beat", state: "due", beat: beat.id, text: beat.text.slice(0, 120), why: cond.why });
+  }
+  if (dashDirection === "explicit") return { fire: null, beats, logs };
+  const boundary = dashMoved === true || rows.slice(Math.max(0, due.dueN - 1)).some((r) => r.report && r.report.sceneNew);
+  const immediate = outcome.retry || !due.wait || due.when.kind === "place";
+  const waited = total - due.dueN >= BOUNDARY_WAIT;
+  if (!immediate && !boundary && !waited) return { fire: null, beats, logs };
+  const how = outcome.retry ? "again after a miss" : immediate ? "" : boundary ? "the scene changed" : "waited " + BOUNDARY_WAIT + " replies for a scene change";
+  const why = [due.dueWhy, how].filter(Boolean).join("; ");
+  const who = due.who.filter((id) => members.some((m) => m.id === id));
+  const fire = {
+    id: "f" + now.toString(36) + beat.id.slice(0, 6),
+    rule: beatRuleId(beat.id),
+    kind: "beat",
+    who,
+    with: last.report.present.filter((id) => !who.includes(id)).slice(0, 4),
+    after: last.key,
+    n: total,
+    roll: null,
+    tension: 0,
+    hold: 0,
+    payoff: false,
+    result: null,
+    carrier: "",
+    forced: false,
+    why,
+    at: now,
+  };
+  logs.push({ at: now, key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, why });
+  return { fire, beats, logs };
+}
+
+/** The note a queued beat puts into its reply. A beat left out once says so, shorter and stricter. */
+export function beatNote({ next, beat, members, userName, tries }) {
+  if (!beat) return null;
+  const user = str(userName) || "the player";
+  const who = next.who.map((id) => nameOfId(members, id)).filter(Boolean);
+  const lines = ["[SCENE EVENT: must happen in this reply]", "What: " + beat.text];
+  if (who.length) lines.push("Who: " + nameList(who) + " " + (who.length === 1 ? "takes" : "take") + " part; if they are not here yet, they come into the scene for it, with " + user + " there.");
+  lines.push(tries > 0 ? "How: this was left out of the last reply and must happen in this one; the shortest form will do." : "How: bring it into this reply as part of the scene; the characters react in character.");
+  lines.push("Do not: explain where it came from or mention a director or a plan.");
+  return lines.join("\n");
+}
+
+/** The plan as the panel shows it: each beat with its status (waiting, due, queued, delivered, skipped, failed, behind), what it waits for, and why it is held. */
+export function beatStatuses(state, msgs, { dashDirection, dashPlace }) {
+  const rows = replyRows(state, msgs);
+  const total = rows.length;
+  const head = planHead(state, total);
+  const newest = rows.length ? rows[rows.length - 1].report : null;
+  return state.plan.beats.map((beat) => {
+    const o = beatOutcome(state, beat);
+    const base = { id: beat.id, text: beat.text, who: beat.who, when: beat.when, wait: beat.wait, tries: o.tries };
+    if (o.status !== "open") return { ...base, status: o.status, ...(o.result ? { result: o.result } : {}) };
+    if (!head || head.beat.id !== beat.id) return { ...base, status: "behind" };
+    const hold = state.on !== true ? "off" : state.lock ? "lock" : beat.dueKey && dashDirection === "explicit" ? "explicit" : "";
+    if (beat.dueKey) {
+      const immediate = o.retry || !beat.wait || beat.when.kind === "place";
+      return { ...base, status: "due", left: immediate ? 0 : Math.max(0, BOUNDARY_WAIT - (total - beat.dueN)), ...(hold ? { hold } : {}) };
+    }
+    const cond = beatCondition(beat, { total, armed: head.armed, report: newest, place: dashPlace });
+    return { ...base, status: "waiting", ...(Number.isFinite(cond.left) ? { left: cond.left } : {}), ...(cond.met ? { met: true } : {}), ...(hold ? { hold } : {}) };
+  });
 }
 
 // ---------- files ----------
@@ -630,6 +834,29 @@ function dashboardDirection(fsx, chatId) {
   if (!snaps.length) return "";
   const last = snaps.sort((a, b) => (Number(a.turn) || 0) - (Number(b.turn) || 0))[snaps.length - 1];
   return isObj(last.scene) ? str(last.scene.direction) : "";
+}
+
+/**
+ * The Dashboard's scene for the beat plan: its place (the newest snapshot's clock), its direction, and whether the story just moved
+ * (the snapshot of the newest reply says a new scene or names another place than the one before). `moved` is false when the Dashboard
+ * has not read the newest reply yet: an old snapshot's new scene must not count twice.
+ */
+export function dashboardScene(fsx, chatId, msgs) {
+  const none = { direction: "", place: "", moved: false };
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const snaps = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots : null;
+  if (!snaps) return none;
+  const list = arr(msgs).filter(isObj);
+  const line = list.map(keyOf).filter((k) => isObj(snaps[k]));
+  if (!line.length) return none;
+  const last = snaps[line[line.length - 1]];
+  const prev = line.length > 1 ? snaps[line[line.length - 2]] : null;
+  const placeOf = (sn) => (isObj(sn) && isObj(sn.clock) ? str(sn.clock.place) : "");
+  const sc = isObj(last.scene) ? last.scene : {};
+  const lastReply = list.filter(isReply).pop();
+  const fresh = !!lastReply && keyOf(lastReply) === line[line.length - 1];
+  const moved = fresh && (sc.new === true || (!!prev && !!placeOf(prev) && !!placeOf(last) && placeOf(prev).toLowerCase() !== placeOf(last).toLowerCase()));
+  return { direction: str(sc.direction), place: placeOf(last), moved };
 }
 
 /**
@@ -735,9 +962,14 @@ function runRoute(req, host) {
   // the return is spent once a reply after it was read
   if (st.returning && !returnDue(st, chat.msgs, "send")) st = { ...st, returning: null };
   st = logLine(counted(st), { key: report.key, kind: "report", tag: report.tag, present: report.present, sceneNew: report.sceneNew, model: report.model, ms, ...(usage ? { usage } : {}), ...(retry ? { retried: true } : {}) });
-  // genre rules: judge the note this reply carried, then decide the next one
+  // judge the note this reply carried, then decide the next one: a beat of the plan first, a genre rule when no beat fires
   st = judgeNext(st, report, chat.msgs, named);
-  const decided = decideRules({ state: st, msgs: chat.msgs, members: gm.members, chatId, dashDirection: dashboardDirection(fsx, chatId), now });
+  const dash = dashboardScene(fsx, chatId, chat.msgs);
+  const beat = decideBeat({ state: st, msgs: chat.msgs, members: gm.members, dashDirection: dash.direction, dashPlace: dash.place, dashMoved: dash.moved, now });
+  if (beat.beats) st = { ...st, plan: { beats: beat.beats } };
+  for (const l of beat.logs) st = { ...st, log: [...st.log, l].slice(-LOG_KEEP) };
+  if (beat.fire) st = { ...st, fires: [...st.fires, beat.fire].slice(-FIRES_KEEP), next: nextOf(beat.fire) };
+  const decided = st.next ? { fire: null, logs: [] } : decideRules({ state: st, msgs: chat.msgs, members: gm.members, chatId, dashDirection: dash.direction, now });
   if (decided.fire) st = { ...st, fires: [...st.fires, decided.fire].slice(-FIRES_KEEP), next: nextOf(decided.fire) };
   for (const l of decided.logs) st = { ...st, log: [...st.log, l].slice(-LOG_KEEP) };
   saveState(fsx, st);
@@ -758,6 +990,8 @@ function stateRoute(req, host) {
   const scene = sceneNow(state, chat.msgs, members, named, dashboardPresent(fsx, chatId));
   const report = newestReport(state, chat.msgs);
   const total = replyRows(state, chat.msgs).length;
+  const dash = dashboardScene(fsx, chatId, chat.msgs);
+  const plan = beatStatuses(state, chat.msgs, { dashDirection: dash.direction, dashPlace: dash.place });
   const rules = activeRules(state.rules).map((r) => ({
     id: r.id,
     name: r.name,
@@ -781,7 +1015,48 @@ function stateRoute(req, host) {
     rules: { set: state.rules.set, on: state.rules.on, sets: Object.entries(SETS).map(([id, s]) => ({ id, name: s.name })), items: rules },
     next: state.next && state.on === true ? { ...state.next, due: dueAfter(state.next.after, chat.msgs, "send") } : null,
     fires: state.fires.slice().reverse(),
+    plan: { beats: plan, whenKinds: WHEN_KINDS, tags: TAGS, boundaryWait: BOUNDARY_WAIT, max: BEATS_MAX, textMax: BEAT_TEXT_MAX },
   });
+}
+
+/**
+ * The chat's plan, as a whole list (the panel edits it and sends it back): new beats get an id and count from now; a beat whose `when`
+ * changed is not due any more; skipping stamps the reply count the next beat counts from. Beats that left the list take their firings
+ * (and a queued note) with them.
+ */
+function planRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  if (!groupMembers(fsx, chat.meta)) return ok({ error: "not a group chat" }, 400);
+  if (!Array.isArray(b.beats)) return ok({ error: "beats required" }, 400);
+  const st0 = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  const total = replyRows(st0, chat.msgs).length;
+  const before = new Map(st0.plan.beats.map((x) => [x.id, x]));
+  const now = Date.now();
+  const beats = [];
+  b.beats.slice(0, BEATS_MAX).forEach((raw, i) => {
+    const c = cleanBeat(raw);
+    if (!c) return;
+    const old = before.get(c.id);
+    if (!old) {
+      beats.push({ ...c, id: "b" + (now + i).toString(36), skipN: c.skipped ? total : 0, addedN: total, dueKey: "", dueN: 0, dueWhy: "" });
+      return;
+    }
+    const sameWhen = JSON.stringify(old.when) === JSON.stringify(c.when);
+    beats.push({ ...c, skipN: c.skipped ? (old.skipped ? old.skipN : total) : 0, addedN: old.addedN, ...(sameWhen && !c.skipped ? { dueKey: old.dueKey, dueN: old.dueN, dueWhy: old.dueWhy } : { dueKey: "", dueN: 0, dueWhy: "" }) });
+  });
+  const kept = new Set(beats.map((x) => beatRuleId(x.id)));
+  const gone = (rule) => rule.startsWith("beat:") && !kept.has(rule);
+  // a queued note of a beat that was deleted or skipped never reaches a reply: it leaves the ledger too
+  const stopped = st0.next && st0.next.rule.startsWith("beat:") && (gone(st0.next.rule) || beats.some((x) => x.skipped && beatRuleId(x.id) === st0.next.rule));
+  const next = stopped ? null : st0.next;
+  const st = { ...st0, plan: cleanPlan({ beats }), next, fires: st0.fires.filter((f) => !gone(f.rule) && !(stopped && f.id === st0.next.id)) };
+  saveState(fsx, st);
+  return ok({ plan: st.plan });
 }
 
 /** The chat's genre set, its switch and the edits to a rule's numbers. Changing the set drops the queued note. */
@@ -828,8 +1103,10 @@ function fireRoute(req, host) {
   const st0 = settle(fsx, loadState(fsx, chatId), chat.msgs);
   if (st0.on !== true) return ok({ error: "Direction is off in this chat" }, 400);
   if (st0.lock) return ok({ error: "the scene is locked" }, 400);
-  const rule = activeRules(st0.rules).find((r) => r.id === b.rule);
-  if (!rule) return ok({ error: "unknown rule" }, 400);
+  const beat = typeof b.beat === "string" ? st0.plan.beats.find((x) => x.id === b.beat) : null;
+  const rule = beat ? null : activeRules(st0.rules).find((r) => r.id === b.rule);
+  if (!rule && !beat) return ok({ error: b.beat ? "unknown beat" : "unknown rule" }, 400);
+  if (beat && beatOutcome(st0, beat).status !== "open" && beatOutcome(st0, beat).status !== "queued") return ok({ error: "this beat is finished" }, 400);
   const rows = replyRows(st0, chat.msgs);
   const last = rows[rows.length - 1];
   if (!last) return ok({ error: "no reply yet" }, 400);
@@ -837,6 +1114,32 @@ function fireRoute(req, host) {
   const here = last.report ? last.report.present : (() => { const d = dashboardPresent(fsx, chatId); return d ? matchMembers(d, named) : null; })();
   if (!here) return ok({ error: "the scene is not known yet" }, 400);
   const now = Date.now();
+  if (beat) {
+    // a beat by hand: now, whatever its condition and its wait; its people are the ones the player named
+    const who = beat.who.filter((id) => gm.members.some((m) => m.id === id));
+    const fire = {
+      id: "f" + now.toString(36) + beat.id.slice(0, 6),
+      rule: beatRuleId(beat.id),
+      kind: "beat",
+      who,
+      with: here.filter((id) => !who.includes(id)).slice(0, 4),
+      after: last.key,
+      n: rows.length,
+      roll: null,
+      tension: 0,
+      hold: 0,
+      payoff: false,
+      result: null,
+      carrier: "",
+      forced: true,
+      why: "fired by hand",
+      at: now,
+    };
+    const fires = [...st0.fires.filter((f) => !(st0.next && f.id === st0.next.id)), fire].slice(-FIRES_KEEP);
+    const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, why: fire.why, forced: true });
+    saveState(fsx, st);
+    return ok({ next: st.next });
+  }
   const order = candidatesFor(rows, gm.members, here, seededRandom(chatId + "|" + rule.id + "|" + last.key + "|now|" + now));
   if (!order.length) return ok({ error: "everyone is already here" }, 400);
   const fire = {
@@ -924,6 +1227,7 @@ export function handleRoute(req, host) {
   if (path === "/direction/rules" && req.method === "PUT") return rulesRoute(req, host);
   if (path === "/direction/fire" && req.method === "POST") return fireRoute(req, host);
   if (path === "/direction/skip" && req.method === "POST") return skipRoute(req, host);
+  if (path === "/direction/plan" && req.method === "PUT") return planRoute(req, host);
   return ok({ error: "not found" }, 404);
 }
 
@@ -982,8 +1286,10 @@ export function llmRequest(ctx, host) {
     // a rule's queued note: the lock and the return come first, and so does anything World already put into this reply
     if (state.on === true && state.next && dueAfter(state.next.after, chat.msgs, op)) {
       const why = parts.length ? "direction" : worldCarries(fsx, chatId, chat.msgs, op) ? "world" : "";
-      const note = why ? null : ruleNote({ next: state.next, members: gm.members, userName });
-      if (note) parts.push({ label: "Direction · rule", text: note });
+      const isBeat = state.next.kind === "beat";
+      const beat = isBeat ? state.plan.beats.find((x) => beatRuleId(x.id) === state.next.rule) : null;
+      const note = why ? null : isBeat ? beatNote({ next: state.next, beat, members: gm.members, userName, tries: beat ? beatOutcome(state, beat).tries : 0 }) : ruleNote({ next: state.next, members: gm.members, userName });
+      if (note) parts.push({ label: isBeat ? "Direction · beat" : "Direction · rule", text: note });
       else {
         const id = state.next.id;
         const rule = state.next.rule;

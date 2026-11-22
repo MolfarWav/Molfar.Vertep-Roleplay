@@ -13,7 +13,7 @@ import { relativeTime, resolveLanguage } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { runDirection, saveDirectionModel, setDirectionChat, skipDirectionNext, useDirectionLive, type DirectionState } from '@/lib/direction'
-import { actLine, barMode, errorKey, lastRun, namesOf, nameOf, tagKey, useDirectionState } from '@/lib/direction-ui'
+import { barMode, beatOf, beatShort, errorKey, lastRun, nameOf, namesOf, nextAct, tagKey, useDirectionState } from '@/lib/direction-ui'
 import type { Character, Chat } from '@/lib/types'
 
 export { DirectionLog } from '@/components/chat/direction-log'
@@ -109,9 +109,9 @@ export function DirectorBarView({ chatId, state, running, onPickModel, onToggle,
       )}
 
       {next && (
-        <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-background text-xs max-md:min-h-10" data-testid="director-next" aria-label={t('dir.next.aria', { act: actLine(t, next.kind, next.who.map((id) => nameOf(state, id)), next.with.map((id) => nameOf(state, id)), lang) })}>
+        <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-background text-xs max-md:min-h-10" data-testid="director-next" aria-label={t('dir.next.aria', { act: nextAct(t, state, next, lang) })}>
           <ClockCountdown className="ml-2.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="max-w-40 truncate px-1.5 font-medium">{t('dir.next.chip', { names: namesOf(state, next.who) })}</span>
+          <span className={cn('truncate px-1.5 font-medium', next.kind === 'beat' ? 'max-w-52' : 'max-w-40')}>{next.kind === 'beat' ? t('dir.next.chipBeat', { text: beatShort(beatOf(state, next.rule)?.text ?? '', 40) }) : t('dir.next.chip', { names: namesOf(state, next.who) })}</span>
           {onSkip && (
             <button
               type="button"
@@ -119,7 +119,7 @@ export function DirectorBarView({ chatId, state, running, onPickModel, onToggle,
               aria-label={t('dir.next.skip')}
               title={t('dir.next.skip')}
               data-testid="director-next-skip"
-              className="mr-0.5 flex size-7 items-center justify-center rounded-full hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-9"
+              className="mr-0.5 flex size-7 items-center justify-center rounded-full hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-10"
             >
               <X className="size-3.5" aria-hidden="true" />
             </button>

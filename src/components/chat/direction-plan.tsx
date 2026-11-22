@@ -1,0 +1,333 @@
+// The Plan tab of the Direction sheet (plugins/direction, phase 3a, #496): the chat's beats in order, each with where it stands,
+// and the inline editor. A beat is a planned moment ("Yuzu bursts in with news"): it waits for its condition, then for a scene
+// boundary, then rides a reply. Every change sends the whole list back (PUT /direction/plan); the tab itself keeps no list.
+import { useId, useState } from 'react'
+import { toast } from 'sonner'
+import { ArrowDown, ArrowUp, Lightning, PencilSimple, Plus, SkipForward, TrashSimple, ArrowUUpLeft } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { useConfirm } from '@/components/ui/confirm'
+import { NumTile, Segmented, SettingRow } from '@/components/ui/setting-row'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleChip } from '@/components/ui/toggle-chip'
+import { NextCallout } from '@/components/chat/direction-next'
+import { useT } from '@/hooks/use-t'
+import { cn } from '@/lib/utils'
+import {
+  BEAT_MAX, BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, fireDirectionBeat, setDirectionPlan, skipDirectionNext,
+  type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionState, type DirectionTag,
+} from '@/lib/direction'
+import {
+  BEAT_FINISHED, barMode, beatDot, beatFireBlockedKey, beatHoldText, beatStatusLine, beatWhenText, blankDraft, draftIssue, draftOf, draftWhenKind,
+  nameOf, planDrafts, planMoved, planTags, planWithBeat, planWithout, planWithSkip, tagKey,
+} from '@/lib/direction-ui'
+
+const fail = (e: unknown): void => { toast.error(String((e as Error)?.message ?? e)) }
+
+/** The Plan tab with its actions wired to the plugin. A refused change shows the plugin's own message and keeps the editor open. */
+export function PlanTab({ chatId, state }: { chatId: string; state: DirectionState }) {
+  return (
+    <PlanTabView
+      state={state}
+      onPlan={(beats) => setDirectionPlan(chatId, beats).then(() => true).catch((e: unknown) => { fail(e); return false })}
+      onFire={(id) => fireDirectionBeat(chatId, id).then(() => undefined).catch(fail)}
+      onSkipNext={() => skipDirectionNext(chatId).catch(fail)}
+    />
+  )
+}
+
+type Editing = { key: string; draft: BeatDraft }
+
+/** The Plan tab itself: what it shows depends only on the state and the callbacks, so it is checked without a browser. */
+export function PlanTabView({ state, onPlan, onFire, onSkipNext, startEdit }: {
+  state: DirectionState
+  /** the whole list after a change; true when the plugin took it */
+  onPlan: (beats: BeatDraft[]) => Promise<boolean> | boolean
+  onFire: (beat: string) => Promise<void> | void
+  onSkipNext: () => Promise<void> | void
+  /** open the editor at first (tests): a beat's id, or `new` */
+  startEdit?: Editing
+}) {
+  const t = useT()
+  const [confirm, confirmDialog] = useConfirm()
+  const plan = state.plan
+  const beats = plan?.beats ?? []
+  const max = plan?.max ?? BEAT_MAX
+  const mode = barMode(state)
+  const reason = mode === 'no-model' ? t('dir.plan.needModel') : mode === 'off' ? t('dir.plan.needDirection') : ''
+  const blockedKey = beatFireBlockedKey(state)
+  const [edit, setEdit] = useState<Editing | null>(startEdit ?? null)
+  const [pending, setPending] = useState(false)
+  const full = beats.length >= max
+  const run = async (fn: () => Promise<unknown> | unknown): Promise<unknown> => {
+    setPending(true)
+    try {
+      return await fn()
+    } finally {
+      setPending(false)
+    }
+  }
+  const send = (list: BeatDraft[]) => run(() => onPlan(list))
+  const save = async () => {
+    if (!edit || draftIssue(edit.draft)) return
+    const ok = await send(planWithBeat(planDrafts(state), edit.draft))
+    if (ok !== false) setEdit(null)
+  }
+  const remove = async (b: DirectionBeat) => {
+    const yes = await confirm({ title: t('dir.beat.deleteTitle'), description: t('dir.beat.deleteBody', { text: b.text }), actionLabel: t('dir.beat.delete') })
+    if (yes) await send(planWithout(planDrafts(state), b.id))
+  }
+  const editor = (key: string, title: string) => edit && edit.key === key ? (
+    <BeatEditor
+      key={`edit-${key}`}
+      state={state}
+      title={title}
+      draft={edit.draft}
+      saving={pending}
+      onChange={(draft) => setEdit({ key, draft })}
+      onSave={() => void save()}
+      onCancel={() => setEdit(null)}
+    />
+  ) : null
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="plan-tab">
+      <p className="text-body text-muted-foreground" data-testid="plan-hint">{t('dir.plan.hint')}</p>
+      {reason && <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground" data-testid="plan-reason">{reason}</p>}
+      <NextCallout state={state} testId="plan" onSkip={onSkipNext} />
+
+      {beats.length === 0 && !edit && (
+        <Card variant="padded" className="border-dashed" data-testid="plan-empty">
+          <p className="text-body font-medium">{t('dir.plan.emptyTitle')}</p>
+          <p className="text-body text-muted-foreground">{t('dir.plan.empty')}</p>
+          <p className="text-caption text-muted-foreground">{t('dir.plan.example')}</p>
+        </Card>
+      )}
+
+      {beats.map((b, i) => editor(b.id, t('dir.beat.editing')) ?? (
+        <BeatCard
+          key={b.id}
+          state={state}
+          beat={b}
+          index={i}
+          last={i === beats.length - 1}
+          pending={pending}
+          blocked={blockedKey ? t(blockedKey) : ''}
+          onFire={() => void run(() => onFire(b.id))}
+          onEdit={() => setEdit({ key: b.id, draft: draftOf(b) })}
+          onSkip={() => void send(planWithSkip(planDrafts(state), b.id, b.status !== 'skipped'))}
+          onMove={(d) => void send(planMoved(planDrafts(state), b.id, d))}
+          onDelete={() => void remove(b)}
+        />
+      ))}
+
+      {editor('new', t('dir.beat.new')) ?? (
+        <div className="flex flex-col gap-1.5">
+          <Button
+            variant={beats.length === 0 ? 'default' : 'tonal'}
+            className="w-full max-md:h-11"
+            disabled={full || pending}
+            onClick={() => setEdit({ key: 'new', draft: blankDraft() })}
+            data-testid="plan-add"
+          >
+            <Plus className="size-4" aria-hidden="true" />{t('dir.plan.add')}
+          </Button>
+          {full && <p className="text-caption text-muted-foreground" data-testid="plan-full">{t('dir.plan.full', { max })}</p>}
+        </div>
+      )}
+      {confirmDialog}
+    </div>
+  )
+}
+
+/** One beat: its number and text, who and when, where it stands (dot and words), and what can be done with it. */
+function BeatCard({ state, beat, index, last, pending, blocked, onFire, onEdit, onSkip, onMove, onDelete }: {
+  state: DirectionState
+  beat: DirectionBeat
+  index: number
+  last: boolean
+  pending: boolean
+  /** why "Fire now" cannot be used, or "" */
+  blocked: string
+  onFire: () => void
+  onEdit: () => void
+  onSkip: () => void
+  onMove: (delta: -1 | 1) => void
+  onDelete: () => void
+}) {
+  const t = useT()
+  const reasonId = useId()
+  const finished = BEAT_FINISHED.includes(beat.status)
+  const skipped = beat.status === 'skipped'
+  const hold = beatHoldText(t, beat)
+  const canFire = !finished && beat.status !== 'queued'
+  const meta = [
+    beat.who.length ? t('dir.beat.who', { names: beat.who.map((id) => nameOf(state, id)).join(', ') }) : '',
+    beatWhenText(t, beat.when),
+    beat.wait && (beat.when.kind === 'replies' || beat.when.kind === 'tag') ? t('dir.beat.waits') : '',
+  ].filter(Boolean).join(' · ')
+  const iconBtn = 'size-8 max-md:size-10'
+  return (
+    <Card variant="rows" data-testid={`beat-${beat.id}`} data-status={beat.status}>
+      <div className="flex items-start gap-3 px-4 py-3">
+        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-caption font-medium" aria-hidden="true">{index + 1}</span>
+        <div className="min-w-0 flex-1">
+          <p className={cn('line-clamp-3 break-words text-body font-medium', (finished || skipped) && 'text-muted-foreground')} data-testid={`beat-text-${beat.id}`}>{beat.text}</p>
+          <p className="mt-0.5 break-words text-caption text-muted-foreground" data-testid={`beat-meta-${beat.id}`}>{meta}</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 px-4 py-2">
+        <p className="flex min-w-0 items-start gap-2 text-caption text-foreground" data-testid={`beat-status-${beat.id}`}>
+          <span className={cn('mt-1 size-2 shrink-0 rounded-full', beatDot(beat.status))} aria-hidden="true" />
+          <span className="min-w-0">{beatStatusLine(t, beat, state.plan?.boundaryWait ?? 6)}</span>
+        </p>
+        {hold && <p className="text-caption text-muted-foreground" data-testid={`beat-hold-${beat.id}`}>{hold}</p>}
+        {canFire && blocked && <p id={reasonId} className="text-caption text-muted-foreground" data-testid={`beat-blocked-${beat.id}`}>{blocked}</p>}
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+          {canFire && (
+            <Button variant="ghost" size="sm" className="gap-1.5 max-md:h-10" disabled={!!blocked || pending} aria-describedby={blocked ? reasonId : undefined} onClick={onFire} data-testid={`beat-fire-${beat.id}`}>
+              <Lightning className="size-3.5" aria-hidden="true" />{t('dir.rules.fire')}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="gap-1.5 max-md:h-10" disabled={pending} onClick={onEdit} data-testid={`beat-edit-${beat.id}`}>
+            <PencilSimple className="size-3.5" aria-hidden="true" />{t('dir.beat.edit')}
+          </Button>
+          {(skipped || !finished) && (
+            <Button variant="ghost" size="sm" className="gap-1.5 max-md:h-10" disabled={pending} onClick={onSkip} data-testid={`beat-skip-${beat.id}`}>
+              {skipped ? <ArrowUUpLeft className="size-3.5" aria-hidden="true" /> : <SkipForward className="size-3.5" aria-hidden="true" />}
+              {t(skipped ? 'dir.beat.unskip' : 'dir.beat.skip')}
+            </Button>
+          )}
+          <span className="ml-auto flex items-center">
+            <Button variant="ghost" size="icon" className={iconBtn} disabled={index === 0 || pending} onClick={() => onMove(-1)} aria-label={t('dir.beat.up')} title={t('dir.beat.up')} data-testid={`beat-up-${beat.id}`}>
+              <ArrowUp className="size-4" aria-hidden="true" />
+            </Button>
+            <Button variant="ghost" size="icon" className={iconBtn} disabled={last || pending} onClick={() => onMove(1)} aria-label={t('dir.beat.down')} title={t('dir.beat.down')} data-testid={`beat-down-${beat.id}`}>
+              <ArrowDown className="size-4" aria-hidden="true" />
+            </Button>
+            <Button variant="ghost" size="icon" className={cn(iconBtn, 'text-destructive hover:text-destructive')} disabled={pending} onClick={onDelete} aria-label={t('dir.beat.delete')} title={t('dir.beat.delete')} data-testid={`beat-delete-${beat.id}`}>
+              <TrashSimple className="size-4" aria-hidden="true" />
+            </Button>
+          </span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+const KINDS: DirectionBeatKind[] = ['replies', 'tag', 'place', 'manual']
+
+/** The inline editor of a beat (new or existing): text, who, when with its one value, the wait switch, Save and Cancel. */
+export function BeatEditor({ state, title, draft, saving, onChange, onSave, onCancel }: {
+  state: DirectionState
+  title: string
+  draft: BeatDraft
+  saving?: boolean
+  onChange: (draft: BeatDraft) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const t = useT()
+  const textId = useId()
+  const whoId = useId()
+  const issueId = useId()
+  const textMax = state.plan?.textMax ?? BEAT_TEXT_MAX
+  const tags = planTags(state)
+  const wait = state.plan?.boundaryWait ?? 6
+  const issue = draftIssue(draft)
+  const w = draft.when
+  const toggleWho = (id: string) => onChange({ ...draft, who: draft.who.includes(id) ? draft.who.filter((x) => x !== id) : [...draft.who, id] })
+  return (
+    <Card variant="rows" className="border-cta/40" data-testid="beat-editor">
+      <div className="flex flex-col gap-1.5 px-4 pt-3 pb-3">
+        <p className="text-body font-semibold" data-testid="beat-editor-title">{title}</p>
+        <label htmlFor={textId} className="text-body font-medium">{t('dir.beat.text')}</label>
+        <Textarea
+          id={textId}
+          value={draft.text}
+          maxLength={textMax}
+          rows={3}
+          placeholder={t('dir.beat.textPh')}
+          onChange={(e) => onChange({ ...draft, text: e.target.value })}
+          className="min-h-20 resize-y"
+          data-testid="beat-text"
+        />
+        <p className="text-right text-caption text-muted-foreground">{t('dir.beat.textCount', { n: draft.text.length, max: textMax })}</p>
+      </div>
+
+      {state.members.length > 0 && (
+        <div className="flex flex-col gap-2 px-4 py-3" role="group" aria-labelledby={whoId} data-testid="beat-who">
+          <span id={whoId} className="text-body font-medium">{t('dir.beat.who.title')}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {state.members.map((m) => (
+              <ToggleChip key={m.id} pressed={draft.who.includes(m.id)} onPressedChange={() => toggleWho(m.id)} tone="violet">{m.name}</ToggleChip>
+            ))}
+          </div>
+          <p className="text-caption text-muted-foreground">{t('dir.beat.who.hint')}</p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 px-4 py-3" data-testid="beat-when">
+        <span className="text-body font-medium">{t('dir.beat.when.title')}</span>
+        <Segmented
+          label={t('dir.beat.when.title')}
+          value={w.kind}
+          className="w-full flex-wrap [&>button]:flex-1 max-md:grid max-md:grid-cols-2"
+          onChange={(k) => onChange(draftWhenKind(draft, k, tags))}
+          options={KINDS.map((k) => ({ id: k, label: t(`dir.beat.kind.${k}` as const) }))}
+        />
+        {w.kind === 'replies' && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <NumTile label={t('dir.beat.n')} hint={t('dir.beat.nHint')} value={w.n} min={0} max={BEAT_REPLIES_MAX} onCommit={(n) => onChange({ ...draft, when: { kind: 'replies', n } })} />
+          </div>
+        )}
+        {w.kind === 'tag' && (
+          <label className="flex flex-col gap-1 text-body">
+            {t('dir.beat.tag')}
+            <Select value={w.tag} onValueChange={(x) => x && onChange({ ...draft, when: { kind: 'tag', tag: String(x) as DirectionTag } })}>
+              <SelectTrigger className="w-full max-md:h-10" data-testid="beat-tag"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {tags.map((tag) => <SelectItem key={tag} value={tag} className="max-md:min-h-10">{t(tagKey(tag))}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-caption text-muted-foreground">{t('dir.beat.tagHint')}</span>
+          </label>
+        )}
+        {w.kind === 'place' && (
+          <label className="flex flex-col gap-1 text-body">
+            {t('dir.beat.place')}
+            <Input
+              value={w.place}
+              maxLength={BEAT_PLACE_MAX}
+              placeholder={t('dir.beat.placePh')}
+              onChange={(e) => onChange({ ...draft, when: { kind: 'place', place: e.target.value } })}
+              className="h-10 md:h-8"
+              data-testid="beat-place"
+            />
+            <span className="text-caption text-muted-foreground">{t('dir.beat.placeHint')}</span>
+          </label>
+        )}
+        {w.kind === 'manual' && <p className="text-caption text-muted-foreground" data-testid="beat-manual-line">{t('dir.beat.manualLine')}</p>}
+      </div>
+
+      {(w.kind === 'replies' || w.kind === 'tag') ? (
+        <SettingRow label={t('dir.beat.waitLabel')} status={t('dir.beat.waitHint', { n: wait })}>
+          <Switch checked={draft.wait} onCheckedChange={(v) => onChange({ ...draft, wait: v })} aria-label={t('dir.beat.waitLabel')} data-testid="beat-wait" />
+        </SettingRow>
+      ) : w.kind === 'place' ? (
+        <p className="px-4 py-3 text-caption text-muted-foreground" data-testid="beat-place-line">{t('dir.beat.placeLine')}</p>
+      ) : null}
+
+      <div className="flex flex-col gap-2 px-4 py-3">
+        {issue && <p id={issueId} className="text-caption text-muted-foreground" data-testid="beat-issue">{t(issue)}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" className="h-9 max-md:h-10" onClick={onCancel} disabled={saving} data-testid="beat-cancel">{t('dir.beat.cancel')}</Button>
+          <Button className="h-9 max-md:h-10" onClick={onSave} disabled={!!issue || saving} aria-describedby={issue ? issueId : undefined} data-testid="beat-save">{t('dir.beat.save')}</Button>
+        </div>
+      </div>
+    </Card>
+  )
+}

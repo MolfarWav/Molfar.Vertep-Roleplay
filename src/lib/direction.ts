@@ -21,7 +21,7 @@ export interface DirectionReport {
 
 export interface DirectionLogEntry {
   at: number
-  kind: 'report' | 'error' | 'on' | 'off' | 'lock' | 'release' | 'rule' | 'result' | 'rules' | 'skip' | string
+  kind: 'report' | 'error' | 'on' | 'off' | 'lock' | 'release' | 'rule' | 'result' | 'rules' | 'skip' | 'beat' | string
   key?: string
   tag?: DirectionTag | null
   present?: string[]
@@ -35,7 +35,10 @@ export interface DirectionLogEntry {
   retried?: boolean
   /** phase 2: kind `rule` (state fired | missed), `result`, `rules` (set, on) and `skip` carry these */
   rule?: string
-  state?: 'fired' | 'missed'
+  /** phase 3: kind `beat` (state due | fired) carries `beat` (the id), `text`, `who`, `why`, `forced`; a beat's result line has `rule: "beat:<id>"` */
+  beat?: string
+  text?: string
+  state?: 'fired' | 'missed' | 'due'
   roll?: DirectionRoll | null
   who?: string[]
   with?: string[]
@@ -56,9 +59,11 @@ export interface DirectionScene {
 }
 
 export interface DirectionRoll { d1: number; d2: number; total: number; need: number }
-export type DirectionResult = 'came' | 'mentioned' | 'missed' | 'yielded'
+export type DirectionResult = 'came' | 'mentioned' | 'missed' | 'yielded' | 'sent'
 export type DirectionRuleKind = 'interrupt' | 'join' | 'return'
 export type DirectionRuleStatus = 'ready' | 'cooldown' | 'payoff' | 'off'
+/** a queued note or a firing is a rule's, or (phase 3) a beat's */
+export type DirectionNoteKind = DirectionRuleKind | 'beat'
 
 /** One genre rule of the chat's set, with the chat's edits applied and where it stands now. */
 export interface DirectionRule {
@@ -82,8 +87,9 @@ export interface DirectionRule {
 /** The note queued for the next reply. */
 export interface DirectionNext {
   id: string
+  /** a rule's id, or `beat:<id>` for a beat of the plan */
   rule: string
-  kind: DirectionRuleKind
+  kind: DirectionNoteKind
   who: string[]
   with: string[]
   after: string
@@ -97,7 +103,7 @@ export interface DirectionNext {
 export interface DirectionFire {
   id: string
   rule: string
-  kind: DirectionRuleKind
+  kind: DirectionNoteKind
   who: string[]
   with: string[]
   after: string
@@ -122,6 +128,57 @@ export interface DirectionRules {
   items: DirectionRule[]
 }
 
+// ---------- the beat plan (phase 3a) ----------
+
+export type DirectionBeatWhen = { kind: 'replies'; n: number } | { kind: 'tag'; tag: DirectionTag } | { kind: 'place'; place: string } | { kind: 'manual' }
+export type DirectionBeatKind = DirectionBeatWhen['kind']
+export type DirectionBeatStatus = 'waiting' | 'due' | 'queued' | 'delivered' | 'skipped' | 'failed' | 'behind'
+
+/** One beat of the plan as the state route reads it: what the player wrote and where it stands now. */
+export interface DirectionBeat {
+  id: string
+  text: string
+  /** members who take part (those away come in for it); may be empty */
+  who: string[]
+  when: DirectionBeatWhen
+  /** once due, wait up to `boundaryWait` replies for a new scene */
+  wait: boolean
+  /** misses so far (two end it) */
+  tries: number
+  status: DirectionBeatStatus
+  /** replies still to count (waiting, replies kind) or replies left of the boundary wait (due) */
+  left?: number
+  hold?: 'off' | 'lock' | 'explicit'
+  result?: DirectionResult
+  /** the condition holds (waiting: the beat becomes due at the next report) */
+  met?: boolean
+}
+
+export interface DirectionPlan {
+  beats: DirectionBeat[]
+  whenKinds: string[]
+  tags: DirectionTag[]
+  boundaryWait: number
+  max: number
+  textMax: number
+}
+
+/** A beat as the player edits it and as `PUT /direction/plan` takes it: no server fields. A new beat has no id. */
+export interface BeatDraft {
+  id?: string
+  text: string
+  who: string[]
+  when: DirectionBeatWhen
+  wait: boolean
+  skipped: boolean
+}
+
+/** The plugin's limits (the state route sends the same numbers; these are the fallback for an older answer). */
+export const BEAT_MAX = 20
+export const BEAT_TEXT_MAX = 400
+export const BEAT_PLACE_MAX = 80
+export const BEAT_REPLIES_MAX = 200
+
 export interface DirectionState {
   config: { model: string }
   chat: { on: boolean; lock: { ids: string[]; at: number } | null; returning: { ids: string[]; after: string; at: number } | null }
@@ -134,6 +191,8 @@ export interface DirectionState {
   rules?: DirectionRules
   next?: DirectionNext | null
   fires?: DirectionFire[]
+  /** phase 3a: the beat plan (an older plugin leaves it out) */
+  plan?: DirectionPlan
 }
 
 /** The genre sets the plugin ships (the group editor has no chat to ask): id and the message key of the name. */
@@ -154,6 +213,7 @@ export function clampRuleNumber(field: RuleNumber, n: number): number {
 export interface DirectionMarks {
   chatId: string
   fires: DirectionFire[]
+  /** rule id -> name; a beat is `beat:<id>` -> its text */
   rules: Record<string, string>
   members: Record<string, string>
 }
@@ -219,6 +279,19 @@ export async function setDirectionRules(chatId: string, patch: { set?: string; o
 /** "Fire now": a rule's note rides the next reply. Rejects with the plugin's message when it cannot. */
 export async function fireDirectionRule(chatId: string, rule: string): Promise<DirectionNext | null> {
   const r = await j<{ next: DirectionNext | null }>('/direction/fire', { method: 'POST', body: JSON.stringify({ chatId, rule }) })
+  bump()
+  return r.next
+}
+
+/** The whole plan, sent back after any change (a new beat has no id: the plugin gives it one). Rejects with the plugin's message. */
+export async function setDirectionPlan(chatId: string, beats: BeatDraft[]): Promise<void> {
+  await j<{ plan: { beats: unknown[] } }>('/direction/plan', { method: 'PUT', body: JSON.stringify({ chatId, beats }) })
+  bump()
+}
+
+/** "Fire now" for a beat: no condition, no wait; it rides the next reply. Rejects with the plugin's message when it cannot. */
+export async function fireDirectionBeat(chatId: string, beat: string): Promise<DirectionNext | null> {
+  const r = await j<{ next: DirectionNext | null }>('/direction/fire', { method: 'POST', body: JSON.stringify({ chatId, beat }) })
   bump()
   return r.next
 }
