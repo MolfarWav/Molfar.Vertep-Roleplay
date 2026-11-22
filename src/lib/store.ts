@@ -300,14 +300,14 @@ interface AppState {
   forkAndOpen: (chatId: ID, messageId: ID) => Promise<void>
   updateChat: (chatId: ID, patch: Partial<Chat>) => void
   /** opts: the preset and picks the new-chat step chose (absent = the character's memory, else the default preset) */
-  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; personaId?: ID | null; model?: string }) => Promise<ID>
+  newChat: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; personaId?: ID | null; model?: string; direction?: boolean }) => Promise<ID>
   /** `continues`: the chat this one picks up (#262); the step always opens, preselected on it */
   startChatAndOpen: (charId: ID, greetingIndex?: number) => Promise<void>
   /** the open new-chat step (preset and choices before a chat starts); null = none */
   newChatStep: { charId: ID; greetingIndex?: number } | null
   closeNewChatStep: () => void
   /** create the chat (with the step's preset and picks, if any) and open it */
-  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; world?: { worldId: string } | { fromChatId: ID }; personaId?: ID | null; model?: string; continues?: ID; quietWorld?: boolean }) => Promise<void>
+  startChatWith: (charId: ID, greetingIndex?: number, opts?: { presetId?: ID; presetVars?: Record<string, string | string[]>; turns?: ChatTurns; agents?: AgentBindingOpt; world?: { worldId: string } | { fromChatId: ID }; personaId?: ID | null; model?: string; continues?: ID; quietWorld?: boolean; direction?: boolean }) => Promise<void>
   /** Change THIS chat's preset and/or picks (POST /chats/:id/preset); the meta it returns replaces the chat's copy. */
   setChatPreset: (chatId: ID, body: PresetChoiceBody) => Promise<void>
   /** only: 'total' skips the per-option costs (slow in the engine's sandbox) */
@@ -319,7 +319,11 @@ interface AppState {
   loadPresetDefaults: () => Promise<Record<ID, Record<string, string | string[]>>>
   /** save these choices as the user's default for the preset; null forgets it */
   setPresetDefault: (presetId: ID, vars: Record<string, string | string[]> | null) => Promise<void>
+  /** Makes the group and nothing else: its editor opens next (`newGroupId` shows the first-chat banner), the first chat starts from there */
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
+  /** the group whose editor shows "New group created" (cleared when the banner is dismissed or the editor closes) */
+  newGroupId: ID | null
+  dismissNewGroup: () => void
   convertToGroup: (chatId: ID, addMemberIds: ID[]) => Promise<ID | null>
   reorderGroupMember: (groupId: ID, memberId: ID, dir: -1 | 1) => void
   /** Change a group's file (the group editor). Arrays and memberSettings go whole. */
@@ -728,6 +732,8 @@ export const useApp = create<AppState>()(
       composerDrafts: {},
       deleteMode: false,
       newChatStep: null,
+      newGroupId: null,
+      dismissNewGroup: () => set({ newGroupId: null }),
       closeNewChatStep: () => set({ newChatStep: null }),
       helpOpen: false,
       guideHelpOpen: false,
@@ -1304,7 +1310,7 @@ export const useApp = create<AppState>()(
         // sheet portal over the whole page
         set({ view: 'chats', activeChatId: null })
       },
-      openCharacter: (charId) => set({ activeCharacterId: charId }),
+      openCharacter: (charId) => set(charId === null ? { activeCharacterId: null, newGroupId: null } : { activeCharacterId: charId }),
       openCard: (charId) => {
         set({ activeCharacterId: charId })
         get().setView(get().characters.find((c) => c.id === charId)?.isGroup ? 'groups' : 'characters')
@@ -1908,7 +1914,7 @@ export const useApp = create<AppState>()(
           }
         }
         // a new group chat starts with Direction on when its model is picked (#496)
-        if (char?.isGroup) await directionOnForNewChat(chat.id)
+        if (char?.isGroup) await directionOnForNewChat(chat.id, opts?.direction ?? char.group?.direction !== false)
         bumpMutate()
         set((s) => ({ chats: attachBranches([chat, ...s.chats]) }))
         return chat.id
@@ -1922,7 +1928,9 @@ export const useApp = create<AppState>()(
           const hasSets = presets.length > 1 || pre.variables.length > 0 ? false : (await listAgentSets().catch(() => [])).length > 0
           // a player who has not yet been shown the ready agents gets the step once, even with nothing else to choose (Molfar.Vertep#396)
           const offerFresh = presets.length > 1 || pre.variables.length > 0 || hasSets || offerShown() ? false : (await listInstalledAgents().catch(() => null)) !== null
-          if (presets.length > 1 || pre.variables.length > 0 || hasSets || offerFresh) {
+          // a group's chat always gets the step: Direction is one of its choices (#496)
+          const isGroup = get().characters.find((c) => c.id === charId)?.isGroup === true
+          if (isGroup || presets.length > 1 || pre.variables.length > 0 || hasSets || offerFresh) {
             set({ newChatStep: { charId, greetingIndex } })
             return
           }
@@ -1964,9 +1972,8 @@ export const useApp = create<AppState>()(
         })
         const members = get().characters.filter((c) => memberIds.includes(c.id))
         bumpMutate()
-        set((s) => ({ characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }, members)] }))
-        const chatId = await get().newChat(gid)
-        return chatId
+        set((s) => ({ newGroupId: gid, characters: [...s.characters, groupToCharacter({ id: gid, name, memberIds, mode: 'natural', mutedIds: [], generationMode: 'narrator', ...NEW_GROUP_DYNAMICS }, members)] }))
+        return gid
       },
       convertToGroup: async (chatId, addMemberIds) => {
         const chat = get().chats.find((c) => c.id === chatId)

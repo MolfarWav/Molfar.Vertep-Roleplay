@@ -83,6 +83,8 @@ export interface GroupConfig {
   linkedLorebookIds?: string[]
   /** members' lorebooks in this group: all (default), only the current speaker's, or none */
   memberBooks?: 'all' | 'speaker' | 'off'
+  /** Direction in this group's new chats: false = off (absent = on once a director model is picked; Molfar.Vertep#496) */
+  direction?: boolean
 }
 
 /** A group chat's own turn settings (chat meta `turns`): each key set here

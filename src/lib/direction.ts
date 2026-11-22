@@ -133,9 +133,9 @@ export async function triggerDirection(chatId: string, isGroup: boolean, busy: (
 }
 
 /** A new group chat starts with Direction on when a model is picked (owner, 2026-11-22); older chats are not touched. */
-export async function directionOnForNewChat(chatId: string): Promise<void> {
+export async function directionOnForNewChat(chatId: string, wanted = true): Promise<void> {
   try {
-    if (await directionModel()) await setDirectionChat(chatId, { on: true })
+    if (wanted && (await directionModel())) await setDirectionChat(chatId, { on: true })
   } catch {
     /* an app without the plugin: nothing to switch on */
   }

@@ -17,6 +17,7 @@ import {
   PencilSimple,
   MagnifyingGlass,
   Trash,
+  FilmSlate,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -67,6 +68,7 @@ import { useT } from '@/hooks/use-t'
 import { CharacterBooks } from '@/components/character/character-books'
 import { OpeningGenerator, ScenarioGenerator, useSceneDraft } from '@/components/groups/scene-generate'
 import { DynamicsFields, VoiceFields } from '@/components/groups/dynamics-fields'
+import { GroupDirectionTab } from '@/components/groups/group-direction'
 import type { Character, Chat, GroupConfig, GroupMemberSettings } from '@/lib/types'
 
 const COLORS = ['#e06c75', '#e5c07b', '#98c379', '#56b6c2', '#61afef', '#c678dd', '#d19a66', '#abb2bf']
@@ -120,6 +122,8 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
   const deleteCharacter = useApp((s) => s.deleteCharacter)
   const startChatAndOpen = useApp((s) => s.startChatAndOpen)
   const openChat = useApp((s) => s.openChat)
+  const newGroup = useApp((s) => s.newGroupId === group.id)
+  const dismissNewGroup = useApp((s) => s.dismissNewGroup)
   const deleteChat = useApp((s) => s.deleteChat)
 
   const byId = useMemo(() => new Map(characters.map((c) => [c.id, c])), [characters])
@@ -155,6 +159,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
     { id: 'members', icon: Users, label: t('group.ed.members') },
     { id: 'scene', icon: BookOpenText, label: t('group.ed.scene') },
     { id: 'turns', icon: ArrowsLeftRight, label: t('group.ed.turns') },
+    { id: 'direction', icon: FilmSlate, label: t('group.ed.direction') },
     { id: 'lore', icon: Books, label: t('group.ed.lore') },
     { id: 'chats', icon: ChatCircleText, label: t('group.ed.chats') },
   ]
@@ -304,7 +309,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label={t('group.ed.back')}>
+        <Button variant="ghost" size="sm" onClick={() => { dismissNewGroup(); onClose() }} aria-label={t('group.ed.back')}>
           <ArrowLeft className="size-4" aria-hidden="true" />
         </Button>
 
@@ -331,12 +336,20 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
             </span>
           </Button>
 
-          <Button size="sm" onClick={() => void startChatAndOpen(group.id)}>
+          <Button size="sm" onClick={() => { dismissNewGroup(); void startChatAndOpen(group.id) }} data-testid="group-start-chat">
             <Chats className="size-4" aria-hidden="true" />
-            {t('group.ed.chat')}
+            {t('group.ed.startChat')}
           </Button>
         </div>
       </header>
+
+      {newGroup && (
+        <div role="status" className="mx-3 mt-2 flex items-start gap-2 rounded-lg border border-cta/40 bg-cta/10 px-3 py-2 text-sm" data-testid="new-group-banner">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{t('group.ed.newBanner')}</p>
+          <Button variant="ghost" size="sm" className="shrink-0 max-md:h-10" onClick={dismissNewGroup}>{t('group.ed.newBannerDismiss')}</Button>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
         <div className="max-w-full py-2">
@@ -878,6 +891,10 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
               )}
             </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="direction" className="max-w-3xl px-3 pb-6">
+            <GroupDirectionTab group={group} />
           </TabsContent>
 
           <TabsContent value="lore" className="space-y-5 max-w-3xl px-3 pb-6">
