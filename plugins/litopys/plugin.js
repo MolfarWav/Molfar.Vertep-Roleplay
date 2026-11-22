@@ -4526,7 +4526,8 @@ export function applyWorkerResult(st, work, parsed, ctx) {
       } else {
         // a rewrite of an ordinary fact is never silent: a proposal
         const identical = st.proposals.some((p) => p.op === "rewrite" && p.status === "pending" && arr(p.targets).includes(target.id));
-        if (identical) skip("same", op, target.id);
+        // the worker restating a fact in nearly the same words is no change (the Consolidate pass has the same rule)
+        if (identical || isNearCopy(target.text, text)) skip("same", op, target.id);
         else {
           st.proposals.push({
             id: "p" + ++st.counters.proposal,
@@ -6689,7 +6690,7 @@ export const CONSOLIDATE_PROMPT = [
   "  The merged sentence is about one thing and keeps every concrete detail of its parts (names, numbers, objects, places, times, plans, who said what); only words that repeat may go, so it is shorter than the facts it joins put together (at most 300 characters). If that cannot be done, do not merge. Never chain different events or thoughts with 'and'; leave those apart.",
   "  Some facts end with {scene N, when}: the scene and the story time where it was told. Facts from different scenes are different moments.",
   "  When a merge joins an action or event that happened more than once, keep how many times and when in the sentence (for example 'twice: on arrival and on leaving'). If the sentence cannot keep that, do not merge them.",
-  "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence.",
+  "- rewrite: a fact that contradicts another one or is unclear. Give the id and the corrected sentence. A rewrite must change what the fact says; never propose one only to change words, word order or grammar.",
   "- retire: only a pure duplicate of a fact you keep (it adds nothing at all), or a fact a later fact proves false. Give the id.",
   "- A fact written as still to come or still going on ('must pay by noon', 'will take her shopping', 'is staying until Friday') whose outcome a later fact tells (paid, went, left) is no longer true as written: rewrite it as what happened, in the past tense, keeping its details.",
   "- A fact that tells what someone did, said, asked, promised, warned or felt at some moment is history: it stays true when things changed later or a later fact tells what came of it. Never retire such a fact, and never retire a fact only because another fact repeats part of it.",
@@ -6888,9 +6889,14 @@ export function parseConsolidateReply(text, batchIds) {
   return out;
 }
 
+/** A rewrite that only rewords: the same text, or a copy that differs by a word or two (Dice likeness at or above DICE_LIMIT). Not worth the user's click. */
+export function isNearCopy(oldText, newText) {
+  return normText(oldText) === normText(newText) || diceSimilarity(oldText, newText) >= DICE_LIMIT;
+}
+
 /**
  * Adds the parsed ops to st.proposals: a fact already in a pending proposal is skipped (a second
- * run does not repeat itself), a rewrite to the same text is skipped, the pending list stays at
+ * run does not repeat itself), a rewrite that is a near copy of the fact is skipped (a fact stored cut off is the exception: any whole version is an improvement), the pending list stays at
  * most PROPOSALS_KEEP. Returns how many were added.
  */
 export function addConsolidateProposals(st, ops, now, anchorsOf, opts = {}) {
@@ -6903,7 +6909,7 @@ export function addConsolidateProposals(st, ops, now, anchorsOf, opts = {}) {
     if (!targets.length || targets.some((id) => !active.has(id) || busy.has(id))) continue;
     // #488: a fold only when the user switched it on, and only of small facts the same people know
     if (o.fold && (opts.fold !== true || !foldable(targets.map((id) => active.get(id))))) continue;
-    if (o.op === "rewrite" && str(active.get(targets[0]).text) === str(o.text)) continue;
+    if (o.op === "rewrite" && isNearCopy(active.get(targets[0]).text, o.text) && !looksCut(active.get(targets[0]))) continue;
     // #488: a merge must compress; one as long as its parts together only glues them ("X, and Y, and Z")
     if (o.op === "merge" && str(o.text).length >= targets.reduce((n, id) => n + str(active.get(id).text).length, 0)) continue;
     st.counters.proposal = (Number(st.counters.proposal) || 0) + 1;

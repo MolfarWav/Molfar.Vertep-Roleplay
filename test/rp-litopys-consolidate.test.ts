@@ -106,6 +106,29 @@ describe("what a merge must do (#488)", () => {
     expect(s.proposals[0]).toMatchObject({ op: "merge", targets: ["f3", "f4"], status: "pending", origin: "consolidate" });
   });
 
+  it("a rewrite that only rewords the fact is not proposed; a tense fix and a cut-off fact are", () => {
+    const old = "Marco collapsed from exhaustion and his burns after the paramedics arrived, telling Chihiro he would go into reconnaissance with her.";
+    const same = "Marco collapsed from exhaustion and his burns after the paramedics arrived, having told Chihiro he would go into reconnaissance with her.";
+    const s = { facts: [fact(1, old), fact(2, "Reina must pay 340,000 yen to the clinic by noon on the 19th.")], proposals: [], counters: { proposal: 0 } };
+    expect(L.isNearCopy(old, same)).toBe(true);
+    expect(L.addConsolidateProposals(s, [{ op: "rewrite", targets: ["f1"], text: same, reason: "unclear" }], 5)).toBe(0);
+    expect(L.addConsolidateProposals(s, [{ op: "rewrite", targets: ["f1"], text: old, reason: "unclear" }], 5)).toBe(0);
+    const tense = "Reina paid 340,000 yen to the clinic at 10:52, before the noon deadline on the 19th.";
+    expect(L.isNearCopy("Reina must pay 340,000 yen to the clinic by noon on the 19th.", tense)).toBe(false);
+    expect(L.addConsolidateProposals(s, [{ op: "rewrite", targets: ["f2"], text: tense, reason: "deadline met" }], 5)).toBe(1);
+    // a fact stored cut off is rewritten whole even when the whole sentence is close to it
+    const cutOff = { ...fact(3, "Ada showed Vlad the laptop and taught her the touchpad. ".repeat(6).slice(0, L.CONSOLIDATE_TEXT_MAX - 1) + "a"), origin: "merge" };
+    expect(L.looksCut(cutOff)).toBe(true);
+    const s2 = { facts: [cutOff], proposals: [], counters: { proposal: 0 } };
+    const whole = cutOff.text + "ll.";
+    expect(L.isNearCopy(cutOff.text, whole)).toBe(true);
+    expect(L.addConsolidateProposals(s2, [{ op: "rewrite", targets: ["f3"], text: whole, reason: "cut off" }], 5)).toBe(1);
+  });
+
+  it("the prompt asks for a rewrite only when the meaning changes", () => {
+    expect(L.CONSOLIDATE_PROMPT).toContain("never propose one only to change words");
+  });
+
   it("the prompt rewrites stale plans, keeps history, keeps details and names the limit", () => {
     expect(L.CONSOLIDATE_PROMPT).toContain("still to come");
     expect(L.CONSOLIDATE_PROMPT).toContain("rewrite it as what happened");

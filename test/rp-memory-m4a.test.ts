@@ -342,6 +342,17 @@ describe("worker", () => {
     seedRecord("c1", { migrated: true, ...extra });
   }
 
+  it("proposes no rewrite of an ordinary fact that only rewords it, and one that changes it", () => {
+    const old = "Marco collapsed from exhaustion and his burns after the paramedics arrived, telling Chihiro he would go into reconnaissance with her.";
+    const reworded = "Marco collapsed from exhaustion and his burns after the paramedics arrived, having told Chihiro he would go into reconnaissance with her.";
+    const base = { subject: "Marco", knownBy: "all", type: "event", weight: "everyday", pinned: false, status: "active", src: { from: null, to: null }, origin: "chapter", at: 1, updatedAt: 1 };
+    seedWorkerChat({ counters: { chapter: 0, fact: 2, proposal: 0 }, facts: [{ id: "f1", text: old, ...base }, { id: "f2", text: "Chihiro lives in the old mill.", ...base, subject: "Chihiro" }] });
+    const m = mockHost();
+    tick(m, [chapterReply("The mill", "Aria waits.", [{ op: "update", id: "f1", text: reworded }, { op: "update", id: "f2", text: "Chihiro moved out of the old mill to the harbour." }])]);
+    const st = readJson("litopys/chats/c1.json");
+    expect(st.proposals.map((p: any) => [p.op, p.targets[0]])).toEqual([["rewrite", "f2"]]);
+  });
+
   it("turns an update on an edited change fact into a rewrite proposal", () => {
     seedWorkerChat({ counters: { chapter: 0, fact: 1, proposal: 0 }, facts: [{ id: "f1", text: "Bran has a scar", subject: "Bran", knownBy: "all", type: "change", weight: "important", pinned: false, status: "active", edited: true, src: { from: null, to: null }, origin: "user", at: 1, updatedAt: 1 }] });
     const m = mockHost();
