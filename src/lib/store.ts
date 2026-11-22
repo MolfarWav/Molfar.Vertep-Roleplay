@@ -46,6 +46,7 @@ import {
 } from './engine'
 import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
 import { triggerMeanwhile } from './meanwhile'
+import { directionOnForNewChat, triggerDirection } from './direction'
 import { listAgentSets, listInstalledAgents, triggerAgentsRun, triggerParallelAgents } from './agents'
 import { offerShown } from './agent-offer'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
@@ -1906,6 +1907,8 @@ export const useApp = create<AppState>()(
             } catch { /* greeting rotation is best-effort */ }
           }
         }
+        // a new group chat starts with Direction on when its model is picked (#496)
+        if (char?.isGroup) await directionOnForNewChat(chat.id)
         bumpMutate()
         set((s) => ({ chats: attachBranches([chat, ...s.chats]) }))
         return chat.id
@@ -3121,7 +3124,9 @@ async function runStream(
     // then the World DM, if this chat's is due, then the chat's agents (one model call at a time: free models limit the rate)
     if (committed && queue.length === 0) {
       const busy = () => get().streaming?.chatId === chatId
-      void triggerDashUpdate(chatId, op, busy).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy)).then(() => triggerMeanwhile(chatId, busy)).then(() => triggerAgentsRun(chatId, busy))
+      // Direction first (#496): a small call whose report the next turn reads; a chat that is not a group makes none
+      const chatChar = get().characters.find((c) => c.id === get().chats.find((x) => x.id === chatId)?.characterId)
+      void triggerDirection(chatId, !!chatChar?.isGroup, busy).then(() => triggerDashUpdate(chatId, op, busy)).then(() => applySceneBackground(chatId, get())).then(() => triggerWorldUpdate(chatId, busy)).then(() => triggerMeanwhile(chatId, busy)).then(() => triggerAgentsRun(chatId, busy))
     }
     if (committed && queue.length) {
       void (async () => {
