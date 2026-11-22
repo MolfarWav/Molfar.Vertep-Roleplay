@@ -289,6 +289,18 @@ export interface DirectionMarks {
 }
 export const useDirectionMarks = create<{ chat: DirectionMarks | null }>(() => ({ chat: null }))
 
+/** The members the director says are not in the scene now (names, as the cards call them): the Dashboard fades their portraits (#499). Empty when
+ *  the director is off or has not reported; the loaded chat's only (the state hook clears it with the chat). */
+export const useDirectionAway = create<{ names: string[] }>(() => ({ names: [] }))
+
+const plainName = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
+/** Whether a Dashboard name is one of the members the director says are away (the same name, ignoring case and punctuation). */
+export const isDirectorAway = (away: readonly string[], name: string): boolean => {
+  const n = plainName(name)
+  return !!n && away.some((a) => plainName(a) === n)
+}
+
 export interface DirectionRun {
   ok: boolean
   report?: DirectionReport
