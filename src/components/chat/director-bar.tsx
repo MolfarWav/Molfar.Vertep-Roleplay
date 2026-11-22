@@ -75,8 +75,10 @@ export function DirectorBarView({ state, running, onPickModel, onToggle, onRepor
       aria-label={t('dir.title')}
       data-testid="director-bar"
       data-mode={mode}
-      className="relative z-10 flex items-center gap-1.5 overflow-x-auto border-b border-border bg-card/70 px-2 py-1 backdrop-blur"
+      className="relative z-10 flex items-center gap-1.5 border-b border-border bg-card/70 px-2 py-1 backdrop-blur"
     >
+      {/* the chips scroll inside this strip; the switch stays in view beside it */}
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
       <span className="flex shrink-0 items-center gap-1.5 pl-1 pr-0.5 text-xs font-medium text-muted-foreground" aria-label={t('dir.title')}>
         <FilmSlate className="size-4" aria-hidden="true" />
         <span className="max-[479px]:hidden">{mode === 'off' ? t('dir.offLabel') : t('dir.title')}</span>
@@ -102,13 +104,14 @@ export function DirectorBarView({ state, running, onPickModel, onToggle, onRepor
 
       {mode !== 'off' && <ModelChip model={state.config.model} onPick={onPickModel} />}
 
-      <label className="ml-auto flex shrink-0 items-center gap-2 pl-1 text-xs">
+      {mode !== 'off' && !noModel && <LogButton state={state} />}
+      </div>
+
+      <label className="flex shrink-0 items-center gap-2 pl-1 text-xs">
         {noModel && <span className="text-muted-foreground" data-testid="director-need-model">{t('dir.pickModelFirst')}</span>}
-        {!noModel && <span className="font-medium">{t('dir.on')}</span>}
+        {!noModel && <span className="font-medium max-[479px]:sr-only">{t('dir.on')}</span>}
         <Switch size="default" checked={state.chat.on && !noModel} disabled={noModel} onCheckedChange={onToggle} aria-label={t('dir.switchAria')} data-testid="director-switch" />
       </label>
-
-      {mode !== 'off' && !noModel && <LogButton state={state} />}
     </div>
   )
 }
@@ -144,7 +147,7 @@ function SceneChip({ state, mode, running, onReport }: { state: DirectionState; 
         <p className="text-sm font-medium">{t('dir.scene.title')}</p>
         {failed && (
           <p className="mt-1 text-xs text-destructive" data-testid="director-error">
-            {t(errorKey(run?.reason))}{run?.message ? ` (${run.message})` : ''} {t('dir.scene.fallback')}
+            {t(errorKey(run?.reason))}{run?.message ? ` (${run.message})` : ''}. {t('dir.scene.fallback')}
           </p>
         )}
         {mode === 'empty' && <p className="mt-1 text-xs text-muted-foreground">{t('dir.scene.emptyHint')}</p>}

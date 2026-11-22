@@ -198,8 +198,8 @@ export function CreateGroupDialog({ open, onOpenChange }: { open: boolean; onOpe
                             </span>
                           )}
                           {c.favorite && (
-                            <span className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-background/85 text-primary" title={t('grp.new.scopeFav')}>
-                              <Star className="size-3.5" weight="fill" aria-label={t('grp.new.scopeFav')} />
+                            <span className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-background/85 text-primary" title={t('group.ed.favorite')}>
+                              <Star className="size-3.5" weight="fill" aria-label={t('group.ed.favorite')} />
                             </span>
                           )}
                         </span>
