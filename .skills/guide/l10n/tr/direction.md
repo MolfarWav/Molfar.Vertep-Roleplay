@@ -1,4 +1,4 @@
-<!-- source: dbd568649975 -->
+<!-- source: c4250477e1b5 -->
 # Yön: sahnede kim var
 
 Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yönetici" model sahneyi okur, ne tür bir sahne olduğunu (bir ders, bir ara, baş başa bir an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Orada olmayan üyeler cevap vermeyi bırakır ve hikâye onları geri getirene kadar istemden çıkarılır.
@@ -7,7 +7,7 @@ Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yöneti
 
 Bir grup sohbetinde, üye çubuğunun altında "Yön" yazan ince bir çubuk vardır (telefonda yalnızca simge). Soldan sağa:
 
-- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Üzerine dokunarak kimin sahnede olduğunu, kimin olmadığını, son raporun ne zaman yapıldığını ve yöneticiye yeniden soran bir **Report now** düğmesini görebilirsiniz. Yönetici okurken etiket "Sahne okunuyor…" yazar.
+- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Üzerine dokunarak kimin sahnede olduğunu, kimin olmadığını, son raporun ne zaman yapıldığını ve yöneticiye yeniden soran bir **Report now** düğmesini görebilirsiniz. Yönetici okurken etiket "Reading the scene…" yazar.
 - **Model etiketi**: yöneticinin modeli. Hiçbiri seçilmediyse **Pick a model** yazar. Dokunduğunuzda sohbetin üst çubuğundakiyle aynı model listesi açılır: yıldızlı modeller, ardından bağlantıya göre tüm modeller, arama kutusuyla.
 - **Anahtar**: bu sohbet için Yön açık ya da kapalı. Bir model seçilene kadar soluk görünür ve "Pick a model first" yazar.
 - **Next**: bir tür kuralının ya da planınızdaki bir beat'in bir sonraki cevap için bekleyen bir notu olduğunda görünen etiket ("Next: Yuzu"). x onu atlar.
@@ -17,11 +17,13 @@ Anahtar kapalıyken çubuk "Direction: off" olarak katlanır ve sohbet eskisi gi
 
 ## Tür kuralları
 
-Bir tür, insanları şansa bağlı olarak sahneye çeken küçük kurallar kümesidir; böylece o türdeki bir hikâye durmaz. **Rules** açın ve bir tür seçin. Şimdilik bir tür var, **School rom-com**, üç kuralıyla:
+Bir tür, insanları şansa bağlı olarak sahneye çeken küçük kurallar kümesidir; böylece o türdeki bir hikâye durmaz. **Rules** açın ve listeden bir tür seçin. Dokuz tür vardır: **School rom-com**, **Harem**, **Slice of life**, **Drama**, **Thriller**, **Detective**, **Steamy romance**, **Adventure** ve **Horror**. Her birinin üç kuralı vardır; bunlar aynı birkaç koşul türünden (bir süre bir üyeyle yalnız kalma, bir süre kimsenin yakında olmaması, sahnenin belli bir türde olması, yalnızca birkaç kişinin bulunması) ve aynı üç eylemden (birinin ana denk gelmesi, birinin katılması, birinin geri dönmesi) oluşur. Bir kuralın kartı, ne yaptığını tek cümleyle söyler. Örneğin School rom-com şunlara sahiptir:
 
 - **Interrupted moment**: üç cevap boyunca bir üyeyle yalnız kaldınız ve biri içeri girip sizi bölüyor.
 - **Someone comes by**: üç cevap boyunca kimse yakında değildi (evde değil) ve bir üye uğruyor.
 - **Friends join the break**: bir ara, öğle yemeği ya da kulüp sırasında bir ya da iki kişi varken bir arkadaş katılıyor.
+
+Bir tür, yöneticiye hangi sahne türlerini arayacağını da söyler. Herkes olağan olanları alır (ders, ara, öğle yemeği, kulüp, yolda, gezi, randevu, baş başa an, evde, etkinlik); bir tür kendine özgü birkaç tane ekler, örneğin tehlike, soruşturma, tartışma, sır, gece, seyahat, iş, yemek ya da boş zaman. Türü olmayan ya da School rom-com olan bir sohbet yalnızca olağan olanları görür, bu yüzden onun için bir şey değişmez. Yön'de her yerde olduğu gibi, açık bir sahnede hiçbir kural tetiklenmez. Her türün sayıları yalnızca ilk tahminlerdir.
 
 Bir sohbet tür olmadan ve kurallar kapalı başlar; siz bir tür seçene kadar hiçbir şey değişmez. Bir tür seçmek kuralları açar; **Rules in this chat** onları yeniden kapatır ve türü saklar. Kurallar yöneticinin açık olmasını gerektirir: raporlarını okurlar.
 
@@ -37,7 +39,7 @@ Her kural kartı durumunu gösterir: **Ready**, **Cooling down** (kalan cevap sa
 
 Notu taşıyan cevabın altında, neler olduğunu anlatan küçük bir satır yer alır: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". Son kelime yöneticinin sonraki raporudur: **came** (sahnede), **only mentioned** (yalnızca anıldı) ya da **did not come** (gelmedi). **Log** sekmesi aynı şeyi, zar ve nedeniyle birlikte listeler; ayrıca atıp tutturamayan kuralları da.
 
-Bir grup, **Direction** sekmesinde bir **default genre** ayarlayabilir; o grubun yeni sohbetleri bu türle açık başlar. Sayılar ilk tahminlerdir: bir kural çok sık ya da çok seyrek tetikleniyorsa bir sohbette değiştirin.
+Bir grup, **Direction** sekmesinde bir **default genre** ayarlayabilir; o grubun yeni sohbetleri bu türle açık başlar. Sayılar ilk tahminlerdir: bir kural bir sohbette çok sık ya da çok seyrek tetikleniyorsa değiştirin.
 
 **Who comes.** Her kural kartında bir **Who comes** seçeneği vardır: **Members** (varsayılan: gruptan biri, uzun süredir uzakta olan), **World people** (bu sohbetin World'ünden bir kişi, örneğin hikâyenin zaten sahip olduğu bir öğretmen ya da komşu) veya **Either** (ikisi de varsa bir madeni para karar verir). World kişileri sohbetin World book'undan gelir; emekli olanlar, kendiliğinden geri dönmemek üzere ayarlananlar ya da zaten sahnede olanlar dışarıda bırakılır. World'de kişi yoksa diğer iki seçenek soluk görünür ve nedenini söyler. Bir sonraki cevabın notu, kişinin kim olduğunu kaydından tek bir cümleyle söyler ve grubunuzdan biri olmadığını belirtir; kartını kimse burada tutmadığı için yazan model o kişiyi bu cümleye göre oynar. Yalnızca yedekte olup grubunuzda olmayan bir kişi bu yolla kesebilir, katılabilir ya da uğrayabilir.
 
@@ -49,6 +51,8 @@ Bir **beat** (vuruş), olmasını istediğiniz bir şeydir: "Zil çalar ve sın�
 - **Who takes part** (isteğe bağlı): yokta olan üyeler, bu beat için sahneye girer. **People from the World** altında hikâyenin zaten sahip olduğu kişileri (bir öğretmen, bir rakip) da seçebilirsiniz; not, yazan modele onların kim olduğunu söyler. Kişiler sohbetin World book'undan seçilir, bu yüzden onda kişi olana kadar seçilecek kimse yoktur.
 - **When**: **After some replies** (beat sıradaki olduğu andan sayılır; 0 demek hemen demektir), **Scene** (yönetici o tür sahneyi okuduğunda: ders, ara, randevu...), **Place** (Dashboard'daki yer, "roof" gibi sözcüklerinizi içerdiğinde; büyük küçük harf fark etmez) ya da **By hand** (yalnızca **Fire now** düğmesine bastığınızda).
 - **Wait for a new scene**: varsayılan olarak açıktır. Zamanı gelen bir beat, bir anın ortasına girmez: hikâye yer değiştirene ya da zamanda atlayana kadar en fazla 6 cevap bekler, sonra yine de gider. Yer beat'i, hikâye oraya varır varmaz gider; elle beat ise yalnızca siz onu tetiklediğinizde.
+
+Her beat'i sıfırdan yazmak zorunda değilsiniz. **From the genre** (**Add beat** yanında) sohbetin türüne ait hazır beat'leri listeler ("İkisi hakkında bir söylenti okulda yayılmaya başlar"); birini seçtiğinizde düzenleyici doldurulmuş olarak açılır, siz de kimin katılacağını ekleyip kaydedersiniz. Bunun için **Rules** içinde bir tür seçilmiş olmalıdır. **Draft from the cards**, yöneticinin modelinden bir kez, üyelerin kartlarını (ve varsa türü) okumasını ve bu karakterlerin kim olduğuna dayanarak sırayla beş ila sekiz beat önermesini ister. Birkaç saniye ile bir dakika arasında sürer. Öneriler, her birinin yanında bir onay kutusu bulunan bir **Draft** kartında açılır: istemediklerinizin işaretini kaldırın ve geri kalanları plana eklemek için **Add** düğmesine basın. Siz eklemeden hiçbir şey kaydedilmez, sayfayı kapatmak taslağı düşürür ve planınızda zaten bulunan bir beat yeniden önerilmez. Taslak, yöneticinin modeli kadar iyidir; beat'leri sonradan diğerleri gibi düzenleyin.
 
 Plan **sıraya göre** işler: yalnızca bitmemiş ilk beat'e bakılır; arkasındakiler "After the beats before it" yazar. Bir beat, geldiğinde, vazgeçildiğinde (yönetici onun iki kez atlandığını gördüğünde) ya da siz **Skip** ettiğinizde bitmiş sayılır. Sonraki beat, bir öncekinin bittiği andan itibaren cevaplarını sayar. Her kart, beat'inin nerede durduğunu gösterir: **Waiting** (kalan cevap), **Due, waiting for a new scene** (kalan cevap), **Goes with the next reply**, **Delivered** (came, only mentioned ya da kimse anılmadan içeri girdi), **Did not land**, **Skipped**. Bir şey beat'i geri tutuyorsa kart nedenini söyler: Yön kapalı, sahne kilitli ya da sahne açık (bir beat asla açık bir sahnede tetiklenmez; sahne onu terk ettiğinde gider). **Edit**, **Move up**, **Move down** ve **Delete** listeyi değiştirir; **Fire now** beat'i, neyi beklediğine bakılmaksızın, hemen bir sonraki cevaba koyar.
 

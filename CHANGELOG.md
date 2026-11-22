@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.153.0 (2026-11-22)
+
 - Added: **Direction phase 4: nine genres, ready-made beats and a draft of a plan from the cards (Molfar.Vertep#496).** The genre list now has **School rom-com**, **Harem**, **Slice of life**, **Drama**, **Thriller**, **Detective**, **Steamy romance**, **Adventure** and **Horror**, three rules each (the same closed conditions and actions as before; the numbers are first guesses). A genre also adds its own scene kinds to what the director looks for (work, meal, downtime, argument, travel, danger, investigation, secret, night); a chat with no genre, or with School rom-com, gets the director's old prompt unchanged. In the Plan tab **From the genre** lists three ready-made beats of the chat's genre, and **Draft from the cards** asks the director's model once to read the members' cards and suggest five to eight beats; they open as a card with a tick on each and nothing is saved until you add them. New: `GET /direction/sets`, `POST /direction/draft`; the state route carries each rule's built-in numbers (`defaults`), the chat's scene kinds (`plan.tags`) and the genre's beat templates (`plan.templates`), so the client no longer keeps a copy of the rom-com numbers. As before, no rule fires in an explicit scene.
 
 ## 4.152.0 (2026-11-22)
