@@ -1,21 +1,26 @@
 /**
- * #113: a story summary for the card's memory. The import dialog asks the model to summarise a whole chat
+ * #113: a story summary for a persona's or a world's memory (a card keeps no stories since #492). The import dialog asks the model to summarise a whole chat
  * (a job on the chat's record, one request per tick, after the chapters); the user reads and edits the text,
  * and the import writes the text the dialog settled on.
  */
+import fs from "node:fs";
 import { describe, expect, it } from "bun:test";
-import { L, line, mockHost, readJson, story, tick, useRoot, writeChat, writeJson } from "./rp-memory-m2-kit";
+import { L, abs, line, mockHost, readJson, story, tick, useRoot, writeChat, writeJson } from "./rp-memory-m2-kit";
 
 useRoot();
 
 const route = (host: any, method: string, path: string, body?: any) => L.handleRoute({ method, path, query: {}, body }, host);
+/** The import preview and the import of the persona Jude's memory, which the chat "winter" is played with. */
+const preview = (host: any, chatId = "winter") => route(host, "POST", "/litopys/memory/preview", { kind: "persona", id: "pers_jude", chatId });
+const importInto = (host: any, body: Record<string, unknown>) => route(host, "POST", "/litopys/memory/import", { kind: "persona", id: "pers_jude", ...body });
 
 /** A 30-message chat with one fresh chapter of Aria's card. */
 function seed(chatId = "winter", extra: Record<string, unknown> = {}) {
   writeJson("litopys/config.json", { arcMode: "off" });
   writeJson("characters/aria/card.json", { spec: "chara_card_v2", name: "Aria", description: "A quiet courier.", extensions: {} });
+  writeJson("personas/pers_jude.json", { id: "pers_jude", name: "Jude", description: "A tall ferryman with a limp." });
   const msgs = story(30);
-  writeChat(chatId, msgs, { title: "Winter watch", characterId: "aria" });
+  writeChat(chatId, msgs, { title: "Winter watch", characterId: "aria", personaId: "pers_jude", userName: "Jude" });
   writeJson(`litopys/chats/${chatId}.json`, {
     ...L.emptyChat(chatId),
     migrated: true,
@@ -90,14 +95,14 @@ describe("story summary: the job", () => {
     const m = mockHost();
     route(m.host, "POST", "/litopys/story-summary", { chatId: "winter", op: "start" });
     tick(m, [SUMMARY]);
-    const p = route(m.host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "winter" }).json;
+    const p = preview(m.host).json;
     expect(p.summary).toMatchObject({ can: true, state: "done", text: SUMMARY, stale: false });
     expect(p.summary.tokens).toBeGreaterThan(10);
     // a chapter edited after the summary was written
     const st = readJson("litopys/chats/winter.json");
     st.chapters[0].text = "Aria left the gate in the spring.";
     writeJson("litopys/chats/winter.json", st);
-    const again = route(m.host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "winter" }).json;
+    const again = preview(m.host).json;
     expect(again.summary.stale).toBe(true);
     expect(again.summary.text).toBe(SUMMARY);
   });
@@ -108,7 +113,7 @@ describe("story summary: the job", () => {
     route(m.host, "POST", "/litopys/story-summary", { chatId: "winter", op: "start" });
     tick(m, [{ error: "rate limited" }]);
     expect(readJson("litopys/chats/winter.json").storySummary).toMatchObject({ state: "failed", error: "rate limited" });
-    const view = route(m.host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "winter" }).json.summary;
+    const view = preview(m.host).json.summary;
     expect(view).toMatchObject({ state: "failed", error: "rate limited" });
     expect(route(m.host, "POST", "/litopys/story-summary", { chatId: "winter", op: "start" }).status).toBe(200);
     tick(m, [SUMMARY]);
@@ -162,19 +167,22 @@ describe("story summary: the import", () => {
     seed();
     const { host } = mockHost();
     const edited = "Aria held the gate and lost her brother. She will not leave a post again.";
-    const r = route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", arc: true, arcText: edited });
+    const r = importInto(host, { chatId: "winter", arc: true, arcText: edited });
     expect(r.status).toBe(200);
-    expect(readJson("characters/aria/memory.json").sources[0].arc).toBe(edited);
+    expect(readJson("memory/personas/pers_jude.json").sources[0].arc).toBe(edited);
+    // a card keeps no stories: the same import for a card is refused and writes nothing
+    expect(route(host, "POST", "/litopys/memory/import", { kind: "card", id: "aria", chatId: "winter", arc: true, arcText: edited }).status).toBe(400);
+    expect(fs.existsSync(abs("characters/aria/memory.json"))).toBe(false);
   });
 
   it("without arcText, or with the arc unticked, the old behaviour holds", () => {
     seed();
     const { host } = mockHost();
-    const none = route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", arc: true, facts: [], notes: [], said: [] });
+    const none = importInto(host, { chatId: "winter", arc: true, facts: [] });
     expect(none.status).toBe(200);
-    expect(readJson("characters/aria/memory.json").sources[0].arc).toContain("northern gate");
+    expect(readJson("memory/personas/pers_jude.json").sources[0].arc).toContain("northern gate");
     seed("second");
-    const off = route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "second", arc: false, arcText: "Ignored." });
+    const off = importInto(host, { chatId: "second", arc: false, arcText: "Ignored." });
     expect(off.status).toBe(400);
   });
 });

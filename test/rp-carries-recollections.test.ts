@@ -1,9 +1,8 @@
-/** What a chat carries (#99): what the characters remember of closed scenes is a plain board switch like the card's memory. */
+/** What a chat carries (#99): what the characters remember of closed scenes is a plain board switch like the card's habits. */
 import { describe, expect, it } from "bun:test";
 import { buildCarries, type CarriesAnswer } from "../src/lib/carries";
 
 const labels = {
-  memory: (n: string) => `Memory of ${n}`,
   habits: (n: string) => `Habits of ${n}`,
   personaMemory: (n: string) => `Persona memory: ${n}`,
   worldMemory: (n: string) => `World memory: ${n}`,
@@ -23,7 +22,6 @@ const answer = (over: Partial<CarriesAnswer> = {}): CarriesAnswer => ({
   off: [],
   litopys: { tokens: 0, facts: 0, chapters: 0 },
   backstory: null,
-  cardMemory: null,
   world: null,
   ...over,
 });
@@ -51,11 +49,11 @@ describe("what a chat carries: recollections", () => {
   });
 
   it("sits after the persona and world memory and before the backstory", () => {
-    const card = { cardId: "aria", name: "Aria", tokens: 10, dupes: 0, sources: ["Winter"], text: "y" };
+    const card = { cardId: "aria", name: "Aria", tokens: 10, dupes: 0, habits: ["Keeps a brass key close"], text: "y" };
     const mem = { id: "x", name: "Jude", taken: true, stories: 1, tokens: 5, dupes: 0, sources: ["s1"], text: "z" };
     const backstory = { from: "c0", title: "Road", tokens: 5, facts: 1, chapters: 1, text: "b" };
-    const r = run(answer({ cardMemory: card, personaMemory: mem, worldMemory: { ...mem, id: "w", name: "Emberfall" }, backstory, recollections: recall(["Aria"]) }));
-    expect(r.parts.map((p) => p.key)).toEqual(["memory", "personamem", "worldmem", "recollections", "backstory", "note"]);
+    const r = run(answer({ cardHabits: card, personaMemory: mem, worldMemory: { ...mem, id: "w", name: "Emberfall" }, backstory, recollections: recall(["Aria"]) }));
+    expect(r.parts.map((p) => p.key)).toEqual(["habits", "personamem", "worldmem", "recollections", "backstory", "note"]);
   });
 
   it("names one or two people, and counts three or more", () => {

@@ -125,19 +125,24 @@ with a request (`limits: { inputChars, outputTokens }`); a card longer than `inp
 (`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
 
 **The card's long memory.** Not part of the card either: `characters/<id>/memory.json`, written by the Litopys
-plugin (`GET/PUT/DELETE /litopys/card-memory`, `POST /litopys/card-memory/preview` and `/import`) and edited in the
-card's Memory tab; it is never in `card.json` or in an export. Shape: `{ "v": 1, "next": <n>, "sources": [ { "id":
+plugin (`GET/PUT/DELETE /litopys/card-memory`) and edited in the card's Memory tab; it is never in `card.json` or in
+an export. Since #492 it holds the card's habits (below) and nothing else that is used: the card keeps no stories.
+Before that it also held stories, snapshots of chats the user imported: `{ "v": 1, "next": <n>, "sources": [ { "id":
 "s1", "chatId", "title", "importedAt", "on": true, "canon": "main"|"separate", "arc": "<a short summary>", "facts":
 [{ "text", "subject" }], "notes": [{ "who", "how", "text" }], "said": [{ "who", "text", "kind" }] } ], "inject": {
-"enabled": true, "maxTokens": 400 } }`. A source is a snapshot taken when a chat is imported (the arc, the
-strongest facts, the character's own live notes and said lines of that chat); it keeps `chatId` and a copy of the
-`title` and never reads the chat again, so deleting the chat changes nothing. Keys the app does not know are kept
-when it saves the file. The `arc` of a source is the text built from the chat's arcs and chapters, or, when the import
-dialog sent `arcText`, the text the user settled on there (up to 1500 characters): the dialog can ask the model for a
-summary of the whole chat (`POST /litopys/story-summary { chatId, op: "start"|"cancel" }`, a job on the chat's
-record in `litopys/chats/<chatId>.json`: `storySummary: { state: "working"|"done"|"failed", at, sig, text?, model?,
-error? }`; `sig` is the record it was written from, so the preview says `stale` once a chapter changed; its prompt is
-`summary` in the Litopys config). Since #492 the card's saved stories are not used: no part "Litopys · character memory" is built, nothing is reserved for it, `GET /litopys/carries` has no `cardMemory`, and the Memory tab has no Stories block for a card (a persona's and a saved world's Memory keep theirs). The `sources` already in a file stay as they are and are ignored; the import, preview and line routes still answer. `inject.maxTokens` is kept for the file's shape but is not used for a card.
+"enabled": true, "maxTokens": 400, "habitsMaxTokens": 250 } }`. The `sources` already in a file stay as they are: they
+are read back and written unchanged when a habit is saved, but nothing sends them to a prompt, reports them as carried or
+shows them, and no route reads, edits or removes one (`PUT /litopys/card-memory` with `source` and `DELETE ...&sourceId=`
+answer 400 "a card keeps no stories"; `POST /litopys/card-memory/preview` and `/import` are gone, and
+`POST /litopys/memory/preview` and `/import` answer 400 for `kind: "card"`). The view `GET /litopys/card-memory` answers
+`{ kind: "card", cardId, memory, habitsTokens, habitsBudget }`. `inject.enabled` and `inject.maxTokens` are kept for the
+file's shape and are not used for a card. Keys the app does not know are kept when it saves the file. The story summary
+job (`POST /litopys/story-summary { chatId, op: "start"|"cancel" }`, a job on the chat's record in
+`litopys/chats/<chatId>.json`: `storySummary: { state: "working"|"done"|"failed", at, sig, text?, model?, error? }`; `sig`
+is the record it was written from, so the preview says `stale` once a chapter changed; its prompt is `summary` in the
+Litopys config) now serves the import dialog of a persona's or a world's memory only. The prompt `cardMemory` of the
+Litopys config (the sentence after "character memory") is gone with the part it worded; an old `cardMemory` key in
+`litopys/config.json` is ignored.
 
 **The card's habits** (#106; called skills until Roleplay 4.67.0, and files with the old keys `skills`, `nextSkill`,
 `inject.skillsMaxTokens` are still read and are written back with the new ones) are in the same file, key `habits`: short rule blocks for how the character acts (not
@@ -472,11 +477,11 @@ them is replaced after the app asks.
 **A persona's and a saved world's long memory** (issue #99). Not part of the persona or the world either:
 `memory/personas/<personaId>.json` and `memory/worlds/<worldId>.json` (a World DM library world, `w-<id>`), written by
 the Litopys plugin and never inside `personas/<id>.json`, `world/library/<id>.json` or an export. The same file as the
-card's memory (see the card section: `sources` with `chatId`, a copy of the `title`, `arc`, `facts`, and `inject`),
-with these differences: `notes`, `said` and `habits` stay empty, `canon` is not used (one canon: every source that is
+card's memory used to be (see the card section: `sources` with `chatId`, a copy of the `title`, `arc`, `facts`, and `inject`),
+with these differences: `notes`, `said` and `habits` stay empty (an import writes only the summary and the facts), `canon` is not used (one canon: every source that is
 `on` counts), the default `inject.maxTokens` is 300 (100 to 1500). Routes: `GET/PUT/DELETE /litopys/memory` with `kind`
 (`card`, `persona`, `world`) and `id` (query for GET and DELETE, body for PUT), `POST /litopys/memory/preview` and
-`/import` with `{ kind, id, chatId, ... }`; the card's own `/litopys/card-memory*` routes are unchanged. The import
+`/import` with `{ kind: "persona"|"world", id, chatId, ... }` (a card has no stories to import, #492). The import
 preview offers the chat's story and, for a persona, the active facts everybody knows whose subject is the persona (its
 name now or the `userName` the chat used) or whose text names it; for a world, the facts about the world itself
 (subject `world` or type `world`). The chats an owner can import from: for a persona, the chats it plays in (the chat's
@@ -484,13 +489,12 @@ name now or the `userName` the chat used) or whose text names it; for a world, t
 `origin: { kind: "library", worldId }`.
 
 **A chat takes them in on its own, off by default**: the chat meta's `memory.persona` / `memory.world` (`true` = this
-chat gets the persona's / the world's memory; `PATCH /chats/:id { memory: { persona: true } }`, each flag on its own,
-the card's `memory.sources` untouched). Which persona or world: the chat's current persona, and the world the chat
+chat gets the persona's / the world's memory; `PATCH /chats/:id { memory: { persona: true } }`, each flag on its own). Which persona or world: the chat's current persona, and the world the chat
 was started in. In a reply the Litopys plugin builds "Litopys · persona memory" and "Litopys · world memory" (Prompt
 board switches `plugin:personamemory` and `plugin:worldmemory`, listed on the board only once the chat took the memory
-in; the switch then only mutes it), right after the character memory: a source is skipped when its `chatId` is the chat
+in; the switch then only mutes it), after the character habits: a source is skipped when its `chatId` is the chat
 itself or in its backstory chain, and a line is left out when the chat's Litopys facts (and its chain's), the story so
-far, the notes carried in, the character's memory block that came first, the persona's / world's `description` or the
+far, the notes carried in, the persona's / world's `description` or the
 cards' own text already say it. Same cache rule as the card's: the text does not move between replies. Deleting a chat
 changes nothing (a source keeps its copy); deleting the persona or the world leaves the file in place and the chat
 simply gets nothing. `GET /litopys/carries` also answers `personaMemory` / `worldMemory`

@@ -1,7 +1,7 @@
 /**
- * The card's long memory (memory bridge, #102): characters/<id>/memory.json, the import of a chat
- * (preview and write). Since #492 the card's saved stories are no longer sent in a prompt or reported as carried; the file
- * (and the kept habits in it) stay.
+ * The card's long memory (memory bridge, #102): characters/<id>/memory.json. Since #492 the card keeps no stories: there is
+ * no import, no line edit and no story in a prompt or in what a chat carries. A story already in the file stays there
+ * (ignored, and written back unchanged by a habit save), and so do the kept habits.
  */
 import fs from "node:fs";
 import { describe, expect, it } from "bun:test";
@@ -41,68 +41,56 @@ function seedWinter() {
   });
 }
 
-describe("card memory: import", () => {
-  it("previews what a chat would give: top picks checked, the character's own notes and said only", () => {
-    seedWinter();
-    const { host } = mockHost();
-    const r = route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "winter" });
-    expect(r.status).toBe(200);
-    const p = r.json;
-    expect(p.chat).toEqual({ id: "winter", title: "Winter watch" });
-    expect(p.arc.text).toContain("northern gate");
-    // retired and privately known facts are not offered
-    expect(p.facts.map((f: any) => f.id)).toEqual(["f1", "f2"]);
-    expect(p.facts.every((f: any) => f.checked)).toBe(true);
-    expect(p.notes.map((n: any) => n.id)).toEqual(["n1", "n2"]);
-    expect(p.said.map((s: any) => s.id)).toEqual(["s1"]);
+/** A card's file as it was before #492: one story with facts, notes and a said line. */
+function seedOldStory() {
+  writeJson("characters/aria/memory.json", {
+    v: 1,
+    next: 1,
+    sources: [{ id: "s1", chatId: "winter", title: "Winter watch", importedAt: 5, on: true, canon: "main", arc: "Aria guarded the northern gate.", facts: [{ text: "Aria lost her brother at the northern gate.", subject: "Aria" }], notes: [{ who: "Aria", how: "saw", text: "The courier trusts nobody with the key." }], said: [{ who: "Aria", text: "I will not leave the gate.", kind: "vow" }] }],
+    habits: [],
   });
+}
 
-  it("writes a source with a copy of the chat's title, and a second import refreshes it", () => {
+describe("card memory: the card keeps habits, not stories (#492)", () => {
+  it("answers with the habits and their room, and no chats or memory block", () => {
     seedWinter();
+    seedOldStory();
     const { host } = mockHost();
-    const r = route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"], notes: ["n1"], said: ["s1"] });
-    expect(r.status).toBe(200);
-    const file = readJson("characters/aria/memory.json");
-    expect(file.sources).toHaveLength(1);
-    expect(file.sources[0]).toMatchObject({ id: "s1", chatId: "winter", title: "Winter watch", on: true, canon: "main" });
-    expect(file.sources[0].facts.map((f: any) => f.text)).toEqual(["Aria lost her brother at the northern gate."]);
-    expect(file.sources[0].arc).toContain("northern gate");
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", arc: false, facts: ["f2"] });
-    const again = readJson("characters/aria/memory.json");
-    expect(again.sources).toHaveLength(1);
-    expect(again.sources[0].facts.map((f: any) => f.text)).toEqual(["Aria carries a brass key on a cord."]);
-    expect(again.sources[0].arc).toBe("");
-    expect(route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", arc: false }).status).toBe(400);
-  });
-
-  it("marks what another imported story already holds, and does not check it", () => {
-    seedWinter();
-    seedCard("aria");
-    writeChat("spring", story(4), { title: "Spring market", characterId: "aria" });
-    writeJson("litopys/chats/spring.json", { ...L.emptyChat("spring"), migrated: true, facts: [fact("f1", "Aria lost her brother at the northern gate!", { weight: "key" }), fact("f2", "Aria sells honey at the market.")] });
-    const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
-    const p = route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "spring" }).json;
-    const copy = p.facts.find((f: any) => f.id === "f1");
-    expect(copy).toMatchObject({ dup: "memory", checked: false });
-    expect(p.facts.find((f: any) => f.id === "f2")).toMatchObject({ dup: null, checked: true });
-  });
-
-  it("lists the card's chats with which are in memory; switches and removes a source; refuses a missing card", () => {
-    seedWinter();
-    const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
-    let v = route(host, "GET", "/litopys/card-memory", undefined, { cardId: "aria" }).json;
-    expect(v.chats).toEqual([expect.objectContaining({ id: "winter", imported: "s1" })]);
-    expect(v.tokens).toBeGreaterThan(0);
-    v = route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", on: false }, inject: { maxTokens: 9000 } }).json;
-    expect(v.memory.sources[0].on).toBe(false);
-    expect(v.memory.inject.maxTokens).toBe(1500);
-    expect(v.tokens).toBe(0);
-    v = route(host, "DELETE", "/litopys/card-memory", undefined, { cardId: "aria", sourceId: "s1" }).json;
-    expect(v.memory.sources).toEqual([]);
+    const v = route(host, "GET", "/litopys/card-memory", undefined, { cardId: "aria" }).json;
+    expect(v).toMatchObject({ kind: "card", cardId: "aria", habitsTokens: 0, habitsBudget: 250 });
+    expect(v.chats).toBeUndefined();
+    expect(v.tokens).toBeUndefined();
+    expect(v.imported).toBeUndefined();
     expect(route(host, "GET", "/litopys/card-memory", undefined, { cardId: "nobody" }).status).toBe(404);
     expect(route(host, "GET", "/litopys/card-memory", undefined, { cardId: "../x" }).status).toBe(404);
+  });
+
+  it("has no import, and refuses to read, change or remove a story", () => {
+    seedWinter();
+    seedOldStory();
+    const { host } = mockHost();
+    expect(route(host, "POST", "/litopys/card-memory/preview", { cardId: "aria", chatId: "winter" })).toBeNull();
+    expect(route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] })).toBeNull();
+    const toggle = route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", on: false } });
+    expect(toggle.status).toBe(400);
+    expect(route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", line: { list: "facts", index: 0, remove: true } } }).status).toBe(400);
+    expect(route(host, "DELETE", "/litopys/card-memory", undefined, { cardId: "aria", sourceId: "s1" }).status).toBe(400);
+    expect(route(host, "PUT", "/litopys/memory", { kind: "card", id: "aria", source: { id: "s1", on: false } }).status).toBe(400);
+    expect(readJson("characters/aria/memory.json").sources[0]).toMatchObject({ on: true, facts: [expect.anything()] });
+  });
+
+  it("a habit saved on the card keeps the story that is in its file, with its notes and said lines", () => {
+    seedWinter();
+    seedOldStory();
+    const { host } = mockHost();
+    const r = route(host, "PUT", "/litopys/card-memory", { cardId: "aria", habit: { name: "Silent under threat", rule: "When someone threatens her, she says nothing and keeps working." }, inject: { habitsMaxTokens: 9000 } });
+    expect(r.status).toBe(200);
+    expect(r.json.memory.inject.habitsMaxTokens).toBe(800);
+    const file = readJson("characters/aria/memory.json");
+    expect(file.habits).toHaveLength(1);
+    expect(file.sources[0]).toMatchObject({ id: "s1", title: "Winter watch", arc: "Aria guarded the northern gate." });
+    expect(file.sources[0].notes).toHaveLength(1);
+    expect(file.sources[0].said).toHaveLength(1);
   });
 });
 
@@ -116,8 +104,8 @@ const textOf = (res: any) => (res?.messages ?? []).map((m: any) => m.content).jo
 describe("card stories are not sent any more (#492)", () => {
   it("a story saved on the card stays in its file but goes into no prompt, and nothing is reserved for it", () => {
     seedWinter();
+    seedOldStory();
     const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1", "f2"], notes: ["n1"], said: ["s1"] });
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     const res = L.llmRequest(ctx("next"), host);
     expect(textOf(res)).not.toContain("character memory");
@@ -130,8 +118,8 @@ describe("card stories are not sent any more (#492)", () => {
 
   it("a chat that continues the story still gets it from Litopys, once", () => {
     seedWinter();
+    seedOldStory();
     const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"] });
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     route(host, "POST", "/litopys/links", { chatId: "next", from: "winter" });
     const text = textOf(L.llmRequest(ctx("next"), host));
@@ -152,34 +140,11 @@ describe("card stories are not sent any more (#492)", () => {
   });
 });
 
-describe("card memory: lines of a story can be read, edited, removed and added by hand", () => {
-  it("edits, removes and adds lines of a story, also when its chat is gone", () => {
-    seedWinter();
-    const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1", "f2"], notes: ["n1"], said: ["s1"] });
-    for (const f of ["chats/winter.meta.json", "chats/winter.jsonl", "litopys/chats/winter.json", "dashboard/state/winter.json"]) fs.rmSync(abs(f), { force: true });
-    const put = (line: any) => route(host, "PUT", "/litopys/card-memory", { cardId: "aria", source: { id: "s1", line } });
-    let v = put({ list: "facts", index: 0, text: "Aria lost her younger brother at the gate." }).json;
-    expect(v.memory.sources[0].facts[0].text).toBe("Aria lost her younger brother at the gate.");
-    v = put({ list: "facts", index: 1, remove: true }).json;
-    expect(v.memory.sources[0].facts).toHaveLength(1);
-    v = put({ list: "facts", add: true, text: "Aria hates crowded rooms.", subject: "Aria" }).json;
-    expect(v.memory.sources[0].facts.map((f: any) => f.text)).toEqual(["Aria lost her younger brother at the gate.", "Aria hates crowded rooms."]);
-    v = put({ list: "said", add: true, text: "I will come back for you.", who: "Aria", kind: "promise" }).json;
-    expect(v.memory.sources[0].said.at(-1)).toMatchObject({ kind: "promise", who: "Aria" });
-    v = put({ list: "arc", text: "A shorter summary." }).json;
-    expect(v.memory.sources[0].arc).toBe("A shorter summary.");
-    expect(put({ list: "facts", index: 9, remove: true }).status).toBe(400);
-    expect(put({ list: "facts", index: 0, text: "" }).status).toBe(400);
-    expect(put({ list: "nope", add: true, text: "x" }).status).toBe(400);
-  });
-});
-
 describe("what a chat carries (the strip under the chat header, #107)", () => {
   it("reports the backstory and the chat's switches, with the exact texts, and no card memory", () => {
     seedWinter();
+    seedOldStory();
     const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1"], said: ["s1"] });
     // a second story of the card, told in a chat that the new chat continues
     writeChat("spring", story(4, "p"), { title: "Spring market", characterId: "aria" });
     writeJson("litopys/chats/spring.json", { ...L.emptyChat("spring"), migrated: true, facts: [fact("f1", "Aria sells honey at the market.")], chapters: [{ id: "c1", from: "p1", to: "p4", count: 4, kind: "scene", text: "Aria sold honey.", label: "Honey", at: 1 }] });

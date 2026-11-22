@@ -1,8 +1,8 @@
 import type { MsgKey } from '@/lib/i18n'
 import type { MemoryKind } from './memory-api'
 
-/** The strings that read differently for a card, a persona and a saved world. Everything else in the
- *  Memory panel, the story lines and the import dialog is shared, so the card's own wording stays as it was. */
+/** The strings that read differently for a persona and a saved world. Everything else in the Memory panel,
+ *  the story lines and the import dialog is shared. A card has no stories (#492), so it has no entry here. */
 export interface MemoryText {
   intro: MsgKey
   emptyText: MsgKey
@@ -17,20 +17,7 @@ export interface MemoryText {
   sumHint: MsgKey
 }
 
-export const MEMORY_TEXT: Record<MemoryKind, MemoryText> = {
-  card: {
-    intro: 'mem.intro',
-    emptyText: 'mem.empty.text',
-    removeText: 'mem.remove.text',
-    injectTitle: 'mem.inject',
-    injectSwitch: 'mem.inject.switch',
-    injectHint: 'mem.inject.hint',
-    injectOff: 'mem.inject.off',
-    dlgPick: 'mem.dlg.pick',
-    dlgNoChats: 'mem.dlg.noChats',
-    dlgAfter: 'mem.dlg.after',
-    sumHint: 'mem.dlg.sumHint',
-  },
+export const MEMORY_TEXT: Record<Exclude<MemoryKind, 'card'>, MemoryText> = {
   persona: {
     intro: 'memp.intro',
     emptyText: 'memp.empty.text',
@@ -58,3 +45,6 @@ export const MEMORY_TEXT: Record<MemoryKind, MemoryText> = {
     sumHint: 'memx.dlg.sumHint',
   },
 }
+
+/** The wording of an owner's stories; null for a card, which keeps habits only. */
+export const storyText = (kind: MemoryKind): MemoryText | null => (kind === 'card' ? null : MEMORY_TEXT[kind])

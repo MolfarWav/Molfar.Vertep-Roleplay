@@ -25,7 +25,7 @@ import {
   fetchMemory,
   putMemory,
 } from './memory-api'
-import { MEMORY_TEXT } from './memory-kind'
+import { type MemoryText, storyText } from './memory-kind'
 import { AddButton, Block } from './memory-block'
 import { HabitsBlock } from './memory-habits'
 import { GrowthBlock } from './memory-growth'
@@ -49,13 +49,13 @@ const message = (e: unknown, t: ReturnType<typeof useT>) => {
   return e instanceof Error && e.message ? e.message : String(e)
 }
 
-/** The long memory of one owner: the stories it remembers, importing a chat into that memory, and how much
- *  room the memory takes in chats. The owner is a card (its Memory tab, with habits), a persona or a saved
- *  World DM world (stories only; a chat takes those in only when it opts in). Changes act at once (like the
+/** The long memory of one owner. A card's Memory tab holds its habits and its portrait (it keeps no stories since #492);
+ *  a persona or a saved World DM world keeps stories: the ones it remembers, importing a chat into that memory, and how much
+ *  room the memory takes in chats (a chat takes those in only when it opts in). Changes act at once (like the
  *  favourite star and the Soul tab); there is no draft and no Save. */
 export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Character }) {
   const t = useT()
-  const txt = MEMORY_TEXT[owner.kind]
+  const txt = storyText(owner.kind)
   const isCard = owner.kind === 'card'
   const lang = resolveLanguage(useApp((s) => s.settings.language))
   const [data, setData] = useState<MemoryView | null>(null)
@@ -108,7 +108,8 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
     )
   }
 
-  const { memory, chats } = data
+  const { memory } = data
+  const chats = data.chats ?? []
   const sources = memory.sources
   const chatIds = new Set(chats.map((x) => x.id))
   const anyGone = sources.some((s) => !chatIds.has(s.chatId))
@@ -119,6 +120,7 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
     void apply(() => putMemory(owner, { source: { id: s.id, on } })).then((ok) => { if (!ok) load() })
   }
   const remove = async (s: MemSource) => {
+    if (!txt) return
     const sure = await confirm({
       title: t('mem.remove.title', { title: s.title || t('mem.untitled') }),
       description: t(txt.removeText, { name: owner.name }),
@@ -129,9 +131,9 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{t(txt.intro, { name: owner.name })}</p>
+      <p className="text-sm text-muted-foreground">{t(txt ? txt.intro : 'mem.intro', { name: owner.name })}</p>
 
-      {!isCard && (
+      {txt && (
       <Block tone="sky" icon={BookOpenText} title={t('mem.stories')} count={sources.length}>
         {sources.length === 0 ? (
           <Empty className="gap-3 border border-dashed border-border p-5" data-testid="mem-empty">
@@ -199,11 +201,11 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
 
       {isCard && card && <GrowthBlock card={card} />}
 
-      <InjectBlock owner={owner} data={data} t={t} apply={apply} />
+      <InjectBlock owner={owner} txt={txt} data={data} t={t} apply={apply} />
 
       <p className="text-xs text-muted-foreground">{t('mem.saved')}</p>
 
-      {dialog && (
+      {dialog && txt && (
         <MemoryImportDialog
           open
           onOpenChange={(o) => { if (!o) setDialog(null) }}
@@ -218,13 +220,11 @@ export function MemoryPanel({ owner, card }: { owner: MemoryOwner; card?: Charac
   )
 }
 
-/** "added 3 Mar 2026 · 4 facts, 2 notes, story summary" (zeros are left out). */
+/** "added 3 Mar 2026 · 4 facts, story summary" (zeros are left out). */
 function summary(s: MemSource, t: ReturnType<typeof useT>, lang: string) {
   const date = new Date(s.importedAt).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' })
   const parts = [
     s.facts.length ? t('mem.count.facts', { n: s.facts.length }) : '',
-    s.notes.length ? t('mem.count.notes', { n: s.notes.length }) : '',
-    s.said.length ? t('mem.count.said', { n: s.said.length }) : '',
     s.arc ? t('mem.count.arc') : '',
   ].filter(Boolean)
   return `${t('mem.story.added', { date })} · ${parts.length ? parts.join(', ') : t('mem.count.none')}`
@@ -242,13 +242,12 @@ function ChatBadge({ exists, t, className }: { exists: boolean; t: ReturnType<ty
   )
 }
 
-/** "In new chats": the switch for the memory and the room in the prompt for the memory and (a card) for the habits. */
-function InjectBlock({ owner, data, t, apply }: { owner: MemoryOwner; data: MemoryView; t: ReturnType<typeof useT>; apply: (run: () => Promise<MemoryView>) => Promise<boolean> }) {
+/** "In new chats": a persona's or a world's switch and the room its memory takes in the prompt; a card's room for the habits. */
+function InjectBlock({ owner, txt, data, t, apply }: { owner: MemoryOwner; txt: MemoryText | null; data: MemoryView; t: ReturnType<typeof useT>; apply: (run: () => Promise<MemoryView>) => Promise<boolean> }) {
   const { inject } = data.memory
-  const txt = MEMORY_TEXT[owner.kind]
   return (
-    <Block tone="emerald" icon={Waves} title={t(txt.injectTitle)}>
-      {owner.kind !== 'card' && (
+    <Block tone="emerald" icon={Waves} title={t(txt ? txt.injectTitle : 'mem.inject')}>
+      {txt && (
         <>
           <label className="flex min-h-8 items-center gap-3 text-sm max-md:min-h-10">
             <Switch checked={inject.enabled} onCheckedChange={(v) => void apply(() => putMemory(owner, { inject: { enabled: v } }))} aria-label={t(txt.injectSwitch)} className="max-md:after:-inset-y-4" />
@@ -263,10 +262,10 @@ function InjectBlock({ owner, data, t, apply }: { owner: MemoryOwner; data: Memo
             max={MEM_MAX_TOKENS}
             onCommit={(v) => apply(() => putMemory(owner, { inject: { maxTokens: v } }))}
           />
-          <p className="text-xs text-muted-foreground">{inject.enabled ? t(txt.injectHint, { tokens: data.tokens, budget: data.budget }) : t(txt.injectOff)}</p>
+          <p className="text-xs text-muted-foreground">{inject.enabled ? t(txt.injectHint, { tokens: data.tokens ?? 0, budget: data.budget ?? 0 }) : t(txt.injectOff)}</p>
         </>
       )}
-      {owner.kind === 'card' && (
+      {!txt && (
         <TokenField
           id={`mem-habits-budget-${owner.id}`}
           label={t('mem.inject.habits')}

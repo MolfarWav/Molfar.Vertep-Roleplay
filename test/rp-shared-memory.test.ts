@@ -58,9 +58,8 @@ describe("persona memory: import", () => {
     expect(r.json.arc.text).toContain("ferried Aria");
     // f1 (subject Jude), f2 (names Jude in its text); not the world facts, the private one, the retired one or an unrelated fact
     expect(r.json.facts.map((f: any) => f.id)).toEqual(["f1", "f2"]);
-    expect(r.json.notes).toEqual([]);
-    expect(r.json.said).toEqual([]);
-    expect(r.json.habits).toEqual([]);
+    // a persona's story has facts and a summary: no notes, said lines or habits (those were a card's, #492)
+    expect(Object.keys(r.json).sort()).toEqual(["already", "arc", "chat", "facts", "kind", "summary"]);
   });
 
   it("writes memory/personas/<id>.json with a copy of the chat's title, not characters/ or the persona file", () => {
@@ -252,14 +251,20 @@ describe("persona and world memory: the prompt", () => {
     expect(route(host, "GET", "/litopys/memory", undefined, { kind: "persona", id: "pers_jude" }).status).toBe(404);
   });
 
-  it("the card's own memory: its routes still answer, but its stories go into no prompt (#492)", () => {
+  it("a card keeps no stories (#492): a story left in its file goes into no prompt, and nothing imports one", () => {
     seedWinter();
     const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f5"] });
+    writeJson("characters/aria/memory.json", { v: 1, next: 1, sources: [{ id: "s1", chatId: "winter", title: "Winter watch", on: true, canon: "main", arc: "", facts: [{ text: "Aria carries a brass key on a cord.", subject: "Aria" }], notes: [], said: [] }], habits: [] });
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     const res = L.llmRequest(ctx("next"), host);
     expect(memoryParts(res)).toEqual([]);
-    expect(route(host, "GET", "/litopys/card-memory", undefined, { cardId: "aria" }).json.kind).toBe("card");
+    expect(textOf(res)).not.toContain("brass key");
+    for (const path of ["/litopys/memory/preview", "/litopys/memory/import", "/litopys/card-memory/preview", "/litopys/card-memory/import"]) {
+      // the card's own preview and import routes are gone (no answer at all); the shared ones refuse a card
+      expect((route(host, "POST", path, { kind: "card", id: "aria", cardId: "aria", chatId: "winter", facts: ["f5"] }) ?? { status: 404 }).status).not.toBe(200);
+    }
+    expect(L.previewImport(host.fs, "aria", "winter", "card")).toBeNull();
+    expect(readJson("characters/aria/memory.json").sources).toHaveLength(1);
   });
 });
 

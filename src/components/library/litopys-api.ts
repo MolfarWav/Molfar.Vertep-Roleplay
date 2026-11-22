@@ -355,7 +355,7 @@ export interface LitConsolidate {
 }
 
 /** The texts the user can change and restore. */
-export type LitPromptKey = 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues' | 'cardMemory'
+export type LitPromptKey = 'chapter' | 'arc' | 'summary' | 'remembers' | 'continues'
 
 /** The settings one chat may keep for itself (#122); a missing key follows the Library's Litopys settings. */
 export interface LitChatConfig {
@@ -412,12 +412,11 @@ export interface LitConfig {
   arcSizeMax: number
   arcWords: number
   arc: string
-  /** #113: the prompt of the story summary for a card's memory */
+  /** #113: the prompt of the story summary for a persona's or a world's memory */
   summary?: string
   /** #113: the sentence each memory part opens with (a missing one is the plugin's default) */
   remembers?: string
   continues?: string
-  cardMemory?: string
   /** #106: look for habits in scenes (default on), and in how many different scenes a habit becomes a habit (1 to 5, default 2); missing from an older plugin */
   habits?: boolean
   habitsEarnAfter?: number
