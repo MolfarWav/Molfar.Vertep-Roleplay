@@ -577,7 +577,91 @@ function score() {
   console.log(md.join("\n"));
 }
 
+// ---------- 0b: the lock and return notes through the app's real prompt ----------
+// The engine plugin assembles the reply prompt (a stock preset, the members' cards, the history, the group scene text with
+// absent members as one line) and the Direction plugin's own hook appends its note; then the reply model answers and the judge
+// reads it. Only the notes phase 1 sends: the lock and the return.
+type RealPoint = { k: number; kind: "lock" | "return"; who: string[]; before: string[] };
+const REAL_POINTS: RealPoint[] = [
+  { k: 9, kind: "lock", who: ["mei-ishikawa"], before: ["mei-ishikawa", "yuzu-takane"] },
+  { k: 14, kind: "lock", who: ["yuzu-takane"], before: ["yuzu-takane"] },
+  { k: 20, kind: "lock", who: ["hana-morimoto"], before: ["hana-morimoto", "aoi-kisaragi"] },
+  { k: 29, kind: "lock", who: ["hana-morimoto"], before: ["hana-morimoto"] },
+  { k: 36, kind: "lock", who: ["yuzu-takane"], before: ["yuzu-takane"] },
+  { k: 43, kind: "lock", who: ["aoi-kisaragi"], before: ["aoi-kisaragi"] },
+  { k: 16, kind: "return", who: ["hana-morimoto", "aoi-kisaragi"], before: ["yuzu-takane", "mei-ishikawa"] },
+  { k: 19, kind: "return", who: ["aoi-kisaragi"], before: ["hana-morimoto"] },
+  { k: 32, kind: "return", who: ["aoi-kisaragi", "mei-ishikawa", "yuzu-takane"], before: ["hana-morimoto"] },
+  { k: 38, kind: "return", who: ["aoi-kisaragi"], before: ["yuzu-takane"] },
+  { k: 44, kind: "return", who: ["hana-morimoto", "mei-ishikawa"], before: ["aoi-kisaragi"] },
+  { k: 47, kind: "return", who: ["yuzu-takane"], before: ["aoi-kisaragi", "hana-morimoto", "mei-ishikawa", "rin-shiraishi"] },
+];
+async function deliverReal() {
+  const cast: Cast = readJson("cast.json");
+  const model = flag("--model");
+  if (!model) throw new Error("--model");
+  const presetId = flag("--preset") ?? "vertep-medium";
+  const tag = flag("--tag") ?? "deliver-real-" + model.split("/").pop();
+  const E: any = await import(new URL("file:///" + path.resolve("plugins/engine/plugin.js").replace(/\\/g, "/")).href);
+  const Dp: any = await import(new URL("file:///" + path.resolve("plugins/direction/plugin.js").replace(/\\/g, "/")).href);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "direction-real-"));
+  fs.cpSync(path.join(dir, "root"), root, { recursive: true });
+  fs.mkdirSync(path.join(root, "presets"), { recursive: true });
+  fs.copyFileSync(path.resolve("data/presets", presetId + ".json"), path.join(root, "presets", presetId + ".json"));
+  const host: any = {
+    fs: {
+      read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
+      write: (rel: string, content: string) => {
+        const full = path.resolve(root, rel);
+        fs.mkdirSync(path.dirname(full), { recursive: true });
+        fs.writeFileSync(full, content, "utf8");
+      },
+      list: (rel = ".") => fs.readdirSync(path.resolve(root, rel)).sort(),
+      remove: (rel: string) => fs.rmSync(path.resolve(root, rel), { recursive: true, force: true }),
+    },
+    store: { get: () => null, put: () => {}, delete: () => {}, keys: () => [] },
+    llm: { request: () => {}, results: {}, embed: () => {}, embedResults: {} },
+    net: { request: () => {}, results: {} },
+    zip: { entries: () => { throw new Error("no zip"); }, list: () => 0 },
+    log: () => {},
+  };
+  const chatId = "romcom";
+  const metaFile = path.join(root, "chats", chatId + ".meta.json");
+  fs.writeFileSync(metaFile, JSON.stringify({ ...JSON.parse(fs.readFileSync(metaFile, "utf8")), id: chatId, presetId }));
+  const all = fs.readFileSync(path.join(root, "chats", chatId + ".jsonl"), "utf8").trim().split("\n");
+  const out: any = { tag, model, presetId, points: [] as any[] };
+  const nameOf = (id: string) => cast.members.find((m) => m.id === id)!.name;
+  for (const p of REAL_POINTS) {
+    // the chat up to the player's message of turn k; line 2k-1 is that message, line 2k-2 the reply before
+    fs.writeFileSync(path.join(root, "chats", chatId + ".jsonl"), all.slice(0, 2 * p.k).join("\n") + "\n");
+    const prevKey = "m" + (2 * p.k - 2) + "#0";
+    const report = { key: prevKey, at: 1, tag: null, present: p.before, sceneNew: false, model: "", ms: 0 };
+    const state = p.kind === "lock"
+      ? { v: 1, chatId, on: true, lock: { ids: p.who, at: 1 }, returning: null, reports: [report], log: [] }
+      : { v: 1, chatId, on: true, lock: null, returning: { ids: p.who, after: prevKey, at: 1 }, reports: [report], log: [] };
+    host.fs.write("direction/state/" + chatId + ".json", JSON.stringify(state));
+    const prev = E.handleRoute({ method: "POST", path: "/prompt/preview", query: {}, body: { chatId } }, host)?.json;
+    if (!prev || !Array.isArray(prev.messages)) {
+      console.log(`k ${p.k}: no preview ${JSON.stringify(prev).slice(0, 200)}`);
+      continue;
+    }
+    const patch = Dp.llmRequest({ key: "reply", request: { sessionId: chatId, messages: prev.messages }, turn: { op: "send" } }, host);
+    const messages = patch ? patch.messages : prev.messages;
+    const note = patch ? patch.promptSources.parts.map((x: any) => x.text).join("\n\n") : "";
+    const sys = messages.filter((m: any) => m.role === "system").map((m: any) => m.content).join("\n\n");
+    const rest = messages.filter((m: any) => m.role !== "system");
+    const t0 = Date.now();
+    const a = await callModelMessages(sys, rest, model, Math.max(1500, prev.presetParams?.max_tokens ?? 2000), prev.presetParams?.temperature ?? 0.8);
+    const chars = messages.reduce((s: number, m: any) => s + String(m.content).length, 0);
+    out.points.push({ k: p.k, kind: p.kind, who: p.who.map(nameOf), presentBefore: p.before.map(nameOf), note, promptChars: chars, reply: a.text.replace(/<think>[\s\S]*?<\/think>/g, "").trim(), ms: Date.now() - t0, input: a.input, output: a.output, error: a.error });
+    writeJson(`${tag}.json`, out);
+    console.log(`k ${p.k} ${p.kind}: prompt ${chars} chars, ${a.ms} ms ${a.error ?? ""}${note ? "" : " NO NOTE"}`);
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 if (cmd === "prose") await prose();
+else if (cmd === "deliver-real") await deliverReal();
 else if (cmd === "root") buildRoot();
 else if (cmd === "director") await director();
 else if (cmd === "deliver") await deliver();
