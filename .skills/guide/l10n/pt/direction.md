@@ -1,4 +1,4 @@
-<!-- source: dbd568649975 -->
+<!-- source: c4250477e1b5 -->
 # Direção: quem está na cena
 
 Direção é para conversas em grupo. Após cada resposta, um modelo "diretor" pequeno e barato lê a cena e diz que tipo de cena é (uma aula, um intervalo, um momento a sós, um encontro) e quais membros estão nela. Membros que não estão lá param de responder e ficam fora do prompt até que a história os traga de volta.
@@ -17,11 +17,13 @@ Com o interruptor desligado, a barra se recolhe para "Direction: off" e a conver
 
 ## Regras de gênero
 
-Um gênero é um conjunto de pequenas regras que trazem pessoas para a cena por acaso, para que uma história desse gênero não pare. Abra **Rules** e escolha um gênero. Por enquanto há um, **School rom-com**, com três regras:
+Um gênero é um conjunto de pequenas regras que trazem pessoas para a cena por acaso, para que uma história desse gênero não pare. Abra **Rules** e escolha um gênero da lista. Há nove: **School rom-com**, **Harem**, **Slice of life**, **Drama**, **Thriller**, **Detective**, **Steamy romance**, **Adventure** e **Horror**. Cada um tem três regras, montadas com os mesmos poucos tipos de condição (a sós com um membro por algumas respostas, ninguém por perto por algumas respostas, a cena é de determinado tipo, apenas poucos presentes) e as mesmas três ações (alguém entra no momento, alguém se junta, alguém volta). O cartão de uma regra diz em uma frase o que ela faz. Por exemplo, School rom-com tem:
 
 - **Interrupted moment**: você esteve a sós com um membro por três respostas, e alguém entra e interrompe o momento.
 - **Someone comes by**: ninguém esteve por perto por três respostas (não em casa), e um membro aparece.
 - **Friends join the break**: em um intervalo, almoço ou clube com uma ou duas pessoas presentes, um amigo se junta.
+
+Um gênero também diz ao diretor que tipos de cena procurar. Todos recebem os habituais (aula, intervalo, almoço, clube, a caminho, passeio, encontro, momento a sós, em casa, evento); um gênero acrescenta alguns próprios, como perigo, investigação, discussão, segredo, noite, viagem, trabalho, refeição ou momento de descanso. Uma conversa sem gênero, ou com School rom-com, vê apenas os habituais, então nada muda para ela. Como em todo o Direção, nenhuma regra dispara em uma cena explícita. Os números de cada gênero são primeiras estimativas.
 
 Uma conversa começa sem gênero e com as regras desligadas, então nada muda até você escolher um. Escolher um gênero liga as regras. **Rules in this chat** as desliga de novo e mantém o gênero. As regras precisam que o diretor esteja ligado, pois leem os relatórios dele.
 
@@ -49,6 +51,8 @@ Um **beat** é algo que você quer que aconteça: "The bell rings and the class 
 - **Who takes part** (opcional): membros que estão fora entram na cena por causa dele. Em **People from the World** você também pode escolher pessoas que a história já tem (um professor, um rival); a nota diz ao modelo que escreve quem elas são. As pessoas são escolhidas no livro World da conversa, então não há ninguém para escolher até que ele tenha alguém.
 - **When**: **After some replies** (contado a partir do momento em que o beat se torna o próximo; 0 significa imediatamente), **Scene** (quando o diretor lê esse tipo de cena: uma aula, um intervalo, um encontro...), **Place** (quando o lugar do Dashboard contém as suas palavras, como "roof"; ignora maiúsculas) ou **By hand** (somente quando você pressiona **Fire now**).
 - **Wait for a new scene**: ligado por padrão. Um beat que está na hora não corta no meio de um momento: espera até seis respostas para a história mudar de lugar ou dar um salto no tempo, e então vai de qualquer forma. Um beat de lugar vai no instante em que a história chega lá, e um beat manual só quando você o dispara.
+
+**From the genre** (ao lado de **Add beat**) lista beats prontos do gênero da conversa ("A rumour about the two of them starts going around the school"); ao escolher um, o editor abre preenchido, então você acrescenta quem participa e salva. É preciso um gênero escolhido em **Rules**. **Draft from the cards** pede ao modelo do diretor, uma única vez, que leia os cartões dos membros (e o gênero, se houver) e sugira de cinco a oito beats em ordem, construídos sobre quem são esses personagens. Leva de alguns segundos a um minuto. As sugestões abrem em um cartão **Draft** com um visto em cada uma: desmarque as que você não quer e pressione **Add** para colocar o resto no fim do plano. Nada é salvo até você adicionar; fechar a folha descarta o rascunho, e um beat que já está no seu plano não é sugerido de novo. O rascunho é só tão bom quanto o modelo do diretor; edite os beats depois como qualquer outro.
 
 O plano vai **em ordem**: só o primeiro beat que não está concluído é examinado; os seguintes dizem "After the beats before it". Um beat está concluído quando entrou, quando foi desistido (o diretor viu que ele ficou de fora duas vezes) ou quando você o **Skip**. O beat seguinte conta suas respostas a partir do fim do anterior. Cada cartão mostra onde está o seu beat: **Waiting** (respostas restantes), **Due, waiting for a new scene** (respostas restantes), **Goes with the next reply**, **Delivered** (veio, foi apenas mencionado, ou entrou quando ninguém foi nomeado), **Did not land**, **Skipped**. Se algo está segurando um beat, o cartão diz o motivo: a Direção está desligada, a cena está travada, ou a cena é explícita (um beat nunca dispara em uma cena explícita; ele vai quando a cena a deixa). **Edit**, **Move up**, **Move down** e **Delete** alteram a lista. **Fire now** coloca o beat na próxima resposta de imediato, independentemente do que ele esteja esperando.
 

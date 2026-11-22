@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.152.0'
+export const APP_VERSION = '4.153.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.direction-genres',
+    since: '4.153.0',
+    help: 'characters',
+    keywords: { en: 'direction genre harem slice of life drama thriller detective steamy adventure horror beat template draft from the cards plan scene kinds', uk: 'режисура жанр гарем буденність драма трилер детектив гаряча романтика пригода хорор момент шаблон чернетка з карток план типи сцен' },
+    title: { en: 'Direction: nine genres and a draft from the cards', uk: 'Режисура: дев’ять жанрів і чернетка з карток' },
+    body: {
+      en: 'The genre list in Direction now has nine entries: School rom-com, Harem, Slice of life, Drama, Thriller, Detective, Steamy romance, Adventure and Horror, each with three rules and its own scene kinds for the director. In the Plan tab, From the genre adds a ready-made beat, and Draft from the cards asks the director’s model, once, to read the members’ cards and suggest five to eight beats. They open as a card with a tick on each, and nothing is saved until you add them.',
+      uk: 'Список жанрів у Режисурі тепер має дев’ять пунктів: Шкільна романтична комедія, Гарем, Буденність, Драма, Трилер, Детектив, Гаряча романтика, Пригода й Хорор; у кожного три правила й власні типи сцен для режисера. У вкладці Plan «З жанру» додає готовий момент, а «Чернетка з карток» один раз просить модель режисера прочитати картки учасників і запропонувати п’ять-вісім моментів. Вони відкриваються карткою з галочками, і нічого не зберігається, доки ви їх не додасте.',
+    },
+  },
   {
     id: 'new.direction-world-people',
     since: '4.152.0',

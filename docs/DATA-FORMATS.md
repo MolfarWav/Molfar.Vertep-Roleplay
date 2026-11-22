@@ -1190,6 +1190,11 @@ Optional (#72), off until the player turns it on in Characters > More > Letters 
   people a queued note names (a prompt line "others: ..." for that one reply). Result: `came` = named in `others`, `mentioned` = the name
   is in the reply, `sent` = a beat with nobody named. Members only are counted as present by the engine's `directionScene`; a World
   person has no card there.
+- Genre sets (phase 4): `rules.set` may be `romcom`, `harem`, `slice`, `drama`, `thriller`, `detective`, `steamy`, `adventure` or `horror`
+  (the sets live in the plugin: three rules each, extra scene kinds, three beat templates; only a chat's edits are stored). A report's `tag`
+  may be any of the base ten (lesson, break, lunch, club, commute, group_out, date, alone_moment, at_home, event) or the nine extras (work,
+  meal, downtime, argument, travel, danger, investigation, secret, night); the director is offered the base ten plus the chat's set's own
+  extras. No file holds a draft: `POST /direction/draft` returns beats and the client saves the ones kept with `PUT /direction/plan`.
 - A group file may carry `"direction": false`: its new chats start with Direction off. Absent = on once a model is picked.
   `"directionSet": "romcom"` makes its new chats start with that genre set on.
 - Read by the engine plugin (`directionScene`) as well as by the Direction plugin; change both readers together.

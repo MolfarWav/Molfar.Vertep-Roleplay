@@ -1,4 +1,4 @@
-<!-- source: dbd568649975 -->
+<!-- source: c4250477e1b5 -->
 # Richting: wie is er in de scène
 
 Richting is voor groepschats. Na elke reactie leest een klein, goedkoop "director"-model de scène en zegt wat voor soort scène het is (een les, een pauze, een moment alleen, een date) en welke leden erin zitten. Leden die er niet zijn, stoppen met antwoorden en worden uit de prompt weggelaten totdat het verhaal ze terugbrengt.
@@ -17,11 +17,13 @@ Met de schakelaar uit klapt de balk in tot "Direction: off" en werkt de chat zoa
 
 ## Genre-regels
 
-Een genre is een set kleine regels die mensen op toeval in de scène brengen, zodat een verhaal van dat genre niet vastloopt. Open **Rules** en kies een genre. Voor nu is er één, **School rom-com**, met drie regels:
+Een genre is een set kleine regels die mensen op toeval in de scène brengen, zodat een verhaal van dat genre niet vastloopt. Open **Rules** en kies een genre uit de lijst. Er zijn er negen: **School rom-com**, **Harem**, **Slice of life**, **Drama**, **Thriller**, **Detective**, **Steamy romance**, **Adventure** en **Horror**. Elk heeft drie regels, opgebouwd uit dezelfde paar soorten voorwaarden (alleen met één lid voor enkele antwoorden, niemand in de buurt voor enkele antwoorden, de scène is van een soort, slechts enkele aanwezig) en dezelfde drie acties (iemand komt het moment binnenlopen, iemand voegt zich erbij, iemand komt terug). De kaart van een regel zegt in één zin wat hij doet. School rom-com heeft bijvoorbeeld:
 
-- **Interrupted moment**: je bent drie antwoorden lang alleen geweest met één lid, en iemand komt binnen en onderbreekt het moment.
+- **Interrupted moment**: drie antwoorden lang ben je alleen geweest met één lid, en iemand komt binnen en onderbreekt het moment.
 - **Someone comes by**: drie antwoorden lang is niemand in de buurt geweest (niet thuis), en een lid komt langs.
 - **Friends join the break**: in een pauze, lunch of club met één of twee aanwezigen, sluit een vriend aan.
+
+Een genre vertelt de director ook welke soorten scènes hij moet zoeken. Iedereen krijgt de gebruikelijke (les, pauze, lunch, club, onderweg, uitje, date, moment alleen, thuis, evenement); een genre voegt er een paar eigen aan toe, zoals gevaar, onderzoek, ruzie, geheim, nacht, reis, werk, maaltijd of rustig moment. Een chat zonder genre, of met School rom-com, ziet alleen de gebruikelijke soorten, dus voor die chat verandert er niets. Zoals overal in Richting vuurt geen enkele regel af in een expliciete scène. De getallen van elk genre zijn eerste schattingen.
 
 Een chat begint zonder genre en met de regels uit, dus er verandert niets totdat je een genre kiest. Een genre kiezen zet de regels aan. **Rules in this chat** zet ze weer uit en houdt het genre. De regels hebben de director aan nodig: ze lezen zijn rapporten.
 
@@ -49,6 +51,8 @@ Een **beat** is iets wat je wilt dat gebeurt: "The bell rings and the class empt
 - **Who takes part** (optioneel): leden die weg zijn, komen de scène in voor deze beat. Onder **People from the World** kun je ook mensen kiezen die het verhaal al heeft (een leraar, een rivaal); de notitie vertelt het schrijvende model wie ze zijn. Mensen worden gekozen uit het World-boek van de chat, dus er zijn er niet om te kiezen totdat het er een paar heeft.
 - **When**: **After some replies** (geteld vanaf het moment dat de beat de volgende wordt; 0 betekent meteen), **Scene** (wanneer de director dat soort scène leest: een les, een pauze, een date...), **Place** (wanneer de plaats van het Dashboard je woorden bevat, zoals "roof"; hoofdletters worden genegeerd) of **By hand** (alleen wanneer je op **Fire now** drukt).
 - **Wait for a new scene**: standaard aan. Een beat die aan de beurt is, snijdt niet door het midden van een moment: hij wacht tot zes antwoorden lang tot het verhaal van plaats wisselt of in de tijd springt, en gaat dan hoe dan ook. Een plaatsbeat gaat op het moment dat het verhaal daar aankomt, en een beat op de hand alleen wanneer je hem afvuurt.
+
+**From the genre** (naast **Add beat**) toont kant-en-klare beats van het genre van de chat ("A rumour about the two of them starts going around the school"); als je er een kiest, opent de editor al ingevuld, dus voeg je toe wie meedoet en sla je op. Daarvoor moet er een genre gekozen zijn in **Rules**. **Draft from the cards** vraagt het model van de director één keer om de kaarten van de leden te lezen (en het genre, als er een is) en vijf tot acht beats in volgorde voor te stellen, gebaseerd op wie deze personages zijn. Dat duurt een paar seconden tot een minuut. De voorstellen openen in een **Draft**-kaart met een vinkje bij elk: vink uit wat je niet wilt en druk op **Add** om de rest aan het eind van het plan toe te voegen. Er wordt niets opgeslagen tot je toevoegt; het sluiten van het venster gooit het concept weg, en een beat die al in je plan staat, wordt niet opnieuw voorgesteld. Het concept is maar zo goed als het model van de director; bewerk de beats daarna als alle andere.
 
 Het plan gaat **in volgorde**: alleen de eerste beat die nog niet af is, wordt bekeken. De latere beats staan op "After the beats before it". Een beat is klaar wanneer hij is binnengekomen, wanneer hij is opgegeven (de director heeft hem twee keer zien ontbreken) of wanneer je hem **Skip**. De volgende beat telt zijn antwoorden vanaf het moment dat de vorige eindigde. Elke kaart laat zien waar zijn beat staat: **Waiting** (aantal resterende antwoorden), **Due, waiting for a new scene** (aantal resterende antwoorden), **Goes with the next reply**, **Delivered** (gekomen, alleen genoemd, of binnengegaan toen niemand werd genoemd), **Did not land**, **Skipped**. Als iets een beat tegenhoudt, zegt de kaart waarom: Richting staat uit, de scène is op slot, of de scène is expliciet (een beat gaat er nooit in; hij gaat wanneer de scène eruit stapt). **Edit**, **Move up**, **Move down** en **Delete** wijzigen de lijst. **Fire now** zet de beat meteen op het volgende antwoord, wat hij ook wacht.
 
