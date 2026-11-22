@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { PencilSimple, type Icon } from '@phosphor-icons/react'
+import { DoorOpen, PencilSimple, type Icon } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { ageSeconds, formatStoryDate, type Clock, type DashChar, type DashView } from '@/lib/dashboard'
@@ -10,6 +10,7 @@ import { CalendarDialog } from '@/components/dashboard/calendar-dialog'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useLang } from '@/components/dashboard/use-lang'
 import { useT } from '@/hooks/use-t'
+import { isDirectorAway, useDirectionAway } from '@/lib/direction'
 import { useDashLive, type DashLast } from '@/lib/dash-live'
 import { DICTIONARIES, type MsgKey } from '@/lib/i18n'
 import { WeatherTile } from '@/components/dashboard/dash-wx-tile'
@@ -292,7 +293,13 @@ export function AvatarImg({ name, url, className }: { name: string; url?: string
  * A click focuses the character; with onPortrait, a click on the focused one opens its portrait dialog.
  * `big` is the 40 px switcher square; `count` puts the change counter on its corner.
  */
-export function AvatarButton({ name, url, onFocus, focused, onPortrait, className, big, count }: {
+/** The people in a list of names that the director says are not in the scene (empty without a report): the Dashboard fades their portraits (#499). */
+export function useAwayNames(names: readonly string[]): string[] {
+  const away = useDirectionAway((s) => s.names)
+  return names.filter((n) => isDirectorAway(away, n))
+}
+
+export function AvatarButton({ name, url, onFocus, focused, onPortrait, className, big, count, away: awayProp }: {
   name: string
   url?: string
   onFocus: (name: string) => void
@@ -301,10 +308,14 @@ export function AvatarButton({ name, url, onFocus, focused, onPortrait, classNam
   className?: string
   big?: boolean
   count?: ChangeCount | null
+  /** the director says this person is not in the scene; left out, the director's list in the store decides */
+  away?: boolean
 }) {
   const t = useT()
   const portrait = focused && onPortrait
-  const label = portrait ? `${name}: ${t('lit.portrait.change')}` : name
+  const stored = useDirectionAway((s) => isDirectorAway(s.names, name))
+  const away = awayProp ?? stored
+  const label = (portrait ? `${name}: ${t('lit.portrait.change')}` : name) + (away ? ` (${t('dash.absent')})` : '')
   return (
     <button
       type="button"
@@ -315,11 +326,13 @@ export function AvatarButton({ name, url, onFocus, focused, onPortrait, classNam
       className={cn(
         'group relative shrink-0 rounded-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         focused ? (big ? 'ring-2 ring-cta ring-offset-1 ring-offset-card' : 'ring-1 ring-cta') : 'opacity-80 hover:opacity-100',
+        away && 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0',
         className,
       )}
     >
       <AvatarImg name={name} url={url} className={big ? 'size-10 [&_[data-slot=avatar-fallback]]:text-sm' : undefined} />
       {count && <ChangeBadge count={count} className="absolute -top-1.5 -right-1.5 z-10" />}
+      {away && <DoorOpen className="absolute -right-1 -bottom-1 z-10 size-4 rounded-full bg-card text-muted-foreground" weight="fill" aria-hidden="true" />}
       {portrait && (
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true">
           <PencilSimple className="size-3.5" />

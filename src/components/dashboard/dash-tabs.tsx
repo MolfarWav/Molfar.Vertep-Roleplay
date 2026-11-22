@@ -2,11 +2,11 @@
 // reply"), the tabs with their tone squares and corner counters, and the panels the tabs open.
 
 import { useState, type ReactNode } from 'react'
-import { Flag, Notebook as NotebookIcon, Sparkle } from '@phosphor-icons/react'
+import { DoorOpen, Flag, Notebook as NotebookIcon, Sparkle } from '@phosphor-icons/react'
 import { Badge } from '@/components/ui/badge'
 import { TONES } from '@/components/ui/tone'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AvatarButton, Box, ChangeBadge, NameChip, SceneBlock, TONE_TAB, type Tone } from './dash-common'
+import { AvatarButton, Box, ChangeBadge, NameChip, SceneBlock, TONE_TAB, useAwayNames, type Tone } from './dash-common'
 import { AttitudeCard, HereCard, MoodCard, OthersGrid, OutfitCard, ThingsCard } from './dash-cards'
 import { ThreadList } from './dash-threads'
 import { SuggestCallout } from './dash-merge'
@@ -117,7 +117,7 @@ export function SinceRow({ changes, onPick }: { changes: DashChange[]; onPick: (
  * The top block: the scene (clock, date, weather, place), the 40 px character switcher with counters on the
  * others, and the "Since your last reply" row. \`onTab\` is told which tab a clicked chip belongs to.
  */
-export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weatherSize, onTab }: {
+export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weatherSize, onTab, awayNames }: {
   view: DashView
   here: WorldHere | null
   focus: string
@@ -126,9 +126,15 @@ export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weath
   onPortrait?: (name: string) => void
   weatherSize: number
   onTab: (id: DashTabId) => void
+  /** the people the director says are not in the scene; left out, the director's list in the store decides (a test passes it) */
+  awayNames?: string[]
 }) {
   // everyone in the scene gets a portrait; `compact` only trims what the prompt insert says about the fifth and later (#236)
   const present = view.order.filter((n) => view.present.includes(n) && view.chars[n])
+  // the director says these are not in the scene (#499): their portraits fade and one line says so, in words (a fade alone is hover-less and colour-only)
+  const t = useT()
+  const stored = useAwayNames(present)
+  const away = awayNames ? present.filter((n) => awayNames.includes(n)) : stored
   const pick = (c: DashChange) => {
     if (c.who && c.who !== focus) onFocus(c.who)
     onTab(c.tab)
@@ -149,10 +155,17 @@ export function DashTop({ view, here, focus, onFocus, avatars, onPortrait, weath
                   focused={n === focus}
                   onPortrait={onPortrait}
                   big
+                  away={away.includes(n)}
                   count={n === focus ? null : tally(personChanges(n, view.chars[n], here))}
                 />
               ))}
             </div>
+          )}
+          {away.length > 0 && (
+            <p className="flex items-start gap-1.5 text-caption text-muted-foreground" data-testid="dash-director-away">
+              <DoorOpen className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              {t('dash.awayDirector', { names: away.map((n) => n.split(/\s[-—–]\s/)[0]).join(', ') })}
+            </p>
           )}
         </div>
       )}

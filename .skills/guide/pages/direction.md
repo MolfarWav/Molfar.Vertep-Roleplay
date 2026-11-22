@@ -6,7 +6,7 @@ Direction is for group chats. After each reply a small, cheap "director" model r
 
 In a group chat there is a thin bar under the member bar, marked "Direction" (on a phone only the icon). From left to right:
 
-- **The scene chip**: the kind of scene and who is here ("Alone moment, with Yuzu" or "Lesson, 4 here"). Tap it to see who is here and who is not in the scene, when the last report was made, and a **Report now** button that asks the director again. While the director reads, the chip says "Reading the scene…".
+- **The scene chip**: the kind of scene and who is here ("Alone moment, with Yuzu" or "Lesson, 4 here"). The Dashboard's portraits fade for the members it says are not in the scene. Tap it to see who is here and who is not in the scene, when the last report was made, and a **Report now** button that asks the director again. While the director reads, the chip says "Reading the scene…".
 - **The model chip**: the director's model. If none is picked it shows **Pick a model**. Tap it for the same model list the chat's top bar has: starred models, then every model by connection, with a search box.
 - **The switch**: Direction on or off for this chat. Until a model is picked it is greyed out and says "Pick a model first".
 - **Next**: a chip that appears while a genre rule or a beat of your plan has a note waiting for the next reply ("Next: Yuzu"). The x skips it.

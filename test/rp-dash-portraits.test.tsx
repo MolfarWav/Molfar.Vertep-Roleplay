@@ -22,8 +22,8 @@ const view = (present: string[]): DashView =>
     usage: { calls: 0, inTokens: 0, outTokens: 0, lastMs: 0 }, lastError: null, insert: null, insertEnabled: true, mode: "sensor",
   }) as unknown as DashView;
 
-const render = (present: string[]) =>
-  renderToStaticMarkup(<DashTop view={view(present)} here={null} focus="Aria" onFocus={() => {}} avatars={{}} weatherSize={16} onTab={() => {}} />);
+const render = (present: string[], awayNames?: string[]) =>
+  renderToStaticMarkup(<DashTop view={view(present)} here={null} focus="Aria" onFocus={() => {}} avatars={{}} weatherSize={16} onTab={() => {}} awayNames={awayNames} />);
 
 describe("DashTop portraits", () => {
   it("shows a portrait for each of five characters present, the compact fifth too", () => {
@@ -36,5 +36,45 @@ describe("DashTop portraits", () => {
     const html = render(["Aria", "Bram"]);
     expect((html.match(/<button/g) ?? []).length).toBe(2);
     expect(html).not.toContain("Elin");
+  });
+});
+
+// #499: the director says who is not in the scene; the Dashboard fades those portraits and says so in a line.
+describe("DashTop and the director's away list (#499)", () => {
+  const { useDirectionAway, isDirectorAway } = require("../src/lib/direction") as typeof import("../src/lib/direction");
+  const { publishAway } = require("../src/lib/direction-ui") as typeof import("../src/lib/direction-ui");
+  const state = (source: "director" | "lock" | "dashboard" | "none", present: string[]) =>
+    ({ scene: { source, present, tag: null }, members: [{ id: "a", name: "Aria" }, { id: "b", name: "Bram" }, { id: "c", name: "Cleo" }] }) as never;
+
+  it("matches a Dashboard name to a member name ignoring case and punctuation, and nothing else", () => {
+    expect(isDirectorAway(["Koharu - Best Friends, Maybe More?"], "koharu — best friends maybe more")).toBe(true);
+    expect(isDirectorAway(["Koharu"], "Koharu Sato")).toBe(false);
+    expect(isDirectorAway([], "Aria")).toBe(false);
+    expect(isDirectorAway(["Aria"], "")).toBe(false);
+  });
+
+  it("publishes the members out of the scene only from a director's report or a lock", () => {
+    publishAway(state("director", ["a"]));
+    expect(useDirectionAway.getState().names).toEqual(["Bram", "Cleo"]);
+    publishAway(state("lock", ["a", "b"]));
+    expect(useDirectionAway.getState().names).toEqual(["Cleo"]);
+    publishAway(state("dashboard", ["a"]));
+    expect(useDirectionAway.getState().names).toEqual([]);
+    publishAway(state("none", []));
+    expect(useDirectionAway.getState().names).toEqual([]);
+    publishAway(null);
+    expect(useDirectionAway.getState().names).toEqual([]);
+  });
+
+  it("fades the portrait of a person the director says is away and names them in a line; nobody away, no line", () => {
+    const html = render(["Aria", "Bram", "Cleo"], ["Bram"]);
+    expect(html).toContain('data-testid="dash-director-away"');
+    expect(html).toContain("The director says not in the scene: Bram");
+    expect((html.match(/grayscale/g) ?? []).length).toBeGreaterThan(0);
+    expect(html).toContain("Bram (not in the scene)");
+    expect(html).not.toContain("Aria (not in the scene)");
+    const clear = render(["Aria", "Bram", "Cleo"], []);
+    expect(clear).not.toContain("dash-director-away");
+    expect(clear).not.toContain("grayscale");
   });
 });

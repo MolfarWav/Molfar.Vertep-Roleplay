@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DICTIONARIES, t as translateNow, type Lang, type MsgKey, type Vars } from './i18n'
 import {
-  BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, DIRECTION_BASE_TAGS, loadDirection, needPercent, useDirectionLive, useDirectionMarks,
+  BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, DIRECTION_BASE_TAGS, loadDirection, needPercent, useDirectionAway, useDirectionLive, useDirectionMarks,
   type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionBeatTemplate, type DirectionBeatWhen, type DirectionRuleDefaults, type DirectionFire, type DirectionFrom, type DirectionLogEntry, type DirectionNext, type DirectionNoteKind, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionScene, type DirectionState, type DirectionTag, type DirectionWorldPerson,
 } from './direction'
 
@@ -81,11 +81,22 @@ export function useDirectionState(chatId: string, messageSig: string): { state: 
   const seq = useRef(0)
   const reload = useCallback(() => {
     const mine = ++seq.current
-    loadDirection(chatId).then((s) => { if (mine === seq.current) { setState(s); publishMarks(chatId, s) } }).catch(() => {})
+    loadDirection(chatId).then((s) => { if (mine === seq.current) { setState(s); publishMarks(chatId, s); publishAway(s) } }).catch(() => {})
   }, [chatId])
-  useEffect(() => { setState(null); publishMarks(chatId, null) }, [chatId])
+  useEffect(() => { setState(null); publishMarks(chatId, null); publishAway(null) }, [chatId])
+  useEffect(() => () => publishAway(null), [])
   useEffect(() => { reload() }, [reload, stamp, messageSig])
   return { state, reload }
+}
+
+/** The members the director says are not in the scene go to a small store for the Dashboard's portraits (#499). Only a director's report or a lock counts:
+ *  with no report there is nothing to compare, and the Dashboard's own list is not second-guessed by itself. */
+export function publishAway(state: DirectionState | null): void {
+  const names = state && (state.scene.source === 'director' || state.scene.source === 'lock')
+    ? state.members.filter((m) => presenceOf(state.scene, m.id) !== 'here').map((m) => m.name)
+    : []
+  const cur = useDirectionAway.getState().names
+  if (cur.length !== names.length || cur.some((n, i) => n !== names[i])) useDirectionAway.setState({ names })
 }
 
 /** The loaded chat's firings and names go to a small store, so the mark under a reply reads them without a fetch per message. */

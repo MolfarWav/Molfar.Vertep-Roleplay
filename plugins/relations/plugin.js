@@ -787,7 +787,7 @@ export const DEFAULT_PROMPTS = {
     "",
     "Scene:",
     ...CLOCK_RULES,
-    "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list of the other characters, never the user's character itself, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep, ended the call or chat, or is otherwise out of it.",
+    "- present: everyone in the scene at the end of the new messages who acts, speaks or is addressed in them, in person or in touch with the user's character from elsewhere (text messages, a call, a letter); the full list of the other characters, never the user's character itself, [] when the user's character is alone. Everyone in the Previous state stays present unless the text shows them leaving or the talk ending, or the scene shutting them out: someone left behind or outside while the others go on (the doors close on them, the car drives off, a door is shut in their face) is out of the scene until they act or speak with the others again, even if they shout or are heard from outside. A narrator who only tells the story is not a person in the scene. struck: anyone who left, was shut out or left behind, fell asleep, ended the call or chat, or is otherwise out of it.",
     "- place and weather: only when stated or changed.",
     "- scene: new is true when this turn starts a new scene: a fight starts or ends, a conversation ends and someone leaves, the story moves to a new place, or time skips ahead. Otherwise false. label: 2 to 5 words in English naming the new scene; only when new is true.",
     "- chars: for each present character, mood, condition, outfit, holding, goal, leads (who drives the scene right now: a name or \"user\"), only what the text shows. contact, for every present character every turn: \"in person\", or how they reach the user's character from elsewhere: \"text\", \"call\", \"video\" or \"letter\".",
@@ -846,8 +846,13 @@ export const DEFAULT_PROMPTS = {
 // The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
 // The twenty-first sensor prompt (before quests got a "done when" and closed when done, failed or dropped, #400).
 // The twenty-second sensor prompt (before the clock rules: a duration the text states, time as the end of the messages, a day only for a jump; Molfar.Vertep#406).
+// The twenty-fourth sensor prompt (before someone shut out or left behind while the others went on counted as out of the scene, Molfar.Vertep#499).
+const SENSOR_PROMPT_24 = DEFAULT_PROMPTS.sensor.replace(
+  "present unless the text shows them leaving or the talk ending, or the scene shutting them out: someone left behind or outside while the others go on (the doors close on them, the car drives off, a door is shut in their face) is out of the scene until they act or speak with the others again, even if they shout or are heard from outside. A narrator who only tells the story is not a person in the scene. struck: anyone who left, was shut out or left behind, fell asleep,",
+  "present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep,",
+);
 // The twenty-third sensor prompt (before a demand on the user's character closed once answered, refused or turned aside, #461).
-const SENSOR_PROMPT_23 = DEFAULT_PROMPTS.sensor.replace(["Threads:", ...QUEST_RULES_3].join("\n"), ["Threads:", ...QUEST_RULES_2].join("\n"));
+const SENSOR_PROMPT_23 = SENSOR_PROMPT_24.replace(["Threads:", ...QUEST_RULES_3].join("\n"), ["Threads:", ...QUEST_RULES_2].join("\n"));
 const SENSOR_PROMPT_22 = SENSOR_PROMPT_23.replace(CLOCK_RULES.join("\n"), CLOCK_RULES_22.join("\n"));
 const SENSOR_PROMPT_21 = SENSOR_PROMPT_22.replace(["Threads:", ...QUEST_RULES_2].join("\n"), THREADS_BLOCK_21);
 const SENSOR_PROMPT_20 = SENSOR_PROMPT_21.replace(EVENT_DEEDS_RULE + "\n" + EVENT_CONTACT_RULE + "\n", "");
@@ -922,7 +927,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22, SENSOR_PROMPT_23], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22, SENSOR_PROMPT_23, SENSOR_PROMPT_24], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
