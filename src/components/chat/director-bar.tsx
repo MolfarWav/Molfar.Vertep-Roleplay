@@ -1,23 +1,22 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
-import { DoorOpen, FilmSlate, ListBullets, Lock, Warning, X } from '@phosphor-icons/react'
+import { ClockCountdown, DoorOpen, FilmSlate, Lock, SlidersHorizontal, Warning, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { ModelMark } from '@/components/model-mark'
 import { ModelPalette, setUpModels, useModelEntry } from '@/components/chat/model-palette'
 import { GroupMemberBar } from '@/components/chat/group-member-bar'
+import { DirectionSheet, type DirectionTab } from '@/components/chat/direction-sheet'
 import { useT } from '@/hooks/use-t'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { relativeTime, resolveLanguage } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { runDirection, saveDirectionModel, setDirectionChat, useDirectionLive, type DirectionState } from '@/lib/direction'
-import { barMode, errorKey, lastRun, namesOf, nameOf, tagKey, useDirectionState } from '@/lib/direction-ui'
+import { runDirection, saveDirectionModel, setDirectionChat, skipDirectionNext, useDirectionLive, type DirectionState } from '@/lib/direction'
+import { actLine, barMode, errorKey, lastRun, namesOf, nameOf, tagKey, useDirectionState } from '@/lib/direction-ui'
 import type { Character, Chat } from '@/lib/types'
 
-type T = ReturnType<typeof useT>
+export { DirectionLog } from '@/components/chat/direction-log'
 
 const chipCls =
   'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-xs outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10'
@@ -41,6 +40,7 @@ export function DirectorBar({ chat, state }: { chat: Chat; state: DirectionState
   const running = useDirectionLive((s) => s.running === chat.id)
   return (
     <DirectorBarView
+      chatId={chat.id}
       state={state}
       running={running}
       onPickModel={(ref, label, provider) => {
@@ -53,22 +53,30 @@ export function DirectorBar({ chat, state }: { chat: Chat; state: DirectionState
         void runDirection(chat.id, true).then((r) => { if (!r.ok) toast.error(r.message || t(errorKey(r.reason))) })
       }}
       onRelease={() => { void setDirectionChat(chat.id, { lock: null }).catch((e: unknown) => toast.error(String((e as Error).message ?? e))) }}
+      onSkip={() => { void skipDirectionNext(chat.id).catch((e: unknown) => toast.error(String((e as Error).message ?? e))) }}
     />
   )
 }
 
-export function DirectorBarView({ state, running, onPickModel, onToggle, onReport, onRelease }: {
+export function DirectorBarView({ chatId, state, running, onPickModel, onToggle, onReport, onRelease, onSkip }: {
+  /** the chat the Direction sheet works on (without it the bar shows no sheet) */
+  chatId?: string
   state: DirectionState
   running: boolean
   onPickModel: (ref: string, label: string, provider: string) => void
   onToggle: (on: boolean) => void
   onReport: () => void
   onRelease: () => void
+  /** drop the note queued for the next reply */
+  onSkip?: () => void
 }) {
   const t = useT()
+  const lang = resolveLanguage(useApp((s) => s.settings.language))
+  const [sheet, setSheet] = useState<{ open: boolean; tab: DirectionTab }>({ open: false, tab: 'rules' })
   const mode = barMode(state)
   const noModel = mode === 'no-model'
   const lock = state.chat.lock
+  const next = mode !== 'off' && !noModel && state.next?.due ? state.next : null
   return (
     <div
       role="group"
@@ -100,12 +108,45 @@ export function DirectorBarView({ state, running, onPickModel, onToggle, onRepor
         </span>
       )}
 
+      {next && (
+        <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-background text-xs max-md:min-h-10" data-testid="director-next" aria-label={t('dir.next.aria', { act: actLine(t, next.kind, next.who.map((id) => nameOf(state, id)), next.with.map((id) => nameOf(state, id)), lang) })}>
+          <ClockCountdown className="ml-2.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="max-w-40 truncate px-1.5 font-medium">{t('dir.next.chip', { names: namesOf(state, next.who) })}</span>
+          {onSkip && (
+            <button
+              type="button"
+              onClick={onSkip}
+              aria-label={t('dir.next.skip')}
+              title={t('dir.next.skip')}
+              data-testid="director-next-skip"
+              className="mr-0.5 flex size-7 items-center justify-center rounded-full hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:size-9"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </span>
+      )}
+
       {(mode === 'report' || mode === 'empty' || mode === 'error') && <SceneChip state={state} mode={mode} running={running} onReport={onReport} />}
 
       {mode !== 'off' && <ModelChip model={state.config.model} onPick={onPickModel} />}
-
-      {mode !== 'off' && !noModel && <LogButton state={state} />}
       </div>
+      {mode !== 'off' && !noModel && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="relative h-8 shrink-0 gap-1.5 px-2.5 text-xs max-md:h-10 max-[479px]:w-10 max-[479px]:px-0"
+          data-testid="director-rules"
+          aria-label={state.rules?.on ? `${t('dir.rules.aria')}: ${t('dir.rules.on')}` : t('dir.rules.aria')}
+          onClick={() => setSheet({ open: true, tab: 'rules' })}
+        >
+          <SlidersHorizontal className="size-3.5" aria-hidden="true" /><span className="max-[479px]:sr-only">{t('dir.rules')}</span>
+          {state.rules?.on && <span className="size-1.5 rounded-full bg-cta max-[479px]:absolute max-[479px]:right-2 max-[479px]:top-2" aria-hidden="true" />}
+        </Button>
+      )}
+      {chatId && mode !== 'off' && !noModel && (
+        <DirectionSheet chatId={chatId} state={state} open={sheet.open} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} tab={sheet.tab} onTab={(tab) => setSheet((s) => ({ ...s, tab }))} />
+      )}
 
       <label className="flex shrink-0 items-center gap-2 pl-1 text-xs">
         {noModel && <span className="text-muted-foreground" data-testid="director-need-model">{t('dir.pickModelFirst')}</span>}
@@ -212,73 +253,5 @@ function ModelChip({ model, onPick }: { model: string; onPick: (ref: string, lab
         <ModelPalette value={model} onPick={(ref, name, provider) => { setOpen(false); onPick(ref, name, provider) }} onSettings={() => { setOpen(false); setUpModels(null) }} />
       </PopoverContent>
     </Popover>
-  )
-}
-
-function LogButton({ state }: { state: DirectionState }) {
-  const t = useT()
-  const mobile = useIsMobile()
-  const [open, setOpen] = useState(false)
-  const trigger = (
-    <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 px-2.5 text-xs max-md:h-10" data-testid="director-log" onClick={mobile ? () => setOpen(true) : undefined}>
-      <ListBullets className="size-3.5" aria-hidden="true" />{t('dir.log')}
-    </Button>
-  )
-  if (mobile) {
-    return (
-      <>
-        {trigger}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" className="max-h-[80dvh] gap-2 p-0">
-            <SheetHeader><SheetTitle>{t('dir.log.title')}</SheetTitle></SheetHeader>
-            <div className="min-h-0 overflow-y-auto px-4 pb-4"><DirectionLog state={state} /></div>
-          </SheetContent>
-        </Sheet>
-      </>
-    )
-  }
-  return (
-    <Popover>
-      <PopoverTrigger render={trigger} />
-      <PopoverContent className="w-96 max-w-[calc(100vw-1rem)] p-3" align="end">
-        <p className="mb-2 text-sm font-medium">{t('dir.log.title')}</p>
-        <DirectionLog state={state} />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/** The log in words, newest first: the director's reports and every switch, lock, release and error. */
-export function DirectionLog({ state }: { state: DirectionState }) {
-  const t = useT()
-  const lang = resolveLanguage(useApp((s) => s.settings.language))
-  if (state.log.length === 0) return <p className="text-xs text-muted-foreground" data-testid="director-log-empty">{t('dir.log.empty')}</p>
-  return (
-    <ol className="flex flex-col gap-1.5" data-testid="director-log-list">
-      {state.log.map((e, i) => {
-        let line: ReactNode
-        let detail = ''
-        if (e.kind === 'report') {
-          line = `${t(tagKey(e.tag ?? null))}${e.present ? ` · ${namesOf(state, e.present, 4)}` : ''}`
-          detail = [e.ms ? `${e.ms} ms` : '', e.usage ? `${e.usage.input}+${e.usage.output} ${t('dir.log.tokens')}` : '', e.retried ? t('dir.log.retried') : ''].filter(Boolean).join(' · ')
-        } else if (e.kind === 'error') {
-          line = `${t('dir.log.error')}: ${t(errorKey(e.reason))}`
-          detail = e.message ?? ''
-        } else if (e.kind === 'lock') line = t('dir.log.lock', { names: namesOf(state, e.ids ?? [], 4) })
-        else if (e.kind === 'release') line = t('dir.log.release', { names: namesOf(state, e.ids ?? [], 4) })
-        else if (e.kind === 'on') line = t('dir.log.on')
-        else if (e.kind === 'off') line = t('dir.log.off')
-        else line = e.kind
-        return (
-          <li key={`${e.at}-${i}`} className={cn('rounded-md border px-2 py-1 text-xs', e.kind === 'error' ? 'border-destructive/40 text-destructive' : 'border-border')}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 break-words font-medium">{line}</span>
-              <span className="shrink-0 text-muted-foreground">{relativeTime(e.at, lang)}</span>
-            </div>
-            {detail && <p className="break-words text-muted-foreground">{detail}</p>}
-          </li>
-        )
-      })}
-    </ol>
   )
 }

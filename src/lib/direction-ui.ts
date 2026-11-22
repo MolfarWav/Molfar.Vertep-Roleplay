@@ -2,7 +2,11 @@
 // Pure functions, so the bar's states are tested without a browser.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loadDirection, useDirectionLive, type DirectionLogEntry, type DirectionScene, type DirectionState, type DirectionTag } from './direction'
+import type { Lang, MsgKey, Vars } from './i18n'
+import {
+  loadDirection, needPercent, useDirectionLive, useDirectionMarks,
+  type DirectionFire, type DirectionLogEntry, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionRuleKind, type DirectionScene, type DirectionState, type DirectionTag,
+} from './direction'
 
 /** How a member stands in the scene: `unknown` = nothing says (no report, no Dashboard), so no marks at all. */
 export type Presence = 'unknown' | 'here' | 'away' | 'locked'
@@ -59,9 +63,158 @@ export function useDirectionState(chatId: string, messageSig: string): { state: 
   const seq = useRef(0)
   const reload = useCallback(() => {
     const mine = ++seq.current
-    loadDirection(chatId).then((s) => { if (mine === seq.current) setState(s) }).catch(() => {})
+    loadDirection(chatId).then((s) => { if (mine === seq.current) { setState(s); publishMarks(chatId, s) } }).catch(() => {})
   }, [chatId])
-  useEffect(() => { setState(null) }, [chatId])
+  useEffect(() => { setState(null); publishMarks(chatId, null) }, [chatId])
   useEffect(() => { reload() }, [reload, stamp, messageSig])
   return { state, reload }
+}
+
+/** The loaded chat's firings and names go to a small store, so the mark under a reply reads them without a fetch per message. */
+export function publishMarks(chatId: string, state: DirectionState | null): void {
+  const fires = state?.fires ?? []
+  if (!state || fires.length === 0) {
+    if (useDirectionMarks.getState().chat?.chatId === chatId || !state) useDirectionMarks.setState({ chat: null })
+    return
+  }
+  useDirectionMarks.setState({
+    chat: {
+      chatId,
+      fires,
+      rules: Object.fromEntries((state.rules?.items ?? []).map((r) => [r.id, r.name])),
+      members: Object.fromEntries(state.members.map((m) => [m.id, m.name])),
+    },
+  })
+}
+
+// ---------- genre rules (phase 2): the words for the Rules tab, the log and the mark under a reply ----------
+
+type Tr = (key: MsgKey, vars?: Vars) => string
+
+/** "Kaito and Hana": names in the language's own list form. */
+export function listNames(names: string[], lang: Lang): string {
+  try {
+    return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).format(names)
+  } catch {
+    return names.join(', ')
+  }
+}
+
+export function ruleOf(state: DirectionState, id: string): DirectionRule | undefined {
+  return state.rules?.items.find((r) => r.id === id)
+}
+
+export function ruleName(state: DirectionState, id: string): string {
+  return ruleOf(state, id)?.name ?? id
+}
+
+/** What a rule does to the scene, with names: "Yuzu walks in on Kaito and Hana" (the mark leaves the `with` out). */
+export function actLine(t: Tr, kind: DirectionRuleKind, who: string[], withNames: string[], lang: Lang): string {
+  const w = listNames(who, lang)
+  if (kind === 'interrupt') return withNames.length ? t('dir.act.interrupt', { who: w, with: listNames(withNames, lang) }) : t('dir.act.interruptBare', { who: w })
+  if (kind === 'join') return withNames.length ? t('dir.act.join', { who: w, with: listNames(withNames, lang) }) : t('dir.act.joinBare', { who: w })
+  return t('dir.act.return', { who: w })
+}
+
+/** The rule's one sentence in plain words: by its id, else by what it does. */
+export function ruleSentenceKey(rule: Pick<DirectionRule, 'id' | 'kind'>): MsgKey {
+  if (rule.id === 'interrupted') return 'dir.rule.interrupted'
+  if (rule.id === 'nobody') return 'dir.rule.nobody'
+  if (rule.id === 'crowd') return 'dir.rule.crowd'
+  return rule.kind === 'interrupt' ? 'dir.rule.kind.interrupt' : rule.kind === 'join' ? 'dir.rule.kind.join' : 'dir.rule.kind.return'
+}
+
+/** The numbers a built-in rule starts with, to know when "Restore defaults" is worth showing (the state does not carry them). */
+export const RULE_DEFAULTS: Record<string, { need: number; cooldown: number; k: number; m: number }> = {
+  interrupted: { need: 8, cooldown: 5, k: 3, m: 4 },
+  nobody: { need: 7, cooldown: 4, k: 0, m: 0 },
+  crowd: { need: 9, cooldown: 6, k: 0, m: 0 },
+}
+
+export function ruleEdited(rule: DirectionRule): boolean {
+  const d = RULE_DEFAULTS[rule.id]
+  return !!d && (rule.need !== d.need || rule.cooldown !== d.cooldown || rule.k !== d.k || rule.m !== d.m)
+}
+
+/** "Ready", "Cooling down: 3 more replies", "Quiet for the payoff: 6 more replies", "Off"; with the tension when it builds. */
+export function ruleStatusLine(t: Tr, rule: DirectionRule): string {
+  const tension = rule.k > 0 && rule.tension > 0 ? t('dir.rule.tension', { n: rule.tension, k: rule.k }) : ''
+  const head =
+    rule.status === 'off' ? t('dir.rule.off')
+    : rule.status === 'cooldown' ? t('dir.rule.cooldown', { n: rule.left })
+    : rule.status === 'payoff' ? t('dir.rule.payoff', { n: rule.left })
+    : t('dir.rule.ready')
+  return [head, rule.status === 'off' ? '' : tension].filter(Boolean).join(' · ')
+}
+
+/** The chance of a roll in words: "2d6 at least 8: about 42% of rolls", "never" at 13. */
+export function needText(t: Tr, need: number): string {
+  if (need >= 13) return t('dir.rule.needNever')
+  return t('dir.rule.needHint', { n: need, p: needPercent[need] ?? 0 })
+}
+
+/** Why "Fire now" cannot be used, as a message key, or null when it can. */
+export function fireBlockedKey(state: DirectionState): MsgKey | null {
+  if (!state.chat.on) return 'dir.fire.off'
+  if (state.chat.lock) return 'dir.fire.locked'
+  if (state.scene.source === 'none') return 'dir.fire.unknown'
+  if (state.members.every((m) => state.scene.present.includes(m.id))) return 'dir.fire.everyone'
+  return null
+}
+
+export function rollText(t: Tr, roll: DirectionRoll): string {
+  return t('dir.roll', { total: roll.total, need: roll.need })
+}
+
+/** The word for how a firing ended. */
+export function resultKey(r: DirectionResult): MsgKey {
+  return r === 'came' ? 'dir.result.came' : r === 'mentioned' ? 'dir.result.mentioned' : r === 'missed' ? 'dir.result.missed' : 'dir.result.yielded'
+}
+
+/** The firing that rode this reply (`<message id>#<swipe>`), or null. */
+export function fireFor(marks: { chatId: string; fires: DirectionFire[] } | null, chatId: string, messageId: string, swipe: number): DirectionFire | null {
+  if (!marks || marks.chatId !== chatId) return null
+  const key = `${messageId}#${swipe}`
+  return marks.fires.find((f) => f.carrier === key) ?? null
+}
+
+/** The mark under a reply: "Direction: Yuzu walks in (Interrupted moment, 2d6 = 9, needed 8) · came". */
+export function markText(t: Tr, fire: DirectionFire, ruleLabel: string, whoNames: string[], lang: Lang): string {
+  const what = actLine(t, fire.kind, whoNames, [], lang)
+  const how = fire.forced || !fire.roll ? t('dir.mark.byHand', { rule: ruleLabel }) : t('dir.mark.rolled', { rule: ruleLabel, roll: rollText(t, fire.roll) })
+  return `${t('dir.mark.lead', { what, how })}${fire.result ? ` · ${t(resultKey(fire.result))}` : ''}`
+}
+
+/** One log entry in words: the line and a muted detail under it. */
+export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lang: Lang): { line: string; detail: string } {
+  const who = (ids: string[] = []) => listNames(ids.map((id) => nameOf(state, id)), lang)
+  const rule = e.rule ? ruleName(state, e.rule) : ''
+  if (e.kind === 'report') {
+    return {
+      line: `${t(tagKey(e.tag ?? null))}${e.present ? ` · ${namesOf(state, e.present, 4)}` : ''}`,
+      detail: [e.ms ? `${e.ms} ms` : '', e.usage ? `${e.usage.input}+${e.usage.output} ${t('dir.log.tokens')}` : '', e.retried ? t('dir.log.retried') : ''].filter(Boolean).join(' · '),
+    }
+  }
+  if (e.kind === 'error') return { line: `${t('dir.log.error')}: ${t(errorKey(e.reason))}`, detail: e.message ?? '' }
+  if (e.kind === 'lock') return { line: t('dir.log.lock', { names: namesOf(state, e.ids ?? [], 4) }), detail: '' }
+  if (e.kind === 'release') return { line: t('dir.log.release', { names: namesOf(state, e.ids ?? [], 4) }), detail: '' }
+  if (e.kind === 'on') return { line: t('dir.log.on'), detail: '' }
+  if (e.kind === 'off') return { line: t('dir.log.off'), detail: '' }
+  if (e.kind === 'rule') {
+    if (e.state === 'missed') return { line: t('dir.log.missed', { rule, roll: e.roll ? rollText(t, e.roll) : '' }), detail: e.why ?? '' }
+    const act = actLine(t, ruleOf(state, e.rule ?? '')?.kind ?? 'interrupt', (e.who ?? []).map((id) => nameOf(state, id)), (e.with ?? []).map((id) => nameOf(state, id)), lang)
+    if (e.forced || !e.roll) return { line: t('dir.log.firedByHand', { rule, act }), detail: '' }
+    return { line: t('dir.log.fired', { rule, act }), detail: [e.why, rollText(t, e.roll), e.payoff ? t('dir.log.payoff') : ''].filter(Boolean).join('. ') }
+  }
+  if (e.kind === 'result') {
+    if (e.result === 'yielded') return { line: t(e.by === 'world' ? 'dir.log.yieldWorld' : e.by === 'direction' ? 'dir.log.yieldLock' : 'dir.log.yieldNone', { rule }), detail: '' }
+    const r: DirectionResult = e.result ?? 'missed'
+    return { line: t(r === 'came' ? 'dir.log.came' : r === 'mentioned' ? 'dir.log.mentioned' : 'dir.log.missedCome', { rule, who: who(e.who) }), detail: '' }
+  }
+  if (e.kind === 'rules') {
+    const set = state.rules?.sets.find((s) => s.id === e.set)?.name ?? e.set ?? ''
+    return { line: !e.set ? t('dir.log.genreNone') : t(e.on ? 'dir.log.genreOn' : 'dir.log.genreOff', { genre: set }), detail: '' }
+  }
+  if (e.kind === 'skip') return { line: t('dir.log.skip', { rule, who: who(e.who) }), detail: '' }
+  return { line: e.kind, detail: '' }
 }

@@ -1,45 +1,70 @@
-<!-- source: 3b04df871946 -->
+<!-- source: ae865b32181c -->
 # Yön: sahnede kim var
 
-Yön, grup sohbetleri içindir. Her cevaptan sonra küçük, ucuz bir "yönetici" model sahneyi okur ve ne tür bir sahne olduğunu (bir ders, bir ara, bir baş başa an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Olmayan üyeler cevap vermeyi durdurur ve hikaye onları geri getirene kadar istem dışı bırakılır.
+Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yönetici" model sahneyi okur, ne tür bir sahne olduğunu (bir ders, bir ara, baş başa bir an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Orada olmayan üyeler cevap vermeyi bırakır ve hikaye onları geri getirene kadar istemden çıkarılır.
 
 ## Çubuk
 
-Bir grup sohbetinde, üye çubuğunun altında "Yön" yazan (telefonda sadece simge) ince bir çubuk vardır. Soldan sağa:
+Bir grup sohbetinde, üye çubuğunun altında "Yön" yazan ince bir çubuk vardır (telefonda yalnızca simge). Soldan sağa:
 
-- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Üzerine dokunarak kimin burada olduğunu, kimin sahnede olmadığını, son raporun ne zaman yapıldığını ve yöneticiye tekrar soran bir **Şimdi raporla** düğmesini görebilirsiniz. Yönetici okurken etiket "Sahne okunuyor…" der.
-- **Model etiketi**: yöneticinin modeli. Hiçbiri seçilmediyse **Bir model seç** gösterir. Üzerine dokunarak sohbetin üst çubuğundakiyle aynı model listesini alırsınız: yıldızlı modeller, ardından bağlantıya göre her model, bir arama kutusuyla.
-- **Anahtar**: Bu sohbet için Yön açık veya kapalı. Bir model seçilene kadar grileşir ve "Önce bir model seç" der.
-- **Günlük**: son raporlar (sahnenin türü, kimin burada olduğu, ne kadar sürdüğü, kaç token), ve her anahtar, kilit, bırakma ve hata, en yenisi en üstte.
+- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Üzerine dokunarak kimin sahnede olduğunu, kimin olmadığını, son raporun ne zaman yapıldığını ve yöneticiye yeniden soran bir **Report now** düğmesini görebilirsiniz. Yönetici okurken etiket "Sahne okunuyor…" yazar.
+- **Model etiketi**: yöneticinin modeli. Hiçbiri seçilmediyse **Pick a model** yazar. Dokunduğunuzda sohbetin üst çubuğundakiyle aynı model listesi açılır: yıldızlı modeller, ardından bağlantıya göre tüm modeller, arama kutusuyla.
+- **Anahtar**: bu sohbet için Yön açık ya da kapalı. Bir model seçilene kadar soluk görünür ve "Pick a model first" yazar.
+- **Next**: bir tür kuralının bir sonraki cevabı bekleyen bir notu olduğunda görünen etiket ("Next: Yuzu"). x onu atlar.
+- **Rules**: iki sekmesi olan Yön panelini açar: **Rules** ve **Log**. Anahtarın yanında durur, böylece telefonda da görünür kalır (orada yalnızca simgedir, kurallar açıkken üzerinde nokta olur).
 
-Anahtar kapalıyken çubuk "Yön: kapalı" olarak katlanır ve sohbet eskisi gibi çalışır.
+Anahtar kapalıyken çubuk "Direction: off" olarak katlanır ve sohbet eskisi gibi çalışır.
+
+## Tür kuralları
+
+Bir tür, insanları şansa bağlı olarak sahneye çeken küçük kurallar kümesidir; böylece o türdeki bir hikaye durmaz. **Rules** açın ve bir tür seçin. Şimdilik bir tür var, **School rom-com**, üç kuralıyla:
+
+- **Interrupted moment**: üç cevap boyunca bir üyeyle yalnız kaldınız ve biri içeri girip sizi bölüyor.
+- **Someone comes by**: üç cevap boyunca kimse yakında değildi (evde değil), ve bir üye uğruyor.
+- **Friends join the break**: bir ara, öğle yemeği ya da kulüp sırasında bir ya da iki kişi varken bir arkadaş katılıyor.
+
+Bir sohbet tür olmadan ve kurallar kapalı başlar; siz bir tür seçene kadar hiçbir şey değişmez. Bir tür seçmek kuralları açar; **Rules in this chat** onları yeniden kapatır ve türü saklar. Kurallar yöneticinin açık olmasını gerektirir: raporlarını okurlar.
+
+Her cevaptan sonra kuralları kod (bir model değil) sırayla kontrol eder. Bir kural, koşulları sağlandığında, dinlenmiyorsa ve iki zar atışı sayısına ulaşırsa devreye girebilir. Devreye girerse bir sonraki cevap kısa bir sahne notu alır ("Yuzu walks in on you and Hana and interrupts the moment") ve o kişi sahnede sayılır, bu yüzden kartı tamamen gönderilir. Bir cevapta en fazla bir not olur. Kilit, kilitten sonra dönüş ve Dünya'dan bir olay ya da geri dönen bir kişi önceliklidir; kural o zaman bir sonraki tura kadar bekler.
+
+Her kural kartı durumunu gösterir: **Ready**, **Cooling down** (kalan cevap sayısı) ya da **Quiet for the payoff**, ve ödüle doğru kaç kez tetiklendiği. **Numbers** ayarlarını açar:
+
+- **2d6 needed**: zar atışı bu sayıya ulaşmalı; yanındaki metin atış yüzdesini verir ("about 42%"). 2 her zaman tetikler, 13 hiçbir zaman.
+- **Cooldown**: kural tetiklendikten sonra kaç cevap boyunca sessiz kalacağı.
+- **Payoff every** ve **Then quiet**: her K. tetiklenmede kural M cevap daha dinlenir ("finally alone"). 0 ödülü kapatır.
+
+**Fire now**, kuralın notunu zar atmadan, bekleme süresi olmadan ve ödüle sayılmadan bir sonraki cevaba koyar; birinin yokluğunu gerektirir. **Skip** bekleyen bir notu düşürür. Atladığınız bir not ya da sildiğiniz bir cevap, bekleme süresiyle birlikte unutulur; notu taşıyan cevabı kaydırmak yeni denemeye aynı notu verir.
+
+Notu taşıyan cevabın altında, neler olduğunu anlatan küçük bir satır yer alır: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". Son kelime yöneticinin sonraki raporudur: **came** (sahnede), **only mentioned** (yalnızca anıldı) ya da **did not come** (gelmedi). **Log** sekmesi aynı şeyi, zar ve nedeniyle birlikte listeler; ayrıca atıp tutturamayan kuralları da.
+
+Bir grup, **Yön** sekmesinde bir **default genre** ayarlayabilir; o grubun yeni sohbetleri bu türle açık başlar. Sayılar ilk tahminlerdir: bir kural çok sık ya da çok seyrek tetikleniyorsa bir sohbette değiştirin.
 
 ## Modeli seçme
 
-Tüm sohbetler ve tüm gruplar için tek bir yönetici modeli vardır. Herhangi bir çubuktan veya grubun **Yön** sekmesinden seçin. Varsayılan yoktur: siz seçersiniz. Küçük, hızlı bir model yeterlidir: her cevaptan sonra kısa bir çağrıya mal olur.
+Tüm sohbetler ve tüm gruplar için tek bir yönetici modeli vardır. Herhangi bir çubuktan ya da grubun **Yön** sekmesinden seçin. Varsayılan yoktur: seçimi siz yaparsınız. Küçük ve hızlı bir model yeterlidir: her cevaptan sonra tek bir kısa çağrıya mal olur.
 
-Yeni bir grup sohbeti, bir model seçildiği anda Yön açık olarak başlar. Zaten sahip olduğunuz sohbetler etkilenmez. Her sohbetin kendi anahtarı vardır.
+Yeni bir grup sohbeti, bir model seçilir seçilmez Yön açık olarak başlar. Zaten sahip olduğunuz sohbetlere dokunulmaz. Her sohbetin kendi anahtarı vardır.
 
 ## Kim uzakta
 
-Bir üye etiketi, biri sahneden çıktığında değişir: resim kararır ve küçük bir kapı işareti taşır. Bir kilit işareti, kilidin (aşağıda) onları dışarıda bıraktığı anlamına gelir. Bir etikete dokunun: açılır penceresi "Burada" veya "Sahnede değil" der.
+Bir üye etiketi, biri sahne dışına çıktığında değişir: resim soluklaşır ve küçük bir kapı işareti gelir. Kilit işareti, kilidin (aşağıda) onları dışarıda bıraktığı anlamına gelir. Etikete dokunun: açılan pencere "Here" ya da "Not in the scene" yazar.
 
-Yok olan bir üye kendi sırasını almaz ve kartı modele gönderilmez: sadece bir satır sahnede olmadıklarını söyler. Mesajınızda onları adlandırmak hâlâ onları çağırır. Yönetici onları geri gördüğünde, tüm kartları geri döner.
+Olmayan bir üye kendi sırasını almaz ve kartı modele gönderilmez: yalnızca tek bir satır sahnede olmadıklarını söyler. Mesajınızda onlardan bahsetmek yine de onları çağırır. Yönetici onları yeniden gördüğünde kartlarının tamamı geri döner.
 
 ## Kilit ve dönüş
 
-Bir kişiyle bir sahneyi korumak için bir üye etiketine dokunun ve **Sahnede yalnızca <isim>** seçeneğini seçin. Sahne etiketinden önce "Yalnızca Yuzu" etiketi belirir ve diğerleri yönetici ne derse desin dışarıda kalır. O etiketteki x'e dokunun veya bir üyenin açılır penceresinde **Kilidi bırak** seçeneğine dokunun. Bir sonraki cevapta diğerlerine geri gelebilecekleri söylenir ve hikayeden onlara bir giriş yolu vermesi istenir.
+Sahneyi tek bir kişiyle tutmak için bir üye etiketine dokunun ve **Only <name> in the scene** seçeneğini seçin. Sahne etiketinin önünde "Only Yuzu" etiketi belirir ve diğerleri yönetici ne derse desin dışarıda kalır. Bırakmak için o etiketteki x'e ya da bir üyenin açılır penceresindeki **Release the lock** seçeneğine dokunun. Bir sonraki cevapta diğerlerine geri dönebilecekleri söylenir ve hikayeden onlara bir giriş yolu bulması istenir.
 
 ## Yönetici başarısız olursa
 
-Yöneticinin cevabı okunamazsa veya çağrı başarısız olursa, sahne etiketi **Rapor yok** der; nedenini görmek için açın. Sohbet, Dashboard'un kimin burada olduğu fikrini kullanır veya herkesin eskisi gibi cevap vermesine izin verir. Hikayenizde hiçbir şey kaybolmaz.
+Yöneticinin cevabı okunamazsa ya da çağrı başarısız olursa sahne etiketi **No report** yazar; nedenini görmek için açın. Sohbet o zaman Dashboard'un kimin burada olduğu bilgisini kullanır ya da herkesin eskisi gibi cevap vermesine izin verir. Hikayenizden hiçbir şey kaybolmaz.
 
 ## Yeni gruplar
 
-**Yeni grup**, geniş bir pencere açar (telefonda tam ekran). Grubu adlandırın veya ilk üç üyeyi kullanmak için adı boş bırakın. **Tümü**, **Favoriler** ve **Son** ile arayın, daraltın, etiket çipleri ve bir sıralama (Ad, Son kullanılan, En çok sohbet) ve seçmek için portrelere dokunun. Seçilen üyeler konuşma sırasına göre üstte bir satırda oturur; oklar birini daha erken veya daha sonra taşır, x kaldırır. **İleri** iki karakter gerektirir.
+**New group** geniş bir pencere açar (telefonda tam ekran). Grubu adlandırın ya da ilk üç üyeyi kullanmak için adı boş bırakın. **All**, **Favourites** ve **Recent** ile arayın ve daraltın, etiket çiplerini ve bir sıralamayı (Name, Recently used, Most chats) kullanın, seçmek için portrelere dokunun. Seçilen üyeler konuşma sırasıyla üstte bir sırada durur; oklar birini bir önceki ya da sonraki konuma taşır, x ise kaldırır. **Next** iki karakter gerektirir.
 
-**İleri**'den sonra grup oluşturulur ve düzenleyicisi bir notla açılır: nasıl çalıştığını kontrol edin, ardından ilk sohbeti başlatın. **Sohbeti başlat** ana düğmedir. **Yön** sekmesi, bu grubun yeni sohbetlerinin Yön açık olarak başlayıp başlamayacağını ayarlar ve yöneticinin modelini gösterir. Gruplar sayfasındaki bir grup aynı düzenleyiciyi açar ve sohbetinin üst kısmındaki grubun adı da aynısını yapar.
+**Next**'ten sonra grup oluşturulur ve düzenleyicisi bir notla açılır: nasıl oynandığına bakın, sonra ilk sohbeti başlatın. **Start chat** ana düğmedir. **Direction** sekmesi, bu grubun yeni sohbetlerinin Yön açık olarak başlayıp başlamayacağını ayarlar ve yöneticinin modelini gösterir. Groups sayfasındaki bir grup aynı düzenleyiciyi açar; sohbetin üstündeki grup adı da öyle.
 
-Bir grubun sonraki bir sohbetini başlattığınızda, sohbetten önceki kısa adımda bir **Yön** anahtarı bulunur: grubun varsayılanı açık olduğunda ve bir model seçildiğinde açıktır.
+Bir grubun sonraki bir sohbetini başlattığınızda, sohbetten önceki kısa adımda bir **Direction** anahtarı bulunur: grubun varsayılanı açık ve bir model seçiliyse açıktır.
 
-Ayrıca bkz. [[karakterler]] ve [[dashboard]].
+Ayrıca bkz. [[characters]] ve [[dashboard]].

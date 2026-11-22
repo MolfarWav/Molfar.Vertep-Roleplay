@@ -21,7 +21,7 @@ export interface DirectionReport {
 
 export interface DirectionLogEntry {
   at: number
-  kind: 'report' | 'error' | 'on' | 'off' | 'lock' | 'release' | string
+  kind: 'report' | 'error' | 'on' | 'off' | 'lock' | 'release' | 'rule' | 'result' | 'rules' | 'skip' | string
   key?: string
   tag?: DirectionTag | null
   present?: string[]
@@ -33,6 +33,19 @@ export interface DirectionLogEntry {
   reason?: string
   message?: string
   retried?: boolean
+  /** phase 2: kind `rule` (state fired | missed), `result`, `rules` (set, on) and `skip` carry these */
+  rule?: string
+  state?: 'fired' | 'missed'
+  roll?: DirectionRoll | null
+  who?: string[]
+  with?: string[]
+  why?: string
+  payoff?: boolean
+  forced?: boolean
+  result?: DirectionResult
+  by?: 'direction' | 'world' | 'empty' | string
+  set?: string
+  on?: boolean
 }
 
 export interface DirectionScene {
@@ -40,6 +53,73 @@ export interface DirectionScene {
   source: 'lock' | 'director' | 'dashboard' | 'none'
   present: string[]
   tag: DirectionTag | null
+}
+
+export interface DirectionRoll { d1: number; d2: number; total: number; need: number }
+export type DirectionResult = 'came' | 'mentioned' | 'missed' | 'yielded'
+export type DirectionRuleKind = 'interrupt' | 'join' | 'return'
+export type DirectionRuleStatus = 'ready' | 'cooldown' | 'payoff' | 'off'
+
+/** One genre rule of the chat's set, with the chat's edits applied and where it stands now. */
+export interface DirectionRule {
+  id: string
+  name: string
+  kind: DirectionRuleKind
+  on: boolean
+  /** 2d6 total needed: 2 = sure, 13 = never */
+  need: number
+  cooldown: number
+  /** payoff: every K-th firing the rule is quiet M replies more (0 = none) */
+  k: number
+  m: number
+  when?: Record<string, unknown>
+  status: DirectionRuleStatus
+  /** replies left of the cooldown or the payoff silence */
+  left: number
+  tension: number
+}
+
+/** The note queued for the next reply. */
+export interface DirectionNext {
+  id: string
+  rule: string
+  kind: DirectionRuleKind
+  who: string[]
+  with: string[]
+  after: string
+  forced: boolean
+  at: number
+  /** true while the reply it rides on is still to come */
+  due?: boolean
+}
+
+/** A firing of a rule: what was rolled, which reply carried the note and how it went. */
+export interface DirectionFire {
+  id: string
+  rule: string
+  kind: DirectionRuleKind
+  who: string[]
+  with: string[]
+  after: string
+  n: number
+  roll: DirectionRoll | null
+  tension: number
+  hold: number
+  payoff: boolean
+  result: DirectionResult | null
+  /** `<message id>#<swipe>` of the reply that carried the note ("" = not yet) */
+  carrier: string
+  forced: boolean
+  why: string
+  at: number
+}
+
+export interface DirectionRules {
+  /** "" = no genre picked */
+  set: string
+  on: boolean
+  sets: { id: string; name: string }[]
+  items: DirectionRule[]
 }
 
 export interface DirectionState {
@@ -50,7 +130,34 @@ export interface DirectionState {
   members: { id: string; name: string }[]
   log: DirectionLogEntry[]
   usage: { input: number; output: number; runs: number }
+  /** phase 2 (an older plugin leaves these out) */
+  rules?: DirectionRules
+  next?: DirectionNext | null
+  fires?: DirectionFire[]
 }
+
+/** The genre sets the plugin ships (the group editor has no chat to ask): id and the message key of the name. */
+export const DIRECTION_SETS = [{ id: 'romcom', nameKey: 'group.dir.set.romcom' }] as const
+
+/** The chance of 2d6 reaching `need`, in percent: 2 is sure, 13 never. */
+export const needPercent: Record<number, number> = { 2: 100, 3: 97, 4: 92, 5: 83, 6: 72, 7: 58, 8: 42, 9: 28, 10: 17, 11: 8, 12: 3, 13: 0 }
+/** The ranges the plugin clamps a rule's numbers to. */
+export const RULE_LIMITS = { need: [2, 13], cooldown: [0, 30], k: [0, 10], m: [0, 20] } as const
+export type RuleNumber = keyof typeof RULE_LIMITS
+
+export function clampRuleNumber(field: RuleNumber, n: number): number {
+  const [lo, hi] = RULE_LIMITS[field]
+  return Math.min(hi, Math.max(lo, Math.round(n)))
+}
+
+/** The loaded chat's firings and the names of its rules and members, read by the mark under a reply without a fetch per message. */
+export interface DirectionMarks {
+  chatId: string
+  fires: DirectionFire[]
+  rules: Record<string, string>
+  members: Record<string, string>
+}
+export const useDirectionMarks = create<{ chat: DirectionMarks | null }>(() => ({ chat: null }))
 
 export interface DirectionRun {
   ok: boolean
@@ -102,6 +209,26 @@ export async function setDirectionChat(chatId: string, patch: { on?: boolean; lo
   return r.chat
 }
 
+/** This chat's genre set ("" = none; picking one turns the rules on), the rules switch, or edits to one rule's numbers. */
+export async function setDirectionRules(chatId: string, patch: { set?: string; on?: boolean; rule?: { id: string; on?: boolean; need?: number; cooldown?: number; k?: number; m?: number } }): Promise<{ set: string; on: boolean }> {
+  const r = await j<{ rules: { set: string; on: boolean } }>('/direction/rules', { method: 'PUT', body: JSON.stringify({ chatId, ...patch }) })
+  bump()
+  return r.rules
+}
+
+/** "Fire now": a rule's note rides the next reply. Rejects with the plugin's message when it cannot. */
+export async function fireDirectionRule(chatId: string, rule: string): Promise<DirectionNext | null> {
+  const r = await j<{ next: DirectionNext | null }>('/direction/fire', { method: 'POST', body: JSON.stringify({ chatId, rule }) })
+  bump()
+  return r.next
+}
+
+/** Drop the queued note. */
+export async function skipDirectionNext(chatId: string): Promise<void> {
+  await j<{ next: null }>('/direction/skip', { method: 'POST', body: JSON.stringify({ chatId }) })
+  bump()
+}
+
 export async function runDirection(chatId: string, force = false): Promise<DirectionRun> {
   useDirectionLive.setState({ running: chatId })
   try {
@@ -129,6 +256,16 @@ export async function triggerDirection(chatId: string, isGroup: boolean, busy: (
     await runDirection(chatId)
   } finally {
     running.delete(chatId)
+  }
+}
+
+/** A new group chat takes the group's default genre (phase 2): best effort, an app without the plugin stays silent. */
+export async function directionSetForNewChat(chatId: string, set: string | undefined): Promise<void> {
+  if (!set) return
+  try {
+    await setDirectionRules(chatId, { set })
+  } catch {
+    /* an app without the plugin, or a set it does not know */
   }
 }
 
