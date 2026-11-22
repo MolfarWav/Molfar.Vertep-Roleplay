@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Charaktere, Personas und Gruppen
 
 Alles, womit du spielst, lebt in vier Bereichen: Characters, Groups, Personas und Marketplace. Diese Seite erklärt, wofür jeder da ist; die Hilfeartikel *Your characters*, *The card editor tabs* und *Groups of characters* enthalten die Details.
@@ -24,7 +24,7 @@ Eine Persona bist du: Name, Pronomen, Beschreibung, Avatar. Das Modell sieht sie
 
 ## Gruppen
 
-Eine Gruppe bringt mehrere Charaktere in einen Chat. Mit "New group" wählst du Mitglieder aus. Der Editor hat Overview, Members, Scene, Turns, Lore und Chats. Der Tab Turns entscheidet, wer antwortet: Narrator (eine Antwort spricht für alle) oder Each in turn. Eine neue Gruppe startet als Narrator.
+Eine Gruppe fasst mehrere Charaktere in einem Chat zusammen. "New group" öffnet eine Auswahl (Suche, Favoriten, Tags, Reihenfolge des Sprechens); "Next" erstellt die Gruppe und öffnet deren Editor, wo "Start chat" den ersten Chat beginnt. Der Editor hat Overview, Members, Scene, Turns, Direction, Lore und Chats. Der Reiter Direction und die Leiste in einem Gruppenchat werden in [[direction]] beschrieben. Der Reiter Turns legt fest, wer antwortet: Narrator (eine Antwort spricht für alle) oder Each in turn. Eine neue Gruppe startet als Narrator.
 
 Der Tab Turns hat außerdem **How they talk**: **Interruptions** (Mitglieder fallen ins Wort, reden durcheinander oder ignorieren eine Frage, wenn es zu ihrem Charakter passt), **Own goals** (Mitglieder widersprechen, verhandeln oder lehnen ab, wenn ein Plan gegen ihre Persönlichkeit geht, selbst wenn das Spannung mit dir erzeugt) und **Draw in quiet members** (wer eine Weile still war, bekommt mehr Gelegenheiten zu antworten, und eine erzählte Szene wird gebeten, ihn einzubeziehen). Die ersten beiden sind Off, Can oder Should: Can erlaubt es, wenn es zur Szene passt, Should erwartet es, und wenn jede Antwort zu einem Streit wird, geh zurück zu Can. Neue Gruppen starten mit Can und Draw in an; ältere Gruppen lassen alles aus, bis du es einschaltest. Der Turns-Button des Chats kann sie für einen einzelnen Chat ändern. Öffne im Tab Members den Abschnitt "In this group" eines Mitglieds, um ihm eine **voice** zu geben, die nur diese Gruppe verwendet: bis zu zwei Sprachgewohnheiten (spricht in Fragmenten, stellt nie Fragen) und bis zu fünf Beispielzeilen. Ein paar Zeilen lehren den Rhythmus besser als Adjektive, und verschiedene Charaktere sollten auf dieselbe Nachricht unterschiedlich antworten.
 

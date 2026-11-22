@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Characters, Groups, Personas e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* contengono i dettagli.
@@ -24,7 +24,7 @@ Una persona sei tu: nome, pronomi, descrizione, avatar. Il modello la vede ovunq
 
 ## Gruppi
 
-Un gruppo mette più personaggi in un'unica chat. "New group" ti permette di scegliere i membri. L'editor ha Overview, Members, Scene, Turns, Lore e Chats. La scheda Turns decide chi risponde: Narrator (una sola risposta dà voce a tutti) o Each in turn. Un nuovo gruppo inizia come Narrator.
+Un gruppo mette più personaggi in una chat. "New group" apre un selettore (ricerca, preferiti, tag, ordine di parola); "Next" crea il gruppo e apre il suo editor, dove "Start chat" avvia la prima chat. L'editor ha Overview, Members, Scene, Turns, Direction, Lore e Chats. La scheda Direction e la barra in una chat di gruppo sono descritte in [[direction]]. La scheda Turns decide chi risponde: Narrator (una risposta parla per tutti) o Each in turn. Un nuovo gruppo inizia come Narrator.
 
 La scheda Turns ha anche **How they talk**: **Interruptions** (i membri si inseriscono, parlano sopra gli altri o ignorano una domanda quando si addice al loro carattere), **Own goals** (i membri obiettano, contrattano o rifiutano quando un piano va contro chi sono, anche se crea tensione con te) e **Draw in quiet members** (chi è stato in silenzio per un po' ha più occasioni di rispondere, e a una scena narrata viene chiesto di coinvolgerlo). I primi due sono Off, Can o Should: Can lo consente quando si addice alla scena, Should se lo aspetta, e se ogni risposta diventa un litigio, torna a Can. I nuovi gruppi iniziano con Can e Draw in attivi; i gruppi più vecchi tengono tutto disattivato finché non lo attivi. Il pulsante Turns della chat può cambiarli solo per una chat. Nella scheda Members, apri la sezione "In this group" di un membro per dargli una **voice** che usa solo questo gruppo: fino a due abitudini di parlato (parla a frammenti, non fa mai domande) e fino a cinque battute di esempio. Poche righe insegnano il ritmo meglio degli aggettivi, e personaggi diversi dovrebbero rispondere alla stessa notizia in modo diverso.
 

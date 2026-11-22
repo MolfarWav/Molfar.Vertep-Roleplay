@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Roleplay : la vue d'ensemble
 
 Roleplay est l'application de récit de Molfar Vertep : vous gardez des fiches de personnages, jouez des conversations avec eux, et laissez l'application suivre la scène, se souvenir de l'histoire et faire tourner le monde autour de vous. Cette page est une carte. Le **Help** de l'application (dans la barre latérale) contient un court article pour presque chaque écran ; ce guide explique comment les parties s'assemblent. Les modèles et les connexions ne se règlent pas ici mais dans les Settings principaux : voir [[vertep:models]].
@@ -32,6 +32,7 @@ Trois assistants surveillent le récit et coûtent des appels de modèle supplé
 - [[characters]] : les fiches, l'éditeur de fiche, les personas, les groupes, l'import.
 - [[sprites]] : les sprites par-dessus la conversation, plusieurs fenêtres pour un groupe ou un narrateur, le look visual novel.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]] : la machinerie du récit.
+- [[direction]] : dans un chat de groupe, un petit modèle directeur lit qui est dans la scène ; la barre, le verrou, les nouveaux groupes.
 - [[meanwhile]] : les personnes hors écran agissent entre les scènes (une version de test, désactivée par défaut).
 - [[places-map]] : la carte flottante des lieux de la conversation, avec des routes et une image de votre cru.
 - [[places-map-levels]] : plusieurs cartes dans une même conversation (un pays, une ville, un donjon) et dessiner une carte avec le modèle d'image.

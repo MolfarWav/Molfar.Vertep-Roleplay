@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Personajes, personas y grupos
 
 Todo con lo que juegas vive en cuatro secciones: Characters, Groups, Personas y Marketplace. Esta página explica para qué sirve cada una; los artículos de ayuda *Your characters*, *The card editor tabs* y *Groups of characters* tienen los detalles.
@@ -24,7 +24,7 @@ Una persona eres tú: nombre, pronombres, descripción, avatar. El modelo la ve 
 
 ## Grupos
 
-Un grupo pone a varios personajes en un solo chat. "New group" te deja elegir miembros. El editor tiene Overview, Members, Scene, Turns, Lore y Chats. La pestaña Turns decide quién responde: Narrator (una sola respuesta da voz a todos) o Each in turn. Un grupo nuevo empieza como Narrator.
+Un grupo reúne a varios personajes en un solo chat. "New group" abre un selector (búsqueda, favoritos, etiquetas, orden de intervención); "Next" crea el grupo y abre su editor, donde "Start chat" inicia el primer chat. El editor tiene Overview, Members, Scene, Turns, Direction, Lore y Chats. La pestaña Direction y la barra en un chat grupal se describen en [[direction]]. La pestaña Turns decide quién responde: Narrator (una respuesta habla por todos) o Each in turn. Un grupo nuevo comienza como Narrator.
 
 La pestaña Turns también tiene **How they talk**: **Interruptions** (los miembros interrumpen, hablan unos sobre otros o ignoran una pregunta cuando encaja con su carácter), **Own goals** (los miembros objetan, negocian o se niegan cuando un plan va contra quienes son, aunque eso cree tensión contigo) y **Draw in quiet members** (quien lleva un rato callado tiene más oportunidades de responder, y a una escena narrada se le pide que lo incluya). Las dos primeras son Off, Can o Should: Can lo permite cuando encaja con la escena, Should lo espera, y si cada respuesta se convierte en una discusión, vuelve a Can. Los grupos nuevos empiezan con Can y Draw in activados; los grupos antiguos mantienen todo desactivado hasta que lo actives. El botón Turns del propio chat puede cambiarlos solo para un chat. En la pestaña Members, abre la sección "In this group" de un miembro para darle una **voice** que solo usa este grupo: hasta dos hábitos de habla (habla en fragmentos, nunca hace preguntas) y hasta cinco líneas de ejemplo. Unas pocas líneas enseñan mejor el ritmo que los adjetivos, y distintos personajes deberían responder de forma distinta a la misma noticia.
 

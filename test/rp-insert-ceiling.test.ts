@@ -165,11 +165,11 @@ describe("each plugin's ceiling is the table's row for the same chat", () => {
     writeJson("agents/inserts/c1.json", { items: [] });
     agree({});
   });
-  it("a group's Dashboard is the one place the plugin is more exact: three focused characters, not two", () => {
+  it("a group's Dashboard is the one place the plugin is more exact: four focused characters (#496), not two", () => {
     seedCards();
     chat({ groupId: "g1" });
-    expect(byId(askAll("c1")).dashboard).toBe(300 * 3 + 200);
-    expect(byId(table({ groupId: "g1" })).dashboard).toBe(300 * 3 + 200); // the table follows (#217: it reserved one block too few)
+    expect(byId(askAll("c1")).dashboard).toBe(300 * 4 + 200);
+    expect(byId(table({ groupId: "g1" })).dashboard).toBe(300 * 4 + 200); // the table follows (#217: it reserved one block too few)
     // a narrator card reads as a wide chat too; an ordinary card is reserved at two (one speaks, a card out of the scene may focus more)
     writeJson("characters/narr/card.json", { name: "The Narrator" });
     chat({ characterId: "narr" });

@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Rollenspiel: die Übersicht
 
 Rollenspiel ist die Story-App von Molfar Vertep: Du verwaltest Charakterkarten, spielst Chats mit ihnen und lässt die App die Szene verfolgen, die Geschichte erinnern und die Welt um dich herum laufen. Diese Seite ist eine Landkarte. Die **Help** der App (in der Leiste) hat einen kurzen Artikel für fast jeden Bildschirm; dieser Leitfaden erklärt, wie die Teile zusammenpassen. Modelle und Verbindungen werden nicht hier eingerichtet, sondern in den Haupt-Settings: siehe [[vertep:models]].
@@ -32,6 +32,7 @@ Drei Helfer beobachten die Geschichte und kosten zusätzliche Modellaufrufe, des
 - [[characters]]: Karten, der Karteneditor, Personas, Gruppen, Import.
 - [[sprites]]: Sprites über dem Chat, mehrere Fenster für eine Gruppe oder einen Erzähler, der Visual-Novel-Look.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: die Maschinerie der Geschichte.
+- [[direction]]: In einem Gruppenchat liest ein kleines Director-Modell, wer in der Szene ist; der Balken, das Schloss, neue Gruppen.
 - [[meanwhile]]: Personen außerhalb des Bildes handeln zwischen den Szenen (eine Testversion, standardmäßig aus).
 - [[places-map]]: die schwebende Karte der Orte des Chats, mit Straßen und einem eigenen Bild.
 - [[places-map-levels]]: mehrere Karten in einem Chat (ein Land, eine Stadt, ein Dungeon) und das Zeichnen einer Karte mit dem Bildmodell.

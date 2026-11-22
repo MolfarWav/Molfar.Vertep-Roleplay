@@ -7,10 +7,32 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.148.0'
+export const APP_VERSION = '4.149.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.direction',
+    since: '4.149.0',
+    help: 'characters',
+    keywords: { en: 'direction director group chat scene who is here present away lock only her return model bar log', uk: 'режисура режисер груповий чат сцена хто тут присутні відсутні фіксація тільки вона повернення модель плашка лог' },
+    title: { en: 'Direction: who is in a group chat’s scene', uk: 'Режисура: хто в сцені групового чату' },
+    body: {
+      en: 'A group chat has a new bar under the members: Direction. After each reply a small director model reads the kind of scene and who is in it; members who are not there stop answering and stay out of the prompt as one line until the story brings them back. Pick the director’s model on the bar (one for all chats, no default), and switch it on or off per chat. A member’s popover can hold the scene to her (Only her in the scene); Release the lock brings the others back on the next reply. New group chats start with it on once a model is picked.',
+      uk: 'У груповому чаті з’явилася нова плашка під учасниками: Direction. Після кожної відповіді маленька модель-режисер визначає, що це за сцена і хто в ній; учасниці, яких там немає, перестають відповідати й лишаються в промпті одним рядком, доки історія їх не поверне. Оберіть модель режисера на плашці (одна на всі чати, без типової) і вмикайте чи вимикайте її для кожного чату. У поповері учасниці можна залишити в сцені тільки її (Only her in the scene); Release the lock повертає інших у наступній відповіді. Нові групові чати починають з увімкненою режисурою, якщо модель обрано.',
+    },
+  },
+  {
+    id: 'new.group-picker',
+    since: '4.149.0',
+    help: 'characters',
+    keywords: { en: 'new group picker members search favourites recent tags order editor start chat', uk: 'нова група вибір учасників пошук улюблені недавні теги порядок редактор почати чат' },
+    title: { en: 'A new group opens its settings first', uk: 'Нова група спершу відкриває налаштування' },
+    body: {
+      en: 'New group is now a wide picker: search, All / Favourites / Recent, tags, sort, and a tray of the chosen members in speaking order. Next makes the group and opens its editor, not a chat: check how it plays, then press Start chat. A group’s tile and, in a group chat, the chat’s title open the same editor.',
+      uk: 'New group тепер широкий вибір: пошук, Усі / Улюблені / Недавні, теги, сортування і лоток обраних у порядку мовлення. Next створює групу й відкриває її редактор, а не чат: перевірте, як вона грає, і натисніть Start chat. Плитка групи і, в груповому чаті, назва чату відкривають той самий редактор.',
+    },
+  },
   {
     id: 'new.growth-where',
     since: '4.148.0',

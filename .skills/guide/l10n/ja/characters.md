@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # キャラクター、ペルソナ、グループ
 
 遊ぶものはすべて4つのセクションに分かれています：Characters、Groups、Personas、Marketplace。このページではそれぞれの役割を説明します。詳細はヘルプ記事「*Your characters*」「*The card editor tabs*」「*Groups of characters*」をご覧ください。
@@ -24,7 +24,7 @@
 
 ## グループ
 
-グループは複数のキャラクターを1つのチャットに入れます。「New group」でメンバーを選べます。エディタにはOverview、Members、Scene、Turns、Lore、Chatsがあります。Turnsタブで誰が答えるかを決めます：Narrator（1つの返信が全員を演じる）またはEach in turn。新しいグループはNarratorで始まります。
+## グループ  グループは複数のキャラクターを1つのチャットにまとめます。「New group」でピッカーが開き（検索、お気に入り、タグ、発言順）、「Next」でグループが作成されてエディターが開き、「Start chat」で最初のチャットが始まります。エディターにはOverview、Members、Scene、Turns、Direction、Lore、Chatsがあります。Directionタブとグループチャット内のバーについては[[direction]]で説明しています。Turnsタブで応答者を決めます：Narrator（1つの返信で全員の声を担当）またはEach in turn。新しいグループはNarratorで始まります。
 
 Turnsタブには**How they talk**もあります：**Interruptions**（メンバーが割り込む、互いに話を重ねる、キャラクターに合っていれば質問を無視する）、**Own goals**（計画が自分の在り方に反する場合、あなたとの緊張を生んでもメンバーが反対する、交渉する、拒否する）、**Draw in quiet members**（しばらく静かだったメンバーにより多くの回答の機会を与え、ナレーションされたシーンではそのメンバーを引き込むよう促す）。最初の2つはOff、Can、Shouldから選べます：Canはシーンに合えば許可し、Shouldは期待し、すべての返信が口論になるならCanに戻してください。新しいグループはCanとDraw inがオンで始まり、古いグループはオンにするまですべてオフのままです。チャット自体のTurnsボタンで、そのチャットだけ変更できます。Membersタブでメンバーの「In this group」セクションを開くと、このグループだけが使う**voice**を設定できます：最大2つの話し方の癖（断片的に話す、質問を決してしない）と最大5つのサンプルセリフ。数行のセリフは形容詞よりもリズムをよく伝え、異なるキャラクターは同じ知らせに異なる反応を示すべきです。
 

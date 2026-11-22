@@ -1,4 +1,4 @@
-<!-- source: 637184c0cc50 -->
+<!-- source: 4066c9341af1 -->
 # Personagens, personas e grupos
 
 Tudo o que você usa para jogar fica em quatro seções: Characters, Groups, Personas e Marketplace. Esta página explica para que serve cada uma; os artigos de Ajuda *Your characters*, *The card editor tabs* e *Groups of characters* têm os detalhes.
@@ -24,7 +24,7 @@ Uma persona é você: nome, pronomes, descrição, avatar. O modelo a vê onde q
 
 ## Groups
 
-Um grupo coloca vários personagens em um chat. "New group" permite escolher membros. O editor tem Overview, Members, Scene, Turns, Lore e Chats. A aba Turns decide quem responde: Narrator (uma resposta dá voz a todos) ou Each in turn. Um novo grupo começa como Narrator.
+## Groups  Um grupo coloca vários personagens em um único chat. "New group" abre um seletor (pesquisa, favoritos, tags, ordem de fala); "Next" cria o grupo e abre seu editor, onde "Start chat" inicia o primeiro chat. O editor tem Overview, Members, Scene, Turns, Direction, Lore e Chats. A aba Direction e a barra em um chat de grupo são descritas em [[direction]]. A aba Turns decide quem responde: Narrator (uma resposta fala por todos) ou Each in turn. Um novo grupo começa como Narrator.
 
 A aba Turns também tem **How they talk**: **Interruptions** (membros interrompem, falam por cima uns dos outros ou ignoram uma pergunta quando combina com o personagem), **Own goals** (membros objetam, barganham ou recusam quando um plano vai contra quem eles são, mesmo que crie tensão com você) e **Draw in quiet members** (alguém que está quieto há um tempo recebe mais chances de responder, e uma cena narrada é solicitada a trazê-lo). Os dois primeiros são Off, Can ou Should: Can permite quando combina com a cena, Should espera isso, e se toda resposta vira uma discussão, volte para Can. Novos grupos começam com Can e Draw in ativados; grupos mais antigos mantêm tudo desligado até você ativar. O botão Turns do próprio chat pode alterá-los apenas para um chat. Na aba Members, abra a seção "In this group" de um membro para dar a ele uma **voice** que só este grupo usa: até dois hábitos de fala (fala em fragmentos, nunca faz perguntas) e até cinco falas de exemplo. Algumas linhas ensinam o ritmo melhor que adjetivos, e personagens diferentes devem responder à mesma notícia de formas diferentes.
 

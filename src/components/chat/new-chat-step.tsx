@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import { FilmSlate } from '@phosphor-icons/react'
+import { directionModel } from '@/lib/direction'
+import { useModelEntry } from '@/components/chat/model-palette'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
@@ -51,6 +55,18 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
   // a group chat: how its members answer, the group's default unless changed here
   const groupMode = character?.group?.generationMode ?? 'swap'
   const [genMode, setGenMode] = useState<NonNullable<ChatTurns['generationMode']>>(groupMode)
+
+  // Direction for a group's chat: on when the group's default is on and a director model is picked (#496)
+  const [dirModel, setDirModel] = useState<string | null>(null)
+  const [dirOn, setDirOn] = useState(character?.group?.direction !== false)
+  useEffect(() => {
+    if (!character?.isGroup) return
+    let live = true
+    void directionModel().then((m) => { if (live) setDirModel(m) })
+    return () => { live = false }
+  }, [character?.isGroup])
+  const dirEntry = useModelEntry(dirModel)
+  const dirReady = dirModel !== null && dirModel !== ''
 
   // a world to start in: a saved one, or a chat of this character that has one (only when the app has the World plugin)
   const [worlds, setWorlds] = useState<SavedWorld[] | null>(null)
@@ -147,6 +163,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
       presetId: preset.id, presetVars: values,
       ...(withOffer ?? (setPick === 'none' ? { agents: { own: [] as [] } } : setPick !== 'default' ? { agents: { preset: setPick } } : {})),
       ...(character?.isGroup && genMode !== groupMode ? { turns: { generationMode: genMode } } : {}),
+      ...(character?.isGroup ? { direction: dirOn && dirReady } : {}),
       ...(from ? { continues: from.id, ...(from.personaId && personas.some((p) => p.id === from.personaId) ? { personaId: from.personaId } : {}), ...(from.model ? { model: from.model } : {}) } : {}),
       ...(worldPick.startsWith('w:') ? { world: { worldId: worldPick.slice(2) } } : worldPick.startsWith('c:') ? { world: { fromChatId: worldPick.slice(2) } } : {}),
     })
@@ -241,6 +258,19 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+        {character?.isGroup && (
+          <div className="flex items-start justify-between gap-3" data-testid="new-chat-direction">
+            <div className="min-w-0">
+              <label htmlFor="new-chat-direction-switch" className="flex items-center gap-1.5 text-xs font-medium">
+                <FilmSlate className="size-3.5" aria-hidden="true" />{t('dir.title')}
+              </label>
+              <p className="mt-0.5 text-caption text-muted-foreground" data-testid="new-chat-direction-hint">
+                {dirModel === null ? '…' : dirReady ? t('dir.step.hint', { model: dirEntry.label ?? dirModel }) : t('dir.step.noModel')}
+              </p>
+            </div>
+            <Switch id="new-chat-direction-switch" className="mt-0.5 shrink-0" checked={dirOn && dirReady} disabled={!dirReady} onCheckedChange={setDirOn} />
           </div>
         )}
         {showWorld && (

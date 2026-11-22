@@ -1,0 +1,8 @@
+{
+  "name": "Direction",
+  "version": "0.1.0",
+  "description": "Direction for group chats (#496, phase 1): after a reply, one small director call reads the kind of scene and which members are in it; code applies the rules (who may answer, whose card is whole, Spotlight among those present). The player can hold the scene to some members (the lock) and let the others back (a return note on the next reply). State lives in data/direction/state/<chatId>.json; the director's model in data/direction/config.json.",
+  "origin": "local",
+  "permissions": ["routes", "llm", "fs", "hooks"],
+  "priority": 35
+}

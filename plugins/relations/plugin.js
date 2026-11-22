@@ -7606,6 +7606,26 @@ const PRONOUNS = {
 };
 const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"];
 const FULL_FOCUS = 3;
+/** A group chat focuses four (owner, 2026-11-08, #294), the most recently involved first (`byAttention`). */
+const GROUP_FOCUS = 4;
+/**
+ * The present names ordered by attention: the one named or speaking most recently in the last messages first, the rest in their
+ * order (#294 via Direction #496). Code only: a name in a message's text, or a reply by the card of that name.
+ */
+export function byAttention(present, recent) {
+  const msgs = arr(recent).slice(-12);
+  const lastAt = (n) => {
+    const low = String(n).toLowerCase();
+    const first = low.split(" ")[0];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      const text = str(m && m.text).toLowerCase();
+      if (str(m && m.name).toLowerCase() === low || (first.length >= 3 && text.includes(first)) || text.includes(low)) return i;
+    }
+    return -1;
+  };
+  return present.map((n, i) => ({ n, i, at: lastAt(n) })).sort((x, y) => y.at - x.at || x.i - y.i).map((x) => x.n);
+}
 
 const pronounsOf = (soul) => PRONOUNS[soul && soul.pronouns] || PRONOUNS.they;
 const estimateTokens = (s) => Math.ceil(String(s).length / 3.2);
@@ -8072,7 +8092,7 @@ export function buildInsert(fsx, chatId, turn, cfg) {
   const speaker = turn.speakerName && present.includes(turn.speakerName) ? turn.speakerName : cardSpeaks;
   // who gets a full block: the speaker; in a narrator chat, those this turn is about (maybe nobody:
   // then everyone is one short line, which keeps the narrator from a roll call of the cast)
-  const focus = speaker ? [speaker] : group ? present.slice(0, FULL_FOCUS) : aboutNow(present, turn.userText, snap).slice(0, FULL_FOCUS);
+  const focus = speaker ? [speaker] : group ? byAttention(present, [...line, { text: str(turn.userText) }]).slice(0, GROUP_FOCUS) : aboutNow(present, turn.userText, snap).slice(0, FULL_FOCUS);
   // nobody in the scene (the user's character alone) still gets the scene line: without it the model has no clock (#207)
   // notebooks: the speaker's own; in a one-card chat (a narrator voices them all) each focus character's;
   // none when a group chat cannot say who speaks, so nothing leaks to the wrong character
@@ -8203,11 +8223,11 @@ export function insertCeiling(ctx, host) {
   const wide = group || (isObj(card) && REG_NARR.test(str(card.name)));
   const maxTokens = clamp(Math.round(num(cfg.injection.maxTokens)) || 300, 50, 2000);
   // the rest (the scene line, threads, layout, ties and the closing lines) comes on top of the blocks: 200, as before
-  rows.push({ id: "dashboard", tokens: maxTokens * (wide ? FULL_FOCUS : 2) + 200 });
+  rows.push({ id: "dashboard", tokens: maxTokens * (wide ? (group ? GROUP_FOCUS : FULL_FOCUS) : 2) + 200 });
   // the said block is its own part with its own fixed room
   if (!(isObj(cfg.said) && cfg.said.inject === false) && !off("plugin:said")) rows.push({ id: "dashboard said", tokens: SAID_TOKENS });
   // the character journal: one block per focused character, at most journal.maxTokens each
-  if (journalOnOf(cfg) && journalInjectOf(cfg) && !off("plugin:journal")) rows.push({ id: "dashboard journal", tokens: journalTokensOf(cfg) * FULL_FOCUS });
+  if (journalOnOf(cfg) && journalInjectOf(cfg) && !off("plugin:journal")) rows.push({ id: "dashboard journal", tokens: journalTokensOf(cfg) * (group ? GROUP_FOCUS : FULL_FOCUS) });
   return ceilingAnswer(rows);
 }
 /** An answer with no row would read as no answer at all (the engine drops empty ones and its plugin falls back to its table): a zero row says "asked, nothing to reserve". */

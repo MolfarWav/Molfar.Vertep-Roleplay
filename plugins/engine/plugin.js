@@ -2188,8 +2188,9 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
   const members = grouped ? ((jsonAt(fsx, "groups/" + m.groupId + ".json") || {}).memberIds || []).map(String) : [];
 
   // Dashboard: the notebook and focus lines, and the "said" block. DASHBOARD_FOCUS is the most characters the
-  // Dashboard gives a full block (FULL_FOCUS in plugins/relations/plugin.js; a group takes 3, one speaker 1)
-  const DASHBOARD_FOCUS = 3;
+  // Dashboard gives a full block (FULL_FOCUS and GROUP_FOCUS in plugins/relations/plugin.js: a group takes 4 since #496,
+  // a narrator card 3, one speaker 1)
+  const DASHBOARD_FOCUS = grouped ? 4 : 3;
   const dcfg = jsonAt(fsx, "dashboard/config.json") || {};
   const inj = dcfg.injection && typeof dcfg.injection === "object" ? dcfg.injection : {};
   if (inj.enabled !== false && !off("plugin:relations")) {
@@ -2280,6 +2281,11 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
     }
   }
 
+  // Direction (#496): the lock or the return note (about 90 tokens), in a group chat that has a Direction state
+  if (chatId && SAFE_RESERVE_ID.test(chatId) && m && m.groupId) {
+    const dir = jsonAt(fsx, "direction/state/" + chatId + ".json");
+    if (dir && (dir.lock || dir.returning)) add("direction scene", 90);
+  }
   // World: the "here" note (at most 900 characters), the DM event (400) and the dice line, when the chat has a world state
   if (chatId && SAFE_RESERVE_ID.test(chatId) && !off("plugin:world")) {
     const w = jsonAt(fsx, "world/state/" + chatId + ".json");
@@ -3823,6 +3829,49 @@ function chatGroup(fsx, meta) {
   return g ? withChatTurns(g, meta) : null;
 }
 
+/** Direction (#496): who is in the scene now, by member id, or null when the chat has neither the director switched on nor
+ *  a lock. The lock (the player's) wins; then the director's newest report on the chat's line; then the Dashboard's newest
+ *  `present`. Members the player just let back (the return, until the first reply after it) count as present. The Direction
+ *  plugin keeps the file and reads it the same way (`sceneNow`); plugins do not import each other. */
+export function directionScene(fsx, meta, members, msgs) {
+  if (!meta || !meta.groupId || !meta.id) return null;
+  let st = null;
+  try { st = JSON.parse(fsx.read("direction/state/" + meta.id + ".json")); } catch {}
+  if (!st || typeof st !== "object") return null;
+  const ids = members.map((m) => m.id);
+  const own = (list) => (Array.isArray(list) ? list.filter((x) => ids.includes(x)) : []);
+  const lock = st.lock && typeof st.lock === "object" ? own(st.lock.ids) : [];
+  if (lock.length) return { source: "lock", present: new Set(lock) };
+  if (st.on !== true) return null;
+  const list = Array.isArray(msgs) ? msgs : [];
+  const keyOf = (m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0);
+  const isReply = (m) => m && m.role === "char" && !m.greeting && !m.picture;
+  let back = [];
+  if (st.returning && typeof st.returning === "object") {
+    const at = list.findIndex((m) => keyOf(m) === st.returning.after);
+    if (at >= 0 && !list.slice(at + 1).some(isReply)) back = own(st.returning.ids);
+  }
+  const reports = Array.isArray(st.reports) ? st.reports : [];
+  const line = list.filter(isReply).map(keyOf);
+  for (let i = line.length - 1; i >= 0; i--) {
+    const r = reports.find((x) => x && x.key === line[i]);
+    if (r) return { source: "director", present: new Set([...own(r.present), ...back]) };
+  }
+  let dash = null;
+  try { dash = JSON.parse(fsx.read("dashboard/state/" + meta.id + ".json")); } catch {}
+  const snaps = dash && dash.snapshots && typeof dash.snapshots === "object" ? Object.values(dash.snapshots).filter((x) => x && typeof x === "object") : [];
+  if (!snaps.length) return back.length ? { source: "return", present: new Set(back) } : null;
+  const last = snaps.sort((a, b) => (Number(a.turn) || 0) - (Number(b.turn) || 0))[snaps.length - 1];
+  const names = (Array.isArray(last.present) ? last.present : []).map((n) => String(n).toLowerCase().trim()).filter(Boolean);
+  const present = new Set(back);
+  for (const m of members) {
+    const full = String(m.name || "").toLowerCase().trim();
+    const first = full.split(" ")[0];
+    if (names.some((n) => n === full || n === first || n.split(" ")[0] === first)) present.add(m.id);
+  }
+  return { source: "dashboard", present };
+}
+
 function chatMembers(fsx, meta) {
   // returns [{id, name, card}] the bots participating in this chat, each card
   // resolved through the chat's own field-variant selection
@@ -4230,7 +4279,16 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     ? members.filter((m) => !((groupCfg.mutedIds || []).includes(m.id)) || (speaker && m.id === speaker.id))
     : [];
   const ownChar = (c, t) => (narrating && t ? String(t).replace(/\{\{char\}\}/gi, c.name || "") : t);
-  const joined = (pick) => rosterMembers.map((m) => (m.card && pick(m.card) ? "[" + m.card.name + "]\n" + ownChar(m.card, pick(m.card)) : null)).filter(Boolean).join("\n\n");
+  // Direction (#496): with a known scene a member who is not in it is one line in the description and nothing elsewhere;
+  // the speaker is never cut. Nobody known (no director, no lock): every card whole, as before.
+  const dirScene = isGroup && groupCfg ? directionScene(fsx, meta, members, msgs) : null;
+  const awayIds = new Set(dirScene ? rosterMembers.filter((m) => !dirScene.present.has(m.id) && !(speaker && m.id === speaker.id)).map((m) => m.id) : []);
+  const awayLine = (m) => "[" + m.card.name + "]\n" + m.card.name + " is not in this scene now.";
+  const joined = (pick, isDescription) => rosterMembers.map((m) => {
+    if (!m.card) return null;
+    if (awayIds.has(m.id)) return isDescription ? awayLine(m) : null;
+    return pick(m.card) ? "[" + m.card.name + "]\n" + ownChar(m.card, pick(m.card)) : null;
+  }).filter(Boolean).join("\n\n");
 
   const src = { v: 1, parts: [], omitted: [], vars: [] };
   let partKey = null;
@@ -4250,6 +4308,11 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   const addGroupCardPart = (fieldLabel, getter, kind) => {
     for (const m of rosterMembers) {
       if (!m.card) continue;
+      // Direction (#496): a member out of the scene is one line in the description and nothing in the other fields
+      if (awayIds.has(m.id)) {
+        if (fieldLabel === "description") addPart(kind || "card", (m.card.name || m.name || "?") + " · not in this scene", sub(awayLine(m)));
+        continue;
+      }
       const val = ownChar(m.card, getter(m.card));
       if (val && String(val).trim()) {
         const block = "[" + (m.card.name || m.name || "?") + "]\n" + String(val);
@@ -4276,7 +4339,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       : "",
     nsfw: "",
     enhanceDefinitions: "",
-    charDescription: rosterMembers.length ? joined((c) => c.description) : (speakerCard && speakerCard.description ? speakerCard.description : ""),
+    charDescription: rosterMembers.length ? joined((c) => c.description, true) : (speakerCard && speakerCard.description ? speakerCard.description : ""),
     charPersonality: rosterMembers.length ? joined((c) => c.personality) : (speakerCard && speakerCard.personality ? speakerCard.personality : ""),
     // a narrator without a shared scenario carries every member's own
     scenario: speakerCard && speakerCard.scenario ? speakerCard.scenario : narrating ? joined((c) => c.scenario) : "",
@@ -4299,18 +4362,23 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   // group instructions (who exists, who replies)
   if (isGroup) {
     const roster = members.map((m) => m.name).join(", ");
+    const hereRoster = rosterMembers.filter((m) => !awayIds.has(m.id));
+    const muted = (groupCfg && groupCfg.mutedIds) || [];
+    const awayNames = (dirScene ? members.filter((m) => !dirScene.present.has(m.id) && !(speaker && m.id === speaker.id) && !muted.includes(m.id)) : []).map((m) => m.name);
+    const awayText = awayNames.length ? " Not in this scene now: " + awayNames.join(", ") + "." : "";
     groupSceneLine = narrating
-      ? "This is a group scene with " + userName + ". Characters: " + rosterMembers.map((m) => m.name).join(", ") + ". You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions, unless the preset's instructions say otherwise."
-      : "This is a group scene. Participants: " + roster + ". The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
+      ? "This is a group scene with " + userName + ". Characters: " + hereRoster.map((m) => m.name).join(", ") + "." + awayText + " You narrate the scene and voice these characters: write their actions and dialogue as the scene calls for, not every one of them every time. Give each character's speech its own paragraph and name the character in that paragraph. Never write " + userName + "'s words or actions, unless the preset's instructions say otherwise."
+      : "This is a group scene. Participants: " + roster + "." + awayText + " The next reply comes from " + charName + " — write only " + charName + "'s actions and dialogue.";
     // dynamics (interruptions, own goals), the Spotlight line and the members' voice notes follow the scene line
     if (groupCfg) {
       const one = narrating ? null : charName;
       const extra = [groupDynamicsText(groupCfg, one, userName)];
-      if (groupCfg.spotlight === true && rosterMembers.length) {
-        extra.push(spotlightLine(rosterMembers, silentTurns(msgs, rosterMembers, narrating)));
+      // Spotlight draws in only those in the scene: an absent member is not pulled back (Direction, #496)
+      if (groupCfg.spotlight === true && hereRoster.length) {
+        extra.push(spotlightLine(hereRoster, silentTurns(msgs, hereRoster, narrating)));
       }
       groupSceneLine = [groupSceneLine, ...extra].filter(Boolean).join(" ");
-      const voiced = rosterMembers.length ? rosterMembers : members.filter((m) => speaker && m.id === speaker.id);
+      const voiced = rosterMembers.length ? hereRoster : members.filter((m) => speaker && m.id === speaker.id);
       const voices = groupVoicesText(groupCfg, voiced);
       if (voices) groupSceneLine += "\n\n" + voices;
     }
@@ -5208,16 +5276,21 @@ export function groupVoicesText(g, voiced) {
  *  talkativeness (never the member who just spoke unless the group allows
  *  self responses); manual: nobody. `random` is injectable for peeks and
  *  tests; peeks pass null and get the most likely pick instead of a roll. */
-export function groupTurnPlan(group, members, lastSpeakerId, userText, random, silent) {
+export function groupTurnPlan(group, members, lastSpeakerId, userText, random, silent, scene) {
   const muted = new Set(group.mutedIds || []);
   const order = (group.memberIds || []).map((id) => members.find((m) => m.id === id)).filter((m) => m && !muted.has(m.id));
   if (!order.length || group.mode === "manual") return [];
-  if (group.mode === "list") return order;
+  // Direction (#496): with a known scene only the members in it take turns; nobody present leaves the order as it was
+  const here = scene && scene.present ? order.filter((m) => scene.present.has(m.id)) : order;
+  const inScene = here.length ? here : order;
+  if (group.mode === "list") return inScene;
   const fresh = group.allowSelfResponses ? order : order.filter((m) => m.id !== lastSpeakerId);
-  const pool = fresh.length ? fresh : order;
   const text = String(userText || "").toLowerCase();
-  const named = pool.map((m) => ({ m, at: mentionAt(text, m.name) })).filter((x) => x.at >= 0).sort((x, y) => x.at - y.at);
+  // the player naming someone calls them in, present or not
+  const named = (fresh.length ? fresh : order).map((m) => ({ m, at: mentionAt(text, m.name) })).filter((x) => x.at >= 0).sort((x, y) => x.at - y.at);
   if (named.length) return named.map((x) => x.m);
+  const freshHere = group.allowSelfResponses ? inScene : inScene.filter((m) => m.id !== lastSpeakerId);
+  const pool = freshHere.length ? freshHere : inScene;
   // Spotlight: a member who has been quiet gets a bigger share, up to SPOTLIGHT_CAP turns of it
   const boost = (m) => (group.spotlight === true && silent ? 1 + Math.min(silent.get(m.id) || 0, SPOTLIGHT_CAP) * SPOTLIGHT_STEP : 1);
   const weights = pool.map((m) => talkativeness(m.card) * boost(m));
@@ -6164,7 +6237,7 @@ export function handleRoute(req, host) {
     const peekVoices = chatVoices(peekGroup, members, chat.meta.groupId);
     const peekSpeaker = (peeked && peeked.role === "char" && peekVoices.find((m) => m.id === peeked.charId))
       || (isNarratorGroup(peekGroup) ? peekVoices[peekVoices.length - 1] : null)
-      || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null, silentTurns(msgs, members, false))[0] : null)
+      || (peekGroup ? groupTurnPlan(peekGroup, members, lastReply ? lastReply.charId : null, b.userText || "", null, silentTurns(msgs, members, false), directionScene(fsx, { ...chat.meta, id: chat.meta.id || b.chatId }, members, msgs))[0] : null)
       || members[0] || null;
     const scanInfoPeek = host.llm.embedInfo && host.llm.embedInfo.scan;
     const scanModelPeek = scanInfoPeek && typeof scanInfoPeek.model === "string" ? scanInfoPeek.model : "";
@@ -7248,7 +7321,7 @@ const toolX = (r) => ({
         let plan = null;
         if (group) {
           const lastChar = [...chat.msgs].reverse().find((m) => m.role === "char" && !m.picture);
-          plan = isNarratorGroup(group) ? [meta.groupId] : groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text, undefined, silentTurns(chat.msgs, members, false)).map((m) => m.id);
+          plan = isNarratorGroup(group) ? [meta.groupId] : groupTurnPlan(group, members, lastChar ? lastChar.charId : null, text, undefined, silentTurns(chat.msgs, members, false), directionScene(fsx, { ...meta, id: meta.id || id }, members, chat.msgs)).map((m) => m.id);
           speaker = voices.find((m) => m.id === plan[0]) || null;
         }
         if (!speaker) return err(400, "chat has no participating characters");

@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Roleplay: het overzicht
 
 Roleplay is de verhalen-app van Molfar Vertep: je bewaart personagekaarten, speelt chats met ze en laat de app het tafereel volgen, het verhaal onthouden en de wereld om je heen laten draaien. Deze pagina is een kaart. De eigen **Help** van de app (in de rail) heeft een kort artikel voor bijna elk scherm; deze gids legt uit hoe de onderdelen samenhangen. Modellen en verbindingen stel je niet hier in maar in de hoofdinstellingen: zie [[vertep:models]].
@@ -32,6 +32,7 @@ Drie helpers kijken mee met het verhaal en kosten extra modelaanroepen, dus het 
 - [[characters]]: kaarten, de kaarteditor, persona's, groepen, import.
 - [[sprites]]: sprites over de chat, meerdere vensters voor een groep of een verteller, de visual-novel-look.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: de verhaalmachinerie.
+- [[direction]]: in een groepsgesprek leest een klein regisseursmodel wie er in de scène is; de balk, het slot, nieuwe groepen.
 - [[meanwhile]]: mensen buiten beeld handelen tussen scènes (een testversie, standaard uit).
 - [[places-map]]: de zwevende kaart van de plekken in de chat, met wegen en een eigen plaatje.
 - [[places-map-levels]]: meerdere kaarten in één chat (een land, een stad, een dungeon) en een kaart tekenen met het beeldmodel.

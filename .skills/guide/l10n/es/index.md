@@ -1,4 +1,4 @@
-<!-- source: e7e10ee9c3f1 -->
+<!-- source: 9a740481b21b -->
 # Juego de rol: la visión general
 
 El juego de rol es la app de historias de Molfar Vertep: guardas cartas de personajes, juegas chats con ellos y dejas que la app siga la escena, recuerde la historia y haga funcionar el mundo a tu alrededor. Esta página es un mapa. El propio **Help** de la app (en la barra lateral) tiene un artículo breve para casi cada pantalla; esta guía explica cómo encajan las partes. Los modelos y las conexiones no se configuran aquí, sino en los Ajustes principales: consulta [[vertep:models]].
@@ -32,6 +32,7 @@ Tres ayudantes vigilan la historia y cuestan llamadas extra al modelo, así que 
 - [[characters]]: cartas, el editor de cartas, personas, grupos, importación.
 - [[sprites]]: sprites sobre el chat, varias ventanas para un grupo o un narrador, el aspecto de novela visual.
 - [[soul]], [[dashboard]], [[litopys]], [[world-dm]], [[agents]]: la maquinaria de la historia.
+- [[direction]]: en un chat grupal, un pequeño modelo director lee quién está en la escena; la barra, el candado, nuevos grupos.
 - [[meanwhile]]: las personas fuera de pantalla actúan entre escenas (una versión de prueba, desactivada por defecto).
 - [[places-map]]: el mapa flotante de los lugares del chat, con caminos y una imagen tuya.
 - [[places-map-levels]]: varios mapas en un chat (un país, una ciudad, una mazmorra) y dibujar un mapa con el modelo de imágenes.
