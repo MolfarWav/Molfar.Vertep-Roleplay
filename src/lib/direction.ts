@@ -17,6 +17,8 @@ export interface DirectionReport {
   model: string
   ms: number
   usage?: { input: number; output: number }
+  /** phase 3b: World people (ids `n<digits>`) the director judged to be in the reply; only when it was asked */
+  others?: string[]
 }
 
 export interface DirectionLogEntry {
@@ -41,6 +43,8 @@ export interface DirectionLogEntry {
   state?: 'fired' | 'missed' | 'due'
   roll?: DirectionRoll | null
   who?: string[]
+  /** phase 3b: World people of a firing (kinds `rule`, `beat`, `result`) */
+  npc?: string[]
   with?: string[]
   why?: string
   payoff?: boolean
@@ -61,6 +65,9 @@ export interface DirectionScene {
 export interface DirectionRoll { d1: number; d2: number; total: number; need: number }
 export type DirectionResult = 'came' | 'mentioned' | 'missed' | 'yielded' | 'sent'
 export type DirectionRuleKind = 'interrupt' | 'join' | 'return'
+/** phase 3b: who a rule brings: group members, people of the World, or either */
+export type DirectionFrom = 'members' | 'world' | 'any'
+export const DIRECTION_FROMS: readonly DirectionFrom[] = ['members', 'world', 'any']
 export type DirectionRuleStatus = 'ready' | 'cooldown' | 'payoff' | 'off'
 /** a queued note or a firing is a rule's, or (phase 3) a beat's */
 export type DirectionNoteKind = DirectionRuleKind | 'beat'
@@ -82,6 +89,8 @@ export interface DirectionRule {
   /** replies left of the cooldown or the payoff silence */
   left: number
   tension: number
+  /** phase 3b (an older plugin leaves it out: then nothing about World people shows) */
+  from?: DirectionFrom
 }
 
 /** The note queued for the next reply. */
@@ -91,6 +100,8 @@ export interface DirectionNext {
   rule: string
   kind: DirectionNoteKind
   who: string[]
+  /** phase 3b: World people who come (ids of `state.world.people`) */
+  npc?: string[]
   with: string[]
   after: string
   forced: boolean
@@ -105,6 +116,7 @@ export interface DirectionFire {
   rule: string
   kind: DirectionNoteKind
   who: string[]
+  npc?: string[]
   with: string[]
   after: string
   n: number
@@ -140,6 +152,8 @@ export interface DirectionBeat {
   text: string
   /** members who take part (those away come in for it); may be empty */
   who: string[]
+  /** phase 3b: people of the World who take part (ids of `state.world.people`) */
+  npc?: string[]
   when: DirectionBeatWhen
   /** once due, wait up to `boundaryWait` replies for a new scene */
   wait: boolean
@@ -168,6 +182,7 @@ export interface BeatDraft {
   id?: string
   text: string
   who: string[]
+  npc: string[]
   when: DirectionBeatWhen
   wait: boolean
   skipped: boolean
@@ -193,7 +208,13 @@ export interface DirectionState {
   fires?: DirectionFire[]
   /** phase 3a: the beat plan (an older plugin leaves it out) */
   plan?: DirectionPlan
+  /** phase 3b: the people of this chat's World a beat or a rule may bring (an older plugin leaves it out) */
+  world?: DirectionWorld
 }
+
+/** One person of the chat's World: `noReturn` = the World does not bring them back by itself, so a rule never picks them. */
+export interface DirectionWorldPerson { id: string; name: string; text?: string; noReturn?: boolean }
+export interface DirectionWorld { people: DirectionWorldPerson[] }
 
 /** The genre sets the plugin ships (the group editor has no chat to ask): id and the message key of the name. */
 export const DIRECTION_SETS = [{ id: 'romcom', nameKey: 'group.dir.set.romcom' }] as const
@@ -216,6 +237,8 @@ export interface DirectionMarks {
   /** rule id -> name; a beat is `beat:<id>` -> its text */
   rules: Record<string, string>
   members: Record<string, string>
+  /** World person id -> name (phase 3b) */
+  people?: Record<string, string>
 }
 export const useDirectionMarks = create<{ chat: DirectionMarks | null }>(() => ({ chat: null }))
 
@@ -270,7 +293,7 @@ export async function setDirectionChat(chatId: string, patch: { on?: boolean; lo
 }
 
 /** This chat's genre set ("" = none; picking one turns the rules on), the rules switch, or edits to one rule's numbers. */
-export async function setDirectionRules(chatId: string, patch: { set?: string; on?: boolean; rule?: { id: string; on?: boolean; need?: number; cooldown?: number; k?: number; m?: number } }): Promise<{ set: string; on: boolean }> {
+export async function setDirectionRules(chatId: string, patch: { set?: string; on?: boolean; rule?: { id: string; on?: boolean; from?: DirectionFrom; need?: number; cooldown?: number; k?: number; m?: number } }): Promise<{ set: string; on: boolean }> {
   const r = await j<{ rules: { set: string; on: boolean } }>('/direction/rules', { method: 'PUT', body: JSON.stringify({ chatId, ...patch }) })
   bump()
   return r.rules

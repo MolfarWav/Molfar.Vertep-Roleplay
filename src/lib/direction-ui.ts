@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Lang, MsgKey, Vars } from './i18n'
 import {
   BEAT_PLACE_MAX, BEAT_REPLIES_MAX, BEAT_TEXT_MAX, DIRECTION_TAGS, loadDirection, needPercent, useDirectionLive, useDirectionMarks,
-  type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionBeatWhen, type DirectionFire, type DirectionLogEntry, type DirectionNext, type DirectionNoteKind, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionScene, type DirectionState, type DirectionTag,
+  type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionBeatWhen, type DirectionFire, type DirectionFrom, type DirectionLogEntry, type DirectionNext, type DirectionNoteKind, type DirectionResult, type DirectionRoll, type DirectionRule, type DirectionScene, type DirectionState, type DirectionTag, type DirectionWorldPerson,
 } from './direction'
 
 /** How a member stands in the scene: `unknown` = nothing says (no report, no Dashboard), so no marks at all. */
@@ -37,10 +37,28 @@ export function nameOf(state: DirectionState, id: string): string {
   return state.members.find((m) => m.id === id)?.name ?? id
 }
 
+/** The people of this chat's World a beat or a rule may bring (phase 3b); none for an older plugin. */
+export function worldPeople(state: DirectionState): DirectionWorldPerson[] {
+  return state.world?.people ?? []
+}
+
+/**
+ * The names of a firing or a beat: members first, then people of the World (looked up in `state.world.people`). An id the World
+ * no longer has reads as `gone` (default: "someone"), so an old note never shows a raw id.
+ */
+export function whoNames(t: Tr, state: DirectionState, who: string[] = [], npc: string[] = [], gone: MsgKey = 'dir.someone'): string[] {
+  const people = worldPeople(state)
+  return [...who.map((id) => nameOf(state, id)), ...npc.map((id) => people.find((p) => p.id === id)?.name ?? t(gone))]
+}
+
 /** "Yuzu" for one, "Yuzu, Hana" for two, "Yuzu, Hana +2" beyond. */
-export function namesOf(state: DirectionState, ids: string[], max = 2): string {
-  const names = ids.map((id) => nameOf(state, id))
+export function shortNames(names: string[], max = 2): string {
   return names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} +${names.length - max}`
+}
+
+/** `namesOf` for member ids (`npc`: World people after them). */
+export function namesOf(state: DirectionState, ids: string[], max = 2, t?: Tr, npc: string[] = []): string {
+  return shortNames(t ? whoNames(t, state, ids, npc) : ids.map((id) => nameOf(state, id)), max)
 }
 
 export function tagKey(tag: DirectionTag | null): `dir.tag.${DirectionTag}` | 'dir.tag.none' {
@@ -83,6 +101,7 @@ export function publishMarks(chatId: string, state: DirectionState | null): void
       fires,
       rules: { ...Object.fromEntries((state.rules?.items ?? []).map((r) => [r.id, r.name])), ...Object.fromEntries((state.plan?.beats ?? []).map((b) => [beatRuleId(b.id), b.text])) },
       members: Object.fromEntries(state.members.map((m) => [m.id, m.name])),
+      people: Object.fromEntries(worldPeople(state).map((p) => [p.id, p.name])),
     },
   })
 }
@@ -132,13 +151,13 @@ function ruleLabel(t: Tr, state: DirectionState, rule: string): string {
 }
 
 /** What a queued note says will happen: a rule's act with names, or the beat with who takes part. */
-export function nextAct(t: Tr, state: DirectionState, next: Pick<DirectionNext, 'kind' | 'rule' | 'who' | 'with'>, lang: Lang): string {
-  const names = (ids: string[]) => ids.map((id) => nameOf(state, id))
+export function nextAct(t: Tr, state: DirectionState, next: Pick<DirectionNext, 'kind' | 'rule' | 'who' | 'with'> & { npc?: string[] }, lang: Lang): string {
+  const who = whoNames(t, state, next.who, next.npc)
   if (next.kind === 'beat') {
     const text = beatShort(beatOf(state, next.rule)?.text ?? '', 70)
-    return next.who.length ? t('dir.beat.actWho', { text, names: listNames(names(next.who), lang) }) : t('dir.beat.act', { text })
+    return who.length ? t('dir.beat.actWho', { text, names: listNames(who, lang) }) : t('dir.beat.act', { text })
   }
-  return actLine(t, next.kind, names(next.who), names(next.with), lang)
+  return actLine(t, next.kind, who, next.with.map((id) => nameOf(state, id)), lang)
 }
 
 /** The name the callout puts in brackets: the rule's name, or "Plan" for a beat. */
@@ -163,15 +182,26 @@ export function ruleSentenceKey(rule: Pick<DirectionRule, 'id' | 'kind'>): MsgKe
 }
 
 /** The numbers a built-in rule starts with, to know when "Restore defaults" is worth showing (the state does not carry them). */
-export const RULE_DEFAULTS: Record<string, { need: number; cooldown: number; k: number; m: number }> = {
-  interrupted: { need: 8, cooldown: 5, k: 3, m: 4 },
-  nobody: { need: 7, cooldown: 4, k: 0, m: 0 },
-  crowd: { need: 9, cooldown: 6, k: 0, m: 0 },
+export const RULE_DEFAULTS: Record<string, { need: number; cooldown: number; k: number; m: number; from: DirectionFrom }> = {
+  interrupted: { need: 8, cooldown: 5, k: 3, m: 4, from: 'members' },
+  nobody: { need: 7, cooldown: 4, k: 0, m: 0, from: 'members' },
+  crowd: { need: 9, cooldown: 6, k: 0, m: 0, from: 'members' },
 }
 
 export function ruleEdited(rule: DirectionRule): boolean {
   const d = RULE_DEFAULTS[rule.id]
-  return !!d && (rule.need !== d.need || rule.cooldown !== d.cooldown || rule.k !== d.k || rule.m !== d.m)
+  return !!d && (rule.need !== d.need || rule.cooldown !== d.cooldown || rule.k !== d.k || rule.m !== d.m || (rule.from ?? 'members') !== d.from)
+}
+
+/** What "Restore defaults" sends: the built-in numbers, and "Who comes" back to members when the plugin has the choice. */
+export function ruleRestorePatch(rule: DirectionRule): { need: number; cooldown: number; k: number; m: number; from?: DirectionFrom } | null {
+  const d = RULE_DEFAULTS[rule.id]
+  return d ? { need: d.need, cooldown: d.cooldown, k: d.k, m: d.m, ...(rule.from ? { from: d.from } : {}) } : null
+}
+
+/** The "Who comes" choice of a rule: members, World people or either (a plugin without phase 3b has none). */
+export function ruleFrom(rule: Pick<DirectionRule, 'from'>): DirectionFrom {
+  return rule.from ?? 'members'
 }
 
 /** "Ready", "Cooling down: 3 more replies", "Quiet for the payoff: 6 more replies", "Off"; with the tension when it builds. */
@@ -217,21 +247,21 @@ export function fireFor(marks: { chatId: string; fires: DirectionFire[] } | null
 }
 
 /** The mark under a reply: "Direction: Yuzu walks in (Interrupted moment, 2d6 = 9, needed 8) · came". */
-export function markText(t: Tr, fire: DirectionFire, ruleLabel: string, whoNames: string[], lang: Lang): string {
+export function markText(t: Tr, fire: DirectionFire, ruleLabel: string, names: string[], lang: Lang): string {
   if (fire.kind === 'beat') return `${t('dir.mark.beat', { text: beatShort(ruleLabel, 70) })}${fire.result ? ` · ${t(resultKey(fire.result))}` : ''}`
-  const what = actLine(t, fire.kind, whoNames, [], lang)
+  const what = actLine(t, fire.kind, names, [], lang)
   const how = fire.forced || !fire.roll ? t('dir.mark.byHand', { rule: ruleLabel }) : t('dir.mark.rolled', { rule: ruleLabel, roll: rollText(t, fire.roll) })
   return `${t('dir.mark.lead', { what, how })}${fire.result ? ` · ${t(resultKey(fire.result))}` : ''}`
 }
 
 /** One log entry in words: the line and a muted detail under it. */
 export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lang: Lang): { line: string; detail: string } {
-  const who = (ids: string[] = []) => listNames(ids.map((id) => nameOf(state, id)), lang)
+  const who = (ids: string[] = [], npc: string[] = []) => listNames(whoNames(t, state, ids, npc), lang)
   const rule = e.rule ? ruleLabel(t, state, e.rule) : ''
   if (e.kind === 'beat') {
     const text = beatShort(e.text ?? beatOf(state, beatRuleId(e.beat ?? ''))?.text ?? '', 60)
     const key = e.state === 'due' ? (e.why ? 'dir.log.beatDue' : 'dir.log.beatDueBare') : e.why ? 'dir.log.beatFired' : 'dir.log.beatFiredBare'
-    return { line: t(key, { text, why: e.why ?? '' }), detail: e.state === 'fired' && e.who?.length ? t('dir.beat.who', { names: who(e.who) }) : '' }
+    return { line: t(key, { text, why: e.why ?? '' }), detail: e.state === 'fired' && (e.who?.length || e.npc?.length) ? t('dir.beat.who', { names: who(e.who, e.npc) }) : '' }
   }
   if (e.kind === 'report') {
     return {
@@ -246,7 +276,7 @@ export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lan
   if (e.kind === 'off') return { line: t('dir.log.off'), detail: '' }
   if (e.kind === 'rule') {
     if (e.state === 'missed') return { line: t('dir.log.missed', { rule, roll: e.roll ? rollText(t, e.roll) : '' }), detail: e.why ?? '' }
-    const act = actLine(t, ruleOf(state, e.rule ?? '')?.kind ?? 'interrupt', (e.who ?? []).map((id) => nameOf(state, id)), (e.with ?? []).map((id) => nameOf(state, id)), lang)
+    const act = actLine(t, ruleOf(state, e.rule ?? '')?.kind ?? 'interrupt', whoNames(t, state, e.who, e.npc), (e.with ?? []).map((id) => nameOf(state, id)), lang)
     if (e.forced || !e.roll) return { line: t('dir.log.firedByHand', { rule, act }), detail: '' }
     return { line: t('dir.log.fired', { rule, act }), detail: [e.why, rollText(t, e.roll), e.payoff ? t('dir.log.payoff') : ''].filter(Boolean).join('. ') }
   }
@@ -254,7 +284,7 @@ export function logWords(t: Tr, state: DirectionState, e: DirectionLogEntry, lan
     if (e.result === 'yielded') return { line: t(e.by === 'world' ? 'dir.log.yieldWorld' : e.by === 'direction' ? 'dir.log.yieldLock' : 'dir.log.yieldNone', { rule }), detail: '' }
     const r: DirectionResult = e.result ?? 'missed'
     if (r === 'sent') return { line: t('dir.log.sent', { rule }), detail: '' }
-    return { line: t(r === 'came' ? 'dir.log.came' : r === 'mentioned' ? 'dir.log.mentioned' : 'dir.log.missedCome', { rule, who: who(e.who) }), detail: '' }
+    return { line: t(r === 'came' ? 'dir.log.came' : r === 'mentioned' ? 'dir.log.mentioned' : 'dir.log.missedCome', { rule, who: who(e.who, e.npc) }), detail: '' }
   }
   if (e.kind === 'rules') {
     const set = state.rules?.sets.find((s) => s.id === e.set)?.name ?? e.set ?? ''
@@ -298,6 +328,11 @@ export function beatStatusLine(t: Tr, beat: DirectionBeat, boundaryWait: number)
   }
 }
 
+/** Who takes part in a beat, by name: members, then World people; one the World no longer has reads "someone who has left the story". */
+export function beatTakesPart(t: Tr, state: DirectionState, beat: Pick<DirectionBeat, 'who' | 'npc'>): string[] {
+  return whoNames(t, state, beat.who, beat.npc, 'dir.beat.leftStory')
+}
+
 /** The hold reason of a beat in words, "" when it is not held. */
 export function beatHoldText(t: Tr, beat: DirectionBeat): string {
   return beat.hold === 'off' ? t('dir.beat.hold.off') : beat.hold === 'lock' ? t('dir.beat.hold.lock') : beat.hold === 'explicit' ? t('dir.beat.hold.explicit') : ''
@@ -319,12 +354,12 @@ export function beatFireBlockedKey(state: DirectionState): MsgKey | null {
 export const BEAT_FINISHED: DirectionBeat['status'][] = ['delivered', 'failed', 'skipped']
 
 export function blankDraft(): BeatDraft {
-  return { text: '', who: [], when: { kind: 'replies', n: 3 }, wait: true, skipped: false }
+  return { text: '', who: [], npc: [], when: { kind: 'replies', n: 3 }, wait: true, skipped: false }
 }
 
 /** A beat as the editor starts: the fields the plugin takes, none of its own. */
 export function draftOf(beat: DirectionBeat): BeatDraft {
-  return { id: beat.id, text: beat.text, who: [...beat.who], when: { ...beat.when } as DirectionBeatWhen, wait: beat.wait, skipped: beat.status === 'skipped' }
+  return { id: beat.id, text: beat.text, who: [...beat.who], npc: [...(beat.npc ?? [])], when: { ...beat.when } as DirectionBeatWhen, wait: beat.wait, skipped: beat.status === 'skipped' }
 }
 
 /** Changing the "When" kind gives the new kind its first value. */
@@ -332,6 +367,12 @@ export function draftWhenKind(d: BeatDraft, kind: DirectionBeatKind, tags: reado
   if (d.when.kind === kind) return d
   const when: DirectionBeatWhen = kind === 'replies' ? { kind, n: 3 } : kind === 'tag' ? { kind, tag: tags[0] ?? 'break' } : kind === 'place' ? { kind, place: '' } : { kind }
   return { ...d, when }
+}
+
+/** A chip pressed or released: `who` (members) or `npc` (people of the World). */
+export function draftToggle(d: BeatDraft, field: 'who' | 'npc', id: string): BeatDraft {
+  const list = d[field] ?? []
+  return { ...d, [field]: list.includes(id) ? list.filter((x) => x !== id) : [...list, id] }
 }
 
 /** Why the beat cannot be saved yet, as a message key, or null. */
@@ -349,7 +390,7 @@ export function cleanDraft(d: BeatDraft): BeatDraft {
     : w.kind === 'place' ? { kind: 'place', place: w.place.trim().slice(0, BEAT_PLACE_MAX) }
     : w.kind === 'tag' ? { kind: 'tag', tag: w.tag }
     : { kind: 'manual' }
-  return { ...(d.id ? { id: d.id } : {}), text: d.text.trim().slice(0, BEAT_TEXT_MAX), who: d.who, when, wait: d.wait, skipped: d.skipped }
+  return { ...(d.id ? { id: d.id } : {}), text: d.text.trim().slice(0, BEAT_TEXT_MAX), who: d.who, npc: d.npc ?? [], when, wait: d.wait, skipped: d.skipped }
 }
 
 /** The whole list as drafts (what goes back with PUT). */

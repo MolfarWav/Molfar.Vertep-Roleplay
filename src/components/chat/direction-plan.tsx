@@ -21,8 +21,8 @@ import {
   type BeatDraft, type DirectionBeat, type DirectionBeatKind, type DirectionState, type DirectionTag,
 } from '@/lib/direction'
 import {
-  BEAT_FINISHED, barMode, beatDot, beatFireBlockedKey, beatHoldText, beatStatusLine, beatWhenText, blankDraft, draftIssue, draftOf, draftWhenKind,
-  nameOf, planDrafts, planMoved, planTags, planWithBeat, planWithout, planWithSkip, tagKey,
+  BEAT_FINISHED, barMode, beatDot, beatFireBlockedKey, beatHoldText, beatStatusLine, beatTakesPart, beatWhenText, blankDraft, draftIssue, draftOf, draftToggle, draftWhenKind,
+  planDrafts, planMoved, planTags, planWithBeat, planWithout, planWithSkip, tagKey, worldPeople,
 } from '@/lib/direction-ui'
 
 const fail = (e: unknown): void => { toast.error(String((e as Error)?.message ?? e)) }
@@ -165,7 +165,7 @@ function BeatCard({ state, beat, index, last, pending, blocked, onFire, onEdit, 
   const hold = beatHoldText(t, beat)
   const canFire = !finished && beat.status !== 'queued'
   const meta = [
-    beat.who.length ? t('dir.beat.who', { names: beat.who.map((id) => nameOf(state, id)).join(', ') }) : '',
+    beat.who.length || beat.npc?.length ? t('dir.beat.who', { names: beatTakesPart(t, state, beat).join(', ') }) : '',
     beatWhenText(t, beat.when),
     beat.wait && (beat.when.kind === 'replies' || beat.when.kind === 'tag') ? t('dir.beat.waits') : '',
   ].filter(Boolean).join(' · ')
@@ -233,13 +233,18 @@ export function BeatEditor({ state, title, draft, saving, onChange, onSave, onCa
   const t = useT()
   const textId = useId()
   const whoId = useId()
+  const npcId = useId()
   const issueId = useId()
   const textMax = state.plan?.textMax ?? BEAT_TEXT_MAX
   const tags = planTags(state)
   const wait = state.plan?.boundaryWait ?? 6
   const issue = draftIssue(draft)
   const w = draft.when
-  const toggleWho = (id: string) => onChange({ ...draft, who: draft.who.includes(id) ? draft.who.filter((x) => x !== id) : [...draft.who, id] })
+  const toggleWho = (id: string) => onChange(draftToggle(draft, 'who', id))
+  const people = worldPeople(state)
+  // an id the World no longer has stays in the draft (the plugin skips it at firing time) until the player takes it off
+  const gone = draft.npc.filter((id) => !people.some((p) => p.id === id))
+  const toggleNpc = (id: string) => onChange(draftToggle(draft, 'npc', id))
   return (
     <Card variant="rows" className="border-cta/40" data-testid="beat-editor">
       <div className="flex flex-col gap-1.5 px-4 pt-3 pb-3">
@@ -267,6 +272,27 @@ export function BeatEditor({ state, title, draft, saving, onChange, onSave, onCa
             ))}
           </div>
           <p className="text-caption text-muted-foreground">{t('dir.beat.who.hint')}</p>
+        </div>
+      )}
+
+      {state.world && (
+        <div className="flex flex-col gap-2 px-4 py-3" role="group" aria-labelledby={npcId} data-testid="beat-npc">
+          <span id={npcId} className="text-body font-medium">{t('dir.beat.npc.title')}</span>
+          {(people.length > 0 || gone.length > 0) && (
+            <div className="flex flex-wrap gap-1.5">
+              {people.map((p) => (
+                <ToggleChip key={p.id} pressed={draft.npc.includes(p.id)} onPressedChange={() => toggleNpc(p.id)} tone="sky">
+                  {p.name}
+                  {p.noReturn && <span className="font-normal text-muted-foreground" data-testid={`beat-npc-noreturn-${p.id}`}>· {t('world.rec.tag.noReturn')}</span>}
+                </ToggleChip>
+              ))}
+              {gone.map((id) => (
+                <ToggleChip key={id} pressed onPressedChange={() => toggleNpc(id)} tone="sky">{t('dir.beat.leftStory')}</ToggleChip>
+              ))}
+            </div>
+          )}
+          <p className="text-caption text-muted-foreground" data-testid="beat-npc-hint">{t(people.length > 0 ? 'dir.beat.npc.hint' : 'dir.beat.npc.none')}</p>
+          {people.some((p) => p.noReturn) && <p className="text-caption text-muted-foreground">{t('dir.beat.npc.noReturnHint')}</p>}
         </div>
       )}
 

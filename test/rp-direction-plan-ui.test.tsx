@@ -158,7 +158,7 @@ describe("the Plan tab: cards", () => {
 });
 
 describe("the Plan tab: the editor", () => {
-  const draft = (over: Partial<BeatDraft> = {}): BeatDraft => ({ text: "", who: [], when: { kind: "replies", n: 3 }, wait: true, skipped: false, ...over });
+  const draft = (over: Partial<BeatDraft> = {}): BeatDraft => ({ text: "", who: [], npc: [], when: { kind: "replies", n: 3 }, wait: true, skipped: false, ...over });
   const editor = (d: BeatDraft) => renderToStaticMarkup(<BeatEditor state={base([])} title="New beat" draft={d} onChange={noop} onSave={noop} onCancel={noop} />);
 
   it("opens in place: textarea with its example, member chips with the hint, When, wait switch, Save and Cancel", () => {
@@ -244,7 +244,7 @@ describe("the Plan tab: the editor", () => {
     expect(send({ when: { kind: "tag", tag: "date" } }).when).toEqual({ kind: "tag", tag: "date" });
     expect(send({ when: { kind: "place", place: "  café " } }).when).toEqual({ kind: "place", place: "café" });
     expect(send({ when: { kind: "manual" } }).when).toEqual({ kind: "manual" });
-    expect(Object.keys(send({ id: "b1" })).sort()).toEqual(["id", "skipped", "text", "when", "wait", "who"].sort());
+    expect(Object.keys(send({ id: "b1" })).sort()).toEqual(["id", "skipped", "text", "when", "wait", "who", "npc"].sort());
     expect("id" in send({})).toBe(false);
     // switching the kind gives the new kind its first value
     expect(ui.draftWhenKind(draft({ text: "x" }), "tag", ["lesson", "break"]).when).toEqual({ kind: "tag", tag: "lesson" });
@@ -261,8 +261,8 @@ describe("the list that goes back to the plugin", () => {
   it("the whole list, without server fields; a skipped beat is sent as skipped", () => {
     expect(ids(list)).toEqual(["a", "b", "c"]);
     expect(list[1]!.skipped).toBe(true);
-    expect(list[2]).toEqual({ id: "c", text: "C", who: ["hana"], when: { kind: "replies", n: 5 }, wait: false, skipped: false });
-    for (const d of list) expect(Object.keys(d).every((k) => ["id", "text", "who", "when", "wait", "skipped"].includes(k))).toBe(true);
+    expect(list[2]).toEqual({ id: "c", text: "C", who: ["hana"], npc: [], when: { kind: "replies", n: 5 }, wait: false, skipped: false });
+    for (const d of list) expect(Object.keys(d).every((k) => ["id", "text", "who", "npc", "when", "wait", "skipped"].includes(k))).toBe(true);
   });
   it("move up and down reorder the list that is sent; the ends stay", () => {
     expect(ids(ui.planMoved(list, "b", -1))).toEqual(["b", "a", "c"]);

@@ -20,7 +20,7 @@ export function DirectionNoteView({ chatId, message, marks }: { chatId: string; 
   if (message.role === 'user') return null
   const fire = fireFor(marks, chatId, message.id, message.activeSwipe ?? 0)
   if (!fire || !marks) return null
-  const names = fire.who.map((id) => marks.members[id] ?? id)
+  const names = [...fire.who.map((id) => marks.members[id] ?? id), ...(fire.npc ?? []).map((id) => marks.people?.[id] ?? t('dir.someone'))]
   return (
     <div className="px-4 py-1" data-testid="direction-note">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

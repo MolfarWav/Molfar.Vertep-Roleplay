@@ -14,12 +14,12 @@ import { PlanTab } from '@/components/chat/direction-plan'
 import { useT } from '@/hooks/use-t'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { fireDirectionRule, setDirectionRules, skipDirectionNext, RULE_LIMITS, type DirectionRule, type DirectionRules, type DirectionState, type RuleNumber } from '@/lib/direction'
-import { barMode, fireBlockedKey, needText, RULE_DEFAULTS, ruleEdited, ruleSentenceKey, ruleStatusLine } from '@/lib/direction-ui'
+import { DIRECTION_FROMS, fireDirectionRule, setDirectionRules, skipDirectionNext, RULE_LIMITS, type DirectionFrom, type DirectionRule, type DirectionRules, type DirectionState, type RuleNumber } from '@/lib/direction'
+import { barMode, fireBlockedKey, needText, ruleEdited, ruleFrom, ruleRestorePatch, ruleSentenceKey, ruleStatusLine, worldPeople } from '@/lib/direction-ui'
 
 export type DirectionTab = 'rules' | 'plan' | 'log'
 
-type RulePatch = { on?: boolean; need?: number; cooldown?: number; k?: number; m?: number }
+type RulePatch = { on?: boolean; from?: DirectionFrom; need?: number; cooldown?: number; k?: number; m?: number }
 
 const NO_RULES: DirectionRules = { set: '', on: false, sets: [], items: [] }
 const fail = (e: unknown): void => { toast.error(String((e as Error)?.message ?? e)) }
@@ -134,6 +134,7 @@ export function RulesTabView({ state, onSet, onOn, onRule, onFire, onSkip, folds
           key={r.id}
           rule={r}
           locked={locked}
+          noPeople={worldPeople(state).length === 0}
           blocked={blockedKey ? t(blockedKey) : ''}
           pending={pending}
           foldOpen={foldsOpen}
@@ -145,9 +146,11 @@ export function RulesTabView({ state, onSet, onOn, onRule, onFire, onSkip, folds
   )
 }
 
-function RuleCard({ rule, locked, blocked, pending, foldOpen, onRule, onFire }: {
+function RuleCard({ rule, locked, noPeople, blocked, pending, foldOpen, onRule, onFire }: {
   rule: DirectionRule
   locked: boolean
+  /** the chat's World has no person a rule could bring */
+  noPeople: boolean
   /** why "Fire now" cannot be used, or "" */
   blocked: string
   pending: boolean
@@ -179,10 +182,38 @@ function RuleCard({ rule, locked, blocked, pending, foldOpen, onRule, onFire }: 
         </div>
         {blocked && <p id={reasonId} className="text-caption text-muted-foreground" data-testid={`rule-blocked-${rule.id}`}>{blocked}</p>}
       </div>
+      {rule.from && <RuleFrom rule={rule} locked={locked} noPeople={noPeople} onRule={onRule} />}
       <Fold flat id={`dir-rule-${rule.id}`} title={t('dir.rules.numbers')} summary={t('dir.rules.numbersSummary', { need: rule.need, cooldown: rule.cooldown })} defaultOpen={foldOpen}>
         <RuleNumbers rule={rule} locked={locked} onRule={onRule} />
       </Fold>
     </Card>
+  )
+}
+
+/** "Who comes": members, people of the World or either. The World options wait until the World has someone (the row says so). */
+export function RuleFrom({ rule, locked, noPeople, onRule }: { rule: DirectionRule; locked: boolean; noPeople: boolean; onRule: (patch: RulePatch) => void }) {
+  const t = useT()
+  const value = ruleFrom(rule)
+  return (
+    <SettingRow
+      label={t('dir.rule.from')}
+      off={locked}
+      status={
+        <span data-testid={`rule-from-hint-${rule.id}`}>
+          {t('dir.rule.from.hint')}
+          {noPeople && <span className="block" data-testid={`rule-from-none-${rule.id}`}>{t('dir.rule.from.none')}</span>}
+        </span>
+      }
+    >
+      <Segmented
+        label={t('dir.rule.from')}
+        value={value}
+        disabled={locked}
+        className="max-md:w-full max-md:[&>button]:flex-1"
+        onChange={(from) => onRule({ from })}
+        options={DIRECTION_FROMS.map((id) => ({ id, label: t(`dir.rule.from.${id}` as const), disabled: noPeople && id !== 'members' }))}
+      />
+    </SettingRow>
   )
 }
 
@@ -192,7 +223,7 @@ export function RuleNumbers({ rule, locked, onRule }: { rule: DirectionRule; loc
   const tile = (field: RuleNumber, label: string, hint: string) => (
     <NumTile label={label} hint={hint} value={rule[field]} min={RULE_LIMITS[field][0]} max={RULE_LIMITS[field][1]} disabled={locked} onCommit={(n) => onRule({ [field]: n })} />
   )
-  const d = RULE_DEFAULTS[rule.id]
+  const restore = ruleRestorePatch(rule)
   return (
     <div className="flex flex-col gap-3 p-4" data-testid={`rule-numbers-${rule.id}`}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -201,9 +232,9 @@ export function RuleNumbers({ rule, locked, onRule }: { rule: DirectionRule; loc
         {tile('k', t('dir.rules.payoffEvery'), t('dir.rules.payoffEveryHint'))}
         {tile('m', t('dir.rules.payoffQuiet'), t('dir.rules.payoffQuietHint'))}
       </div>
-      {ruleEdited(rule) && d && (
+      {ruleEdited(rule) && restore && (
         <div>
-          <Button variant="outline" size="sm" className="max-md:h-10" disabled={locked} onClick={() => onRule({ need: d.need, cooldown: d.cooldown, k: d.k, m: d.m })} data-testid={`rule-restore-${rule.id}`}>
+          <Button variant="outline" size="sm" className="max-md:h-10" disabled={locked} onClick={() => onRule(restore)} data-testid={`rule-restore-${rule.id}`}>
             {t('dir.rules.restore')}
           </Button>
         </div>
