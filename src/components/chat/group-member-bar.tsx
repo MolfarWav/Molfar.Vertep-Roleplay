@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, IdentificationCard, SlidersHorizontal, ChatCenteredText, MicrophoneSlash, ArrowsLeftRight, Users, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, IdentificationCard, SlidersHorizontal, ChatCenteredText, MicrophoneSlash, ArrowsLeftRight, Users, ArrowCounterClockwise, DoorOpen, Lock, LockOpen, Target } from '@phosphor-icons/react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -12,6 +12,9 @@ import { useApp } from '@/lib/store'
 import type { Character, Chat, ChatTurns } from '@/lib/types'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-t'
+import { setDirectionChat, type DirectionScene } from '@/lib/direction'
+import { presenceOf, type Presence } from '@/lib/direction-ui'
+import { toast } from 'sonner'
 
 type GroupSettings = NonNullable<Chat['groupSettings']>
 
@@ -38,7 +41,15 @@ function useMembers(chat: Chat, group: Character) {
   return gs.order.map((id) => byId.get(id)).filter((c): c is Character => Boolean(c))
 }
 
-export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }) {
+/** The small mark on a member chip that is out of the scene: a door (away) or a lock (left out by the lock), never colour alone. */
+export function PresenceMark({ presence }: { presence: Presence }) {
+  const t = useT()
+  if (presence === 'away') return <DoorOpen className="size-3.5 text-muted-foreground" aria-label={t('dir.member.away')} data-testid="presence-away" />
+  if (presence === 'locked') return <Lock className="size-3.5 text-muted-foreground" aria-label={t('dir.member.locked')} data-testid="presence-locked" />
+  return null
+}
+
+export function GroupMemberBar({ chat, group, scene = null }: { chat: Chat; group: Character; scene?: DirectionScene | null }) {
   const setChatTurns = useApp((s) => s.setChatTurns)
   const triggerMember = useApp((s) => s.triggerMember)
   const moveChatMember = useApp((s) => s.moveChatMember)
@@ -60,6 +71,8 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
         <Users className="mx-1 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         {members.map((m, i) => {
           const muted = gs.muted.includes(m.id)
+          const presence = presenceOf(scene, m.id)
+          const out = presence === 'away' || presence === 'locked'
           return (
             <Popover key={m.id}>
               <PopoverTrigger
@@ -69,19 +82,29 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
                     className={cn(
                       'flex shrink-0 items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs transition-colors',
                       muted ? 'border-border opacity-45' : 'border-border hover:bg-accent',
+                      out && 'border-dashed',
                     )}
+                    data-presence={presence}
                   >
-                    <Avatar className="size-6">
+                    <Avatar className={cn('size-6', out && 'opacity-50 grayscale')}>
                       <AvatarImage src={m.avatar || DEFAULT_AVATAR} alt="" />
                       <AvatarFallback>{m.name.slice(0, 2)}</AvatarFallback>
                     </Avatar>
                     <span className="max-w-24 truncate">{m.name}</span>
                     {muted && <MicrophoneSlash className="size-3 text-muted-foreground" aria-label={t('turns.silent')} />}
+                    <PresenceMark presence={presence} />
                   </button>
                 }
               />
               <PopoverContent className="w-64 p-3" align="start">
-                <p className="mb-2 text-sm font-medium">{m.name}</p>
+                <p className="text-sm font-medium">{m.name}</p>
+                {presence !== 'unknown' && (
+                  <p className="mb-2 mt-0.5 flex items-center gap-1 text-xs text-muted-foreground" data-testid="member-presence">
+                    {out && <DoorOpen className="size-3.5" aria-hidden="true" />}
+                    {presence === 'here' ? t('dir.member.here') : presence === 'locked' ? t('dir.member.locked') : t('dir.member.away')}
+                  </p>
+                )}
+                {presence === 'unknown' && <div className="mb-2" />}
                 <div className="flex flex-col gap-3">
                   <Field orientation="horizontal">
                     <FieldLabel htmlFor={`mute-${m.id}`}>{t('turns.silent')}</FieldLabel>
@@ -98,6 +121,17 @@ export function GroupMemberBar({ chat, group }: { chat: Chat; group: Character }
                   >
                     <IdentificationCard className="size-4" aria-hidden="true" /> {t('turns.viewCard')}
                   </Button>
+                  {scene && (
+                    scene.source === 'lock' ? (
+                      <Button size="sm" variant="outline" className="w-full" onClick={() => void setDirectionChat(chat.id, { lock: null }).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))} data-testid="member-release">
+                        <LockOpen className="size-4" aria-hidden="true" /> {t('dir.lock.release')}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="w-full" onClick={() => void setDirectionChat(chat.id, { lock: { ids: [m.id] } }).catch((e: unknown) => toast.error(String((e as Error).message ?? e)))} data-testid="member-lock">
+                        <Target className="size-4" aria-hidden="true" /> {t('dir.lock.only', { name: m.name })}
+                      </Button>
+                    )
+                  )}
                   <div className="flex gap-2">
                     <Button
                       size="sm" variant="ghost" className="flex-1" disabled={i === 0}

@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Archive, PaintBrush, Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
+import { Archive, PaintBrush, Stack, Question, ArrowLeft, MagnifyingGlass, Note, Lightning, GitBranch, GearSix, X, CaretUp, CaretDown, CaretRight, BookmarkSimple, Brain, UserPlus, DotsThree, DotsThreeVertical, ImageSquare, Trash, ArrowRight, ChatCenteredText, FolderOpen, GlobeHemisphereWest, List, Palette, LinkSimple, Gauge, type Icon as PhosphorIcon } from '@phosphor-icons/react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -47,7 +47,8 @@ import { ArchivedBanner, ArchivedFooter } from './archived-banner'
 import { ArchiveDialog } from '@/components/chats/archive-dialog'
 import { isArchived } from '@/lib/archive'
 import { Composer } from './composer'
-import { GroupMemberBar, GroupPicker } from './group-member-bar'
+import { GroupPicker } from './group-member-bar'
+import { GroupBars } from './director-bar'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { WorldSheet } from '@/components/chat/world-sheet'
 import { rememberWorldTab } from '@/lib/world-nav'
@@ -154,6 +155,7 @@ export function ChatView() {
   const chats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
   const closeChat = useApp((s) => s.closeChat)
+  const openCard = useApp((s) => s.openCard)
   // primitives only: subscribing to the streaming OBJECT re-rendered this
   // whole view (and every visible row with it) on every token
   const isStreaming = useApp((s) => s.streaming !== null)
@@ -812,9 +814,23 @@ export function ChatView() {
             </button>
           </AvatarMenu>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-heading text-title" style={{ color: readableNameColor(character.colors.name) }}>
-              {character.name}
-            </p>
+            {character.isGroup ? (
+              <button
+                type="button"
+                onClick={() => openCard(character.id)}
+                aria-label={t('dir.title.open', { name: character.name })}
+                title={t('dir.title.open', { name: character.name })}
+                data-testid="chat-title-group"
+                className="-mx-1 flex max-w-full items-center gap-0.5 rounded-md px-1 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="truncate font-heading text-title" style={{ color: readableNameColor(character.colors.name) }}>{character.name}</span>
+                <CaretRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </button>
+            ) : (
+              <p className="truncate font-heading text-title" style={{ color: readableNameColor(character.colors.name) }}>
+                {character.name}
+              </p>
+            )}
             <p className="flex items-center gap-1 text-caption text-muted-foreground">
               <span className="min-w-0 truncate">{chat.title}</span>
               <span>·</span>
@@ -890,9 +906,24 @@ export function ChatView() {
           </button>
         </AvatarMenu>
         <div className="min-w-0 flex-1 pl-1">
-          <MarqueeText className="font-heading text-[15px] leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
-            {character.name}
-          </MarqueeText>
+          {character.isGroup ? (
+            <button
+              type="button"
+              onClick={() => openCard(character.id)}
+              aria-label={t('dir.title.open', { name: character.name })}
+              data-testid="chat-title-group"
+              className="-ml-1 flex max-w-full items-center gap-0.5 rounded-md pl-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <MarqueeText className="min-w-0 flex-1 font-heading text-[15px] leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
+                {character.name}
+              </MarqueeText>
+              <CaretRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </button>
+          ) : (
+            <MarqueeText className="font-heading text-[15px] leading-tight" style={{ color: readableNameColor(character.colors.name) }}>
+              {character.name}
+            </MarqueeText>
+          )}
           <p className="truncate text-[11px] leading-tight text-muted-foreground">
             {chat.title} · {t('details.chat', { n: chatIndex + 1, m: charChats.length })}
           </p>
@@ -1023,7 +1054,7 @@ export function ChatView() {
       {isArchived(chat) && <ArchivedBanner chat={chat} />}
 
       {/* Group member bar */}
-      {character.isGroup && <GroupMemberBar chat={chat} group={character} />}
+      {character.isGroup && <GroupBars chat={chat} group={character} />}
 
       {/* log + composer in one column, the relationship dashboard strip beside both (≥ 1024 px) */}
       <div className="flex min-h-0 flex-1">
