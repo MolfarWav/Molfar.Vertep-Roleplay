@@ -46,7 +46,7 @@ import {
 } from './engine'
 import { carryWorld, libraryBooks, rollbackWorld, triggerWorldUpdate, worldSettling } from './world'
 import { triggerMeanwhile } from './meanwhile'
-import { directionOnForNewChat, triggerDirection } from './direction'
+import { directionOnForNewChat, directionSetForNewChat, triggerDirection } from './direction'
 import { listAgentSets, listInstalledAgents, triggerAgentsRun, triggerParallelAgents } from './agents'
 import { offerShown } from './agent-offer'
 import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile'
@@ -1914,7 +1914,11 @@ export const useApp = create<AppState>()(
           }
         }
         // a new group chat starts with Direction on when its model is picked (#496)
-        if (char?.isGroup) await directionOnForNewChat(chat.id, opts?.direction ?? char.group?.direction !== false)
+        if (char?.isGroup) {
+          await directionOnForNewChat(chat.id, opts?.direction ?? char.group?.direction !== false)
+          // the group's default genre (the rules need no model, so they are set whether or not Direction is on yet)
+          await directionSetForNewChat(chat.id, char.group?.directionSet)
+        }
         bumpMutate()
         set((s) => ({ chats: attachBranches([chat, ...s.chats]) }))
         return chat.id

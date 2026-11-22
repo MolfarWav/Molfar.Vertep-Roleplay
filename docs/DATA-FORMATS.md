@@ -1171,7 +1171,15 @@ Optional (#72), off until the player turns it on in Characters > More > Letters 
   usage: { input, output, runs } }`. Reports and the log keep the newest 30. `tag` is one of lesson, break, lunch, club,
   commute, group_out, date, alone_moment, at_home, event. A report whose reply was swiped or deleted is dropped on the next
   read; `returning` is spent after the first reply that follows `after`.
+- Genre rules (phase 2), in the same state file: `rules: { set: "" | "romcom", on, edits: { <ruleId>: { on?, need?, cooldown?, k?, m? } } }`
+  (the built-in sets and their rules live in the plugin, only the player's edits are stored; a chat starts with no set and the rules
+  off), `next: { id, rule, kind: interrupt | join | return, who: [memberId], with: [memberId], after: "<msgId>#<swipe>", forced, at } | null`
+  (the note for the first reply after `after`; the engine counts `who` as present for that reply), `fires: [{ id, rule, kind, who, with,
+  after, n, roll: { d1, d2, total, need } | null, tension, hold, payoff, result: came | mentioned | missed | yielded | null, carrier:
+  "<msgId>#<swipe>" | "", forced, why, at }]` (the ledger the cooldown and the payoff are counted from; the newest 40; a firing whose
+  `after` is gone from the line is dropped on the next read). The log gains `rule` (fired or missed, with the roll), `result`, `rules`, `skip`.
 - A group file may carry `"direction": false`: its new chats start with Direction off. Absent = on once a model is picked.
+  `"directionSet": "romcom"` makes its new chats start with that genre set on.
 - Read by the engine plugin (`directionScene`) as well as by the Direction plugin; change both readers together.
 
 ## Agents: `data/agents/<id>.vertep-agent.json` (checked and run by the Agents plugin; no screen writes it yet)

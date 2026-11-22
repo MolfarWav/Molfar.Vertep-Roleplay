@@ -2284,7 +2284,7 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
   // Direction (#496): the lock or the return note (about 90 tokens), in a group chat that has a Direction state
   if (chatId && SAFE_RESERVE_ID.test(chatId) && m && m.groupId) {
     const dir = jsonAt(fsx, "direction/state/" + chatId + ".json");
-    if (dir && (dir.lock || dir.returning)) add("direction scene", 90);
+    if (dir && (dir.lock || dir.returning || (dir.on === true && dir.next))) add("direction scene", 90);
   }
   // World: the "here" note (at most 900 characters), the DM event (400) and the dice line, when the chat has a world state
   if (chatId && SAFE_RESERVE_ID.test(chatId) && !off("plugin:world")) {
@@ -3850,6 +3850,11 @@ export function directionScene(fsx, meta, members, msgs) {
   if (st.returning && typeof st.returning === "object") {
     const at = list.findIndex((m) => keyOf(m) === st.returning.after);
     if (at >= 0 && !list.slice(at + 1).some(isReply)) back = own(st.returning.ids);
+  }
+  // a genre rule's queued note (phase 2): the one who comes in counts as present for the reply that carries it
+  if (st.next && typeof st.next === "object") {
+    const at = list.findIndex((m) => keyOf(m) === st.next.after);
+    if (at >= 0 && !list.slice(at + 1).some(isReply)) back = [...back, ...own(st.next.who)];
   }
   const reports = Array.isArray(st.reports) ? st.reports : [];
   const line = list.filter(isReply).map(keyOf);

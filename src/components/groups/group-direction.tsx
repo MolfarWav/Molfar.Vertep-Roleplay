@@ -3,11 +3,12 @@ import { toast } from 'sonner'
 import { FilmSlate } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Segmented } from '@/components/ui/setting-row'
 import { Switch } from '@/components/ui/switch'
 import { ModelMark } from '@/components/model-mark'
 import { ModelPalette, setUpModels, useModelEntry } from '@/components/chat/model-palette'
 import { useT } from '@/hooks/use-t'
-import { directionModel, saveDirectionModel, useDirectionLive } from '@/lib/direction'
+import { DIRECTION_SETS, directionModel, saveDirectionModel, useDirectionLive } from '@/lib/direction'
 import { useApp } from '@/lib/store'
 import type { Character } from '@/lib/types'
 
@@ -28,6 +29,7 @@ export function GroupDirectionTab({ group }: { group: Character }) {
   }, [stamp])
   const { current, label } = useModelEntry(model)
   const on = group.group?.direction !== false
+  const set = DIRECTION_SETS.some((s) => s.id === group.group?.directionSet) ? (group.group?.directionSet ?? '') : ''
 
   return (
     <div className="space-y-4" data-testid="group-direction-tab">
@@ -42,6 +44,18 @@ export function GroupDirectionTab({ group }: { group: Character }) {
           {model === '' && <p className="mt-1 text-xs text-muted-foreground" data-testid="group-direction-need-model">{t('group.dir.needModel')}</p>}
         </div>
         <Switch id="group-direction-default" className="mt-0.5 shrink-0" checked={on} onCheckedChange={(v) => updateGroup(group.id, { direction: v })} />
+      </div>
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3" data-testid="group-direction-genre">
+        <div className="min-w-0 flex-[1_1_12rem]">
+          <p className="text-sm font-medium">{t('group.dir.genre')}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('group.dir.genreHint')}</p>
+        </div>
+        <Segmented
+          label={t('group.dir.genre')}
+          value={set || 'none'}
+          onChange={(v) => updateGroup(group.id, { directionSet: v === 'none' ? '' : v })}
+          options={[{ id: 'none', label: t('dir.rules.genreNone') }, ...DIRECTION_SETS.map((s) => ({ id: s.id, label: t(s.nameKey) }))]}
+        />
       </div>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
         <div className="min-w-0 flex-1">

@@ -18,12 +18,23 @@
  *  PUT  /direction/chat {chatId, on?, lock?: { ids } | null}   this chat's switch and lock; releasing a lock sets the return
  *  POST /direction/run {chatId, force?}   one director call for the newest reply. { ok, report } | { ok:false, reason }
  *       reason: not-group | off | no-model | no-reply | done | bad-reply | error | no-chat
+ *  Phase 2 (genre rules):
+ *  PUT  /direction/rules {chatId, set?, on?, rule?: { id, on?, need?, cooldown?, k?, m? }}   the chat's genre set, its switch, edits
+ *  POST /direction/fire {chatId, rule}   "Fire now": the rule's note rides the next reply (no roll, no cooldown, no tension)
+ *  POST /direction/skip {chatId}         drop the queued note
+ *
+ * Genre rules: decided once per reported reply, by code: the rule's conditions over the director's reports, the cooldown, the
+ * payoff silence, then 2d6. A decision is a queued `next` (the engine counts who comes as present for that reply); the reply
+ * after it carries the note; the director's report of that reply says whether they came, were only mentioned, or it missed.
  *
  * Files (fs root = the app's data/):
  *  direction/config.json              { v: 1, model }
  *  direction/state/<chatId>.json      { v: 1, chatId, on, lock: { ids, at } | null, returning: { ids, after, at } | null,
  *    reports: [{ key, at, tag, present: [member id], sceneNew, model, ms, usage? }], log: [{ at, key?, kind, ... }],
- *    usage: { input, output, runs } }
+ *    usage: { input, output, runs },
+ *    rules: { set, on, edits: { <ruleId>: { on?, need?, cooldown?, k?, m? } } },
+ *    next: { id, rule, kind, who, with, after, forced, at } | null,   the note for the first reply after `after`
+ *    fires: [{ id, rule, kind, who, with, after, n, roll, tension, hold, payoff, result, carrier, forced, why, at }] }
  */
 
 export const TAGS = ["lesson", "break", "lunch", "club", "commute", "group_out", "date", "alone_moment", "at_home", "event"];
@@ -55,7 +66,118 @@ export function cleanConfig(raw) {
 }
 
 export function emptyState(chatId) {
-  return { v: 1, chatId, on: null, lock: null, returning: null, reports: [], log: [], usage: { input: 0, output: 0, runs: 0 } };
+  return { v: 1, chatId, on: null, lock: null, returning: null, reports: [], log: [], usage: { input: 0, output: 0, runs: 0 }, rules: { set: "", on: false, edits: {} }, next: null, fires: [] };
+}
+
+// ---------- genre rules (phase 2) ----------
+const FIRES_KEEP = 40;
+export const KINDS = ["interrupt", "join", "return"];
+export const RESULTS = ["came", "mentioned", "missed", "yielded"];
+const NEED_MIN = 2;
+const NEED_MAX = 13; // 13 = never (2d6 tops out at 12)
+
+/**
+ * The built-in genre sets. A rule = `when` (a closed list of conditions over the director's reports: tag, tagNot, min / max
+ * present, alone = the same single member alone with the player for N replies, empty = nobody present for N replies) + `do`
+ * (interrupt: someone walks in on the moment; join: someone joins the group; return: someone away comes back) + the chance
+ * (2d6 total at least `need`) + the cooldown (replies) + the payoff (every K-th firing the rule stays quiet M replies more).
+ * The numbers are first guesses, to be tuned in play (design note section 6).
+ */
+export const SETS = {
+  romcom: {
+    name: "School rom-com",
+    rules: [
+      { id: "interrupted", name: "Interrupted moment", when: { alone: 3 }, do: { kind: "interrupt", count: 1 }, need: 8, cooldown: 5, payoff: { k: 3, m: 4 } },
+      { id: "nobody", name: "Someone comes by", when: { empty: 3, tagNot: ["at_home"] }, do: { kind: "return", count: 1 }, need: 7, cooldown: 4, payoff: null },
+      { id: "crowd", name: "Friends join the break", when: { tag: ["break", "lunch", "club"], max: 2 }, do: { kind: "join", count: 1 }, need: 9, cooldown: 6, payoff: null },
+    ],
+  },
+};
+const clampInt = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== "" && v !== null ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : dflt);
+
+export function cleanRules(raw) {
+  const r = isObj(raw) ? raw : {};
+  const set = typeof r.set === "string" && SETS[r.set] ? r.set : "";
+  const edits = {};
+  for (const [id, e] of Object.entries(isObj(r.edits) ? r.edits : {})) {
+    if (!ID.test(id) || !isObj(e)) continue;
+    const out = {};
+    if (typeof e.on === "boolean") out.on = e.on;
+    if (e.need !== undefined) out.need = clampInt(e.need, NEED_MIN, NEED_MAX, undefined);
+    if (e.cooldown !== undefined) out.cooldown = clampInt(e.cooldown, 0, 30, undefined);
+    if (e.k !== undefined) out.k = clampInt(e.k, 0, 10, undefined);
+    if (e.m !== undefined) out.m = clampInt(e.m, 0, 20, undefined);
+    for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+    if (Object.keys(out).length) edits[id] = out;
+  }
+  return { set, on: set ? r.on === true : false, edits };
+}
+
+/** The set's rules with the chat's edits applied: [{ ...rule, on, need, cooldown, payoff }]. */
+export function activeRules(rules) {
+  const set = SETS[rules.set];
+  if (!set) return [];
+  return set.rules.map((d) => {
+    const e = rules.edits[d.id] || {};
+    const k = e.k !== undefined ? e.k : d.payoff ? d.payoff.k : 0;
+    const m = e.m !== undefined ? e.m : d.payoff ? d.payoff.m : 0;
+    return { ...d, on: e.on !== false, need: e.need !== undefined ? e.need : d.need, cooldown: e.cooldown !== undefined ? e.cooldown : d.cooldown, payoff: k > 0 && m > 0 ? { k, m } : null };
+  });
+}
+
+const refList = (v) => [...new Set(arr(v).filter((x) => typeof x === "string" && ID.test(x)))].slice(0, 8);
+function cleanRoll(r) {
+  return isObj(r) && Number.isFinite(r.d1) && Number.isFinite(r.d2) ? { d1: clampInt(r.d1, 1, 6, 1), d2: clampInt(r.d2, 1, 6, 1), total: clampInt(r.total, 2, 12, 2), need: clampInt(r.need, NEED_MIN, NEED_MAX, 8) } : null;
+}
+function cleanFire(raw) {
+  if (!isObj(raw) || !str(raw.id) || !str(raw.rule) || !KINDS.includes(raw.kind) || !str(raw.after)) return null;
+  return {
+    id: str(raw.id).slice(0, 60),
+    rule: str(raw.rule).slice(0, 60),
+    kind: raw.kind,
+    who: refList(raw.who),
+    with: refList(raw.with),
+    after: str(raw.after),
+    n: Math.max(0, Math.round(Number(raw.n) || 0)),
+    roll: cleanRoll(raw.roll),
+    tension: Math.max(0, Math.round(Number(raw.tension) || 0)),
+    hold: Math.max(0, Math.round(Number(raw.hold) || 0)),
+    payoff: raw.payoff === true,
+    result: RESULTS.includes(raw.result) ? raw.result : null,
+    carrier: str(raw.carrier),
+    forced: raw.forced === true,
+    why: str(raw.why).slice(0, 200),
+    at: Number(raw.at) || 0,
+  };
+}
+const nextOf = (f) => ({ id: f.id, rule: f.rule, kind: f.kind, who: f.who, with: f.with, after: f.after, forced: f.forced, at: f.at });
+function cleanNext(raw) {
+  if (!isObj(raw) || !str(raw.id) || !str(raw.rule) || !KINDS.includes(raw.kind) || !str(raw.after)) return null;
+  const who = refList(raw.who);
+  return who.length ? { id: str(raw.id).slice(0, 60), rule: str(raw.rule).slice(0, 60), kind: raw.kind, who, with: refList(raw.with), after: str(raw.after), forced: raw.forced === true, at: Number(raw.at) || 0 } : null;
+}
+
+/** A small seeded generator (the same algorithm as World's): one decision always rolls the same dice, a swiped reply rolls again. */
+export function seededRandom(seed) {
+  let h = 2166136261;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export function roll2d6(seed, need) {
+  const rnd = seededRandom(seed);
+  const d1 = Math.floor(rnd() * 6) + 1;
+  const d2 = Math.floor(rnd() * 6) + 1;
+  return { d1, d2, total: d1 + d2, need };
 }
 
 export function cleanState(raw, chatId) {
@@ -81,6 +203,9 @@ export function cleanState(raw, chatId) {
     .slice(-REPORTS_KEEP);
   st.log = arr(raw.log).filter(isObj).slice(-LOG_KEEP);
   if (isObj(raw.usage)) st.usage = { input: Number(raw.usage.input) || 0, output: Number(raw.usage.output) || 0, runs: Number(raw.usage.runs) || 0 };
+  st.rules = cleanRules(raw.rules);
+  st.next = cleanNext(raw.next);
+  st.fires = arr(raw.fires).map(cleanFire).filter(Boolean).slice(-FIRES_KEEP);
   return st;
 }
 
@@ -180,13 +305,39 @@ export function parseReport(text) {
   return null;
 }
 
-/** Takes back what a swipe or a delete removed: reports of replies no longer on the line, a return whose anchor is gone. */
+/** The first reply after the message with key `after`, or null. */
+export function carrierOf(after, msgs) {
+  const list = arr(msgs).filter(isObj);
+  const at = list.findIndex((m) => keyOf(m) === after);
+  if (at < 0) return null;
+  return list.slice(at + 1).find(isReply) || null;
+}
+
+/**
+ * Takes back what a swipe or a delete removed: reports of replies no longer on the line, a return or a queued rule note whose
+ * anchor is gone, a firing whose anchor is gone (its cooldown and tension go with it). A firing already judged whose carrier reply
+ * was swiped away is open again and queued again (the swipe is asking for the same moment).
+ */
 export function reconcile(state, msgs) {
   const line = new Set(arr(msgs).filter(isObj).map(keyOf));
   const reports = state.reports.filter((r) => line.has(r.key));
   const returning = state.returning && line.has(state.returning.after) ? state.returning : null;
-  const changed = reports.length !== state.reports.length || returning !== state.returning;
-  return changed ? { ...state, reports, returning } : state;
+  let next = state.next && line.has(state.next.after) ? state.next : null;
+  let firesChanged = false;
+  const fires = [];
+  for (const f of state.fires) {
+    if (!line.has(f.after)) {
+      firesChanged = true;
+      continue;
+    }
+    if (f.carrier && !line.has(f.carrier)) {
+      firesChanged = true;
+      fires.push({ ...f, result: null, carrier: "" });
+      if (!next && dueAfter(f.after, msgs, "send")) next = nextOf(f);
+    } else fires.push(f);
+  }
+  const changed = reports.length !== state.reports.length || returning !== state.returning || next !== state.next || firesChanged;
+  return changed ? { ...state, reports, returning, next, fires } : state;
 }
 
 /** The newest report whose reply is the newest reply of the line, or the newest on the line at all. */
@@ -204,16 +355,183 @@ export function newestReport(state, msgs) {
  * swipe of it). `op` is the turn's op: a swipe rewrites the last reply, so that reply does not count.
  */
 export function returnDue(state, msgs, op) {
-  if (!state.returning) return false;
+  return !!state.returning && dueAfter(state.returning.after, msgs, op);
+}
+/** Whether no reply follows the message `after` (a swipe rewrites the last reply, so that one does not count). */
+export function dueAfter(after, msgs, op) {
   const list = arr(msgs).filter(isObj);
-  const at = list.findIndex((m) => keyOf(m) === state.returning.after);
+  const at = list.findIndex((m) => keyOf(m) === after);
   if (at < 0) return false;
-  let after = list.slice(at + 1).filter(isReply).length;
-  if (op === "swipe" && after > 0 && isReply(list[list.length - 1])) after--;
-  return after === 0;
+  let count = list.slice(at + 1).filter(isReply).length;
+  if (op === "swipe" && count > 0 && isReply(list[list.length - 1])) count--;
+  return count === 0;
+}
+/** Who a queued rule note brings in, while its reply is still to come. */
+export const nextIds = (state, msgs, op) => (state.on === true && state.next && dueAfter(state.next.after, msgs, op) ? state.next.who : []);
+
+// ---------- genre rules: conditions, the dice, the decision ----------
+/** One row per reply on the line, oldest first: { n (1-based), key, report | null }. */
+export function replyRows(state, msgs) {
+  return arr(msgs).filter(isReply).map((m, i) => ({ n: i + 1, key: keyOf(m), report: state.reports.find((r) => r.key === keyOf(m)) || null }));
+}
+/** How many replies in a row, counting back from the newest, a member was not present (a reply with no report ends the count). */
+export function absentRun(rows, id) {
+  let c = 0;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i].report;
+    if (!r) break;
+    if (r.present.includes(id)) return c;
+    c++;
+  }
+  return c;
+}
+const nameOfId = (members, id) => (members.find((m) => m.id === id) || {}).name || id;
+
+/** Members who could come in, the longest away first (ties by the seeded generator `rnd`). */
+function candidatesFor(rows, members, present, rnd) {
+  return members
+    .filter((m) => !present.includes(m.id))
+    .map((m) => ({ id: m.id, away: absentRun(rows, m.id), tie: rnd() }))
+    .sort((a, b) => b.away - a.away || a.tie - b.tie)
+    .map((c) => c.id);
+}
+
+/**
+ * Do a rule's conditions hold on the newest reported reply? { ok, who, with, why } or { ok: false }. Reads only the director's
+ * reports (and the member list); nothing here rolls or counts the cooldown.
+ */
+export function evalRule(rule, { rows, members, rnd }) {
+  const last = rows[rows.length - 1];
+  const rep = last && last.report;
+  if (!rep) return { ok: false };
+  const w = rule.when;
+  const why = [];
+  const here = rep.present;
+  if (w.tag) {
+    if (!w.tag.includes(rep.tag)) return { ok: false };
+    why.push("the scene is " + rep.tag);
+  }
+  if (w.tagNot && w.tagNot.includes(rep.tag)) return { ok: false };
+  if (Number.isFinite(w.min) && here.length < w.min) return { ok: false };
+  if (Number.isFinite(w.max)) {
+    if (here.length > w.max) return { ok: false };
+    why.push(here.length + " here");
+  }
+  if (w.alone) {
+    const tail = rows.slice(-w.alone);
+    const id = tail.length ? tail[0].report && tail[0].report.present[0] : null;
+    if (tail.length < w.alone || !id || tail.some((r) => !r.report || r.report.present.length !== 1 || r.report.present[0] !== id)) return { ok: false };
+    why.push("alone with " + nameOfId(members, id) + " for " + w.alone + " replies");
+  }
+  if (w.empty) {
+    const tail = rows.slice(-w.empty);
+    if (tail.length < w.empty || tail.some((r) => !r.report || r.report.present.length !== 0)) return { ok: false };
+    why.push("nobody here for " + w.empty + " replies");
+  }
+  const order = candidatesFor(rows, members, here, rnd);
+  if (!order.length) return { ok: false };
+  const count = rule.do.kind === "join" ? Math.max(1, rule.do.count || 1) : 1;
+  const who = order.slice(0, count);
+  return { ok: true, who, with: rule.do.kind === "return" ? [] : here.slice(0, 4), why: why.join("; ") };
+}
+
+const lastFireOf = (state, ruleId) => {
+  const mine = state.fires.filter((f) => f.rule === ruleId && !f.forced);
+  return mine.length ? mine[mine.length - 1] : null;
+};
+
+/** Where a rule stands now: ready, cooling down, in its payoff silence; and how many replies are left of that. */
+export function ruleStatus(state, rule, total) {
+  if (!rule.on) return { status: "off", left: 0, tension: 0 };
+  const last = lastFireOf(state, rule.id);
+  const left = last ? Math.max(0, last.hold - (total - last.n)) : 0;
+  const tension = last && !last.payoff ? last.tension : 0;
+  return { status: left > 0 ? (last.payoff ? "payoff" : "cooldown") : "ready", left, tension };
+}
+
+/**
+ * The decision for the newest reported reply: the first enabled rule whose conditions hold, that is not cooling down or in its
+ * payoff silence, and whose 2d6 reaches `need`, fires. Nothing fires while the player holds the lock, in an explicit scene, when a
+ * decision for this reply exists already, or when the newest reply has no report. Returns { fire, logs }.
+ */
+export function decideRules({ state, msgs, members, chatId, dashDirection, now }) {
+  const none = { fire: null, logs: [] };
+  if (state.on !== true || !state.rules.on || state.lock || dashDirection === "explicit") return none;
+  const rules = activeRules(state.rules).filter((r) => r.on);
+  const rows = replyRows(state, msgs);
+  const last = rows[rows.length - 1];
+  if (!rules.length || !last || !last.report || state.fires.some((f) => f.after === last.key) || (state.next && state.next.after === last.key)) return none;
+  const total = rows.length;
+  const logs = [];
+  for (const rule of rules) {
+    const found = evalRule(rule, { rows, members, rnd: seededRandom(chatId + "|" + rule.id + "|" + last.key + "|pick") });
+    if (!found.ok) continue;
+    const prev = lastFireOf(state, rule.id);
+    if (prev && total - prev.n < prev.hold) continue;
+    const roll = roll2d6(chatId + "|" + rule.id + "|" + last.key, rule.need);
+    if (roll.total < rule.need) {
+      logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "missed", roll, who: found.who, with: found.with, why: found.why });
+      continue;
+    }
+    const base = prev && !prev.payoff ? prev.tension : 0;
+    const tension = base + 1;
+    const payoff = !!rule.payoff && tension >= rule.payoff.k;
+    const fire = {
+      id: "f" + now.toString(36) + rule.id.slice(0, 6),
+      rule: rule.id,
+      kind: rule.do.kind,
+      who: found.who,
+      with: found.with,
+      after: last.key,
+      n: total,
+      roll,
+      tension,
+      hold: rule.cooldown + (payoff ? rule.payoff.m : 0),
+      payoff,
+      result: null,
+      carrier: "",
+      forced: false,
+      why: found.why,
+      at: now,
+    };
+    logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "fired", roll, who: found.who, with: found.with, why: found.why, payoff });
+    return { fire, logs };
+  }
+  return { fire: null, logs };
+}
+
+/** The queued note, once its carrier reply has been reported: did they come (in the report's present), only get mentioned, or did it miss. */
+export function judgeNext(state, report, msgs, named) {
+  const next = state.next;
+  if (!next) return state;
+  const carrier = carrierOf(next.after, msgs);
+  if (!carrier) return state;
+  const text = String(carrier.text || "").toLowerCase();
+  const sameReply = keyOf(carrier) === report.key;
+  let result = "missed";
+  if (sameReply) {
+    if (next.who.some((id) => report.present.includes(id))) result = "came";
+    else if (next.who.some((id) => ((named.find((n) => n.id === id) || {}).names || []).some((n) => n.length >= 3 && text.includes(n)))) result = "mentioned";
+  }
+  const fires = state.fires.map((f) => (f.id === next.id ? { ...f, result, carrier: keyOf(carrier) } : f));
+  return { ...state, next: null, fires, log: [...state.log, { at: Date.now(), key: keyOf(carrier), kind: "result", rule: next.rule, result, who: next.who }].slice(-LOG_KEEP) };
 }
 
 const nameList = (names) => (names.length <= 1 ? names.join("") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1]);
+
+/** The note a queued rule puts into its reply (the bench's template notes). */
+export function ruleNote({ next, members, userName }) {
+  const user = str(userName) || "the player";
+  const who = next.who.map((id) => nameOfId(members, id)).filter(Boolean);
+  if (!who.length) return null;
+  const others = next.with.map((id) => nameOfId(members, id)).filter(Boolean);
+  const group = others.length ? user + " and " + nameList(others) : user;
+  const what =
+    next.kind === "interrupt" ? nameList(who) + " walks in on " + group + " and interrupts the moment."
+    : next.kind === "join" ? nameList(who) + " joins " + group + " here."
+    : nameList(who) + " " + (who.length === 1 ? "comes" : "come") + " back into the scene and " + (who.length === 1 ? "joins" : "join") + " " + user + ".";
+  return "[SCENE EVENT: must happen in this reply]\nWhat: " + what + "\nHow: bring it into this reply as part of the scene; the characters react in character.\nDo not: explain where it came from or mention a director.";
+}
 
 /** The lines a reply gets: the lock while it holds, the return once. Empty when neither applies. */
 export function sceneLines({ state, members, userName, msgs, op }) {
@@ -305,13 +623,22 @@ function dashboardPresent(fsx, chatId) {
   return arr(last.present).map(str).filter(Boolean);
 }
 
+/** The Dashboard's newest snapshot's scene direction ("explicit" and so on), "" without one. */
+function dashboardDirection(fsx, chatId) {
+  const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
+  const snaps = isObj(dash) && isObj(dash.snapshots) ? Object.values(dash.snapshots).filter(isObj) : [];
+  if (!snaps.length) return "";
+  const last = snaps.sort((a, b) => (Number(a.turn) || 0) - (Number(b.turn) || 0))[snaps.length - 1];
+  return isObj(last.scene) ? str(last.scene.direction) : "";
+}
+
 /**
  * Who is in the scene now, by member id, and where that comes from: the lock (the player), the director's newest report, the
  * Dashboard, or nothing known. The engine plugin's `directionScene` reads the same file the same way.
  */
 export function sceneNow(state, msgs, members, named, dashNames) {
   const ids = members.map((m) => m.id);
-  const back = state.returning && returnDue(state, msgs, "send") ? state.returning.ids : [];
+  const back = [...(state.returning && returnDue(state, msgs, "send") ? state.returning.ids : []), ...nextIds(state, msgs, "send")];
   if (state.lock) return { source: "lock", present: state.lock.ids.filter((id) => ids.includes(id)), tag: null };
   // with the switch off the engine does not limit the scene (`directionScene`), so nothing is shown as limited either
   if (state.on !== true) return { source: "none", present: [], tag: null };
@@ -408,6 +735,11 @@ function runRoute(req, host) {
   // the return is spent once a reply after it was read
   if (st.returning && !returnDue(st, chat.msgs, "send")) st = { ...st, returning: null };
   st = logLine(counted(st), { key: report.key, kind: "report", tag: report.tag, present: report.present, sceneNew: report.sceneNew, model: report.model, ms, ...(usage ? { usage } : {}), ...(retry ? { retried: true } : {}) });
+  // genre rules: judge the note this reply carried, then decide the next one
+  st = judgeNext(st, report, chat.msgs, named);
+  const decided = decideRules({ state: st, msgs: chat.msgs, members: gm.members, chatId, dashDirection: dashboardDirection(fsx, chatId), now });
+  if (decided.fire) st = { ...st, fires: [...st.fires, decided.fire].slice(-FIRES_KEEP), next: nextOf(decided.fire) };
+  for (const l of decided.logs) st = { ...st, log: [...st.log, l].slice(-LOG_KEEP) };
   saveState(fsx, st);
   return ok({ ok: true, report });
 }
@@ -425,6 +757,19 @@ function stateRoute(req, host) {
   const named = memberNames(members, registryOf(fsx, chatId));
   const scene = sceneNow(state, chat.msgs, members, named, dashboardPresent(fsx, chatId));
   const report = newestReport(state, chat.msgs);
+  const total = replyRows(state, chat.msgs).length;
+  const rules = activeRules(state.rules).map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.do.kind,
+    on: r.on,
+    need: r.need,
+    cooldown: r.cooldown,
+    k: r.payoff ? r.payoff.k : 0,
+    m: r.payoff ? r.payoff.m : 0,
+    when: r.when,
+    ...ruleStatus(state, r, total),
+  }));
   return ok({
     config: cfg,
     chat: { on: state.on === true, lock: state.lock, returning: state.returning && returnDue(state, chat.msgs, "send") ? state.returning : null },
@@ -433,7 +778,106 @@ function stateRoute(req, host) {
     members,
     log: state.log.slice().reverse(),
     usage: state.usage,
+    rules: { set: state.rules.set, on: state.rules.on, sets: Object.entries(SETS).map(([id, s]) => ({ id, name: s.name })), items: rules },
+    next: state.next && state.on === true ? { ...state.next, due: dueAfter(state.next.after, chat.msgs, "send") } : null,
+    fires: state.fires.slice().reverse(),
   });
+}
+
+/** The chat's genre set, its switch and the edits to a rule's numbers. Changing the set drops the queued note. */
+function rulesRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  if (!groupMembers(fsx, chat.meta)) return ok({ error: "not a group chat" }, 400);
+  let st = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  const before = st.rules;
+  const patch = { ...before };
+  if (typeof b.set === "string") {
+    if (b.set !== "" && !SETS[b.set]) return ok({ error: "unknown set" }, 400);
+    patch.set = b.set;
+    if (b.set && b.set !== before.set) patch.on = true;
+  }
+  if (typeof b.on === "boolean") patch.on = b.on;
+  if (isObj(b.rule) && ID.test(String(b.rule.id || ""))) {
+    const known = (SETS[patch.set] ? SETS[patch.set].rules : []).some((r) => r.id === b.rule.id);
+    if (!known) return ok({ error: "unknown rule" }, 400);
+    patch.edits = { ...before.edits, [b.rule.id]: { ...(before.edits[b.rule.id] || {}), ...b.rule, id: undefined } };
+  }
+  const rules = cleanRules(patch);
+  st = { ...st, rules };
+  if (!rules.on || rules.set !== before.set) st = { ...st, next: null };
+  if (rules.set !== before.set || rules.on !== before.on) st = logLine(st, { kind: "rules", set: rules.set, on: rules.on });
+  saveState(fsx, st);
+  return ok({ rules });
+}
+
+/** "Fire now": a rule's note for the next reply, no roll, no cooldown, no tension. It replaces a queued note. */
+function fireRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const gm = groupMembers(fsx, chat.meta);
+  if (!gm) return ok({ error: "not a group chat" }, 400);
+  const st0 = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  if (st0.on !== true) return ok({ error: "Direction is off in this chat" }, 400);
+  if (st0.lock) return ok({ error: "the scene is locked" }, 400);
+  const rule = activeRules(st0.rules).find((r) => r.id === b.rule);
+  if (!rule) return ok({ error: "unknown rule" }, 400);
+  const rows = replyRows(st0, chat.msgs);
+  const last = rows[rows.length - 1];
+  if (!last) return ok({ error: "no reply yet" }, 400);
+  const named = memberNames(gm.members, registryOf(fsx, chatId));
+  const here = last.report ? last.report.present : (() => { const d = dashboardPresent(fsx, chatId); return d ? matchMembers(d, named) : null; })();
+  if (!here) return ok({ error: "the scene is not known yet" }, 400);
+  const now = Date.now();
+  const order = candidatesFor(rows, gm.members, here, seededRandom(chatId + "|" + rule.id + "|" + last.key + "|now|" + now));
+  if (!order.length) return ok({ error: "everyone is already here" }, 400);
+  const fire = {
+    id: "f" + now.toString(36) + rule.id.slice(0, 6),
+    rule: rule.id,
+    kind: rule.do.kind,
+    who: order.slice(0, rule.do.kind === "join" ? Math.max(1, rule.do.count || 1) : 1),
+    with: rule.do.kind === "return" ? [] : here.slice(0, 4),
+    after: last.key,
+    n: rows.length,
+    roll: null,
+    tension: 0,
+    hold: 0,
+    payoff: false,
+    result: null,
+    carrier: "",
+    forced: true,
+    why: "fired by hand",
+    at: now,
+  };
+  // a queued note this replaces is dropped from the ledger too (it never reached a reply)
+  const fires = [...st0.fires.filter((f) => !(st0.next && f.id === st0.next.id)), fire].slice(-FIRES_KEEP);
+  const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "rule", rule: rule.id, state: "fired", who: fire.who, with: fire.with, why: fire.why, forced: true });
+  saveState(fsx, st);
+  return ok({ next: st.next });
+}
+
+function skipRoute(req, host) {
+  const fsx = host.fs;
+  const b = isObj(req.body) ? req.body : {};
+  const chatId = String(b.chatId || "");
+  if (!ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  const chat = readChat(fsx, chatId);
+  if (!chat) return ok({ error: "no such chat" }, 404);
+  const st0 = settle(fsx, loadState(fsx, chatId), chat.msgs);
+  if (!st0.next) return ok({ next: null });
+  const id = st0.next.id;
+  // dropped by hand: gone from the ledger, so the rule's cooldown and tension do not count it
+  const st = logLine({ ...st0, next: null, fires: st0.fires.filter((f) => f.id !== id) }, { kind: "skip", rule: st0.next.rule, who: st0.next.who });
+  saveState(fsx, st);
+  return ok({ next: null });
 }
 
 function configRoute(req, host) {
@@ -455,7 +899,7 @@ function chatRoute(req, host) {
   if (!gm) return ok({ error: "not a group chat" }, 400);
   const ids = gm.members.map((m) => m.id);
   let st = settle(fsx, loadState(fsx, chatId), chat.msgs);
-  if (typeof b.on === "boolean" && b.on !== st.on) st = logLine({ ...st, on: b.on }, { kind: b.on ? "on" : "off" });
+  if (typeof b.on === "boolean" && b.on !== st.on) st = logLine({ ...st, on: b.on, ...(b.on ? {} : { next: null }) }, { kind: b.on ? "on" : "off" });
   if (b.lock === null && st.lock) {
     // the others come back on the next reply: everyone the lock kept out
     const out = ids.filter((id) => !st.lock.ids.includes(id));
@@ -477,6 +921,9 @@ export function handleRoute(req, host) {
   if (path === "/direction/config" && (req.method === "GET" || req.method === "PUT")) return configRoute(req, host);
   if (path === "/direction/chat" && req.method === "PUT") return chatRoute(req, host);
   if (path === "/direction/run" && req.method === "POST") return runRoute(req, host);
+  if (path === "/direction/rules" && req.method === "PUT") return rulesRoute(req, host);
+  if (path === "/direction/fire" && req.method === "POST") return fireRoute(req, host);
+  if (path === "/direction/skip" && req.method === "POST") return skipRoute(req, host);
   return ok({ error: "not found" }, 404);
 }
 
@@ -484,6 +931,30 @@ function withLast(messages, text) {
   const last = messages[messages.length - 1];
   if (last && last.role === "user" && typeof last.content === "string") return [...messages.slice(0, -1), { ...last, content: last.content + "\n\n" + text }];
   return [...messages, { role: "user", content: text }];
+}
+
+/** Did World put an event or a returning person into this reply already (it runs first)? Both are marked after the message the reply follows. */
+function worldCarries(fsx, chatId, msgs, op) {
+  const w = readJson(fsx, "world/state/" + chatId + ".json", null);
+  if (!isObj(w)) return false;
+  const list = arr(msgs).filter(isObj);
+  const anchor = list[list.length - (op === "swipe" ? 2 : 1)];
+  if (!anchor) return false;
+  const ak = keyOf(anchor);
+  const sent = (x) => isObj(x) && Number(x.sent) > 0 && x.after === ak;
+  return sent(w.event) || sent(w.entrance);
+}
+
+/** The reply being swiped carried a rule's note: that firing is open again and queued, so the new try gets the note too. */
+function reopenForSwipe(fsx, state, msgs) {
+  const list = arr(msgs).filter(isObj);
+  const lastMsg = list[list.length - 1];
+  if (!lastMsg || !isReply(lastMsg)) return state;
+  const f = state.fires.find((x) => x.carrier && x.carrier === keyOf(lastMsg));
+  if (!f || state.next) return state;
+  const next = { ...state, next: nextOf(f), fires: state.fires.map((x) => (x.id === f.id ? { ...x, result: null, carrier: "" } : x)) };
+  saveState(fsx, next);
+  return next;
 }
 
 /** The lock and the return ride the reply, appended to the newest user message (where World puts its event). */
@@ -503,8 +974,23 @@ export function llmRequest(ctx, host) {
     if (!chat) return null;
     const gm = groupMembers(fsx, chat.meta);
     if (!gm) return null;
-    const state = cleanState(raw, chatId);
-    const parts = sceneLines({ state, members: gm.members, userName: userNameOf(fsx, chat.meta), msgs: chat.msgs, op });
+    let state = cleanState(raw, chatId);
+    const userName = userNameOf(fsx, chat.meta);
+    // a swipe of the reply that carried a rule's note asks for the same moment again: the note is open again
+    if (op === "swipe") state = reopenForSwipe(fsx, state, chat.msgs);
+    const parts = sceneLines({ state, members: gm.members, userName, msgs: chat.msgs, op });
+    // a rule's queued note: the lock and the return come first, and so does anything World already put into this reply
+    if (state.on === true && state.next && dueAfter(state.next.after, chat.msgs, op)) {
+      const why = parts.length ? "direction" : worldCarries(fsx, chatId, chat.msgs, op) ? "world" : "";
+      const note = why ? null : ruleNote({ next: state.next, members: gm.members, userName });
+      if (note) parts.push({ label: "Direction · rule", text: note });
+      else {
+        const id = state.next.id;
+        const rule = state.next.rule;
+        const who = state.next.who;
+        saveState(fsx, logLine({ ...state, next: null, fires: state.fires.map((f) => (f.id === id ? { ...f, result: "yielded" } : f)) }, { kind: "result", rule, result: "yielded", by: why || "empty", who }));
+      }
+    }
     if (!parts.length) return null;
     return { messages: withLast(req.messages, parts.map((p) => p.text).join("\n\n")), promptSources: { parts: parts.map((p) => ({ kind: "plugin", label: p.label, text: p.text })) } };
   } catch {

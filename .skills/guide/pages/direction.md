@@ -9,9 +9,34 @@ In a group chat there is a thin bar under the member bar, marked "Direction" (on
 - **The scene chip**: the kind of scene and who is here ("Alone moment, with Yuzu" or "Lesson, 4 here"). Tap it to see who is here and who is not in the scene, when the last report was made, and a **Report now** button that asks the director again. While the director reads, the chip says "Reading the scene…".
 - **The model chip**: the director's model. If none is picked it shows **Pick a model**. Tap it for the same model list the chat's top bar has: starred models, then every model by connection, with a search box.
 - **The switch**: Direction on or off for this chat. Until a model is picked it is greyed out and says "Pick a model first".
-- **Log**: the last reports (the kind of scene, who was here, how long it took, how many tokens), and every switch, lock, release and error, newest first.
+- **Next**: a chip that appears while a genre rule has a note waiting for the next reply ("Next: Yuzu"). The x skips it.
+- **Rules**: opens the Direction sheet with two tabs, **Rules** and **Log**. Beside the switch, so it stays in view on a phone (there it is only an icon, with a dot while the rules are on).
 
 With the switch off, the bar folds to "Direction: off" and the chat works as it did before.
+
+## Genre rules
+
+A genre is a set of small rules that bring people into the scene by chance, so a story of that genre does not stall. Open **Rules** and pick a genre. For now there is one, **School rom-com**, with three rules:
+
+- **Interrupted moment**: you have been alone with one member for three replies, and someone walks in on you.
+- **Someone comes by**: nobody has been around for three replies (not at home), and a member comes by.
+- **Friends join the break**: in a break, lunch or club with one or two present, a friend joins.
+
+A chat starts with no genre and the rules off, so nothing changes until you pick one. Choosing a genre turns the rules on; **Rules in this chat** turns them off again and keeps the genre. The rules need the director on: they read its reports.
+
+After each reply the code (not a model) checks the rules in order. A rule may fire when its conditions hold, it is not resting, and a roll of two dice reaches its number. If it fires, the next reply gets a short stage note ("Yuzu walks in on you and Hana and interrupts the moment") and the person counts as in the scene, so their card is sent whole. One note per reply at most. The lock, a return after the lock, and an event or a returning person from World come first; the rule then waits for another turn.
+
+Each rule card shows its state: **Ready**, **Cooling down** (replies left) or **Quiet for the payoff**, and how many times it has fired towards the payoff. **Numbers** opens its settings:
+
+- **2d6 needed**: the roll must reach this number; the text beside it gives the percent of rolls ("about 42%"). 2 always fires, 13 never.
+- **Cooldown**: replies the rule stays quiet after it fires.
+- **Payoff every** and **Then quiet**: every K-th time it fires, the rule rests M replies more ("finally alone"). 0 turns the payoff off.
+
+**Fire now** puts the rule's note on the next reply without a roll, a cooldown or counting towards the payoff; it needs someone to be away. **Skip** drops a waiting note. A note you skip or a reply you delete is forgotten, with its cooldown; swiping the reply that carried a note gives the new try the same note.
+
+Under the reply that carried a note a small line says what happened: "Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came". The last word is the director's later report: **came** (they are in the scene), **only mentioned**, or **did not come**. The **Log** tab lists the same, with the roll and why, also rules that rolled and missed.
+
+A group can set a **default genre** on its **Direction** tab; its new chats start with that genre on. Numbers are first guesses: change them in a chat if a rule fires too often or too rarely.
 
 ## Picking the model
 

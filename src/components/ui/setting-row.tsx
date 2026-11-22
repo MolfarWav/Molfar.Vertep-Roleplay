@@ -103,10 +103,10 @@ export function NumTile({ label, hint, info, value, min, max, step, disabled, on
 }
 
 /** Two or three short choices side by side; the long explanation belongs in the row's (i). */
-export function Segmented<T extends string>({ label, value, options, onChange, className }: { label: string; value: T; options: { id: T; label: string; className?: string }[]; onChange: (v: T) => void; className?: string }) {
+export function Segmented<T extends string>({ label, value, options, onChange, disabled, className }: { label: string; value: T; options: { id: T; label: string; className?: string }[]; onChange: (v: T) => void; disabled?: boolean; className?: string }) {
   // text-body is joined after cn(): tailwind-merge reads it as a colour and would drop it next to the text colour
   return (
-    <div role="radiogroup" aria-label={label} className={cn("flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5", className)}>
+    <div role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} className={cn("flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5", disabled && "opacity-60", className)}>
       {options.map((o) => {
         const active = value === o.id
         return (
@@ -115,6 +115,7 @@ export function Segmented<T extends string>({ label, value, options, onChange, c
             type="button"
             role="radio"
             aria-checked={active}
+            disabled={disabled}
             onClick={() => { if (!active) onChange(o.id) }}
             className={`${cn(
               "rounded-md px-2.5 py-1 whitespace-nowrap outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-10",

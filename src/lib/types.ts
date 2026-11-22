@@ -85,6 +85,8 @@ export interface GroupConfig {
   memberBooks?: 'all' | 'speaker' | 'off'
   /** Direction in this group's new chats: false = off (absent = on once a director model is picked; Molfar.Vertep#496) */
   direction?: boolean
+  /** the genre (Direction rule set, e.g. "romcom") new chats of this group start with; absent or "" = none */
+  directionSet?: string
 }
 
 /** A group chat's own turn settings (chat meta `turns`): each key set here
