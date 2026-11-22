@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.151.0 (2026-11-22)
+
 - Added: **Direction phase 3a: a plan of beats and a scene boundary (Molfar.Vertep#496).** The Direction sheet has a new **Plan** tab. A beat is a stage direction you write ("The bell rings and the class empties into the hall") with who takes part (members who are away come in for it) and **when**: after some replies, when the director reads a kind of scene, when the Dashboard's place holds your words, or by hand. The plan goes in order, through the same queue as the genre rules (a beat is decided before the rules; one note per reply), and is judged the same way (came, only mentioned, did not land; one retry with a stricter note, then given up). A due beat waits up to 6 replies for the story to change place or jump in time so it does not cut into a moment, then goes anyway; **Fire now** skips every wait. Beats hold in an explicit scene and under the lock. A swipe of the carrier reply gives the new try the same note; a deleted reply takes its beat back. New: `PUT /direction/plan`, `POST /direction/fire` takes a `beat`.
 - Changed: **a person who is due to come back (World's bench and cast deck) waits for a new scene, up to 6 replies.** With the Dashboard or Direction on and the scene known not to have changed, the return waits for a new place or a time jump, then comes anyway. A World switch **Wait for a new scene** turns it off (on by default); the cast card says "Waiting for a new scene: N more replies". With neither the Dashboard nor Direction nothing can tell, so nobody waits; the Life die's intrusion is not held.
 

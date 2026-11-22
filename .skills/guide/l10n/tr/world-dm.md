@@ -1,4 +1,4 @@
-<!-- source: d9b96976e29b -->
+<!-- source: a49a787b492c -->
 # Dünya DM'i
 
 Dünya DM'i, bir sohbetin dünyası için bir oyun yöneticisidir. Yanıtlardan sonra hikâyeyi okur ve karşılaştığı kişileri, yerleri ve şeyleri sohbetin kendi bilgi kitabında, yani dünya kitabında tutar. Daha yüksek seviyelerde dünyayı da hareket ettirir ve sahneye olaylar gönderir. Dünyanın canlı ve tutarlı hissettirmesini istediğinde kullan.
@@ -32,7 +32,7 @@ Bir kartın bilgi kitabından bir arkadaş ya da akraba, yüz mesaj boyunca hik�
 
 ## Kadro destesinden yeni kişiler
 
-Sıra, hikâyenin zaten sahip olduğu kişileri geri getirir. **cast deck** ise henüz karşılaşmadığı kişileri getirir. Bir deste, kart yığınıdır: bir ad, bir hizip (dünyanın bir grubu ya da bir cephesi), bu yeni kişinin bağlı olduğu zaten var olan bir kişi (bir kuzen, bir borçlu, bir rakip), ne istedikleri ve onlar hakkında beş ila on cümle. DM kartları asla görmez; sıradaki kimse vakti gelmediğinde ve hikâye bir dönüş için gerektiği kadar sessiz kaldığında, DM bir kart seçer; önce bağı sahnede olanı, sonra hizibinin cephesi karışmış olanı, sonra hizibi bu yere ait olanı tercih eder ve yazı modeline, kesin bir dille, bu yeni kişinin o bağ üzerinden yanıta girdiğini söyler. Göründüklerinde kart kitapta bir kişiye, hizibinin bir üyesine dönüşür. Görünmezlerse kart bekler.
+Sıra, hikâyenin zaten sahip olduğu kişileri geri getirir. **cast deck** ise henüz karşılaşmadığı kişileri getirir. Bir deste, kart yığınıdır: bir ad, bir hizip (dünyanın bir grubu ya da bir cephesi), bu yeni kişinin bağlı olduğu zaten var olan bir kişi (bir kuzen, bir borçlu, bir rakip), ne istedikleri ve onlar hakkında beş ila on cümle. DM kartları asla görmez; sırada kimse vakti gelmediğinde ve hikâye bir dönüş için gerektiği kadar sessiz kaldığında, DM bir kart seçer; önce bağı sahnede olanı, sonra hizibinin cephesi karışmış olanı, sonra hizibi bu yere ait olanı tercih eder ve yazı modeline, kesin bir dille, bu yeni kişinin o bağ üzerinden yanıta girdiğini söyler. Göründüklerinde kart kitapta bir kişiye, hizibinin bir üyesine dönüşür. Görünmezlerse kart bekler.
 
 Bir Start desteyi yazabilir (**New people for later** anahtarı, hizip sayısı, her birinde kaç kişi ve bir kartın ne kadar uzun olduğuyla) ve 3'ten az kart kaldığında deste kendini doldurur. Sohbetin World panelinde **Cast deck** kartında anahtar, kaç kart kaldığı, **Add new people now** ve her çekişin ve yeniden doldurmanın günlüğü bulunur. Kitapta bir **Cast deck** çipi vardır: kartlar, gelecek olanı bozduğu için **Show the cards** arkasındadır; bir kartı düzenleyebilir ya da kaldırabilirsin ve bağı olmayan bir kart işaretlenir.
 

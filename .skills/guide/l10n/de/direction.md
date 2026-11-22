@@ -1,4 +1,4 @@
-<!-- source: ae865b32181c -->
+<!-- source: 3fac4b007f13 -->
 # Direction: wer in der Szene ist
 
 Direction ist für Gruppen-Chats. Nach jeder Antwort liest ein kleines, günstiges „Director“-Modell die Szene und sagt, um welche Art von Szene es sich handelt (eine Lektion, eine Pause, ein Alleinmoment, ein Date) und welche Mitglieder darin sind. Mitglieder, die nicht da sind, antworten nicht mehr und werden aus dem Prompt ausgeschlossen, bis die Geschichte sie zurückbringt.
@@ -10,8 +10,8 @@ In einem Gruppen-Chat gibt es eine dünne Leiste unter der Mitgliederleiste, die
 - **Der Scene-Chip**: die Art der Szene und wer hier ist („Alone moment, with Yuzu“ oder „Lesson, 4 here“). Tippe darauf, um zu sehen, wer hier ist und wer nicht in der Szene ist, wann der letzte Bericht erstellt wurde, und einen **Report now**-Button, der den Director erneut befragt. Während der Director liest, zeigt der Chip „Reading the scene…“.
 - **Der Model-Chip**: das Modell des Directors. Wenn keins ausgewählt ist, wird **Pick a model** angezeigt. Tippe darauf, um dieselbe Modellliste wie in der oberen Leiste des Chats zu sehen: markierte Modelle, dann jedes Modell nach Verbindung, mit einem Suchfeld.
 - **Der Switch**: Direction ein- oder ausgeschaltet für diesen Chat. Bis ein Modell ausgewählt ist, ist er ausgegraut und zeigt „Pick a model first“.
-- **Next**: ein Chip, der erscheint, während eine Genre-Regel eine Notiz für die nächste Antwort bereithält („Next: Yuzu“). Das x überspringt sie.
-- **Rules**: öffnet das Direction-Fenster mit zwei Tabs, **Rules** und **Log**. Er steht neben dem Switch, damit er auf einem Telefon sichtbar bleibt (dort nur ein Symbol, mit einem Punkt, solange die Regeln an sind).
+- **Next**: ein Chip, der erscheint, während eine Genre-Regel oder ein Beat deines Plans eine Notiz für die nächste Antwort bereithält („Next: Yuzu“). Das x überspringt sie.
+- **Rules**: öffnet das Direction-Fenster mit drei Tabs, **Rules**, **Plan** und **Log**. Er steht neben dem Switch, damit er auf einem Telefon sichtbar bleibt (dort nur ein Symbol, mit einem Punkt, solange die Regeln an sind).
 
 Wenn der Switch ausgeschaltet ist, klappt die Leiste zu „Direction: off“ zusammen und der Chat funktioniert wie zuvor.
 
@@ -38,6 +38,19 @@ Jede Regelkarte zeigt ihren Zustand: **Ready**, **Cooling down** (Antworten übr
 Unter der Antwort mit einer Notiz steht eine kleine Zeile, was passiert ist: „Direction: Mei joins (Friends join the break, 2d6 = 10, needed 9) · came“. Das letzte Wort ist der spätere Bericht des Directors: **came** (sie sind in der Szene), **only mentioned** (nur erwähnt) oder **did not come**. Der Tab **Log** listet dasselbe mit Wurf und Grund auf, dazu Regeln, die gewürfelt und verfehlt haben.
 
 Eine Gruppe kann auf ihrem Tab **Direction** ein **default genre** festlegen; ihre neuen Chats starten dann mit diesem Genre. Die Zahlen sind erste Schätzungen: ändere sie in einem Chat, wenn eine Regel zu oft oder zu selten auslöst.
+
+## Der Plan
+
+Ein **Beat** ist etwas, das du geschehen lassen willst: „Die Glocke läutet, und die Klasse strömt in die Halle“, „Mei bringt einen Kuchen“. Öffne **Plan** und tippe auf **Add beat**. Ein Beat hat:
+
+- **What happens**: ein bis zwei Sätze als Regieanweisung.
+- **Who takes part** (optional): Mitglieder, die abwesend sind, kommen für ihn in die Szene.
+- **When**: **After some replies** (von dem Moment an gezählt, in dem der Beat der nächste wird; 0 heißt sofort), **Scene** (wenn der Director diese Art von Szene liest: eine Lektion, eine Pause, ein Date ...), **Place** (wenn der Ort im Dashboard deine Worte enthält, etwa „roof“; Groß- und Kleinschreibung wird ignoriert) oder **By hand** (nur wenn du **Fire now** drückst).
+- **Wait for a new scene**: standardmäßig an. Ein fälliger Beat schneidet nicht mitten in einen Moment hinein: er wartet bis zu 6 Antworten darauf, dass die Geschichte den Ort oder den Zeitpunkt wechselt, und kommt dann ohnehin. Ein Ortsbeat kommt in dem Moment, in dem die Geschichte dort ankommt, und ein Beat „By hand“ nur, wenn du ihn auslöst.
+
+Der Plan läuft **in der Reihenfolge**: nur der erste Beat, der noch nicht erledigt ist, wird betrachtet; die dahinter stehenden sagen „After the beats before it“. Ein Beat ist erledigt, wenn er eingetroffen ist, wenn er aufgegeben wurde (der Director hat ihn zweimal ausgelassen gesehen) oder wenn du ihn **Skip**st. Der nächste Beat zählt seine Antworten ab dem Moment, in dem der vorige endete. Jede Karte zeigt, wo ihr Beat steht: **Waiting** (Antworten übrig), **Due, waiting for a new scene** (Antworten übrig), **Goes with the next reply**, **Delivered** (came, only mentioned oder hineingegangen, ohne dass jemand genannt wurde), **Did not land**, **Skipped**. Wenn etwas einen Beat zurückhält, sagt die Karte warum: Direction ist aus, die Szene ist gesperrt, oder die Szene ist explizit (ein Beat wird dort nie ausgelöst; er kommt, sobald die Szene sie verlässt). **Edit**, **Move up**, **Move down** und **Delete** ändern die Liste; **Fire now** legt den Beat sofort auf die nächste Antwort, egal worauf er wartet.
+
+Ein Beat nutzt dieselbe Technik wie eine Genre-Regel: nach jeder Antwort prüft der Code den Plan vor den Regeln, die Notiz reitet auf der nächsten Antwort (eine Notiz pro Antwort; die Sperre, eine Rückkehr nach der Sperre sowie ein Ereignis oder eine zurückkehrende Person aus World kommen zuerst, und der Beat wird dann bei der nächsten Antwort erneut versucht), und der spätere Bericht des Directors sagt, ob sie **came**, **only mentioned** waren oder er **did not land**. Ein Beat, der nicht landete, wird noch einmal mit einer strengeren Notiz versucht und dann aufgegeben. Eine Antwort, die du wischst, gibt dem neuen Versuch dieselbe Notiz; eine Antwort, die du löschst, nimmt ihren Beat zurück.
 
 ## Das Modell auswählen
 

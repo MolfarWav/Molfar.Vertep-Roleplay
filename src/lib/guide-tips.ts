@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.150.0'
+export const APP_VERSION = '4.151.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.direction-plan',
+    since: '4.151.0',
+    help: 'characters',
+    keywords: { en: 'direction plan beat beats stage direction scene change boundary wait fire now world return new scene', uk: 'режисура план момент моменти сценічна вказівка зміна сцени межа чекати запустити зараз світ повернення нова сцена' },
+    title: { en: 'Direction: a plan of beats', uk: 'Режисура: план моментів' },
+    body: {
+      en: 'The Direction sheet has a new Plan tab. Write beats, things you want to happen (“Yuzu bursts in with news”), say who takes part and when: after some replies, when the scene is of a kind, when the story is at a place, or by hand. Beats go in order and wait up to 6 replies for a new place or a time jump so they do not cut into a moment; Fire now skips the wait. People coming back in World wait for a new scene too; the cast card has a switch, Wait for a new scene, to turn that off.',
+      uk: 'У листі Direction з’явилася вкладка Plan. Запишіть моменти, які хочете побачити («Юзу вривається з новиною»), скажіть, хто бере участь і коли: через кілька відповідей, коли сцена певного виду, коли історія в певному місці або вручну. Моменти йдуть по черзі й чекають до 6 відповідей на нове місце чи стрибок у часі, щоб не різати сцену посередині; «Запустити зараз» пропускає очікування. Ті, хто повертається у Світі, теж чекають нової сцени; перемикач на картці каста це вимикає.',
+    },
+  },
   {
     id: 'new.direction-rules',
     since: '4.150.0',
