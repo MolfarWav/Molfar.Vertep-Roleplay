@@ -1161,6 +1161,19 @@ Optional (#72), off until the player turns it on in Characters > More > Letters 
 - `meanwhile/state/<chatId>.json`: `{ v: 1, chatId, cursor, next, passes: [{ key, at, reason, ids }], events: [...], log: [...], usage, lastFailAt }`. `cursor` and each pass `key` is a message key `id#swipe`. An event is `{ id: "m1", who: [registry person ids], what, where (a place id or words), whereName, when, witnesses: [ids], visibility: "secret" | "local" | "public", effects: [...], afterKey, at, status: "active" | "undone" }`. `who` and `witnesses` are never the player's character ("user") and never anyone who was in the scene; effects are `front_clock {front}`, `relation {a, b, change: closer | cooler | break}`, `item_moved {item, to}`, `npc_moved {who, to}` and `injury_healed {who}`, each about people the event involves. A swipe or a delete that removes the message `afterKey` marks the event `undone`; the caller retires its Litopys fact and then erases it.
 - The Litopys fact an event becomes (M2a): a fact with id `mw:<event id>`, `origin: "meanwhile"`, `knownBy` = the canonical names of who and witnesses (never the player's), `secret: true` for a secret event, `src.to` the message the event follows. It is built in memory by Litopys (`meanwhileFacts`, `withMeanwhile`) for each reply, the What fired trace and the carries preview, from `meanwhile/state/<chatId>.json`, and only while `meanwhile/config.json` has `enabled: true`; the newest 30 active events. It is never written into `litopys/chats/<id>.json`, so the Library's Facts tab does not list it and a swipe (which marks the event undone) removes it. `factDraft` in the Meanwhile plugin is the same shape; `test/rp-meanwhile-memory.test.ts` keeps the two equal.
 
+## Direction: `data/direction/` (the Direction plugin, Molfar.Vertep#496)
+
+- `direction/config.json`: `{ "v": 1, "model": "<connection/model>" }`, one director model for every chat; `""` = none (the
+  director makes no call and a chat plays as before).
+- `direction/state/<chatId>.json`: `{ v: 1, chatId, on: true | false | null, lock: { ids: [memberId], at } | null,
+  returning: { ids: [memberId], after: "<msgId>#<swipe>", at } | null, reports: [{ key: "<msgId>#<swipe>", at, tag, present:
+  [memberId], sceneNew, model, ms, usage? }], log: [{ at, kind: report | error | on | off | lock | release, ... }],
+  usage: { input, output, runs } }`. Reports and the log keep the newest 30. `tag` is one of lesson, break, lunch, club,
+  commute, group_out, date, alone_moment, at_home, event. A report whose reply was swiped or deleted is dropped on the next
+  read; `returning` is spent after the first reply that follows `after`.
+- A group file may carry `"direction": false`: its new chats start with Direction off. Absent = on once a model is picked.
+- Read by the engine plugin (`directionScene`) as well as by the Direction plugin; change both readers together.
+
 ## Agents: `data/agents/<id>.vertep-agent.json` (checked and run by the Agents plugin; no screen writes it yet)
 
 An agent is data, not code: one Canvas file (`vertep-canvas` v1) with `kind: "agent"` and an `agent` header,
