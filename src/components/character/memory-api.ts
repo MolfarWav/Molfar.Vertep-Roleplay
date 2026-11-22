@@ -1,11 +1,12 @@
-// Types and fetchers for a card's long memory (the Litopys plugin's /litopys/card-memory routes).
+// Types and fetchers for a long memory: a card's habits (the Litopys plugin's /litopys/card-memory route) and the stories of a
+// persona or a saved world (/litopys/memory*). A card keeps no stories since #492.
 import { j } from '@/lib/engine'
 
 export interface MemFact { text: string; subject: string }
 export interface MemNote { who: string; how: string; text: string }
 export interface MemSaid { who: string; text: string; kind: string }
 
-/** One imported story: a copy of what the user chose to keep from a chat. */
+/** One imported story: a copy of what the user chose to keep from a chat. A card's old stories stay in its file and are never sent or shown. */
 export interface MemSource {
   id: string
   chatId: string
@@ -54,16 +55,9 @@ export interface CardMemoryView {
     inject: { enabled: boolean; maxTokens: number; habitsMaxTokens: number }
     habits: MemHabit[]
   }
-  /** The card's chats still on disk, newest first. A source whose chatId is not here lost its chat. */
-  chats: MemChat[]
-  /** What the memory costs in a prompt now, and the room it is given. */
-  tokens: number
-  budget: number
   /** What the habits cost in a prompt now, and the room they are given. */
   habitsTokens: number
   habitsBudget: number
-  /** Only on the answer to an import: how many ticked habits went to the card and how many did not fit. */
-  imported?: { habits: number; habitsLeft: number }
 }
 
 export interface MemPreviewLine { id: string; text: string; dup: 'memory' | null; checked: boolean }
@@ -86,10 +80,6 @@ export interface MemPreview {
   /** The model-written summary of this chat (#113); null = the chat has no record. */
   summary: MemSummary | null
   facts: (MemPreviewLine & { subject: string; weight: string })[]
-  notes: (MemPreviewLine & { who: string; how: string })[]
-  said: (MemPreviewLine & { who: string; kind: string })[]
-  /** Habits this chat earned for the character (#113); `dup` = the card keeps this rule already. */
-  habits: { id: string; who: string; name: string; rule: string; when: string; dup: 'memory' | null; checked: boolean }[]
 }
 
 const q = (s: string) => encodeURIComponent(s)
@@ -97,38 +87,30 @@ const q = (s: string) => encodeURIComponent(s)
 export const fetchCardMemory = (cardId: string) => j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}`)
 
 /** One line of a story: edit by index (text), remove by index, or add. 'arc' has no index: text replaces, remove clears. */
-export interface MemLinePatch { list: 'arc' | 'facts' | 'notes' | 'said'; index?: number; text?: string; remove?: boolean; add?: boolean; who?: string; kind?: string; subject?: string; how?: string }
+export interface MemLinePatch { list: 'arc' | 'facts'; index?: number; text?: string; remove?: boolean; add?: boolean; subject?: string }
 
-export const putCardMemory = (cardId: string, patch: { source?: { id: string; on?: boolean; canon?: 'main' | 'separate'; line?: MemLinePatch }; habit?: MemHabitPatch; inject?: { enabled?: boolean; maxTokens?: number; habitsMaxTokens?: number } }) =>
+/** A card's habits and the room they take. */
+export const putCardMemory = (cardId: string, patch: { habit?: MemHabitPatch; inject?: { habitsMaxTokens?: number } }) =>
   j<CardMemoryView>('/litopys/card-memory', { method: 'PUT', body: JSON.stringify({ cardId, ...patch }) })
-
-export const deleteCardMemorySource = (cardId: string, sourceId: string) =>
-  j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}&sourceId=${q(sourceId)}`, { method: 'DELETE' })
 
 export const deleteCardMemoryHabit = (cardId: string, habitId: string) =>
   j<CardMemoryView>(`/litopys/card-memory?cardId=${q(cardId)}&habitId=${q(habitId)}`, { method: 'DELETE' })
 
-export const previewCardMemory = (cardId: string, chatId: string) =>
-  j<MemPreview>('/litopys/card-memory/preview', { method: 'POST', body: JSON.stringify({ cardId, chatId }) })
-
 export const summarizeChat = (chatId: string, op: 'start' | 'cancel') =>
   j<{ summary: MemSummary }>('/litopys/story-summary', { method: 'POST', body: JSON.stringify({ chatId, op }) })
-
-export const importCardMemory = (body: { cardId: string; chatId: string; arc: boolean; arcText?: string; facts: string[]; notes: string[]; said: string[]; habits: string[] }) =>
-  j<CardMemoryView>('/litopys/card-memory/import', { method: 'POST', body: JSON.stringify(body) })
 
 export const MEM_MIN_TOKENS = 100
 export const MEM_MAX_TOKENS = 1500
 export const HABITS_MIN_TOKENS = 50
 export const HABITS_MAX_TOKENS = 800
 
-// ---- any owner of a long memory: a card, a persona or a saved World DM world (#99)
+// ---- any owner of a long memory: a card (habits only, #492), a persona or a saved World DM world (#99)
 
 export type MemoryKind = 'card' | 'persona' | 'world'
-/** Whose memory it is. The card keeps its own routes (`/litopys/card-memory*`); the others use `/litopys/memory*`. */
+/** Whose memory it is. The card keeps its own route (`/litopys/card-memory`); the others use `/litopys/memory*`. */
 export interface MemoryOwner { kind: MemoryKind; id: string; name: string }
 
-/** The answer for any owner. A persona's or world's view has no habits, so those fields are optional. */
+/** The answer for any owner. A card's view has habits and no stories; a persona's or world's view has stories and no habits. */
 export interface MemoryView extends Omit<CardMemoryView, 'cardId' | 'habitsTokens' | 'habitsBudget'> {
   kind?: MemoryKind
   cardId?: string
@@ -136,6 +118,11 @@ export interface MemoryView extends Omit<CardMemoryView, 'cardId' | 'habitsToken
   name?: string
   habitsTokens?: number
   habitsBudget?: number
+  /** A persona's or world's: the chats a story can still be taken from, newest first. A source whose chatId is not here lost its chat. */
+  chats?: MemChat[]
+  /** A persona's or world's: what the memory costs in a prompt now, and the room it is given. */
+  tokens?: number
+  budget?: number
 }
 
 /** The patch a persona's or world's memory takes: stories with arc and facts lines, and the room. */
@@ -149,17 +136,15 @@ export const fetchMemory = (o: MemoryOwner): Promise<MemoryView> =>
 export const putMemory = (o: MemoryOwner, patch: MemoryPatch | Parameters<typeof putCardMemory>[1]): Promise<MemoryView> =>
   o.kind === 'card' ? putCardMemory(o.id, patch as Parameters<typeof putCardMemory>[1]) : j<MemoryView>('/litopys/memory', { method: 'PUT', body: sharedBody(o, patch) })
 
+/** The stories of a persona or a world (a card keeps none: the route refuses it). */
 export const deleteMemorySource = (o: MemoryOwner, sourceId: string): Promise<MemoryView> =>
-  o.kind === 'card' ? deleteCardMemorySource(o.id, sourceId) : j<MemoryView>(`/litopys/memory?kind=${q(o.kind)}&id=${q(o.id)}&sourceId=${q(sourceId)}`, { method: 'DELETE' })
+  j<MemoryView>(`/litopys/memory?kind=${q(o.kind)}&id=${q(o.id)}&sourceId=${q(sourceId)}`, { method: 'DELETE' })
 
 export const previewMemory = (o: MemoryOwner, chatId: string): Promise<MemPreview> =>
-  o.kind === 'card' ? previewCardMemory(o.id, chatId) : j<MemPreview>('/litopys/memory/preview', { method: 'POST', body: sharedBody(o, { chatId }) })
+  j<MemPreview>('/litopys/memory/preview', { method: 'POST', body: sharedBody(o, { chatId }) })
 
-/** Notes, said lines and habits only exist on a card; for the others they are sent empty. */
-export const importMemory = (o: MemoryOwner, body: { chatId: string; arc: boolean; arcText?: string; facts: string[]; notes: string[]; said: string[]; habits: string[] }): Promise<MemoryView> =>
-  o.kind === 'card'
-    ? importCardMemory({ cardId: o.id, ...body })
-    : j<MemoryView>('/litopys/memory/import', { method: 'POST', body: sharedBody(o, { ...body, notes: [], said: [], habits: [] }) })
+export const importMemory = (o: MemoryOwner, body: { chatId: string; arc: boolean; arcText?: string; facts: string[] }): Promise<MemoryView> =>
+  j<MemoryView>('/litopys/memory/import', { method: 'POST', body: sharedBody(o, body) })
 
 // ---- how a character changed (#396): the living portrait, characters/<id>/growth.json, served by the agents plugin (/agents/growth)
 

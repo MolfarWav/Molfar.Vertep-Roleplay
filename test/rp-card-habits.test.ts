@@ -171,8 +171,11 @@ describe("card habits: the prompt block", () => {
       ],
     });
     const { host } = mockHost();
-    route(host, "POST", "/litopys/card-memory/import", { cardId: "aria", chatId: "winter", facts: ["f1", "f2"] });
     put(host, SILENCE);
+    // an old story left in the card's file (no route makes one any more) rides along and is read back unchanged
+    const mem = readJson("characters/aria/memory.json");
+    mem.sources = [{ id: "s1", chatId: "winter", title: "Winter watch", on: true, canon: "main", arc: "", facts: [{ text: "Aria carries a brass key on a cord.", subject: "Aria" }], notes: [], said: [] }];
+    writeJson("characters/aria/memory.json", mem);
     writeChat("next", story(2, "x"), { title: "Next", characterId: "aria" });
     const text = textOf(L.llmRequest(ctx("next"), host));
     expect(text).not.toContain("brass key on a cord");

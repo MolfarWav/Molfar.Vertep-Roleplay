@@ -12,7 +12,6 @@ export interface CarriesAnswer {
   backstoryFar?: { chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number; text: string } | null
   /** #113: the chat continues an earlier one but opens with the card's greeting (the first message is that greeting). */
   opening?: { messageId: string; title: string } | null
-  cardMemory: { cardId: string; name: string; tokens: number; dupes: number; sources: string[]; text: string } | null
   /** The card's habits (#106): null when the card has none, or when they are off for the chat (so an off chip cannot be told from no habits). */
   cardHabits?: { cardId: string; name: string; tokens: number; dupes: number; habits: string[]; text: string } | null
   /** The card's living portrait (#396), asked of the agents plugin (not Litopys) and added by the strip: null = no accepted block is on, or the portrait is off for every chat. */
@@ -41,10 +40,10 @@ export interface DashCarries {
 }
 
 /** 'world' is the World DM; the saved world's memory is 'worldmem' and the persona's is 'personamem'. */
-export type CarryKind = 'memory' | 'habits' | 'growth' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'backstoryFar' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
+export type CarryKind = 'habits' | 'growth' | 'personamem' | 'worldmem' | 'recollections' | 'backstory' | 'backstoryFar' | 'litopys' | 'dashboard' | 'said' | 'world' | 'note'
 /** Every kind, in strip order. */
-export const CARRY_KINDS: readonly CarryKind[] = ['memory', 'habits', 'growth', 'personamem', 'worldmem', 'recollections', 'backstory', 'backstoryFar', 'litopys', 'dashboard', 'said', 'world', 'note']
-export type CarrySwitch = 'plugin:cardmemory' | 'plugin:cardhabits' | 'plugin:cardgrowth' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:journal' | 'plugin:world'
+export const CARRY_KINDS: readonly CarryKind[] = ['habits', 'growth', 'personamem', 'worldmem', 'recollections', 'backstory', 'backstoryFar', 'litopys', 'dashboard', 'said', 'world', 'note']
+export type CarrySwitch = 'plugin:cardhabits' | 'plugin:cardgrowth' | 'plugin:personamemory' | 'plugin:worldmemory' | 'plugin:recollections' | 'plugin:litopys' | 'plugin:relations' | 'plugin:said' | 'plugin:journal' | 'plugin:world'
 
 export interface CarryPart {
   key: CarryKind
@@ -62,7 +61,6 @@ export interface CarryPart {
 }
 
 export interface CarriesLabels {
-  memory: (name: string) => string
   habits: (name: string) => string
   growth: (name: string) => string
   personaMemory: (name: string) => string
@@ -98,15 +96,12 @@ export interface CarriesResult {
   visible: boolean
 }
 
-/** Parts in order: card memory, card habits, the portrait, persona memory, world memory, recollections, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
+/** Parts in order: card habits, the portrait, persona memory, world memory, recollections, backstory, Litopys' own record, Dashboard, Said, Author's note. A part that does
  *  not exist is left out, but one the user switched off stays so it can be switched back on. */
 export function buildCarries({ carries, dash, noteText, estimate, labels }: CarriesInput): CarriesResult {
   const offKeys = carries?.off ?? []
   const isOff = (k: CarrySwitch) => offKeys.includes(k)
   const parts: CarryPart[] = []
-
-  const cm = carries?.cardMemory
-  if (cm) parts.push({ key: 'memory', kind: 'memory', label: labels.memory(cm.name), tokens: cm.tokens, off: isOff('plugin:cardmemory'), switchKey: 'plugin:cardmemory' })
 
   const sk = carries?.cardHabits
   if (sk) parts.push({ key: 'habits', kind: 'habits', label: labels.habits(sk.name), tokens: sk.tokens, off: isOff('plugin:cardhabits'), switchKey: 'plugin:cardhabits' })
@@ -123,7 +118,7 @@ export function buildCarries({ carries, dash, noteText, estimate, labels }: Carr
   shared(carries?.personaMemory, 'personamem', 'persona', 'plugin:personamemory', carries?.personaMemory ? labels.personaMemory(carries.personaMemory.name) : '')
   shared(carries?.worldMemory, 'worldmem', 'world', 'plugin:worldmemory', carries?.worldMemory ? labels.worldMemory(carries.worldMemory.name) : '')
 
-  // what each character remembers of a closed scene: a plain board switch, like the card's memory
+  // what each character remembers of a closed scene: a plain board switch, like the card's habits
   const rc = carries?.recollections
   if (rc) {
     const names = rc.who.length <= 2 ? rc.who.join(', ') : labels.characters(rc.who.length)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { BookOpenText, Brain, ListChecks, ChatCenteredText, GitBranch, GitMerge, Gauge, GlobeHemisphereWest, MapTrifold, Note, Quotes, TrendUp, UserCircle } from '@phosphor-icons/react'
+import { BookOpenText, ListChecks, ChatCenteredText, GitBranch, GitMerge, Gauge, GlobeHemisphereWest, MapTrifold, Note, Quotes, TrendUp, UserCircle } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 
 type T = ReturnType<typeof useT>
 
-const ICONS: Record<CarryKind, PhosphorIcon> = { memory: Brain, habits: ListChecks, growth: TrendUp, personamem: UserCircle, worldmem: MapTrifold, recollections: Quotes, backstory: GitBranch, backstoryFar: GitMerge, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
+const ICONS: Record<CarryKind, PhosphorIcon> = { habits: ListChecks, growth: TrendUp, personamem: UserCircle, worldmem: MapTrifold, recollections: Quotes, backstory: GitBranch, backstoryFar: GitMerge, litopys: BookOpenText, dashboard: Gauge, said: ChatCenteredText, world: GlobeHemisphereWest, note: Note }
 
 interface DashAnswer {
   view?: { insert?: { tokens?: number; saidTokens?: number } | null; inherit?: DashCarries['inherit'] } | null
@@ -97,7 +97,6 @@ export function useCarries(chatId: string, noteText: string, msgCount: number): 
   useEffect(() => { setOpen(false) }, [chatId])
 
   const labels = useMemo(() => ({
-    memory: (name: string) => t('carries.label.memory', { name }),
     habits: (name: string) => t('carries.label.habits', { name }),
     growth: (name: string) => t('carries.label.growth', { name }),
     personaMemory: (name: string) => t('carries.label.persona', { name }),
@@ -230,7 +229,6 @@ export function CarriesPanel({ chatId, state, onOpenNote, onOpenFired }: { chatI
 function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, onOpenFired, onChanged }: { part: CarryPart; chatId: string; onChanged: () => void; onOpenFired: () => void; carries: CarriesAnswer | null; chatHabits: { earned: number; candidates: number } | null; dash: DashCarries | null; t: T; onFlip: () => void; onLeave: () => void }) {
   const [shown, setShown] = useState(false)
   const Icon = ICONS[part.kind]
-  const cm = carries?.cardMemory
   const sk = carries?.cardHabits
   const cg = part.kind === 'growth' ? carries?.cardGrowth : null
   const bs = carries?.backstory
@@ -238,10 +236,9 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
   const wd = carries?.world
   const shared = part.kind === 'personamem' ? carries?.personaMemory : part.kind === 'worldmem' ? carries?.worldMemory : null
   const rcl = part.kind === 'recollections' ? carries?.recollections : null
-  const text = part.kind === 'memory' ? cm?.text : shared ? shared.text : rcl ? rcl.text : part.kind === 'habits' ? sk?.text : cg ? cg.text : part.kind === 'backstory' ? bs?.text : part.kind === 'backstoryFar' ? bf?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
+  const text = shared ? shared.text : rcl ? rcl.text : part.kind === 'habits' ? sk?.text : cg ? cg.text : part.kind === 'backstory' ? bs?.text : part.kind === 'backstoryFar' ? bf?.text : part.kind === 'world' && wd?.waiting ? wd.text : ''
   const detail =
-    part.kind === 'memory' ? (cm && cm.sources.length === 0 ? t('carries.memory.none') : t('carries.memory.detail', { n: cm?.sources.length ?? 0 }))
-    : rcl ? t('carries.recollections.detail', { n: rcl.scenes })
+    rcl ? t('carries.recollections.detail', { n: rcl.scenes })
     : shared ? t(part.kind === 'personamem' ? 'carries.persona.detail' : 'carries.worldmem.detail', { n: shared.stories, name: shared.name })
     : part.kind === 'habits' ? t('carries.habits.detail', { n: sk?.habits.length ?? 0, name: sk?.name ?? '' })
     : cg ? t('carries.growth.detail', { n: cg.blocks, name: cg.name })
@@ -252,7 +249,7 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
     : part.kind === 'world' ? (wd?.level === 'chronicler' ? t('carries.world.chronicler') : wd?.waiting ? t('carries.world.waiting') : t('carries.world.idle'))
     : t('carries.said.detail')
   const inherit = part.kind === 'dashboard' && dash?.inherit?.on ? dash.inherit : null
-  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'memory' || part.kind === 'habits' || cg || shared || rcl ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'memory' || part.kind === 'habits' || cg || shared || rcl ? t('carries.memory.show') : t('carries.backstory.show')
+  const showLabel = part.kind === 'world' ? (shown ? t('carries.world.hide') : t('carries.world.show')) : shown ? (part.kind === 'habits' || cg || shared || rcl ? t('carries.memory.hide') : t('carries.backstory.hide')) : part.kind === 'habits' || cg || shared || rcl ? t('carries.memory.show') : t('carries.backstory.show')
   const textId = `carries-text-${part.key}`
   return (
     <li className="flex flex-col gap-1.5 border-b border-border p-3" data-testid={`carries-row-${part.key}`}>
@@ -267,9 +264,6 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
       </div>
       <p className="text-xs text-muted-foreground">{detail}</p>
       {inherit && <p className="text-xs text-muted-foreground">{t('carries.dashboard.inherit', { title: inherit.title || inherit.from || '' })}</p>}
-      {part.kind === 'memory' && !!cm && cm.dupes > 0 && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: cm.dupes })}</p>
-      )}
       {!!shared && shared.dupes > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.memory.dupes', { n: shared.dupes })}</p>
       )}
@@ -280,11 +274,8 @@ function PartRow({ part, chatId, carries, chatHabits, dash, t, onFlip, onLeave, 
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs">{t('carries.habits.dupes', { n: sk.dupes })}</p>
       )}
       <div className="flex flex-wrap gap-1">
-        {(part.kind === 'memory' || part.kind === 'habits' || !!cg || part.kind === 'backstory' || part.kind === 'backstoryFar' || part.kind === 'world' || !!shared || !!rcl) && !!text && (
+        {(part.kind === 'habits' || !!cg || part.kind === 'backstory' || part.kind === 'backstoryFar' || part.kind === 'world' || !!shared || !!rcl) && !!text && (
           <Button variant="ghost" size="sm" className="max-md:h-10" aria-expanded={shown} aria-controls={textId} onClick={() => setShown((v) => !v)}>{showLabel}</Button>
-        )}
-        {part.kind === 'memory' && !!cm && (
-          <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(cm.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>
         )}
         {part.kind === 'habits' && !!sk && (
           <Button variant="ghost" size="sm" className="max-md:h-10" onClick={() => { onLeave(); useApp.getState().openCharacterOnTab(sk.cardId, 'memory') }}>{t('carries.memory.edit')}</Button>

@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { DotsThree, PencilSimple, Plus, Trash } from '@phosphor-icons/react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
@@ -12,14 +10,13 @@ import { cn } from '@/lib/utils'
 import { type MemLinePatch, type MemoryOwner, type MemoryView, type MemSource, putMemory } from './memory-api'
 
 type T = ReturnType<typeof useT>
-type ListName = 'facts' | 'notes' | 'said'
+type ListName = 'facts'
 const LINE_MAX = 300
 const ARC_MAX = 1500
-const KINDS = ['vow', 'promise', 'threat', 'confession', 'secret', 'order', 'refusal', 'lie', 'other'] as const
 
 /** What one story keeps, line by line: read, edit, remove (with Undo) and add by hand. Works the same
  *  when the chat is gone: the lines live in the owner's memory file, not in the chat. A persona's and a
- *  world's story has only the summary and the facts; notes and said lines are a card's. */
+ *  world's story has the summary and the facts (a card keeps no stories since #492). */
 export function StoryLines({
   owner,
   source,
@@ -31,7 +28,7 @@ export function StoryLines({
   t: T
   apply: (run: () => Promise<MemoryView>) => Promise<boolean>
 }) {
-  const lists: readonly ListName[] = owner.kind === 'card' ? ['facts', 'notes', 'said'] : ['facts']
+  const lists: readonly ListName[] = ['facts']
   // who a hand-written line is about: the card or persona by name; a world's facts are about "world" (as Litopys files them)
   const subject = owner.kind === 'world' ? 'world' : owner.name
   // one line is edited or added at a time: "facts:2" edits the third fact, "facts:+" adds one
@@ -46,11 +43,7 @@ export function StoryLines({
         label: t('mem.ln.undo'),
         onClick: () => {
           // the line goes back to the end of its list (the server only appends)
-          const back: MemLinePatch = { list, add: true, text: old.text }
-          if ('subject' in old) back.subject = old.subject
-          if ('who' in old) back.who = old.who
-          if ('kind' in old) back.kind = old.kind
-          if ('how' in old) back.how = old.how
+          const back: MemLinePatch = { list, add: true, text: old.text, subject: old.subject }
           void send(back).then((ok) => { if (ok) toast.success(t('mem.ln.restored')) })
         },
       },
@@ -109,11 +102,7 @@ export function StoryLines({
                 </li>
               ) : (
                 <Row key={`${list}${i}`} t={t} onEdit={() => setAt(`${list}:${i}`)} onRemove={() => void removeLine(list, i)}>
-                  <span className="break-words">
-                    {'who' in line && line.who && <span className="text-muted-foreground">{line.who}: </span>}
-                    {line.text}
-                  </span>
-                  {'kind' in line && line.kind && <Badge variant="outline" className="mt-1 block w-fit text-[10px]">{kindLabel(t, line.kind)}</Badge>}
+                  <span className="break-words">{line.text}</span>
                 </Row>
               ),
             )}
@@ -126,14 +115,9 @@ export function StoryLines({
               label={t('mem.ln.newLabel')}
               placeholder={t(`mem.ln.ph.${list}` as MsgKey)}
               submitLabel={t('mem.ln.addNow')}
-              kind={list === 'said'}
               onCancel={() => setAt(null)}
-              onSubmit={async (text, kind) => {
-                const line: MemLinePatch = { list, add: true, text }
-                if (list === 'facts') line.subject = subject
-                else line.who = owner.name
-                if (list === 'said') line.kind = kind
-                if (await send(line)) setAt(null)
+              onSubmit={async (text) => {
+                if (await send({ list, add: true, text, subject })) setAt(null)
               }}
             />
           ) : (
@@ -179,7 +163,7 @@ function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-/** An inline text box with a counter and Save / Cancel; `kind` adds the select for a said line. */
+/** An inline text box with a counter and Save / Cancel. */
 function LineEditor({
   t,
   initial,
@@ -187,7 +171,6 @@ function LineEditor({
   label,
   placeholder,
   submitLabel,
-  kind,
   onCancel,
   onSubmit,
 }: {
@@ -197,18 +180,16 @@ function LineEditor({
   label: string
   placeholder?: string
   submitLabel: string
-  kind?: boolean
   onCancel: () => void
-  onSubmit: (text: string, kind: string) => Promise<void>
+  onSubmit: (text: string) => Promise<void>
 }) {
   const [text, setText] = useState(initial)
-  const [kindValue, setKindValue] = useState('promise')
   const [busy, setBusy] = useState(false)
   const empty = !text.trim()
   const submit = async () => {
     if (empty || busy) return
     setBusy(true)
-    try { await onSubmit(text.trim(), kindValue) } finally { setBusy(false) }
+    try { await onSubmit(text.trim()) } finally { setBusy(false) }
   }
   return (
     <div className="flex flex-col gap-1.5" data-testid="mem-line-editor">
@@ -223,17 +204,6 @@ function LineEditor({
         className="min-h-0 text-sm"
         onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel() } }}
       />
-      {kind && (
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-          {t('mem.ln.kind')}
-          <Select value={kindValue} onValueChange={(v) => v && setKindValue(String(v))}>
-            <SelectTrigger className="w-full max-md:h-10"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {KINDS.map((k) => <SelectItem key={k} value={k} className="max-md:min-h-10">{kindLabel(t, k)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </label>
-      )}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" className="max-md:h-10" disabled={empty || busy} onClick={() => void submit()}>{submitLabel}</Button>
         <Button size="sm" variant="outline" className="max-md:h-10" disabled={busy} onClick={onCancel}>{t('home.cancel')}</Button>
@@ -243,5 +213,3 @@ function LineEditor({
     </div>
   )
 }
-
-const kindLabel = (t: T, kind: string) => (t(`dash.said.kind.${kind}` as MsgKey) as string | undefined) || kind

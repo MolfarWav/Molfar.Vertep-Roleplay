@@ -14,14 +14,14 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
 import { type MemChat, type MemoryOwner, type MemoryView, type MemPreview, type MemSummary, importMemory, previewMemory, summarizeChat } from './memory-api'
-import { MEMORY_TEXT } from './memory-kind'
+import { type MemoryText, storyText } from './memory-kind'
 
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e))
 const SEARCH_FROM = 8
 
 /** Two steps: choose one of the owner's chats, then tick what the memory keeps from it. The chat can be
- *  deleted afterwards; what is ticked stays in the memory. A persona's or a world's memory has only the
- *  story summary and facts to tick. A full-screen page on a phone. */
+ *  deleted afterwards; what is ticked stays in the memory. A persona's or a world's memory has the
+ *  story summary and facts to tick (a card keeps no stories since #492, so it never opens this). A full-screen page on a phone. */
 export function MemoryImportDialog({
   open,
   onOpenChange,
@@ -39,6 +39,8 @@ export function MemoryImportDialog({
   onDone: (view: MemoryView) => void
 }) {
   const t = useT()
+  const txt = storyText(owner.kind)
+  if (!txt) return null
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -47,39 +49,35 @@ export function MemoryImportDialog({
         className="flex flex-col gap-0 overflow-hidden p-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0 md:h-[min(40rem,calc(100dvh-4rem))] sm:max-w-xl"
       >
         <DialogTitle className="sr-only">{t('mem.dlg.title')}</DialogTitle>
-        <DialogDescription className="sr-only">{t(MEMORY_TEXT[owner.kind].dlgPick, { name: owner.name })}</DialogDescription>
-        <Body owner={owner} chats={chats} initialChatId={initialChatId} onClose={() => onOpenChange(false)} onDone={onDone} />
+        <DialogDescription className="sr-only">{t(txt.dlgPick, { name: owner.name })}</DialogDescription>
+        <Body owner={owner} txt={txt} chats={chats} initialChatId={initialChatId} onClose={() => onOpenChange(false)} onDone={onDone} />
       </DialogContent>
     </Dialog>
   )
 }
 
-type Ticks = { arc: boolean; facts: Set<string>; notes: Set<string>; said: Set<string>; habits: Set<string> }
-type TickSet = 'facts' | 'notes' | 'said' | 'habits'
+type Ticks = { arc: boolean; facts: Set<string> }
 const ticksOf = (p: MemPreview): Ticks => ({
   arc: !!p.arc,
   facts: new Set(p.facts.filter((x) => x.checked).map((x) => x.id)),
-  notes: new Set(p.notes.filter((x) => x.checked).map((x) => x.id)),
-  said: new Set(p.said.filter((x) => x.checked).map((x) => x.id)),
-  habits: new Set((p.habits ?? []).filter((x) => x.checked).map((x) => x.id)),
 })
 
 function Body({
   owner,
+  txt,
   chats,
   initialChatId,
   onClose,
   onDone,
 }: {
   owner: MemoryOwner
+  txt: MemoryText
   chats: MemChat[]
   initialChatId: string | null
   onClose: () => void
   onDone: (view: MemoryView) => void
 }) {
   const t = useT()
-  const txt = MEMORY_TEXT[owner.kind]
-  const isCard = owner.kind === 'card'
   const lang = resolveLanguage(useApp((s) => s.settings.language))
   const [chatId, setChatId] = useState<string | null>(initialChatId)
   const [preview, setPreview] = useState<MemPreview | null>(null)
@@ -133,18 +131,17 @@ function Body({
       .catch((e) => { asked.current = false; toast.error(message(e)) })
   }
 
-  const count = ticks ? (ticks.arc ? 1 : 0) + ticks.facts.size + ticks.notes.size + ticks.said.size + ticks.habits.size : 0
+  const count = ticks ? (ticks.arc ? 1 : 0) + ticks.facts.size : 0
   const submit = async () => {
     if (!preview || !ticks || !chatId || count === 0 || saving) return
     setSaving(true)
     // the same progress card as every other import: one unit, so the bar only names the step
-    const run = beginImport(t(isCard ? 'imp.title.memory' : 'memx.imp.title'), 1)
+    const run = beginImport(t('memx.imp.title'), 1)
     run.start(owner.name, t('imp.step.saving'))
     try {
-      const view = await importMemory(owner, { chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts], notes: [...ticks.notes], said: [...ticks.said], habits: [...ticks.habits] })
-      if (view.imported?.habitsLeft) toast.warning(t('mem.dlg.habitsLeft', { n: view.imported.habitsLeft }))
+      const view = await importMemory(owner, { chatId, arc: ticks.arc, ...(ticks.arc && arcText?.trim() ? { arcText } : {}), facts: [...ticks.facts] })
       run.finish(true)
-      run.end(t(isCard ? 'imp.memory.done' : 'memx.imp.done', { n: count }))
+      run.end(t('memx.imp.done', { n: count }))
       onDone(view)
     } catch (e) {
       run.finish(false, message(e))
@@ -168,7 +165,7 @@ function Body({
     </div>
   )
 
-  // ---- step 1: the card's chats
+  // ---- step 1: the owner's chats
   if (!chatId) {
     const q = query.trim().toLowerCase()
     const shown = q ? chats.filter((x) => (x.title || '').toLowerCase().includes(q)) : chats
@@ -228,19 +225,18 @@ function Body({
       </>
     )
   }
-  const flip = (set: TickSet, id: string, on: boolean) =>
+  const flip = (id: string, on: boolean) =>
     setTicks((cur) => {
       if (!cur) return cur
-      const next = new Set(cur[set])
+      const next = new Set(cur.facts)
       if (on) next.add(id)
       else next.delete(id)
-      return { ...cur, [set]: next }
+      return { ...cur, facts: next }
     })
-  const toggleAll = (set: TickSet) =>
+  const toggleAll = () =>
     setTicks((cur) => {
       if (!cur || !preview) return cur
-      const lines: { id: string; dup: 'memory' | null }[] = preview[set] ?? []
-      return { ...cur, [set]: cur[set].size ? new Set<string>() : new Set(lines.filter((l) => !l.dup).map((l) => l.id)) }
+      return { ...cur, facts: cur.facts.size ? new Set<string>() : new Set(preview.facts.filter((l) => !l.dup).map((l) => l.id)) }
     })
 
   return (
@@ -279,38 +275,11 @@ function Body({
 
         <LineSection
           title={t('mem.dlg.facts')}
-          lines={preview.facts.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: '' }))}
+          lines={preview.facts.map((x) => ({ id: x.id, text: x.text, dup: x.dup }))}
           ticked={ticks.facts}
-          onFlip={(id, on) => flip('facts', id, on)}
-          onAll={() => toggleAll('facts')}
+          onFlip={flip}
+          onAll={toggleAll}
         />
-        {isCard && (
-          <LineSection
-            title={t('mem.dlg.notes')}
-            lines={preview.notes.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who }))}
-            ticked={ticks.notes}
-            onFlip={(id, on) => flip('notes', id, on)}
-            onAll={() => toggleAll('notes')}
-          />
-        )}
-        {isCard && (
-          <LineSection
-            title={t('mem.dlg.said')}
-            lines={preview.said.map((x) => ({ id: x.id, text: x.text, dup: x.dup, lead: x.who, kind: x.kind }))}
-            ticked={ticks.said}
-            onFlip={(id, on) => flip('said', id, on)}
-            onAll={() => toggleAll('said')}
-          />
-        )}
-        {isCard && (preview.habits?.length ?? 0) > 0 && (
-          <LineSection
-            title={t('mem.dlg.habits')}
-            lines={preview.habits.map((x) => ({ id: x.id, text: x.rule, dup: x.dup, lead: x.name }))}
-            ticked={ticks.habits}
-            onFlip={(id, on) => flip('habits', id, on)}
-            onAll={() => toggleAll('habits')}
-          />
-        )}
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">{t(txt.dlgAfter)}</p>
@@ -387,7 +356,7 @@ function Tick({ checked, onChange, label, children }: { checked: boolean; onChan
   )
 }
 
-interface Line { id: string; text: string; dup: 'memory' | null; lead: string; kind?: string }
+interface Line { id: string; text: string; dup: 'memory' | null }
 
 function LineSection({ title, lines, ticked, onFlip, onAll }: { title: string; lines: Line[]; ticked: Set<string>; onFlip: (id: string, on: boolean) => void; onAll: () => void }) {
   const t = useT()
@@ -406,13 +375,10 @@ function LineSection({ title, lines, ticked, onFlip, onAll }: { title: string; l
           {lines.map((l) => (
             <li key={l.id}>
               <Tick checked={ticked.has(l.id)} onChange={(v) => onFlip(l.id, v)} label={l.text}>
-                <span className={cn('block break-words', l.dup && 'text-muted-foreground')}>
-                  {l.lead && <span className="text-muted-foreground">{l.lead}: </span>}{l.text}
-                </span>
-                {(l.dup || l.kind) && (
+                <span className={cn('block break-words', l.dup && 'text-muted-foreground')}>{l.text}</span>
+                {l.dup && (
                   <span className="mt-1 flex flex-wrap gap-1">
-                    {l.kind && <Badge variant="outline" className="text-[10px]">{kindLabel(t, l.kind)}</Badge>}
-                    {l.dup && <Badge variant="secondary" className="text-[10px]">{t('mem.dlg.dup')}</Badge>}
+                    <Badge variant="secondary" className="text-[10px]">{t('mem.dlg.dup')}</Badge>
                   </span>
                 )}
               </Tick>
@@ -422,10 +388,4 @@ function LineSection({ title, lines, ticked, onFlip, onAll }: { title: string; l
       )}
     </Section>
   )
-}
-
-const kindLabel = (t: ReturnType<typeof useT>, kind: string) => {
-  const key = `dash.said.kind.${kind}` as MsgKey
-  const label = t(key) as string | undefined
-  return label || kind
 }

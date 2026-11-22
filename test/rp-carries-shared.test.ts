@@ -3,7 +3,6 @@ import { describe, expect, it } from "bun:test";
 import { buildCarries, type CarriesAnswer } from "../src/lib/carries";
 
 const labels = {
-  memory: (n: string) => `Memory of ${n}`,
   habits: (n: string) => `Habits of ${n}`,
   personaMemory: (n: string) => `Persona memory: ${n}`,
   worldMemory: (n: string) => `World memory: ${n}`,
@@ -23,7 +22,6 @@ const answer = (over: Partial<CarriesAnswer> = {}): CarriesAnswer => ({
   off: [],
   litopys: { tokens: 0, facts: 0, chapters: 0 },
   backstory: null,
-  cardMemory: null,
   world: null,
   ...over,
 });
@@ -41,11 +39,11 @@ describe("what a chat carries: persona and world memory", () => {
     expect(r.total).toBe(130);
   });
 
-  it("comes after the card memory and before the backstory", () => {
-    const card = { cardId: "aria", name: "Aria", tokens: 10, dupes: 0, sources: ["Winter"], text: "y" };
+  it("comes after the card's habits and before the backstory", () => {
+    const card = { cardId: "aria", name: "Aria", tokens: 10, dupes: 0, habits: ["Keeps a brass key close"], text: "y" };
     const backstory = { from: "c0", title: "Road", tokens: 5, facts: 1, chapters: 1, text: "z" };
-    const r = run(answer({ cardMemory: card, backstory, personaMemory: shared() }));
-    expect(r.parts.map((p) => p.key)).toEqual(["memory", "personamem", "backstory", "note"]);
+    const r = run(answer({ cardHabits: card, backstory, personaMemory: shared() }));
+    expect(r.parts.map((p) => p.key)).toEqual(["habits", "personamem", "backstory", "note"]);
   });
 
   it("a chat that did not opt in shows the part off with no tokens, and the total ignores it", () => {

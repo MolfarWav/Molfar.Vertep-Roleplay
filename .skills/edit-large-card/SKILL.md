@@ -54,12 +54,11 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - The model a card's tasks (Structure it, Fill empty, the Soul rating) run on is not in `card.json`: it is in
   `characters/<id>/card-tasks.json` (`model`, `maxInput`, `maxOutput`), written by the editor's Save changes.
   Leave that file alone.
-- What the character remembers from finished stories is not in `card.json` either: it is in
-  `characters/<id>/memory.json` (a list of `sources`, each a snapshot of one chat: a short `arc`, the strongest
-  `facts`, `notes` and `said` lines, and a copy of the chat's `title`), edited in the card's Memory tab and
-  injected into new chats of the card. Do not write it by hand and do not copy its lines into `description`
-  or the Soul: the app already leaves out a memory line that the story, the Dashboard or the card's own text
-  say. A deleted chat does not change it. The one part you may write there is `habits`: short rules for how
+- What the character does over many chats is not in `card.json` either: it is in
+  `characters/<id>/memory.json`, edited in the card's Memory tab. The card keeps no stories (the facts of a
+  finished story live in Litopys, per chat); a `sources` list in that file is an old story the app ignores and
+  sends nowhere. Do not write `sources`, and do not copy its lines into `description` or the Soul. The one part
+  you may write there is `habits`: short rules for how
   the character acts (not abilities), `{ id, name, rule (1-6 lines, one per \n), when (optional, one line),
   on: true, origin: "molfar", state: "proposed" }` appended to `/habits` (`id` "k" plus the next number after
   every id in the file, `nextHabit` is the app's counter). Always `state: "proposed"`: the user confirms it in
