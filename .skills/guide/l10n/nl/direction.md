@@ -1,4 +1,4 @@
-<!-- source: 3fac4b007f13 -->
+<!-- source: dbd568649975 -->
 # Richting: wie is er in de scène
 
 Richting is voor groepschats. Na elke reactie leest een klein, goedkoop "director"-model de scène en zegt wat voor soort scène het is (een les, een pauze, een moment alleen, een date) en welke leden erin zitten. Leden die er niet zijn, stoppen met antwoorden en worden uit de prompt weggelaten totdat het verhaal ze terugbrengt.
@@ -39,18 +39,20 @@ Onder het antwoord dat een notitie droeg, staat een kleine regel die zegt wat er
 
 Een groep kan op het tabblad **Direction** een **default genre** instellen. Nieuwe chats van die groep beginnen dan met dat genre aan. De getallen zijn eerste schattingen: verander ze in een chat als een regel te vaak of te zelden afgaat.
 
+**Who comes.** Elke regelkaart heeft een keuze **Who comes**: **Members** (de standaard: iemand uit de groep, degene die het langst weg is), **World people** (één persoon uit de Wereld van deze chat, zoals een leraar of een buurman die het verhaal al heeft) of **Either** (een munt beslist als beide bestaan). De World people komen uit het World-boek van de chat; mensen die met pensioen zijn, die op zichzelf niet terugkomen, of die al in de scène zitten, vallen af. Zonder mensen in de World staan de twee andere opties grijs en zeggen ze waarom. De notitie bij het volgende antwoord zegt wie die persoon is, in één zin uit zijn of haar record, en dat die niet een van de groep is; niemand hier heeft hun kaart, dus het schrijvende model speelt ze uit die zin. Iemand die alleen op de bank zit en niet in je groep is, kan op deze manier onderbreken, meedoen of langskomen.
+
 ## Het plan
 
 Een **beat** is iets wat je wilt dat gebeurt: "The bell rings and the class empties into the hall", "Mei brings a cake". Open **Plan** en tik op **Add beat**. Een beat heeft:
 
 - **What happens**: een of twee zinnen, als regieaanwijzing.
-- **Who takes part** (optioneel): leden die weg zijn, komen de scène in voor deze beat.
+- **Who takes part** (optioneel): leden die weg zijn, komen de scène in voor deze beat. Onder **People from the World** kun je ook mensen kiezen die het verhaal al heeft (een leraar, een rivaal); de notitie vertelt het schrijvende model wie ze zijn. Mensen worden gekozen uit het World-boek van de chat, dus er zijn er niet om te kiezen totdat het er een paar heeft.
 - **When**: **After some replies** (geteld vanaf het moment dat de beat de volgende wordt; 0 betekent meteen), **Scene** (wanneer de director dat soort scène leest: een les, een pauze, een date...), **Place** (wanneer de plaats van het Dashboard je woorden bevat, zoals "roof"; hoofdletters worden genegeerd) of **By hand** (alleen wanneer je op **Fire now** drukt).
 - **Wait for a new scene**: standaard aan. Een beat die aan de beurt is, snijdt niet door het midden van een moment: hij wacht tot zes antwoorden lang tot het verhaal van plaats wisselt of in de tijd springt, en gaat dan hoe dan ook. Een plaatsbeat gaat op het moment dat het verhaal daar aankomt, en een beat op de hand alleen wanneer je hem afvuurt.
 
 Het plan gaat **in volgorde**: alleen de eerste beat die nog niet af is, wordt bekeken. De latere beats staan op "After the beats before it". Een beat is klaar wanneer hij is binnengekomen, wanneer hij is opgegeven (de director heeft hem twee keer zien ontbreken) of wanneer je hem **Skip**. De volgende beat telt zijn antwoorden vanaf het moment dat de vorige eindigde. Elke kaart laat zien waar zijn beat staat: **Waiting** (aantal resterende antwoorden), **Due, waiting for a new scene** (aantal resterende antwoorden), **Goes with the next reply**, **Delivered** (gekomen, alleen genoemd, of binnengegaan toen niemand werd genoemd), **Did not land**, **Skipped**. Als iets een beat tegenhoudt, zegt de kaart waarom: Richting staat uit, de scène is op slot, of de scène is expliciet (een beat gaat er nooit in; hij gaat wanneer de scène eruit stapt). **Edit**, **Move up**, **Move down** en **Delete** wijzigen de lijst. **Fire now** zet de beat meteen op het volgende antwoord, wat hij ook wacht.
 
-Een beat gebruikt dezelfde machinerie als een genre-regel. Na elk antwoord controleert de code het plan vóór de regels, de notitie rijdt mee op het volgende antwoord (één notitie per antwoord; de lock, een terugkeer na de lock, en een gebeurtenis of een terugkerend persoon uit de Wereld gaan voor, en de beat gaat dan bij het volgende antwoord opnieuw), en het latere rapport van de director zegt of ze **came**, **only mentioned** zijn, of dat het **did not land**. Een beat die niet is aangekomen, wordt nog één keer geprobeerd met een strengere notitie, en dan opgegeven. Een antwoord dat je wegveegt, geeft de nieuwe poging dezelfde notitie. Een antwoord dat je verwijdert, zet zijn beat terug in het plan.
+Een beat gebruikt dezelfde machinerie als een genre-regel. Na elk antwoord controleert de code het plan vóór de regels, en de notitie rijdt mee op het volgende antwoord (één notitie per antwoord; de lock, een terugkeer na de lock, en een gebeurtenis of een terugkerend persoon uit de Wereld gaan voor, en de beat gaat dan bij het volgende antwoord opnieuw). Het latere rapport van de director zegt of ze **came** zijn, **only mentioned** zijn, of dat het **did not land**. De director kent alleen de leden van de groep, dus voor het ene antwoord dat een notitie met World-mensen draagt, wordt ook gevraagd of die mensen in de scène zijn; elk ander antwoord wordt zoals voorheen gelezen. Een beat die niet is aangekomen, wordt nog één keer geprobeerd met een strengere notitie, en dan opgegeven. Een antwoord dat je wegveegt, geeft de nieuwe poging dezelfde notitie. Een antwoord dat je verwijdert, zet zijn beat terug in het plan.
 
 ## Het model kiezen
 

@@ -1,4 +1,4 @@
-<!-- source: 3fac4b007f13 -->
+<!-- source: dbd568649975 -->
 # Kierunek: kto jest w scenie
 
 Kierunek działa w czatach grupowych. Po każdej odpowiedzi mały, tani model "reżysera" odczytuje scenę i określa, co to za scena (lekcja, przerwa, chwila sam na sam, randka) oraz którzy członkowie w niej uczestniczą. Członkowie, których nie ma w scenie, przestają odpowiadać i są pomijani w prompcie, dopóki historia ich nie sprowadzi z powrotem.
@@ -39,18 +39,20 @@ Pod odpowiedzią, która niosła notatkę, mała linijka mówi, co się stało: 
 
 Grupa może ustawić **default genre** na swojej zakładce **Direction**. Nowe czaty tej grupy zaczynają się z włączonym tym gatunkiem. Liczby to pierwsze przybliżenia: zmień je w czacie, jeśli reguła zadziałała zbyt często lub zbyt rzadko.
 
+**Who comes.** Każda karta reguły ma wybór **Who comes**: **Members** (domyślnie: ktoś z grupy, ten, kto był nieobecny najdłużej), **World people** (jedna osoba z Świata tego czatu, na przykład nauczyciel albo sąsiad, którego historia już ma) albo **Either** (gdy istnieją obie możliwości, decyduje moneta). Osoby ze Świata pochodzą z księgi World tego czatu; osoby przeniesione na emeryturę, ustawione tak, by nie wracały same, lub już obecne w scenie, są pomijane. Bez ludzi w World dwie pozostałe opcje są wyszarzone i mówią dlaczego. Notatka przy następnej odpowiedzi mówi, kim jest ta osoba, w jednym zdaniu z jej rekordu, i że nie jest jednym z członków grupy; nikt tutaj nie ma jej karty, więc model piszący gra ją na podstawie tego zdania. Osoba, która jest tylko na ławce, a nie w twojej grupie, może w ten sposób przerwać, dołączyć lub wpaść.
+
 ## Plan
 
 **Beat** to coś, co chcesz, żeby się wydarzyło: "The bell rings and the class empties into the hall", "Mei brings a cake". Otwórz **Plan** i kliknij **Add beat**. Beat ma:
 
 - **What happens**: zdanie lub dwa, jako didaskalia.
-- **Who takes part** (opcjonalnie): członkowie, którzy są poza sceną, wchodzą do niej dla tego beatu.
+- **Who takes part** (opcjonalnie): członkowie, którzy są poza sceną, wchodzą do niej dla tego beatu. Pod **People from the World** możesz też wybrać osoby, które historia już zna (nauczyciel, rywal); notatka mówi piszącemu modelowi, kim są. Osoby wybiera się z księgi World tego czatu, więc dopóki jej nie ma, nie ma kogo wybrać.
 - **When**: **After some replies** (liczone od chwili, gdy beat staje się następny; 0 oznacza od razu), **Scene** (gdy reżyser odczyta ten rodzaj sceny: lekcja, przerwa, randka...), **Place** (gdy miejsce z Dashboardu zawiera twoje słowa, na przykład "roof"; ignoruje wielkie litery) albo **By hand** (tylko gdy naciśniesz **Fire now**).
 - **Wait for a new scene**: domyślnie włączone. Beat, który przyszedł na swoją kolej, nie wchodzi w środek chwili: czeka do sześciu odpowiedzi, aż historia zmieni miejsce albo przeskoczy w czasie, a potem idzie mimo wszystko. Beat miejsca idzie w chwili, gdy historia tam dotrze, a beat ręczny tylko wtedy, gdy go wystrzelisz.
 
 Plan idzie **po kolei**: sprawdzany jest tylko pierwszy beat, który nie jest zakończony. Pozostałe mówią "After the beats before it". Beat jest zakończony, gdy wszedł do historii, gdy został porzucony (reżyser dwa razy zauważył, że go pominięto) albo gdy go **Skip**niesz. Następny beat liczy odpowiedzi od chwili, gdy zakończył się poprzedni. Każda karta pokazuje, gdzie stoi jej beat: **Waiting** (pozostałe odpowiedzi), **Due, waiting for a new scene** (pozostałe odpowiedzi), **Goes with the next reply**, **Delivered** (przyszedł, tylko wspomniany albo wszedł, gdy nikt nie był nazwany), **Did not land**, **Skipped**. Jeśli coś wstrzymuje beat, karta mówi, co: Kierunek jest wyłączony, scena jest zablokowana albo scena jest jawna (beat nigdy nie wchodzi w jawnej scenie; idzie, gdy scena ją opuści). **Edit**, **Move up**, **Move down** i **Delete** zmieniają listę. **Fire now** wstawia beat do następnej odpowiedzi od razu, czego by nie czekał.
 
-Beat korzysta z tego samego mechanizmu co reguła gatunku. Po każdej odpowiedzi kod sprawdza plan przed regułami, notatka jedzie z następną odpowiedzią (jedna notatka na odpowiedź; blokada, powrót po blokadzie oraz wydarzenie lub powracająca postać ze Świata mają pierwszeństwo, a beat idzie dalej przy kolejnej odpowiedzi), a późniejszy raport reżysera mówi, czy osoby **came**, były **only mentioned**, czy beat **did not land**. Beat, który nie wylądował, próbuje się jeszcze raz z ostrzejszą notatką, a potem zostaje porzucony. Odpowiedź, którą przesuniesz, daje nowej próbie tę samą notatkę. Odpowiedź, którą usuniesz, zwraca swój beat do planu.
+Beat korzysta z tego samego mechanizmu co reguła gatunku. Po każdej odpowiedzi kod sprawdza plan przed regułami, a notatka jedzie z następną odpowiedzią (jedna notatka na odpowiedź; blokada, powrót po blokadzie oraz wydarzenie lub powracająca postać ze Świata mają pierwszeństwo, a beat idzie dalej przy kolejnej odpowiedzi). Późniejszy raport reżysera mówi, czy osoby **came**, były **only mentioned**, czy beat **did not land**. Reżyser zna tylko członków grupy, więc przy jednej odpowiedzi, która niesie notatkę z osobami ze Świata, pyta się też, czy te osoby są w scenie; każda inna odpowiedź jest czytana jak dotąd. Beat, który nie wylądował, próbuje się jeszcze raz z ostrzejszą notatką, a potem zostaje porzucony. Odpowiedź, którą przesuniesz, daje nowej próbie tę samą notatkę. Odpowiedź, którą usuniesz, zwraca swój beat do planu.
 
 ## Wybór modelu
 

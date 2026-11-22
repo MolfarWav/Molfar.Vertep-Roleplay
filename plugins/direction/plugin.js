@@ -105,6 +105,11 @@ export const SETS = {
     ],
   },
 };
+/** Who a rule may bring (phase 3b): the group's members, people of the chat's World, or either. */
+export const FROMS = ["members", "world", "any"];
+/** A World record's id (a person on its bench). */
+const NPC_ID = /^n\d{1,6}$/;
+const npcList = (v) => [...new Set(arr(v).filter((x) => typeof x === "string" && NPC_ID.test(x)))].slice(0, 8);
 const clampInt = (v, lo, hi, dflt) => (Number.isFinite(Number(v)) && v !== "" && v !== null ? Math.min(hi, Math.max(lo, Math.round(Number(v)))) : dflt);
 
 export function cleanRules(raw) {
@@ -119,6 +124,7 @@ export function cleanRules(raw) {
     if (e.cooldown !== undefined) out.cooldown = clampInt(e.cooldown, 0, 30, undefined);
     if (e.k !== undefined) out.k = clampInt(e.k, 0, 10, undefined);
     if (e.m !== undefined) out.m = clampInt(e.m, 0, 20, undefined);
+    if (FROMS.includes(e.from)) out.from = e.from;
     for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
     if (Object.keys(out).length) edits[id] = out;
   }
@@ -133,7 +139,7 @@ export function activeRules(rules) {
     const e = rules.edits[d.id] || {};
     const k = e.k !== undefined ? e.k : d.payoff ? d.payoff.k : 0;
     const m = e.m !== undefined ? e.m : d.payoff ? d.payoff.m : 0;
-    return { ...d, on: e.on !== false, need: e.need !== undefined ? e.need : d.need, cooldown: e.cooldown !== undefined ? e.cooldown : d.cooldown, payoff: k > 0 && m > 0 ? { k, m } : null };
+    return { ...d, from: e.from || "members", on: e.on !== false, need: e.need !== undefined ? e.need : d.need, cooldown: e.cooldown !== undefined ? e.cooldown : d.cooldown, payoff: k > 0 && m > 0 ? { k, m } : null };
   });
 }
 
@@ -148,6 +154,7 @@ function cleanFire(raw) {
     rule: str(raw.rule).slice(0, 60),
     kind: raw.kind,
     who: refList(raw.who),
+    npc: npcList(raw.npc),
     with: refList(raw.with),
     after: str(raw.after),
     n: Math.max(0, Math.round(Number(raw.n) || 0)),
@@ -162,12 +169,13 @@ function cleanFire(raw) {
     at: Number(raw.at) || 0,
   };
 }
-const nextOf = (f) => ({ id: f.id, rule: f.rule, kind: f.kind, who: f.who, with: f.with, after: f.after, forced: f.forced, at: f.at });
+const nextOf = (f) => ({ id: f.id, rule: f.rule, kind: f.kind, who: f.who, npc: f.npc || [], with: f.with, after: f.after, forced: f.forced, at: f.at });
 function cleanNext(raw) {
   if (!isObj(raw) || !str(raw.id) || !str(raw.rule) || !KINDS.includes(raw.kind) || !str(raw.after)) return null;
   const who = refList(raw.who);
+  const npc = npcList(raw.npc);
   // a beat may be an event with nobody to bring in; a rule always brings someone
-  return who.length || raw.kind === "beat" ? { id: str(raw.id).slice(0, 60), rule: str(raw.rule).slice(0, 60), kind: raw.kind, who, with: refList(raw.with), after: str(raw.after), forced: raw.forced === true, at: Number(raw.at) || 0 } : null;
+  return who.length || npc.length || raw.kind === "beat" ? { id: str(raw.id).slice(0, 60), rule: str(raw.rule).slice(0, 60), kind: raw.kind, who, npc, with: refList(raw.with), after: str(raw.after), forced: raw.forced === true, at: Number(raw.at) || 0 } : null;
 }
 
 /** A small seeded generator (the same algorithm as World's): one decision always rolls the same dice, a swiped reply rolls again. */
@@ -208,6 +216,7 @@ export function cleanState(raw, chatId) {
       at: Number(r.at) || 0,
       tag: TAGS.includes(r.tag) ? r.tag : null,
       present: idList(r.present),
+      ...(Array.isArray(r.others) ? { others: npcList(r.others) } : {}),
       sceneNew: r.sceneNew === true,
       model: str(r.model),
       ms: Number(r.ms) || 0,
@@ -276,8 +285,10 @@ const TAG_WORDS = [
 ];
 
 /** The director's prompt: the members, its own log of the last turns, the reply before as background, and the new pair. */
-export function buildPrompt({ members, userName, log, prev, player, reply }) {
+export function buildPrompt({ members, userName, log, prev, player, reply, others = [] }) {
   const user = str(userName) || "the player";
+  // phase 3b: asked only for the reply that carries a note naming people of the World (they are not members, so `present` cannot hold them)
+  const askOthers = others.length > 0;
   const system = [
     "You are the director of a group roleplay. The player plays " + user + ". After each turn you read the newest messages and report the scene for the code that runs the story's rules. You never write the story.",
     "Members: " + members.map((m) => m.name).join(", ") + ".",
@@ -285,9 +296,10 @@ export function buildPrompt({ members, userName, log, prev, player, reply }) {
     "Report:",
     "- tag: the kind of scene at the end of the new messages, one of: " + TAG_WORDS.map((t) => t.replace(/\{user\}/g, user)).join("; ") + ".",
     "- present: the members physically in the scene at the end of the new messages, with their names exactly as in the list above, never " + user + ". Someone who only texts, calls or is talked about is not present.",
+    ...(askOthers ? ["- others: of these people, who are not members: " + others.join(", ") + ", the ones physically in the scene at the end of the new messages (the same rule as present); [] when none."] : []),
     "- sceneNew: true when the new messages move to another place or skip more than about 30 minutes.",
     "",
-    'Reply with one JSON object: { "tag": "...", "present": ["..."], "sceneNew": false }. No prose, no code fences.',
+    askOthers ? 'Reply with one JSON object: { "tag": "...", "present": ["..."], "others": ["..."], "sceneNew": false }. No prose, no code fences.' : 'Reply with one JSON object: { "tag": "...", "present": ["..."], "sceneNew": false }. No prose, no code fences.',
   ].join("\n");
   const userText = [
     "Your log (turn: tag | present):",
@@ -313,7 +325,7 @@ export function parseReport(text) {
     try {
       const j = JSON.parse(t.slice(start, end + 1));
       if (!isObj(j)) return null;
-      return { tag: str(j.tag).toLowerCase(), present: arr(j.present).map(str).filter(Boolean), sceneNew: j.sceneNew === true };
+      return { tag: str(j.tag).toLowerCase(), present: arr(j.present).map(str).filter(Boolean), others: arr(j.others).map(str).filter(Boolean), sceneNew: j.sceneNew === true };
     } catch {}
   }
   return null;
@@ -404,6 +416,58 @@ export function absentRun(rows, id) {
 }
 const nameOfId = (members, id) => (members.find((m) => m.id === id) || {}).name || id;
 
+// ---------- people of the World (phase 3b) ----------
+const PEOPLE_MAX = 60;
+const PERSON_TEXT = 160;
+const firstSentence = (t) => {
+  const s = str(t);
+  const m = /^(.*?[.!?…])(\s|$)/.exec(s);
+  return (m ? m[1] : s).slice(0, PERSON_TEXT);
+};
+/** The names a World person goes by, lowercased: name, aliases, and the first word of the name when it is 3+ letters. */
+const personNames = (name, aliases) => [...new Set([name, name.split(" ")[0].length >= 3 ? name.split(" ")[0] : "", ...aliases].filter(Boolean).map((n) => n.toLowerCase()))];
+
+/**
+ * The people of the chat's World the player can bring in: active person records that are not the player and not members of the
+ * group (a member's name or the player's name on a record means it is that person). [{ id, name, names, text, noReturn }].
+ * Reads World's state file; nothing here writes it (plugins do not import each other).
+ */
+export function worldPeople(fsx, chatId, named, userName) {
+  const w = readJson(fsx, "world/state/" + chatId + ".json", null);
+  if (!isObj(w)) return [];
+  const own = new Set([...named.flatMap((m) => m.names), str(userName).toLowerCase()].filter(Boolean));
+  const out = [];
+  for (const e of arr(w.entities)) {
+    if (!isObj(e) || e.kind !== "person" || !NPC_ID.test(str(e.id)) || !str(e.name)) continue;
+    if (e.status !== undefined && e.status !== "active") continue;
+    const name = str(e.name);
+    const names = personNames(name, arr(e.aliases).map((a) => str(isObj(a) ? a.text : a)));
+    if (names.some((n) => own.has(n))) continue;
+    out.push({ id: str(e.id), name, names, text: firstSentence(e.text), noReturn: e.noReturn === true });
+    if (out.length >= PEOPLE_MAX) break;
+  }
+  return out;
+}
+
+/** World person ids for the names a model gave: a name or alias whole, or the first word. */
+export function matchNpc(names, people) {
+  const out = [];
+  for (const raw of arr(names)) {
+    const n = str(raw).toLowerCase();
+    if (!n) continue;
+    const first = n.split(" ")[0];
+    const hit = people.find((p) => p.names.includes(n)) || people.find((p) => first.length >= 3 && p.names.includes(first));
+    if (hit && !out.includes(hit.id)) out.push(hit.id);
+  }
+  return out;
+}
+
+/** The pool a rule may draw World people from: not noReturn, and not named in the Dashboard's present list (when there is one). */
+export function npcPool(people, dashNames) {
+  const here = new Set(arr(dashNames).map((n) => str(n).toLowerCase()));
+  return people.filter((p) => !p.noReturn && !p.names.some((n) => here.has(n))).map((p) => p.id);
+}
+
 /** Members who could come in, the longest away first (ties by the seeded generator `rnd`). */
 function candidatesFor(rows, members, present, rnd) {
   return members
@@ -417,7 +481,7 @@ function candidatesFor(rows, members, present, rnd) {
  * Do a rule's conditions hold on the newest reported reply? { ok, who, with, why } or { ok: false }. Reads only the director's
  * reports (and the member list); nothing here rolls or counts the cooldown.
  */
-export function evalRule(rule, { rows, members, rnd }) {
+export function evalRule(rule, { rows, members, rnd, npcs = [] }) {
   const last = rows[rows.length - 1];
   const rep = last && last.report;
   if (!rep) return { ok: false };
@@ -445,11 +509,28 @@ export function evalRule(rule, { rows, members, rnd }) {
     if (tail.length < w.empty || tail.some((r) => !r.report || r.report.present.length !== 0)) return { ok: false };
     why.push("nobody here for " + w.empty + " replies");
   }
-  const order = candidatesFor(rows, members, here, rnd);
-  if (!order.length) return { ok: false };
+  const pick = pickWho(rule, { rows, members, here, rnd, npcs });
+  if (!pick) return { ok: false };
+  return { ok: true, who: pick.who, npc: pick.npc, with: rule.do.kind === "return" ? [] : here.slice(0, 4), why: why.join("; ") };
+}
+
+/**
+ * Who a rule brings: group members (the longest away first), a person of the World (`npcs`, ids not in the scene), or either (a coin
+ * from the seeded generator when both exist). A member's turn calls `rnd` exactly as before, so a rule that takes members only
+ * rolls and picks as it did in phase 2. Returns { who, npc } or null when nobody can come.
+ */
+export function pickWho(rule, { rows, members, here, rnd, npcs = [] }) {
+  const from = rule.from || "members";
+  const order = from === "world" ? [] : candidatesFor(rows, members, here, rnd);
+  const pool = from === "members" ? [] : npcs.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  if (pool.length && (!order.length || from === "world" || rnd() < 0.5)) return { who: [], npc: [pool[0]] };
+  if (!order.length) return null;
   const count = rule.do.kind === "join" ? Math.max(1, rule.do.count || 1) : 1;
-  const who = order.slice(0, count);
-  return { ok: true, who, with: rule.do.kind === "return" ? [] : here.slice(0, 4), why: why.join("; ") };
+  return { who: order.slice(0, count), npc: [] };
 }
 
 const lastFireOf = (state, ruleId) => {
@@ -471,7 +552,7 @@ export function ruleStatus(state, rule, total) {
  * payoff silence, and whose 2d6 reaches `need`, fires. Nothing fires while the player holds the lock, in an explicit scene, when a
  * decision for this reply exists already, or when the newest reply has no report. Returns { fire, logs }.
  */
-export function decideRules({ state, msgs, members, chatId, dashDirection, now }) {
+export function decideRules({ state, msgs, members, chatId, dashDirection, now, npcs = [] }) {
   const none = { fire: null, logs: [] };
   if (state.on !== true || !state.rules.on || state.lock || dashDirection === "explicit") return none;
   const rules = activeRules(state.rules).filter((r) => r.on);
@@ -481,13 +562,13 @@ export function decideRules({ state, msgs, members, chatId, dashDirection, now }
   const total = rows.length;
   const logs = [];
   for (const rule of rules) {
-    const found = evalRule(rule, { rows, members, rnd: seededRandom(chatId + "|" + rule.id + "|" + last.key + "|pick") });
+    const found = evalRule(rule, { rows, members, npcs, rnd: seededRandom(chatId + "|" + rule.id + "|" + last.key + "|pick") });
     if (!found.ok) continue;
     const prev = lastFireOf(state, rule.id);
     if (prev && total - prev.n < prev.hold) continue;
     const roll = roll2d6(chatId + "|" + rule.id + "|" + last.key, rule.need);
     if (roll.total < rule.need) {
-      logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "missed", roll, who: found.who, with: found.with, why: found.why });
+      logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "missed", roll, who: found.who, npc: found.npc, with: found.with, why: found.why });
       continue;
     }
     const base = prev && !prev.payoff ? prev.tension : 0;
@@ -498,6 +579,7 @@ export function decideRules({ state, msgs, members, chatId, dashDirection, now }
       rule: rule.id,
       kind: rule.do.kind,
       who: found.who,
+      npc: found.npc,
       with: found.with,
       after: last.key,
       n: total,
@@ -511,14 +593,14 @@ export function decideRules({ state, msgs, members, chatId, dashDirection, now }
       why: found.why,
       at: now,
     };
-    logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "fired", roll, who: found.who, with: found.with, why: found.why, payoff });
+    logs.push({ at: now, key: last.key, kind: "rule", rule: rule.id, state: "fired", roll, who: found.who, npc: found.npc, with: found.with, why: found.why, payoff });
     return { fire, logs };
   }
   return { fire: null, logs };
 }
 
 /** The queued note, once its carrier reply has been reported: did they come (in the report's present), only get mentioned, or did it miss. */
-export function judgeNext(state, report, msgs, named) {
+export function judgeNext(state, report, msgs, named, people = []) {
   const next = state.next;
   if (!next) return state;
   const carrier = carrierOf(next.after, msgs);
@@ -527,21 +609,25 @@ export function judgeNext(state, report, msgs, named) {
   const sameReply = keyOf(carrier) === report.key;
   let result = "missed";
   // a beat with nobody to look for (an event only): it went into the reply, and nothing else can be judged
-  if (!next.who.length) result = "sent";
+  const npc = next.npc || [];
+  if (!next.who.length && !npc.length) result = "sent";
   else if (sameReply) {
-    if (next.who.some((id) => report.present.includes(id))) result = "came";
-    else if (next.who.some((id) => ((named.find((n) => n.id === id) || {}).names || []).some((n) => n.length >= 3 && text.includes(n)))) result = "mentioned";
+    const said = (names) => names.some((n) => n.length >= 3 && text.includes(n));
+    // a person of the World is in the scene when the director was asked about them and named them (`others`)
+    if (next.who.some((id) => report.present.includes(id)) || npc.some((id) => arr(report.others).includes(id))) result = "came";
+    else if (next.who.some((id) => said((named.find((n) => n.id === id) || {}).names || [])) || npc.some((id) => said((people.find((x) => x.id === id) || {}).names || []))) result = "mentioned";
   }
   const fires = state.fires.map((f) => (f.id === next.id ? { ...f, result, carrier: keyOf(carrier) } : f));
-  return { ...state, next: null, fires, log: [...state.log, { at: Date.now(), key: keyOf(carrier), kind: "result", rule: next.rule, result, who: next.who }].slice(-LOG_KEEP) };
+  return { ...state, next: null, fires, log: [...state.log, { at: Date.now(), key: keyOf(carrier), kind: "result", rule: next.rule, result, who: next.who, npc }].slice(-LOG_KEEP) };
 }
 
 const nameList = (names) => (names.length <= 1 ? names.join("") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1]);
 
 /** The note a queued rule puts into its reply (the bench's template notes). */
-export function ruleNote({ next, members, userName }) {
+export function ruleNote({ next, members, userName, people = [] }) {
   const user = str(userName) || "the player";
-  const who = next.who.map((id) => nameOfId(members, id)).filter(Boolean);
+  const npcs = (next.npc || []).map((id) => people.find((p) => p.id === id)).filter(Boolean);
+  const who = [...next.who.map((id) => nameOfId(members, id)).filter(Boolean), ...npcs.map((p) => p.name)];
   if (!who.length) return null;
   const others = next.with.map((id) => nameOfId(members, id)).filter(Boolean);
   const group = others.length ? user + " and " + nameList(others) : user;
@@ -549,8 +635,11 @@ export function ruleNote({ next, members, userName }) {
     next.kind === "interrupt" ? nameList(who) + " walks in on " + group + " and interrupts the moment."
     : next.kind === "join" ? nameList(who) + " joins " + group + " here."
     : nameList(who) + " " + (who.length === 1 ? "comes" : "come") + " back into the scene and " + (who.length === 1 ? "joins" : "join") + " " + user + ".";
-  return "[SCENE EVENT: must happen in this reply]\nWhat: " + what + "\nHow: bring it into this reply as part of the scene; the characters react in character.\nDo not: explain where it came from or mention a director.";
+  return "[SCENE EVENT: must happen in this reply]\nWhat: " + what + aboutNpc(npcs) + "\nHow: bring it into this reply as part of the scene; the characters react in character.\nDo not: explain where it came from or mention a director.";
 }
+
+/** For people of the World: who they are, and that they are not part of the group (nobody here has their card). */
+const aboutNpc = (npcs) => (npcs.length ? "\nWho: " + npcs.map((p) => p.name + (p.text ? " (" + p.text + ")" : "")).join("; ") + ". They are not one of the group: play them from this description, in character." : "");
 
 /** The lines a reply gets: the lock while it holds, the return once. Empty when neither applies. */
 export function sceneLines({ state, members, userName, msgs, op }) {
@@ -615,6 +704,7 @@ export function cleanBeat(raw) {
     id: BEAT_ID.test(id) ? id : "",
     text: str(raw.text).slice(0, BEAT_TEXT_MAX),
     who: refList(raw.who),
+    npc: npcList(raw.npc),
     when: cleanWhen(raw.when),
     wait: raw.wait !== false,
     skipped: raw.skipped === true,
@@ -679,7 +769,7 @@ export function beatCondition(beat, { total, armed, report, place }) {
  * or its wait is over). Nothing under the lock, with the switch off, in an explicit scene, with a note queued already, or when the newest
  * reply has no report. Returns { fire, beats, logs }: `beats` is the plan's new list when a beat became due, else null.
  */
-export function decideBeat({ state, msgs, members, dashDirection, dashPlace, dashMoved, now }) {
+export function decideBeat({ state, msgs, members, dashDirection, dashPlace, dashMoved, now, people = [] }) {
   const none = { fire: null, beats: null, logs: [] };
   if (state.on !== true || state.lock || state.next) return none;
   const rows = replyRows(state, msgs);
@@ -707,11 +797,14 @@ export function decideBeat({ state, msgs, members, dashDirection, dashPlace, das
   const how = outcome.retry ? "again after a miss" : immediate ? "" : boundary ? "the scene changed" : "waited " + BOUNDARY_WAIT + " replies for a scene change";
   const why = [due.dueWhy, how].filter(Boolean).join("; ");
   const who = due.who.filter((id) => members.some((m) => m.id === id));
+  // a person of the World that left the book (retired, deleted) is dropped quietly
+  const npc = due.npc.filter((id) => people.some((x) => x.id === id));
   const fire = {
     id: "f" + now.toString(36) + beat.id.slice(0, 6),
     rule: beatRuleId(beat.id),
     kind: "beat",
     who,
+    npc,
     with: last.report.present.filter((id) => !who.includes(id)).slice(0, 4),
     after: last.key,
     n: total,
@@ -725,17 +818,19 @@ export function decideBeat({ state, msgs, members, dashDirection, dashPlace, das
     why,
     at: now,
   };
-  logs.push({ at: now, key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, why });
+  logs.push({ at: now, key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, npc, why });
   return { fire, beats, logs };
 }
 
 /** The note a queued beat puts into its reply. A beat left out once says so, shorter and stricter. */
-export function beatNote({ next, beat, members, userName, tries }) {
+export function beatNote({ next, beat, members, userName, tries, people = [] }) {
   if (!beat) return null;
   const user = str(userName) || "the player";
-  const who = next.who.map((id) => nameOfId(members, id)).filter(Boolean);
+  const npcs = (next.npc || []).map((id) => people.find((p) => p.id === id)).filter(Boolean);
+  const who = [...next.who.map((id) => nameOfId(members, id)).filter(Boolean), ...npcs.map((p) => p.name)];
   const lines = ["[SCENE EVENT: must happen in this reply]", "What: " + beat.text];
   if (who.length) lines.push("Who: " + nameList(who) + " " + (who.length === 1 ? "takes" : "take") + " part; if they are not here yet, they come into the scene for it, with " + user + " there.");
+  if (npcs.length) lines.push(aboutNpc(npcs).slice(1));
   lines.push(tries > 0 ? "How: this was left out of the last reply and must happen in this one; the shortest form will do." : "How: bring it into this reply as part of the scene; the characters react in character.");
   lines.push("Do not: explain where it came from or mention a director or a plan.");
   return lines.join("\n");
@@ -749,7 +844,7 @@ export function beatStatuses(state, msgs, { dashDirection, dashPlace }) {
   const newest = rows.length ? rows[rows.length - 1].report : null;
   return state.plan.beats.map((beat) => {
     const o = beatOutcome(state, beat);
-    const base = { id: beat.id, text: beat.text, who: beat.who, when: beat.when, wait: beat.wait, tries: o.tries };
+    const base = { id: beat.id, text: beat.text, who: beat.who, npc: beat.npc, when: beat.when, wait: beat.wait, tries: o.tries };
     if (o.status !== "open") return { ...base, status: o.status, ...(o.result ? { result: o.result } : {}) };
     if (!head || head.beat.id !== beat.id) return { ...base, status: "behind" };
     const hold = state.on !== true ? "off" : state.lock ? "lock" : beat.dueKey && dashDirection === "explicit" ? "explicit" : "";
@@ -892,7 +987,7 @@ function requestFor(p, model, maxTokens) {
 }
 
 /** What the director reads for the newest reply: the pair, the reply before, its own log of the last turns. */
-function inputFor(state, msgs, members, userName) {
+function inputFor(state, msgs, members, userName, people = []) {
   const list = arr(msgs).filter(isObj);
   let at = -1;
   for (let i = list.length - 1; i >= 0; i--) if (isReply(list[i])) { at = i; break; }
@@ -908,7 +1003,11 @@ function inputFor(state, msgs, members, userName) {
     .filter((r) => line.indexOf(r.key) >= 0 && line.indexOf(r.key) < line.indexOf(keyOf(reply)))
     .slice(-LOG_LINES)
     .map((r) => (line.indexOf(r.key) + 1) + ": " + (r.tag || "?") + " | " + (r.present.map(nameOf).join(", ") || "nobody"));
-  return { key: keyOf(reply), prompt: buildPrompt({ members, userName, log, prev, player, reply: String(reply.text || "") }) };
+  // the reply that carries a note naming people of the World: ask the director whether they are in the scene (phase 3b)
+  const queued = state.next && arr(state.next.npc).length ? state.next : null;
+  const carrier = queued ? carrierOf(queued.after, msgs) : null;
+  const asked = carrier && keyOf(carrier) === keyOf(reply) ? queued.npc.map((id) => people.find((p) => p.id === id)).filter(Boolean) : [];
+  return { key: keyOf(reply), asked, prompt: buildPrompt({ members, userName, log, prev, player, reply: String(reply.text || ""), others: asked.map((p) => p.name) }) };
 }
 
 function runRoute(req, host) {
@@ -923,19 +1022,21 @@ function runRoute(req, host) {
   const cfg = readConfig(fsx);
   const state = settle(fsx, loadState(fsx, chatId), chat.msgs);
   const userName = userNameOf(fsx, chat.meta);
+  const named = memberNames(gm.members, registryOf(fsx, chatId));
+  const people = worldPeople(fsx, chatId, named, userName);
   const res = host.llm && isObj(host.llm.results) ? host.llm.results : {};
   const r = res.direction_retry || res.direction;
   const stash = isObj(req.stash) ? req.stash : {};
   if (!r) {
     if (state.on !== true) return ok({ ok: false, reason: "off" });
     if (!cfg.model) return ok({ ok: false, reason: "no-model" });
-    const input = inputFor(state, chat.msgs, gm.members, userName);
+    const input = inputFor(state, chat.msgs, gm.members, userName, people);
     if (!input) return ok({ ok: false, reason: "no-reply" });
     if (b.force !== true && state.reports.some((x) => x.key === input.key)) return ok({ ok: false, reason: "done" });
     host.llm.request("direction", requestFor(input.prompt, cfg.model, MAX_TOKENS));
     return { __llmPending: true, stash: { key: input.key, model: cfg.model, started: Date.now(), retry: false } };
   }
-  const input = inputFor(state, chat.msgs, gm.members, userName);
+  const input = inputFor(state, chat.msgs, gm.members, userName, people);
   if (!input || input.key !== stash.key) return ok({ ok: false, reason: "error", message: "the reply changed while the director read it" });
   const retry = stash.retry === true;
   const again = (maxTokens) => {
@@ -955,21 +1056,20 @@ function runRoute(req, host) {
   if (r.error) return fail("error", String(r.error).split("\n")[0].slice(0, 300));
   const parsed = parseReport(r.text);
   if (!parsed) return fail("bad-reply", thinkingOnly(r) ? "the model spent its whole limit thinking" : "no report in the answer");
-  const named = memberNames(gm.members, registryOf(fsx, chatId));
   const present = matchMembers(parsed.present, named);
-  const report = { key: stash.key, at: now, tag: applyPrecedence(parsed.tag, present.length), present, sceneNew: parsed.sceneNew, model: str(r.model) && r.model !== "error" ? str(r.model) : stash.model, ms, ...(usage ? { usage } : {}) };
+  const report = { key: stash.key, at: now, tag: applyPrecedence(parsed.tag, present.length), present, ...(input.asked.length ? { others: matchNpc(parsed.others, input.asked) } : {}), sceneNew: parsed.sceneNew, model: str(r.model) && r.model !== "error" ? str(r.model) : stash.model, ms, ...(usage ? { usage } : {}) };
   let st = { ...state, reports: [...state.reports.filter((x) => x.key !== report.key), report].slice(-REPORTS_KEEP) };
   // the return is spent once a reply after it was read
   if (st.returning && !returnDue(st, chat.msgs, "send")) st = { ...st, returning: null };
   st = logLine(counted(st), { key: report.key, kind: "report", tag: report.tag, present: report.present, sceneNew: report.sceneNew, model: report.model, ms, ...(usage ? { usage } : {}), ...(retry ? { retried: true } : {}) });
   // judge the note this reply carried, then decide the next one: a beat of the plan first, a genre rule when no beat fires
-  st = judgeNext(st, report, chat.msgs, named);
+  st = judgeNext(st, report, chat.msgs, named, people);
   const dash = dashboardScene(fsx, chatId, chat.msgs);
-  const beat = decideBeat({ state: st, msgs: chat.msgs, members: gm.members, dashDirection: dash.direction, dashPlace: dash.place, dashMoved: dash.moved, now });
+  const beat = decideBeat({ state: st, msgs: chat.msgs, members: gm.members, dashDirection: dash.direction, dashPlace: dash.place, dashMoved: dash.moved, now, people });
   if (beat.beats) st = { ...st, plan: { beats: beat.beats } };
   for (const l of beat.logs) st = { ...st, log: [...st.log, l].slice(-LOG_KEEP) };
   if (beat.fire) st = { ...st, fires: [...st.fires, beat.fire].slice(-FIRES_KEEP), next: nextOf(beat.fire) };
-  const decided = st.next ? { fire: null, logs: [] } : decideRules({ state: st, msgs: chat.msgs, members: gm.members, chatId, dashDirection: dash.direction, now });
+  const decided = st.next ? { fire: null, logs: [] } : decideRules({ state: st, msgs: chat.msgs, members: gm.members, chatId, dashDirection: dash.direction, now, npcs: npcPool(people, dashboardPresent(fsx, chatId)) });
   if (decided.fire) st = { ...st, fires: [...st.fires, decided.fire].slice(-FIRES_KEEP), next: nextOf(decided.fire) };
   for (const l of decided.logs) st = { ...st, log: [...st.log, l].slice(-LOG_KEEP) };
   saveState(fsx, st);
@@ -1001,9 +1101,11 @@ function stateRoute(req, host) {
     cooldown: r.cooldown,
     k: r.payoff ? r.payoff.k : 0,
     m: r.payoff ? r.payoff.m : 0,
+    from: r.from,
     when: r.when,
     ...ruleStatus(state, r, total),
   }));
+  const people = worldPeople(fsx, chatId, named, userNameOf(fsx, chat.meta));
   return ok({
     config: cfg,
     chat: { on: state.on === true, lock: state.lock, returning: state.returning && returnDue(state, chat.msgs, "send") ? state.returning : null },
@@ -1016,6 +1118,8 @@ function stateRoute(req, host) {
     next: state.next && state.on === true ? { ...state.next, due: dueAfter(state.next.after, chat.msgs, "send") } : null,
     fires: state.fires.slice().reverse(),
     plan: { beats: plan, whenKinds: WHEN_KINDS, tags: TAGS, boundaryWait: BOUNDARY_WAIT, max: BEATS_MAX, textMax: BEAT_TEXT_MAX },
+    // people of this chat's World the player can bring in (phase 3b): ids as the beats and rules name them
+    world: { people: people.map((x) => ({ id: x.id, name: x.name, ...(x.text ? { text: x.text } : {}), ...(x.noReturn ? { noReturn: true } : {}) })) },
   });
 }
 
@@ -1117,11 +1221,14 @@ function fireRoute(req, host) {
   if (beat) {
     // a beat by hand: now, whatever its condition and its wait; its people are the ones the player named
     const who = beat.who.filter((id) => gm.members.some((m) => m.id === id));
+    const known = worldPeople(fsx, chatId, named, userNameOf(fsx, chat.meta));
+    const npc = beat.npc.filter((id) => known.some((x) => x.id === id));
     const fire = {
       id: "f" + now.toString(36) + beat.id.slice(0, 6),
       rule: beatRuleId(beat.id),
       kind: "beat",
       who,
+      npc,
       with: here.filter((id) => !who.includes(id)).slice(0, 4),
       after: last.key,
       n: rows.length,
@@ -1136,17 +1243,19 @@ function fireRoute(req, host) {
       at: now,
     };
     const fires = [...st0.fires.filter((f) => !(st0.next && f.id === st0.next.id)), fire].slice(-FIRES_KEEP);
-    const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, why: fire.why, forced: true });
+    const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "beat", state: "fired", beat: beat.id, text: beat.text.slice(0, 120), who, npc, why: fire.why, forced: true });
     saveState(fsx, st);
     return ok({ next: st.next });
   }
-  const order = candidatesFor(rows, gm.members, here, seededRandom(chatId + "|" + rule.id + "|" + last.key + "|now|" + now));
-  if (!order.length) return ok({ error: "everyone is already here" }, 400);
+  const pool = npcPool(worldPeople(fsx, chatId, named, userNameOf(fsx, chat.meta)), dashboardPresent(fsx, chatId));
+  const pick = pickWho(rule, { rows, members: gm.members, here, npcs: pool, rnd: seededRandom(chatId + "|" + rule.id + "|" + last.key + "|now|" + now) });
+  if (!pick) return ok({ error: rule.from === "world" ? "nobody from the World can come" : "everyone is already here" }, 400);
   const fire = {
     id: "f" + now.toString(36) + rule.id.slice(0, 6),
     rule: rule.id,
     kind: rule.do.kind,
-    who: order.slice(0, rule.do.kind === "join" ? Math.max(1, rule.do.count || 1) : 1),
+    who: pick.who,
+    npc: pick.npc,
     with: rule.do.kind === "return" ? [] : here.slice(0, 4),
     after: last.key,
     n: rows.length,
@@ -1162,7 +1271,7 @@ function fireRoute(req, host) {
   };
   // a queued note this replaces is dropped from the ledger too (it never reached a reply)
   const fires = [...st0.fires.filter((f) => !(st0.next && f.id === st0.next.id)), fire].slice(-FIRES_KEEP);
-  const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "rule", rule: rule.id, state: "fired", who: fire.who, with: fire.with, why: fire.why, forced: true });
+  const st = logLine({ ...st0, fires, next: nextOf(fire) }, { key: last.key, kind: "rule", rule: rule.id, state: "fired", who: fire.who, npc: fire.npc, with: fire.with, why: fire.why, forced: true });
   saveState(fsx, st);
   return ok({ next: st.next });
 }
@@ -1178,7 +1287,7 @@ function skipRoute(req, host) {
   if (!st0.next) return ok({ next: null });
   const id = st0.next.id;
   // dropped by hand: gone from the ledger, so the rule's cooldown and tension do not count it
-  const st = logLine({ ...st0, next: null, fires: st0.fires.filter((f) => f.id !== id) }, { kind: "skip", rule: st0.next.rule, who: st0.next.who });
+  const st = logLine({ ...st0, next: null, fires: st0.fires.filter((f) => f.id !== id) }, { kind: "skip", rule: st0.next.rule, who: st0.next.who, npc: st0.next.npc || [] });
   saveState(fsx, st);
   return ok({ next: null });
 }
@@ -1287,14 +1396,16 @@ export function llmRequest(ctx, host) {
     if (state.on === true && state.next && dueAfter(state.next.after, chat.msgs, op)) {
       const why = parts.length ? "direction" : worldCarries(fsx, chatId, chat.msgs, op) ? "world" : "";
       const isBeat = state.next.kind === "beat";
+      const people = arr(state.next.npc).length ? worldPeople(fsx, chatId, memberNames(gm.members, registryOf(fsx, chatId)), userName) : [];
       const beat = isBeat ? state.plan.beats.find((x) => beatRuleId(x.id) === state.next.rule) : null;
-      const note = why ? null : isBeat ? beatNote({ next: state.next, beat, members: gm.members, userName, tries: beat ? beatOutcome(state, beat).tries : 0 }) : ruleNote({ next: state.next, members: gm.members, userName });
+      const note = why ? null : isBeat ? beatNote({ next: state.next, beat, members: gm.members, userName, people, tries: beat ? beatOutcome(state, beat).tries : 0 }) : ruleNote({ next: state.next, members: gm.members, userName, people });
       if (note) parts.push({ label: isBeat ? "Direction · beat" : "Direction · rule", text: note });
       else {
         const id = state.next.id;
         const rule = state.next.rule;
         const who = state.next.who;
-        saveState(fsx, logLine({ ...state, next: null, fires: state.fires.map((f) => (f.id === id ? { ...f, result: "yielded" } : f)) }, { kind: "result", rule, result: "yielded", by: why || "empty", who }));
+        const npc = state.next.npc || [];
+        saveState(fsx, logLine({ ...state, next: null, fires: state.fires.map((f) => (f.id === id ? { ...f, result: "yielded" } : f)) }, { kind: "result", rule, result: "yielded", by: why || "empty", who, npc }));
       }
     }
     if (!parts.length) return null;

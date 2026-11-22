@@ -61,7 +61,7 @@ describe("direction: pure rules", () => {
     expect(d.matchMembers(["Hana Sato"], named)).toEqual(["hana"]);
   });
   it("reads the report out of fences and a thinking block", () => {
-    expect(d.parseReport('<think>hm</think>```json\n{"tag":"lunch","present":["Hana"],"sceneNew":true}\n```')).toEqual({ tag: "lunch", present: ["Hana"], sceneNew: true });
+    expect(d.parseReport('<think>hm</think>```json\n{"tag":"lunch","present":["Hana"],"sceneNew":true}\n```')).toEqual({ tag: "lunch", present: ["Hana"], others: [], sceneNew: true });
     expect(d.parseReport("no json")).toBe(null);
   });
   it("a swipe or delete takes back reports and a return whose anchor is gone", () => {

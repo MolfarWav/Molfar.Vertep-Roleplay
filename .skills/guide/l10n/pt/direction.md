@@ -1,4 +1,4 @@
-<!-- source: 3fac4b007f13 -->
+<!-- source: dbd568649975 -->
 # Direção: quem está na cena
 
 Direção é para conversas em grupo. Após cada resposta, um modelo "diretor" pequeno e barato lê a cena e diz que tipo de cena é (uma aula, um intervalo, um momento a sós, um encontro) e quais membros estão nela. Membros que não estão lá param de responder e ficam fora do prompt até que a história os traga de volta.
@@ -39,18 +39,20 @@ Sob a resposta que trazia uma nota, uma pequena linha diz o que aconteceu: "Dire
 
 Um grupo pode definir um **default genre** na sua aba **Direction**; as novas conversas dele começam com esse gênero ligado. Os números são primeiras estimativas: mude-os em uma conversa se uma regra disparar com frequência demais ou de menos.
 
+**Who comes.** Cada cartão de regra tem uma escolha **Who comes**: **Members** (o padrão: alguém do grupo, quem está ausente há mais tempo), **World people** (uma pessoa do World desta conversa, como um professor ou um vizinho que a história já tem) ou **Either** (uma moeda decide quando as duas existem). As World people vêm do livro World da conversa; pessoas aposentadas, configuradas para não voltar sozinhas, ou já presentes na cena ficam de fora. Sem pessoas no World, as outras duas opções ficam apagadas e dizem o motivo. A nota da próxima resposta diz quem é a pessoa, em uma frase do registro dela, e que ela não é um dos membros do grupo; ninguém aqui tem o cartão dela, então o modelo que escreve a interpreta a partir dessa frase. Uma pessoa que está só no banco e não no seu grupo pode interromper, entrar ou aparecer desta forma.
+
 ## O plano
 
 Um **beat** é algo que você quer que aconteça: "The bell rings and the class empties into the hall", "Mei brings a cake". Abra **Plan** e toque em **Add beat**. Um beat tem:
 
 - **What happens**: uma ou duas frases, como uma indicação de cena.
-- **Who takes part** (opcional): membros que estão fora entram na cena por causa dele.
+- **Who takes part** (opcional): membros que estão fora entram na cena por causa dele. Em **People from the World** você também pode escolher pessoas que a história já tem (um professor, um rival); a nota diz ao modelo que escreve quem elas são. As pessoas são escolhidas no livro World da conversa, então não há ninguém para escolher até que ele tenha alguém.
 - **When**: **After some replies** (contado a partir do momento em que o beat se torna o próximo; 0 significa imediatamente), **Scene** (quando o diretor lê esse tipo de cena: uma aula, um intervalo, um encontro...), **Place** (quando o lugar do Dashboard contém as suas palavras, como "roof"; ignora maiúsculas) ou **By hand** (somente quando você pressiona **Fire now**).
 - **Wait for a new scene**: ligado por padrão. Um beat que está na hora não corta no meio de um momento: espera até seis respostas para a história mudar de lugar ou dar um salto no tempo, e então vai de qualquer forma. Um beat de lugar vai no instante em que a história chega lá, e um beat manual só quando você o dispara.
 
 O plano vai **em ordem**: só o primeiro beat que não está concluído é examinado; os seguintes dizem "After the beats before it". Um beat está concluído quando entrou, quando foi desistido (o diretor viu que ele ficou de fora duas vezes) ou quando você o **Skip**. O beat seguinte conta suas respostas a partir do fim do anterior. Cada cartão mostra onde está o seu beat: **Waiting** (respostas restantes), **Due, waiting for a new scene** (respostas restantes), **Goes with the next reply**, **Delivered** (veio, foi apenas mencionado, ou entrou quando ninguém foi nomeado), **Did not land**, **Skipped**. Se algo está segurando um beat, o cartão diz o motivo: a Direção está desligada, a cena está travada, ou a cena é explícita (um beat nunca dispara em uma cena explícita; ele vai quando a cena a deixa). **Edit**, **Move up**, **Move down** e **Delete** alteram a lista. **Fire now** coloca o beat na próxima resposta de imediato, independentemente do que ele esteja esperando.
 
-Um beat usa a mesma engrenagem de uma regra de gênero: após cada resposta, o código verifica o plano antes das regras, a nota vai junto com a próxima resposta (uma nota por resposta; o bloqueio, um retorno depois do bloqueio, e um evento ou uma pessoa que retorna do World vêm primeiro, e então o beat tenta de novo na resposta seguinte), e o relatório posterior do diretor diz se ele **came**, foi **only mentioned**, ou se **did not land**. Um beat que não deu certo é tentado mais uma vez com uma nota mais rígida, e depois é desistido. Uma resposta que você desliza dá à nova tentativa a mesma nota. Uma resposta que você apaga devolve o seu beat ao plano.
+Um beat usa a mesma engrenagem de uma regra de gênero: após cada resposta, o código verifica o plano antes das regras, e a nota vai junto com a próxima resposta (uma nota por resposta; o bloqueio, um retorno depois do bloqueio, e um evento ou uma pessoa que retorna do World vêm primeiro, e então o beat tenta de novo na resposta seguinte). O relatório posterior do diretor diz se ele **came**, foi **only mentioned**, ou se **did not land**. O diretor conhece apenas os membros do grupo, então, para a única resposta que traz uma nota com pessoas do World, ele também é perguntado se essas pessoas estão na cena; todas as outras respostas são lidas como antes. Um beat que não deu certo é tentado mais uma vez com uma nota mais rígida, e depois é desistido. Uma resposta que você desliza dá à nova tentativa a mesma nota. Uma resposta que você apaga devolve o seu beat ao plano.
 
 ## Escolhendo o modelo
 

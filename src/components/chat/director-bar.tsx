@@ -111,7 +111,7 @@ export function DirectorBarView({ chatId, state, running, onPickModel, onToggle,
       {next && (
         <span className="inline-flex min-h-8 shrink-0 items-center rounded-full border border-border bg-background text-xs max-md:min-h-10" data-testid="director-next" aria-label={t('dir.next.aria', { act: nextAct(t, state, next, lang) })}>
           <ClockCountdown className="ml-2.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className={cn('truncate px-1.5 font-medium', next.kind === 'beat' ? 'max-w-52' : 'max-w-40')}>{next.kind === 'beat' ? t('dir.next.chipBeat', { text: beatShort(beatOf(state, next.rule)?.text ?? '', 40) }) : t('dir.next.chip', { names: namesOf(state, next.who) })}</span>
+          <span className={cn('truncate px-1.5 font-medium', next.kind === 'beat' ? 'max-w-52' : 'max-w-40')}>{next.kind === 'beat' ? t('dir.next.chipBeat', { text: beatShort(beatOf(state, next.rule)?.text ?? '', 40) }) : t('dir.next.chip', { names: namesOf(state, next.who, 2, t, next.npc) })}</span>
           {onSkip && (
             <button
               type="button"

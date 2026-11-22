@@ -1184,6 +1184,12 @@ Optional (#72), off until the player turns it on in Characters > More > Letters 
   are the plugin's, never a client's). A beat's firing is a `fires` entry with `rule: "beat:<id>"`, `kind: "beat"`, a `next` of that kind
   (`who` may be empty), and result `sent` when nobody was named; a beat's status (waiting, due, queued, delivered, skipped, failed) is derived
   from the ledger. `dueKey` is cleared when its reply leaves the line. The log gains `beat` lines (`state: due | fired`).
+- People of the World (phase 3b), same state file: a beat has `npc: ["n3"]` (ids of `person` records of the chat's `world/state/<chatId>.json`;
+  read only, never written by this plugin), a rule edit has `from: "members" | "world" | "any"` (default members), a `fires` entry and a
+  `next` have `npc: [id]` (a note may name a World person alone), a report has `others: [id]` only when the director was asked about the
+  people a queued note names (a prompt line "others: ..." for that one reply). Result: `came` = named in `others`, `mentioned` = the name
+  is in the reply, `sent` = a beat with nobody named. Members only are counted as present by the engine's `directionScene`; a World
+  person has no card there.
 - A group file may carry `"direction": false`: its new chats start with Direction off. Absent = on once a model is picked.
   `"directionSet": "romcom"` makes its new chats start with that genre set on.
 - Read by the engine plugin (`directionScene`) as well as by the Direction plugin; change both readers together.

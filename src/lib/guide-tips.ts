@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.151.0'
+export const APP_VERSION = '4.152.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.direction-world-people',
+    since: '4.152.0',
+    help: 'characters',
+    keywords: { en: 'direction world people npc beat rule who comes members either teacher rival bench note', uk: 'режисура світ люди нпс момент правило хто приходить учасники будь-хто вчитель суперник лава нотатка' },
+    title: { en: 'Direction: people from the World', uk: 'Режисура: люди зі Світу' },
+    body: {
+      en: 'Beats and genre rules can now bring people the story already has, not only the group’s members. In the Plan tab a beat has a second group, People from the World. On a rule card, Who comes chooses Members (the default, nothing changes), World people or Either. The note tells the writing model who the person is in one sentence from their record, and the director is asked once whether they appeared. People the World keeps from coming back on their own are never picked by a rule.',
+      uk: 'Моменти й правила жанру тепер можуть приводити людей, яких історія вже має, а не лише учасників групи. У вкладці Plan момент має другу групу, People from the World. На картці правила вибір Who comes дає Members (типово, нічого не змінюється), World people або Either. Нотатка каже моделі-письменнику, хто ця людина, одним реченням із її запису, а режисера один раз питають, чи вона з’явилась. Тих, кого Світ не повертає сам, правило ніколи не обирає.',
+    },
+  },
   {
     id: 'new.direction-plan',
     since: '4.151.0',

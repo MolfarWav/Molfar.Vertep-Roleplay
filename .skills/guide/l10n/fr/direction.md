@@ -1,4 +1,4 @@
-<!-- source: 3fac4b007f13 -->
+<!-- source: dbd568649975 -->
 # Direction : qui est dans la scène
 
 Direction est conçue pour les discussions de groupe. Après chaque réponse, un petit modèle « directeur » peu coûteux lit la scène et indique de quel type de scène il s'agit (une leçon, une pause, un moment seul, un rendez-vous) et quels membres y participent. Les membres qui ne sont pas présents cessent de répondre et sont exclus du prompt jusqu'à ce que l'histoire les ramène.
@@ -11,7 +11,7 @@ Dans une discussion de groupe, une fine barre se trouve sous la barre des membre
 - **Le chip de modèle** : le modèle du directeur. Si aucun n'est choisi, il affiche **Pick a model**. Touchez-le pour obtenir la même liste de modèles que la barre supérieure de la discussion : modèles favoris, puis tous les modèles par connexion, avec une zone de recherche.
 - **L'interrupteur** : Direction activée ou désactivée pour cette discussion. Tant qu'aucun modèle n'est choisi, il est grisé et indique « Choisissez d'abord un modèle ».
 - **Next** : un chip qui apparaît lorsqu'une règle de genre ou un beat de votre plan a une note en attente pour la prochaine réponse (« Next : Yuzu »). La croix l'ignore.
-- **Rules** : ouvre la feuille Direction avec trois onglets, **Rules**, **Plan** et **Log**. Il est à côté de l'interrupteur, donc toujours visible sur un téléphone (là, ce n'est qu'une icône, avec un point tant que les règles sont actives).
+- **Rules** : ouvre la feuille Direction avec trois onglets, **Rules**, **Plan** et **Log**. Il se trouve à côté de l'interrupteur, donc toujours visible sur un téléphone (là, ce n'est qu'une icône, avec un point tant que les règles sont actives).
 
 Avec l'interrupteur désactivé, la barre se replie en « Direction : off » et la discussion fonctionne comme avant.
 
@@ -39,18 +39,20 @@ Sous la réponse qui portait une note, une petite ligne indique ce qui s'est pas
 
 Un groupe peut définir un **default genre** dans son onglet **Direction** ; ses nouvelles discussions démarrent alors avec ce genre activé. Les chiffres ne sont que des premières estimations : modifiez-les dans une discussion si une règle se déclenche trop souvent ou trop rarement.
 
+**Who comes.** Chaque fiche de règle propose un choix **Who comes** : **Members** (par défaut : quelqu'un du groupe, celui qui est absent depuis le plus longtemps), **World people** (une personne du World de cette discussion, comme un professeur ou un voisin que l'histoire connaît déjà) ou **Either** (une pièce décide lorsque les deux existent). Les personnes du World viennent du livre World de la discussion ; celles qui sont retirées, celles qui sont réglées pour ne pas revenir d'elles-mêmes, et celles qui sont déjà dans la scène sont exclues. Sans personnes dans le World, les deux autres options sont grisées et indiquent pourquoi. La note de la réponse suivante dit en une phrase, tirée de sa fiche, qui est cette personne et qu'elle ne fait pas partie du groupe ; personne ici n'a sa fiche, donc le modèle qui écrit la joue à partir de cette phrase. Une personne qui n'est que sur le banc et pas dans votre groupe peut interrompre, rejoindre ou passer de cette façon.
+
 ## Le plan
 
 Un **beat** est quelque chose que vous voulez voir arriver : « La cloche sonne et la classe se vide dans le hall », « Mei apporte un gâteau ». Ouvrez **Plan** et touchez **Add beat**. Un beat comporte :
 
 - **What happens** : une ou deux phrases, comme une indication de mise en scène.
-- **Who takes part** (facultatif) : les membres absents entrent dans la scène pour lui.
+- **Who takes part** (facultatif) : les membres absents entrent dans la scène pour lui. Sous **People from the World**, vous pouvez aussi choisir des personnes que l'histoire connaît déjà (un professeur, un rival) ; la note indique au modèle qui elles sont. Les personnes sont choisies dans le livre World de la discussion : il n'y en a aucune à choisir tant qu'il n'en contient pas.
 - **When** : **After some replies** (comptées à partir du moment où le beat devient le suivant ; 0 signifie tout de suite), **Scene** (lorsque le directeur lit ce type de scène : une leçon, une pause, un rendez-vous...), **Place** (lorsque le lieu du Dashboard contient vos mots, comme « roof » ; sans tenir compte des majuscules) ou **By hand** (seulement lorsque vous appuyez sur **Fire now**).
-- **Wait for a new scene** : activé par défaut. Un beat échu ne coupe pas au milieu d'un moment : il attend jusqu'à 6 réponses que l'histoire change de lieu ou fasse un saut dans le temps, puis part de toute façon. Un beat de lieu part dès que l'histoire y arrive, et un beat à la main seulement lorsque vous le déclenchez.
+- **Wait for a new scene** : activé par défaut. Un beat échu ne coupe pas au milieu d'un moment : il attend jusqu'à 6 réponses que l'histoire change de lieu ou fasse un saut dans le temps, puis part de toute façon. Un beat de lieu part dès que l'histoire y arrive, et un beat **By hand** seulement lorsque vous le déclenchez.
 
 Le plan se déroule **dans l'ordre** : seul le premier beat non terminé est pris en compte ; ceux qui suivent disent « After the beats before it ». Un beat est terminé lorsqu'il est arrivé, lorsqu'il a été abandonné (le directeur l'a vu laissé de côté deux fois) ou lorsque vous le **Skip**. Le beat suivant compte ses réponses à partir de la fin du précédent. Chaque carte indique où en est son beat : **Waiting** (réponses restantes), **Due, waiting for a new scene** (réponses restantes), **Goes with the next reply**, **Delivered** (came, only mentioned, ou entré alors que personne n'était nommé), **Did not land**, **Skipped**. Si quelque chose retient un beat, la carte en donne la raison : Direction est désactivée, la scène est verrouillée, ou la scène est explicite (un beat ne se déclenche jamais dans une telle scène ; il part lorsque la scène la quitte). **Edit**, **Move up**, **Move down** et **Delete** modifient la liste ; **Fire now** place le beat sur la prochaine réponse tout de suite, quoi qu'il attende.
 
-Un beat utilise la même mécanique qu'une règle de genre : après chaque réponse, le code examine le plan avant les règles ; la note voyage avec la réponse suivante (une note par réponse ; le verrou, un retour après le verrou, ainsi qu'un événement ou une personne qui revient depuis World passent en premier, et le beat repart alors à la réponse suivante), et le rapport ultérieur du directeur indique s'ils sont **came**, **only mentioned**, ou si le beat **did not land**. Un beat qui n'a pas abouti est retenté une fois avec une note plus stricte, puis abandonné. Une réponse que vous balayez donne au nouvel essai la même note ; une réponse que vous supprimez rend son beat.
+Un beat utilise la même mécanique qu'une règle de genre : après chaque réponse, le code examine le plan avant les règles ; la note voyage avec la réponse suivante (une note par réponse ; le verrou, un retour après le verrou, ainsi qu'un événement ou une personne qui revient depuis World passent en premier, et le beat repart à la réponse suivante), et le rapport ultérieur du directeur indique s'ils sont **came**, s'ils sont **only mentioned**, ou si le beat **did not land**. Un beat qui n'a pas abouti est retenté une fois avec une note plus stricte, puis abandonné. Une réponse que vous balayez donne au nouvel essai la même note ; une réponse que vous supprimez rend son beat.
 
 ## Choisir le modèle
 
@@ -66,7 +68,7 @@ Un membre absent ne prend pas son tour de lui-même, et sa fiche n'est pas envoy
 
 ## Le verrou et le retour
 
-Pour garder une scène avec une seule personne, touchez le chip d'un membre et choisissez **Only <name> in the scene**. Un chip « Only Yuzu » apparaît avant le chip de scène, et les autres restent dehors quoi que dise le directeur. Touchez la croix de ce chip, ou **Release the lock** dans la fenêtre d'un membre, pour le lever. À la prochaine réponse, les autres apprennent qu'ils peuvent revenir et l'histoire est invitée à leur ouvrir un chemin.
+Pour garder une scène avec une seule personne, touchez le chip d'un membre et choisissez **Only <name> in the scene**. Un chip « Only Yuzu » apparaît avant le chip de scène, et les autres restent dehors quoi que dise le directeur. Touchez la croix de ce chip, ou **Release the lock** dans la fenêtre d'un membre, pour le lever. À la réponse suivante, les autres apprennent qu'ils peuvent revenir et l'histoire est invitée à leur ouvrir un chemin.
 
 ## Si le directeur échoue
 
@@ -74,7 +76,7 @@ Si la réponse du directeur ne peut pas être lue, ou si l'appel échoue, le chi
 
 ## Nouveaux groupes
 
-**New group** ouvre une large fenêtre (plein écran sur un téléphone). Nommez le groupe, ou laissez le nom vide pour utiliser les trois premiers membres. Recherchez, filtrez avec **All**, **Favourites** et **Recent**, utilisez des chips de tags et un tri (Name, Recently used, Most chats), et touchez les portraits pour choisir. Les membres choisis s'alignent en haut dans l'ordre de parole ; les flèches déplacent un membre plus tôt ou plus tard, la croix le retire. **Next** demande deux caractères.
+**New group** ouvre une large fenêtre (plein écran sur un téléphone). Nommez le groupe, ou laissez le nom vide pour utiliser les trois premiers membres. Recherchez, filtrez avec **All**, **Favourites** et **Recent**, utilisez des chips de tags et un tri (Name, Recently used, Most chats), et touchez les portraits pour choisir. Les membres choisis s'alignent en haut, dans l'ordre de parole ; les flèches déplacent un membre plus tôt ou plus tard, la croix le retire. **Next** demande deux caractères.
 
 Après **Next**, le groupe est créé et son éditeur s'ouvre avec une note : vérifiez comment il se joue, puis démarrez la première discussion. **Start chat** est le bouton principal. L'onglet **Direction** détermine si les nouvelles discussions de ce groupe démarrent avec Direction activée, et affiche le modèle du directeur. Un groupe sur la page des groupes ouvre le même éditeur, tout comme le nom du groupe en haut de sa discussion.
 
