@@ -58,7 +58,7 @@ import type { MsgKey } from '@/lib/i18n'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
+const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'chaos']
 
 /** The DM's own words about its last run: the text colour, a left rule, four lines unless opened. */
 function RunSummary({ text }: { text: string }) {
@@ -450,13 +450,18 @@ export function WorldControls({
       icon={Sparkle}
       id="adds"
       title={t('world.card.adds')}
-      chips={addsChips(t, { insert: view.settings.insert, dice: view.dice?.mode })}
+      chips={addsChips(t, { insert: view.settings.insert, dice: view.dice?.mode, pause: view.pause })}
       dimmed={!on}
       note={on ? undefined : t('world.card.offAdds')}
     >
       <SettingRow label={t('world.insert')} info={t('world.insertHint')}>
         <Switch checked={view.settings.insert} disabled={!on} onCheckedChange={(v) => void save({ insert: v })} aria-label={t('world.insert')} />
       </SettingRow>
+      {view.breather !== undefined && (
+        <SettingRow label={t('world.opt.breather')} info={t('world.opt.breatherHint')}>
+          <NumControl label={t('world.opt.breather')} value={view.breather} min={0} max={20} disabled={!on} onCommit={(n) => void save({ breather: n })} />
+        </SettingRow>
+      )}
       {view.dice && (
         <DiceFields
           mode={view.dice.mode}

@@ -66,6 +66,7 @@ import { DiceNote } from './dice-note'
 import { DirectionNote } from './direction-note'
 import { LeakNote } from './leak-note'
 import { refreshDice } from '@/lib/world'
+import { DiceToss } from './dice-toss'
 import { AgentBars, AgentChoices, AgentFloat } from './agent-panels'
 import { AgentBlock } from './agent-block'
 import { WindowUnknownNote } from './window-unknown-note'
@@ -1195,6 +1196,7 @@ export function ChatView() {
       {/* Composer — replaced by the bulk bar while selecting messages. */}
       <div className="relative z-10">
         {!deleteMode && !isArchived(chat) && <AgentFloat chatId={chat.id} msgKey={lastAgentKey} />}
+        {!deleteMode && !isArchived(chat) && <DiceToss chatId={chat.id} active={isStreaming} />}
         {/* While selecting, `chat-column` keeps the bulk bar inset to the
             message column so it lines up with the composer it replaces. */}
         {isArchived(chat) ? (

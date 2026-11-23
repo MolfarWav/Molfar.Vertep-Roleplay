@@ -21,8 +21,9 @@ export function writesChips(t: T, v: { recordsEveryN: number; textMax: number })
 }
 
 /** "events on" or "events off", then "dice: Hint" when the dice are known: the adds-to-the-story card's chips. */
-export function addsChips(t: T, v: { insert: boolean; dice?: WorldDiceMode }): string[] {
+export function addsChips(t: T, v: { insert: boolean; dice?: WorldDiceMode; pause?: number }): string[] {
   const out = [v.insert ? t('world.chip.eventsOn') : t('world.chip.eventsOff')]
+  if (v.pause && v.pause > 0) out.push(t('world.chip.pause', { n: v.pause }))
   if (v.dice) out.push(t('world.chip.dice', { mode: t(`world.opt.dice.${v.dice}` as MsgKey) }))
   return out
 }

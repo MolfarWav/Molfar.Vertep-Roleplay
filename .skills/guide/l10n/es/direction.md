@@ -1,4 +1,4 @@
-<!-- source: c4250477e1b5 -->
+<!-- source: 2128e30a104f -->
 # Direction: quién está en la escena
 
 Direction es para chats grupales. Después de cada respuesta, un modelo "director" pequeño y barato lee la escena y dice qué tipo de escena es (una lección, un descanso, un momento a solas, una cita) y qué miembros están en ella. Los miembros que no están dejan de responder y quedan fuera del prompt hasta que la historia los devuelve.
@@ -7,7 +7,7 @@ Direction es para chats grupales. Después de cada respuesta, un modelo "directo
 
 En un chat grupal hay una barra delgada debajo de la barra de miembros, marcada "Direction" (en un teléfono, solo el icono). De izquierda a derecha:
 
-- **The scene chip**: el tipo de escena y quién está aquí ("Alone moment, with Yuzu" o "Lesson, 4 here"). Tócalo para ver quién está aquí y quién no está en la escena, cuándo se hizo el último informe, y un botón **Report now** que vuelve a preguntarle al director. Mientras el director lee, el chip dice "Reading the scene…".
+- **The scene chip**: el tipo de escena y quién está aquí ("Alone moment, with Yuzu" o "Lesson, 4 here"). Los retratos del Dashboard se atenúan para los miembros que dice que no están en la escena. Tócalo para ver quién está aquí y quién no está en la escena, cuándo se hizo el último informe, y un botón **Report now** que vuelve a preguntarle al director. Mientras el director lee, el chip dice "Reading the scene…".
 - **The model chip**: el modelo del director. Si no hay ninguno seleccionado, muestra **Pick a model**. Tócalo para ver la misma lista de modelos que tiene la barra superior del chat: modelos destacados, luego cada modelo por conexión, con un cuadro de búsqueda.
 - **The switch**: Direction activado o desactivado para este chat. Hasta que se seleccione un modelo, aparece atenuado y dice "Pick a model first".
 - **Next**: un chip que aparece mientras una regla de género o un beat de tu plan tiene una nota esperando la siguiente respuesta ("Next: Yuzu"). La x la omite.

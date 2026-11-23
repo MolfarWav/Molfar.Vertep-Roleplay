@@ -1,4 +1,4 @@
-<!-- source: c4250477e1b5 -->
+<!-- source: 2128e30a104f -->
 # Yön: sahnede kim var
 
 Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yönetici" model sahneyi okur, ne tür bir sahne olduğunu (bir ders, bir ara, baş başa bir an, bir randevu) ve hangi üyelerin içinde olduğunu söyler. Orada olmayan üyeler cevap vermeyi bırakır ve hikâye onları geri getirene kadar istemden çıkarılır.
@@ -7,7 +7,7 @@ Yön, grup sohbetleri içindir. Her cevaptan sonra küçük ve ucuz bir "yöneti
 
 Bir grup sohbetinde, üye çubuğunun altında "Yön" yazan ince bir çubuk vardır (telefonda yalnızca simge). Soldan sağa:
 
-- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Üzerine dokunarak kimin sahnede olduğunu, kimin olmadığını, son raporun ne zaman yapıldığını ve yöneticiye yeniden soran bir **Report now** düğmesini görebilirsiniz. Yönetici okurken etiket "Reading the scene…" yazar.
+- **Sahne etiketi**: sahnenin türü ve kimin burada olduğu ("Baş başa an, Yuzu ile" veya "Ders, 4 kişi"). Dashboard'un portreleri, sahnede olmadığını söylediği üyeler için soluklaşır. Üzerine dokunarak kimin sahnede olduğunu, kimin olmadığını, son raporun ne zaman yapıldığını ve yöneticiye yeniden soran bir **Report now** düğmesini görebilirsiniz. Yönetici okurken etiket "Reading the scene…" yazar.
 - **Model etiketi**: yöneticinin modeli. Hiçbiri seçilmediyse **Pick a model** yazar. Dokunduğunuzda sohbetin üst çubuğundakiyle aynı model listesi açılır: yıldızlı modeller, ardından bağlantıya göre tüm modeller, arama kutusuyla.
 - **Anahtar**: bu sohbet için Yön açık ya da kapalı. Bir model seçilene kadar soluk görünür ve "Pick a model first" yazar.
 - **Next**: bir tür kuralının ya da planınızdaki bir beat'in bir sonraki cevap için bekleyen bir notu olduğunda görünen etiket ("Next: Yuzu"). x onu atlar.
@@ -56,7 +56,7 @@ Her beat'i sıfırdan yazmak zorunda değilsiniz. **From the genre** (**Add beat
 
 Plan **sıraya göre** işler: yalnızca bitmemiş ilk beat'e bakılır; arkasındakiler "After the beats before it" yazar. Bir beat, geldiğinde, vazgeçildiğinde (yönetici onun iki kez atlandığını gördüğünde) ya da siz **Skip** ettiğinizde bitmiş sayılır. Sonraki beat, bir öncekinin bittiği andan itibaren cevaplarını sayar. Her kart, beat'inin nerede durduğunu gösterir: **Waiting** (kalan cevap), **Due, waiting for a new scene** (kalan cevap), **Goes with the next reply**, **Delivered** (came, only mentioned ya da kimse anılmadan içeri girdi), **Did not land**, **Skipped**. Bir şey beat'i geri tutuyorsa kart nedenini söyler: Yön kapalı, sahne kilitli ya da sahne açık (bir beat asla açık bir sahnede tetiklenmez; sahne onu terk ettiğinde gider). **Edit**, **Move up**, **Move down** ve **Delete** listeyi değiştirir; **Fire now** beat'i, neyi beklediğine bakılmaksızın, hemen bir sonraki cevaba koyar.
 
-Bir beat, bir tür kuralıyla aynı mekanizmayı kullanır: her cevaptan sonra kod planı kurallardan önce kontrol eder, not bir sonraki cevabın yanında gider (cevap başına bir not; kilit, kilitten sonra dönüş ve Dünya'dan bir olay ya da geri dönen bir kişi önceliklidir ve beat bir sonraki cevapta yeniden gider) ve yöneticinin sonraki raporu, beat'in **came**, **only mentioned** ya da **did not land** olup olmadığını söyler. Tutmayan bir beat, daha sert bir notla bir kez daha denenir, sonra vazgeçilir. Kaydırdığınız bir cevap, yeni denemeye aynı notu verir; sildiğiniz bir cevap, beat'ini geri alır.
+Bir beat, bir tür kuralıyla aynı mekanizmayı kullanır: her cevaptan sonra kod planı kurallardan önce kontrol eder, not bir sonraki cevabın yanında gider (cevap başına bir not; kilit, kilitten sonra dönüş ve Dünya'dan bir olay ya da geri dönen bir kişi önceliklidir ve beat bir sonraki cevapta yeniden gider) ve yöneticinin sonraki raporu, beat'in **came**, **only mentioned** ya da **did not land** olup olmadığını söyler. Yönetici yalnızca grubun üyelerini bilir, bu yüzden World kişilerini adlandıran bir notu taşıyan tek cevap için ona bu kişilerin sahnede olup olmadığı da sorulur; diğer her cevap eskisi gibi okunur. Tutmayan bir beat, daha sert bir notla bir kez daha denenir, sonra vazgeçilir. Kaydırdığınız bir cevap, yeni denemeye aynı notu verir; sildiğiniz bir cevap, beat'ini geri alır.
 
 ## Modeli seçme
 

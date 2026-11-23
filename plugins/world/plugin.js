@@ -102,11 +102,13 @@ const OWN_PROFILE_ID = /^p-[a-z0-9-]{1,40}$/;
 const MODEL_REF = /^[^\s]{1,200}$/;
 const FOLDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
-export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
+export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "anime", "chaos"];
 /** The levels that work today (all of them since P2). */
 export const READY_LEVELS = LEVELS;
 /** Levels whose events are a MUST for the writing model; living sends soft rumours. */
-const HARD_LEVELS = ["director", "antagonist", "chaos"];
+const HARD_LEVELS = ["director", "antagonist", "anime", "chaos"];
+// the levels whose events and dice also come in a fight (anime: powers wake in the middle of one)
+const FIGHT_LEVELS = ["antagonist", "anime", "chaos"];
 export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
 /** Stagnation threshold per direction: x2 slow, x0.5 fast, 0 = the counter is paused. */
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
@@ -125,7 +127,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1127,6 +1129,8 @@ function cleanSettings(s) {
     // -1 = the profile decides; 0 = never
     diceLife: b.diceLife !== "" && b.diceLife !== null && Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : -1,
     dicePace: b.dicePace !== "" && b.dicePace !== null && Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : -1,
+    // the pause after a big event, in replies (-1 = the profile decides; 0 = no pause)
+    breather: b.breather !== "" && b.breather !== null && Number.isFinite(Number(b.breather)) && Number(b.breather) >= 0 ? clamp(Math.round(Number(b.breather)), 0, BREATHER_MAX) : -1,
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
@@ -1463,6 +1467,8 @@ export function normalizeState(raw, chatId) {
   if (lastEntrance) out.lastEntrance = lastEntrance;
   // since which reply someone has been due and held back for a scene boundary (#496)
   if (isObj(s.castWait) && Number.isInteger(s.castWait.n) && s.castWait.n >= 0) out.castWait = { n: s.castWait.n };
+  // the message the last big event's reply followed: the pause after it counts the replies since (see pauseLeft)
+  if (isObj(s.breath) && typeof s.breath.after === "string" && s.breath.after) out.breath = { after: cut(s.breath.after, 80) };
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
@@ -2462,6 +2468,14 @@ const LEVEL_RULES = {
     "- fronts: factions, threats and enemies with a goal and a clock (4, 6 or 8 segments). Tick a clock by 1, or by 2 when the characters gave the front an opening; a full clock means its goal comes true and hurts the characters.",
     "- event: one concrete consequence or pressure in the next scene. Aim it where it hurts: an open thread, a bond between the characters, something they care about. Hard, but fair: built from what the story already set up. In a fight you may send reinforcements or a turn for the worse.",
   ],
+  anime: [
+    "Your level: anime fantasy. Beyond the record, you let the extraordinary into an ordinary-looking story, slowly, the way anime and light novels do: hidden powers, magic, other worlds, fated meetings. This is not chaos: every strange thing has a source, a rule and a price, and grows out of something the story already has.",
+    "- fronts: hidden powers and their plans: a power asleep in someone, a secret society, a sealed thing, a world on the other side, a summoning, a rival with the same gift. A goal and a clock (4, 6 or 8 segments). Add one only on an ordinary hook the story shows (an old book, a strange new student, a dream, an accident, a scar, an heirloom); at most two at once. Tick a clock by 1 when time passes or the characters come close to the secret; a full clock means the secret breaks into the open: an awakening, a portal, a contract, a reveal.",
+    "- event: one concrete thing in the next scene, one step up this ladder at a time: an omen anyone could explain away (a dream two people share, a flicker of light, a cat that watches too long, a word in an unknown script); then a sign that is hard to deny (a glow only one character sees, a translucent status window for a moment, an object that answers a touch, a stranger who knows a name nobody told them); then the reveal (a power wakes at a peak of feeling or danger, a summoning circle opens, a familiar speaks, a newcomer shows what they are). Never jump from nothing to the reveal. Between steps let ordinary life go on: classes, cafes, jokes, romance.",
+    "- Choose the tropes that fit this cast, never all at once: power awakening, a hidden bloodline, a magical contract, a familiar, isekai or a summoning, a status screen and levels, a secret club or council, a sealed demon, a rival, training, a tournament, a time loop. The bond between the characters drives it: a power wakes because someone must be protected, a contract is made for someone's sake.",
+    "- The characters stay themselves: a power or a secret fits who they are and never replaces their personality; the romance, comedy and everyday life of the story stay. The user's character may be offered a power, a call or a door; never decide that they accept it, use it or step through.",
+    "- Another world is the largest turn: only after at least two earlier signs and a clock close to full, and with a moment of choice. Tense, not cruel: no death of a main character, no gore for its own sake.",
+  ],
   chaos: [
     "Your level: total chaos. Beyond the record, you break the story open: anything may happen, whatever the genre or the logic of the world (killer rabbits from space in a slow romance are fine).",
     "- fronts: the wildest powers you can think of, with a goal and a clock (4, 6 or 8 segments). Tick them fast.",
@@ -2505,6 +2519,7 @@ export function defaultBlocks(base) {
     out.level = LEVEL_RULES[base].join("\n");
     out.shared = LEVEL_SHARED.join("\n");
     out.event = HARD_LEVELS.includes(base) ? HARD_EVENT : SOFT_EVENT;
+    out.life = lifeBlock(base);
   }
   return out;
 }
@@ -2526,15 +2541,19 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
 // cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal", castDeck: true };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, breather: 4, cast: "normal", castDeck: true };
 
-function cleanOptions(o) {
+// a level's own defaults over DEFAULT_OPTIONS (anime: news follows the clock, so the omen, sign and reveal ladder is kept by code)
+const LEVEL_OPTIONS = { anime: { eventByClock: true } };
+
+function cleanOptions(o, base) {
   const b = isObj(o) ? o : {};
+  const dflt = { ...DEFAULT_OPTIONS, ...(LEVEL_OPTIONS[base] || {}) };
   const n = Number(b.clockEvery);
   return {
     clocks: b.clocks === "code" ? "code" : "model",
     clockEvery: Number.isFinite(n) ? clamp(Math.round(n), 2, 50) : DEFAULT_OPTIONS.clockEvery,
-    eventByClock: b.eventByClock === true,
+    eventByClock: typeof b.eventByClock === "boolean" ? b.eventByClock : dflt.eventByClock,
     deck: b.deck === true,
     dice: DICE_MODES.includes(b.dice) ? b.dice : DEFAULT_OPTIONS.dice,
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : DEFAULT_OPTIONS.diceStat,
@@ -2542,6 +2561,7 @@ function cleanOptions(o) {
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
     dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
+    breather: b.breather !== "" && b.breather !== null && Number.isFinite(Number(b.breather)) && Number(b.breather) >= 0 ? clamp(Math.round(Number(b.breather)), 0, BREATHER_MAX) : DEFAULT_OPTIONS.breather,
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_OPTIONS.cast,
     castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_OPTIONS.castDeck,
   };
@@ -2575,7 +2595,7 @@ function readProfileFile(fsx, id) {
 export function loadProfile(fsx, id) {
   if (PROFILE_LEVELS.includes(id)) {
     const raw = readProfileFile(fsx, id) || {};
-    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults), options: cleanOptions(raw.options) };
+    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults), options: cleanOptions(raw.options, id) };
   }
   if (!OWN_PROFILE_ID.test(id)) return null;
   const raw = readProfileFile(fsx, id);
@@ -2586,7 +2606,7 @@ export function loadProfile(fsx, id) {
     description: cut(str(raw.description), DESC_LEN),
     blocks: cleanBlocks(raw.blocks, raw.base),
     defaults: cleanDefaults(raw.defaults),
-    options: cleanOptions(raw.options),
+    options: cleanOptions(raw.options, raw.base),
   };
 }
 
@@ -2671,7 +2691,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2696,7 +2716,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(arr(tracked).length ? [trackedInput(tracked)] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0 }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     ...(earlier.length && level && LEVEL_RULES[level]
       ? ["Already read in earlier runs, after the event was sent (the event may have happened here)\n" + earlier.map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), earlierCap)).join("\n")]
@@ -2735,7 +2755,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options, deck, earlier }) {
+function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -2754,6 +2774,7 @@ function levelInput({ fronts, event, direction, threads, options, deck, earlier 
   if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the story show it? " + (earlier ? "Look at the part already read after it was sent, and at the new part. " : "") + "Answer in delivered.");
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
+  if (pause > 0) out.push("A big event just hit the story: the next " + pause + " " + (pause === 1 ? "reply is" : "replies are") + " its pause, with no new danger. An event you send now waits until the pause is over: make it the aftermath, a consequence or a quiet clue, never a new danger.");
   if (arr(threads).length) out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
   return out;
 }
@@ -3188,7 +3209,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
     else if (out.delivered === false && !state.event.retried) state.event = { ...state.event, sent: 0, retried: true };
     else if (out.delivered === false) state.event = null;
   }
-  const quiet = dir === "explicit" || (dir === "combat" && level !== "antagonist" && level !== "chaos");
+  const quiet = dir === "explicit" || (dir === "combat" && !FIGHT_LEVELS.includes(level));
   // with the deck on, only a card of the deck becomes the event, and it is used up
   const card = useDeck && isObj(out.event) ? arr(state.deck).find((c) => c.id === str(out.event.deck)) : null;
   const text = useDeck ? (card ? card.text : "") : isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
@@ -4135,12 +4156,46 @@ export function seededRandom(seed) {
 
 export const diceMod = (value) => (Number.isFinite(value) ? clamp(Math.sign(value) * Math.round(Math.abs(value) / 20), -5, 5) : 0);
 
-// "life intervenes": its own roll, apart from the action's; a d6 sets how big the intrusion is
+// "life intervenes": its own roll, apart from the action's; a d6 sets how big the intrusion is. What each size means
+// follows the level (user, 2026-11-23: one text for all sent car crashes into a book club on Director); a profile's
+// "life" block holds the three lines "minor: ...", "notable: ...", "major: ..." and may change them.
 const LIFE_TIERS = {
   minor: "a small thing: a sound, a passer-by, a change of light or weather",
   notable: "a real interruption: an arrival, news, someone present acting on their own",
   major: "a large turn: a danger, a revelation or a reversal the scene must answer",
 };
+const LIFE_BY_LEVEL = {
+  living: {
+    notable: "news or a visitor from off screen: a message, a rumour that turns out true, someone arriving",
+    major: "a large turn the scene must answer: news that changes plans, a revelation, a reversal",
+  },
+  director: {
+    major: "a sharp turn that fits the genre and the tone of the story: a revelation, a reversal, an unexpected arrival; danger only where the story is already dangerous",
+  },
+  antagonist: {},
+  anime: {
+    minor: "an omen anyone could explain away: a shared dream, a flicker of light, a cat that watches too long",
+    notable: "a sign of the hidden world that is hard to deny: a glow only one character sees, a stranger who knows a name, an object that answers a touch",
+    major: "the hidden world breaks through, tied to someone present and to what they feel: a power wakes, a circle opens, a familiar speaks",
+  },
+  chaos: {
+    minor: "something small and odd that does not belong here",
+    notable: "something absurd intrudes, whatever the genre",
+    major: "anything at all breaks in, whatever the genre or the logic of the world",
+  },
+};
+const LIFE_KEYS = ["minor", "notable", "major"];
+/** The default "life" block of a level: one line per size. */
+export const lifeBlock = (base) => LIFE_KEYS.map((k) => k + ": " + ((LIFE_BY_LEVEL[base] || {})[k] || LIFE_TIERS[k])).join("\n");
+/** The three sizes a "life" block says; a missing or broken line keeps the built-in text. */
+export function lifeTiers(text) {
+  const out = { ...LIFE_TIERS };
+  for (const line of String(text || "").split("\n")) {
+    const m = /^\s*(minor|notable|major)\s*:\s*(.+?)\s*$/i.exec(line);
+    if (m) out[m[1].toLowerCase()] = m[2];
+  }
+  return out;
+}
 export const lifeTier = (d) => (d <= 3 ? "minor" : d <= 5 ? "notable" : "major");
 
 /** One roll for one reply: does the world break in, and how big. */
@@ -4153,8 +4208,9 @@ export function rollLife(seed, chance) {
   return { gated: true, gate, d, tier: lifeTier(d) };
 }
 
-export function lifeInsert(roll) {
-  return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + LIFE_TIERS[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
+export function lifeInsert(roll, block) {
+  const tiers = block ? lifeTiers(block) : LIFE_TIERS;
+  return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + tiers[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
 }
 
 // "pacing die" (#155): a check on the step itself. How ready the character is for closeness comes from the Dashboard
@@ -4324,6 +4380,34 @@ export function diceOf(profile, settings) {
   };
 }
 
+// the pause after a big event (user, 2026-11-23: chained disasters left no breath, on director and antagonist alike).
+// A big event is a hard DM event or a major "life intervenes". After the reply that carried one, the next `breather`
+// replies get no new one: a waiting hard event holds (it stays pending), a major life roll is not sent (logged as held).
+// Small touches, soft news, the dice on the action and people coming back go on as before.
+export const BREATHER_MAX = 20;
+
+/** The pause in force for a chat: its own setting where set, else the profile's option. */
+export function breatherOf(profile, settings) {
+  const o = profile && profile.options ? profile.options : DEFAULT_OPTIONS;
+  const own = isObj(settings) && Number.isFinite(settings.breather) && settings.breather >= 0 ? settings.breather : -1;
+  return own >= 0 ? own : Number.isFinite(o.breather) ? o.breather : DEFAULT_OPTIONS.breather;
+}
+
+/**
+ * How many more replies the pause holds for a reply that follows msgs[anchorIdx]: 0 = free. The reply that carried the
+ * big event follows the message `mark.after`; it and the next `n` replies are the pause. A swipe of that reply has the
+ * same anchor and is free (it may carry the event again); a mark whose message is gone (deleted) holds nothing.
+ */
+export function pauseLeft(mark, msgs, anchorIdx, n) {
+  if (!(n > 0) || !isObj(mark) || !str(mark.after) || !Array.isArray(msgs)) return 0;
+  const idx = msgs.findIndex((m) => keyOf(m) === mark.after);
+  if (idx < 0 || idx >= anchorIdx) return 0;
+  let gap = 0;
+  for (let i = idx + 1; i <= anchorIdx && i < msgs.length; i++) if (isReply(msgs[i])) gap++;
+  // gap 0: the reply that carries it is still being written (a view or a run in between); the pause is then all of n
+  return Math.min(n, Math.max(0, n + 1 - gap));
+}
+
 function diceRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -4401,19 +4485,30 @@ export function llmRequest(ctx, host) {
     const eventDue = events && !!state.event && state.event.sent === 0;
     const dir = directionOf(state, scene);
     if (dir === "explicit") return null;
-    const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
+    const eventsAllowed = !(dir === "combat" && !FIGHT_LEVELS.includes(lv));
+    // the pause after a big event: the message this reply follows (a swipe writes the last reply again, so the one before it)
+    const msgsP = chat ? chat.msgs : [];
+    const anchorIdx = msgsP.length - (op === "swipe" ? 2 : 1);
+    const anchorMsg = anchorIdx >= 0 ? msgsP[anchorIdx] : null;
+    // a swipe of the reply that carried the big event rewrites it: the mark goes, and comes back if this one carries one too
+    if (state.breath && anchorMsg && state.breath.after === keyOf(anchorMsg)) {
+      delete state.breath;
+      saveState(fsx, state);
+    }
+    const pause = events ? pauseLeft(state.breath, msgsP, anchorIdx, breatherOf(profile, state.settings)) : 0;
+    const held = eventDue && state.event.hard === true && pause > 0;
     const parts = [];
     const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : [], regView(fsx, chatId)));
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
     // the player's wishes for the story (#428): rules about the story, learned from swiped events or written so, reach the writer too
     const wishes = lv !== "off" ? writerInsert(writerRules(state.settings, state.learned, loadLearned(fsx))) : "";
     if (wishes) parts.push({ kind: "plugin", label: "World · wishes", text: wishes });
-    const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
+    const eventText = eventsAllowed && eventDue && !held ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
       // the message the reply follows: a swipe writes the last reply again, so it follows the one before that
-      const msgs0 = chat ? chat.msgs : [];
-      const anchor = msgs0[msgs0.length - (op === "swipe" ? 2 : 1)];
+      const anchor = anchorMsg;
       state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now(), ...(anchor ? { after: keyOf(anchor) } : {}) };
+      if (state.event.hard === true && anchor) state.breath = { after: keyOf(anchor) };
       saveState(fsx, state);
       parts.push({ kind: "plugin", label: "World DM", text: eventText });
     }
@@ -4497,8 +4592,16 @@ export function llmRequest(ctx, host) {
             cast = sendEntrance(fsx, state, msgs, str(turn.op), parts);
           }
         }
-        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast, ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
-        if (life.gated && !cast) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+        // a major intrusion waits out the pause after a big event; a small or notable one still comes
+        const lifeHeld = life.gated && !cast && life.tier === "major" && pause > 0;
+        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast && !lifeHeld, ...(lifeHeld ? { held: "pause", pause } : {}), ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
+        if (life.gated && !cast && !lifeHeld) {
+          parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life, blockText(profile, "life")) });
+          if (life.tier === "major" && anchorMsg) {
+            state.breath = { after: keyOf(anchorMsg) };
+            saveState(fsx, state);
+          }
+        }
       }
     }
     if (!parts.length) return null;
@@ -5153,7 +5256,7 @@ const nextDeckId = (deck) => deck.reduce((m, c) => Math.max(m, Number(c.id.slice
 // A world can also be built without a chat (user, 2026-10-19: "New world" in the Worlds tab): its draft
 // lives in world/library/<id>.draft.json until it is accepted into the library as <id>.json.
 const draftPath = (id) => LIBRARY_DIR + id + ".draft.json";
-const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "chaos"];
+const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "anime", "chaos"];
 
 /** What a start works on: a chat's world, or a world being built in the library. */
 function startTarget(fsx, b) {
@@ -7008,6 +7111,13 @@ function runView(r) {
   };
 }
 
+function breathView(state, msgs, fsx) {
+  if (state.settings.level === "off" || state.settings.level === "chronicler" || !fsx) return {};
+  const breather = breatherOf(profileFor(fsx, state.settings), state.settings);
+  const m = arr(msgs);
+  return { breather, pause: pauseLeft(state.breath, m, m.length, breather) };
+}
+
 function stateView(state, msgs, cfg, scene, play, fsx) {
   const unread = unreadMessages(msgs, state.lastKey);
   return {
@@ -7016,6 +7126,8 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     learn: fsx ? learnCounts(fsx, state) : { on: true, rules: 0, waiting: 0 },
     // the dice in force (the chat's own over the profile's), for the sheet
     dice: state.settings.level === "off" || !fsx ? null : diceOf(profileFor(fsx, state.settings), state.settings),
+    // the pause after a big event in force (replies), and how many replies it still holds for the next one
+    ...breathView(state, msgs, fsx),
     ready: READY_LEVELS,
     // the profile in force (its own one, else the level's)
     profile: state.settings.level === "off" ? null : state.settings.profile || state.settings.level,
@@ -7164,7 +7276,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "breather", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -7334,7 +7446,9 @@ function updateRoute(req, host) {
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
-        threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
+        threads: level === "antagonist" || level === "director" || level === "anime" ? dashThreads(fsx, chatId, scene) : [],
+        // the next reply follows the newest message; the pause counts from there
+        pause: HARD_LEVELS.includes(level) ? pauseLeft(state.breath, chat.msgs, chat.msgs.length, breatherOf(profile, state.settings)) : 0,
       })) }],
       ...callParams(fsx, cfg, chat.meta, maxTokens),
     });
@@ -7515,9 +7629,9 @@ function profilesRoute(req, host) {
     ...(builtIn ? {} : { name: cut(str(b.name !== undefined ? b.name : current ? current.name : ""), NAME_LEN) || "Profile", description: cut(str(b.description !== undefined ? b.description : current ? current.description : ""), DESC_LEN), base }),
     blocks: cleanBlocks(blocks, base),
     defaults: cleanDefaults(b.defaults !== undefined ? b.defaults : current ? current.defaults : {}),
-    options: cleanOptions({ ...(current ? current.options : {}), ...(isObj(b.options) ? b.options : {}) }),
+    options: cleanOptions({ ...(current ? current.options : {}), ...(isObj(b.options) ? b.options : {}) }, base),
   };
-  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS) && JSON.stringify(next.options) === JSON.stringify(DEFAULT_OPTIONS);
+  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS) && JSON.stringify(next.options) === JSON.stringify(cleanOptions({}, base));
   if (plain) {
     try {
       fsx.remove(PROFILE_DIR + id + ".json");

@@ -1,4 +1,4 @@
-<!-- source: c4250477e1b5 -->
+<!-- source: 2128e30a104f -->
 # Direzione: chi è nella scena
 
 La Direzione è per le chat di gruppo. Dopo ogni risposta, un piccolo ed economico modello "direttore" legge la scena e dice che tipo di scena è (una lezione, una pausa, un momento da soli, un appuntamento) e quali membri sono presenti. I membri che non ci sono smettono di rispondere e vengono esclusi dal prompt finché la storia non li riporta.
@@ -7,7 +7,7 @@ La Direzione è per le chat di gruppo. Dopo ogni risposta, un piccolo ed economi
 
 In una chat di gruppo c'è una barra sottile sotto la barra dei membri, contrassegnata "Direction" (su telefono solo l'icona). Da sinistra a destra:
 
-- **Il chip della scena**: il tipo di scena e chi è qui ("Alone moment, with Yuzu" o "Lesson, 4 here"). Toccalo per vedere chi è qui e chi non è nella scena, quando è stato fatto l'ultimo rapporto, e un pulsante **Report now** che chiede di nuovo al direttore. Mentre il direttore legge, il chip dice "Reading the scene…".
+- **Il chip della scena**: il tipo di scena e chi è qui ("Alone moment, with Yuzu" o "Lesson, 4 here"). I ritratti della Dashboard si attenuano per i membri che dice non essere nella scena. Toccalo per vedere chi è qui e chi non è nella scena, quando è stato fatto l'ultimo rapporto, e un pulsante **Report now** che chiede di nuovo al direttore. Mentre il direttore legge, il chip dice "Reading the scene…".
 - **Il chip del modello**: il modello del direttore. Se non ne è selezionato nessuno, mostra **Pick a model**. Toccalo per avere la stessa lista di modelli della barra superiore della chat: modelli preferiti, poi tutti i modelli per connessione, con una casella di ricerca.
 - **L'interruttore**: Direzione attivata o disattivata per questa chat. Finché non viene scelto un modello, è disattivato e dice "Pick a model first".
 - **Next**: un chip che compare mentre una regola di genere o un beat del tuo piano ha una nota in attesa della risposta successiva ("Next: Yuzu"). La x la salta.

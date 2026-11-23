@@ -28,8 +28,8 @@ import { OwnMark } from './world-profile-picker'
 import { LearnedMemoryCard, MEMORY_ID, MemoryRow } from './world-memory'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
-const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
-const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'chaos']
+const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'chaos']
+const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'anime', 'chaos']
 export const NEW_PROFILE = '__new__'
 
 /** "Default": the profile a new chat starts with. In the list it is the short word; in the editor's header the longer one. */
@@ -43,8 +43,8 @@ function DefaultMark({ long = false }: { long?: boolean }) {
   )
 }
 
-const BLOCK_TITLE: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper', level: 'world.block.level', shared: 'world.block.shared', event: 'world.block.event' }
-const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.hint', level: 'world.block.level.hint', shared: 'world.block.shared.hint', event: 'world.block.event.hint' }
+const BLOCK_TITLE: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper', level: 'world.block.level', shared: 'world.block.shared', event: 'world.block.event', life: 'world.block.life' }
+const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.hint', level: 'world.block.level.hint', shared: 'world.block.shared.hint', event: 'world.block.event.hint', life: 'world.block.life.hint' }
 
 // ---------- the list (left pane) ----------
 
@@ -188,6 +188,10 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.opt.news')}<span className="block text-xs text-muted-foreground">{t('world.opt.newsHint')}</span></span>
         <Switch checked={options.eventByClock} onCheckedChange={(v) => onChange({ ...options, eventByClock: v })} aria-label={t('world.opt.news')} />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-sm" data-testid="profile-breather">
+        <span className="min-w-0">{t('world.opt.breather')}<span className="block text-xs text-muted-foreground">{t('world.opt.breatherHint')}</span></span>
+        <NumControl label={t('world.opt.breather')} value={options.breather ?? 4} min={0} max={20} onCommit={(n) => onChange({ ...options, breather: n })} />
       </div>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
@@ -462,7 +466,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, cast: 'normal', castDeck: true })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, breather: 4, cast: 'normal', castDeck: true })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers

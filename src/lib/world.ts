@@ -12,7 +12,7 @@ export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[]
 /** Where a character's outfit and what is in the hands come from: the Dashboard sensor (default, cheapest) or the World DM's own lists. */
 export type WorldCarrySource = 'sensor' | 'dm'
 
-export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'chaos'
+export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'chaos'
 
 /** Where a model in force comes from: the World's own setting, the Dashboard sensor's, Litopys's, the chat's, the app's default. */
 export type WorldModelFrom = 'world' | 'sensor' | 'litopys' | 'chat' | 'default'
@@ -47,9 +47,12 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** a person who is due waits up to a few replies for a new place or a time jump before coming back (#496; on unless switched off, an older plugin leaves it out) */ castBoundary?: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; /** the pause after a big event, in replies (-1 = the profile decides) */ breather?: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** a person who is due waits up to a few replies for a new place or a time jump before coming back (#496; on unless switched off, an older plugin leaves it out) */ castBoundary?: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
+  /** the pause after a big event in force (replies; the chat's own over the profile's), and how many replies it still holds; absent below the event levels */
+  breather?: number
+  pause?: number
   ready: WorldLevel[]
   /** the profile in force: a level's id or an own profile's id; null when off */
   profile: string | null
@@ -256,7 +259,7 @@ export async function fillWorldKeys(chatId: string): Promise<{ ok: boolean; chan
   return r
 }
 
-export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
+export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event' | 'life'
 export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: string; changed: boolean }
 export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
 /** clocks: who ticks the fronts' clocks ('code' = every clockEvery replies read); eventByClock: news worded by the clock's stage */
@@ -270,7 +273,7 @@ export const WORLD_DICE_STATS = ['trust', 'comfort', 'attraction', 'respect', 'a
 /** 'auto' = the model takes the stat the attempted action leans on */
 export const WORLD_DICE_STAT_CHOICES = ['auto', ...WORLD_DICE_STATS] as const
 export type WorldDiceStat = (typeof WORLD_DICE_STAT_CHOICES)[number]
-export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number; cast: WorldCastFreq; /** a new chat on this profile draws new people from the cast deck */ castDeck: boolean }
+export interface WorldProfileOptions { clocks: 'model' | 'code'; clockEvery: number; eventByClock: boolean; deck: boolean; dice: WorldDiceMode; diceStat: WorldDiceStat; diceChance: number; diceTilt: WorldDiceTilt; diceLife: number; dicePace: number; /** the pause after a big event, in replies (0 = none) */ breather: number; cast: WorldCastFreq; /** a new chat on this profile draws new people from the cast deck */ castDeck: boolean }
 /** A DM profile: built-in = one of the levels (name and description come from i18n by id); own = on a base level. */
 export interface WorldProfile {
   id: string

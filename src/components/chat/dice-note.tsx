@@ -12,7 +12,9 @@ export function rollsFor(rolls: WorldDiceRoll[], messageId: string, index: numbe
     if (r.n === undefined || !r.inserted) return false
     // a return of the cast is found by the message it followed (`last`): the reply right after it, or after the one message of the player between (the player's line may be saved after the request was built, so the count `n` can be one short)
     if (r.kind === 'cast' && (r.op === 'send' || r.op === 'next')) return swipe === 0 && before.slice(0, 2).includes((r.last ?? '').split('#')[0] ?? '')
-    if (r.op === 'send' || r.op === 'next') return r.n === index && swipe === 0
+    // a sent reply: the roll was made when the chat had as many messages as its index, or one fewer when the player's line was saved
+    // after the request was built (both orders happen in real chats; then `last` is the message before the player's line)
+    if (r.op === 'send' || r.op === 'next') return swipe === 0 && (r.n === index || (r.n === index - 1 && !!before[1] && (r.last ?? '').split('#')[0] === before[1]))
     if (r.op === 'swipe') return r.n === index + 1 && (r.last ?? '').startsWith(`${messageId}#`) && r.lastSwipes === swipe
     if (r.op === 'continue') return r.n === index + 1 && r.last === `${messageId}#${swipe}`
     return false
