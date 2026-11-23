@@ -23,6 +23,16 @@ describe("voiceMatcher across scripts", () => {
   it("finds a Cyrillic name written in Latin", () => {
     expect(voiceMatcher("Ембер")!.test("Ember laughs.")).toBe(true);
   });
+  it("reads х as the h of a Latin name, and kh as the same sound (Molfar.Vertep#477: Chihiro was never found as Чихиро)", () => {
+    expect(voiceMatcher("Chihiro")!.test("— Ладно, — говорит Чихиро.")).toBe(true);
+    expect(voiceMatcher("Koharu")!.test("Кохару смеётся.")).toBe(true);
+    expect(voiceMatcher("Koharu")!.test("У Кохары в руках пакет.")).toBe(true);
+    expect(voiceMatcher("Hana")!.test("Хана кивает.")).toBe(true);
+    expect(voiceMatcher("Khan")!.test("Хан молчит.")).toBe(true);
+    expect(voiceMatcher("Mikhail")!.test("Михаил встаёт.")).toBe(true);
+    expect(voiceMatcher("Чихиро")!.test("Chihiro nods.")).toBe(true);
+    expect(voiceMatcher("Chihiro")!.test("Сиори кивает.")).toBe(false);
+  });
   it("does not take a common word or a lower-case word for a name", () => {
     expect(voiceMatcher("Rhea")!.test("Река течёт. Они шли вдоль реки.")).toBe(false);
     expect(voiceMatcher("Mark")!.test("Он поставил отметку.")).toBe(false);

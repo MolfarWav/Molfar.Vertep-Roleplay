@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.154.1 (2026-11-23)
+
+- Fixed: **a character whose name has an h was never found in a Russian or Ukrainian reply (Molfar.Vertep#477).** Dialogue colours compare a card's Latin name with the narration's Cyrillic by sound, and that spelling turned `х` into `kh` while dropping a Latin `h`, so `Chihiro` never matched «Чихиро» and `Koharu` missed «Кохары». In a real group chat (four members, 43 replies, 454 quotes) Chihiro got none of her 198 mentions: her lines took another member's colour, a colour of their own as an unknown speaker, or the base colour. `х` is now the `h` of a Latin name and `kh` the same sound, as the lorebook and the people registry already spell it; in that chat she now gets 95 quotes in her colour, and the remaining unknown-speaker colours belong to a man outside the group. `Khan`/«Хан» and `Mikhail`/«Михаил» still match. File `src/lib/dialogue-voices.ts` (`soundKey`); test in `rp-dash-dialogue`.
+
 ## 4.154.0 (2026-11-23)
 
 - Added: **a new World DM level, Anime fantasy (Molfar.Vertep#500).** The extraordinary slips into an ordinary story step by step: an omen anyone could explain away, a sign that is hard to deny, then the reveal (a power wakes, a familiar speaks, a summoning circle opens, another world calls). It grows from hooks the story already has and from the bonds between the characters, offers the user's character a power or a door without deciding for them, allows another world only after two signs and with a moment of choice, and kills no main character. It sends hard events, also in a fight (like Antagonist), and its built-in profile reads news by the clock (omen, sign, reveal kept by code). A pink magic-wand mark in the level lists.
