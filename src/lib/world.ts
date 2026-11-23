@@ -12,7 +12,7 @@ export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[]
 /** Where a character's outfit and what is in the hands come from: the Dashboard sensor (default, cheapest) or the World DM's own lists. */
 export type WorldCarrySource = 'sensor' | 'dm'
 
-export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'chaos'
+export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'chaos'
 
 /** Where a model in force comes from: the World's own setting, the Dashboard sensor's, Litopys's, the chat's, the app's default. */
 export type WorldModelFrom = 'world' | 'sensor' | 'litopys' | 'chat' | 'default'
@@ -259,7 +259,7 @@ export async function fillWorldKeys(chatId: string): Promise<{ ok: boolean; chan
   return r
 }
 
-export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event'
+export type WorldBlockKey = 'keeper' | 'level' | 'shared' | 'event' | 'life'
 export interface WorldProfileBlock { key: WorldBlockKey; text: string; default: string; changed: boolean }
 export interface WorldProfileDefaults { everyN: number; stagnation: number; onTransition: boolean; insert: boolean }
 /** clocks: who ticks the fronts' clocks ('code' = every clockEvery replies read); eventByClock: news worded by the clock's stage */

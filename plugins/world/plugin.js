@@ -102,11 +102,13 @@ const OWN_PROFILE_ID = /^p-[a-z0-9-]{1,40}$/;
 const MODEL_REF = /^[^\s]{1,200}$/;
 const FOLDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
-export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
+export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "anime", "chaos"];
 /** The levels that work today (all of them since P2). */
 export const READY_LEVELS = LEVELS;
 /** Levels whose events are a MUST for the writing model; living sends soft rumours. */
-const HARD_LEVELS = ["director", "antagonist", "chaos"];
+const HARD_LEVELS = ["director", "antagonist", "anime", "chaos"];
+// the levels whose events and dice also come in a fight (anime: powers wake in the middle of one)
+const FIGHT_LEVELS = ["antagonist", "anime", "chaos"];
 export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
 /** Stagnation threshold per direction: x2 slow, x0.5 fast, 0 = the counter is paused. */
 const STAGNATION_FACTOR = { domestic: 2, social: 1, intrigue: 1, investigation: 1, travel: 0.5, combat: 0, explicit: 0, transition: 1 };
@@ -2466,6 +2468,14 @@ const LEVEL_RULES = {
     "- fronts: factions, threats and enemies with a goal and a clock (4, 6 or 8 segments). Tick a clock by 1, or by 2 when the characters gave the front an opening; a full clock means its goal comes true and hurts the characters.",
     "- event: one concrete consequence or pressure in the next scene. Aim it where it hurts: an open thread, a bond between the characters, something they care about. Hard, but fair: built from what the story already set up. In a fight you may send reinforcements or a turn for the worse.",
   ],
+  anime: [
+    "Your level: anime fantasy. Beyond the record, you let the extraordinary into an ordinary-looking story, slowly, the way anime and light novels do: hidden powers, magic, other worlds, fated meetings. This is not chaos: every strange thing has a source, a rule and a price, and grows out of something the story already has.",
+    "- fronts: hidden powers and their plans: a power asleep in someone, a secret society, a sealed thing, a world on the other side, a summoning, a rival with the same gift. A goal and a clock (4, 6 or 8 segments). Add one only on an ordinary hook the story shows (an old book, a strange new student, a dream, an accident, a scar, an heirloom); at most two at once. Tick a clock by 1 when time passes or the characters come close to the secret; a full clock means the secret breaks into the open: an awakening, a portal, a contract, a reveal.",
+    "- event: one concrete thing in the next scene, one step up this ladder at a time: an omen anyone could explain away (a dream two people share, a flicker of light, a cat that watches too long, a word in an unknown script); then a sign that is hard to deny (a glow only one character sees, a translucent status window for a moment, an object that answers a touch, a stranger who knows a name nobody told them); then the reveal (a power wakes at a peak of feeling or danger, a summoning circle opens, a familiar speaks, a newcomer shows what they are). Never jump from nothing to the reveal. Between steps let ordinary life go on: classes, cafes, jokes, romance.",
+    "- Choose the tropes that fit this cast, never all at once: power awakening, a hidden bloodline, a magical contract, a familiar, isekai or a summoning, a status screen and levels, a secret club or council, a sealed demon, a rival, training, a tournament, a time loop. The bond between the characters drives it: a power wakes because someone must be protected, a contract is made for someone's sake.",
+    "- The characters stay themselves: a power or a secret fits who they are and never replaces their personality; the romance, comedy and everyday life of the story stay. The user's character may be offered a power, a call or a door; never decide that they accept it, use it or step through.",
+    "- Another world is the largest turn: only after at least two earlier signs and a clock close to full, and with a moment of choice. Tense, not cruel: no death of a main character, no gore for its own sake.",
+  ],
   chaos: [
     "Your level: total chaos. Beyond the record, you break the story open: anything may happen, whatever the genre or the logic of the world (killer rabbits from space in a slow romance are fine).",
     "- fronts: the wildest powers you can think of, with a goal and a clock (4, 6 or 8 segments). Tick them fast.",
@@ -2509,6 +2519,7 @@ export function defaultBlocks(base) {
     out.level = LEVEL_RULES[base].join("\n");
     out.shared = LEVEL_SHARED.join("\n");
     out.event = HARD_LEVELS.includes(base) ? HARD_EVENT : SOFT_EVENT;
+    out.life = lifeBlock(base);
   }
   return out;
 }
@@ -2532,13 +2543,17 @@ export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
 // cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
 export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, breather: 4, cast: "normal", castDeck: true };
 
-function cleanOptions(o) {
+// a level's own defaults over DEFAULT_OPTIONS (anime: news follows the clock, so the omen, sign and reveal ladder is kept by code)
+const LEVEL_OPTIONS = { anime: { eventByClock: true } };
+
+function cleanOptions(o, base) {
   const b = isObj(o) ? o : {};
+  const dflt = { ...DEFAULT_OPTIONS, ...(LEVEL_OPTIONS[base] || {}) };
   const n = Number(b.clockEvery);
   return {
     clocks: b.clocks === "code" ? "code" : "model",
     clockEvery: Number.isFinite(n) ? clamp(Math.round(n), 2, 50) : DEFAULT_OPTIONS.clockEvery,
-    eventByClock: b.eventByClock === true,
+    eventByClock: typeof b.eventByClock === "boolean" ? b.eventByClock : dflt.eventByClock,
     deck: b.deck === true,
     dice: DICE_MODES.includes(b.dice) ? b.dice : DEFAULT_OPTIONS.dice,
     diceStat: DICE_STAT_CHOICES.includes(b.diceStat) ? b.diceStat : DEFAULT_OPTIONS.diceStat,
@@ -2580,7 +2595,7 @@ function readProfileFile(fsx, id) {
 export function loadProfile(fsx, id) {
   if (PROFILE_LEVELS.includes(id)) {
     const raw = readProfileFile(fsx, id) || {};
-    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults), options: cleanOptions(raw.options) };
+    return { id, builtIn: true, base: id, name: "", description: "", blocks: cleanBlocks(raw.blocks, id), defaults: cleanDefaults(raw.defaults), options: cleanOptions(raw.options, id) };
   }
   if (!OWN_PROFILE_ID.test(id)) return null;
   const raw = readProfileFile(fsx, id);
@@ -2591,7 +2606,7 @@ export function loadProfile(fsx, id) {
     description: cut(str(raw.description), DESC_LEN),
     blocks: cleanBlocks(raw.blocks, raw.base),
     defaults: cleanDefaults(raw.defaults),
-    options: cleanOptions(raw.options),
+    options: cleanOptions(raw.options, raw.base),
   };
 }
 
@@ -3194,7 +3209,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
     else if (out.delivered === false && !state.event.retried) state.event = { ...state.event, sent: 0, retried: true };
     else if (out.delivered === false) state.event = null;
   }
-  const quiet = dir === "explicit" || (dir === "combat" && level !== "antagonist" && level !== "chaos");
+  const quiet = dir === "explicit" || (dir === "combat" && !FIGHT_LEVELS.includes(level));
   // with the deck on, only a card of the deck becomes the event, and it is used up
   const card = useDeck && isObj(out.event) ? arr(state.deck).find((c) => c.id === str(out.event.deck)) : null;
   const text = useDeck ? (card ? card.text : "") : isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
@@ -4141,12 +4156,46 @@ export function seededRandom(seed) {
 
 export const diceMod = (value) => (Number.isFinite(value) ? clamp(Math.sign(value) * Math.round(Math.abs(value) / 20), -5, 5) : 0);
 
-// "life intervenes": its own roll, apart from the action's; a d6 sets how big the intrusion is
+// "life intervenes": its own roll, apart from the action's; a d6 sets how big the intrusion is. What each size means
+// follows the level (user, 2026-11-23: one text for all sent car crashes into a book club on Director); a profile's
+// "life" block holds the three lines "minor: ...", "notable: ...", "major: ..." and may change them.
 const LIFE_TIERS = {
   minor: "a small thing: a sound, a passer-by, a change of light or weather",
   notable: "a real interruption: an arrival, news, someone present acting on their own",
   major: "a large turn: a danger, a revelation or a reversal the scene must answer",
 };
+const LIFE_BY_LEVEL = {
+  living: {
+    notable: "news or a visitor from off screen: a message, a rumour that turns out true, someone arriving",
+    major: "a large turn the scene must answer: news that changes plans, a revelation, a reversal",
+  },
+  director: {
+    major: "a sharp turn that fits the genre and the tone of the story: a revelation, a reversal, an unexpected arrival; danger only where the story is already dangerous",
+  },
+  antagonist: {},
+  anime: {
+    minor: "an omen anyone could explain away: a shared dream, a flicker of light, a cat that watches too long",
+    notable: "a sign of the hidden world that is hard to deny: a glow only one character sees, a stranger who knows a name, an object that answers a touch",
+    major: "the hidden world breaks through, tied to someone present and to what they feel: a power wakes, a circle opens, a familiar speaks",
+  },
+  chaos: {
+    minor: "something small and odd that does not belong here",
+    notable: "something absurd intrudes, whatever the genre",
+    major: "anything at all breaks in, whatever the genre or the logic of the world",
+  },
+};
+const LIFE_KEYS = ["minor", "notable", "major"];
+/** The default "life" block of a level: one line per size. */
+export const lifeBlock = (base) => LIFE_KEYS.map((k) => k + ": " + ((LIFE_BY_LEVEL[base] || {})[k] || LIFE_TIERS[k])).join("\n");
+/** The three sizes a "life" block says; a missing or broken line keeps the built-in text. */
+export function lifeTiers(text) {
+  const out = { ...LIFE_TIERS };
+  for (const line of String(text || "").split("\n")) {
+    const m = /^\s*(minor|notable|major)\s*:\s*(.+?)\s*$/i.exec(line);
+    if (m) out[m[1].toLowerCase()] = m[2];
+  }
+  return out;
+}
 export const lifeTier = (d) => (d <= 3 ? "minor" : d <= 5 ? "notable" : "major");
 
 /** One roll for one reply: does the world break in, and how big. */
@@ -4159,8 +4208,9 @@ export function rollLife(seed, chance) {
   return { gated: true, gate, d, tier: lifeTier(d) };
 }
 
-export function lifeInsert(roll) {
-  return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + LIFE_TIERS[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
+export function lifeInsert(roll, block) {
+  const tiers = block ? lifeTiers(block) : LIFE_TIERS;
+  return "[LIFE: the world intervenes in this reply, " + roll.tier + ". Something outside the focus of the scene breaks in: " + tiers[roll.tier] + ". Weave it in; the others in the scene react to it. Never mention this note.]";
 }
 
 // "pacing die" (#155): a check on the step itself. How ready the character is for closeness comes from the Dashboard
@@ -4435,7 +4485,7 @@ export function llmRequest(ctx, host) {
     const eventDue = events && !!state.event && state.event.sent === 0;
     const dir = directionOf(state, scene);
     if (dir === "explicit") return null;
-    const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
+    const eventsAllowed = !(dir === "combat" && !FIGHT_LEVELS.includes(lv));
     // the pause after a big event: the message this reply follows (a swipe writes the last reply again, so the one before it)
     const msgsP = chat ? chat.msgs : [];
     const anchorIdx = msgsP.length - (op === "swipe" ? 2 : 1);
@@ -4546,7 +4596,7 @@ export function llmRequest(ctx, host) {
         const lifeHeld = life.gated && !cast && life.tier === "major" && pause > 0;
         logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast && !lifeHeld, ...(lifeHeld ? { held: "pause", pause } : {}), ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
         if (life.gated && !cast && !lifeHeld) {
-          parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+          parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life, blockText(profile, "life")) });
           if (life.tier === "major" && anchorMsg) {
             state.breath = { after: keyOf(anchorMsg) };
             saveState(fsx, state);
@@ -5206,7 +5256,7 @@ const nextDeckId = (deck) => deck.reduce((m, c) => Math.max(m, Number(c.id.slice
 // A world can also be built without a chat (user, 2026-10-19: "New world" in the Worlds tab): its draft
 // lives in world/library/<id>.draft.json until it is accepted into the library as <id>.json.
 const draftPath = (id) => LIBRARY_DIR + id + ".draft.json";
-const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "chaos"];
+const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "anime", "chaos"];
 
 /** What a start works on: a chat's world, or a world being built in the library. */
 function startTarget(fsx, b) {
@@ -7396,7 +7446,7 @@ function updateRoute(req, host) {
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
-        threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
+        threads: level === "antagonist" || level === "director" || level === "anime" ? dashThreads(fsx, chatId, scene) : [],
         // the next reply follows the newest message; the pause counts from there
         pause: HARD_LEVELS.includes(level) ? pauseLeft(state.breath, chat.msgs, chat.msgs.length, breatherOf(profile, state.settings)) : 0,
       })) }],
@@ -7579,9 +7629,9 @@ function profilesRoute(req, host) {
     ...(builtIn ? {} : { name: cut(str(b.name !== undefined ? b.name : current ? current.name : ""), NAME_LEN) || "Profile", description: cut(str(b.description !== undefined ? b.description : current ? current.description : ""), DESC_LEN), base }),
     blocks: cleanBlocks(blocks, base),
     defaults: cleanDefaults(b.defaults !== undefined ? b.defaults : current ? current.defaults : {}),
-    options: cleanOptions({ ...(current ? current.options : {}), ...(isObj(b.options) ? b.options : {}) }),
+    options: cleanOptions({ ...(current ? current.options : {}), ...(isObj(b.options) ? b.options : {}) }, base),
   };
-  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS) && JSON.stringify(next.options) === JSON.stringify(DEFAULT_OPTIONS);
+  const plain = builtIn && !Object.keys(next.blocks).length && JSON.stringify(next.defaults) === JSON.stringify(DEFAULT_PROFILE_SETTINGS) && JSON.stringify(next.options) === JSON.stringify(cleanOptions({}, base));
   if (plain) {
     try {
       fsx.remove(PROFILE_DIR + id + ".json");

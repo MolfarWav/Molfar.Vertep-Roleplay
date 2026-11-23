@@ -771,10 +771,10 @@ describe("P3 stage 2: profiles", () => {
   it("built-in profiles give the same prompts as the levels did", () => {
     const m = memHost(seed());
     const list = route(m.host, "GET", "/world/profiles").json.profiles;
-    expect(list.map((p: any) => p.id)).toEqual(["chronicler", "living", "director", "antagonist", "chaos"]);
+    expect(list.map((p: any) => p.id)).toEqual(["chronicler", "living", "director", "antagonist", "anime", "chaos"]);
     expect(systemFor("chronicler")).toBe(CHRONICLER_SYSTEM);
     const dir = list.find((p: any) => p.id === "director");
-    expect(dir.blocks.map((b: any) => b.key)).toEqual(["keeper", "level", "shared", "event"]);
+    expect(dir.blocks.map((b: any) => b.key)).toEqual(["keeper", "level", "shared", "event", "life"]);
     expect(dir.output).toContain('"fronts"');
     expect(dir.changed).toBe(false);
   });

@@ -28,8 +28,8 @@ import { OwnMark } from './world-profile-picker'
 import { LearnedMemoryCard, MEMORY_ID, MemoryRow } from './world-memory'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
-const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'chaos']
-const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'chaos']
+const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'chaos']
+const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'anime', 'chaos']
 export const NEW_PROFILE = '__new__'
 
 /** "Default": the profile a new chat starts with. In the list it is the short word; in the editor's header the longer one. */
@@ -43,8 +43,8 @@ function DefaultMark({ long = false }: { long?: boolean }) {
   )
 }
 
-const BLOCK_TITLE: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper', level: 'world.block.level', shared: 'world.block.shared', event: 'world.block.event' }
-const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.hint', level: 'world.block.level.hint', shared: 'world.block.shared.hint', event: 'world.block.event.hint' }
+const BLOCK_TITLE: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper', level: 'world.block.level', shared: 'world.block.shared', event: 'world.block.event', life: 'world.block.life' }
+const BLOCK_HINT: Record<WorldBlockKey, MsgKey> = { keeper: 'world.block.keeper.hint', level: 'world.block.level.hint', shared: 'world.block.shared.hint', event: 'world.block.event.hint', life: 'world.block.life.hint' }
 
 // ---------- the list (left pane) ----------
 

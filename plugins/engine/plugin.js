@@ -581,7 +581,7 @@ export function chatFeatures(fsx, meta) {
   // and a share above 0
   const ws = /^[\w-]{1,200}$/.test(id) ? read("world/state/" + id + ".json") : {};
   const st = obj(ws.settings);
-  const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "chaos"];
+  const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "anime", "chaos"];
   const level = LEVELS.includes(st.level) ? st.level : "off";
   const world = Object.keys(ws).length > 0 && !isOff("plugin:world");
   const worldnews = world && st.insert !== false && level !== "off" && level !== "chronicler";
@@ -5017,7 +5017,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
   if (memoryTaken("world")) board.push({ key: "plugin:worldmemory", label: "World memory", kind: "memory", state: isOff("plugin:worldmemory") ? "off" : "on" });
   // the World DM's events, only where its level sends any (its world book is a book row above)
   const worldLevel = (() => { try { const w = JSON.parse(fsx.read("world/state/" + meta.id + ".json")); return w && w.settings ? w.settings.level : ""; } catch { return ""; } })();
-  if (["living", "director", "antagonist", "chaos"].includes(worldLevel)) {
+  if (["living", "director", "antagonist", "anime", "chaos"].includes(worldLevel)) {
     board.push({ key: "plugin:world", label: "World DM events", kind: "plugin", state: isOff("plugin:world") ? "off" : "on" });
   }
   src.board = board;

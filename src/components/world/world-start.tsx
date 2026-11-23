@@ -417,7 +417,7 @@ function ChatSetup({ chatId, view, onBegun, onOpenSettings }: { chatId: string; 
 // ---------- a world without a chat ----------
 
 /** A new world may run on any profile: every level is finished. */
-const ALL_LEVELS: WorldLevel[] = ['off', 'chronicler', 'living', 'director', 'antagonist', 'chaos']
+const ALL_LEVELS: WorldLevel[] = ['off', 'chronicler', 'living', 'director', 'antagonist', 'anime', 'chaos']
 
 /** Worlds just begun from the form: their panel starts building at once, from this first draft. */
 const buildNow = new Map<string, WorldDraft>()

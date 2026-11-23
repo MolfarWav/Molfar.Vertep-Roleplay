@@ -658,8 +658,14 @@ player switches it on for that chat. It writes:
     Soft news, minor and notable life rolls, the dice on the action and people coming back are not held. A swipe of the carrying reply drops
     the mark (it is set again if the new reply carries one); a mark whose message is gone holds nothing. While it lasts the DM's input says
     so, and that an event sent now should be an aftermath or a clue. The state route answers `breather` (in force) and `pause` (replies left).
-  - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
-    `antagonist`, `chaos` (a hard event for the next reply).
+  - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director` (shown as
+    "Storyteller" since Molfar.Vertep#502; the id stays), `antagonist`, `anime` (Molfar.Vertep#500: anime fantasy, the extraordinary
+    enters an ordinary story by omen, sign and reveal), `chaos` (a hard event for the next reply). `antagonist`, `anime` and `chaos`
+    also send events and dice in a fight. The built-in `anime` profile has `options.eventByClock` on unless the player turned it off.
+  - Profile blocks (`world/profiles/<id>.json`, `blocks`): `keeper`, `level`, `shared`, `event` and, at the levels with events,
+    `life` (Molfar.Vertep#500): what each size of the "life intervenes" die means, one line each, `minor: ...`, `notable: ...`,
+    `major: ...`; a missing or broken line keeps the level's default (`lifeBlock`, `lifeTiers`). Each level has its own defaults
+    (the antagonist keeps the old text; the director's major turn fits the genre and is a danger only where the story already is one).
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
     that many replies (0 = never, default 6; x2 at home, x0.5 on the road, paused in a fight); `onTransition` = right
     after a time skip. The last two need the Relationship dashboard. Nothing runs in an explicit scene.
