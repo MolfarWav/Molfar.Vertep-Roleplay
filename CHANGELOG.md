@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.154.0 (2026-11-23)
+
 - Added: **a new World DM level, Anime fantasy (Molfar.Vertep#500).** The extraordinary slips into an ordinary story step by step: an omen anyone could explain away, a sign that is hard to deny, then the reveal (a power wakes, a familiar speaks, a summoning circle opens, another world calls). It grows from hooks the story already has and from the bonds between the characters, offers the user's character a power or a door without deciding for them, allows another world only after two signs and with a moment of choice, and kills no main character. It sends hard events, also in a fight (like Antagonist), and its built-in profile reads news by the clock (omen, sign, reveal kept by code). A pink magic-wand mark in the level lists.
 - Added: **"World intervenes" follows the level (Molfar.Vertep#500).** What a small, notable and large intrusion means was one text for every level ("a danger, a revelation or a reversal"), so a slice-of-life chat on Director got a car crash. Each level with events now has its own three lines (Antagonist keeps the old ones; on the Storyteller a large turn fits the genre and is a danger only where the story already is one; Anime fantasy's are an omen, a sign and the hidden world breaking through), in a new profile block **World intervenes: what each size means** (`life`), editable and reset per block like the others.
 - Changed: **the World DM level Director is now called Storyteller (Molfar.Vertep#502)**, so it is not confused with a group chat's Direction and its director model. Only the name changed; the level id `director` and every chat on it stay.

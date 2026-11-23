@@ -1,4 +1,4 @@
-<!-- source: c4250477e1b5 -->
+<!-- source: 2128e30a104f -->
 # Direction : qui est dans la scène
 
 Direction est conçue pour les discussions de groupe. Après chaque réponse, un petit modèle « directeur » peu coûteux lit la scène et indique de quel type de scène il s'agit (une leçon, une pause, un moment seul, un rendez-vous) et quels membres y participent. Les membres qui ne sont pas présents cessent de répondre et sont exclus du prompt jusqu'à ce que l'histoire les ramène.
@@ -7,7 +7,7 @@ Direction est conçue pour les discussions de groupe. Après chaque réponse, un
 
 Dans une discussion de groupe, une fine barre se trouve sous la barre des membres, marquée « Direction » (sur un téléphone, seule l'icône apparaît). De gauche à droite :
 
-- **Le chip de scène** : le type de scène et qui est présent (« Moment seul, avec Yuzu » ou « Leçon, 4 ici »). Touchez-le pour voir qui est présent et qui n'est pas dans la scène, la date du dernier rapport, et un bouton **Report now** qui interroge à nouveau le directeur. Pendant que le directeur lit, le chip affiche « Lecture de la scène… ».
+- **Le chip de scène** : le type de scène et qui est présent (« Moment seul, avec Yuzu » ou « Leçon, 4 ici »). Les portraits du Dashboard s'atténuent pour les membres qu'il dit ne pas être dans la scène. Touchez-le pour voir qui est présent et qui n'est pas dans la scène, la date du dernier rapport, et un bouton **Report now** qui interroge à nouveau le directeur. Pendant que le directeur lit, le chip affiche « Lecture de la scène… ».
 - **Le chip de modèle** : le modèle du directeur. Si aucun n'est choisi, il affiche **Pick a model**. Touchez-le pour obtenir la même liste de modèles que la barre supérieure de la discussion : modèles favoris, puis tous les modèles par connexion, avec une zone de recherche.
 - **L'interrupteur** : Direction activée ou désactivée pour cette discussion. Tant qu'aucun modèle n'est choisi, il est grisé et indique « Choisissez d'abord un modèle ».
 - **Next** : un chip qui apparaît lorsqu'une règle de genre ou un beat de votre plan a une note en attente pour la prochaine réponse (« Next : Yuzu »). La croix l'ignore.

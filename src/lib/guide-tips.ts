@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.153.3'
+export const APP_VERSION = '4.154.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.world-anime-breather',
+    since: '4.154.0',
+    help: 'world',
+    keywords: { en: 'world dm anime fantasy awakening isekai magic storyteller director pause big event breather world intervenes dice tumble roll', uk: 'майстер світу дм аніме фентезі пробудження ісекай магія оповідач режисер пауза велика подія світ втручається кубики кидок' },
+    title: { en: 'World DM: Anime fantasy, a pause after big events, rolling dice', uk: 'Майстер світу: Аніме-фентезі, пауза після великих подій, кубики, що котяться' },
+    body: {
+      en: 'A new DM level, Anime fantasy, lets the extraordinary into an ordinary story step by step: an omen, a sign, then a power wakes or another world calls. After a hard event or a large intrusion of the world, the next 4 replies now get no new one (Pause after a big event, in the DM sheet and a profile’s Options). What World intervenes means follows the level and is a profile block you can edit. Director is now called Storyteller. With Show under the reply on, the dice tumble above the message box when a reply is rolled for.',
+      uk: 'Новий рівень майстра, Аніме-фентезі, крок за кроком впускає незвичайне у звичайну історію: прикмета, знак, а тоді прокидається сила або кличе інший світ. Після жорсткої події чи великого втручання світу наступні 4 відповіді тепер нової не отримують (Пауза після великої події, в аркуші майстра й у Options профілю). Що означає «Світ втручається», тепер залежить від рівня і є блоком профілю, який можна правити. Режисер тепер зветься Оповідач. Із увімкненим «Показувати під відповіддю» кубики котяться над полем вводу, коли для відповіді був кидок.',
+    },
+  },
   {
     id: 'new.direction-genres',
     since: '4.153.0',

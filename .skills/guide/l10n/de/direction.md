@@ -1,4 +1,4 @@
-<!-- source: c4250477e1b5 -->
+<!-- source: 2128e30a104f -->
 # Direction: wer in der Szene ist
 
 Direction ist für Gruppen-Chats. Nach jeder Antwort liest ein kleines, günstiges „Director“-Modell die Szene und sagt, um welche Art von Szene es sich handelt (eine Lektion, eine Pause, ein Moment allein, ein Date) und welche Mitglieder darin sind. Mitglieder, die nicht da sind, antworten nicht mehr und werden aus dem Prompt ausgeschlossen, bis die Geschichte sie zurückbringt.
@@ -7,7 +7,7 @@ Direction ist für Gruppen-Chats. Nach jeder Antwort liest ein kleines, günstig
 
 In einem Gruppen-Chat gibt es eine dünne Leiste unter der Mitgliederleiste, die mit „Direction“ beschriftet ist (auf dem Telefon nur das Symbol). Von links nach rechts:
 
-- **Der Szenen-Chip**: die Art der Szene und wer hier ist („Alone moment, with Yuzu“ oder „Lesson, 4 here“). Tippe darauf, um zu sehen, wer in der Szene ist und wer nicht, wann der letzte Bericht erstellt wurde, und einen Button **Report now**, der den Director erneut fragt. Während der Director liest, zeigt der Chip „Reading the scene…“.
+- **Der Szenen-Chip**: die Art der Szene und wer hier ist („Alone moment, with Yuzu“ oder „Lesson, 4 here“). Die Porträts im Dashboard verblassen für die Mitglieder, von denen er sagt, dass sie nicht in der Szene sind. Tippe darauf, um zu sehen, wer in der Szene ist und wer nicht, wann der letzte Bericht erstellt wurde, und einen Button **Report now**, der den Director erneut fragt. Während der Director liest, zeigt der Chip „Reading the scene…“.
 - **Der Modell-Chip**: das Modell des Directors. Ist noch keins gewählt, steht dort **Pick a model**. Tippe darauf, um dieselbe Modellliste zu sehen wie in der oberen Leiste des Chats: markierte Modelle, dann alle Modelle nach Verbindung, mit Suchfeld.
 - **Der Schalter**: Direction an oder aus für diesen Chat. Solange noch kein Modell gewählt ist, ist er ausgegraut und sagt „Pick a model first“.
 - **Next**: ein Chip, der erscheint, während eine Genre-Regel oder ein Beat deines Plans eine Notiz für die nächste Antwort bereithält („Next: Yuzu“). Das x überspringt sie.
