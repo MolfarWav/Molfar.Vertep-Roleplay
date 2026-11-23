@@ -13,19 +13,21 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const CYR_TO_LAT: Record<string, string> = {
   а: 'a', б: 'b', в: 'v', г: 'g', ґ: 'g', д: 'd', е: 'e', ё: 'e', є: 'e', ж: 'zh', з: 'z', и: 'i', і: 'i', ї: 'i', й: 'i', к: 'k', л: 'l', м: 'm',
-  н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
 }
 const CYRILLIC = /[\u0400-\u04ff]/
 const LATIN = /[a-z]/i
 
 /** A word as it sounds, for comparing a name across scripts: Cyrillic as Latin, then spelling variants
- *  folded (Isabella and Изабелла both give "isabela", Rhea and Рея both give "rea"). */
+ *  folded (Isabella and Изабелла both give "isabela", Rhea and Рея both give "rea"). `х` is the `h` of a Latin
+ *  name and `kh` the same sound, as in the lorebook's and the registry's spelling (Chihiro / Чихиро, Khan / Хан). */
 export function soundKey(word: string): string {
   let out = ''
   for (const ch of word.toLowerCase()) out += CYR_TO_LAT[ch] ?? ch
   return out
     .normalize('NFD')
     .replace(/[^a-z]/g, '')
+    .replace(/kh/g, 'h')
     .replace(/ph/g, 'f')
     .replace(/ck/g, 'k')
     .replace(/c(?=[eiy])/g, 's')
