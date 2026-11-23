@@ -189,6 +189,10 @@ function OptionsSection({ options, onChange }: { options: WorldProfileOptions; o
         <span className="min-w-0">{t('world.opt.news')}<span className="block text-xs text-muted-foreground">{t('world.opt.newsHint')}</span></span>
         <Switch checked={options.eventByClock} onCheckedChange={(v) => onChange({ ...options, eventByClock: v })} aria-label={t('world.opt.news')} />
       </div>
+      <div className="flex items-center justify-between gap-3 text-sm" data-testid="profile-breather">
+        <span className="min-w-0">{t('world.opt.breather')}<span className="block text-xs text-muted-foreground">{t('world.opt.breatherHint')}</span></span>
+        <NumControl label={t('world.opt.breather')} value={options.breather ?? 4} min={0} max={20} onCommit={(n) => onChange({ ...options, breather: n })} />
+      </div>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="min-w-0">{t('world.prof.opt.deck')}<span className="block text-xs text-muted-foreground">{t('world.prof.opt.deckHint')}</span></span>
         <Switch checked={options.deck} onCheckedChange={(v) => onChange({ ...options, deck: v })} aria-label={t('world.prof.opt.deck')} />
@@ -462,7 +466,7 @@ export function NewProfileEditor({ onDirty, onCreated, onCancel }: { onDirty: (d
   const builtIn = list?.find((p) => p.id === base)
   const levelDefaults = useMemo(() => Object.fromEntries((builtIn?.blocks ?? []).map((b) => [b.key, b.default])), [builtIn])
   const [defaults, setDefaults] = useState<WorldProfileDefaults>({ everyN: 5, stagnation: 6, onTransition: true, insert: true })
-  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, cast: 'normal', castDeck: true })
+  const [options, setOptions] = useState<WorldProfileOptions>({ clocks: 'model', clockEvery: 6, eventByClock: false, deck: false, dice: 'off', diceStat: 'auto', diceChance: 25, diceTilt: 'even', diceLife: 0, dicePace: 0, breather: 4, cast: 'normal', castDeck: true })
   const [blocks, setBlocks] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   // a new base starts from that level's texts and numbers

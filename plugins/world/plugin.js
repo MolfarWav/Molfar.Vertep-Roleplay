@@ -125,7 +125,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1127,6 +1127,8 @@ function cleanSettings(s) {
     // -1 = the profile decides; 0 = never
     diceLife: b.diceLife !== "" && b.diceLife !== null && Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : -1,
     dicePace: b.dicePace !== "" && b.dicePace !== null && Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : -1,
+    // the pause after a big event, in replies (-1 = the profile decides; 0 = no pause)
+    breather: b.breather !== "" && b.breather !== null && Number.isFinite(Number(b.breather)) && Number(b.breather) >= 0 ? clamp(Math.round(Number(b.breather)), 0, BREATHER_MAX) : -1,
     diceChance: Number.isFinite(Number(b.diceChance)) && Number(b.diceChance) >= 1 ? clamp(Math.round(Number(b.diceChance)), 1, 100) : 0,
     // a player's own profile on top of the level (its base); "" = the level's built-in profile
     profile: level !== "off" && OWN_PROFILE_ID.test(str(b.profile)) ? str(b.profile) : "",
@@ -1463,6 +1465,8 @@ export function normalizeState(raw, chatId) {
   if (lastEntrance) out.lastEntrance = lastEntrance;
   // since which reply someone has been due and held back for a scene boundary (#496)
   if (isObj(s.castWait) && Number.isInteger(s.castWait.n) && s.castWait.n >= 0) out.castWait = { n: s.castWait.n };
+  // the message the last big event's reply followed: the pause after it counts the replies since (see pauseLeft)
+  if (isObj(s.breath) && typeof s.breath.after === "string" && s.breath.after) out.breath = { after: cut(s.breath.after, 80) };
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
@@ -2526,7 +2530,7 @@ export const DICE_STATS = ["trust", "comfort", "attraction", "respect", "affecti
 export const DICE_TILTS = { kind: [4, 6, 8], even: [5, 7, 9], harsh: [6, 8, 10] };
 export const DICE_STAT_CHOICES = ["auto", ...DICE_STATS];
 // cast: how often a person who has been away comes back, for the chats this profile starts (a chat keeps its own after that)
-export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, cast: "normal", castDeck: true };
+export const DEFAULT_OPTIONS = { clocks: "model", clockEvery: 6, eventByClock: false, deck: false, dice: "off", diceStat: "auto", diceChance: 25, diceTilt: "even", diceLife: 0, dicePace: 0, breather: 4, cast: "normal", castDeck: true };
 
 function cleanOptions(o) {
   const b = isObj(o) ? o : {};
@@ -2542,6 +2546,7 @@ function cleanOptions(o) {
     diceTilt: Object.hasOwn(DICE_TILTS, b.diceTilt) ? b.diceTilt : DEFAULT_OPTIONS.diceTilt,
     diceLife: Number.isFinite(Number(b.diceLife)) && Number(b.diceLife) >= 0 ? clamp(Math.round(Number(b.diceLife)), 0, 100) : DEFAULT_OPTIONS.diceLife,
     dicePace: Number.isFinite(Number(b.dicePace)) && Number(b.dicePace) >= 0 ? clamp(Math.round(Number(b.dicePace)), 0, 100) : DEFAULT_OPTIONS.dicePace,
+    breather: b.breather !== "" && b.breather !== null && Number.isFinite(Number(b.breather)) && Number(b.breather) >= 0 ? clamp(Math.round(Number(b.breather)), 0, BREATHER_MAX) : DEFAULT_OPTIONS.breather,
     cast: CAST_FREQ.includes(b.cast) ? b.cast : DEFAULT_OPTIONS.cast,
     castDeck: typeof b.castDeck === "boolean" ? b.castDeck : DEFAULT_OPTIONS.castDeck,
   };
@@ -2671,7 +2676,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2696,7 +2701,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(arr(tracked).length ? [trackedInput(tracked)] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0 }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     ...(earlier.length && level && LEVEL_RULES[level]
       ? ["Already read in earlier runs, after the event was sent (the event may have happened here)\n" + earlier.map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), earlierCap)).join("\n")]
@@ -2735,7 +2740,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options, deck, earlier }) {
+function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -2754,6 +2759,7 @@ function levelInput({ fronts, event, direction, threads, options, deck, earlier 
   if (event && event.sent > 0) out.push("Event sent in an earlier reply: " + event.text + "\nDid the story show it? " + (earlier ? "Look at the part already read after it was sent, and at the new part. " : "") + "Answer in delivered.");
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
+  if (pause > 0) out.push("A big event just hit the story: the next " + pause + " " + (pause === 1 ? "reply is" : "replies are") + " its pause, with no new danger. An event you send now waits until the pause is over: make it the aftermath, a consequence or a quiet clue, never a new danger.");
   if (arr(threads).length) out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
   return out;
 }
@@ -4324,6 +4330,34 @@ export function diceOf(profile, settings) {
   };
 }
 
+// the pause after a big event (user, 2026-11-23: chained disasters left no breath, on director and antagonist alike).
+// A big event is a hard DM event or a major "life intervenes". After the reply that carried one, the next `breather`
+// replies get no new one: a waiting hard event holds (it stays pending), a major life roll is not sent (logged as held).
+// Small touches, soft news, the dice on the action and people coming back go on as before.
+export const BREATHER_MAX = 20;
+
+/** The pause in force for a chat: its own setting where set, else the profile's option. */
+export function breatherOf(profile, settings) {
+  const o = profile && profile.options ? profile.options : DEFAULT_OPTIONS;
+  const own = isObj(settings) && Number.isFinite(settings.breather) && settings.breather >= 0 ? settings.breather : -1;
+  return own >= 0 ? own : Number.isFinite(o.breather) ? o.breather : DEFAULT_OPTIONS.breather;
+}
+
+/**
+ * How many more replies the pause holds for a reply that follows msgs[anchorIdx]: 0 = free. The reply that carried the
+ * big event follows the message `mark.after`; it and the next `n` replies are the pause. A swipe of that reply has the
+ * same anchor and is free (it may carry the event again); a mark whose message is gone (deleted) holds nothing.
+ */
+export function pauseLeft(mark, msgs, anchorIdx, n) {
+  if (!(n > 0) || !isObj(mark) || !str(mark.after) || !Array.isArray(msgs)) return 0;
+  const idx = msgs.findIndex((m) => keyOf(m) === mark.after);
+  if (idx < 0 || idx >= anchorIdx) return 0;
+  let gap = 0;
+  for (let i = idx + 1; i <= anchorIdx && i < msgs.length; i++) if (isReply(msgs[i])) gap++;
+  // gap 0: the reply that carries it is still being written (a view or a run in between); the pause is then all of n
+  return Math.min(n, Math.max(0, n + 1 - gap));
+}
+
 function diceRoute(req, host) {
   const chatId = String((req.query && req.query.chatId) || "");
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
@@ -4402,18 +4436,29 @@ export function llmRequest(ctx, host) {
     const dir = directionOf(state, scene);
     if (dir === "explicit") return null;
     const eventsAllowed = !(dir === "combat" && lv !== "antagonist" && lv !== "chaos");
+    // the pause after a big event: the message this reply follows (a swipe writes the last reply again, so the one before it)
+    const msgsP = chat ? chat.msgs : [];
+    const anchorIdx = msgsP.length - (op === "swipe" ? 2 : 1);
+    const anchorMsg = anchorIdx >= 0 ? msgsP[anchorIdx] : null;
+    // a swipe of the reply that carried the big event rewrites it: the mark goes, and comes back if this one carries one too
+    if (state.breath && anchorMsg && state.breath.after === keyOf(anchorMsg)) {
+      delete state.breath;
+      saveState(fsx, state);
+    }
+    const pause = events ? pauseLeft(state.breath, msgsP, anchorIdx, breatherOf(profile, state.settings)) : 0;
+    const held = eventDue && state.event.hard === true && pause > 0;
     const parts = [];
     const hereText = hereInsert(hereOf(state, scene, chat ? [userNameOf(fsx, chat.meta)].filter(Boolean) : [], regView(fsx, chatId)));
     if (hereText) parts.push({ kind: "plugin", label: "World · here", text: hereText });
     // the player's wishes for the story (#428): rules about the story, learned from swiped events or written so, reach the writer too
     const wishes = lv !== "off" ? writerInsert(writerRules(state.settings, state.learned, loadLearned(fsx))) : "";
     if (wishes) parts.push({ kind: "plugin", label: "World · wishes", text: wishes });
-    const eventText = eventsAllowed && eventDue ? eventInsert(state.event, profile && profile.blocks.event) : null;
+    const eventText = eventsAllowed && eventDue && !held ? eventInsert(state.event, profile && profile.blocks.event) : null;
     if (eventText) {
       // the message the reply follows: a swipe writes the last reply again, so it follows the one before that
-      const msgs0 = chat ? chat.msgs : [];
-      const anchor = msgs0[msgs0.length - (op === "swipe" ? 2 : 1)];
+      const anchor = anchorMsg;
       state.event = { ...state.event, sent: state.event.sent + 1, sentAt: Date.now(), ...(anchor ? { after: keyOf(anchor) } : {}) };
+      if (state.event.hard === true && anchor) state.breath = { after: keyOf(anchor) };
       saveState(fsx, state);
       parts.push({ kind: "plugin", label: "World DM", text: eventText });
     }
@@ -4497,8 +4542,16 @@ export function llmRequest(ctx, host) {
             cast = sendEntrance(fsx, state, msgs, str(turn.op), parts);
           }
         }
-        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast, ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
-        if (life.gated && !cast) parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+        // a major intrusion waits out the pause after a big event; a small or notable one still comes
+        const lifeHeld = life.gated && !cast && life.tier === "major" && pause > 0;
+        logDice(fsx, chatId, { at: Date.now(), ...place, kind: "life", op: str(turn.op), chance: dice.life, ...life, inserted: life.gated && !cast && !lifeHeld, ...(lifeHeld ? { held: "pause", pause } : {}), ...(life.gated && cast && state.entrance ? { cast: state.entrance.id } : {}) });
+        if (life.gated && !cast && !lifeHeld) {
+          parts.push({ kind: "plugin", label: "Life", text: lifeInsert(life) });
+          if (life.tier === "major" && anchorMsg) {
+            state.breath = { after: keyOf(anchorMsg) };
+            saveState(fsx, state);
+          }
+        }
       }
     }
     if (!parts.length) return null;
@@ -7008,6 +7061,13 @@ function runView(r) {
   };
 }
 
+function breathView(state, msgs, fsx) {
+  if (state.settings.level === "off" || state.settings.level === "chronicler" || !fsx) return {};
+  const breather = breatherOf(profileFor(fsx, state.settings), state.settings);
+  const m = arr(msgs);
+  return { breather, pause: pauseLeft(state.breath, m, m.length, breather) };
+}
+
 function stateView(state, msgs, cfg, scene, play, fsx) {
   const unread = unreadMessages(msgs, state.lastKey);
   return {
@@ -7016,6 +7076,8 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
     learn: fsx ? learnCounts(fsx, state) : { on: true, rules: 0, waiting: 0 },
     // the dice in force (the chat's own over the profile's), for the sheet
     dice: state.settings.level === "off" || !fsx ? null : diceOf(profileFor(fsx, state.settings), state.settings),
+    // the pause after a big event in force (replies), and how many replies it still holds for the next one
+    ...breathView(state, msgs, fsx),
     ready: READY_LEVELS,
     // the profile in force (its own one, else the level's)
     profile: state.settings.level === "off" ? null : state.settings.profile || state.settings.level,
@@ -7164,7 +7226,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "breather", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -7335,6 +7397,8 @@ function updateRoute(req, host) {
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: level === "antagonist" || level === "director" ? dashThreads(fsx, chatId, scene) : [],
+        // the next reply follows the newest message; the pause counts from there
+        pause: HARD_LEVELS.includes(level) ? pauseLeft(state.breath, chat.msgs, chat.msgs.length, breatherOf(profile, state.settings)) : 0,
       })) }],
       ...callParams(fsx, cfg, chat.meta, maxTokens),
     });

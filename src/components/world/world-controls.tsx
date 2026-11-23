@@ -450,13 +450,18 @@ export function WorldControls({
       icon={Sparkle}
       id="adds"
       title={t('world.card.adds')}
-      chips={addsChips(t, { insert: view.settings.insert, dice: view.dice?.mode })}
+      chips={addsChips(t, { insert: view.settings.insert, dice: view.dice?.mode, pause: view.pause })}
       dimmed={!on}
       note={on ? undefined : t('world.card.offAdds')}
     >
       <SettingRow label={t('world.insert')} info={t('world.insertHint')}>
         <Switch checked={view.settings.insert} disabled={!on} onCheckedChange={(v) => void save({ insert: v })} aria-label={t('world.insert')} />
       </SettingRow>
+      {view.breather !== undefined && (
+        <SettingRow label={t('world.opt.breather')} info={t('world.opt.breatherHint')}>
+          <NumControl label={t('world.opt.breather')} value={view.breather} min={0} max={20} disabled={!on} onCommit={(n) => void save({ breather: n })} />
+        </SettingRow>
+      )}
       {view.dice && (
         <DiceFields
           mode={view.dice.mode}

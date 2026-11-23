@@ -47,6 +47,8 @@ The book also tidies itself. Every 10 replies, a thing that fewer than 3 of the 
 
 Delete a reply, or swipe to another one, and the DM takes back what it learned from the old one: records, clocks and a waiting event return to how they were, the world book is written again, and the DM reads the story again from there.
 
+After a big event (a DM event that must happen, or a large intrusion of life from the dice) the story gets a pause: by default the next 4 replies get no new one. A waiting DM event holds until the pause is over, and the DM is told to make it an aftermath or a quiet clue rather than a new danger; small touches, rumours and people coming back still come. The events card in the DM sheet shows "pause: N more" while it lasts. Set the length in **Pause after a big event, replies** (the DM sheet for this chat, or World > Profiles > Options for a profile); 0 turns the pause off.
+
 An event is one shot. The DM checks whether the story showed it, looking at everything after the reply that carried it, also the part it already read. If not, the event is sent once more with the next reply, unless the story has moved to another place by then (a time skip, a new scene): then it is let go, so an old event does not pull the story back.
 
 Records you changed by hand stay, unless the DM changed the same record afterwards. A record you deleted stays deleted. Deleting old messages from the top, reading other swipes of an older reply and editing a reply's text take nothing back.

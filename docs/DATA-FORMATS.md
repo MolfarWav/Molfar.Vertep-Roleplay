@@ -651,6 +651,13 @@ player switches it on for that chat. It writes:
     input ("Stirred since the last look ...", worded by the clock stage) and then lets the flag go. Set only when the profile's `clocks` is `code`.
   - Code clocks (profile option `clocks: "code"`): every `clockEvery` replies read, each active front rolls a d6 (`tickClocks`, seeded by chat and the run's
     `upTo`, so a rerun rolls the same): 1-2 nothing, 3-4 +1 segment, 5-6 +1 segment and `stirred`. The model's own tick ops are ignored.
+  - The pause after a big event (Molfar.Vertep 2026-11-23): `settings.breather` (replies, 0-20; -1 or absent = the profile's `options.breather`,
+    default 4; 0 = no pause) and `breath` (optional, `{ after }`: the key `<id>#<swipe>` of the message the reply that carried the last big
+    event followed). A big event is a hard DM event or a `major` life roll that was sent. That reply and the next `breather` replies are
+    the pause (`pauseLeft`): a waiting hard event stays pending (`sent: 0`), a major life roll is logged with `inserted: false, held: "pause", pause`.
+    Soft news, minor and notable life rolls, the dice on the action and people coming back are not held. A swipe of the carrying reply drops
+    the mark (it is set again if the new reply carries one); a mark whose message is gone holds nothing. While it lasts the DM's input says
+    so, and that an event sent now should be an aftermath or a clue. The state route answers `breather` (in force) and `pause` (replies left).
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director`,
     `antagonist`, `chaos` (a hard event for the next reply).
   - Triggers: `everyN` = after that many new replies (1-50, default 5); `stagnation` = when the scene stood still
