@@ -81,6 +81,7 @@ import { RequestSizeButton, RequestSizeDialog, useRequestSize } from '@/componen
 import { shortTokens } from '@/lib/long-chat'
 import { continueInNewChat } from '@/lib/continue-chat'
 import { BackstageButton, BackstagePhoneBlock } from '@/components/chat/backstage-menu'
+import { RpgFight } from '@/components/chat/rpg-fight'
 import { ChatToolButtons, ChatToolTiles, TOOL_KEYS, useToolMode, type ToolHandlers, type ToolState } from '@/components/chat/chat-tools'
 import { DashLiveLine } from '@/components/dashboard/dash-live-line'
 import { AvatarMenu } from './avatar-menu'
@@ -872,6 +873,8 @@ export function ChatView() {
             </HeaderIcon>
             {/* The curtain (#448): the Backstage drawers at the objects this chat uses */}
             <BackstageButton character={character} preset={chatPreset} chatId={chat.id} onFired={toolHandlers.lore} labelled={toolMode === 'labelled'} />
+            {/* A fight in the optional RPG app, and its result coming back (#486) */}
+            <RpgFight chatId={chat.id} labelled={toolMode === 'labelled'} />
             {/* All chat tools behind one kebab, every width */}
             <div>
               <DropdownMenu open={kebabOpen} onOpenChange={(o, d) => { if (!o && guideTarget(d.event)) return; setKebabOpen(o) }}>

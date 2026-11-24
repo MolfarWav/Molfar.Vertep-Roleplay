@@ -1,0 +1,20 @@
+{
+  "contract": "0.1",
+  "encounterId": "enc-lzk3w9a2-x4f1",
+  "outcome": "won",
+  "defeatApplied": null,
+  "party": [
+    { "id": "user", "name": "Vlad", "hp": 22, "hpMax": 34, "fled": false, "dead": false, "injuries": [{ "zone": "arms", "severity": "light" }] },
+    { "id": "p1", "name": "Medli", "hp": 31, "hpMax": 31, "fled": false, "dead": false, "injuries": [] },
+    { "id": "p2", "name": "Ember", "hp": 9, "hpMax": 28, "fled": false, "dead": false, "injuries": [] }
+  ],
+  "foes": [
+    { "name": "Goblin scout", "hp": 0, "hpMax": 24 },
+    { "name": "Goblin archer", "hp": 0, "hpMax": 22 }
+  ],
+  "loot": [],
+  "summary": "Victory after 4 rounds. Vlad has a light arm injury; Ember is badly tired.",
+  "rounds": 4,
+  "seed": 4242,
+  "at": 1790000600000
+}

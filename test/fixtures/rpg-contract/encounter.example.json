@@ -1,0 +1,21 @@
+{
+  "contract": "0.1",
+  "id": "enc-lzk3w9a2-x4f1",
+  "chatId": "chat-1700000000000-ab12",
+  "messageId": "m42",
+  "skin": "fantasy",
+  "language": "en",
+  "scene": "The smell of sawdust; goblins have knocked a cart over by the mill. Fog, evening.",
+  "place": "the mill",
+  "party": [
+    { "id": "user", "name": "Vlad", "hero": true, "role": "Swordsman", "soul": null },
+    { "id": "p1", "name": "Medli", "hero": false, "role": "Healer", "soul": { "traits": { "confidence": 30, "shyness": 70, "dominance": 20, "patience": 75, "curiosity": 60 }, "spectra": { "cautious_reckless": 25 } } },
+    { "id": "p2", "name": "Ember", "hero": false, "role": "Fire mage", "soul": { "traits": { "confidence": 60, "shyness": 40 }, "spectra": { "cautious_reckless": 80 } } }
+  ],
+  "foes": [
+    { "name": "Goblin scout", "description": "Small, quick, grins a lot.", "level": 2, "archetype": "scout" },
+    { "name": "Goblin archer", "description": "Keeps behind the cart.", "level": 2, "archetype": "archer" }
+  ],
+  "stakes": { "flee": true, "defeat": 2 },
+  "at": 1790000000000
+}
