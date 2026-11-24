@@ -10,7 +10,7 @@ interface ChrysalisShell {
   /** The user's installed apps. */
   apps: () => Promise<ShellApp[]>
   /** Switches the shell to that app's tab. */
-  openApp: (id: string) => Promise<null>
+  openApp: (id: string, view?: string) => Promise<null>
 }
 
 declare global {
@@ -55,11 +55,13 @@ export async function listOtherApps(selfId = 'roleplay'): Promise<ShellApp[]> {
   }
 }
 
-export async function openShellApp(id: string): Promise<void> {
+/** Opens another app. With `view` (a short name, a letter first, then letters, digits, dashes) the opened app hears it through its
+ *  `onView`; an engine older than that opens the app and drops the name. */
+export async function openShellApp(id: string, view?: string): Promise<void> {
   const fn = window.chrysalisShell?.openApp
   if (typeof fn !== 'function') throw new Error('Apps are not reachable from this engine')
   try {
-    await fn(id)
+    await (view ? fn(id, view) : fn(id))
   } catch (e) {
     throw shellRefusal(e, 'other apps')
   }

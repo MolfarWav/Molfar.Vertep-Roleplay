@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useApp, DRAWER_VIEWS, type ViewKey } from '@/lib/store'
 import { takeReloadReason } from '@/lib/engine'
 import { onShellView } from '@/lib/shell-bridge'
+import { encounterChat, useRpgUi } from '@/lib/rpg'
 import { useIsDesktop, useIsWideRail } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { SectionHostProvider } from '@/components/shell/section-page'
@@ -90,7 +91,11 @@ export function AppShell() {
   // may already be waiting, is not lost to the start-up navigation.
   useEffect(() => {
     if (boot !== 'ready') return
-    return onShellView((v) => { if (v === 'settings') useApp.getState().navigate('settings') })
+    return onShellView((v) => {
+      if (v === 'settings') useApp.getState().navigate('settings')
+      // the RPG app sends a fight's result back by id (#486): open that chat and show the card
+      else if (/^enc-[a-z0-9-]+$/.test(v)) void encounterChat(v).then((e) => { if (e) { useApp.getState().openChat(e.chatId); useRpgUi.getState().openResult(v) } })
+    })
   }, [boot])
 
   // Desktop invariant: the page behind is always home/chats/chat. A persisted

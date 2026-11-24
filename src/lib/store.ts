@@ -103,7 +103,7 @@ export function scopeBookIds(books: Lorebook[], chat: Chat | undefined, characte
 
 
 /** Text waiting for a chat's composer (see AppState.composerDrafts). */
-export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent' | 'polish'; attachments?: Message['attachments'] }
+export type ComposerFill = { id: string; chatId: ID; text: string; base: string; kind: 'impersonate' | 'unsent' | 'polish' | 'note'; attachments?: Message['attachments'] }
 export type SendOutcome = 'sent' | 'not-sent' | 'stopped'
 
 /** What a new chat is given for its agents: the engine's `meta.agents` without the version (see docs/DATA-FORMATS.md, Agents). */

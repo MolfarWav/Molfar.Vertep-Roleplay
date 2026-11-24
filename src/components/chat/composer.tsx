@@ -214,7 +214,7 @@ export function Composer({ chatId }: { chatId: ID }) {
       put()
       if (fill.kind === 'unsent') toast(t('composer.unsentBack'))
     } else {
-      toast(t(fill.kind === 'unsent' ? 'composer.unsentOffer' : fill.kind === 'polish' ? 'composer.polishOffer' : 'composer.writeForMeOffer'), {
+      toast(t(fill.kind === 'unsent' ? 'composer.unsentOffer' : fill.kind === 'polish' ? 'composer.polishOffer' : fill.kind === 'note' ? 'composer.noteOffer' : 'composer.writeForMeOffer'), {
         duration: 20000,
         action: { label: t('composer.putIn'), onClick: put },
       })
