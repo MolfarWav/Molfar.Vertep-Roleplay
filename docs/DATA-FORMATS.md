@@ -1576,13 +1576,3 @@ Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds,
 | `ownLorebookId` | The one of `lorebookIds` that is the persona's own book, or missing. The id is also in `lorebookIds`, so the prompt engine, which reads `lorebookIds`, is unchanged. Unlinking it clears this field; deleting the book clears it too. |
 | `lorebook` | Only in an exported file (Personas > Export, Backup): the own book inline, in the stored book shape of `lorebooks/<id>.json` without its `id`. Import stores it as a new book (a new id, a name that does not clash: `Name (2)`), sets `ownLorebookId` to it, links it first and removes the old own id from `lorebookIds`. It is never kept in `personas/<id>.json`. A persona can only own one book; every other id in `lorebookIds` is a plain link and travels as an id only. |
 | `folderId` | Not used. |
-
-
-## RPG hand-over (Molfar.Vertep#486)
-
-The optional RPG app plays fights from a chat. `plugins/rpg/plugin.js` hands a fight over and takes the result back; the contract (version 0.1) lives in the RPG app's repo (`docs/contract`), and `test/fixtures/rpg-contract/` holds copies of its two example files that both sides test with. Change both together.
-
-- `rpg-outbox/<id>.json`: an encounter written by `POST /rpg/encounter`: `{ contract, id, chatId, messageId, skin, language, scene, place, party: [{ id, name, hero, role, soul }], foes: [{ name, description, level, archetype }], stakes: { flee, defeat }, at }`. The id is `enc-<time in base 36>-<4 random>` (a view name: the shell hands it to the RPG app through `openApp('rpg', id)`). The party is the persona (`id: "user"`, the hero, first) plus the people the Dashboard shows as present in the newest snapshot, at most four; `soul` is the card's Soul numbers for that name (`traits`, `spectra`) or null. Opponents are at most six, names and a few words, a level (1 to 10) or null and an archetype (`balanced`, `brute`, `scout`, `archer`, `caster`, `tank`); never numbers. The newest 20 files are kept.
-- `rpg/seen.json`: `{ v: 1, ids: [...] }`, the results the user marked as dealt with (the last 200).
-- Results are not stored here: the RPG app writes `results/<id>.json` in its own data and Roleplay reads it through `reads` in its manifest (`GET /rpg/results?chatId=` lists the results of this chat's encounters, each checked by `cleanResult`, with a `note` line for the composer). Neither app writes into the other's data.
-- Routes: `GET /rpg/party?chatId=`, `POST /rpg/foes` (a model proposes opponents from the scene; the answer is cut to the schema, nothing is written), `POST /rpg/encounter`, `GET /rpg/encounter?id=` (which chat an encounter belongs to), `GET /rpg/results?chatId=`, `POST /rpg/seen`.

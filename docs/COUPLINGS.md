@@ -67,10 +67,10 @@ Date: 2026-11-05.
 ### World DM and Dashboard shared ids
 - **Touches:** the World DM records (`n#` ids, `ref` on a record); the scene tracker's `state.regIds` in `plugins/relations` and `plugins/world`; `src/lib/entity-registry.js`.
 - **Must stay true:** when the DM ties its record to a thing or place the tracker knows, the record carries the registry id in `ref`, whatever language the story uses. `regIds` maps each tracker id to a registry id. Holder and location fields are still names today (`docs/ENTITY-REGISTRY.md`, "Why"); a new field stores the id.
-- **Enforced in:** `plugins/world/plugin.js` `regIds` (state key) and the `ref` handling; `plugins/relations/plugin.js` `regIds`.
-- **Fails in:** `test/rp-registry-bridges.test.ts`.
-- **Why / history:** #240 (registry phase B: things and places).
-- **Trap:** renaming a place or thing by a string match in one plugin splits the two lists again. Go through `regIds`.
+- **Enforced in:** `plugins/world/plugin.js` `regIds` (state key) and the `ref` handling (`linkToRef`, `placeTwin`, `spotPair`, `trackedThings`); `plugins/relations/plugin.js` `regIds`.
+- **Fails in:** `test/rp-registry-bridges.test.ts`, `test/rp-world-place-ref.test.ts`.
+- **Why / history:** #240 (registry phase B: things and places); #514 (a ref on a second record of the hall took the forest's id and the story's place stood on the hall).
+- **Trap:** renaming a place or thing by a string match in one plugin splits the two lists again. Go through `regIds`. A place record that shares a name or alias with another place record (`placeTwin`) never takes a ref: names in two alphabets cannot be compared by words, so a ref is the one thing a weak DM model can get wrong and the registry id then collects the wrong record's names. One record holds an id, except a spot whose `inside` names the record that holds it (`spotPair`); `placeRecordOf` prefers the spot, so the "here" is the spot while the tracker's text is the whole place. `trackedThings` offers a linked place id again when its text has two levels and unlinked place records exist.
 
 ### Hook insert reserve (history budget)
 - **Touches:** every sibling plugin that adds text after assembly: `plugins/relations` (Dashboard block, "said" block, journal), `plugins/litopys` (story insert, backstory, card, persona and world memory, habits, recollections, who-knows-what, hidden plan, word-for-word passages), `plugins/world` (here note, event, dice), `plugins/agents` (inserts file). The history budget in the engine's reply path.

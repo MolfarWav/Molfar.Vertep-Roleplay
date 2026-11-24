@@ -1997,6 +1997,12 @@ export function trackedThings(state, scene, rc, sweep) {
   // the scene's own place, when no place record is linked to it yet
   const pid = scene.placeId ? regCanonId(rc.reg, scene.placeId) : "";
   if (/^l\d{1,6}$/.test(pid) && !linked.has(pid) && str(scene.place)) out.push({ id: pid, text: cut(str(scene.place), NAME_MAX), where: "the scene's place now" });
+  // the place is linked, but its text names a part of it ("dark forest, camp with loot"): the record of that part may take the same id as a spot (#514)
+  else if (/^l\d{1,6}$/.test(pid) && str(scene.place) && regPlaceSegs(str(scene.place)).length > 1) {
+    const links = isObj(state.regIds) ? state.regIds : {};
+    const parts = state.entities.filter((e) => e.kind === "place" && e.status === "active" && !(links[e.id] && regCanonId(rc.reg, links[e.id]) === pid)).slice(0, 4);
+    if (parts.length) out.push({ id: pid, text: cut(str(scene.place), NAME_MAX), where: "the scene's place now, and its text names a part of it. If your record " + parts.map((e) => '"' + e.name + '"').join(" or ") + " is that part, update it with this ref, size spot and inside the record it is a part of" });
+  }
   for (const o of arr(scene.objects)) if (o.id) put(o.id, o.item, o.where);
   for (const [who, c] of Object.entries(isObj(scene.chars) ? scene.chars : {})) for (const i of arr(c.items)) if (i.kind === "hold") put(i.id, i.text, who + " holds it");
   return out.slice(0, TRACKED_MAX);
@@ -2343,6 +2349,23 @@ function recordOfRef(state, rc, e, kind) {
   return rid ? state.entities.find((x) => x.id === rid) : null;
 }
 
+/** A spot and the record it is inside (by the spot's `inside`): the two may stand for one tracker place (#514). */
+function spotPair(a, b) {
+  return (a.size === "spot" && !!a.inside && refersTo(b, a.inside)) || (b.size === "spot" && !!b.inside && refersTo(a, b.inside));
+}
+
+/**
+ * Another place record (not put to rest) that answers to one of this record's names and is not linked to e: the DM wrote a
+ * second record of a place the book has, so a ref on it is not trusted (#514: a copy of the hall took the forest's id and
+ * the story's place stood on the hall for the rest of the chat). Words cannot say more across two alphabets.
+ */
+function placeTwin(state, rc, rec, e) {
+  const mine = namesOf(rec);
+  return state.entities.some(
+    (x) => x.kind === "place" && x.id !== rec.id && x.status !== "dormant" && namesOf(x).some((n) => mine.some((m) => sameName(n, m))) && !(isObj(state.regIds) && state.regIds[x.id] && regCanonId(rc.reg, state.regIds[x.id]) === e.id),
+  );
+}
+
 /**
  * Link a record to the tracker's entity the DM named by ref. The record's name (the story's language) becomes an alias of
  * it. A record the World had linked to an entity of its own (a copy made before the ids were shown) has that copy merged
@@ -2353,7 +2376,9 @@ function linkToRef(state, rc, rec, e) {
   const cur = now ? regGet(rc.reg, now) : null;
   if (cur && cur.id === e.id) return;
   if (cur && cur.src !== "world") return;
-  if (recordOfRef(state, rc, e, rec.kind)) return;
+  if (rec.kind === "place" && placeTwin(state, rc, rec, e)) return;
+  const held = recordOfRef(state, rc, e, rec.kind);
+  if (held && held.id !== rec.id && !spotPair(rec, held)) return;
   if (cur && regMerge(rc.reg, cur.id, e.id)) rc.dirty = true;
   (state.regIds ||= {})[rec.id] = e.id;
   for (const n of namesOf(rec)) if (regAlias(rc.reg, e.id, n, "world")) rc.dirty = true;
@@ -2999,6 +3024,8 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     const text = cut(str(raw.text), textMax);
     const ref = kind === "thing" || kind === "place" ? refEntity(rc, raw.ref, kind) : null;
     let known = ref ? recordOfRef(state, rc, ref, kind) : null;
+    // a spot of the linked place that carries the same ref is a record of its own (#514)
+    if (known && kind === "place" && !sameName(known.name, name) && spotPair({ size: raw.size === "spot" ? "spot" : "", inside: cut(str(raw.inside), NAME_MAX) }, known)) known = null;
     if (!known) known = findEntity(state.entities, { name });
     if (!known && kind === "person" && rc) known = npcRecordOf(state, rc, name);
     if (!known && (kind === "thing" || kind === "place") && rc) known = recordOfKind(state, rc, name, kind);
@@ -3046,10 +3073,10 @@ export function applyReport(state, out, { cards, userName, now, touched, rc }) {
     const e = findEntity(state.entities, raw) || (rc && str(raw.name) ? npcRecordOf(state, rc, str(raw.name)) || recordOfKind(state, rc, str(raw.name), "thing") || recordOfKind(state, rc, str(raw.name), "place") : null);
     if (!e || e.status === "past") continue;
     const ref = e.kind === "thing" || e.kind === "place" ? refEntity(rc, raw.ref, e.kind) : null;
-    if (ref) linkToRef(state, rc, e, ref);
     const text = cut(str(raw.text), textMax);
     const aliases = raw.aliases !== undefined ? cleanAliases([...e.aliases, ...arr(raw.aliases)], e.name) : e.aliases;
     const moved = applySpace(e, { ...canonSpace(raw, e), background: undefined });
+    if (ref) linkToRef(state, rc, e, ref);
     if ((!text || text === e.text) && aliases.length === e.aliases.length && !moved) continue;
     if (text) e.text = text;
     e.aliases = aliases;
