@@ -402,6 +402,9 @@ a tip in the same change; without one, nobody finds it.
   the body and the long text. A change to a feature that has an article updates the
   article and its `sources` in the same change; `node scripts/validate-help.mjs
   src/lib/help-articles.json --repo . --fix-lines` re-finds moved line numbers.
+  `test/rp-help-sources.test.ts` fails when code an article quotes is gone or an
+  article is over its limits (Molfar.Vertep#507): read that article in en and uk,
+  fix what is no longer true, cite the new code. Never just swap the quote.
 - The user guide: `.skills/guide/pages/*.md` (one page per part of the app:
   what it is, when to use it, how it fits with the rest; format in the engine's
   `.fork/handoff/guide/FORMAT.md`). Users read it in the shell (Help > Guide) and

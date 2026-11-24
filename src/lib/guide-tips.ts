@@ -974,8 +974,8 @@ const HAND_TIPS: Tip[] = [
     open: { view: 'characters', list: true },
     title: { en: 'Memory that follows the character', uk: 'Пам\'ять, що йде за персонажем' },
     body: {
-      en: 'A chat linked to an earlier one starts with its Dashboard. In a card\'s Memory tab add a finished chat to the character\'s memory and write or confirm its habits: short rules for how the character acts. Habits are also earned in play: Litopys notices a habit that shows in two scenes, and the Library\'s chat record has a Habits tab for them.',
-      uk: 'Чат, пов\'язаний із попереднім, починається з його Дашборду. У вкладці Memory картки додайте завершений чат до пам\'яті персонажа й напишіть чи підтвердьте його навички: короткі правила, як персонаж діє. Навички ще й здобуваються в грі: Літопис помічає звичку, що проявилась у двох сценах, а в записі чату в Бібліотеці є вкладка «Навички».',
+      en: 'A chat linked to an earlier one starts with its Dashboard. In a card\'s Memory tab write or confirm the character\'s habits: short rules for how the character acts. A finished chat\'s story goes into the memory of a persona or a saved world, under Memory across chats. Habits are also earned in play: Litopys notices a habit that shows in two scenes, and the Library\'s chat record has a Habits tab for them.',
+      uk: 'Чат, пов\'язаний із попереднім, починається з його Дашборду. У вкладці Memory картки напишіть чи підтвердьте звички персонажа: короткі правила, як він діє. Історія завершеного чату йде в пам\'ять персони чи збереженого світу, у розділ «Пам\'ять між чатами». Звички ще й здобуваються в грі: Літопис помічає звичку, що проявилась у двох сценах, а в записі чату в Бібліотеці є вкладка «Звички».',
     },
   },
   // ── What's new: imports with progress, Dashboard colours, narrator cards
