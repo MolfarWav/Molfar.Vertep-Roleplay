@@ -58,7 +58,7 @@ import type { MsgKey } from '@/lib/i18n'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'chaos']
+const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'fanservice', 'chaos']
 
 /** The DM's own words about its last run: the text colour, a left rule, four lines unless opened. */
 function RunSummary({ text }: { text: string }) {

@@ -102,11 +102,16 @@ const OWN_PROFILE_ID = /^p-[a-z0-9-]{1,40}$/;
 const MODEL_REF = /^[^\s]{1,200}$/;
 const FOLDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
-export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "anime", "chaos"];
+export const LEVELS = ["off", "chronicler", "living", "director", "antagonist", "anime", "fanservice", "chaos"];
 /** The levels that work today (all of them since P2). */
 export const READY_LEVELS = LEVELS;
 /** Levels whose events are a MUST for the writing model; living sends soft rumours. */
-const HARD_LEVELS = ["director", "antagonist", "anime", "chaos"];
+const HARD_LEVELS = ["director", "antagonist", "anime", "fanservice", "chaos"];
+// the levels that read the Dashboard's open threads, to aim their events at what the characters care about now
+const THREAD_LEVELS = ["director", "antagonist", "anime", "fanservice"];
+// the events the story showed (Molfar.Vertep#506): the DM reads the last few, so it does not send the same kind of thing again
+const RECENT_MAX = 5;
+const RECENT_TEXT = 200;
 // the levels whose events and dice also come in a fight (anime: powers wake in the middle of one)
 const FIGHT_LEVELS = ["antagonist", "anime", "chaos"];
 export const DIRECTIONS = ["domestic", "social", "intrigue", "investigation", "travel", "combat", "explicit", "transition"];
@@ -1461,6 +1466,9 @@ export function normalizeState(raw, chatId) {
   out.fronts = fronts.slice(-FRONTS_MAX * 3);
   out.nextFront = Math.max(Number.isInteger(s.nextFront) ? s.nextFront : 1, fronts.reduce((m, f) => Math.max(m, Number(f.id.slice(1)) || 0), 0) + 1);
   out.event = cleanEvent(s.event);
+  // the last events the story showed (applyLevel), for the DM not to repeat itself (#506)
+  const recent = arr(s.recent).filter((e) => isObj(e) && str(e.text)).slice(-RECENT_MAX).map((e) => ({ text: cut(str(e.text), RECENT_TEXT), ...(Number.isFinite(e.at) ? { at: e.at } : {}) }));
+  if (recent.length) out.recent = recent;
   const entrance = cleanEntrance(s.entrance);
   if (entrance) out.entrance = entrance;
   const lastEntrance = cleanLastEntrance(s.lastEntrance);
@@ -1601,7 +1609,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "castWait", "tidy", "tidyLog"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "recent", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "castWait", "tidy", "tidyLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -2470,16 +2478,25 @@ const LEVEL_RULES = {
   ],
   anime: [
     "Your level: anime fantasy. Beyond the record, you let the extraordinary into an ordinary-looking story, slowly, the way anime and light novels do: hidden powers, magic, other worlds, fated meetings. This is not chaos: every strange thing has a source, a rule and a price, and grows out of something the story already has.",
-    "- fronts: hidden powers and their plans: a power asleep in someone, a secret society, a sealed thing, a world on the other side, a summoning, a rival with the same gift. A goal and a clock (4, 6 or 8 segments). Add one only on an ordinary hook the story shows (an old book, a strange new student, a dream, an accident, a scar, an heirloom); at most two at once. Tick a clock by 1 when time passes or the characters come close to the secret; a full clock means the secret breaks into the open: an awakening, a portal, a contract, a reveal.",
-    "- event: one concrete thing in the next scene, one step up this ladder at a time: an omen anyone could explain away (a dream two people share, a flicker of light, a cat that watches too long, a word in an unknown script); then a sign that is hard to deny (a glow only one character sees, a translucent status window for a moment, an object that answers a touch, a stranger who knows a name nobody told them); then the reveal (a power wakes at a peak of feeling or danger, a summoning circle opens, a familiar speaks, a newcomer shows what they are). Never jump from nothing to the reveal. Between steps let ordinary life go on: classes, cafes, jokes, romance.",
-    "- Choose the tropes that fit this cast, never all at once: power awakening, a hidden bloodline, a magical contract, a familiar, isekai or a summoning, a status screen and levels, a secret club or council, a sealed demon, a rival, training, a tournament, a time loop. The bond between the characters drives it: a power wakes because someone must be protected, a contract is made for someone's sake.",
+    // Molfar.Vertep#506 (owner, 2026-11-24): no lists of examples, they anchor a small model on the same sign every time
+    "- fronts: hidden powers and their plans, each with a goal and a clock (4, 6 or 8 segments). Add one only on an ordinary hook the story already shows: a person, a place or a thing in it. At most two at once. Tick a clock by 1 when time passes or the characters come close to the secret; a full clock means the secret breaks into the open.",
+    "- event: one concrete thing in the next scene, one step up this ladder at a time: an omen anyone could explain away; then a sign that is hard to deny; then the reveal, at a peak of feeling or danger. Never jump from nothing to the reveal. Make each one from this scene and these people, never the same kind of sign twice. Between steps let ordinary life go on.",
+    "- Use the genre's tropes only where this cast fits them, one at a time. The bonds between the characters drive it.",
     "- The characters stay themselves: a power or a secret fits who they are and never replaces their personality; the romance, comedy and everyday life of the story stay. The user's character may be offered a power, a call or a door; never decide that they accept it, use it or step through.",
     "- Another world is the largest turn: only after at least two earlier signs and a clock close to full, and with a moment of choice. Tense, not cruel: no death of a main character, no gore for its own sake.",
   ],
+  // Molfar.Vertep#506 (owner, 2026-11-24): a signpost, not a list of gags. A list anchors a small model on the same
+  // situation every time; the heat and the reactions belong to the cards and the Dashboard, which the reply model sees
+  fanservice: [
+    "Your level: fan-service comedy. Beyond the record, you nudge the story toward light, teasing situation comedy, the romcom and anime kind: awkward moments, mix-ups, close calls, a little lewd, played for laughs.",
+    "- fronts: comic set-ups in the making, taken from this story (a plan, a trip, a secret, a rivalry, a misunderstanding), with a goal and a clock (4, 6 or 8 segments); a full clock means the set-up pays off.",
+    "- event: one awkward or comic situation in the next scene, built from what is there now: this place, the things in it, who is present and what they are doing. Each one different from the last. If the scene offers nothing funny, send no event.",
+    "- Lewd moments only between adult characters.",
+  ],
   chaos: [
-    "Your level: total chaos. Beyond the record, you break the story open: anything may happen, whatever the genre or the logic of the world (killer rabbits from space in a slow romance are fine).",
+    "Your level: total chaos. Beyond the record, you break the story open: anything may happen, whatever the genre or the logic of the world.",
     "- fronts: the wildest powers you can think of, with a goal and a clock (4, 6 or 8 segments). Tick them fast.",
-    "- event: one absurd, surprising, concrete thing that happens in the next scene. Still never rewrite what already happened in the story.",
+    "- event: one absurd, surprising, concrete thing that happens in the next scene, never the same kind of thing twice. Still never rewrite what already happened in the story.",
   ],
 };
 
@@ -2487,6 +2504,8 @@ const LEVEL_SHARED = [
   "- direction: the kind of scene now: domestic, social, intrigue, investigation, travel, combat, explicit (a sexual scene) or transition (a time skip). In an explicit scene send no event at all.",
   "- delivered: when the input shows an event sent in an earlier reply, say whether the story shows it happened (true) or not (false).",
   "- Never write the story yourself and never mention a game master: the event is one or two plain sentences of what happens, who and where.",
+  // Molfar.Vertep#506: the reply model has the cards and the Dashboard's relations, the DM only names the situation
+  "- The event says what happens, never how the characters feel, answer or take it: that belongs to the reply, which knows who they are and where they stand with each other.",
 ];
 
 const LEVEL_SHAPE = '{"add":[...],"update":[...],"retire":[...],"carry":[...],"fronts":[{"op":"add","name":"...","goal":"...","size":6},{"op":"tick","id":"f1","by":1,"reason":"..."},{"op":"retire","id":"f1"}],"event":{"text":"..."} or null,"delivered":true|false|null,"direction":"...","summary":"..."}';
@@ -2497,7 +2516,7 @@ const SOFT_EVENT = "[World news, may come up in this reply if it fits: {event} I
 const HARD_EVENT = [
   "[WORLD EVENT: must happen in this reply]",
   "What: {event}",
-  "How: bring it into this reply as part of the scene; the characters react in character.",
+  "How: bring it into this reply as part of the scene; how the characters react is theirs: in character, as their cards and their bonds with each other say.",
   "Do not: resolve it in this reply, explain where it came from, or mention a game master.",
 ].join("\n");
 
@@ -2691,7 +2710,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause, recent }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -2716,7 +2735,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(arr(tracked).length ? [trackedInput(tracked)] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause, recent }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     ...(earlier.length && level && LEVEL_RULES[level]
       ? ["Already read in earlier runs, after the event was sent (the event may have happened here)\n" + earlier.map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), earlierCap)).join("\n")]
@@ -2755,7 +2774,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause }) {
+function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause, recent }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -2776,6 +2795,8 @@ function levelInput({ fronts, event, direction, threads, options, deck, earlier,
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
   if (pause > 0) out.push("A big event just hit the story: the next " + pause + " " + (pause === 1 ? "reply is" : "replies are") + " its pause, with no new danger. An event you send now waits until the pause is over: make it the aftermath, a consequence or a quiet clue, never a new danger.");
   if (arr(threads).length) out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
+  const shown = arr(recent).filter((e) => isObj(e) && str(e.text));
+  if (shown.length) out.push("Events the story already showed, oldest first. A new event must be a different kind of thing, not the same situation, trick or twist again:\n" + shown.map((e) => "- " + str(e.text)).join("\n"));
   return out;
 }
 
@@ -3204,6 +3225,7 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
   if (state.event && state.event.sent > 0) {
     if (out.delivered === true) {
       noteSignal(state, { op: "kept", kind: "event", name: eventLabel(state.event.text), madeBy: "dm", text: cut(state.event.text, 120) });
+      state.recent = [...arr(state.recent), { text: cut(state.event.text, RECENT_TEXT), at }].slice(-RECENT_MAX);
       state.event = null;
     }
     else if (out.delivered === false && !state.event.retried) state.event = { ...state.event, sent: 0, retried: true };
@@ -4174,9 +4196,14 @@ const LIFE_BY_LEVEL = {
   },
   antagonist: {},
   anime: {
-    minor: "an omen anyone could explain away: a shared dream, a flicker of light, a cat that watches too long",
-    notable: "a sign of the hidden world that is hard to deny: a glow only one character sees, a stranger who knows a name, an object that answers a touch",
-    major: "the hidden world breaks through, tied to someone present and to what they feel: a power wakes, a circle opens, a familiar speaks",
+    minor: "an omen anyone could explain away, made of what is in the scene",
+    notable: "a sign of the hidden world that is hard to deny, tied to someone present",
+    major: "the hidden world breaks through, tied to someone present and to what they feel",
+  },
+  fanservice: {
+    minor: "a small comic mishap made of what is in the scene",
+    notable: "an awkward turn: bad timing, a mix-up, someone where they should not be",
+    major: "a comic situation the scene must answer, the most awkward thing this place and these people allow",
   },
   chaos: {
     minor: "something small and odd that does not belong here",
@@ -5256,7 +5283,7 @@ const nextDeckId = (deck) => deck.reduce((m, c) => Math.max(m, Number(c.id.slice
 // A world can also be built without a chat (user, 2026-10-19: "New world" in the Worlds tab): its draft
 // lives in world/library/<id>.draft.json until it is accepted into the library as <id>.json.
 const draftPath = (id) => LIBRARY_DIR + id + ".draft.json";
-const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "anime", "chaos"];
+const NEW_LEVELS = ["chronicler", "living", "director", "antagonist", "anime", "fanservice", "chaos"];
 
 /** What a start works on: a chat's world, or a world being built in the library. */
 function startTarget(fsx, b) {
@@ -7446,7 +7473,8 @@ function updateRoute(req, host) {
         deck: options.deck ? state.deck || [] : null,
         since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
-        threads: level === "antagonist" || level === "director" || level === "anime" ? dashThreads(fsx, chatId, scene) : [],
+        threads: THREAD_LEVELS.includes(level) ? dashThreads(fsx, chatId, scene) : [],
+        recent: state.recent,
         // the next reply follows the newest message; the pause counts from there
         pause: HARD_LEVELS.includes(level) ? pauseLeft(state.breath, chat.msgs, chat.msgs.length, breatherOf(profile, state.settings)) : 0,
       })) }],

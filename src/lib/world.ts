@@ -12,7 +12,7 @@ export function libraryBooks<T extends Record<string, unknown>>(items: T[]): T[]
 /** Where a character's outfit and what is in the hands come from: the Dashboard sensor (default, cheapest) or the World DM's own lists. */
 export type WorldCarrySource = 'sensor' | 'dm'
 
-export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'chaos'
+export type WorldLevel = 'off' | 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'fanservice' | 'chaos'
 
 /** Where a model in force comes from: the World's own setting, the Dashboard sensor's, Litopys's, the chat's, the app's default. */
 export type WorldModelFrom = 'world' | 'sensor' | 'litopys' | 'chat' | 'default'

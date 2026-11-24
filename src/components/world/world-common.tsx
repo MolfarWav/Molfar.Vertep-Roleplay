@@ -1,13 +1,13 @@
 // Small things the World section shares: a colour per DM level, the number formats and the
 // message for a failed run (in the app's language, by the plugin's error code).
 
-import { BookBookmark, Compass, Crown, MagicWand, Prohibit, Skull, Sparkle } from '@phosphor-icons/react'
+import { BookBookmark, Compass, Crown, MagicWand, MaskHappy, Prohibit, Skull, Sparkle } from '@phosphor-icons/react'
 import { useT } from '@/hooks/use-t'
 import type { MsgKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import type { WorldError, WorldErrorCode, WorldKind, WorldLevel, WorldModelFrom } from '@/lib/world'
 
-export const LEVEL_ICON: Record<WorldLevel, typeof Prohibit> = { off: Prohibit, chronicler: BookBookmark, living: Compass, director: Crown, antagonist: Skull, anime: MagicWand, chaos: Sparkle }
+export const LEVEL_ICON: Record<WorldLevel, typeof Prohibit> = { off: Prohibit, chronicler: BookBookmark, living: Compass, director: Crown, antagonist: Skull, anime: MagicWand, fanservice: MaskHappy, chaos: Sparkle }
 
 /** One colour per level, as classes that read in both themes: chip, picked radio, icon, dot. */
 export const LEVEL_TONE: Record<WorldLevel, { chip: string; picked: string; icon: string; dot: string }> = {
@@ -17,6 +17,7 @@ export const LEVEL_TONE: Record<WorldLevel, { chip: string; picked: string; icon
   director: { chip: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300', picked: 'border-amber-500/60 bg-amber-500/10', icon: 'text-amber-600 dark:text-amber-300', dot: 'bg-amber-500' },
   antagonist: { chip: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300', picked: 'border-red-500/60 bg-red-500/10', icon: 'text-red-600 dark:text-red-300', dot: 'bg-red-500' },
   anime: { chip: 'border-pink-500/40 bg-pink-500/10 text-pink-700 dark:text-pink-300', picked: 'border-pink-500/60 bg-pink-500/10', icon: 'text-pink-600 dark:text-pink-300', dot: 'bg-pink-500' },
+  fanservice: { chip: 'border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300', picked: 'border-orange-500/60 bg-orange-500/10', icon: 'text-orange-600 dark:text-orange-300', dot: 'bg-orange-500' },
   chaos: { chip: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300', picked: 'border-violet-500/60 bg-violet-500/10', icon: 'text-violet-600 dark:text-violet-300', dot: 'bg-violet-500' },
 }
 

@@ -50,14 +50,14 @@ describe("the anime level", () => {
 describe("life intervenes follows the level", () => {
   it("each level with events has a life block of three lines; the antagonist keeps the old text", () => {
     expect(defaultBlocks("chronicler").life).toBeUndefined();
-    for (const l of ["living", "director", "antagonist", "anime", "chaos"]) expect(Object.keys(lifeTiers(defaultBlocks(l).life))).toEqual(["minor", "notable", "major"]);
+    for (const l of ["living", "director", "antagonist", "anime", "fanservice", "chaos"]) expect(Object.keys(lifeTiers(defaultBlocks(l).life))).toEqual(["minor", "notable", "major"]);
     expect(lifeTiers(lifeBlock("antagonist")).major).toBe("a large turn: a danger, a revelation or a reversal the scene must answer");
     expect(lifeTiers(lifeBlock("director")).major).toContain("danger only where the story is already dangerous");
     expect(lifeTiers(lifeBlock("anime")).major).toContain("the hidden world breaks through");
   });
 
   it("the insert uses the block; a broken or missing line keeps the built-in one", () => {
-    expect(lifeInsert({ tier: "major" } as any, lifeBlock("anime"))).toContain("a power wakes");
+    expect(lifeInsert({ tier: "major" } as any, lifeBlock("anime"))).toContain("the hidden world breaks through");
     const own = lifeTiers("major: a dragon lands\nnonsense line");
     expect(own.major).toBe("a dragon lands");
     expect(own.minor).toBe(lifeTiers("").minor);

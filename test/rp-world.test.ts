@@ -339,7 +339,7 @@ describe("fronts and events", () => {
     expect(hard.split("\n")).toEqual([
       "[WORLD EVENT: must happen in this reply]",
       "What: A knock at the door.",
-      "How: bring it into this reply as part of the scene; the characters react in character.",
+      "How: bring it into this reply as part of the scene; how the characters react is theirs: in character, as their cards and their bonds with each other say.",
       "Do not: resolve it in this reply, explain where it came from, or mention a game master.",
     ]);
     expect(eventInsert({ text: "Prices rose.", hard: false, sent: 0, retried: false })).toContain("may come up");
@@ -771,7 +771,7 @@ describe("P3 stage 2: profiles", () => {
   it("built-in profiles give the same prompts as the levels did", () => {
     const m = memHost(seed());
     const list = route(m.host, "GET", "/world/profiles").json.profiles;
-    expect(list.map((p: any) => p.id)).toEqual(["chronicler", "living", "director", "antagonist", "anime", "chaos"]);
+    expect(list.map((p: any) => p.id)).toEqual(["chronicler", "living", "director", "antagonist", "anime", "fanservice", "chaos"]);
     expect(systemFor("chronicler")).toBe(CHRONICLER_SYSTEM);
     const dir = list.find((p: any) => p.id === "director");
     expect(dir.blocks.map((b: any) => b.key)).toEqual(["keeper", "level", "shared", "event", "life"]);
