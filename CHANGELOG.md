@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.155.1 (2026-11-24)
+
+- Fixed: **Help described the World DM levels as they were before 4.154.0.** The articles "World DM levels" and "World profiles" still said six levels and five built-in profiles, called the Storyteller "Director" and left out Anime fantasy and Fan-service comedy. They now list every level with what it does (Anime and Antagonist also act in a fight, Fan-service comedy waits fights out), say that an event leaves the characters' reaction to the reply and that the DM avoids repeating its last five events, and no longer give a count that goes stale. The What's new tip on profiles lost its "five" too. File `src/lib/help-articles.json`.
+
 ## 4.155.0 (2026-11-24)
 
 - New: **World DM level Fan-service comedy (Molfar.Vertep#506).** Light, teasing situation comedy, a little lewd: awkward moments, mix-ups and close calls made from the scene at hand. Its rules name no stock gags on purpose (a list anchors a small DM model on the same situation every chat), send no event when the scene offers nothing funny, keep lewd moments between adult characters, and wait out fights. Orange comedy-mask mark, between Anime fantasy and Total chaos.

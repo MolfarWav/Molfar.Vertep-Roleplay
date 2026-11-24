@@ -7,7 +7,7 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.155.0'
+export const APP_VERSION = '4.155.1'
 
 const HAND_TIPS: Tip[] = [
   // What's new
@@ -767,8 +767,8 @@ const HAND_TIPS: Tip[] = [
     open: { view: 'home' },
     title: { en: 'Profiles for the World DM, and its records in your hands', uk: 'Профілі для майстра світу і його записи у ваших руках' },
     body: {
-      en: 'In World, the Profiles tab holds the five built-in DMs and your own: open one, change its prompts, roll a block back to the default. A chat picks its profile in the DM sheet. The Records tab of a chat lets you read, write, retire and delete what the DM recorded.',
-      uk: 'У «Світі» вкладка «Профілі» містить п’ять вбудованих майстрів і ваших власних: відкрийте будь-якого, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра. Вкладка «Записи» чату дає читати, писати, відправляти в минуле й видаляти те, що записав майстер.',
+      en: 'In World, the Profiles tab holds the built-in DMs and your own: open one, change its prompts, roll a block back to the default. A chat picks its profile in the DM sheet. The Records tab of a chat lets you read, write, retire and delete what the DM recorded.',
+      uk: 'У «Світі» вкладка «Профілі» містить вбудованих майстрів і ваших власних: відкрийте будь-якого, змініть його промпти, поверніть блок до типового. Чат обирає профіль у панелі майстра. Вкладка «Записи» чату дає читати, писати, відправляти в минуле й видаляти те, що записав майстер.',
     },
   },
   {
