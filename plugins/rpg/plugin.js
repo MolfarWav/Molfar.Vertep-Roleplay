@@ -230,7 +230,8 @@ export function gatherParty(fsx, chatId) {
     if (party.some((p) => p.id === reg)) continue;
     party.push({ id: reg, name, hero: false, role: "", soul: cardId ? soulOf(fsx, cardId, name) : null });
   }
-  const lastReply = [...chat.msgs].reverse().find((m) => m.role === "assistant" && typeof m.text === "string" && m.text.trim());
+  // a reply of a character is role "char" in the chat file
+  const lastReply = [...chat.msgs].reverse().find((m) => (m.role === "char" || m.role === "assistant") && typeof m.text === "string" && m.text.trim());
   return { party, scene: text(lastReply ? lastReply.text : "", 400), place: text(last.place, 60), messageId: lastKey || (chat.msgs.length ? String(chat.msgs[chat.msgs.length - 1].id) : "") };
 }
 

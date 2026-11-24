@@ -32,7 +32,7 @@ function host(files: Record<string, unknown> = {}, rpg?: Record<string, string>)
 
 const chatFiles = (extra: Record<string, unknown> = {}) => ({
   "chats/c1.meta.json": { characterId: "card1", personaId: "pers1" },
-  "chats/c1.jsonl": [{ id: "m1", role: "user", text: "hi" }, { id: "m2", role: "assistant", text: "Goblins knocked a cart over by the mill. Fog.", swipe: 0 }].map((m) => JSON.stringify(m)).join("\n"),
+  "chats/c1.jsonl": [{ id: "m1", role: "user", text: "hi" }, { id: "m2", role: "char", text: "Goblins knocked a cart over by the mill. Fog.", swipe: 0 }].map((m) => JSON.stringify(m)).join("\n"),
   "personas/pers1.json": { name: "Vlad" },
   "dashboard/state/c1.json": { snapshots: { "m2#0": { present: ["Medli", "Vlad", "Ember", "Goblin"], place: "the mill" } }, personIds: { Medli: "p1", Ember: "p2" } },
   "characters/card1/card.json": { name: "Medli", extensions: { molfar_soul: { characters: { Medli: { aliases: ["Мед"], traits: { shyness: 70, confidence: 30 }, spectra: { cautious_reckless: 25 } } } } } },
