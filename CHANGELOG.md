@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.155.0 (2026-11-24)
+
 - New: **World DM level Fan-service comedy (Molfar.Vertep#506).** Light, teasing situation comedy, a little lewd: awkward moments, mix-ups and close calls made from the scene at hand. Its rules name no stock gags on purpose (a list anchors a small DM model on the same situation every chat), send no event when the scene offers nothing funny, keep lewd moments between adult characters, and wait out fights. Orange comedy-mask mark, between Anime fantasy and Total chaos.
 - Changed: **on every level the event says what happens and the reply decides how it is taken.** The shared DM block now says an event never names how the characters feel or answer, and the hard-event note tells the reply to play the reaction from the cards and the bonds between the characters (a married couple and two strangers take the same moment differently). The Anime fantasy and Total chaos rules and Anime's "World intervenes" lines lost their lists of examples (the shared dream, the cat that watches too long, the killer rabbits from space), which small models kept repeating; the omen, sign and reveal ladder stays.
 - New: **the DM remembers the events the story showed.** The last five delivered events are kept in the chat's World state (`recent`) and listed in the DM's input with "a new event must be a different kind of thing", on every level with events.
