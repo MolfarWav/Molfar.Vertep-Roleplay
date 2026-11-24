@@ -34,6 +34,8 @@ export function RpgFight({ chatId, labelled }: { chatId: ID; labelled: boolean }
     })
   }, [chatId])
   useEffect(() => {
+    // a card for a result that has just arrived must not read the list from before it came: wait for a fresh one
+    if (resultId) setLoaded(false)
     reload()
   }, [reload, resultId, fightOpen])
   const waiting = rows.filter((r) => !r.seen)
