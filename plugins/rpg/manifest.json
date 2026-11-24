@@ -1,8 +1,0 @@
-{
-  "name": "RPG hand-over",
-  "version": "0.1.0",
-  "description": "Hands a fight from a chat to the optional RPG app and takes its result back (contract 0.1): gathers the party from the Dashboard and the persona, asks a model for opponents from the scene, writes the encounter into this app's own rpg-outbox folder, and reads the results the RPG app leaves (only after you allowed it). Nothing is written into the RPG app's data.",
-  "origin": "local",
-  "permissions": ["routes", "fs", "llm", "peer"],
-  "priority": 41
-}
