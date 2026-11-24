@@ -660,7 +660,8 @@ player switches it on for that chat. It writes:
     so, and that an event sent now should be an aftermath or a clue. The state route answers `breather` (in force) and `pause` (replies left).
   - `level`: `off`, `chronicler` (records only), `living` (fronts tick off screen, soft news), `director` (shown as
     "Storyteller" since Molfar.Vertep#502; the id stays), `antagonist`, `anime` (Molfar.Vertep#500: anime fantasy, the extraordinary
-    enters an ordinary story by omen, sign and reveal), `chaos` (a hard event for the next reply). `antagonist`, `anime` and `chaos`
+    enters an ordinary story by omen, sign and reveal), `fanservice` (Molfar.Vertep#506: light situation comedy made from the scene;
+    hard events, none in a fight), `chaos` (a hard event for the next reply). `antagonist`, `anime` and `chaos`
     also send events and dice in a fight. The built-in `anime` profile has `options.eventByClock` on unless the player turned it off.
   - Profile blocks (`world/profiles/<id>.json`, `blocks`): `keeper`, `level`, `shared`, `event` and, at the levels with events,
     `life` (Molfar.Vertep#500): what each size of the "life intervenes" die means, one line each, `minor: ...`, `notable: ...`,
@@ -720,6 +721,9 @@ player switches it on for that chat. It writes:
     the cards stay dropped; the DM's and the player's retire both do it) or
     `dormant` (put to rest by the tidy-up; out of the book and the DM's input, `restore` wakes it); `uid` = its entry in the world book.
   - A front: `id` f1.., a goal and a clock `clock`/`size` (`size` 4, 6 or 8; full = the goal comes true).
+  - `recent` (Molfar.Vertep#506, optional): `[{ text, at? }]`, the last 5 events the story showed (a run answered `delivered: true`),
+    oldest first, text up to 200 characters; the DM's input lists them and asks for a different kind of thing. A core key: undoing a run
+    restores it. A missed event is not added.
   - `event`: `{ text, hard, sent, retried, swiped?, at?, sentAt?, after?, place?, placeId? }` or null (`swiped`, #428: how many times the player
     swiped away the reply that carried it; at 2 (`EVENT_SWIPES`) the event is dropped; a deleted or failed reply is not counted): added after the chat history
     of the next reply (`sent` counts the replies that carried it); the next run checks the story, sends a missed one

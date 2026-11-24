@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.155.0 (2026-11-24)
+
+- New: **World DM level Fan-service comedy (Molfar.Vertep#506).** Light, teasing situation comedy, a little lewd: awkward moments, mix-ups and close calls made from the scene at hand. Its rules name no stock gags on purpose (a list anchors a small DM model on the same situation every chat), send no event when the scene offers nothing funny, keep lewd moments between adult characters, and wait out fights. Orange comedy-mask mark, between Anime fantasy and Total chaos.
+- Changed: **on every level the event says what happens and the reply decides how it is taken.** The shared DM block now says an event never names how the characters feel or answer, and the hard-event note tells the reply to play the reaction from the cards and the bonds between the characters (a married couple and two strangers take the same moment differently). The Anime fantasy and Total chaos rules and Anime's "World intervenes" lines lost their lists of examples (the shared dream, the cat that watches too long, the killer rabbits from space), which small models kept repeating; the omen, sign and reveal ladder stays.
+- New: **the DM remembers the events the story showed.** The last five delivered events are kept in the chat's World state (`recent`) and listed in the DM's input with "a new event must be a different kind of thing", on every level with events.
+
 ## 4.154.1 (2026-11-23)
 
 - Fixed: **a character whose name has an h was never found in a Russian or Ukrainian reply (Molfar.Vertep#477).** Dialogue colours compare a card's Latin name with the narration's Cyrillic by sound, and that spelling turned `х` into `kh` while dropping a Latin `h`, so `Chihiro` never matched «Чихиро» and `Koharu` missed «Кохары». In a real group chat (four members, 43 replies, 454 quotes) Chihiro got none of her 198 mentions: her lines took another member's colour, a colour of their own as an unknown speaker, or the base colour. `х` is now the `h` of a Latin name and `kh` the same sound, as the lorebook and the people registry already spell it; in that chat she now gets 95 quotes in her colour, and the remaining unknown-speaker colours belong to a man outside the group. `Khan`/«Хан» and `Mikhail`/«Михаил» still match. File `src/lib/dialogue-voices.ts` (`soundKey`); test in `rp-dash-dialogue`.

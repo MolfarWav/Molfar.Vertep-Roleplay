@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.154.0'
+export const APP_VERSION = '4.155.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.world-fanservice',
+    since: '4.155.0',
+    help: 'world',
+    keywords: { en: 'world dm fan-service fanservice comedy romcom ecchi lewd awkward situation repeat events', uk: 'майстер світу дм фансервіс комедія ромком еччі пікантне незграбне ситуація повтор події' },
+    title: { en: 'World DM: Fan-service comedy, and events that do not repeat', uk: 'Майстер світу: Фансервіс-комедія і події без повторів' },
+    body: {
+      en: 'A new DM level, Fan-service comedy, brings light, teasing situation comedy made from the scene at hand. On every level the DM now only says what happens; how the characters take it comes from their cards and relations. It also remembers the last five events and sends a different kind of thing next.',
+      uk: 'Новий рівень майстра, Фансервіс-комедія, приносить легку дражливу комедію ситуацій з того, що є в сцені. На всіх рівнях майстер тепер каже лише, що стається, а як це сприймуть персонажі, вирішують їхні картки й стосунки. Ще він пам’ятає п’ять останніх подій і наступного разу шле щось іншого роду.',
+    },
+  },
   {
     id: 'new.world-anime-breather',
     since: '4.154.0',

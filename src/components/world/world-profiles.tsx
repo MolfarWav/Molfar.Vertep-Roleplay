@@ -28,8 +28,8 @@ import { OwnMark } from './world-profile-picker'
 import { LearnedMemoryCard, MEMORY_ID, MemoryRow } from './world-memory'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
-const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'chaos']
-const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'anime', 'chaos']
+const EVENT_LEVELS: WorldLevel[] = ['living', 'director', 'antagonist', 'anime', 'fanservice', 'chaos']
+const BASES: WorldProfile['base'][] = ['chronicler', 'living', 'director', 'antagonist', 'anime', 'fanservice', 'chaos']
 export const NEW_PROFILE = '__new__'
 
 /** "Default": the profile a new chat starts with. In the list it is the short word; in the editor's header the longer one. */

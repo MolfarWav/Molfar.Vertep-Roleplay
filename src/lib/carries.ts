@@ -29,7 +29,7 @@ export interface CarriesAnswer {
 
 export interface SharedMemoryAnswer { id: string; name: string; taken: boolean; stories: number; tokens: number; dupes: number; sources: string[]; text: string }
 
-export type WorldLevel = 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'chaos'
+export type WorldLevel = 'chronicler' | 'living' | 'director' | 'antagonist' | 'anime' | 'fanservice' | 'chaos'
 
 /** What the Dashboard says about this chat; null when it has no view (no chip then). */
 export interface DashCarries {
