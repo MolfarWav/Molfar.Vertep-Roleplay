@@ -260,6 +260,21 @@ describe("prompt and answer", () => {
     expect(p.tokens).toBeLessThan(900);
   });
 
+  it("shows where a person stands now, who they are, the open threads and the scene that closed", () => {
+    const p = mw.buildPrompt({
+      ...input,
+      scene: { place: "the mill", label: "Cora leaves the room", present: ["Cora"] },
+      threads: ["Who owns the ledger?", "Bram owes the Guild", "", "c", "d", "e", "f"],
+      npcs: [{ id: "p2", name: "Bram", now: "Taken to the harbour clinic; nobody knows his state.", about: "A carter." }],
+    });
+    expect(p.user).toContain("It was: Cora leaves the room.");
+    expect(p.user).toContain("Open threads of the story (not settled yet):\n- Who owns the ledger?\n- Bram owes the Guild");
+    expect(p.user.match(/^- [a-f]$/gm)?.length).toBe(3);
+    expect(p.user).toContain("p2 Bram: now: Taken to the harbour clinic; nobody knows his state.; is: A carter.");
+    expect(p.system).toContain("Move people on");
+    expect(mw.buildPrompt({ ...input, threads: [] }).user).not.toContain("Open threads");
+  });
+
   it("caps the lists and survives empty input", () => {
     const many = Array.from({ length: 40 }, (_, i) => ({ id: "p" + i, name: "Name" + i }));
     const p = mw.buildPrompt({ ...input, npcs: many, absent: many, places: many.map((m) => ({ ...m, id: "l" + m.id.slice(1) })) });

@@ -104,7 +104,7 @@ describe("the routes", () => {
     expect(req.reasoning).toBeUndefined();
     const user = req.messages[0].content as string;
     expect(user).toContain("p1 Ada");
-    expect(user).toContain("p2 Bram: wants owes the Guild");
+    expect(user).toContain("p2 Bram: is: owes the Guild");
     expect(user).toContain("f1 The Guild");
     expect(user).not.toContain("p3 Cora"); // in the scene
     expect(user).not.toContain("user Mira");
@@ -115,6 +115,32 @@ describe("the routes", () => {
     expect(st.usage.runs).toBe(1);
     // the same replies are not read again
     expect(run(h, [good()]).json).toMatchObject({ ok: false, reason: "few" });
+  });
+
+  it("a pass reads a person's hook, the scene's name and the open threads of the last snapshot", () => {
+    const files = world();
+    const dash = JSON.parse(files["dashboard/state/" + CHAT + ".json"]);
+    dash.snapshots["m4#0"] = snap(1, "10:30", {
+      scene: { new: false, label: "Cora leaves the mill" },
+      threads: [
+        { id: "t1", text: "Bram plans to leave town", status: "open", kind: "side" },
+        { id: "t2", text: "Who owns the ledger?", status: "open", kind: "main" },
+        { id: "t3", text: "Settled thing", status: "done", kind: "main" },
+      ],
+    });
+    files["dashboard/state/" + CHAT + ".json"] = JSON.stringify(dash);
+    const wd = JSON.parse(files["world/state/" + CHAT + ".json"]);
+    wd.entities[0].text = "A carter who owes the Guild. He drinks.";
+    wd.entities[0].hook = { text: "Sold his cart at the harbour.", at: 1 };
+    files["world/state/" + CHAT + ".json"] = JSON.stringify(wd);
+    const h = makeHost(files);
+    enable(h);
+    run(h, [good()]);
+    const user = h.asked[0]!.req.messages[0].content as string;
+    expect(user).toContain("It was: Cora leaves the mill.");
+    expect(user).toContain("- Who owns the ledger?\n- Bram plans to leave town");
+    expect(user).not.toContain("Settled thing");
+    expect(user).toContain("p2 Bram: now: Sold his cart at the harbour.; is: A carter who owes the Guild.");
   });
 
   it("the model in force follows the chain: this plugin's, then the World's, the sensor's, Litopys's, the chat's, the app's", () => {

@@ -374,10 +374,12 @@ export function recordPass(state, { events, next, key, at, reason }) {
 
 const SYSTEM = [
   "You write what happens off screen in an ongoing story: what people who are NOT in the current scene do while time passes.",
-  "You get the people, the fronts (factions with a goal and a clock), the places and the time that passed. Propose up to {K} small, concrete events that follow from what these people want. An event may be quiet: a visit, a purchase, a quarrel, a journey, a lie told, a secret kept.",
+  "You get the people (each with where they stand now, when known), the story's open threads, the fronts (factions with a goal and a clock), the places and the time that passed. Propose up to {K} small, concrete events that carry these people forward over that time. An event may be quiet: a visit, a purchase, a quarrel, a journey, a lie told, a secret kept, a message sent, a question asked.",
   "Rules:",
   "- Use only the ids given. `who` are the people the event happens to (1 to 4); `witnesses` are other people who saw or heard it (0 to 4).",
   "- Nobody who is in the scene may appear, and never the player's character.",
+  "- Move people on. The time that passed is real: someone who was left in a bad moment has since been treated, moved, questioned, or has done something about it; show where they have got to and what it changed. Never replay the moment they were left in.",
+  "- Prefer events that touch an open thread, a front or a person's `now` line, in a way the scene's people could learn of later. A person with nothing to do stays out: an empty list is a good answer.",
   "- Do not decide what the player's character does or feels. Do not resolve a front's goal; it may only move closer.",
   "- `what` is one or two sentences (12 to 280 characters) in the language the story is told in; so are `where` (a place id from the list, or a few words) and `when` (a few words, or empty).",
   "- `visibility`: secret (only who and witnesses ever learn it), local (people nearby will hear of it), public (the whole place will).",
@@ -386,23 +388,28 @@ const SYSTEM = [
   "Answer with one JSON object and nothing else: {\"events\":[{\"who\":[\"p1\"],\"what\":\"...\",\"where\":\"l1\",\"when\":\"...\",\"witnesses\":[],\"visibility\":\"secret\",\"effects\":[]}]}",
 ].join("\n");
 
-const line = (id, name, extra) => "- " + id + " " + cut(str(name), 60) + (extra ? ": " + cut(str(extra), 160) : "");
+const line = (id, name, extra, max = 160) => "- " + id + " " + cut(str(name), 60) + (extra ? ": " + cut(str(extra), max) : "");
+const firstSentence = (t) => (/^.{12,}?[.!?…](?=\s|$)/u.exec(str(t)) || [str(t)])[0];
+const NOW_MAX = 200;
+const ABOUT_MAX = 140;
 
 /**
  * The request's text. `input`: { k, scene: { place, present: [names] }, span (minutes), fronts: [{ id, name, goal, clock, size }],
- * npcs: [{ id, name, goal, where }], absent: [{ id, name, goal, where }] (card characters whose Meanwhile switch is on),
+ * threads: [text] (the story's open threads), npcs: [{ id, name, now, about, goal, where }] (`now`: where they stand in the story, `about`: who they are), absent: [{ id, name, goal, where }] (card characters whose Meanwhile switch is on),
  * places: [{ id, name }], recent: [text] }. Lists are capped; `tokens` is an estimate (4 characters a token).
  */
 export function buildPrompt(input) {
   const k = num(input.k, 1, 6, DEFAULT_CONFIG.k);
   const out = [];
   const sc = isObj(input.scene) ? input.scene : {};
-  out.push("Now: " + (str(sc.place) ? "the scene is at " + cut(str(sc.place), 80) + ". " : "") + (arr(sc.present).length ? "In the scene: " + arr(sc.present).slice(0, 12).map((n) => cut(str(n), 40)).join(", ") + "." : "Nobody else is in the scene."));
+  out.push("Now: " + (str(sc.place) ? "the scene is at " + cut(str(sc.place), 80) + ". " : "") + (str(sc.label) ? "It was: " + cut(str(sc.label), 100) + ". " : "") + (arr(sc.present).length ? "In the scene: " + arr(sc.present).slice(0, 12).map((n) => cut(str(n), 40)).join(", ") + "." : "Nobody else is in the scene."));
   out.push("Time that passed: " + spanWords(input.span || 0) + ".");
   const fronts = arr(input.fronts).slice(0, 6);
   if (fronts.length) out.push("Fronts:\n" + fronts.map((f) => line(f.id, f.name, (f.goal ? "wants " + str(f.goal) : "") + (Number.isFinite(f.size) ? " (clock " + (Number(f.clock) || 0) + "/" + f.size + ")" : ""))).join("\n"));
+  const threads = arr(input.threads).map((t) => cut(str(t), 160)).filter(Boolean).slice(0, 5);
+  if (threads.length) out.push("Open threads of the story (not settled yet):\n" + threads.map((t) => "- " + t).join("\n"));
   const npcs = arr(input.npcs).slice(0, 12);
-  if (npcs.length) out.push("People of the world:\n" + npcs.map((p) => line(p.id, p.name, [p.goal ? "wants " + str(p.goal) : "", p.where ? "at " + str(p.where) : ""].filter(Boolean).join("; "))).join("\n"));
+  if (npcs.length) out.push("People of the world:\n" + npcs.map((p) => line(p.id, p.name, [p.now ? "now: " + cut(str(p.now), NOW_MAX) : "", p.about ? "is: " + cut(str(p.about), ABOUT_MAX) : "", p.goal ? "wants " + str(p.goal) : "", p.where ? "at " + str(p.where) : ""].filter(Boolean).join("; "), 400)).join("\n"));
   const absent = arr(input.absent).slice(0, 10);
   if (absent.length) out.push("Characters who are away:\n" + absent.map((p) => line(p.id, p.name, [p.goal ? "wants " + str(p.goal) : "", p.where ? "at " + str(p.where) : ""].filter(Boolean).join("; "))).join("\n"));
   const places = arr(input.places).slice(0, 12);
@@ -584,7 +591,8 @@ export function gatherInput(fsx, chatId, state, cfg, due) {
     if (!isObj(rec) || rec.kind !== "person" || rec.status === "past" || rec.status === "dormant") continue;
     const e = typeof regIds[rec.id] === "string" ? take(regIds[rec.id]) : null;
     if (!e || OWN_SRC.includes(e.src)) continue;
-    npcs.push({ id: str(e.id), name: str(e.name), goal: str(rec.text), where: "" });
+    const now = isObj(rec.hook) ? str(rec.hook.text) : "";
+    npcs.push({ id: str(e.id), name: str(e.name), now, about: firstSentence(rec.text), where: "" });
   }
   const absent = [];
   for (const e0 of index.byId.values()) {
@@ -595,7 +603,8 @@ export function gatherInput(fsx, chatId, state, cfg, due) {
   const places = [...index.byId.values()].filter((e) => e.kind === "place" && !str(e.merged)).map((e) => ({ id: str(e.id), name: str(e.name) }));
   const input = {
     k: cfg.k,
-    scene: { place: isObj(last.clock) ? str(last.clock.place) : "", present: presentNames },
+    scene: { place: isObj(last.clock) ? str(last.clock.place) : "", label: isObj(last.scene) ? str(last.scene.label) : "", present: presentNames },
+    threads: arr(last.threads).filter((t) => isObj(t) && t.status === "open" && str(t.text)).sort((a, b) => (a.kind === "main" ? 0 : 1) - (b.kind === "main" ? 0 : 1)).map((t) => str(t.text)),
     span: due.spanMinutes || 0,
     fronts: fronts.map((x) => ({ id: str(x.id), name: str(x.name), goal: str(x.goal), clock: x.clock, size: x.size })),
     npcs: npcs.slice(0, 12),
