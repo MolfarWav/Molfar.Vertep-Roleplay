@@ -970,6 +970,14 @@ builds the prompt. Names are case-insensitive.
   of asking the model to invent random results.
 - `{{setvar::name::value}}`, `{{getvar::name}}`, `{{addvar::name::n}}`, `{{incvar::name}}`,
   `{{decvar::name}}`: variables kept per chat.
+- SillyTavern's nested forms (Molfar.Vertep#516): a macro inside another (`{{setvar::rule::{{user}} leads}}`,
+  `{{getvar::{{pick::a::b}}}}`), the block `{{#setvar::name}}…{{/setvar}}` (stores its body, shows nothing),
+  and `{{#if::value}}` or `{{#if {{getvar::a}}{{getvar::b}}}}` (true when the expanded value is not empty and
+  not false/0/no/off, `!` in front negates; `{{#if::name}}` with a bare name reads that variable). A text that
+  has any of them is read as a tree: left to right, inner macros first, a setvar stores its value already
+  expanded, a branch not taken runs nothing, and this `{{#if}}` keeps its text as written (the app's own
+  `{{#if name == ...}}` below still eats one newline at each end). A text without them goes through the
+  older flat passes, which run every setvar of the text before any getvar.
 - `{{name}}` / `{{var:name}}`: a preset variable (see Presets). `{{#if name == "value"}}…{{else if
   other}}…{{else}}…{{/if}}` keeps one branch: `==`, `!=`, `contains`, `not contains`, `&&`, `||`,
   `!`, parentheses, `name == "a" || "b"`; a bare name is true when set and not false/0/no/off. Names

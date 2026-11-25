@@ -19,7 +19,9 @@ before "fixing" anything by hand. A preset exported from this app re-imports wit
 - Samplers as top-level numbers. Extra samplers (`dry_*`, `xtc_*`, `mirostat_*`...) are sent when
   set: keep them only if the user's model provider supports them.
 - Macros the app runs: `{{char}}`, `{{user}}`, `{{random}}`, `{{pick}}`, `{{roll}}`, `{{setvar}}` /
-  `{{getvar}}` and their family (the Macros section of DATA-FORMATS.md). Other macros: rewrite as
+  `{{getvar}}` and their family, also nested (a setvar whose value holds other macros, `{{#setvar}}`
+  blocks, `{{#if::…}}`: the Macros section of DATA-FORMATS.md), so a variable-driven preset needs no
+  hand port. Other macros: rewrite as
   plain instructions, never leave an unknown `{{...}}` in text.
 - Off-by-default sections stay off; single-select families stay single-select.
 

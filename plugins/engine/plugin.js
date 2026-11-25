@@ -652,10 +652,211 @@ export function sectionCondPasses(cond, presetVars, chatVars, features) {
  *   lastMessage/lastUserMessage/lastCharMessage/idleText — chat context
  *   summary — the running chat summary
  *   words — summarize-prompt budget ({{words}}/{{limit}})
+ *
+ * A text with a macro inside a macro, a {{#setvar::name}}…{{/setvar}} block or a {{#if::…}} (SillyTavern's forms,
+ * Molfar.Vertep#516) is read as a tree, left to right, inner macros first (expandNested); any other text goes
+ * through the flat passes below, as it always has.
  */
 export function expandMacros(text, mc) {
-  let out = String(text);
+  const s = String(text);
   // every macro starts with "{{": without one there is nothing to do (dozens of passes saved per message)
+  if (s.indexOf("{{") < 0) return s;
+  return needsNestedMacros(s) ? expandNested(s, mc) : expandFlat(s, mc);
+}
+
+// ---------- nested macros (Molfar.Vertep#516) ----------
+// SillyTavern presets store module text with {{setvar::name::…}} whose value holds other macros ({{user}},
+// {{getvar::x}}, {{pick::…}}), use the block {{#setvar::name}}…{{/setvar}}, and test {{#if::cond}} or
+// {{#if {{getvar::a}}{{getvar::b}}}}. The flat passes cut such a value at its first "}}". SillyTavern evaluates
+// inner macros before the macro that holds them, in reading order, and stores a value already expanded.
+
+/** A macro inside a macro, or one of the block forms only the tree reader knows. */
+function needsNestedMacros(s) {
+  if (/\{\{\s*#(?:setvar|if)\s*::/i.test(s) || /\{\{\s*\/setvar\s*\}\}/i.test(s)) return true;
+  let depth = 0;
+  for (let i = 0; i < s.length - 1; i++) {
+    if (s[i] === "{" && s[i + 1] === "{") {
+      if (++depth > 1) return true;
+      i++;
+    } else if (s[i] === "}" && s[i + 1] === "}" && depth > 0) {
+      depth--;
+      i++;
+    }
+  }
+  return false;
+}
+
+/** Text and macros at the top level; a macro's inner text keeps its nested macros. */
+function macroTokens(s) {
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    const j = s.indexOf("{{", i);
+    if (j < 0) { out.push({ t: "text", v: s.slice(i) }); break; }
+    let depth = 0;
+    let k = j;
+    let end = -1;
+    while (k < s.length - 1) {
+      if (s[k] === "{" && s[k + 1] === "{") { depth++; k += 2; }
+      else if (s[k] === "}" && s[k + 1] === "}") { depth--; k += 2; if (depth === 0) { end = k; break; } }
+      else k++;
+    }
+    // an unclosed "{{" is text; the macros after it are still read
+    if (end < 0) { out.push({ t: "text", v: s.slice(i, j + 2) }); i = j + 2; continue; }
+    if (j > i) out.push({ t: "text", v: s.slice(i, j) });
+    out.push({ t: "m", v: s.slice(j + 2, end - 2) });
+    i = end;
+  }
+  return out;
+}
+
+/** Split at the top-level "::" (one inside a nested macro stays). */
+function splitTopLevel(s) {
+  const parts = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "{" && s[i + 1] === "{") { depth++; i++; }
+    else if (s[i] === "}" && s[i + 1] === "}") { depth--; i++; }
+    else if (depth === 0 && s[i] === ":" && s[i + 1] === ":") { parts.push(s.slice(from, i)); from = i + 2; i++; }
+  }
+  parts.push(s.slice(from));
+  return parts;
+}
+
+/** An {{#if}}'s condition: SillyTavern's (after "::", or built from macros) reads as a value once its macros are
+ *  expanded, "!" in front negates; the app's own (names, ==, contains, ||…) goes to evalIfCondition. */
+function ifCondition(src) {
+  let c = String(src);
+  const st = /^\s*::/.test(c) || c.indexOf("{{") >= 0;
+  if (!st) return { st: false, src: c.trim() };
+  c = c.replace(/^\s*::/, "").trim();
+  const neg = c.startsWith("!");
+  if (neg) c = c.slice(1).trim();
+  return { st: true, neg, src: c };
+}
+
+/** Tokens into nodes: text, macro, if (branches), set (a {{#setvar}} block). */
+function macroNodes(tokens) {
+  let p = 0;
+  const isStop = (inner, stops) => {
+    const l = inner.trim().toLowerCase();
+    if (stops.includes("/if") && (l === "/if" || /^else(?:\s+if\b|\s*$)/.test(l))) return true;
+    return stops.includes("/setvar") && l === "/setvar";
+  };
+  const block = (stops) => {
+    const nodes = [];
+    while (p < tokens.length) {
+      const tk = tokens[p];
+      if (tk.t === "text") { nodes.push({ k: "text", v: tk.v }); p++; continue; }
+      if (stops.length && isStop(tk.v, stops)) return { nodes, stop: tk.v.trim().toLowerCase() };
+      p++;
+      const inner = tk.v;
+      const head = inner.trim();
+      if (/^#if\b/i.test(head) || /^#if::/i.test(head)) {
+        const start = p - 1;
+        const branches = [];
+        let cond = ifCondition(head.slice(3));
+        let closed = false;
+        for (;;) {
+          const r = block(["/if"]);
+          branches.push({ cond, nodes: r.nodes });
+          if (!r.stop) break;
+          const sep = tokens[p].v.trim();
+          p++;
+          if (r.stop === "/if") { closed = true; break; }
+          const m = /^else\s+if\b([\s\S]*)$/i.exec(sep);
+          cond = m ? ifCondition(m[1]) : null;
+        }
+        if (closed) nodes.push({ k: "if", branches });
+        else {
+          // no {{/if}}: the tag stays as text, as the flat reader leaves it, and what followed is read as usual
+          p = start + 1;
+          nodes.push({ k: "text", v: "{{" + inner + "}}" });
+        }
+        continue;
+      }
+      const sv = /^#setvar\s*::([\s\S]*)$/i.exec(head);
+      if (sv) {
+        const start = p;
+        const r = block(["/setvar"]);
+        if (r.stop === "/setvar") { p++; nodes.push({ k: "set", name: sv[1], nodes: r.nodes }); }
+        else { p = start; } // unclosed: the tag goes, its text is read as usual
+        continue;
+      }
+      if (/^\/(?:if|setvar)$/i.test(head)) continue; // a stray closing tag
+      nodes.push({ k: "m", v: inner });
+    }
+    return { nodes, stop: null };
+  };
+  return block([]).nodes;
+}
+
+const FALSY_VALUES = ["", "false", "0", "no", "off"];
+const EAT_LINE = "";
+
+function expandNested(text, mc, depth = 0) {
+  // {{trim}} eats its newlines in the source, before anything is read
+  const src = String(text).replace(/(?:\r?\n)*\{\{trim\}\}(?:\r?\n)*/gi, "");
+  return evalMacroNodes(macroNodes(macroTokens(src)), mc, depth);
+}
+
+function evalMacroNodes(nodes, mc, depth) {
+  const sub = (s) => (depth > 20 ? String(s) : expandNested(s, mc, depth + 1));
+  const out = [];
+  for (const n of nodes) {
+    if (n.k === "text") { out.push(n.v); continue; }
+    if (n.k === "set") {
+      const name = sub(n.name).trim();
+      const value = evalMacroNodes(n.nodes, mc, depth);
+      if (mc.vars && name && !/^vertep\./i.test(name)) mc.vars[name] = value;
+      continue;
+    }
+    if (n.k === "if") {
+      const lookup = macroLookup(mc);
+      const hit = n.branches.find((b) => {
+        if (b.cond === null) return true;
+        if (!b.cond.st) return evalIfCondition(b.cond.src, lookup);
+        // a bare name reads its variable ({{#if::name}}), anything else is the value itself
+        let v = sub(b.cond.src).trim();
+        if (/^[\w.-]+$/.test(b.cond.src)) { const l = lookup(b.cond.src); if (l) v = String(l.value).trim(); }
+        const on = !FALSY_VALUES.includes(v.toLowerCase());
+        return b.cond.neg ? !on : on;
+      });
+      // the app's own {{#if}} eats one newline at each end of what it shows, and an empty one its line, as the flat
+      // reader does; SillyTavern's form leaves the text exactly as written, as SillyTavern does
+      if (n.branches[0].cond && n.branches[0].cond.st) { if (hit) out.push(evalMacroNodes(hit.nodes, mc, depth)); continue; }
+      const chosen = hit ? evalMacroNodes(hit.nodes, mc, depth).replace(/^[ \t]*\r?\n/, "").replace(/\r?\n[ \t]*$/, "") : "";
+      out.push(chosen || EAT_LINE);
+      continue;
+    }
+    const head = n.v.trim();
+    if (head.startsWith("//")) continue;
+    const set = /^setvar\s*::([\s\S]*)$/i.exec(head);
+    if (set) {
+      const parts = splitTopLevel(set[1]);
+      const name = sub(parts[0]).trim();
+      const value = sub(parts.slice(1).join("::"));
+      if (mc.vars && name && !/^vertep\./i.test(name)) mc.vars[name] = value;
+      continue;
+    }
+    // the commonest macro of these presets: a chat variable read straight, without the ~35 flat passes
+    const get = /^getvar::([^{}]+)$/i.exec(head);
+    if (get && mc.vars) {
+      const k = get[1].trim();
+      const v = /^vertep\./i.test(k) ? null : mc.vars[k];
+      if (v != null && String(v).indexOf("{{") < 0) { out.push(String(v)); continue; }
+    }
+    // inner macros first, then the macro itself through the flat passes
+    out.push(expandFlat("{{" + (n.v.indexOf("{{") >= 0 ? sub(n.v) : n.v) + "}}", mc));
+  }
+  // a block that rendered nothing on a line of its own takes the line with it
+  return out.join("").replace(new RegExp("(^|\\n)[ \\t]*" + EAT_LINE + "[ \\t]*\\r?\\n", "g"), "$1").split(EAT_LINE).join("");
+}
+
+/** The flat passes: every macro on its own, one kind after another. */
+function expandFlat(text, mc) {
+  let out = String(text);
   if (out.indexOf("{{") < 0) return out;
   // macro names are case-insensitive ({{user}}, {{User}}, {{USER}} all resolve)
   const ci = (t, name, val) => t.replace(new RegExp("\\{\\{" + name + "\\}\\}", "gi"), val == null ? "" : String(val));

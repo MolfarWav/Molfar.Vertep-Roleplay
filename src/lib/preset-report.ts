@@ -35,6 +35,8 @@ const SUPPORTED_MACROS = new Set([
   'user', 'char', 'persona', 'description', 'personality', 'scenario', 'time', 'isotime', 'date', 'isodate', 'weekday',
   'lastmessage', 'lastusermessage', 'lastcharmessage', 'idle_duration', 'words', 'limit', 'trim', 'newline',
   'getvar', 'setvar', 'addvar', 'incvar', 'decvar', 'random', 'pick', 'roll', 'var', '//', '#if', '/if', 'else',
+  // SillyTavern's block form of setvar (#516)
+  '#setvar', '/setvar',
   // expands to nothing here: the story memory is Litopys
   'summary',
 ])
