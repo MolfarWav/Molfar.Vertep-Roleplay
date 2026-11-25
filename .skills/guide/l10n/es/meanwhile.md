@@ -1,4 +1,4 @@
-<!-- source: 0348c269773a -->
+<!-- source: bea962ecf922 -->
 # Mientras tanto: la vida fuera de pantalla
 
 Mientras tanto permite que las personas que no están en la escena hagan cosas mientras la historia continúa: Bram vende un caballo en el puerto, Ada esconde el libro de cuentas, un frente se acerca un paso más a su objetivo. Es una versión de prueba, desactivada por defecto.
@@ -11,7 +11,7 @@ Abre la hoja **World** del chat y busca la tarjeta **Meanwhile**. Activa "Let pe
 
 Una pasada se ejecuta después de una respuesta cuando han llegado al menos dos respuestas nuevas y o bien comenzó una escena nueva o el reloj de la historia avanzó seis horas. Una pasada es una llamada al modelo. Usa su propio modelo si le configuras uno; si no, el del DM del World, el del sensor del Dashboard, el de la Library, el del chat, el de la app. La tarjeta dice cuál. "Run a pass now" ejecuta una de inmediato.
 
-Una pasada pide hasta tres eventos pequeños. La app comprueba cada uno: las personas deben ser personas que el chat conoce, nunca tu personaje y nunca alguien que esté en la escena, y los efectos deben venir de una lista corta. Un evento que falla una comprobación se descarta por completo, y el registro dice por qué. Si un modelo no responde nada, la pasada lo intenta una vez más con más margen; una pasada que falla espera diez minutos.
+Una pasada pide hasta tres eventos pequeños. La app comprueba cada uno: las personas deben ser personas que el chat conoce, nunca tu personaje y nunca alguien que esté en la escena, y los efectos deben venir de una lista corta. Un evento que falla una comprobación se descarta por completo, y el registro dice por qué. Un evento que vuelve a decir lo que un evento anterior sobre la misma persona ya dijo también se descarta («repeats an earlier event»). Si un modelo no responde nada, la pasada lo intenta una vez más con más margen; una pasada que falla espera diez minutos.
 
 ## Qué muestra la tarjeta
 

@@ -1,4 +1,4 @@
-<!-- source: 0348c269773a -->
+<!-- source: bea962ecf922 -->
 # Meanwhile : la vie hors écran
 
 Meanwhile permet aux personnes qui ne sont pas dans la scène de faire des choses pendant que l'histoire continue : Bram vend un cheval au port, Ada cache le grand livre, un front se rapproche d'un pas de son objectif. C'est une version de test, désactivée par défaut.
@@ -11,7 +11,7 @@ Ouvrez la fiche **World** du chat et trouvez la carte **Meanwhile**. Activez "Le
 
 Une passe se lance après une réponse quand au moins deux nouvelles réponses sont arrivées et qu'une nouvelle scène a commencé ou que l'horloge de l'histoire a avancé de six heures. Une passe, c'est un appel au modèle. Elle utilise son propre modèle si vous en avez défini un, sinon celui du World DM, du capteur du Dashboard, de la Library, du chat, de l'application. La carte indique lequel. "Run a pass now" en lance une immédiatement.
 
-Une passe demande jusqu'à trois petits événements. L'application vérifie chacun d'eux : les personnes doivent être connues du chat, jamais votre personnage et jamais quelqu'un qui est dans la scène, et les effets doivent venir d'une liste courte. Un événement qui échoue à une vérification est écarté en entier, et le journal explique pourquoi. Si un modèle ne répond rien, la passe réessaie une fois avec plus de marge ; une passe qui échoue attend dix minutes.
+Une passe demande jusqu'à trois petits événements. L'application vérifie chacun d'eux : les personnes doivent être connues du chat, jamais votre personnage et jamais quelqu'un qui est dans la scène, et les effets doivent venir d'une liste courte. Un événement qui échoue à une vérification est écarté en entier, et le journal explique pourquoi. Un événement qui redit ce qu'un événement antérieur sur la même personne a déjà dit est lui aussi écarté (« repeats an earlier event »). Si un modèle ne répond rien, la passe réessaie une fois avec plus de marge ; une passe qui échoue attend dix minutes.
 
 ## Ce que montre la carte
 

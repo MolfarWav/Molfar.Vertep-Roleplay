@@ -1,4 +1,4 @@
-<!-- source: 0348c269773a -->
+<!-- source: bea962ecf922 -->
 # Bu arada: ekran dışındaki hayat
 
 Meanwhile, sahnede olmayan kişilerin hikâye devam ederken bir şeyler yapmasını sağlar: Bram limanda bir at satar, Ada defteri saklar, bir cephe hedefine bir adım daha yaklaşır. Bu bir test sürümüdür, varsayılan olarak kapalıdır.
@@ -11,7 +11,7 @@ Sohbetin **World** sayfasını açın ve **Meanwhile** kartını bulun. "Let peo
 
 Bir geçiş, en az iki yeni yanıt geldikten sonra ve ya yeni bir sahne başladığında ya da hikâye saati altı saat ilerlediğinde bir yanıttan sonra çalışır. Bir geçiş, bir model çağrısıdır. Kendi modelinizi ayarladıysanız onu kullanır, aksi halde World DM'nin, Dashboard sensörünün, Library'nin, sohbetin, uygulamanın modelini kullanır. Kart hangisini kullandığını söyler. "Run a pass now" hemen bir geçiş çalıştırır.
 
-Bir geçiş en fazla üç küçük olay ister. Uygulama her birini kontrol eder: kişiler sohbetin tanıdığı kişiler olmalı, asla sizin karakteriniz ve asla sahnede olan biri olmamalı, ve etkiler kısa bir listeden gelmelidir. Kontrolden geçemeyen bir olay tamamen düşürülür ve günlük nedeni söyler. Bir model hiçbir şey yanıtlamazsa, geçiş daha fazla alanla bir kez daha dener; başarısız olan bir geçiş on dakika bekler.
+Bir geçiş en fazla üç küçük olay ister. Uygulama her birini kontrol eder: kişiler sohbetin tanıdığı kişiler olmalı, asla sizin karakteriniz ve asla sahnede olan biri olmamalı, ve etkiler kısa bir listeden gelmelidir. Kontrolden geçemeyen bir olay tamamen düşürülür ve günlük nedeni söyler. Aynı kişi hakkındaki daha önceki bir olayın söylediğini yeniden söyleyen bir olay da düşürülür ("repeats an earlier event"). Bir model hiçbir şey yanıtlamazsa, geçiş daha fazla alanla bir kez daha dener; başarısız olan bir geçiş on dakika bekler.
 
 ## Kartın gösterdikleri
 

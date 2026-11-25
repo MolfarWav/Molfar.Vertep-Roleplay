@@ -1,4 +1,4 @@
-<!-- source: 0348c269773a -->
+<!-- source: bea962ecf922 -->
 # Enquanto isso: a vida fora da tela
 
 O Enquanto isso deixa as pessoas que não estão na cena fazerem coisas enquanto a história continua: Bram vende um cavalo no porto, Ada esconde o livro-caixa, uma frente avança um passo rumo ao seu objetivo. É uma versão de teste, desligada por padrão.
@@ -11,7 +11,7 @@ Abra a ficha **World** do chat e encontre o cartão **Meanwhile**. Ligue "Let pe
 
 Uma passagem roda depois de uma resposta quando chegaram pelo menos duas respostas novas e ou uma nova cena começou ou o relógio da história andou seis horas. Uma passagem é uma chamada de modelo. Ela usa o próprio modelo, se você definir um; senão, o do World DM, o do sensor do Dashboard, o da Library, o do chat, o do app. O cartão diz qual. "Run a pass now" roda uma na hora.
 
-Uma passagem pede até três eventos pequenos. O app verifica cada um: as pessoas devem ser conhecidas do chat, nunca o seu personagem e nunca alguém que está na cena, e os efeitos devem vir de uma lista curta. Um evento que falha numa verificação é descartado por inteiro, e o log diz por quê. Se um modelo não responder nada, a passagem tenta mais uma vez com mais espaço; uma passagem que falha espera dez minutos.
+Uma passagem pede até três eventos pequenos. O app verifica cada um: as pessoas devem ser conhecidas do chat, nunca o seu personagem e nunca alguém que está na cena, e os efeitos devem vir de uma lista curta. Um evento que falha numa verificação é descartado por inteiro, e o log diz por quê. Um evento que repete o que um evento anterior sobre a mesma pessoa já disse também é descartado ("repeats an earlier event"). Se um modelo não responder nada, a passagem tenta mais uma vez com mais espaço; uma passagem que falha espera dez minutos.
 
 ## O que o cartão mostra
 

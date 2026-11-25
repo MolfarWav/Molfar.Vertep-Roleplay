@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.156.1 (2026-11-25)
+
 - Fixed: **Meanwhile no longer keeps the same event again and again (Molfar.Vertep#449).** In a real chat a cheap model sent the same moment of the same person in pass after pass (21 events, about half of them repeats of the first three), although the prompt told it not to. The app now compares each new event with the chat's earlier ones: an event about one of the same people whose words are mostly the same is dropped, and the log says "repeats an earlier event". The prompt also asks for a step beyond the recent events, not the same moment reworded. Files: `plugins/meanwhile/plugin.js` (`buildEvents`, `overlap`); test `rp-meanwhile`.
 
 ## 4.156.0 (2026-11-25)
