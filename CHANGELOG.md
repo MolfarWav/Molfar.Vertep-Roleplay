@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.159.0 (2026-11-26)
+
+- New: **a notice when the story may have changed a character (Molfar.Vertep#450, triggers).** In the open chat the app now looks, without any model, for three signs that a character's portrait ("How they changed") is out of date: a new turning point in the Library, a relation class that moved in the Dashboard (stranger to friend), and a pivotal event in the Dashboard (at most once in eight replies, because the sensor calls about a quarter of events pivotal). A blue notice says what happened and offers **Update portrait** (the same call as the Memory tab's "Update from the story") or **Not now**; only the button asks a model, and what it proposes arrives as the usual portrait notice. In a group, only the member the story names is meant; in a chat of one card, that card. The first look at a chat in a browser only learns what is already there, so an old chat does not start with a pile of notices; each sign is told once. It follows the existing switch for portrait notices. Left out on purpose: a heavy injury (the Dashboard keeps it only as text, the RPG app will give data), arcs, a row in the Inbox for a missed notice, and writing a block into the card. Files: `src/lib/growth-cue-core.ts`, `src/lib/growth-cue.tsx`, `src/lib/proposal-toasts.tsx`; tests `rp-growth-cue`; guide page "Memory" (translations stale).
+
 ## 4.158.0 (2026-11-25)
 
 - New: **a lorebook entry can stay on once it has fired.** The entry's "How long it stays" fold has a new switch, "Stays on once it has fired": after its keys have hit once in this chat, the entry keeps firing for the rest of it, even when the words are long gone from the recent messages. It is worked out from the chat on every scan and never stored, so cutting or swiping away the message that set it off ends it and a new chat starts without it. It replaces the very long sticky that SillyTavern books used for this. What fired shows such a row as "Stays on (since message N)".

@@ -14,6 +14,7 @@ import { j } from '@/lib/engine'
 import { resolveLanguage, t, type Lang } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import { attentionOn, BTN, isPhone, readSeen, setWaiting, whenIdle, writeSeen } from './attention'
+import { checkGrowthCues } from './growth-cue'
 import { growthItems, habitItems, PROPOSAL_TONE, proposalPlan, questItems, takeNewItems, byKind, type ProposalItem, type ProposalKind } from './proposal-core'
 
 const ICONS = { growth: TrendUp, habits: ListChecks, quests: Lightbulb } as const
@@ -101,6 +102,8 @@ export async function checkChatProposals(chatId: string) {
     if (useApp.getState().activeChatId !== chatId) return
     const all = [...growth, ...habits, ...quests]
     setWaiting(all)
+    // the story may have changed a character even when no block waits: ask the player, never the model (#450)
+    if (on.growth) void checkGrowthCues(chatId, cardIds.map((id) => ({ id, name: st.characters.find((c) => c.id === id)?.name ?? '' })), () => void checkChatProposals(chatId))
     const seen = readSeen()
     const fresh = takeNewItems(all, seen)
     if (!fresh.length) return
