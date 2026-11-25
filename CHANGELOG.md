@@ -4,6 +4,10 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.156.2 (2026-11-25)
+
+- Fixed: **World DM read the blocks a preset hides in replies as story (Molfar.Vertep#520).** Since #85 the Dashboard sensor and Litopys run the chat's prompt-only regex scripts that delete a match before they read a reply; the World DM did not. With a preset that writes a hidden block into replies (the Sola port's notebook of guesses, its chatterbox, its footnotes) the DM read those as story, and a guess could become a record, a front's move or "the event happened". The DM now reads the story the same way, in all three places that fed it text: the run's prompt, the "did the event happen" check (the messages read since the event was sent) and the tidy-up that puts played-out things to rest (a thing named only in a hidden block no longer counts as named). The helper is the same code as the sensor's (plugins cannot call each other), with the scripts read on first use, so a run that reads no message costs no file reads. Stored messages never change. Meanwhile needed nothing: it takes the scene from the Dashboard's snapshots and reads no message text. Not done: the cast's "is this person named in the message" check still reads the raw text. Files: `plugins/world/plugin.js` (`storyView`, `storyMsgs`, `tidyBook`), test `rp-issue-520`.
+
 ## 4.156.1 (2026-11-25)
 
 - Fixed: **Meanwhile no longer keeps the same event again and again (Molfar.Vertep#449).** In a real chat a cheap model sent the same moment of the same person in pass after pass (21 events, about half of them repeats of the first three), although the prompt told it not to. The app now compares each new event with the chat's earlier ones: an event about one of the same people whose words are mostly the same is dropped, and the log says "repeats an earlier event". The prompt also asks for a step beyond the recent events, not the same moment reworded. Files: `plugins/meanwhile/plugin.js` (`buildEvents`, `overlap`); test `rp-meanwhile`.
