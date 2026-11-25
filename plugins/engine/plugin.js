@@ -4301,6 +4301,26 @@ function cleanPresetVars(raw) {
   return out;
 }
 
+export const SETUPS_MAX = 100;
+
+/** One preset's saved setups (#526) made safe: at most SETUPS_MAX, unique ids, names up to 80 characters, picks
+ *  cleaned like a chat's, a star only on a setup that exists. */
+export function cleanPresetSetups(raw) {
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const items = [];
+  const seen = new Set();
+  for (const x of Array.isArray(r.items) ? r.items.slice(0, SETUPS_MAX) : []) {
+    if (!x || typeof x !== "object" || Array.isArray(x)) continue;
+    let sid = typeof x.id === "string" && /^[\w-]{1,40}$/.test(x.id) ? x.id : "";
+    if (!sid || seen.has(sid)) sid = "s" + (items.length + 1) + "-" + strHash(JSON.stringify(x)).toString(36);
+    if (seen.has(sid)) continue;
+    seen.add(sid);
+    items.push({ id: sid, name: String(x.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80), picks: cleanPresetVars(x.picks), at: Number.isFinite(x.at) ? Number(x.at) : 0 });
+  }
+  const defaultId = typeof r.defaultId === "string" && items.some((x) => x.id === r.defaultId) ? r.defaultId : null;
+  return { items, defaultId };
+}
+
 /**
  * Per-character memory: the preset and picks of the character's chat where the user last chose
  * them (meta.presetAt, set by the chat's preset route and the new-chat step). Chats from before
@@ -6519,6 +6539,38 @@ export function handleRoute(req, host) {
   }
 
   // ---------- peek: assembled prompt ----------
+  // named setups of a preset's Choices (Molfar.Vertep#526): presetId -> { items: [{ id, name, picks, at }], defaultId }.
+  // The starred setup's picks are mirrored into preset-defaults.json, which new chats read, so that path is unchanged;
+  // a preset that has only an older default shows it as one setup with no name ("My default" on screen).
+  if (head === "preset-setups") {
+    const stored = () => { const all = readJson("preset-setups.json", {}); return all && typeof all === "object" && !Array.isArray(all) ? all : {}; };
+    const view = () => {
+      const out = {};
+      for (const [pid, v] of Object.entries(stored())) { const c = cleanPresetSetups(v); if (c.items.length) out[pid] = c; }
+      const defs = readJson("preset-defaults.json", {});
+      for (const [pid, picks] of Object.entries(defs && typeof defs === "object" ? defs : {})) {
+        if (out[pid] || !picks || typeof picks !== "object" || Array.isArray(picks)) continue;
+        out[pid] = { items: [{ id: "mine", name: "", picks: cleanPresetVars(picks), at: 0 }], defaultId: "mine" };
+      }
+      return out;
+    };
+    if (!id && req.method === "GET") return ok(view());
+    if (id && req.method === "PUT") {
+      if (!readJson("presets/" + id + ".json", null)) return err(404, "preset not found");
+      const v = cleanPresetSetups(body());
+      const all = stored();
+      if (v.items.length) all[id] = v;
+      else delete all[id];
+      writeJson("preset-setups.json", all);
+      const defs = readJson("preset-defaults.json", {});
+      const next = { ...(defs && typeof defs === "object" && !Array.isArray(defs) ? defs : {}) };
+      const star = v.items.find((x) => x.id === v.defaultId);
+      if (star) next[id] = star.picks;
+      else delete next[id];
+      writeJson("preset-defaults.json", next);
+      return ok(view());
+    }
+  }
   // the user's own default choices per preset (presetId -> picks), for chats a
   // character has no memory for; a stock preset can have them too
   if (head === "preset-defaults") {

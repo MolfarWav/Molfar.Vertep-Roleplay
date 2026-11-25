@@ -1,7 +1,7 @@
 // ── Portable preset/regex JSON shapes shared across roleplay frontends
 // (community data formats, no external code). Pure: no browser APIs, so the
 // engine-side test suite typechecks this module directly.
-import type { Preset, PromptSection, RegexScript } from './types.js'
+import type { Preset, PresetSetups, PromptSection, RegexScript } from './types.js'
 import { uid } from './tokens.js'
 import { newReport, note, rewriteMacros, scanMacros, type ImportReport } from './preset-report.js'
 import { isHeaderName, structurePreset, type RawEntry } from './st-structure.js'
@@ -23,8 +23,13 @@ interface WirePrompt {
   injection_trigger?: string[]
 }
 interface WirePromptOrderEntry { identifier: string; enabled: boolean }
+/** One named setup of a preset's Choices in a file: picks by variable name; `default` = where new chats start. */
+interface WireSetup { name: string; picks: Record<string, string | string[]>; default?: boolean }
+
 interface WirePresetJson {
   prompts: WirePrompt[]
+  /** this app's own: the exporter's named setups of the preset's Choices (#526); other apps ignore the key */
+  vertep_setups?: WireSetup[]
   /** regex scripts that travel with the preset and run only while it is active */
   extensions?: { regex_scripts?: unknown[]; [k: string]: unknown }
   prompt_order: { character_id: number; order: WirePromptOrderEntry[] }[]
@@ -95,11 +100,12 @@ const MARKER_TO_IDENTIFIER: Record<string, string> = Object.fromEntries(
   Object.entries(MARKER_IDENTIFIERS).map(([k, v]) => [String(v), k]),
 )
 
-export function presetExport(preset: Preset, scripts: RegexScript[] = []): WirePresetJson {
+export function presetExport(preset: Preset, scripts: RegexScript[] = [], setups?: PresetSetups | null): WirePresetJson {
   const ordered = [...preset.sections].sort((a, b) => a.order - b.order)
   const bound = scripts.filter((r) => r.scope === 'preset' && r.scopeTargetId === preset.id).sort((a, b) => a.order - b.order)
   return {
     ...(bound.length ? { extensions: { regex_scripts: bound.map(regexExport) } } : {}),
+    ...(setups?.items.length ? { vertep_setups: setups.items.map((x) => ({ name: x.name, picks: x.picks, ...(x.id === setups.defaultId ? { default: true } : {}) })) } : {}),
     prompts: ordered.map((s) => ({
       name: s.name,
       identifier: s.marker ? (MARKER_TO_IDENTIFIER[s.marker] ?? s.id) : s.id,
@@ -210,7 +216,7 @@ function ownImport(json: unknown, bag: Partial<Preset>, name: string, base: Pres
   note(report, 'came', 'ownVars', variables.length, variables.map((v) => v.label || v.name))
   note(report, 'came', 'ownConditions', sections.filter((s) => s.condition?.trim()).length)
   const regex = importPresetRegex((json as WirePresetJson).extensions?.regex_scripts, report)
-  return { preset, regex, report }
+  return { preset, regex, report, setups: setupsFromFile(json, preset) }
 }
 
 /** effort levels → the three the format carries; the finer studio levels
@@ -380,6 +386,30 @@ export interface PresetImport {
   preset: Preset
   regex: Omit<RegexScript, 'id' | 'order'>[]
   report: ImportReport
+  /** named setups of the Choices that travelled with the file (#526); the store saves them for the new preset */
+  setups: PresetSetups
+}
+
+/** The setups a file carries, made safe: names up to 80 characters, picks only for the preset's own variables, at most 100. */
+export function setupsFromFile(json: unknown, preset: Preset): PresetSetups {
+  const raw = (json as { vertep_setups?: unknown } | null)?.vertep_setups
+  const names = new Set(preset.variables.map((v) => v.name))
+  const items: PresetSetups['items'] = []
+  let defaultId: string | null = null
+  for (const x of Array.isArray(raw) ? raw.slice(0, 100) : []) {
+    if (!x || typeof x !== 'object') continue
+    const w = x as Partial<WireSetup>
+    const picks: Record<string, string | string[]> = {}
+    for (const [k, v] of Object.entries(w.picks && typeof w.picks === 'object' ? w.picks : {})) {
+      if (!names.has(k)) continue
+      if (Array.isArray(v)) picks[k] = v.map(String)
+      else if (typeof v === 'string') picks[k] = v
+    }
+    const id = `s${items.length + 1}`
+    items.push({ id, name: String(w.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80), picks, at: 0 })
+    if (w.default === true && !defaultId) defaultId = id
+  }
+  return { items, defaultId }
 }
 
 export function presetImport(json: unknown, name: string, base: Preset): Preset | null {
@@ -402,7 +432,7 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     // a Marinara preset can carry its regex scripts the way ST presets do (top-level extensions)
     const own = (json as { extensions?: { regex_scripts?: unknown }; data?: { regexScripts?: unknown } })
     const regex = importPresetRegex(own.extensions?.regex_scripts ?? own.data?.regexScripts, report)
-    return { preset, regex, report }
+    return { preset, regex, report, setups: setupsFromFile(json, preset) }
   }
   const d = json as WirePresetJson
   if (!d || !Array.isArray(d.prompts)) return null
@@ -552,7 +582,7 @@ export function presetImportFull(json: unknown, name: string, base: Preset): Pre
     createdAt: Date.now(),
   }
   const regex = importPresetRegex(d.extensions?.regex_scripts, report)
-  return { preset, regex, report }
+  return { preset, regex, report, setups: setupsFromFile(json, preset) }
 }
 
 /** ST's own defaults for the format templates and prompts a preset file always carries: only a changed
