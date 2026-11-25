@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowCounterClockwise, ArrowLeft, ArrowsOutCardinal, CaretDown, Check, CornersOut, DotsThree, GearSix, ImageSquare, ListChecks, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Sparkle, Stack, Trash, UploadSimple, X } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowLeft, ArrowsOutCardinal, CaretDown, Check, CornersOut, DotsThree, EyeSlash, GearSix, ImageSquare, ListChecks, LockSimple, LockSimpleOpen, MapTrifold, Minus, NavigationArrow, Path, PencilSimple, Plus, Sparkle, Stack, Trash, UploadSimple, X } from '@phosphor-icons/react'
 import { useDashMaybe } from '@/components/dashboard/dash-context'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { PlaceMapBoard, type PlaceMapBoardHandle } from '@/components/chat/place
 import { MapGalleryDialog } from '@/components/chat/map-gallery-dialog'
 import { MapGenerateDialog } from '@/components/chat/map-generate-dialog'
 import { MapLevelsDialog } from '@/components/chat/map-levels-dialog'
+import { MapHiddenDialog } from '@/components/chat/map-hidden-dialog'
 import { MapPlacesDialog } from '@/components/chat/map-places-dialog'
 import { PlaceIconDialog } from '@/components/chat/place-icon-dialog'
 import { PlaceTravelDialog, type TravelSent } from '@/components/chat/place-travel-dialog'
@@ -17,7 +18,7 @@ import { limitArea, stageArea, useComposer } from '@/components/chat/expression-
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/hooks/use-t'
 import { CHIP, boxRect, dragTo, loadBox, resizeTo, saveBox, setFolded, type FloatBox } from '@/lib/float-box'
-import { MAIN_LEVEL, addLevel, cleanLabel, handHere, layoutLevels, levelIds, levelInfo, levelOfPlan, levelSlice, moveNode, parentLevel, putSlice, removeLevel, roadsOf, routeOf, setHandHere, setIcon, setLevelInfo, setMembers, setRouteInfo, spreadPositions, stepRoute, toggleRoute, visibleRoutes, wholePlaces, type PlaceMapData } from '@/lib/place-map'
+import { MAIN_LEVEL, addLevel, cleanLabel, handHere, hiddenIds, layoutLevels, levelIds, levelInfo, levelOfPlan, levelSlice, moveNode, parentLevel, placeRows, putSlice, removeLevel, roadsOf, routeOf, setHandHere, setHidden, setIcon, setLevelInfo, setMembers, setRouteInfo, spreadPositions, stepRoute, toggleRoute, visibleRoutes, wholePlaces, type PlaceMapData } from '@/lib/place-map'
 import { loadLevel, saveLevel } from '@/lib/place-map-level'
 import { placeKind } from '@/lib/place-kinds'
 import { defaultMapKey, hasMap, mapPackUrl, useMapPacks } from '@/lib/map-packs'
@@ -338,7 +339,21 @@ export function PlaceMap({ chat }: { chat: Chat }) {
   }
 
   // the maps of the chat: the places that can stand on one, the dialogs and what they change
-  const wholes = useMemo(() => (records ? wholePlaces(records, null).map((r) => ({ id: r.id, name: cleanLabel(baseFull?.labels?.[r.id]) ?? r.name, emoji: placeKind(r.name, ...(r.aliases ?? [])).emoji })) : []), [records, baseFull?.labels])
+  const hiddenSet = useMemo(() => hiddenIds(records ?? [], baseFull), [records, baseFull])
+  const wholes = useMemo(() => (records ? wholePlaces(records, null).filter((r) => !hiddenSet.has(r.id)).map((r) => ({ id: r.id, name: cleanLabel(baseFull?.labels?.[r.id]) ?? r.name, emoji: placeKind(r.name, ...(r.aliases ?? [])).emoji })) : []), [records, baseFull?.labels, hiddenSet])
+  const rows = useMemo(() => (records ? placeRows(records, baseFull) : []), [records, baseFull])
+  const [hiddenOpen, setHiddenOpen] = useState(false)
+  // hide places from every map: the toast takes it back, the World book and the story are not touched
+  const hidePlaces = (ids: string[], name: string) => {
+    const next = setHidden(latestFull(), ids, true)
+    if (!next) return
+    pendingFull.current = next
+    updateChat(chat.id, { placeMap: next })
+    setSelectedId(null)
+    toast(t('placeMap.hiddenDone', { name }), {
+      action: { label: t('placeMap.spreadUndo'), onClick: () => { const back = setHidden(latestFull(), ids, false); if (back) { pendingFull.current = back; updateChat(chat.id, { placeMap: back }) } } },
+    })
+  }
   const [levelsOpen, setLevelsOpen] = useState(false)
   const [placesOpen, setPlacesOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
@@ -489,6 +504,10 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                   {t('placeMap.placesOpen')}
                 </Button>
               )}
+              <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={() => setHiddenOpen(true)} data-testid="place-map-hidden-open">
+                <EyeSlash className={cn('size-4', TONES.orange.ink)} aria-hidden="true" />
+                {t('placeMap.hiddenOpen')}
+              </Button>
               <Button variant="outline" size="sm" className="justify-start max-md:h-10" onClick={spread} data-testid="place-map-spread">
                 <ArrowsOutCardinal className={cn('size-4', TONES.emerald.ink)} aria-hidden="true" />
                 {t('placeMap.spread')}
@@ -650,6 +669,9 @@ export function PlaceMap({ chat }: { chat: Chat }) {
                       <Stack className={cn('size-4 shrink-0', TONES.teal.ink)} weight="duotone" aria-hidden="true" />{t('placeMap.levelMake')}
                     </Button>
                   )}
+                  <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); hidePlaces([selected.id], selected.name) }} data-testid="place-map-hide">
+                    <EyeSlash className={cn('size-4 shrink-0', TONES.orange.ink)} aria-hidden="true" />{selected.spot ? t('placeMap.hideRoom') : t('placeMap.hidePlace')}
+                  </Button>
                   {!selected.spot && nodes.some((n) => !n.spot && n.id !== selected.id) && (
                     <Button variant="ghost" size="sm" className="h-auto justify-start gap-2 whitespace-normal py-2 text-left max-md:min-h-11" onClick={() => { setMoreOpen(false); setConnectFrom(selected.id) }} data-testid="place-map-connect">
                       <Path className={cn('size-4 shrink-0', TONES.teal.ink)} weight="bold" aria-hidden="true" />{t('placeMap.connect')}
@@ -704,6 +726,14 @@ export function PlaceMap({ chat }: { chat: Chat }) {
               <Button size="sm" className="max-md:min-h-10" onClick={() => setPlacesOpen(true)} data-testid="place-map-empty-add">
                 <ListChecks className="size-4" weight="bold" aria-hidden="true" />{t('placeMap.placesOpen')}
               </Button>
+              {hiddenSet.size > 0 && (
+                <>
+                  <p className="text-xs text-muted-foreground">{t('placeMap.emptyHidden', { n: hiddenSet.size })}</p>
+                  <Button variant="outline" size="sm" className="max-md:min-h-10" onClick={() => setHiddenOpen(true)} data-testid="place-map-empty-hidden">
+                    <EyeSlash className="size-4" aria-hidden="true" />{t('placeMap.hiddenOpen')}
+                  </Button>
+                </>
+              )}
             </div>
           )}
           <span
@@ -750,6 +780,15 @@ export function PlaceMap({ chat }: { chat: Chat }) {
           onAdd={() => newLevel(null, t('placeMap.newLevelName', { n: levelIds(baseFull).length + 1 }), several ? 'town' : 'region')}
           onDelete={(id) => void dropLevel(id)}
           onOpenLevel={openLevel}
+        />
+      )}
+      {hiddenOpen && (
+        <MapHiddenDialog
+          open={hiddenOpen}
+          onOpenChange={setHiddenOpen}
+          rows={rows}
+          onChange={(id, hide) => { const next = setHidden(latestFull(), [id], hide); if (next) { pendingFull.current = next; updateChat(chat.id, { placeMap: next }) } }}
+          onShowAll={() => { const next = setHidden(latestFull(), baseFull?.hidden ?? [], false); if (next) { pendingFull.current = next; updateChat(chat.id, { placeMap: next }) } }}
         />
       )}
       {placesOpen && (

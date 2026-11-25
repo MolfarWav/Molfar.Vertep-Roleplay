@@ -71,6 +71,8 @@ export interface PlaceMapData {
   labels?: Record<string, string>
   /** icons the player picked by hand, by place record id: `<kind>-<n>`, a file of the engine's icon set (`tavern-3`); no entry = the one the name says */
   icons?: Record<string, string>
+  /** places the player hid from every map, by place record id (a whole place takes its rooms along); the World book and the story keep them, their positions stay */
+  hidden?: string[]
 }
 
 export const emptyMap = (): PlaceMapData => ({ v: 1, nodes: {}, routes: [] })
@@ -202,7 +204,11 @@ export function cleanPlaceMap(v: unknown): PlaceMapData | null {
     }
     if (Object.keys(icons).length) out.icons = icons
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null
+  if (Array.isArray(raw.hidden)) {
+    const hidden = [...new Set(raw.hidden.filter((id): id is string => typeof id === 'string' && !!id && id.length <= 80))].slice(0, MAX_NODES)
+    if (hidden.length) out.hidden = hidden
+  }
+  return Object.keys(out.nodes).length || out.hidden || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null
 }
 
 export interface MapNode {
@@ -398,7 +404,7 @@ export function levelInfo(data: PlaceMapData | null, id: string, fallbackName = 
 /** One map as a map of its own: the places and roads and picture of that level, with what all levels share (the story's place, labels, icons). Every function above works on this. */
 export function levelSlice(data: PlaceMapData | null, id: string): PlaceMapData {
   const base = data ?? emptyMap()
-  const shared = { ...(base.at ? { at: base.at } : {}), ...(base.here ? { here: base.here } : {}), ...(base.labels ? { labels: base.labels } : {}), ...(base.icons ? { icons: base.icons } : {}) }
+  const shared = { ...(base.at ? { at: base.at } : {}), ...(base.here ? { here: base.here } : {}), ...(base.labels ? { labels: base.labels } : {}), ...(base.icons ? { icons: base.icons } : {}), ...(base.hidden ? { hidden: base.hidden } : {}) }
   const l = id === MAIN_LEVEL ? null : base.levels?.find((x) => x.id === id)
   if (!l) return { v: 1, nodes: base.nodes, routes: base.routes, ...(base.picture !== undefined ? { picture: base.picture } : {}), ...shared }
   return { v: 1, nodes: l.nodes, routes: l.routes, ...(l.picture !== undefined ? { picture: l.picture } : {}), ...shared }
@@ -407,14 +413,55 @@ export function levelSlice(data: PlaceMapData | null, id: string): PlaceMapData 
 /** The inverse of `levelSlice`: what a function changed on a slice goes back to the level it came from, the shared parts to the top. */
 export function putSlice(data: PlaceMapData | null, id: string, slice: PlaceMapData): PlaceMapData {
   const base = data ?? emptyMap()
-  const { at: _a, here: _h, labels: _l, icons: _i, ...rest } = base
-  const top: PlaceMapData = { ...rest, ...(slice.at ? { at: slice.at } : {}), ...(slice.here ? { here: slice.here } : {}), ...(slice.labels ? { labels: slice.labels } : {}), ...(slice.icons ? { icons: slice.icons } : {}) }
+  const { at: _a, here: _h, labels: _l, icons: _i, hidden: _x, ...rest } = base
+  const top: PlaceMapData = { ...rest, ...(slice.at ? { at: slice.at } : {}), ...(slice.here ? { here: slice.here } : {}), ...(slice.labels ? { labels: slice.labels } : {}), ...(slice.icons ? { icons: slice.icons } : {}), ...(slice.hidden ? { hidden: slice.hidden } : {}) }
   const pic = slice.picture !== undefined ? { picture: slice.picture } : {}
   if (id === MAIN_LEVEL || !base.levels?.some((x) => x.id === id)) {
     const { picture: _p, ...noPic } = top
     return { ...noPic, nodes: slice.nodes, routes: slice.routes, ...pic }
   }
   return { ...top, levels: base.levels.map((l) => (l.id === id ? { id: l.id, name: l.name, scale: l.scale, ...(l.plan ? { plan: l.plan } : {}), nodes: slice.nodes, routes: slice.routes, ...pic } : l)) }
+}
+
+/** The ids the player hid from the maps, with the rooms of every hidden whole place. */
+export function hiddenIds(records: readonly WorldRecord[], data: PlaceMapData | null): Set<string> {
+  const out = new Set(data?.hidden ?? [])
+  if (!out.size) return out
+  for (const root of buildPlaceTree([...records], null).roots) if (out.has(root.place.id)) for (const s of root.spots) out.add(s.place.id)
+  return out
+}
+
+/** Hide places from every map (`hide` true) or bring them back (false); a place comes back where it stood. Returns the same object when nothing changes. */
+export function setHidden(data: PlaceMapData | null, ids: readonly string[], hide: boolean): PlaceMapData | null {
+  const base = data ?? emptyMap()
+  const cur = base.hidden ?? []
+  const set = new Set(cur)
+  for (const id of ids) {
+    if (hide) set.add(id)
+    else set.delete(id)
+  }
+  const next = [...set].slice(-MAX_NODES)
+  if (next.length === cur.length && next.every((id, i) => id === cur[i])) return data
+  const { hidden: _h, ...rest } = base
+  return next.length ? { ...rest, hidden: next } : rest
+}
+
+export interface PlaceRow { id: string; name: string; emoji: string; spot: boolean; parentName: string | null; /** hidden because its whole place is */ viaParent: boolean; hidden: boolean }
+
+/** Every active place for the "which places show" list: a whole place, then its rooms; `hidden` is what the maps do with it now. */
+export function placeRows(records: WorldRecord[], data: PlaceMapData | null): PlaceRow[] {
+  const own = new Set(data?.hidden ?? [])
+  const nameOf = (r: WorldRecord) => cleanLabel(data?.labels?.[r.id]) ?? r.name
+  const row = (r: WorldRecord, spot: boolean, parent: WorldRecord | null): PlaceRow => {
+    const viaParent = !!parent && own.has(parent.id) && !own.has(r.id)
+    return { id: r.id, name: nameOf(r), emoji: placeKind(r.name, ...(r.aliases ?? [])).emoji, spot, parentName: parent ? nameOf(parent) : null, viaParent, hidden: own.has(r.id) || viaParent }
+  }
+  const out: PlaceRow[] = []
+  for (const root of buildPlaceTree(records, null).roots) {
+    out.push(row(root.place, false, null))
+    for (const sp of root.spots) out.push(row(sp.place, true, root.place))
+  }
+  return out
 }
 
 /** The whole places of the records (not rooms) that are active. */
@@ -433,7 +480,10 @@ export interface LevelLayout extends MapLayout { id: string }
  * region and world maps. Rooms follow their place on town-scale maps only. Returns the data with the new positions kept, and the
  * layout of each map. A map with one level behaves as before: every place is on it.
  */
-export function layoutLevels(records: WorldRecord[], data: PlaceMapData | null, hereId: string | null): { data: PlaceMapData | null; layouts: LevelLayout[] } {
+export function layoutLevels(allRecords: WorldRecord[], data: PlaceMapData | null, hereId: string | null): { data: PlaceMapData | null; layouts: LevelLayout[] } {
+  // a hidden place (and the rooms of a hidden whole place) is not laid out on any map; its position is kept for when it is shown again
+  const hid = hiddenIds(allRecords, data)
+  const records = hid.size ? allRecords.filter((r) => !hid.has(r.id)) : allRecords
   const ids = levelIds(data)
   const slices = new Map(ids.map((id) => [id, levelSlice(data, id)]))
   const scaleOf = (id: string) => levelInfo(data, id).scale

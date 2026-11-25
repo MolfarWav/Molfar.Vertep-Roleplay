@@ -18,6 +18,7 @@ import {
   MagnifyingGlass,
   Trash,
   FilmSlate,
+  SpeakerSlash,
 } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -434,6 +435,13 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
           </TabsContent>
 
           <TabsContent value="members" className="space-y-3 max-w-3xl px-3 pb-6">
+            <p
+              className={cn('text-xs', members.length > 0 && members.every((m) => (g.mutedIds ?? []).includes(m.id)) ? 'font-medium text-destructive' : 'text-muted-foreground')}
+              data-testid="group-mute-hint"
+              role={members.length > 0 && members.every((m) => (g.mutedIds ?? []).includes(m.id)) ? 'alert' : undefined}
+            >
+              {members.length > 0 && members.every((m) => (g.mutedIds ?? []).includes(m.id)) ? t('group.ed.allMuted') : t('group.ed.muteHint')}
+            </p>
             <div className="space-y-2">
               {members.map((m, idx) => {
                 const id = m.id
@@ -466,15 +474,20 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
 
                 return (
                   <div key={id} className="rounded-lg border border-border bg-card">
-                    <div className="flex items-center gap-2 p-2">
+                    <div className="flex flex-wrap items-center gap-2 p-2">
                       <img
                         src={m.avatar || DEFAULT_AVATAR}
                         alt=""
                         className="size-10 rounded-md object-cover"
                       />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                          <span className="truncate">{m.name}</span>
+                      <div className="min-w-0 flex-1 basis-36">
+                        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm font-medium">
+                          <span className={cn('min-w-0 break-words', muted && 'text-muted-foreground line-through decoration-1')}>{m.name}</span>
+                          {muted && (
+                            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-destructive/10 px-1.5 text-[10px] font-medium text-destructive" data-testid={`group-muted-${id}`}>
+                              <SpeakerSlash className="size-3" weight="fill" aria-hidden="true" />{t('group.ed.muted')}
+                            </span>
+                          )}
                           <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-group/15 px-1.5 text-[10px] font-medium tabular-nums text-group" title={t('group.ed.talkativeness')}>
                             <ChatCircleDots className="size-3" weight="fill" aria-hidden="true" />
                             <span className="sr-only">{t('group.ed.talkativeness')}: </span>{Math.round(talk * 100)}%
@@ -488,7 +501,7 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                         ) : null}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1">
+                      <div className="ml-auto flex flex-wrap items-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -513,9 +526,10 @@ export function GroupEditor({ group, onClose }: { group: Character; onClose: () 
                             id={`mute-${id}`}
                             checked={muted}
                             onCheckedChange={() => toggleMute(id)}
+                            title={t('group.ed.muteTip')}
                           />
-                          <Label htmlFor={`mute-${id}`} className="sr-only">
-                            {t('group.ed.muted')}
+                          <Label htmlFor={`mute-${id}`} className="cursor-pointer text-xs font-normal text-muted-foreground" title={t('group.ed.muteTip')}>
+                            {t('group.ed.muteLabel')}
                           </Label>
                         </div>
 
