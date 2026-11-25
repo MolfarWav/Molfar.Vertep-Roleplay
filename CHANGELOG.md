@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.157.0 (2026-11-25)
+
 - New: **hide places and rooms from the places map.** Places the World DM wrote down move onto the map as they come (an apartment's corridor, a cellar the story left), and there was no way to take them off. Pick a place and choose "Hide from all maps" in its three-dots menu (a message offers Undo), or open the gear's "Hide places..." and untick any places and rooms in one list. A hidden place stands on no map; the World book and the story keep it, and ticking it again puts it back where it stood. A whole place takes its rooms along; one room hides alone. It is shared by all maps of the chat (use "Places on this map" to take a place off one map). Stored as `placeMap.hidden` (`docs/DATA-FORMATS.md`). Files: `src/lib/place-map.ts` (`setHidden`, `hiddenIds`, `placeRows`, `layoutLevels`), `map-hidden-dialog.tsx`, `place-map.tsx`; `plugins/engine/plugin.js` keeps the field. Tests: `rp-place-map-hidden`, `rp-studio`.
 - Fixed: **a group's mute switch had no name (Molfar.Vertep#504).** On the Members tab the toggle on each member's row mutes that member, but it had only a screen-reader label and no tooltip, so switching them on to "enable" the characters muted the whole group and "Generate the scenario" failed with "the group has no active members". The switch now has a visible "Mute" label and a tooltip, a muted member shows a "Muted" mark and a struck name, a line above the list says what the switch does, and when every member is muted it says so in red. File `src/components/groups/group-editor.tsx`.
 
