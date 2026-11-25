@@ -607,6 +607,8 @@ export interface LoreEntry {
   groupWeight: number
   groupPrioritize: boolean
   sticky: number
+  /** "Stays on": once the entry's keys have hit in this chat it keeps firing for the rest of it (worked out from the chat, never stored) */
+  latch?: boolean
   cooldown: number
   delay: number
   enabled: boolean
@@ -632,7 +634,7 @@ export interface LoreEntry {
    *  the prompt engine ignores it, and it is not the `group` field (one entry fires per group). */
   folder?: string
   /** Present = a secret entry: who knows it from the start, what everyone else sees instead, and words that reveal it. */
-  secret?: { knownBy: string[]; cover: string; reveal: string[] }
+  secret?: { knownBy: string[]; cover: string; reveal: string[]; /** a happening the Dashboard sensor watches for; everyone present when it takes place learns the truth */ happens?: string }
   /** Engine fields the editor does not model (imported books), written back untouched */
   extra?: Record<string, unknown>
 }

@@ -3827,6 +3827,44 @@ function sensorSystem(cfg, vocab) {
   );
 }
 
+// ---------- watched happenings: secret lorebook entries that open on an event ----------
+const WATCH_MAX = 8;
+const WATCH_TEXT_MAX = 160;
+/**
+ * The secret entries of this chat's books that name a happening (`secret.happens`) and have not been marked as happened
+ * yet: [{ id: "<bookId>#<uid>", text }], at most WATCH_MAX. Nothing is read, asked or sent for a chat with none.
+ */
+export function watchedHappenings(fsx, meta, state) {
+  const bookIds = unique([...arr(meta && meta.lorebookIds), ...(meta && typeof meta.worldBookId === "string" ? [meta.worldBookId] : [])]).filter((id) => typeof id === "string" && CHAT_ID.test(id));
+  if (!bookIds.length) return [];
+  const done = new Set();
+  for (const s of Object.values(isObj(state && state.snapshots) ? state.snapshots : {})) for (const id of arr(isObj(s) ? s.happened : null)) done.add(str(id));
+  const out = [];
+  for (const bookId of bookIds) {
+    const book = readJson(fsx, "lorebooks/" + bookId + ".json", null);
+    if (!isObj(book)) continue;
+    for (const e of arr(book.entries)) {
+      if (!isObj(e) || e.enabled === false || !isObj(e.secret) || !Number.isFinite(e.uid)) continue;
+      const text = cut(str(e.secret.happens).replace(/\s+/g, " "), WATCH_TEXT_MAX);
+      const id = (str(book.id) || bookId) + "#" + e.uid;
+      if (text && !done.has(id)) out.push({ id, text });
+      if (out.length >= WATCH_MAX) return out;
+    }
+  }
+  return out;
+}
+
+/** The sensor's extra instruction for the watched happenings (empty when there are none). */
+export function watchText(watch) {
+  if (!arr(watch).length) return "";
+  return (
+    "\n\nWatched happenings\nAdd one more key to the JSON: \"happened\", an array of the ids below. Put in it the id of each happening that clearly took place " +
+    "in the new messages, as something that was done or that occurred in the story: not mentioned, wished for, planned, feared, joked about or denied. " +
+    "An empty array when none did. Never guess.\n" +
+    watch.map((w) => "- " + w.id + ": " + w.text).join("\n")
+  );
+}
+
 function clockLine(c, cal) {
   // a time worked out from the part of the day is not shown as a fact: the sensor would copy it as "stated"
   const exact = c.time && c.approx !== true;
@@ -6996,6 +7034,10 @@ function applySensor(ctx, out, op, model, unknownIds) {
     threads: applyThreads(ctx, out, turn),
     extra: {},
   };
+  // the watched happenings the sensor says took place: only ids it was asked about (a lorebook secret opens on them)
+  const asked = new Set(arr(ctx.watch || watchedHappenings(ctx.fsx, ctx.meta, state)).map((w) => w.id));
+  const happened = unique(arr(out.happened).map(str).filter((id) => asked.has(id)));
+  if (happened.length) snapshot.happened = happened;
   if (arr(ctx.backdrops).length || ctx.backdropDraw === true) {
     // the pick holds until the sensor names another image of the folder (or, with the picture checkbox, another place)
     const allowNew = ctx.backdropDraw === true;
@@ -7366,9 +7408,10 @@ function askSensor(host, ctx, key) {
   const model = str(ctx.cfg.sensorModel) || str(ctx.meta.model);
   // what the model is given, kept for the debug record of the second pass (building it again costs the whole scan of the replies)
   ctx.sensorText = expandNamesFor(ctx.fsx, ctx.meta, sensorUser(ctx));
+  ctx.watch = watchedHappenings(ctx.fsx, ctx.meta, ctx.state);
   host.llm.request(key, {
     ...(model ? { model } : {}),
-    systemPrompt: sensorSystem(ctx.cfg, ctx.vocab),
+    systemPrompt: sensorSystem(ctx.cfg, ctx.vocab) + watchText(ctx.watch),
     messages: [{ role: "user", content: ctx.sensorText }],
     ...callParams(ctx.fsx, ctx.cfg, ctx.meta, 0.2),
   });

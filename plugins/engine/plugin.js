@@ -2838,7 +2838,33 @@ const secretNames = (v) => [...new Set((Array.isArray(v) ? v : []).map((x) => (t
 export function secretOf(entry) {
   const s = entry && entry.secret && typeof entry.secret === "object" && !Array.isArray(entry.secret) ? entry.secret : null;
   if (!s) return null;
-  return { knownBy: secretNames(s.knownBy), cover: typeof s.cover === "string" ? s.cover.trim() : "", reveal: secretNames(s.reveal) };
+  return {
+    knownBy: secretNames(s.knownBy),
+    cover: typeof s.cover === "string" ? s.cover.trim() : "",
+    reveal: secretNames(s.reveal),
+    // a happening the Dashboard sensor watches for, in words ("Jane is made to eat a clam"); "" = none
+    happens: typeof s.happens === "string" ? s.happens.replace(/\s+/g, " ").trim().slice(0, 160) : "",
+  };
+}
+
+/**
+ * The happenings the Dashboard sensor marked as taken place, on the messages of this line: Map "<bookId>#<uid>" ->
+ * [[names present in that scene], ...]. A snapshot holds `happened: [entry keys]` and `present`; a scene with nobody listed
+ * teaches nobody (the word route is the one that falls back to the author).
+ */
+export function happenedOfLine(line, dash) {
+  const out = new Map();
+  const snaps = dash && dash.snapshots && typeof dash.snapshots === "object" ? dash.snapshots : null;
+  if (!snaps || !Array.isArray(line)) return out;
+  for (const m of line) {
+    if (!m || !m.id) continue;
+    const s = snaps[m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)];
+    if (!s || !Array.isArray(s.happened) || !Array.isArray(s.present)) continue;
+    const names = s.present.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim());
+    if (!names.length) continue;
+    for (const key of s.happened) if (typeof key === "string" && LORE_ENTRY_KEY.test(key)) out.set(key, [...(out.get(key) || []), names]);
+  }
+  return out;
 }
 
 /** Two names of one person: equal (case-blind), or the shorter is a whole-word part of the longer ("Yae Miko" in "Sugar Mommy | Yae Miko"). */
@@ -2903,7 +2929,7 @@ export function presenceOfLine(line, dash) {
  * for it (`presence`, from presenceOfLine) and its author (a message with no snapshot: the author only); manual: the
  * chat's list. A hand removal beats the other three. `match(text, word)` tests a reveal word (the scan's key matcher).
  */
-export function loreKnowers({ secret, key, line, presence, manual, userName, match }) {
+export function loreKnowers({ secret, key, line, presence, manual, userName, match, happened }) {
   const out = [];
   const removed = (manual && manual.remove && manual.remove[key]) || [];
   const push = (row) => {
@@ -2924,6 +2950,8 @@ export function loreKnowers({ secret, key, line, presence, manual, userName, mat
       for (const n of [author, ...there]) if (n && n.trim()) push({ name: n.trim(), how: "heard", word });
     }
   }
+  // the Dashboard sensor saw the happening take place: everyone in that scene learns it
+  if (secret.happens && Array.isArray(happened)) for (const names of happened) for (const n of names) push({ name: n, how: "happened", word: secret.happens });
   for (const n of (manual && manual.add && manual.add[key]) || []) push({ name: n, how: "manual" });
   return out;
 }
@@ -2976,7 +3004,7 @@ export function loreContext(fsx, meta, line, userName, voice) {
     if (base) return base;
     const ok = /^[A-Za-z0-9_-]{1,128}$/.test(chatId);
     const dash = ok ? jsonAt(fsx, "dashboard/state/" + chatId + ".json") : null;
-    base = { presence: presenceOfLine(line, dash), manual: ok ? loreKnownOf(fsx, chatId) : { add: {}, remove: {} } };
+    base = { presence: presenceOfLine(line, dash), happened: happenedOfLine(line, dash), manual: ok ? loreKnownOf(fsx, chatId) : { add: {}, remove: {} } };
     return base;
   };
   return {
@@ -2986,7 +3014,7 @@ export function loreContext(fsx, meta, line, userName, voice) {
       // the scan's own matcher: whole words, word forms and the other script, as the entry's keys use them
       const eff = { ...entry, wordForms: typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : true };
       const match = (text, word) => keyMatch(String(text).toLowerCase(), word, eff, null, String(text));
-      return loreKnowers({ secret, key, line, presence: b.presence, manual: b.manual, userName, match });
+      return loreKnowers({ secret, key, line, presence: b.presence, manual: b.manual, userName, match, happened: b.happened.get(key) });
     },
   };
 }
@@ -3208,6 +3236,30 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     }
     return wiEntryMatch(eff, sc.low, sc.raw, item.groupScoring && !!entry.group, viaVector === true, sc);
   };
+  // "Stays on" (`latch`): once an entry's keys hit in an earlier window of this chat, it stays in for the rest of it.
+  // Worked out from the chat on every scan, never stored: a swipe or an edit that removes the message that set it off
+  // ends it too, and a new chat starts from nothing. The windows replayed are the ones the entry's own scan depth
+  // would have seen at each earlier message, and the newest window is left to the ordinary key path.
+  const latchMemo = new Map();
+  const windowEnding = (end, n) => {
+    const raw = dialogue.slice(Math.max(0, end - n), end).map((m) => (includeNames && m.name ? m.name + ": " : "") + m.text).join("\n");
+    return wiScan(raw.toLowerCase(), raw);
+  };
+  const latchOf = (item) => {
+    const { entry, id } = item;
+    if (entry.latch !== true || isConstantEntry(entry)) return null;
+    if (latchMemo.has(id)) return latchMemo.get(id);
+    const n = typeof entry.scanDepthOverride === "number" && entry.scanDepthOverride > 0 ? Math.floor(entry.scanDepthOverride) : scanDepth;
+    let found = null;
+    // every window that ended before the newest message, oldest first; the first hit is the moment it set in
+    for (let end = 1; end < dialogue.length && !found; end++) {
+      const m = matchEntry(item, windowEnding(end, n), false);
+      if (m && !m.fail) found = { since: end - 1, key: m.key };
+    }
+    latchMemo.set(id, found);
+    return found;
+  };
+  const stayLive = (id) => stickyLive(id) || latchMemo.get(id) || null;
   const block = (item, reason, extra) => blocked.set(item.id, { item, reason, ...extra });
   // what an entry puts into the prompt and into recursion: a secret one its view for this speaker (#416)
   const contentOf = (x) => (x.secretV ? x.secretV.text : String(x.entry.content || ""));
@@ -3230,7 +3282,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           const constant = isConstantEntry(entry);
           // a secret the speaker does not know and that has no cover stays out, with its reason (#416)
           const filtered = filterOut(entry) || (item.secretV && item.secretV.mode === "hidden" ? { reason: "secret", detail: item.secretV.knowers.map((k) => k.name).join(", ") } : null);
-          const st = stickyLive(id);
+          const lt = !stickyLive(id) && entry.latch === true && !filtered ? latchOf(item) : null;
+          const st = stickyLive(id) || (lt ? { latch: true, since: lt.since, key: lt.key } : null);
           // held back: say why only for entries whose keys would hit now
           const wouldHit = () => constant || (() => { const m = matchEntry(item, win, firstPass); return m && !m.fail ? m : null; })();
           if (filtered) {
@@ -3260,7 +3313,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           const vecScore = vecHits.has(id) ? vecHits.get(id) : null;
           let why;
           let score = 0;
-          if (st) why = { via: "sticky" };
+          if (st) why = st.latch ? { via: "latch", since: st.since, key: st.key } : { via: "sticky" };
           else if (constant) why = { via: "constant" };
           else if (vecScore != null) {
             // a vector lets the entry past its primary keys only: the secondary keys still decide
@@ -3287,10 +3340,10 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           }
           seen.add(id);
           blocked.delete(id);
-          newly.push({ ...item, score, sticky: !!st, why: { ...why, pass: passBase + pass, depth: depthNow } });
+          newly.push({ ...item, score, sticky: !!st && !st.latch, why: { ...why, pass: passBase + pass, depth: depthNow } });
         }
         const lost = [];
-        newly = wiFilterInclusionGroups(newly, stickyLive, lost);
+        newly = wiFilterInclusionGroups(newly, stayLive, lost);
         for (const l of lost) block(l.item, "group", { detail: l.group, winner: wiTitle(l.winner.entry) });
         activated.push(...newly);
         if (!recursionOn || pass + 1 >= maxPasses) { passBase += pass + 1; break; }
@@ -3363,6 +3416,7 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
     const whyText = (() => {
       if (!why) return "";
       if (why.via === "sticky") return "sticky";
+      if (why.via === "latch") return "stays on (since message " + (why.since + 1) + ")";
       if (why.via === "constant") return "constant";
       if (why.via === "vector") return "vector (score: " + (why.score != null ? why.score : "") + ")";
       if (why.via === "key") return "key: " + why.key + (why.secondary && why.secondary.length ? "; secondary: " + why.secondary.join(", ") : "");

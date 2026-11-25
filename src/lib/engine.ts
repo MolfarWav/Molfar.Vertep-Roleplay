@@ -923,6 +923,7 @@ export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
           : {}),
         ...(e.triggerFilters.length ? { triggers: e.triggerFilters } : {}),
         ...(e.secret ? { molfar_secret: e.secret } : {}),
+        ...(e.latch ? { molfar_latch: true } : {}),
       },
     })),
   }
@@ -1271,7 +1272,9 @@ export interface WIFiredRow {
   constant: boolean
   position: string
   sticky?: boolean
-  via: 'key' | 'constant' | 'sticky' | 'vector'
+  via: 'key' | 'constant' | 'sticky' | 'vector' | 'latch'
+  /** a "stays on" row: the index of the chat message whose keys set it off */
+  since?: number
   key?: string
   secondary?: string[]
   /** vector hits: cosine score */
@@ -1656,7 +1659,7 @@ const LORE_ENTRY_KNOWN = new Set([
   'sticky', 'cooldown', 'delay', 'enabled', 'characterFilter', 'characterFilterExclude', 'tagFilter', 'triggerFilters',
   'nonRecursable', 'preventFurtherRecursion', 'ignoreBudget', 'delayUntilRecursion', 'automationId', 'matchSources',
   'scanDepthOverride', 'caseSensitiveOverride', 'caseSensitive', 'wholeWordsOverride', 'matchWholeWords',
-  'groupScoringOverride', 'wordFormsOverride', 'folder', 'secret',
+  'groupScoringOverride', 'wordFormsOverride', 'folder', 'secret', 'latch',
 ])
 const LORE_BOOK_KNOWN = new Set([
   'id', 'name', 'folderId', 'folders', 'folderTones', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
@@ -1673,7 +1676,10 @@ const cleanNames = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x
 const cleanSecret = (v: unknown): LoreEntry['secret'] => {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
   const o = v as Record<string, unknown>
-  return { knownBy: cleanNames(o.knownBy), cover: typeof o.cover === 'string' ? o.cover : '', reveal: cleanNames(o.reveal) }
+  return {
+    knownBy: cleanNames(o.knownBy), cover: typeof o.cover === 'string' ? o.cover : '', reveal: cleanNames(o.reveal),
+    ...(typeof o.happens === 'string' && o.happens.trim() ? { happens: o.happens } : {}),
+  }
 }
 const boolOrNull = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
 
@@ -1718,6 +1724,7 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
       wordFormsOverride: e.wordFormsOverride,
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
       ...(e.secret ? { secret: e.secret } : {}),
+      ...(e.latch ? { latch: true } : {}),
     })),
   }
 }
@@ -1760,6 +1767,7 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
       matchSources: (e.matchSources as LoreEntry['matchSources']) ?? { description: false, personality: false, scenario: false, persona: false },
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
       ...(cleanSecret(e.secret) ? { secret: cleanSecret(e.secret) } : {}),
+      ...(e.latch === true ? { latch: true } : {}),
       ...(extraOf(e, LORE_ENTRY_KNOWN) ? { extra: extraOf(e, LORE_ENTRY_KNOWN) } : {}),
     })),
     settings: (b.settings as Lorebook['settings']) ?? {
