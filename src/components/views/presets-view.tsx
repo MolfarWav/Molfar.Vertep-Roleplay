@@ -282,7 +282,13 @@ export function PresetsView() {
                 variant="outline"
                 size="sm"
                 className="text-xs"
-                onClick={() => { downloadJson(presetExport(preset, useApp.getState().regexScripts), `${preset.name.replace(/[^\w-]+/g, '_')}.json`); toast.success('Exported preset') }}
+                onClick={() => {
+                  // the saved setups of its Choices travel with the file (#526)
+                  void useApp.getState().loadPresetSetups().then((setups) => {
+                    downloadJson(presetExport(preset, useApp.getState().regexScripts, setups[preset.id]), `${preset.name.replace(/[^\w-]+/g, '_')}.json`)
+                    toast.success('Exported preset')
+                  })
+                }}
               >
                 <UploadSimple className="size-3.5" aria-hidden="true" />Export
               </Button>

@@ -8,6 +8,7 @@ import { useModelEntry } from '@/components/chat/model-palette'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PresetChoices, usePresetCosts, type PresetValues } from '@/components/chat/preset-choices'
+import { SetupLoader } from '@/components/chat/preset-setups'
 import { AgentOffer, useStarterOffer } from '@/components/chat/agent-offer'
 import { chatAgentsWith, markOfferShown } from '@/lib/agent-offer'
 import { installPicked } from '@/lib/agent-offer-install'
@@ -223,6 +224,7 @@ function StepDialog({ charId, greetingIndex }: { charId: ID; greetingIndex?: num
             <p className="text-[11px] text-muted-foreground">
               {costs ? t('pc.total', { n: formatTokens(costs.total) }) : t('pc.totalCounting')}
             </p>
+            {preset.variables.length > 0 && <SetupLoader preset={preset} current={values} onLoad={(picks) => { touched.current = true; setValues({ ...picks }) }} />}
           </div>
         )}
         {sets.length > 0 && (

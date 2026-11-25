@@ -473,6 +473,21 @@ export interface PresetMemory {
   vars: Record<string, string | string[]>
 }
 
+/** One named setup of a preset's Choices (Molfar.Vertep#526). An empty name is the older single default
+ *  ("My default" on screen). */
+export interface PresetSetup {
+  id: string
+  name: string
+  picks: Record<string, string | string[]>
+  at: number
+}
+
+/** A preset's saved setups; the starred one (`defaultId`) is where new chats with the preset start. */
+export interface PresetSetups {
+  items: PresetSetup[]
+  defaultId: string | null
+}
+
 export interface SamplerSettings {
   temperature: { value: number; enabled: boolean }
   top_p: { value: number; enabled: boolean }

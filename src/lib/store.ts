@@ -21,7 +21,7 @@ import type {
   Character, Chat, Message, Persona, Preset, Lorebook, QuickReplySet, RegexScript,
   Connection, Extension, ThemePreset, BackgroundItem, Tag, Folder, AppSettings,
   ConnectionProfile, DataBankFile, ID, ModelInfo, ChatBranch, ToolPart,
-  PresetChoiceBody, PresetCosts, PresetMemory, PresetFeature, GroupConfig, ChatTurns,
+  PresetChoiceBody, PresetCosts, PresetMemory, PresetSetups, PresetFeature, GroupConfig, ChatTurns,
 } from './types'
 import {
   seedThemes, defaultSettings, withBuiltinThemes,
@@ -319,6 +319,11 @@ interface AppState {
   loadPresetDefaults: () => Promise<Record<ID, Record<string, string | string[]>>>
   /** save these choices as the user's default for the preset; null forgets it */
   setPresetDefault: (presetId: ID, vars: Record<string, string | string[]> | null) => Promise<void>
+  /** the named setups of every preset's Choices (#526; null until loaded) */
+  presetSetups: Record<ID, PresetSetups> | null
+  loadPresetSetups: () => Promise<Record<ID, PresetSetups>>
+  /** replace one preset's setups; the starred one becomes the preset's default for new chats */
+  savePresetSetups: (presetId: ID, setups: PresetSetups) => Promise<boolean>
   /** Makes the group and nothing else: its editor opens next (`newGroupId` shows the first-chat banner), the first chat starts from there */
   createGroup: (name: string, memberIds: ID[]) => Promise<ID>
   /** the group whose editor shows "New group created" (cleared when the banner is dismissed or the editor closes) */
@@ -1878,6 +1883,32 @@ export const useApp = create<AppState>()(
           toast.error(String((e as Error).message ?? e))
         }
       },
+      presetSetups: null,
+      loadPresetSetups: async () => {
+        const have = get().presetSetups
+        if (have) return have
+        try {
+          const all = await j<Record<ID, PresetSetups>>('/preset-setups')
+          set({ presetSetups: all ?? {} })
+          return all ?? {}
+        } catch { return {} }
+      },
+      savePresetSetups: async (presetId, setups) => {
+        try {
+          const all = (await j<Record<ID, PresetSetups>>(`/preset-setups/${encodeURIComponent(presetId)}`, { method: 'PUT', body: JSON.stringify(setups) })) ?? {}
+          // the starred setup is the preset's default for new chats: keep the new-chat step's copy in step
+          const defaults: Record<ID, Record<string, string | string[]>> = {}
+          for (const [pid, v] of Object.entries(all)) {
+            const star = v.items.find((x) => x.id === v.defaultId)
+            if (star) defaults[pid] = star.picks
+          }
+          set({ presetSetups: all, presetDefaults: defaults })
+          return true
+        } catch (e) {
+          toast.error(String((e as Error).message ?? e))
+          return false
+        }
+      },
       newChat: async (charId, greetingIndex = 0, opts) => {
         const { personas, model } = get()
         const char = get().characters.find((c) => c.id === charId)
@@ -2113,6 +2144,11 @@ export const useApp = create<AppState>()(
           await j('/regex/batch', { method: 'POST', body: JSON.stringify({ items }) })
         }
         if (scripts.length) set((s) => ({ regexScripts: [...s.regexScripts, ...scripts] }))
+        // setups of the Choices that came with the file (#526) belong to the new preset
+        if (imported.setups.items.length) {
+          await get().loadPresetSetups()
+          await get().savePresetSetups(preset.id, imported.setups)
+        }
         return { preset, scripts: scripts.length, report }
       },
       postPicture: async (chatId, image) => {
