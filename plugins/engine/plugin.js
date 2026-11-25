@@ -3914,7 +3914,12 @@ function cleanPlaceMapMeta(v) {
     }
     if (Object.keys(icons).length) out.icons = icons;
   }
-  return Object.keys(out.nodes).length || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null;
+  // places the player hid from every map
+  if (Array.isArray(v.hidden)) {
+    const hidden = [...new Set(v.hidden.filter((id) => str(id) && id.length <= 80))].slice(0, 200);
+    if (hidden.length) out.hidden = hidden;
+  }
+  return Object.keys(out.nodes).length || out.hidden || out.routes.length || out.picture || out.at || out.here || out.labels || out.icons || out.levels || out.name || out.scale ? out : null;
 }
 
 function cleanTurns(t) {
