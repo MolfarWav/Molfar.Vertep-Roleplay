@@ -13,7 +13,7 @@ import type { T } from '@/components/memory/trace-parts'
 /** One person who knows an entry, and how they came to: from the start, heard a reveal word, or added by hand. */
 export interface LoreKnower {
   name: string
-  how: 'start' | 'heard' | 'manual'
+  how: 'start' | 'heard' | 'happened' | 'manual'
   word?: string
 }
 export interface LoreKnownEntry {
@@ -51,7 +51,7 @@ function EntryBlock({ entry, people, busy, onOp, t }: {
     await onOp(entry.key, who, 'add')
     setDraft('')
   }
-  const how = (k: LoreKnower) => (k.how === 'start' ? t('fired.secrets.start') : k.how === 'heard' ? t('fired.secrets.heard', { word: k.word ?? '' }) : t('fired.secrets.manual'))
+  const how = (k: LoreKnower) => (k.how === 'start' ? t('fired.secrets.start') : k.how === 'heard' ? t('fired.secrets.heard', { word: k.word ?? '' }) : k.how === 'happened' ? t('fired.secrets.happened', { what: k.word ?? '' }) : t('fired.secrets.manual'))
   return (
     <li className="flex flex-col gap-2 px-3 py-3" data-testid="fired-secret-entry">
       <div className="min-w-0">

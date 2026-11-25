@@ -16,7 +16,7 @@ const quote = (s: string) => `“${s}”`
 /** How close a hit by meaning was, 0 to 1, as the panels show it (two decimals). */
 export const scoreText = (score: number | undefined): string => (typeof score === 'number' ? score.toFixed(2) : '–')
 
-const VIA_TONE: Record<WIFiredRow['via'], ToneName> = { key: 'sky', vector: 'violet', sticky: 'pink', constant: 'amber' }
+const VIA_TONE: Record<WIFiredRow['via'], ToneName> = { key: 'sky', vector: 'violet', sticky: 'pink', latch: 'pink', constant: 'amber' }
 
 function ViaChip({ tone, children }: { tone: ToneName; children: React.ReactNode }) {
   return <span className={cn('inline-flex h-5 max-w-full items-center gap-1 rounded-full border px-1.5 text-caption font-medium', TONES[tone].chip)}>{children}</span>
@@ -33,6 +33,7 @@ export function WhyChips({ r }: { r: WIFiredRow }) {
       <ViaChip tone={tone}>
         {r.via === 'key' ? t('lore.why.key', { key: r.key ?? '' }) : null}
         {r.via === 'sticky' ? t('lore.why.sticky') : null}
+        {r.via === 'latch' ? t('lore.why.latch', { n: (r.since ?? 0) + 1 }) : null}
         {r.via === 'constant' ? t('lore.why.constant') : null}
         {r.via === 'vector' ? (
           <>

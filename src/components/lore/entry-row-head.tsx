@@ -29,7 +29,8 @@ export function EntryRowHead({ e, open, selecting, checked, onCheck, onToggle, o
   const posLabel = pos === 'at_depth' ? t('lore.posShort.at_depth', { n: e.depth }) : t(POSITION_SHORT_KEY[pos] ?? 'lore.posShort.before_char')
   const hasFilter = e.characterFilter.length > 0 || e.tagFilter.length > 0 || e.triggerFilters.length > 0
   const waits = typeof e.delayUntilRecursion === 'number' ? e.delayUntilRecursion : e.delayUntilRecursion ? 1 : 0
-  const timed: { icon: typeof PushPin; n: number; tip: string }[] = [
+  const timed: { icon: typeof PushPin; n: number | string; tip: string }[] = [
+    ...(e.latch ? [{ icon: PushPin, n: '∞', tip: t('lore.badge.latch') }] : []),
     ...(e.sticky > 0 ? [{ icon: PushPin, n: e.sticky, tip: t('lore.badge.sticky', { n: e.sticky }) }] : []),
     ...(e.cooldown > 0 ? [{ icon: Snowflake, n: e.cooldown, tip: t('lore.badge.cooldown', { n: e.cooldown }) }] : []),
     ...(e.delay > 0 ? [{ icon: ClockCountdown, n: e.delay, tip: t('lore.badge.delay', { n: e.delay }) }] : []),

@@ -85,7 +85,7 @@ export function loreGroups(last: FiredLast): LoreGroups {
   return {
     vector: by('vector').sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
     key: by('key'),
-    sticky: by('sticky'),
+    sticky: [...by('sticky'), ...by('latch')],
     constant: by('constant'),
     held: last.blocked,
     cut: last.skipped,

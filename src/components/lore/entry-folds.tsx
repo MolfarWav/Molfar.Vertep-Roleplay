@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
@@ -60,6 +61,10 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
     }
     onChange({ secret: undefined })
   }
+
+  /** A trait the character does not know about themself yet: nobody knows it, and an entry with no keys is always on, so it
+   *  does not wait for the character's name to be in the last messages. The words that set it off are added next. */
+  const startTrait = () => onChange({ secret: { knownBy: [], cover: '', reveal: [] }, ...(e.keys.length === 0 ? { status: 'constant' as const } : {}) })
 
   const position = canonicalPosition(e.position) as EntryPosition
   const atDepth = position === 'at_depth'
@@ -203,6 +208,10 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
         <SettingRow label={t('lore.ed.secretSwitch')} info={t('lore.ed.secretInfo')}>
           <Switch tone="cta" checked={!!secret} onCheckedChange={(v) => void setSecretOn(v)} aria-label={t('lore.ed.secretSwitch')} />
         </SettingRow>
+        {!secret && block(t('lore.ed.traitTitle'),
+          <Button type="button" variant="outline" size="sm" className="self-start max-md:h-10" onClick={startTrait}>{t('lore.ed.traitStart')}</Button>,
+          t('lore.ed.traitHint'),
+        )}
         {secret && block(t('lore.ed.secretKnownBy'),
           <KeyChips
             id={`lore-secret-known-${e.id}`}
@@ -235,6 +244,17 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
           />,
           t('lore.ed.secretRevealHint'),
         )}
+        {secret && block(t('lore.ed.secretHappens'),
+          <Input
+            id={`lore-secret-happens-${e.id}`}
+            value={secret.happens ?? ''}
+            onChange={(ev) => onChange({ secret: { ...secret, happens: ev.target.value } })}
+            placeholder={t('lore.ed.secretHappensPlaceholder')}
+            aria-label={t('lore.ed.secretHappens')}
+            className="h-8 text-body max-md:h-10"
+          />,
+          t('lore.ed.secretHappensHint'),
+        )}
         {confirmDialog}
       </Fold>
 
@@ -242,8 +262,9 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
         id="lore-entry-stays"
         title={t('lore.ed.stays')}
         tone="teal"
-        summary={staysSummary({ sticky: e.sticky, cooldown: e.cooldown, delay: e.delay }, t)}
+        summary={staysSummary({ sticky: e.sticky, latch: e.latch, cooldown: e.cooldown, delay: e.delay }, t)}
       >
+        {swRow(t('lore.ed.latch'), !!e.latch, (v) => onChange({ latch: v || undefined }), t('lore.ed.latchHint'))}
         {numRow(t('lore.ed.sticky'), e.sticky, 0, 10000, (v) => onChange({ sticky: v }), t('lore.ed.stickyHint'))}
         {numRow(t('lore.ed.cooldown'), e.cooldown, 0, 10000, (v) => onChange({ cooldown: v }), t('lore.ed.cooldownHint'))}
         {numRow(t('lore.ed.delay'), e.delay, 0, 10000, (v) => onChange({ delay: v }), t('lore.ed.delayHint'))}

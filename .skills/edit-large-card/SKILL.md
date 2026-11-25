@@ -20,11 +20,13 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - Group: `apps/roleplay/data/groups/<id>.json` (not a card: members, shared scenario,
   openings, per-member settings, the group's own books; fields in DATA-FORMATS, "Groups").
 - Files starting with `_` are AI-only templates: copy, never edit.
-- A lorebook entry may be secret: `"secret": { "knownBy": [names], "cover": "what the others see", "reveal": [words] }`
+- A lorebook entry may be secret: `"secret": { "knownBy": [names], "cover": "what the others see", "reveal": [words], "happens": "one sentence" }`
   (DATA-FORMATS, "Entry fields"). A character who does not know it gets `cover` instead of `content` (nothing when
   `cover` is empty); a narrator gets the truth with a marker. Who knows grows in the chat by itself (a `reveal` word said
   while they are present) or by hand in the chat's What fired panel: never write `lore-known/` files yourself. Use it for a
   hidden identity or the true nature of a thing ("the old dagger" is the Soul-eater); keep `content` the truth.
+  `happens` (optional, one short sentence such as "Jane is made to eat a clam") is a happening the Dashboard sensor watches for: when it says it took place, everyone in the scene learns the truth. A trait a character does not know about themself yet is a secret with an empty `knownBy`, no cover, `status: "constant"`, and a narrow `reveal` phrase or a `happens` sentence.
+- `"latch": true` on an entry: once its keys have hit in a chat it keeps firing for the rest of that chat (the entry needs keys). Use it for a fact that must not drop out of the prompt once the story has reached it.
 - A book with `ownerChatId` (`world-<chatId>.json`) is one chat's world book, kept by the World DM:
   never link it to a card or remove that field. Its records live in `data/world/state/<chatId>.json`
   (DATA-FORMATS, "World DM"); entries with a `world:` memo are rewritten from there on the next run.

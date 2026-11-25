@@ -142,24 +142,27 @@ export function onlyWhenSummary(i: OnlyWhenInput, tr: Tr): string {
 }
 
 /** "Off", or "2 know · cover · 1 word" for a secret entry (an empty part is left out). */
-export function secretSummary(s: { knownBy: string[]; cover: string; reveal: string[] } | undefined, tr: Tr): string {
+export function secretSummary(s: { knownBy: string[]; cover: string; reveal: string[]; happens?: string } | undefined, tr: Tr): string {
   if (!s) return tr('lore.sum.secretOff')
   const parts = [tr('lore.sum.secretKnow', { n: s.knownBy.length })]
   if (s.cover.trim()) parts.push(tr('lore.sum.secretCover'))
   if (s.reveal.length > 0) parts.push(tr('lore.sum.secretWords', { n: s.reveal.length }))
+  if (s.happens?.trim()) parts.push(tr('lore.sum.secretEvent'))
   return parts.join(SEP)
 }
 
 export interface StaysInput {
   sticky: number
+  /** "stays on" for the rest of the chat once the keys have hit */
+  latch?: boolean
   cooldown: number
   delay: number
 }
 
-/** "sticky 3 · no cooldown · no delay" */
+/** "sticky 3 · no cooldown · no delay"; an entry that stays on for good says so in place of the sticky part */
 export function staysSummary(i: StaysInput, tr: Tr): string {
   return [
-    i.sticky > 0 ? tr('lore.sum.sticky', { n: i.sticky }) : tr('lore.sum.noSticky'),
+    i.latch ? tr('lore.sum.latch') : i.sticky > 0 ? tr('lore.sum.sticky', { n: i.sticky }) : tr('lore.sum.noSticky'),
     i.cooldown > 0 ? tr('lore.sum.cooldown', { n: i.cooldown }) : tr('lore.sum.noCooldown'),
     i.delay > 0 ? tr('lore.sum.delay', { n: i.delay }) : tr('lore.sum.noDelay'),
   ].join(SEP)
