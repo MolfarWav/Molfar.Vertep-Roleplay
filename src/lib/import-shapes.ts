@@ -581,17 +581,15 @@ function notePresetSettings(d: WirePresetJson, report: ImportReport, reasoning: 
   note(report, 'dropped', 'settings', left.length, left)
 }
 
-/** Macros: the ones that map one to one are rewritten (see rewriteMacros), ST's scoped variables are
- *  counted, and every other macro this app does not expand is listed (its text stays as written).
+/** Macros: the ones that map one to one are rewritten (see rewriteMacros), and every other macro this
+ *  app does not expand is listed (its text stays as written).
  *  {{summary}} is empty here: the story memory is Litopys. */
 function readMacros(sections: PromptSection[], library: PromptSection[], variables: Preset['variables'], d: WirePresetJson, report: ImportReport) {
   const total = { noop: 0, globals: 0 }
-  const assigned = new Set<string>()
   const fix = (s: PromptSection): PromptSection => {
     const r = rewriteMacros(s.content)
     total.noop += r.noop
     total.globals += r.globals
-    r.assigned.forEach((n) => assigned.add(n))
     return r.text === s.content ? s : { ...s, content: r.text }
   }
   const outSections = sections.map(fix)
@@ -601,7 +599,6 @@ function readMacros(sections: PromptSection[], library: PromptSection[], variabl
   const unsupported = scanMacros(texts, variables.map((v) => v.name))
   note(report, 'approx', 'noopMacro', total.noop)
   note(report, 'approx', 'globalVars', total.globals)
-  note(report, 'approx', 'localVars', assigned.size, [...assigned])
   if (texts.some((t) => /\{\{\s*summary\s*\}\}/i.test(t))) note(report, 'approx', 'summaryMacro', 1)
   note(report, 'dropped', 'macros', unsupported.length, unsupported.map((u) => `{{${u.name}}} x${u.count}`))
   return { sections: outSections, library: outLibrary }

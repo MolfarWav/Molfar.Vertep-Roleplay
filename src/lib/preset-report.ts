@@ -35,6 +35,8 @@ const SUPPORTED_MACROS = new Set([
   'user', 'char', 'persona', 'description', 'personality', 'scenario', 'time', 'isotime', 'date', 'isodate', 'weekday',
   'lastmessage', 'lastusermessage', 'lastcharmessage', 'idle_duration', 'words', 'limit', 'trim', 'newline',
   'getvar', 'setvar', 'addvar', 'incvar', 'decvar', 'random', 'pick', 'roll', 'var', '//', '#if', '/if', 'else',
+  // SillyTavern's block form of setvar and its {{if}} without "#" (#516)
+  '#setvar', '/setvar', 'if',
   // expands to nothing here: the story memory is Litopys
   'summary',
 ])
@@ -73,21 +75,18 @@ export interface MacroRewrite {
   noop: number
   /** {{setglobalvar::x::v}} and friends turned into the chat variable macros */
   globals: number
-  /** names of ST local/global variables ({{.x = v}}, {{$x = v}}) whose assignment was removed */
-  assigned: string[]
 }
 
 /**
  * Macros that map one to one, so they work here instead of leaking into the prompt as text:
- * {{noop}} is nothing; {{setglobalvar}} and the other global-variable macros are chat variables here;
- * an assignment to an ST scoped variable ({{.x = v}}) is dropped (those variables live for one prompt
- * build; a {{#if .x}} that reads one reads "not set", and a {{#if !.x}} passes).
+ * {{noop}} is nothing; {{setglobalvar}} and the other global-variable macros are chat variables here.
+ * SillyTavern's variable shorthand ({{.x}}, {{.x = v}}, {{#if .x}}, `$` for globals) stays as written:
+ * the engine runs it on the chat's variables (Molfar.Vertep#516; it was removed on import before).
  */
 export function rewriteMacros(text: string): MacroRewrite {
-  const r: MacroRewrite = { text, noop: 0, globals: 0, assigned: [] }
+  const r: MacroRewrite = { text, noop: 0, globals: 0 }
   r.text = r.text.replace(/\{\{\s*noop\s*\}\}/gi, () => { r.noop++; return '' })
   r.text = r.text.replace(/\{\{(\s*)(set|get|add|inc|dec)globalvar(?=::)/gi, (_, sp: string, op: string) => { r.globals++; return `{{${sp}${op}var` })
-  r.text = r.text.replace(/\{\{\s*[.$]([\w.-]+)\s*(?:[-+*/]?=|\+\+|--)[^{}]*\}\}/g, (_, name: string) => { r.assigned.push(name); return '' })
   return r
 }
 

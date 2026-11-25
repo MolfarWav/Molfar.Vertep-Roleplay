@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { presetImportFull, presetImport, regexImport, regexScriptsOf } from "../src/lib/import-shapes.js";
 import { buildDefaultPreset } from "../src/lib/seed.js";
-import { expandIfBlocks } from "../plugins/engine/plugin.js";
+import { expandIfBlocks, expandMacros } from "../plugins/engine/plugin.js";
 
 const P = (name: string, content = "", extra: Record<string, unknown> = {}) => ({ identifier: "id_" + name, name, role: "system", content, ...extra });
 const order = (prompts: { identifier: string }[], off: string[] = []) => [
@@ -214,15 +214,17 @@ describe("step 4: macros", () => {
     expect(r.report.dropped.find((i) => i.id === "macros")).toBeUndefined();
   });
 
-  it("ST scoped variables: the assignment is removed (no leak into the prompt), the condition still passes", () => {
-    const text = "{{#if !.pick_pacing}}\n{{.pick_pacing = adaptive}}\n{{.pacing = on}}{{trim}}\nKeep moving.\n{{/if}}";
+  it("ST's variable shorthand stays as written and the engine runs it on the chat's variables (#516)", () => {
+    const text = "{{#if !.pick_pacing}}\n{{.pick_pacing = adaptive}}\n{{.pacing = on}}{{trim}}\nKeep moving.\n{{/if}}[{{.pick_pacing}}]";
     const r = withText(text);
     const out = r.preset.sections[0]!.content;
-    expect(out).not.toContain(".pick_pacing =");
-    expect(out).toContain("Keep moving.");
-    expect(r.report.approx.find((i) => i.id === "localVars")).toMatchObject({ n: 2, names: ["pick_pacing", "pacing"] });
+    expect(out).toBe(text);
+    expect(r.report.approx.find((i) => i.id === "localVars")).toBeUndefined();
     expect(r.report.dropped.find((i) => i.id === "macros")).toBeUndefined();
-    expect(expandIfBlocks(out, () => undefined)).toContain("Keep moving.");
+    const vars: Record<string, string> = {};
+    // SillyTavern's {{#if}} keeps its whitespace ("#" is its preserve-whitespace flag)
+    expect(expandMacros(out, { userName: "U", charName: "C", vars }).replace(/\s+/g, " ").trim()).toBe("Keep moving. [adaptive]");
+    expect(vars).toEqual({ pick_pacing: "adaptive", pacing: "on" });
   });
 
   it("the preset's own variables and {{summary}} are not reported as unknown", () => {
