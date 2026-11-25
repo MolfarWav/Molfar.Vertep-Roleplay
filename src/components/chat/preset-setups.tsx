@@ -110,7 +110,7 @@ export function PresetSetupsBlock({ preset, current, onLoad }: { preset: Preset;
                   <>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{label(x)}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block text-xs leading-snug text-muted-foreground line-clamp-2">
                         {[starred ? t('pc.setups.starred') : '', inChat ? t('pc.setups.inChat') : '', !starred && !inChat ? t('pc.setups.count', { n }) : ''].filter(Boolean).join(' · ')}
                       </span>
                     </span>
