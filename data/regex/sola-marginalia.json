@@ -1,0 +1,21 @@
+{
+  "id": "sola-marginalia",
+  "scriptName": "Sola · Marginalia",
+  "findRegex": "<sola_footnote>\\s*([\\s\\S]*?)\\s*<\\/sola_footnote>",
+  "replaceString": "<div class=\"sola-fn\">$1</div>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2007
+}

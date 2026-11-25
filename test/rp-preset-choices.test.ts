@@ -709,3 +709,68 @@ describe("built-in Vertep Medium", () => {
     expect(eng.onAppUpdate({ from: "4.114.0", to: "4.114.1" }, h()).upgraded as string[]).not.toContain("presets/vertep-medium.json");
   });
 });
+
+describe("built-in Sola V5 Flame (Vertep)", () => {
+  const shipped = path.join(import.meta.dir, "..", "data");
+  const rd = (rel: string) => JSON.parse(fs.readFileSync(path.join(shipped, rel), "utf8"));
+
+  it("ships as a preset and as the update template, identical, read-only, credited, with its regex scripts scoped to it", () => {
+    const a = fs.readFileSync(path.join(shipped, "presets", "sola.json"), "utf8");
+    expect(fs.readFileSync(path.join(shipped, "presets", "_sola.json"), "utf8")).toBe(a);
+    const p = JSON.parse(a);
+    expect(p.id).toBe("sola");
+    expect(p.studio.id).toBe("sola");
+    expect(p.studio.readOnly).toBe(true);
+    expect(p.studio.isDefault).toBe(false);
+    // the author's credit travels with the preset
+    expect(p.studio.description).toContain("Pyrxpia");
+    expect(p.studio.description).toContain("https://pyrxpia.github.io/sola-hub/");
+    // the sheet Sola leaves in a reply goes into the thinking block through these tags
+    expect(p.reasoningTags).toEqual({ open: "<plan>", close: "</plan>" });
+    const bundle = rd("_sola-regex.json");
+    expect(bundle.scripts.length).toBeGreaterThan(10);
+    for (const s of bundle.scripts) {
+      expect(s.id).toMatch(/^sola-[a-z0-9-]+$/);
+      expect(s.scope).toBe("preset");
+      expect(s.scopeTargetId).toBe("sola");
+      expect(rd(`regex/${s.id}.json`)).toEqual(s);
+    }
+    // the helpers (Dashboard sensor, Litopys) read the story through scripts that delete with no depth limit:
+    // Sola's HUD, chatterbox and footnotes must be among them, so no helper takes her asides as story
+    const forHelpers = bundle.scripts.filter((s: any) => s.promptOnly && s.replaceString === "" && s.minDepth == null && s.maxDepth == null);
+    for (const tag of ["sola_hud", "chatterbox", "sola_footnote"]) expect(forHelpers.some((s: any) => s.findRegex.includes(tag))).toBe(true);
+  });
+
+  it("every macro in the preset is one the engine reads, with no SillyTavern variable left over", () => {
+    const p = rd("presets/sola.json");
+    const text = p.studio.sections.map((s: { content?: string }) => s.content ?? "").join("\n");
+    expect(text).not.toMatch(/\{\{\s*(?:set|get)var::/);
+    expect(text).not.toMatch(/\{\{#setvar/);
+    const pv = eng.resolvePresetVars(p, {});
+    const features = { litopys: true, memories: true, castknowledge: true, hiddenplan: false, dashboard: true, world: true, worldnews: true, dice: true, life: true, authornote: false };
+    for (const s of p.studio.sections) {
+      if (!s.content) continue;
+      const out = eng.expandMacros(s.content, { userName: "Taras", charName: "Odarka", presetVars: pv, features, vars: {} });
+      expect(out, s.name).not.toMatch(/\{\{|\}\}/);
+    }
+  });
+
+  it("an update from before 4.160.0 adds the preset and the scripts when missing, and keeps what the user has", () => {
+    fs.mkdirSync(path.join(root, "regex"), { recursive: true });
+    fs.copyFileSync(path.join(shipped, "presets", "_sola.json"), path.join(root, "presets", "_sola.json"));
+    fs.copyFileSync(path.join(shipped, "_sola-regex.json"), path.join(root, "_sola-regex.json"));
+    const up = eng.onAppUpdate({ from: "4.159.0", to: "4.160.0" }, h()).upgraded as string[];
+    expect(up).toContain("presets/sola.json");
+    expect(up).toContain("regex/sola-hud-panel.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "presets", "sola.json"), "utf8"))).toEqual(rd("presets/sola.json"));
+    // a script the user changed stays; a second update adds nothing
+    const mine = { ...rd("regex/sola-hud-panel.json"), disabled: true };
+    fs.writeFileSync(path.join(root, "regex", "sola-hud-panel.json"), JSON.stringify(mine));
+    const again = eng.onAppUpdate({ from: "4.159.0", to: "4.160.0" }, h()).upgraded as string[];
+    expect(again).not.toContain("regex/sola-hud-panel.json");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "regex", "sola-hud-panel.json"), "utf8"))).toEqual(mine);
+    // an update from 4.160.0 on does not bring a deleted preset back
+    fs.rmSync(path.join(root, "presets", "sola.json"));
+    expect(eng.onAppUpdate({ from: "4.160.0", to: "4.160.1" }, h()).upgraded as string[]).not.toContain("presets/sola.json");
+  });
+});

@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-old-named-colour-tags",
+  "scriptName": "Sola · prompt: old named colour tags",
+  "findRegex": "<\\/?(?:marigold|amber|cider|coral|honey|rust|ochre|moss|denim|indigo|heather|ash|pine|teal|periwinkle|amethyst|crimson|cerise|orchid|violet|sapphire|ocean|emerald|jade|sunflower|lemon|magenta|cyan|turquoise|aquamarine|mint|lime|copper|slate|mist|steel)(?::[^\\s>]*)?\\s*>",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 10,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2022
+}

@@ -1,0 +1,21 @@
+{
+  "id": "sola-interactive-mechanics-hovers",
+  "scriptName": "Sola · Interactive Mechanics: hovers",
+  "findRegex": "<(subtext|tell|lore|translate|sense)\\s+(?:thought|note|entry|meaning)\\s*=\\s*\"([^\"]*)\"\\s*>([\\s\\S]*?)<\\/\\1>",
+  "replaceString": "<span class=\"sola-im\">$3<span class=\"sola-im-r\"> ⟨$2⟩</span></span>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2008
+}

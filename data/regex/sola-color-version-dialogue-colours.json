@@ -1,0 +1,21 @@
+{
+  "id": "sola-color-version-dialogue-colours",
+  "scriptName": "Sola · Color Version: dialogue colours",
+  "findRegex": "<font\\s+color\\s*=\\s*[\"']?(#[0-9a-fA-F]{3,8})[\"']?\\s*>([\\s\\S]*?)<\\/font>",
+  "replaceString": "<span class=\"sola-c\" style=\"--sola-c:$1\">$2</span>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2010
+}

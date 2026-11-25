@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-cot-sheet-left-in-a-reply",
+  "scriptName": "Sola · prompt: CoT sheet left in a reply",
+  "findRegex": "^\\s*((?:[^\\n]{0,200}\\n){0,3}?[ \\t]*\\**ASK\\**:\\**[\\s\\S]*?\\n[ \\t]*\\**ANCHORS\\**:\\**[^\\n]*(?:\\n[ \\t]*\\**(?:OPEN|FOCUS|YIELD)\\**:[^\\n]*)*)(?:\\s*\\n[ \\t]*(?:-{3,}|\\*{3,}|_{3,})[ \\t]*(?=\\n))?",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2015
+}

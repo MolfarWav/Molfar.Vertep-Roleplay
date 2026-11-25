@@ -1,0 +1,509 @@
+{
+  "_note": "Regex scripts of the built-in Sola V5 Flame (Vertep) preset: they draw Sola's HUD, Chatterbox, footnotes, hover tags, dialogue colours and dynamic styling on screen, fold a thinking sheet left in a reply, and keep those blocks out of the prompt and of the helpers' reading of the story. The app update writes each one to regex/<id>.json when that file is missing.",
+  "scripts": [
+    {
+      "id": "sola-cot-sheet-left-in-the-reply-fold",
+      "scriptName": "Sola · CoT: sheet left in the reply (fold)",
+      "findRegex": "^\\s*((?:[^\\n]{0,200}\\n){0,3}?[ \\t]*\\**ASK\\**:\\**[\\s\\S]*?\\n[ \\t]*\\**ANCHORS\\**:\\**[^\\n]*(?:\\n[ \\t]*\\**(?:OPEN|FOCUS|YIELD)\\**:[^\\n]*)*)(?:\\s*\\n[ \\t]*(?:-{3,}|\\*{3,}|_{3,})[ \\t]*(?=\\n))?",
+      "replaceString": "<details class=\"sola-sheet\"><summary>📝 Sola's sheet</summary>\n\n$1\n\n</details>\n\n",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2000
+    },
+    {
+      "id": "sola-hud-story-movement",
+      "scriptName": "Sola · HUD: Story Movement",
+      "findRegex": "<tempo>\\s*([A-Za-z]+)\\s*(?:Sola'?s Note:\\s*)?([\\s\\S]*?)\\s*<\\/tempo>",
+      "replaceString": "<div class=\"sola-hud-row\"><span class=\"sola-hud-tag\">$1</span>$2</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2001
+    },
+    {
+      "id": "sola-hud-notebook",
+      "scriptName": "Sola · HUD: Notebook",
+      "findRegex": "<story_notes>\\s*([\\s\\S]*?)\\s*<\\/story_notes>",
+      "replaceString": "<div class=\"sola-hud-row\"><span class=\"sola-hud-tag\">Notebook</span>$1</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2002
+    },
+    {
+      "id": "sola-hud-panel",
+      "scriptName": "Sola · HUD: panel",
+      "findRegex": "<sola_hud[^>]*>\\s*([\\s\\S]*?)\\s*<\\/sola_hud>",
+      "replaceString": "<details class=\"sola-hud\"><summary>☀ Sola's HUD</summary>$1</details>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2003
+    },
+    {
+      "id": "sola-chatterbox-your-texts",
+      "scriptName": "Sola · Chatterbox: your texts",
+      "findRegex": "<user_text[^>]*>\\s*([\\s\\S]*?)\\s*<\\/user_text>",
+      "replaceString": "<div class=\"sola-cb-u\">$1</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2004
+    },
+    {
+      "id": "sola-chatterbox-her-texts",
+      "scriptName": "Sola · Chatterbox: her texts",
+      "findRegex": "<sola_text[^>]*>\\s*([\\s\\S]*?)\\s*<\\/sola_text>",
+      "replaceString": "<div class=\"sola-cb-s\">$1</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2005
+    },
+    {
+      "id": "sola-chatterbox-fold",
+      "scriptName": "Sola · Chatterbox: fold",
+      "findRegex": "<chatterbox\\b[^>]*>\\s*([\\s\\S]*?)\\s*<\\/chatterbox>",
+      "replaceString": "<details class=\"sola-cb\"><summary>💬 Sola</summary>$1</details>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2006
+    },
+    {
+      "id": "sola-marginalia",
+      "scriptName": "Sola · Marginalia",
+      "findRegex": "<sola_footnote>\\s*([\\s\\S]*?)\\s*<\\/sola_footnote>",
+      "replaceString": "<div class=\"sola-fn\">$1</div>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2007
+    },
+    {
+      "id": "sola-interactive-mechanics-hovers",
+      "scriptName": "Sola · Interactive Mechanics: hovers",
+      "findRegex": "<(subtext|tell|lore|translate|sense)\\s+(?:thought|note|entry|meaning)\\s*=\\s*\"([^\"]*)\"\\s*>([\\s\\S]*?)<\\/\\1>",
+      "replaceString": "<span class=\"sola-im\">$3<span class=\"sola-im-r\"> ⟨$2⟩</span></span>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2008
+    },
+    {
+      "id": "sola-interactive-mechanics-retract",
+      "scriptName": "Sola · Interactive Mechanics: retract",
+      "findRegex": "<retract>([\\s\\S]*?)<\\/retract>",
+      "replaceString": "<s class=\"sola-retract\">$1</s>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2009
+    },
+    {
+      "id": "sola-color-version-dialogue-colours",
+      "scriptName": "Sola · Color Version: dialogue colours",
+      "findRegex": "<font\\s+color\\s*=\\s*[\"']?(#[0-9a-fA-F]{3,8})[\"']?\\s*>([\\s\\S]*?)<\\/font>",
+      "replaceString": "<span class=\"sola-c\" style=\"--sola-c:$1\">$2</span>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2010
+    },
+    {
+      "id": "sola-dynamic-styling-gradients-tones-motion",
+      "scriptName": "Sola · Dynamic styling: gradients, tones, motion",
+      "findRegex": "<(solstice|dusk|hearth|eclipse|wildwood|mistveil|whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float)(?::(whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float|left|right))?(?::(-?\\d{1,2}))?(?:\\s+deg\\s*=\\s*\"?(-?\\d{1,2})\"?)?\\s*>([\\s\\S]*?)<\\/\\1(?::[^>]*)?>",
+      "replaceString": "<span class=\"sola-fx sola-k-$1 sola-k-$2\" style=\"--tilt:$3$4\">$5</span>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2011
+    },
+    {
+      "id": "sola-dynamic-styling-nested-tags-second-pass",
+      "scriptName": "Sola · Dynamic styling: nested tags (second pass)",
+      "findRegex": "<(solstice|dusk|hearth|eclipse|wildwood|mistveil|whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float)(?::(whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float|left|right))?(?::(-?\\d{1,2}))?(?:\\s+deg\\s*=\\s*\"?(-?\\d{1,2})\"?)?\\s*>([\\s\\S]*?)<\\/\\1(?::[^>]*)?>",
+      "replaceString": "<span class=\"sola-fx sola-k-$1 sola-k-$2\" style=\"--tilt:$3$4\">$5</span>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2012
+    },
+    {
+      "id": "sola-dynamic-styling-named-colours",
+      "scriptName": "Sola · Dynamic styling: named colours",
+      "findRegex": "<(marigold|amber|cider|coral|honey|rust|ochre|moss|denim|indigo|heather|ash|pine|teal|periwinkle|amethyst|crimson|cerise|orchid|violet|sapphire|ocean|emerald|jade|sunflower|lemon|magenta|cyan|turquoise|aquamarine|mint|lime|copper|slate|mist|steel)(?::(whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float|left|right))?(?::(-?\\d{1,2}))?\\s*>([\\s\\S]*?)<\\/\\1(?::[^>]*)?>",
+      "replaceString": "<span class=\"sola-fx sola-c sola-n-$1 sola-k-$2\" style=\"--tilt:$3\">$4</span>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2013
+    },
+    {
+      "id": "sola-styles",
+      "scriptName": "Sola · styles",
+      "findRegex": "^([\\s\\S]*class=\"sola-[\\s\\S]*)$",
+      "replaceString": "$1\n\n<style>.sola-hud,.sola-cb{margin:.9em 0 0;border:1px solid color-mix(in srgb,currentColor 22%,transparent);border-radius:10px;padding:.35em .75em;font-size:.92em}.sola-hud>summary,.sola-cb>summary{cursor:pointer;opacity:.75;font-size:.9em;letter-spacing:.04em}.sola-sheet{margin:0 0 .9em;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:10px;padding:.3em .75em;font-size:.86em;opacity:.85}.sola-sheet>summary{cursor:pointer;opacity:.75;letter-spacing:.04em}.sola-hud-row{margin:.5em 0;white-space:pre-line}.sola-hud-tag{display:inline-block;font-size:.72em;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:0 .45em;margin-right:.4em;border-radius:6px;border:1px solid color-mix(in srgb,currentColor 30%,transparent);opacity:.85}.sola-cb-s,.sola-cb-u{margin:.4em 0;padding:.35em .7em;border-radius:12px;max-width:85%;width:fit-content;white-space:pre-line}.sola-cb-s{background:color-mix(in srgb,currentColor 8%,transparent)}.sola-cb-u{margin-left:auto;background:color-mix(in srgb,currentColor 15%,transparent)}.sola-fn{margin-top:.8em;padding-top:.4em;border-top:1px dashed color-mix(in srgb,currentColor 30%,transparent);font-size:.85em;opacity:.8;white-space:pre-line}.sola-im{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}.sola-im-r{display:none;font-style:italic;opacity:.75}.sola-im:hover .sola-im-r,.sola-im:active .sola-im-r{display:inline}.sola-retract{opacity:.6}.sola-c,.sola-c q,.sola-c em,.sola-c i,.sola-c strong{color:var(--sola-c)!important}.sola-k-solstice{background-image:linear-gradient(90deg,color-mix(in srgb,#F4A261 62%,var(--foreground,#888)),color-mix(in srgb,#EE6C4D 62%,var(--foreground,#888)))}.sola-k-dusk{background-image:linear-gradient(90deg,color-mix(in srgb,#F3B74B 62%,var(--foreground,#888)),color-mix(in srgb,#8592E6 62%,var(--foreground,#888)))}.sola-k-hearth{background-image:linear-gradient(90deg,color-mix(in srgb,#D08C5B 62%,var(--foreground,#888)),color-mix(in srgb,#C9694B 62%,var(--foreground,#888)))}.sola-k-eclipse{background-image:linear-gradient(90deg,color-mix(in srgb,#5E6678 62%,var(--foreground,#888)),color-mix(in srgb,#7A8B99 62%,var(--foreground,#888)))}.sola-k-wildwood{background-image:linear-gradient(90deg,color-mix(in srgb,#9CAF88 62%,var(--foreground,#888)),color-mix(in srgb,#4F8A6E 62%,var(--foreground,#888)))}.sola-k-mistveil{background-image:linear-gradient(90deg,color-mix(in srgb,#B08EA2 62%,var(--foreground,#888)),color-mix(in srgb,#A9B8C9 62%,var(--foreground,#888)))}.sola-k-solstice,.sola-k-dusk,.sola-k-hearth,.sola-k-eclipse,.sola-k-wildwood,.sola-k-mistveil{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent!important;-webkit-box-decoration-break:clone;box-decoration-break:clone}.sola-k-solstice *,.sola-k-dusk *,.sola-k-hearth *,.sola-k-eclipse *,.sola-k-wildwood *,.sola-k-mistveil *{-webkit-text-fill-color:transparent;color:transparent!important}.sola-n-marigold{--sola-c:color-mix(in srgb,#F4A261 72%,var(--foreground,#888))}.sola-n-amber{--sola-c:color-mix(in srgb,#F3B74B 72%,var(--foreground,#888))}.sola-n-cider{--sola-c:color-mix(in srgb,#E9A036 72%,var(--foreground,#888))}.sola-n-coral{--sola-c:color-mix(in srgb,#EE6C4D 72%,var(--foreground,#888))}.sola-n-honey{--sola-c:color-mix(in srgb,#E5CC83 72%,var(--foreground,#888))}.sola-n-rust{--sola-c:color-mix(in srgb,#C28D79 72%,var(--foreground,#888))}.sola-n-ochre{--sola-c:color-mix(in srgb,#BEB16B 72%,var(--foreground,#888))}.sola-n-moss{--sola-c:color-mix(in srgb,#79A866 72%,var(--foreground,#888))}.sola-n-denim{--sola-c:color-mix(in srgb,#7A8B99 72%,var(--foreground,#888))}.sola-n-indigo{--sola-c:color-mix(in srgb,#8592E6 72%,var(--foreground,#888))}.sola-n-heather{--sola-c:color-mix(in srgb,#B08EA2 72%,var(--foreground,#888))}.sola-n-ash{--sola-c:color-mix(in srgb,#BAC3C7 72%,var(--foreground,#888))}.sola-n-pine{--sola-c:color-mix(in srgb,#789E8A 72%,var(--foreground,#888))}.sola-n-teal{--sola-c:color-mix(in srgb,#70B4AE 72%,var(--foreground,#888))}.sola-n-periwinkle{--sola-c:color-mix(in srgb,#AEA5D6 72%,var(--foreground,#888))}.sola-n-amethyst{--sola-c:color-mix(in srgb,#AD8CBF 72%,var(--foreground,#888))}.sola-n-crimson{--sola-c:color-mix(in srgb,#EC718A 72%,var(--foreground,#888))}.sola-n-cerise{--sola-c:color-mix(in srgb,#E773AC 72%,var(--foreground,#888))}.sola-n-orchid{--sola-c:color-mix(in srgb,#C181DE 72%,var(--foreground,#888))}.sola-n-violet{--sola-c:color-mix(in srgb,#AA8DF0 72%,var(--foreground,#888))}.sola-n-sapphire{--sola-c:color-mix(in srgb,#619ED9 72%,var(--foreground,#888))}.sola-n-ocean{--sola-c:color-mix(in srgb,#60B9D0 72%,var(--foreground,#888))}.sola-n-emerald{--sola-c:color-mix(in srgb,#53C18C 72%,var(--foreground,#888))}.sola-n-jade{--sola-c:color-mix(in srgb,#63C5AD 72%,var(--foreground,#888))}.sola-n-sunflower{--sola-c:color-mix(in srgb,#FFE052 72%,var(--foreground,#888))}.sola-n-lemon{--sola-c:color-mix(in srgb,#EFF579 72%,var(--foreground,#888))}.sola-n-magenta{--sola-c:color-mix(in srgb,#F38DE4 72%,var(--foreground,#888))}.sola-n-cyan{--sola-c:color-mix(in srgb,#68E1ED 72%,var(--foreground,#888))}.sola-n-turquoise{--sola-c:color-mix(in srgb,#57DCC4 72%,var(--foreground,#888))}.sola-n-aquamarine{--sola-c:color-mix(in srgb,#91ECD3 72%,var(--foreground,#888))}.sola-n-mint{--sola-c:color-mix(in srgb,#A5EDB9 72%,var(--foreground,#888))}.sola-n-lime{--sola-c:color-mix(in srgb,#C7E96B 72%,var(--foreground,#888))}.sola-n-copper{--sola-c:color-mix(in srgb,#C27C4E 72%,var(--foreground,#888))}.sola-n-slate{--sola-c:color-mix(in srgb,#7C8C9C 72%,var(--foreground,#888))}.sola-n-mist{--sola-c:color-mix(in srgb,#A9B8C9 72%,var(--foreground,#888))}.sola-n-steel{--sola-c:color-mix(in srgb,#8A9BB0 72%,var(--foreground,#888))}.sola-k-whisper{font-style:italic;opacity:.85;letter-spacing:.02em;font-size:.95em}.sola-k-bite{font-weight:650}.sola-k-steady{font-weight:500;letter-spacing:.03em}.sola-k-trembling{display:inline-block;animation:sola-tremble .18s linear 6}.sola-k-heavy{font-weight:800;letter-spacing:.03em;text-shadow:0 .06em 0 color-mix(in srgb,currentColor 25%,transparent)}.sola-k-stretch{letter-spacing:.16em}.sola-k-tilt{display:inline-block;transform:rotate(calc(var(--tilt,4) * 1deg))}.sola-k-left{--tilt:-4}.sola-k-right{--tilt:4}.sola-k-crush{display:inline-block;font-weight:800;letter-spacing:-.02em;transform:scaleY(.88)}.sola-k-fracture{text-shadow:.06em 0 color-mix(in srgb,#ff4d6d 55%,transparent),-.06em 0 color-mix(in srgb,#4dd8ff 55%,transparent)}.sola-k-echo{text-shadow:.14em .1em 0 color-mix(in srgb,currentColor 28%,transparent),.28em .2em 0 color-mix(in srgb,currentColor 12%,transparent)}.sola-k-shake{display:inline-block;animation:sola-shake .4s ease-in-out 3}.sola-k-glitch{display:inline-block;animation:sola-glitch 2.2s steps(1) infinite}.sola-k-pulse,.sola-k-thump{display:inline-block;animation:sola-pulse 1.2s ease-in-out infinite}.sola-k-ember,.sola-k-breathe{animation:sola-ember 2.8s ease-in-out infinite}.sola-k-drift,.sola-k-float{display:inline-block;animation:sola-drift 3.6s ease-in-out infinite}@keyframes sola-tremble{0%,100%{transform:translate(0,0)}25%{transform:translate(.5px,-.5px)}50%{transform:translate(-.5px,.5px)}75%{transform:translate(.5px,.5px)}}@keyframes sola-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-2px) rotate(-1deg)}40%{transform:translateX(2px) rotate(1deg)}60%{transform:translateX(-2px)}80%{transform:translateX(2px)}}@keyframes sola-glitch{0%,86%,100%{transform:none;text-shadow:none}88%{transform:translateX(2px);text-shadow:-2px 0 #ff4d6d,2px 0 #4dd8ff}92%{transform:translateX(-2px) skewX(8deg)}96%{transform:translateX(1px);opacity:.7}}@keyframes sola-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}@keyframes sola-ember{0%,100%{text-shadow:0 0 .2em color-mix(in srgb,#F3B74B 25%,transparent)}50%{text-shadow:0 0 .6em color-mix(in srgb,#F3B74B 70%,transparent)}}@keyframes sola-drift{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-3px);opacity:.75}}@media (prefers-reduced-motion:reduce){.sola-fx{animation:none!important}}</style>",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": true,
+      "promptOnly": false,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2014
+    },
+    {
+      "id": "sola-prompt-cot-sheet-left-in-a-reply",
+      "scriptName": "Sola · prompt: CoT sheet left in a reply",
+      "findRegex": "^\\s*((?:[^\\n]{0,200}\\n){0,3}?[ \\t]*\\**ASK\\**:\\**[\\s\\S]*?\\n[ \\t]*\\**ANCHORS\\**:\\**[^\\n]*(?:\\n[ \\t]*\\**(?:OPEN|FOCUS|YIELD)\\**:[^\\n]*)*)(?:\\s*\\n[ \\t]*(?:-{3,}|\\*{3,}|_{3,})[ \\t]*(?=\\n))?",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2015
+    },
+    {
+      "id": "sola-prompt-and-helpers-hud",
+      "scriptName": "Sola · prompt and helpers: HUD",
+      "findRegex": "<sola_hud[^>]*>[\\s\\S]*?<\\/sola_hud>",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2016
+    },
+    {
+      "id": "sola-prompt-and-helpers-chatterbox",
+      "scriptName": "Sola · prompt and helpers: chatterbox",
+      "findRegex": "<chatterbox\\b[^>]*>[\\s\\S]*?<\\/chatterbox>",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2017
+    },
+    {
+      "id": "sola-prompt-and-helpers-footnotes",
+      "scriptName": "Sola · prompt and helpers: footnotes",
+      "findRegex": "<sola_footnote>[\\s\\S]*?<\\/sola_footnote>",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": null,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2018
+    },
+    {
+      "id": "sola-prompt-old-html-objects",
+      "scriptName": "Sola · prompt: old HTML objects",
+      "findRegex": "<!-- HTML_START -->[\\s\\S]*?<!-- HTML_END -->",
+      "replaceString": "[an in-world object was shown here as a card]",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 4,
+      "maxDepth": null,
+      "flags": "g",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2019
+    },
+    {
+      "id": "sola-prompt-old-colour-tags",
+      "scriptName": "Sola · prompt: old colour tags",
+      "findRegex": "<font\\s+color\\s*=[^>]*>([\\s\\S]*?)<\\/font>",
+      "replaceString": "$1",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 10,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2020
+    },
+    {
+      "id": "sola-prompt-old-styling-tags",
+      "scriptName": "Sola · prompt: old styling tags",
+      "findRegex": "<\\/?(?:solstice|dusk|hearth|eclipse|wildwood|mistveil|whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float)(?::[^\\s>]*)?(?:\\s+deg\\s*=\\s*\"?-?\\d+\"?)?\\s*>",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 10,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2021
+    },
+    {
+      "id": "sola-prompt-old-named-colour-tags",
+      "scriptName": "Sola · prompt: old named colour tags",
+      "findRegex": "<\\/?(?:marigold|amber|cider|coral|honey|rust|ochre|moss|denim|indigo|heather|ash|pine|teal|periwinkle|amethyst|crimson|cerise|orchid|violet|sapphire|ocean|emerald|jade|sunflower|lemon|magenta|cyan|turquoise|aquamarine|mint|lime|copper|slate|mist|steel)(?::[^\\s>]*)?\\s*>",
+      "replaceString": "",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 10,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2022
+    },
+    {
+      "id": "sola-prompt-old-hover-tags",
+      "scriptName": "Sola · prompt: old hover tags",
+      "findRegex": "<(subtext|tell|lore|translate|sense)\\s+[^>]*>([\\s\\S]*?)<\\/\\1>",
+      "replaceString": "$2",
+      "placement": [
+        "ai_output"
+      ],
+      "markdownOnly": false,
+      "promptOnly": true,
+      "disabled": false,
+      "minDepth": 8,
+      "maxDepth": null,
+      "flags": "gi",
+      "scope": "preset",
+      "scopeTargetId": "sola",
+      "trimStrings": [],
+      "runOnEdit": false,
+      "macroMode": "none",
+      "order": 2023
+    }
+  ]
+}
