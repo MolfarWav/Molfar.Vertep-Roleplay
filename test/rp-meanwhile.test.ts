@@ -112,6 +112,34 @@ describe("buildEvents", () => {
   });
 });
 
+describe("buildEvents against earlier events", () => {
+  const earlier = [{ who: ["p1"], what: "Ada lying on the road slowly moves the fingers of her right hand, her pulse thin." }];
+  const run = (list: unknown[], before = earlier) => mw.buildEvents(list, ctx(), { afterKey: "m9#0", earlier: before });
+
+  it("drops an event about the same person that says the same again, even a little reworded", () => {
+    const r = run([ev({ what: "Ada, lying on the road, slowly moves the fingers of her right hand." })]);
+    expect(r.events).toEqual([]);
+    expect(r.dropped).toEqual([{ index: 0, reason: "repeats an earlier event" }]);
+  });
+  it("keeps a step further, an event about someone else and the same words on another person", () => {
+    const r = run([
+      ev({ what: "Ada opens her eyes, the gaze still dull, and looks for the light." }),
+      ev({ who: ["p2"], what: "Ada, lying on the road, slowly moves the fingers of her right hand." }),
+    ]);
+    expect(r.events.length).toBe(2);
+  });
+  it("counts the events of the same pass and ignores everything when nothing earlier is given", () => {
+    const twice = [ev({ what: "Bram carries the sacks to the harbour at dawn." }), ev({ what: "Bram carries the sacks to the harbour at dawn again." })];
+    expect(mw.buildEvents(twice.map((e) => ({ ...e, who: ["p2"] })), ctx(), {}).events.length).toBe(1);
+    expect(run([ev({ what: "Ada, lying on the road, slowly moves the fingers of her right hand." })], []).events.length).toBe(1);
+  });
+  it("measures the shared words", () => {
+    expect(mw.overlap("the mill burns", "The Mill burns!")).toBe(1);
+    expect(mw.overlap("the mill burns", "a horse sold")).toBe(0);
+    expect(mw.overlap("", "x")).toBe(0);
+  });
+});
+
 const snap = (day: number, time: string, isNew = false) => ({ clock: { day, time }, scene: { new: isNew } });
 const msgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: "m" + (i + 1), role: i % 2 ? "user" : "assistant" }));
 const cfg = (more = {}) => mw.cleanConfig({ enabled: true, ...more });

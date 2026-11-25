@@ -250,13 +250,29 @@ export function cleanEvent(raw, ctx) {
   return { ok: true, event: { who: who.ids, what, where, whereName, when: cut(str(raw.when), WHEN_MAX), witnesses: witnesses.ids, visibility: raw.visibility, effects } };
 }
 
+const wordsOf = (t) => new Set(str(t).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3));
+/** Share of the words two texts have in common, 0 to 1 (words in both over words in either). */
+export function overlap(a, b) {
+  const x = wordsOf(a);
+  const y = wordsOf(b);
+  if (!x.size || !y.size) return 0;
+  let both = 0;
+  for (const w of x) if (y.has(w)) both++;
+  return both / (x.size + y.size - both);
+}
+export const REPEAT_SHARE = 0.6;
+const EARLIER_LOOK = 30;
+
 /**
  * The events a pass keeps. `list` is the model's `events` array; at most `k` survive, in the order given, a repeated `what`
- * is dropped. Returns { events, dropped: [{ index, reason }], next } with `next` the number for the following event id.
+ * is dropped. `earlier` ([{ who, what }], the chat's active events) is checked too: an event about one of the same people whose
+ * words are mostly the same as an earlier one is a repeat (a small model copies the recent events it was told not to repeat).
+ * Returns { events, dropped: [{ index, reason }], next } with `next` the number for the following event id.
  * `afterKey` is the message key the pass read up to; every event is tied to it.
  */
-export function buildEvents(list, ctx, { k = DEFAULT_CONFIG.k, afterKey, next = 1, now = 0 } = {}) {
+export function buildEvents(list, ctx, { k = DEFAULT_CONFIG.k, afterKey, next = 1, now = 0, earlier = [] } = {}) {
   const events = [];
+  const before = arr(earlier).slice(-EARLIER_LOOK).filter((e) => isObj(e) && arr(e.who).length);
   const dropped = [];
   const seen = new Set();
   let n = next;
@@ -265,6 +281,8 @@ export function buildEvents(list, ctx, { k = DEFAULT_CONFIG.k, afterKey, next = 
     if (!r.ok) return void dropped.push({ index, reason: r.reason });
     const sig = r.event.what.toLowerCase();
     if (seen.has(sig)) return void dropped.push({ index, reason: "repeats another event" });
+    const twin = [...before, ...events].some((e) => e.who.some((w) => r.event.who.includes(w)) && overlap(e.what, r.event.what) >= REPEAT_SHARE);
+    if (twin) return void dropped.push({ index, reason: "repeats an earlier event" });
     if (events.length >= k) return void dropped.push({ index, reason: "over the limit of " + k });
     seen.add(sig);
     events.push({ id: "m" + n++, ...r.event, afterKey: str(afterKey), at: now, status: "active" });
@@ -364,7 +382,7 @@ const SYSTEM = [
   "- `what` is one or two sentences (12 to 280 characters) in the language the story is told in; so are `where` (a place id from the list, or a few words) and `when` (a few words, or empty).",
   "- `visibility`: secret (only who and witnesses ever learn it), local (people nearby will hear of it), public (the whole place will).",
   "- `effects` (at most 3, usually none) are proposals from this list only: {\"type\":\"front_clock\",\"front\":\"f1\"}, {\"type\":\"relation\",\"a\":\"p1\",\"b\":\"p2\",\"change\":\"closer|cooler|break\"}, {\"type\":\"item_moved\",\"item\":\"o1\",\"to\":\"p1 or l1\"}, {\"type\":\"npc_moved\",\"who\":\"p1\",\"to\":\"l1\"}, {\"type\":\"injury_healed\",\"who\":\"p1\"}. A person in an effect must be in who or witnesses.",
-  "- Do not repeat the recent events. If nothing fits, answer with an empty list.",
+  "- Do not repeat the recent events, not even reworded: an event is a step beyond them (a decision, a move, a meeting, a message), never the same moment again. If nothing fits, answer with an empty list.",
   "Answer with one JSON object and nothing else: {\"events\":[{\"who\":[\"p1\"],\"what\":\"...\",\"where\":\"l1\",\"when\":\"...\",\"witnesses\":[],\"visibility\":\"secret\",\"effects\":[]}]}",
 ].join("\n");
 
@@ -667,7 +685,7 @@ function runRoute(req, host) {
   if (!str(r.text)) return fail("empty", thinkingOnly(r) ? "the model spent its whole limit thinking" : "the model returned nothing");
   const raw = parseEvents(r.text);
   if (!raw) return fail("bad-reply", "no events list in the answer");
-  const built = buildEvents(raw, g.ctx, { k: cfg.k, afterKey: due.to, next: state.next, now });
+  const built = buildEvents(raw, g.ctx, { k: cfg.k, afterKey: due.to, next: state.next, now, earlier: state.events.filter((e) => e.status === "active") });
   let st = recordPass(state, { events: built.events, next: built.next, key: due.to, at: now, reason: due.reason });
   st = count({ ...st, lastFailAt: 0, log: [...st.log, { ...base, offered: raw.length, kept: built.events.length, dropped: built.dropped.map((d) => d.reason).slice(0, 10), events: built.events.map((e) => ({ id: e.id, who: e.who, visibility: e.visibility })) }].slice(-LOG_KEEP) });
   saveState(fsx, st);
