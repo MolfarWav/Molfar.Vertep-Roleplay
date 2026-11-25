@@ -1590,6 +1590,78 @@ function readChat(fsx, chatId) {
   return { meta, msgs };
 }
 
+/**
+ * The regex scripts of "regex/", parsed (a script that does not parse is left out). One host call for all of them when the engine has
+ * `fs.readMany` (Molfar.Vertep#432), else one call each.
+ */
+function readRegexFilesW(fsx, names) {
+  const paths = names.map((f) => "regex/" + f);
+  let texts = null;
+  if (typeof fsx.readMany === "function") { try { texts = fsx.readMany(paths); } catch {} }
+  if (!Array.isArray(texts) || texts.length !== paths.length) texts = paths.map((p) => { try { return fsx.read(p); } catch { return null; } });
+  return texts.map((t) => { try { return t == null ? null : JSON.parse(t); } catch { return null; } }).filter(Boolean);
+}
+
+/**
+ * The story as the DM reads it (#520, the same helper as the sensor's and Litopys's since #85; plugins cannot call each other).
+ * A preset hides blocks of a reply (a plan, a notebook of guesses, an out-of-character chat, a HUD) with prompt-only regex scripts
+ * that delete them; the DM must not read those as story. Returns (text, role) -> text for one chat. Only scripts that replace a match
+ * with nothing are run (no macros, no depth limits); the stored text never changes. The scripts are read on the first call, so a
+ * run that never reads a message (a tidy-up that is not due) costs no file reads.
+ */
+export function storyView(fsx, meta) {
+  const m = isObj(meta) ? meta : {};
+  const chars = [m.characterId, ...arr(m.characterIds)].filter(Boolean);
+  const inScope = (s) => {
+    const sc = s.scope || "global";
+    if (sc === "global") return true;
+    if (!s.scopeTargetId) return false;
+    if (sc === "chat") return s.scopeTargetId === m.id;
+    if (sc === "character") return chars.includes(s.scopeTargetId);
+    if (sc === "preset") return s.scopeTargetId === (m.presetId || "default");
+    return false;
+  };
+  // the prompt stage: a script with the promptOnly flag, or one saved before the flags that listed "prompt"
+  const forPrompt = (s) => {
+    if (typeof s.promptOnly === "boolean" || typeof s.markdownOnly === "boolean") return s.promptOnly === true;
+    const pl = arr(s.placement);
+    return !pl.includes("display") || pl.includes("prompt");
+  };
+  let compiled = null;
+  const compile = () => {
+    const list = [];
+    let found = [];
+    try {
+      found = readRegexFilesW(fsx, fsx.list("regex").filter((f) => f.endsWith(".json")));
+    } catch { return list; }
+    for (const s of found) {
+      if (s.disabled || !inScope(s) || !forPrompt(s)) continue;
+      if (String(s.replaceString ?? "") !== "" || (s.macroMode && s.macroMode !== "none")) continue;
+      if ((s.minDepth != null && s.minDepth >= 0) || (s.maxDepth != null && s.maxDepth >= 0)) continue;
+      const find = String(s.findRegex ?? "");
+      if (!find || find.length > 500) continue;
+      try { list.push({ re: new RegExp(find, s.flags || "g"), where: arr(s.placement) }); } catch {}
+    }
+    return list;
+  };
+  return (text, role) => {
+    if (!compiled) compiled = compile();
+    const place = role === "user" ? "user_input" : "ai_output";
+    let out = String(text ?? "");
+    for (const c of compiled) {
+      if (c.where.length && !c.where.includes(place)) continue;
+      c.re.lastIndex = 0;
+      out = out.replace(c.re, "");
+    }
+    return out;
+  };
+}
+
+/** The messages with their text as the DM reads it (storyView); the other fields, the key among them, stay. */
+export function storyMsgs(view, msgs) {
+  return arr(msgs).map((m) => (str(m && m.text) ? { ...m, text: view(String(m.text), m.role) } : m));
+}
+
 const keyOf = (m) => m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0);
 const isReply = (m) => m.role !== "user" && m.role !== "system";
 
@@ -2040,13 +2112,14 @@ function tidyNote(state, line) {
  * userName = the player's character. force = "Tidy now": runs at once, and a chat with no earlier pass judges every thing.
  * Returns { ran, archived: [records], woken: [records] }.
  */
-export function tidyBook(state, { msgs, scene, cards, userName, now, force }) {
+export function tidyBook(state, { msgs, scene, cards, userName, now, force, view }) {
   const out = { ran: false, archived: [], woken: [] };
   if (!force && state.settings.tidy === false) return out;
   const replies = msgs.filter(isReply);
   const n = replies.length;
   if (!force && (n < TIDY_EVERY || (state.tidy && n - state.tidy.n < TIDY_EVERY))) return out;
-  const texts = replies.slice(-TIDY_EVERY).map((m) => str(m.text));
+  // `view` (storyView): a thing named only in a block the preset hides is not named in the story (#520)
+  const texts = replies.slice(-TIDY_EVERY).map((m) => (typeof view === "function" ? view(str(m.text), m.role) : str(m.text)));
   const seen = new Set(state.tidy ? state.tidy.seen : []);
   // no earlier pass: the first automatic pass only takes the list, "Tidy now" judges everything
   if (!state.tidy && !force) {
@@ -2087,7 +2160,7 @@ export function tidyBook(state, { msgs, scene, cards, userName, now, force }) {
 /** Runs a pass for a chat and saves the state and the book when it changed something. Returns what tidyBook returned. */
 function runTidy(fsx, state, chat, force) {
   const scene = sceneOf(fsx, state.chatId, chat.msgs);
-  const res = tidyBook(state, { msgs: chat.msgs, scene, cards: cardNames(fsx, chat.meta), userName: userNameOf(fsx, chat.meta), force });
+  const res = tidyBook(state, { msgs: chat.msgs, scene, cards: cardNames(fsx, chat.meta), userName: userNameOf(fsx, chat.meta), force, view: storyView(fsx, chat.meta) });
   if (res.ran) {
     saveState(fsx, state);
     if (res.archived.length || res.woken.length) {
@@ -7456,7 +7529,9 @@ function updateRoute(req, host) {
   // the DM off: the book still fills, but only by the sweep after a reply, and not in a chat that never had a world (an assistant)
   if (state.settings.level === "off" && (!auto || (!existed && !autoOn(fsx, chat.meta)))) return ok({ ok: true, skipped: "off" });
   if (state.settings.level === "off" && state.lastKey === null && chat.msgs.length) state.lastKey = startKeyOf(chat.msgs, state.settings);
-  const unread = unreadMessages(chat.msgs, state.lastKey);
+  // the DM reads the story, not the blocks the preset hides in a reply (#520); the stored messages stay as they are
+  const view = storyView(fsx, chat.meta);
+  const unread = storyMsgs(view, unreadMessages(chat.msgs, state.lastKey));
   if (!unread.some((m) => str(m.text))) return ok({ ok: true, skipped: "nothing new" });
   const scene = sceneOf(fsx, chatId, chat.msgs);
   // off reads as the chronicler here: it records, it does not move fronts or send events
@@ -7498,7 +7573,7 @@ function updateRoute(req, host) {
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
         cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnedInput(state.settings, state.learned, loadLearned(fsx), state), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
-        since: recordsOnly ? [] : eventSince(state.event, chat.msgs, keyOf(take.msgs[0])),
+        since: recordsOnly ? [] : storyMsgs(view, eventSince(state.event, chat.msgs, keyOf(take.msgs[0]))),
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: THREAD_LEVELS.includes(level) ? dashThreads(fsx, chatId, scene) : [],
         recent: state.recent,
