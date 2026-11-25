@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.158.0 (2026-11-25)
+
 - New: **a lorebook entry can stay on once it has fired.** The entry's "How long it stays" fold has a new switch, "Stays on once it has fired": after its keys have hit once in this chat, the entry keeps firing for the rest of it, even when the words are long gone from the recent messages. It is worked out from the chat on every scan and never stored, so cutting or swiping away the message that set it off ends it and a new chat starts without it. It replaces the very long sticky that SillyTavern books used for this. What fired shows such a row as "Stays on (since message N)".
 - New: **a secret entry can open on a happening, not only on a word.** The Secret fold has a new line, "Or they learn it when this happens" (for example "Jane is made to eat a clam"). When a chat has such an entry, the Dashboard sensor's prompt gets one more section naming it (no extra call, not in fast mode); if the sensor says it clearly took place, everyone in that scene learns the truth, and What fired shows "it happened: ...". Nothing is added to the sensor's prompt for a chat with no such entry. A model judges it, so a small free one may miss it; the words stay the sure way.
 - New: **"Start from a hidden trait"** in the Secret fold, for something a character does not know about themself yet (a craving, a fear): Secret on with nobody knowing, and an entry with no keys becomes always on.
