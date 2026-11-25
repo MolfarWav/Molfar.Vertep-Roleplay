@@ -1,0 +1,21 @@
+{
+  "id": "sola-chatterbox-her-texts",
+  "scriptName": "Sola · Chatterbox: her texts",
+  "findRegex": "<sola_text[^>]*>\\s*([\\s\\S]*?)\\s*<\\/sola_text>",
+  "replaceString": "<div class=\"sola-cb-s\">$1</div>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2005
+}

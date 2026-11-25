@@ -1,0 +1,21 @@
+{
+  "id": "sola-hud-panel",
+  "scriptName": "Sola · HUD: panel",
+  "findRegex": "<sola_hud[^>]*>\\s*([\\s\\S]*?)\\s*<\\/sola_hud>",
+  "replaceString": "<details class=\"sola-hud\"><summary>☀ Sola's HUD</summary>$1</details>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2003
+}

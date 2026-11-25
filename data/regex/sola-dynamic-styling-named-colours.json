@@ -1,0 +1,21 @@
+{
+  "id": "sola-dynamic-styling-named-colours",
+  "scriptName": "Sola · Dynamic styling: named colours",
+  "findRegex": "<(marigold|amber|cider|coral|honey|rust|ochre|moss|denim|indigo|heather|ash|pine|teal|periwinkle|amethyst|crimson|cerise|orchid|violet|sapphire|ocean|emerald|jade|sunflower|lemon|magenta|cyan|turquoise|aquamarine|mint|lime|copper|slate|mist|steel)(?::(whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float|left|right))?(?::(-?\\d{1,2}))?\\s*>([\\s\\S]*?)<\\/\\1(?::[^>]*)?>",
+  "replaceString": "<span class=\"sola-fx sola-c sola-n-$1 sola-k-$2\" style=\"--tilt:$3\">$4</span>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2013
+}

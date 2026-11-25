@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-old-hover-tags",
+  "scriptName": "Sola · prompt: old hover tags",
+  "findRegex": "<(subtext|tell|lore|translate|sense)\\s+[^>]*>([\\s\\S]*?)<\\/\\1>",
+  "replaceString": "$2",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 8,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2023
+}

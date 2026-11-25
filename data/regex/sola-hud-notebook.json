@@ -1,0 +1,21 @@
+{
+  "id": "sola-hud-notebook",
+  "scriptName": "Sola · HUD: Notebook",
+  "findRegex": "<story_notes>\\s*([\\s\\S]*?)\\s*<\\/story_notes>",
+  "replaceString": "<div class=\"sola-hud-row\"><span class=\"sola-hud-tag\">Notebook</span>$1</div>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2002
+}

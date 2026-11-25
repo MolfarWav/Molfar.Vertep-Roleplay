@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-old-html-objects",
+  "scriptName": "Sola · prompt: old HTML objects",
+  "findRegex": "<!-- HTML_START -->[\\s\\S]*?<!-- HTML_END -->",
+  "replaceString": "[an in-world object was shown here as a card]",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 4,
+  "maxDepth": null,
+  "flags": "g",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2019
+}

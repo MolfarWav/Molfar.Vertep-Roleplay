@@ -140,6 +140,10 @@ to how the app is put together.
 Bump `version` in `manifest.json` with every release, and the plugin's own
 `manifest.json` version whenever its `plugin.js` changes.
 
+## Credits
+
+- **Sola V5 Flame** (the built-in preset "Sola V5 Flame (Vertep)") is the work of **Pyrxpia**: [Sola hub](https://pyrxpia.github.io/sola-hub/), [GitHub](https://github.com/Pyrxpia/sola-hub). It is ported to Molfar Vertep with her permission; the original lives in her hub.
+
 ## License
 
 Licensed under the **GNU Affero General Public License v3.0 only** (AGPL-3.0-only).

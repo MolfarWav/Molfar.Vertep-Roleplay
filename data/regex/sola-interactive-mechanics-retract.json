@@ -1,0 +1,21 @@
+{
+  "id": "sola-interactive-mechanics-retract",
+  "scriptName": "Sola · Interactive Mechanics: retract",
+  "findRegex": "<retract>([\\s\\S]*?)<\\/retract>",
+  "replaceString": "<s class=\"sola-retract\">$1</s>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2009
+}

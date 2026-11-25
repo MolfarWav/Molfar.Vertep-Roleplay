@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-and-helpers-hud",
+  "scriptName": "Sola · prompt and helpers: HUD",
+  "findRegex": "<sola_hud[^>]*>[\\s\\S]*?<\\/sola_hud>",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2016
+}

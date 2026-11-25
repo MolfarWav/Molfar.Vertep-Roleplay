@@ -1,0 +1,21 @@
+{
+  "id": "sola-dynamic-styling-nested-tags-second-pass",
+  "scriptName": "Sola · Dynamic styling: nested tags (second pass)",
+  "findRegex": "<(solstice|dusk|hearth|eclipse|wildwood|mistveil|whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float)(?::(whisper|bite|trembling|steady|heavy|stretch|tilt|crush|fracture|echo|shake|glitch|pulse|thump|ember|breathe|drift|float|left|right))?(?::(-?\\d{1,2}))?(?:\\s+deg\\s*=\\s*\"?(-?\\d{1,2})\"?)?\\s*>([\\s\\S]*?)<\\/\\1(?::[^>]*)?>",
+  "replaceString": "<span class=\"sola-fx sola-k-$1 sola-k-$2\" style=\"--tilt:$3$4\">$5</span>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2012
+}

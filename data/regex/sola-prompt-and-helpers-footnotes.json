@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-and-helpers-footnotes",
+  "scriptName": "Sola · prompt and helpers: footnotes",
+  "findRegex": "<sola_footnote>[\\s\\S]*?<\\/sola_footnote>",
+  "replaceString": "",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2018
+}

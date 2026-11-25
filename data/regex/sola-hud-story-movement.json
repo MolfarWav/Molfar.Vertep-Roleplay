@@ -1,0 +1,21 @@
+{
+  "id": "sola-hud-story-movement",
+  "scriptName": "Sola · HUD: Story Movement",
+  "findRegex": "<tempo>\\s*([A-Za-z]+)\\s*(?:Sola'?s Note:\\s*)?([\\s\\S]*?)\\s*<\\/tempo>",
+  "replaceString": "<div class=\"sola-hud-row\"><span class=\"sola-hud-tag\">$1</span>$2</div>",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": true,
+  "promptOnly": false,
+  "disabled": false,
+  "minDepth": null,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2001
+}

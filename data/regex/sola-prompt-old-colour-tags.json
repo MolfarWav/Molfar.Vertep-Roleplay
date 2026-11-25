@@ -1,0 +1,21 @@
+{
+  "id": "sola-prompt-old-colour-tags",
+  "scriptName": "Sola · prompt: old colour tags",
+  "findRegex": "<font\\s+color\\s*=[^>]*>([\\s\\S]*?)<\\/font>",
+  "replaceString": "$1",
+  "placement": [
+    "ai_output"
+  ],
+  "markdownOnly": false,
+  "promptOnly": true,
+  "disabled": false,
+  "minDepth": 10,
+  "maxDepth": null,
+  "flags": "gi",
+  "scope": "preset",
+  "scopeTargetId": "sola",
+  "trimStrings": [],
+  "runOnEdit": false,
+  "macroMode": "none",
+  "order": 2020
+}
