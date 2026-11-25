@@ -969,7 +969,9 @@ builds the prompt. Names are case-insensitive.
   picks one each time; `{{pick::a::b::c}}` picks once and keeps it for that chat. Use these instead
   of asking the model to invent random results.
 - `{{setvar::name::value}}`, `{{getvar::name}}`, `{{addvar::name::n}}`, `{{incvar::name}}`,
-  `{{decvar::name}}`: variables kept per chat.
+  `{{decvar::name}}`: variables kept per chat. `addvar` adds numbers, appends anything else, and shows nothing
+  (as in SillyTavern; before #516 it showed the sum). `{{setglobalvar}}` and the other global-variable macros are
+  the same chat variables. `<USER>`, `<BOT>` and `<CHAR>` are `{{user}}` and `{{char}}`.
 - SillyTavern's nested forms (Molfar.Vertep#516): a macro inside another (`{{setvar::rule::{{user}} leads}}`,
   `{{getvar::{{pick::a::b}}}}`), the block `{{#setvar::name}}…{{/setvar}}` (stores its body, shows nothing),
   and `{{#if::value}}` or `{{#if {{getvar::a}}{{getvar::b}}}}` (true when the expanded value is not empty and
@@ -978,6 +980,17 @@ builds the prompt. Names are case-insensitive.
   expanded, a branch not taken runs nothing, and this `{{#if}}` keeps its text as written (the app's own
   `{{#if name == ...}}` below still eats one newline at each end). A text without them goes through the
   older flat passes, which run every setvar of the text before any getvar.
+- SillyTavern's newer macros, read the same way (as SillyBunny's MacroCstWalker runs them): `{{.name}}` reads the
+  chat variable a setvar writes (`$name` too, the globals being chat variables here); `{{.name = v}}` writes it
+  and shows nothing; `{{.name++}}` / `{{.name--}}` show the new value; `+=`, `-=`, `||`, `??`, `||=`, `??=`;
+  `{{.name == v}}` and `!=` give `true`/`false` comparing the value as written (quotes included), `>`, `<`, `>=`,
+  `<=` compare numbers. `{{#if .name}}` tests the variable. `{{if cond}}…{{else}}…{{/if}}` without `#` is
+  SillyTavern's own form: the same test, its content trimmed (and dedented); `{{if cond::content}}` is the inline
+  one. Spaces inside the braces are allowed (`{{ if !.x }}`, `{{ /if }}`, `{{ trim }}`). Falsy here is SillyTavern's
+  list: empty, `false`, `0`, `off`. One difference on purpose: a setvar value may hold a `|` (SillyTavern's newer
+  parser fails on it and drops the whole setvar; its older one and this app keep it).
+- Not run: `\{` stays as written (SillyTavern removes the backslash), and `{{mesExamples}}`, `{{notChar}}`,
+  `{{group}}`, `{{outlet}}` are unknown macros (the import report lists them).
 - `{{name}}` / `{{var:name}}`: a preset variable (see Presets). `{{#if name == "value"}}…{{else if
   other}}…{{else}}…{{/if}}` keeps one branch: `==`, `!=`, `contains`, `not contains`, `&&`, `||`,
   `!`, parentheses, `name == "a" || "b"`; a bare name is true when set and not false/0/no/off. Names

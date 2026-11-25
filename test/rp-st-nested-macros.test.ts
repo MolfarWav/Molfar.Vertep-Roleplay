@@ -74,3 +74,51 @@ describe("nested macros (#516)", () => {
     expect(eng.expandMacros("{{random::a::b}} {{user}} {{#if user}}u{{/if}}", mc({}))).toMatch(/^[ab] Anna u$/);
   });
 });
+
+// The forms of SillyTavern's newer macro engine, as SillyBunny's MacroCstWalker and the {{if}} macro run them. Each case
+// copies the shape a preset in the owner's library uses (Pura's Director, Stabs, voyage, Geechan, Lucid Loom,
+// Frankenstein), not its text.
+describe("SillyTavern's variable shorthand and {{if}} (#516)", () => {
+  it("{{.name}} is the chat variable a setvar wrote, and {{#if .name}} tests it (Pura's Director)", () => {
+    const vars: Record<string, string> = {};
+    const t = "{{setvar::genre::\n## Genre\nNoir.}}A{{#if .genre}}\n{{getvar::genre}}{{else}}{{/if}}B{{#if .narration}}N{{/if}}[{{.genre}}]";
+    expect(eng.expandMacros(t, mc(vars)).replace(/\s+/g, " ")).toBe("A ## Genre Noir.B[ ## Genre Noir.]");
+  });
+
+  it("comparisons give true/false, the value as written, quotes and all (Stabs)", () => {
+    const vars: Record<string, string> = {};
+    const t = '{{setvar::scope::"2"}}{{#if {{.scope == "1"}}}}one{{/if}}{{#if {{.scope == "2"}}}}two{{/if}}|{{.scope != "2"}}|{{.n > 3}}';
+    expect(eng.expandMacros(t, mc(vars))).toBe("two|false|false");
+  });
+
+  it("assignments, ++/--, += and the defaults run as SillyTavern runs them (Geechan, voyage)", () => {
+    const vars: Record<string, string> = {};
+    const t = "{{.note = \n  keep {{user}} close\n}}[{{.note}}]{{.n = 2}}{{.n++}}{{.n--}}{{.n += 5}}{{.n}}{{.s += x}}{{.s += y}}{{.s}}|{{.miss || dflt}}|{{.n ?? no}}|{{.e ||= set}}{{.e}}";
+    expect(eng.expandMacros(t, mc(vars))).toBe("[keep Anna close]327xy|dflt|7|setset");
+    expect(vars).toMatchObject({ note: "keep Anna close", n: "7", s: "xy", e: "set" });
+  });
+
+  it("{{if}} without # trims what it shows, {{if cond::content}} is the inline form, spaces inside braces are fine (voyage)", () => {
+    const vars: Record<string, string> = { simple: "" };
+    const t = "{{ trim }}{{ if !.simple }}{{ trim }}\n   ## Rule\n   line two\n{{ /if }}|{{if .simple::hidden}}{{if !.simple::shown}}|{{ if .simple }}x{{ else }}  else  {{ /if }}";
+    expect(eng.expandMacros(t, mc(vars))).toBe("## Rule\nline two|shown|else");
+  });
+
+  it("a falsy value is empty, false, 0 or off; 'no' is true, as in SillyTavern", () => {
+    for (const [v, want] of [["", ""], ["false", ""], ["0", ""], ["off", ""], ["no", "on"], ["x", "on"]]) {
+      expect(eng.expandMacros("{{#if .v}}on{{/if}}", mc({ v }))).toBe(want);
+    }
+  });
+
+  it("<USER>, <BOT> and <CHAR> are the names (Stabs), and the global-variable macros are chat variables (Lucid Loom)", () => {
+    const vars: Record<string, string> = {};
+    expect(eng.expandMacros("<USER> meets <bot> and <CHAR>.", mc(vars))).toBe("Anna meets Arthur and Arthur.");
+    expect(eng.expandMacros("{{setglobalvar::mood::calm}}{{getglobalvar::mood}} {{setglobalvar::m2::{{user}}}}{{getvar::m2}}", mc(vars))).toBe("calm Anna");
+  });
+
+  it("addvar adds and shows nothing; a setvar value may hold a | (Stabs, Frankenstein)", () => {
+    const vars: Record<string, string> = {};
+    expect(eng.expandMacros("{{addvar::n::2}}{{addvar::n::3}}{{getvar::n}} {{addvar::t::- a\n}}{{addvar::t::- b}}{{getvar::t}}", mc(vars))).toBe("5 - a\n- b");
+    expect(eng.expandMacros("{{setvar::tpl::<b>{{char}}</b> | BOND: [v]}}{{getvar::tpl}}", mc(vars))).toBe("<b>Arthur</b> | BOND: [v]");
+  });
+});
