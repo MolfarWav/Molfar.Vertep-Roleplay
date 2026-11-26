@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Karakterler, personalar ve gruplar
 
 Oynadığınız her şey dört bölümde yaşar: Characters, Groups, Personas ve Marketplace. Bu sayfa her birinin ne için olduğunu anlatır; *Your characters*, *The card editor tabs* ve *Groups of characters* Yardım makalelerinde ayrıntılar bulunur.
@@ -10,13 +10,27 @@ Kart bir karakterdir: açıklama, kişilik, senaryo ve bir ilk mesaj. `group: Gu
 Düzenleyicinin altı sekmesi vardır:
 
 - **Core**: kart metni, diyalog ve karşılama.
-- **Profile**: aynı açıklamanın yapılandırılmış alanlara bölünmüş hali (kimlik, görünüm, hedefler). Her kayıt bunları kart metnine geri yazar. Bir anlatıcı kartı burada bütün bir kadroyu tanımlayabilir.
+- **Profile**: aynı açıklamanın yapılandırılmış alanlara bölünmüş hali (kimlik, görünüm, hedefler). Her kayıt bunları kart metnine geri yazar. Bir anlatıcı kartı burada bütün bir kadroyu tanımlayabilir. Aşağıda "Profile sekmesi" bölümüne bakın.
 - **Soul**: karakterin size nasıl tepki verdiği, artı alışkanlıklar. Bkz. [[soul]].
 - **Memory**: karakterin hatırladığı bitmiş sohbetler. Bkz. [[memory]].
 - **Lorebook**: bu karta bağlı kitaplar.
 - **More**: renkler ve sesler, sprite'lar (bkz. [[sprites]]), galeri, regex, gelişmiş ayarlar.
 
 Bir kart aynı anda birkaç karakteri oynatabilir (bir anlatıcı veya oyun yöneticisi). Colors altında "Voices" her konuşmacıya kendi rengini verir. Hiç ses listelemezseniz sohbet bunu sizin için yapar: birkaç karakter barındıran bir kart (her biri adına göre adlandırılmış bölümlerle) her karakterin satırlarını kendiliğinden renklendirir, her biri farklı bir renkle ve sohbetle birlikte saklanır. Başka herhangi bir sohbette sohbet menüsünü açın, "Voice colors" ve anahtarı açın; "Spread colors" seçmediklerinizin her birine farklı bir renk verir. Bunun için karakter listesini sağlayan Relationship dashboard gerekir. Sesler renklendirildiğinde bir satır, onu söyleyenin rengini alır: satırın başındaki ad ("Rhea:"), konuşma fiilinin yanındaki ad ("— Hayır, — diyor Esh") veya aynı yanıtta daha önce adı geçen, o cinsiyetten tek karaktere işaret eden o ("— Tamam, — diyor o"). Listede hiç olmayan bir konuşmacı (yalnızca hikâyede adı geçen bir geçen kişi) her seferinde aynı, kullanılmış renklerden uzak kendi rengini alır. Kimseyi adlandırmayan bir satır önceki konuşmacının rengini korur; kimse adlandırılana kadar temanın rengi kalır. Hikâye bir karaktere kartta olandan farklı bir ad verirse (kartta "Afrodit", hikâyede "Ada"), sohbet iki kişi listeleyip ayrı renklendirebilir. İkisini tek yapmanın iki yolu: Relationship panelinde karakterin menüsünü açıp "Same person as..." seçin veya karta "Also called: Ada" gibi bir satır ekleyin; böylece ad ilk yanıttan itibaren bilinir. Bir cümlenin ortasında tırnak içindeki kısa bir sözcük ("buna «ihanet» dedi ve gitti") konuşma değil terim olarak okunur ve renklendirilmez. Bir satırın neden o rengi aldığını görmek için sohbet menüsünü açın, "Voice colors" seçin ve "Show who speaks and why" anahtarını açın: her alıntının ardındaki küçük işaret konuşmacıyı ve kuralı gösterir.
+
+## Profile sekmesi
+
+Sekme, kartın Description ve Personality'sini yazan bir formdur; sohbetlerin okuduğu da budur. Bunu söyleyen bir satırla ve altındaki "Free write" anahtarıyla açılır: Free write açıkken Description ve Personality'yi kendiniz yazarsınız ve alanlar onları değiştirmeyi bırakır (korunurlar, ama sohbetler onları görmez). "Structure it" kabul edildiğinde Free write yeniden kapanır.
+
+Identity ve Notes dışındaki her bölümde bir "In chats" anahtarı vardır. Kapatılan bir bölüm alanlarını korur ama metin yazmaz, böylece sohbetler onu görmez ve her sohbet daha az token taşır; "Fill empty" da onu atlar. Sexuality, Trauma ve Circles siz onları açana veya doldurana kadar kapalı başlar.
+
+"Models" panelinin altında, her birinin altında kullandığı model yazılı üç düğme vardır:
+
+- "Structure it" kartın metnini alanlara ayırır. Uzun bir kartı parçalar halinde okur.
+- "Fill empty" yalnızca boş alanlar için değerler önerir. Portre yalnızca Appearance alanlarıyla birlikte resim modeline gider; geri kalan her şey resim olmadan metin modeline gider. İkisi için bir istek iki çağrı ve incelenecek bir öneridir. Modelin penceresinden uzun bir kartta, doldurduğu alanlar için önemli olan parçaları okur (özellikler, korkular ve hedefler için Personality metni, görünüm ve geçmiş için Description) ve öneri kartın ne kadarını okuduğunu söyler.
+- "Read from picture" Appearance alanlarını portreden veya eklediğiniz bir resimden yeniden yazar. "Rewrite fields that are already filled" siz işareti kaldırmadıkça işaretlidir ve pencere seçiminizi hatırlar.
+
+"Models" bu kart için iki seçenek tutar ve "Save changes" ile kaydedilir: metin modeli (Structure it, Fill empty, Soul derecelendirmesi) ve "Reading the portrait". "Don't send the portrait" Fill empty'ı yalnızca metinle çalıştırır; Read from picture yine de çalışır. Her kart için bir seçim Roleplay settings, "Card tasks" altındadır.
 
 ## Personalar
 

@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Personnages, personas et groupes
 
 Tout ce avec quoi vous jouez se trouve dans quatre sections : Characters, Groups, Personas et Marketplace. Cette page explique à quoi sert chacune ; les articles d'aide *Your characters*, *The card editor tabs* et *Groups of characters* donnent les détails.
@@ -10,13 +10,27 @@ Une carte est un personnage : description, personnalité, scénario et un premie
 L'éditeur a six onglets :
 
 - **Core** : le texte de la carte, le dialogue et le message d'accueil.
-- **Profile** : la même description répartie en champs structurés (identité, apparence, objectifs). Chaque enregistrement les réécrit dans le texte de la carte. Une carte narrateur peut y décrire toute une distribution.
+- **Profile** : la même description répartie en champs structurés (identité, apparence, objectifs). Chaque enregistrement les réécrit dans le texte de la carte. Une carte narrateur peut y décrire toute une distribution. Voir « L'onglet Profile » ci-dessous.
 - **Soul** : comment le personnage réagit à vous, plus ses habitudes. Voir [[soul]].
 - **Memory** : les conversations terminées dont le personnage se souvient. Voir [[memory]].
 - **Lorebook** : les livres liés à cette carte.
 - **More** : couleurs et voix, sprites (voir [[sprites]]), galerie, regex, réglages avancés.
 
 Une carte peut jouer plusieurs personnages à la fois (un narrateur ou un maître de jeu). Sous Colors, "Voices" donne à chaque interlocuteur sa propre couleur. Si vous ne listez aucune voix, la conversation s'en charge : une carte qui contient plusieurs personnages (des sections nommées d'après chacun) colore elle-même les répliques de chaque personnage, chacune d'une couleur différente, conservée avec la conversation. Dans toute autre conversation, ouvrez le menu de la conversation, "Voice colors", et activez l'interrupteur ; "Spread colors" donne à chacun de ceux que vous n'avez pas choisis une couleur différente. Cela nécessite le tableau de bord Relationship, qui fournit la liste des personnages. Quand les voix sont colorées, une réplique prend la couleur de celui qui la dit : le nom qui l'ouvre ("Rhea :"), un nom placé à côté d'un verbe de parole ("— Non, — dit Esh"), ou un elle ou il qui désigne le seul personnage de ce genre nommé plus tôt dans la même réponse ("— Bien, — dit-elle"). Un interlocuteur absent de la liste (un passant nommé seulement dans l'histoire) reçoit sa propre couleur, toujours la même, à l'écart des couleurs déjà utilisées. Une réplique qui ne nomme personne garde la couleur de l'interlocuteur précédent ; avant que quiconque soit nommé, la couleur du thème reste. Si l'histoire appelle un personnage d'un autre nom que la carte (la carte dit "Aphrodite", l'histoire dit "Ada"), le chat peut lister deux personnes et les colorer séparément. Deux façons d'en faire une seule : dans le tableau Relationship, ouvrez le menu du personnage et choisissez "Same person as...", ou ajoutez à la carte une ligne telle que "Also called: Ada", pour que le nom soit connu dès la première réponse. Un mot court entre guillemets au milieu d'une phrase ("l'appela « trahison » et partit") est lu comme un terme, non comme une parole, et n'est pas coloré. Pour voir pourquoi une réplique a reçu sa couleur, ouvrez le menu de la conversation, "Voice colors", et activez "Show who speaks and why" : une petite marque après chaque citation indique l'interlocuteur et la règle.
+
+## L'onglet Profile
+
+L'onglet est un formulaire qui écrit la Description et la Personality de la carte, ce que lisent les conversations. Il s'ouvre sur une ligne qui le dit, et l'interrupteur "Free write" en dessous : avec Free write activé, vous écrivez vous-même la Description et la Personality et les champs cessent de les modifier (ils sont conservés, mais les conversations ne les voient pas). Accepter "Structure it" désactive à nouveau Free write.
+
+Chaque section sauf Identity et Notes a un interrupteur "In chats". Une section désactivée garde ses champs mais n'écrit aucun texte, donc les conversations ne la voient pas et chaque conversation porte moins de tokens ; "Fill empty" l'ignore aussi. Sexuality, Trauma et Circles démarrent désactivés jusqu'à ce que vous les activiez ou les remplissiez.
+
+Trois boutons se trouvent sous le panneau "Models", chacun avec le modèle qu'il utilise écrit en dessous :
+
+- "Structure it" trie le texte de la carte dans les champs. Il lit une carte longue par parties.
+- "Fill empty" propose des valeurs pour les champs vides uniquement. Le portrait n'accompagne que les champs Appearance, vers le modèle d'image ; tout le reste va au modèle de texte sans l'image. Une demande pour les deux fait deux appels et une proposition à examiner. Sur une carte plus longue que la fenêtre du modèle, il lit les parties qui comptent pour les champs qu'il remplit (le texte Personality pour les traits, peurs et objectifs, la Description pour l'apparence et le passé), et la proposition indique quelle part de la carte il a lue.
+- "Read from picture" réécrit les champs Appearance à partir du portrait ou d'une image que vous joignez. "Rewrite fields that are already filled" est coché sauf si vous le décochez, et la fenêtre retient votre choix.
+
+"Models" contient deux choix pour cette carte, enregistrés avec "Save changes" : le modèle de texte (Structure it, Fill empty, la note Soul) et "Reading the portrait". "Don't send the portrait" garde Fill empty en texte seul ; Read from picture fonctionne toujours. Un choix pour chaque carte se trouve dans Roleplay settings, "Card tasks".
 
 ## Personas
 

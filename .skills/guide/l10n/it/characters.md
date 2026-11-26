@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Personaggi, persone e gruppi
 
 Tutto ciò con cui giochi vive in quattro sezioni: Characters, Groups, Personas e Marketplace. Questa pagina spiega a cosa serve ciascuna; gli articoli della Guida *Your characters*, *The card editor tabs* e *Groups of characters* contengono i dettagli.
@@ -10,13 +10,27 @@ Una scheda è un personaggio: descrizione, personalità, scenario e un primo mes
 L'editor ha sei schede:
 
 - **Core**: il testo della scheda, il dialogo e il saluto.
-- **Profile**: la stessa descrizione suddivisa in campi strutturati (identità, aspetto, obiettivi). Ogni salvataggio li riscrive nel testo della scheda. Una scheda narratore può descrivere qui un intero cast.
+- **Profile**: la stessa descrizione suddivisa in campi strutturati (identità, aspetto, obiettivi). Ogni salvataggio li riscrive nel testo della scheda. Una scheda narratore può descrivere qui un intero cast. Vedi "La scheda Profile" qui sotto.
 - **Soul**: come il personaggio reagisce a te, più le abitudini. Vedi [[soul]].
 - **Memory**: le chat concluse che il personaggio ricorda. Vedi [[memory]].
 - **Lorebook**: i libri collegati a questa scheda.
 - **More**: colori e voci, sprite (vedi [[sprites]]), galleria, regex, impostazioni avanzate.
 
 Una scheda può interpretare più personaggi contemporaneamente (un narratore o game master). In Colors, "Voices" assegna a ogni interlocutore il proprio colore. Se non elenchi voci, ci pensa la chat: una scheda che contiene più personaggi (sezioni intitolate a ciascuno) colora da sola le battute di ogni personaggio, ognuno con un colore diverso, mantenuto con la chat. In qualsiasi altra chat, apri il menu della chat, "Voice colors", e attiva l'interruttore; "Spread colors" assegna un colore diverso a chiunque tu non abbia scelto. Questo richiede la dashboard Relationship, che fornisce l'elenco dei personaggi. Quando le voci sono colorate, una battuta prende il colore di chi la pronuncia: il nome con cui si apre ("Rhea:"), un nome accanto a un verbo di parlato ("— No, — dice Esh"), oppure un lei o lui che indica l'unico personaggio di quel genere nominato prima nella stessa risposta ("— Va bene, — dice lei"). Un parlante che non è nell'elenco (un passante nominato solo nella storia) riceve un colore proprio, sempre lo stesso, lontano dai colori già usati. Una battuta che non nomina nessuno mantiene il colore del parlante precedente; prima che qualcuno venga nominato, resta il colore del tema. Se la storia chiama un personaggio con un nome diverso da quello della scheda (la scheda dice "Afrodite", la storia dice "Ada"), la chat può elencare due persone e colorarle separatamente. Due modi per renderle una sola: nella dashboard Relationship apri il menu del personaggio e scegli "Same person as...", oppure aggiungi alla scheda una riga come "Also called: Ada", così il nome è noto dalla prima risposta. Una parola breve tra virgolette nel mezzo di una frase ("lo chiamò «tradimento» e se ne andò") è letta come termine, non come parlato, e non viene colorata. Per capire perché una battuta ha quel colore, apri il menu della chat, "Voice colors", e attiva "Show who speaks and why": un piccolo segno dopo ogni citazione indica il parlante e la regola.
+
+## La scheda Profile
+
+La scheda è un modulo che scrive la Description e la Personality della scheda, che è ciò che leggono le chat. Si apre con una riga che lo dice, e sotto l'interruttore "Free write": con Free write attivo scrivi tu Description e Personality e i campi smettono di modificarle (vengono conservati, ma le chat non li vedono). Accettare "Structure it" disattiva di nuovo Free write.
+
+Ogni sezione tranne Identity e Notes ha un interruttore "In chats". Una sezione disattivata conserva i suoi campi ma non scrive testo, quindi le chat non la vedono e ogni chat porta meno token; anche "Fill empty" la salta. Sexuality, Trauma e Circles partono disattivati finché non li attivi o li compili.
+
+Tre pulsanti stanno sotto il pannello "Models", ciascuno con il modello che usa scritto sotto:
+
+- "Structure it" ordina il testo della scheda nei campi. Legge una scheda lunga a parti.
+- "Fill empty" propone valori solo per i campi vuoti. Il ritratto va insieme solo ai campi Appearance, al modello di immagini; tutto il resto va al modello di testo senza l'immagine. Una richiesta per entrambi è due chiamate e una proposta da rivedere. Su una scheda più lunga della finestra del modello legge le parti che contano per i campi che compila (il testo Personality per tratti, paure e obiettivi, la Description per aspetto e background), e la proposta dice quanto della scheda ha letto.
+- "Read from picture" riscrive i campi Appearance dal ritratto o da un'immagine che alleghi. "Rewrite fields that are already filled" è spuntato a meno che tu non lo deselezioni, e la finestra ricorda la tua scelta.
+
+"Models" contiene due scelte per questa scheda, salvate con "Save changes": il modello di testo (Structure it, Fill empty, il rating Soul) e "Reading the portrait". "Don't send the portrait" mantiene Fill empty solo testo; Read from picture funziona comunque. Una scelta per ogni scheda è in Roleplay settings, "Card tasks".
 
 ## Persone
 
