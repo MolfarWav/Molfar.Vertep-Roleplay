@@ -1,4 +1,4 @@
-<!-- source: bea962ecf922 -->
+<!-- source: b6e3ca620392 -->
 # Meanwhile: leven buiten het scherm
 
 Meanwhile laat de mensen die niet in de scène zijn dingen doen terwijl het verhaal doorgaat: Bram verkoopt een paard in de haven, Ada verstopt het grootboek, een front komt een stap dichter bij zijn doel. Het is een testversie, standaard uit.
@@ -11,7 +11,7 @@ Open het **World**-blad van de chat en zoek de kaart **Meanwhile**. Zet "Let peo
 
 Een pass draait na een antwoord wanneer er minstens twee nieuwe antwoorden zijn gekomen en er ofwel een nieuwe scène begon ofwel de verhaalstijd zes uur verschoof. Eén pass is één modelaanroep. Hij gebruikt zijn eigen model als je er een instelt, anders dat van de World DM, de Dashboard-sensor, de Library, de chat, de app. De kaart zegt welke. "Run a pass now" draait er meteen een.
 
-Een pass vraagt om maximaal drie kleine gebeurtenissen. De app controleert elk ervan: de mensen moeten mensen zijn die de chat kent, nooit jouw personage en nooit iemand die in de scène is, en de effecten moeten uit een korte lijst komen. Een gebeurtenis die een controle niet doorstaat, wordt in zijn geheel geschrapt, en het log zegt waarom. Een gebeurtenis die opnieuw zegt wat een eerdere gebeurtenis over dezelfde persoon al zei, wordt ook geschrapt ("repeats an earlier event"). Als een model niets antwoordt, probeert de pass het nog eens met meer ruimte; een pass die mislukt, wacht tien minuten.
+Een pass vraagt om maximaal drie kleine gebeurtenissen. Hij leest de scène die net is afgesloten, de open draden van het Dashboard, de fronts en voor elke persoon waar de World DM die het laatst achterliet, zodat een gebeurtenis die persoon verder brengt in plaats van het moment waarin die achterbleef te herhalen. De app controleert elk ervan: de mensen moeten mensen zijn die de chat kent, nooit jouw personage en nooit iemand die in de scène is, en de effecten moeten uit een korte lijst komen. Een gebeurtenis die een controle niet doorstaat, wordt in zijn geheel geschrapt, en het log zegt waarom. Een gebeurtenis die opnieuw zegt wat een eerdere gebeurtenis over dezelfde persoon al zei, wordt ook geschrapt ("repeats an earlier event"). Als een model niets antwoordt, probeert de pass het nog eens met meer ruimte; een pass die mislukt, wacht tien minuten.
 
 ## Wat de kaart toont
 

@@ -1,4 +1,4 @@
-<!-- source: bea962ecf922 -->
+<!-- source: b6e3ca620392 -->
 # Währenddessen: Das Leben abseits des Bildschirms
 
 Währenddessen lässt die Menschen, die nicht in der Szene sind, Dinge tun, während die Geschichte weitergeht: Bram verkauft am Hafen ein Pferd, Ada versteckt das Hauptbuch, eine Front rückt ihrem Ziel einen Schritt näher. Es ist eine Testversion, standardmäßig aus.
@@ -11,7 +11,7 @@ Währenddessen lässt die Menschen, die nicht in der Szene sind, Dinge tun, wäh
 
 Ein Durchlauf startet nach einer Antwort, wenn mindestens zwei neue Antworten eingegangen sind und entweder eine neue Szene begonnen hat oder die Story-Uhr um sechs Stunden weitergelaufen ist. Ein Durchlauf ist ein Modellaufruf. Er nutzt sein eigenes Modell, wenn du eines einstellst, sonst das des World DM, des Dashboard-Sensors, der Library, des Chats, der App. Die Karte sagt, welches. "Run a pass now" führt sofort einen aus.
 
-Ein Durchlauf fragt nach bis zu drei kleinen Ereignissen. Die App prüft jedes einzelne: Die Personen müssen welche sein, die der Chat kennt, niemals dein Charakter und niemals jemand, der in der Szene ist, und die Wirkungen müssen aus einer kurzen Liste stammen. Ein Ereignis, das eine Prüfung nicht besteht, wird komplett verworfen, und das Log sagt, warum. Ein Ereignis, das noch einmal sagt, was ein früheres Ereignis über dieselbe Person schon gesagt hat, wird ebenfalls verworfen („repeats an earlier event“). Wenn ein Modell nichts antwortet, versucht der Durchlauf es einmal mehr mit mehr Spielraum; ein Durchlauf, der scheitert, wartet zehn Minuten.
+Ein Durchlauf fragt nach bis zu drei kleinen Ereignissen. Er liest die Szene, die gerade endete, die offenen Fäden des Dashboards, die Fronten und für jede Person, wo der World DM sie zuletzt zurückgelassen hat, damit ein Ereignis sie weiterbringt, statt den Moment zu wiederholen, in dem sie zurückblieb. Die App prüft jedes einzelne: Die Personen müssen welche sein, die der Chat kennt, niemals dein Charakter und niemals jemand, der in der Szene ist, und die Wirkungen müssen aus einer kurzen Liste stammen. Ein Ereignis, das eine Prüfung nicht besteht, wird komplett verworfen, und das Log sagt, warum. Ein Ereignis, das noch einmal sagt, was ein früheres Ereignis über dieselbe Person schon gesagt hat, wird ebenfalls verworfen („repeats an earlier event“). Wenn ein Modell nichts antwortet, versucht der Durchlauf es einmal mehr mit mehr Spielraum; ein Durchlauf, der scheitert, wartet zehn Minuten.
 
 ## Was die Karte zeigt
 

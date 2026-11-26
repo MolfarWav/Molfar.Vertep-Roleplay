@@ -1,4 +1,4 @@
-<!-- source: bea962ecf922 -->
+<!-- source: b6e3ca620392 -->
 # Tymczasem: życie poza ekranem
 
 Tymczasem pozwala osobom, które nie są w scenie, robić rzeczy, gdy historia toczy się dalej: Bram sprzedaje konia w porcie, Ada ukrywa księgę, front zbliża się o krok do celu. To wersja testowa, domyślnie wyłączona.
@@ -11,7 +11,7 @@ Otwórz arkusz **World** czatu i znajdź kartę **Meanwhile**. Włącz "Let peop
 
 Przebieg uruchamia się po odpowiedzi, gdy pojawiły się co najmniej dwie nowe odpowiedzi i albo zaczęła się nowa scena, albo zegar historii przesunął się o sześć godzin. Jeden przebieg to jedno wywołanie modelu. Używa własnego modelu, jeśli go ustawisz, a jeśli nie — modelu World DM, czujnika Dashboard, Library, czatu, aplikacji. Karta mówi którego. "Run a pass now" uruchamia jeden od razu.
 
-Przebieg prosi o maksymalnie trzy małe zdarzenia. Aplikacja sprawdza każde z nich: osoby muszą być znane czatowi, nigdy twoja postać i nigdy nikt, kto jest w scenie, a skutki muszą pochodzić z krótkiej listy. Zdarzenie, które nie przejdzie sprawdzenia, jest odrzucane w całości, a dziennik mówi dlaczego. Odrzucane jest też zdarzenie, które powtarza to, co wcześniejsze zdarzenie o tej samej osobie już powiedziało („repeats an earlier event”). Jeśli model nic nie odpowie, przebieg próbuje jeszcze raz z większym marginesem; przebieg, który się nie powiedzie, czeka dziesięć minut.
+Przebieg prosi o maksymalnie trzy małe zdarzenia. Czyta scenę, która właśnie się zamknęła, otwarte wątki Dashboard, fronty i dla każdej osoby to, gdzie World DM ostatnio ją zostawił, tak by zdarzenie popychało ją dalej, zamiast odtwarzać chwilę, w której została. Aplikacja sprawdza każde z nich: osoby muszą być znane czatowi, nigdy twoja postać i nigdy nikt, kto jest w scenie, a skutki muszą pochodzić z krótkiej listy. Zdarzenie, które nie przejdzie sprawdzenia, jest odrzucane w całości, a dziennik mówi dlaczego. Odrzucane jest też zdarzenie, które powtarza to, co wcześniejsze zdarzenie o tej samej osobie już powiedziało („repeats an earlier event”). Jeśli model nic nie odpowie, przebieg próbuje jeszcze raz z większym marginesem; przebieg, który się nie powiedzie, czeka dziesięć minut.
 
 ## Co pokazuje karta
 
