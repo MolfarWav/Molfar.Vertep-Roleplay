@@ -4,6 +4,11 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.163.0 (2026-11-26)
+
+- Fixed: **the built-in Sola's reply length reaches every model.** The length pick lived only inside Sola's planning sheet, which she writes in her thinking. Measured in one chat on five models: Gemini wrote no sheet at all (137-169 words of story, no target anywhere), DeepSeek wrote a sheet without a number, and a card line "narration will not exceed 2 paragraphs" beat the target on GLM (229 words, 280-331 once the line was gone). Now the pick also goes out as one plain note at the very end of the request, the way Vertep Medium does it: "This reply: 400-500 words, never under 400, four or five paragraphs", with a line that it replaces length limits written in the card, and that the HUD, chatterbox and cue do not count. Rapid Fire keeps scaling to your message; Adaptive and Off send no note. Gemini 3.8 Flash went from 137-169 to 426 words with the same chat and card; models that already wrote a sheet (Gemma, GLM, DeepSeek) write a little more but still about a quarter under the target.
+- New: **a Story language choice in Sola (Molfar.Vertep#534).** The old "Language Selector" switch wrote a fixed "Spanish" line and had no place to type a language. It is replaced by a choice in Choices, the same as Vertep Medium's: Same as my messages (default), Українська, English, Русский, and Other with a text box for any language. The language goes out as a one-line note at the end of the request.
+
 ## 4.162.0 (2026-11-26)
 
 - Fixed: **Fill empty no longer sends every section to the picture model (Molfar.Vertep#528).** On a card with a portrait, Fill empty ran the whole request on the picture model with the picture attached, skipping "Model for this card's tasks", for Goals, Personality and every other section too, with limits sized for the wrong model. Now the portrait goes only with the Appearance fields, to the card's picture model and with that model's own window; every other field goes to the card's text model without the picture. A request for both is two calls that show one proposal, which names both models. The "No portrait could be read" warning is gone for a card that has no portrait. A saved picture-model choice is trusted while the model list loads, so a press right after the tab opens no longer goes to another model.
