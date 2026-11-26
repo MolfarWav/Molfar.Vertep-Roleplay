@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Charaktere, Personas und Gruppen
 
 Alles, womit du spielst, lebt in vier Bereichen: Characters, Groups, Personas und Marketplace. Diese Seite erklärt, wofür jeder da ist; die Hilfeartikel *Your characters*, *The card editor tabs* und *Groups of characters* enthalten die Details.
@@ -10,13 +10,27 @@ Eine Karte ist ein Charakter: Beschreibung, Persönlichkeit, Szenario und eine e
 Der Editor hat sechs Tabs:
 
 - **Core**: der Kartentext, Dialog und Begrüßung.
-- **Profile**: dieselbe Beschreibung, aufgeteilt in strukturierte Felder (Identität, Aussehen, Ziele). Jedes Speichern schreibt sie zurück in den Kartentext. Eine Erzählerkarte kann hier eine ganze Besetzung beschreiben.
+- **Profile**: dieselbe Beschreibung, aufgeteilt in strukturierte Felder (Identität, Aussehen, Ziele). Jedes Speichern schreibt sie zurück in den Kartentext. Eine Erzählerkarte kann hier eine ganze Besetzung beschreiben. Siehe "Der Reiter Profile" unten.
 - **Soul**: wie der Charakter auf dich reagiert, plus Gewohnheiten. Siehe [[soul]].
 - **Memory**: abgeschlossene Chats, an die sich der Charakter erinnert. Siehe [[memory]].
 - **Lorebook**: Bücher, die mit dieser Karte verknüpft sind.
 - **More**: Farben und Stimmen, Sprites (siehe [[sprites]]), Galerie, Regex, erweiterte Einstellungen.
 
 Eine Karte kann mehrere Charaktere gleichzeitig spielen (ein Erzähler oder Spielleiter). Unter Colors gibt "Voices" jedem Sprecher seine eigene Farbe. Wenn du keine Voices auflistest, erledigt der Chat das für dich: Eine Karte, die mehrere Charaktere enthält (Abschnitte nach jedem benannt), färbt die Zeilen jedes Charakters von selbst ein, jeweils mit einer anderen Farbe, die beim Chat gespeichert bleibt. In jedem anderen Chat öffne das Chat-Menü, "Voice colors", und schalte den Schalter ein; "Spread colors" gibt jedem, den du nicht ausgewählt hast, eine andere Farbe. Dafür braucht es das Relationship-Dashboard, das die Liste der Charaktere liefert. Wenn Voices eingefärbt sind, bekommt eine Zeile die Farbe ihres Sprechers: der Name, mit dem sie beginnt ("Rhea:"), ein Name neben einem Sprechverb ("— Nein, — sagt Esh") oder ein sie oder er, das auf den einen Charakter dieses Geschlechts zeigt, der früher in derselben Antwort genannt wurde ("— Gut, — sagt sie"). Ein Sprecher, der gar nicht auf der Liste steht (ein Passant, der nur in der Geschichte genannt wird), bekommt eine eigene Farbe, jedes Mal dieselbe, abseits der schon benutzten Farben. Eine Zeile ohne Namen behält die Farbe des vorherigen Sprechers; bevor jemand genannt wird, bleibt die Farbe des Themes. Nennt die Geschichte einen Charakter mit einem anderen Namen als die Karte (die Karte heißt "Aphrodite", die Geschichte sagt "Ada"), kann der Chat zwei Personen auflisten und sie getrennt färben. Zwei Wege, sie zu einer zu machen: Im Relationship-Dashboard das Menü des Charakters öffnen und "Same person as..." wählen, oder der Karte eine Zeile wie "Also called: Ada" hinzufügen, damit der Name ab der ersten Antwort bekannt ist. Ein kurzes Wort in Anführungszeichen mitten im Satz ("nannte es «Verrat» und ging") wird als Begriff gelesen, nicht als Rede, und nicht gefärbt. Um zu sehen, warum eine Zeile ihre Farbe bekam, öffne das Chat-Menü, "Voice colors", und schalte "Show who speaks and why" ein: Ein kleines Zeichen nach jedem Zitat nennt den Sprecher und die Regel.
+
+## Der Reiter Profile
+
+Der Tab ist ein Formular, das Description und Personality der Karte schreibt, also das, was Chats lesen. Er öffnet mit einer Zeile, die das sagt, und dem Schalter "Free write" darunter: Mit Free write an schreibst du Description und Personality selbst, und die Felder hören auf, sie zu ändern (sie bleiben erhalten, aber Chats sehen sie nicht). "Structure it" anzunehmen schaltet Free write wieder aus.
+
+Jeder Abschnitt außer Identity und Notes hat einen Schalter "In chats". Ein ausgeschalteter Abschnitt behält seine Felder, schreibt aber keinen Text, sodass Chats ihn nicht sehen und jeder Chat weniger Tokens trägt; "Fill empty" überspringt ihn ebenfalls. Sexuality, Trauma und Circles starten aus, bis du sie einschaltest oder ausfüllst.
+
+Drei Buttons stehen unter dem Panel "Models", jeder mit dem verwendeten Modell darunter:
+
+- "Structure it" sortiert den Text der Karte in die Felder. Es liest eine lange Karte in Teilen.
+- "Fill empty" schlägt Werte nur für leere Felder vor. Das Porträt geht nur mit den Appearance-Feldern mit, zum Bildmodell; alles andere geht ohne das Bild zum Textmodell. Eine Anfrage für beides sind zwei Aufrufe und ein Vorschlag zum Prüfen. Bei einer Karte, die länger als das Fenster des Modells ist, liest es die Teile, die für die gefüllten Felder zählen (der Personality-Text für Eigenschaften, Ängste und Ziele, die Description für Aussehen und Hintergrund), und der Vorschlag sagt, wie viel der Karte es gelesen hat.
+- "Read from picture" schreibt die Appearance-Felder aus dem Porträt oder einem von dir angehängten Bild neu. "Rewrite fields that are already filled" ist angehakt, solange du es nicht abhakst, und das Fenster merkt sich deine Wahl.
+
+"Models" enthält zwei Auswahlen für diese Karte, gespeichert mit "Save changes": das Textmodell (Structure it, Fill empty, die Soul-Bewertung) und "Reading the portrait". "Don't send the portrait" hält Fill empty text-only; Read from picture funktioniert trotzdem. Eine Auswahl für jede Karte findest du in den Roleplay-Einstellungen, "Card tasks".
 
 ## Personas
 

@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.161.0'
+export const APP_VERSION = '4.162.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.profile-models',
+    since: '4.162.0',
+    help: 'characters',
+    keywords: { en: 'profile fill empty models picture portrait read from picture appearance free write in chats switch', uk: 'профіль заповнити порожні моделі картинка портрет прочитати з картинки зовнішність вільний запис у чатах перемикач' },
+    title: { en: 'Profile tab: Models panel and clearer buttons', uk: 'Вкладка Profile: панель Моделей і зрозуміліші кнопки' },
+    body: {
+      en: 'Fill empty now sends the portrait only with the Appearance fields; everything else goes to the text model of the card. One Models panel holds the text model and the picture model, saved with the card. Each button says which model it uses, and every section switch is labelled "In chats".',
+      uk: 'Fill empty тепер надсилає портрет лише з полями Appearance, а решта йде до текстової моделі картки. Одна панель Моделей має текстову модель і модель для картинок, вони зберігаються з карткою. Під кожною кнопкою написано, яку модель вона бере, а кожен перемикач секції підписано «In chats».',
+    },
+  },
   {
     id: 'new.world-fanservice',
     since: '4.155.0',

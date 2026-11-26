@@ -9,13 +9,27 @@ A card is a character: description, personality, scenario and a first message. A
 The editor has six tabs:
 
 - **Core**: the card text, dialogue and greeting.
-- **Profile**: the same description split into structured fields (identity, appearance, goals). Every save writes them back into the card text. A narrator card can describe a whole cast here.
+- **Profile**: the same description split into structured fields (identity, appearance, goals). Every save writes them back into the card text. A narrator card can describe a whole cast here. See "The Profile tab" below.
 - **Soul**: how the character reacts to you, plus habits. See [[soul]].
 - **Memory**: finished chats the character remembers. See [[memory]].
 - **Lorebook**: books linked to this card.
 - **More**: colors and voices, sprites (see [[sprites]]), gallery, regex, advanced settings.
 
 A card may play several characters at once (a narrator or game master). Under Colors, "Voices" gives each speaker its own color. If you list no voices, the chat does it for you: a card that holds several characters (sections named after each) colors every character's lines by itself, each with a different color, kept with the chat. In any other chat, open the chat menu, "Voice colors", and turn the switch on; "Spread colors" gives everyone you have not picked a different color. This needs the Relationship dashboard, which supplies the list of characters. When voices are painted, a line is colored by whoever speaks it: the name that opens it ("Rhea:"), a name beside a speaking verb ("— No, — says Esh"), or a she or he that points at the one character of that gender named earlier in the same reply ("— Fine, — she says"). A speaker who is not on the list at all (a passer-by named only in the story) gets a color of their own, the same every time, kept away from the colors already used. A line that names nobody keeps the previous speaker's color; before anyone is named, the theme's color stays. If the story calls a character by another name than the card does (the card is "Aphrodite", the story says "Ada"), the chat may list two people and color them apart. Two ways to make them one: in the Relationship dashboard open the character's menu and choose "Same person as...", or add a line such as "Also called: Ada" to the card, so the name is known from the first reply. A short word in quotes in the middle of a sentence ("called it «treason» and left") is read as a term, not speech, and is not colored. To see why a line got its color, open the chat menu, "Voice colors", and turn on "Show who speaks and why": a small mark after each quote names the speaker and the rule.
+
+## The Profile tab
+
+The tab is a form that writes the card's Description and Personality, which is what chats read. It opens with a line saying so, and the "Free write" switch under it: with Free write on you write Description and Personality yourself and the fields stop changing them (they are kept, but chats do not see them). Accepting "Structure it" switches Free write off again.
+
+Every section except Identity and Notes has an "In chats" switch. A section switched off keeps its fields but writes no text, so chats do not see it and every chat carries fewer tokens; "Fill empty" skips it too. Sexuality, Trauma and Circles start off until you turn them on or fill them.
+
+Three buttons sit under the "Models" panel, each with the model it uses written beneath it:
+
+- "Structure it" sorts the card's text into the fields. It reads a long card in parts.
+- "Fill empty" proposes values for empty fields only. The portrait goes along only with the Appearance fields, to the picture model; everything else goes to the text model without the picture. A request for both is two calls and one proposal to review. On a card longer than the model's window it reads the parts that matter for the fields it fills (the Personality text for traits, fears and goals, the Description for looks and background), and the proposal says how much of the card it read.
+- "Read from picture" rewrites the Appearance fields from the portrait or a picture you attach. "Rewrite fields that are already filled" is ticked unless you untick it, and the window remembers your choice.
+
+"Models" holds two choices for this card, saved with "Save changes": the text model (Structure it, Fill empty, the Soul rating) and "Reading the portrait". "Don't send the portrait" keeps Fill empty text-only; Read from picture still works. A choice for every card is in Roleplay settings, "Card tasks".
 
 ## Personas
 

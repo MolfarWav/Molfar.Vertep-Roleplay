@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { CircleNotch, MagicWand } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { fetchModels, fetchVisionModel, j } from '@/lib/engine'
 import { useT } from '@/hooks/use-t'
 import { readImage } from '@/lib/charx'
@@ -19,6 +19,20 @@ type Busy = null | 'structure' | 'fill'
 export type Image = { data: string; mimeType: string }
 /** One of the card's other characters, for a fill: its place in the cast (1 = the first) and the name to find in the text. */
 export type Member = { index: number; name: string }
+/** One call of a Fill empty: the fields it asks for, and the model, picture and limits it runs with. */
+export type FillStep = {
+  fields: Record<string, string[]>
+  image?: Image
+  /** no model = the card's task model, or the engine's Vision model when a picture goes along */
+  model?: string
+  /** characters of the card and tokens of the reply for the model that runs THIS call */
+  limits?: { inputChars: number; outputTokens: number }
+  /** Read from picture: the fields are replaced, filled or not */
+  replace?: boolean
+  member?: Member
+  /** what a failure toast calls this call */
+  what?: string
+}
 
 /** "Structure it" and "Fill empty": one model call each (plugins/profile). The
  *  result is a draft shown in the panel below; nothing changes until Accept. */
@@ -38,18 +52,26 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
     return () => { alive = false }
   }, [query])
 
-  const post = async (kind: 'structure' | 'fill', body: Record<string, unknown>, what: string): Promise<boolean> => {
-    setBusy(kind)
+  /** One /profile/fill call; the draft it filed, or null after a toast about what went wrong. */
+  const postFill = async (step: FillStep, mergeAt: number | undefined): Promise<ProfileDraft | null> => {
+    const what = step.what ?? (step.replace ? 'Read from picture' : 'Fill empty')
+    const body = {
+      fields: step.fields,
+      ...(step.image ? { image: step.image } : {}),
+      ...(step.model ? { model: step.model } : {}),
+      ...(step.limits ? { limits: step.limits } : {}),
+      ...(step.replace ? { replace: true } : {}),
+      ...(step.member ? { member: step.member } : {}),
+      ...(mergeAt !== undefined ? { mergeAt } : {}),
+    }
     try {
-      const r = await j<{ ok?: boolean; draft?: ProfileDraft; error?: string }>(`/profile/${kind}`, { method: 'POST', body: JSON.stringify({ [idKey]: idValue, ...extra?.(kind), ...body }) })
-      if (r.ok && r.draft) { setDraft(r.draft); return true }
+      const r = await j<{ ok?: boolean; draft?: ProfileDraft; error?: string }>('/profile/fill', { method: 'POST', body: JSON.stringify({ [idKey]: idValue, ...extra?.('fill'), ...body }) })
+      if (r.ok && r.draft) { setDraft(r.draft); return r.draft }
       toast.error(`${what} failed: ${r.error ?? 'no answer'}`)
     } catch (e) {
       toast.error(`${what} failed: ${String((e as Error).message ?? e)}`)
-    } finally {
-      setBusy(null)
     }
-    return false
+    return null
   }
   /** A card longer than one call holds is read in parts, one request each; the plugin merges them into one proposal. */
   const runStructure = async (): Promise<boolean> => {
@@ -74,50 +96,70 @@ export function useProfileDraft(target: DraftTarget, onAccept: (d: ProfileDraft)
       setProgress(null)
     }
   }
-  const runFill = (fields: Record<string, string[]>, image?: Image, model?: string, replace = false, member?: Member) =>
-    post('fill', { fields, ...(image ? { image } : {}), ...(model ? { model } : {}), ...(replace ? { replace: true } : {}), ...(member ? { member } : {}) }, replace ? 'Read from picture' : 'Fill empty')
+  /** One Fill empty: a call for each step, one after the other. A later step joins the draft the earlier one filed, so the
+   *  user reviews one proposal. A step that fails says so and the others still run. True when any step filed something. */
+  const runFillSteps = async (steps: FillStep[]): Promise<boolean> => {
+    setBusy('fill')
+    try {
+      let at: number | undefined
+      for (const step of steps) {
+        const filed = await postFill(step, at)
+        if (filed) at = filed.at
+      }
+      return at !== undefined
+    } finally {
+      setBusy(null)
+    }
+  }
   const drop = () => { setDraft(null); void j(query, { method: 'DELETE' }).catch(() => {}) }
   const accept = () => {
     if (!draft) return
     onAccept(draft)
     drop()
   }
-  return { draft, busy, progress, runStructure, runFill, drop, accept }
+  return { draft, busy, progress, runStructure, runFillSteps, drop, accept }
 }
 export type ProfileDraftState = ReturnType<typeof useProfileDraft>
 
-const VISION_KEY = 'rp.profile.visionModel'
+/** Where an older build kept the picture model (one choice for every card, in this browser). It is still read as the
+ *  starting value of a card that has no choice of its own; nothing writes it any more. */
+const LEGACY_VISION_KEY = 'rp.profile.visionModel'
 
-/** Connected models that read pictures, and the one chosen for the portrait ('' = don't read). */
-/** Which model reads pictures. 'settings' (the default) = the engine's Vision model,
- *  'none' = don't read (Fill empty only), or a model ref picked here for this app. */
-export function useVisionModel() {
+/** Which model reads this card's portrait. The choice is part of the card's task settings (`CardTasks.visionModel`,
+ *  saved with Save changes): 'settings' = the engine's Vision model, 'none' = Fill empty never sends the portrait,
+ *  or a model ref. Read from picture is a deliberate act: it reads with the model chosen here, and with the engine's
+ *  Vision model when the choice is 'none'. */
+export function useVisionModel(tasks: Pick<CardTasksState, 'edit' | 'setEdit'>) {
   const [models, setModels] = useState<ModelInfo[]>([])
   const [engineRef, setEngineRef] = useState<string | null>(null)
-  const [value, setValueState] = useState<string>(() => {
-    try { return localStorage.getItem(VISION_KEY) ?? 'settings' } catch { return 'settings' }
+  const [ready, setReady] = useState(false)
+  const [legacy] = useState<string | null>(() => {
+    try { return localStorage.getItem(LEGACY_VISION_KEY) } catch { return null }
   })
   useEffect(() => {
     let alive = true
-    void fetchModels().then((r) => { if (alive) setModels(r.models.filter((m) => m.images === true)) })
-    void fetchVisionModel().then((ref) => { if (alive) setEngineRef(ref) })
+    void Promise.all([
+      fetchModels().then((r) => { if (alive) setModels(r.models.filter((m) => m.images === true)) }),
+      fetchVisionModel().then((ref) => { if (alive) setEngineRef(ref) }),
+    ]).catch(() => {}).finally(() => { if (alive) setReady(true) })
     return () => { alive = false }
   }, [])
-  const setValue = (v: string) => {
-    setValueState(v)
-    try { if (v && v !== 'settings') localStorage.setItem(VISION_KEY, v); else localStorage.removeItem(VISION_KEY) } catch { /* storage blocked */ }
-  }
-  // a remembered model that is no longer connected falls back to Settings
-  const value2 = value === 'none' || value === 'settings' || models.some((m) => m.ref === value) ? value : 'settings'
-  const override = value2 === 'none' || value2 === 'settings' ? undefined : value2
-  // the model that will read: '' = none (pictures are not sent)
-  const active = value2 === 'none' ? '' : (override ?? engineRef ?? '')
+  const raw = tasks.edit.visionModel ?? legacy ?? 'settings'
+  // a saved model that is no longer connected falls back to Settings; until the list has loaded the choice is trusted,
+  // so a press right after the tab opens does not go to another model
+  const value = raw === 'none' || raw === 'settings' || !ready || models.some((m) => m.ref === raw) ? raw : 'settings'
+  const setValue = (v: string) => tasks.setEdit({ visionModel: v || 'settings' })
+  const override = value === 'none' || value === 'settings' ? undefined : value
+  /** the model Fill empty sends the portrait to: '' = it does not */
+  const active = value === 'none' ? '' : (override ?? engineRef ?? '')
+  /** the model Read from picture uses: '' = no connected model reads pictures */
+  const reader = override ?? engineRef ?? ''
   const named = (ref: string | null) => {
     const m = models.find((x) => x.ref === ref)
     return m ? `${m.provider} · ${m.id}` : (ref ?? '').replace(/^c_[^/]*\//, '')
   }
   const settingsLabel = engineRef ? `From Settings: ${named(engineRef)}` : 'From Settings: none reads pictures'
-  return { models, value: value2, setValue, engineRef, override, active, settingsLabel }
+  return { models, value, setValue, engineRef, override, active, reader, ready, named, settingsLabel }
 }
 export type VisionModel = ReturnType<typeof useVisionModel>
 
@@ -129,27 +171,29 @@ export function toBase64(bytes: Uint8Array): string {
   return btoa(s)
 }
 
-/** "Fill empty" for the whole profile or one section: asks only for the empty
- *  fields, with the portrait when a vision model is chosen and there is one. */
-export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avatar: string | undefined, vision: VisionModel, member?: Member) {
+/** "Fill empty" for the whole profile or one section: asks only for the empty fields. The portrait goes along
+ *  only with the Appearance fields (a picture says nothing about goals or fears), to the card's picture model and
+ *  with that model's own limits; every other field goes to the card's task model, text only. A request for both is
+ *  two calls that file one proposal. `text` is the card's text, for sizing the limits. */
+export function useFillEmpty(d: ProfileDraftState, profile: Profile | null, avatar: string | undefined, vision: VisionModel, tasks: Pick<CardTasksState, 'requestForModel'>, text: string, member?: Member) {
   const run = async (section?: SectionKey) => {
     const fields = emptyFields(profile ?? {}, section)
     if (!Object.keys(fields).length) { toast.info('Nothing is empty here.'); return }
     // another character of the card: the portrait is not theirs, so the text alone is read (found by name)
-    if (member) { await d.runFill(fields, undefined, undefined, false, member); return }
+    if (member) { await d.runFillSteps([{ fields, member }]); return }
+    const { appearance, ...rest } = fields
     let image: Image | undefined
-    let model: string | undefined
-    let textOnly = false
-    if (vision.active) {
-      const img = hasPortrait(avatar) ? await readImage(avatar) : null
-      if (img) {
-        image = { data: toBase64(img.bytes), mimeType: `image/${img.ext}` }
-        // no model = the engine's Vision model reads it
-        model = vision.override
-      } else textOnly = true
+    if (appearance && vision.active && hasPortrait(avatar)) {
+      const img = await readImage(avatar)
+      if (img) image = { data: toBase64(img.bytes), mimeType: `image/${img.ext}` }
+      else toast.warning('The portrait could not be read: Appearance comes from the text only.')
     }
-    const ok = await d.runFill(fields, image, model)
-    if (ok && textOnly) toast.warning('No portrait could be read: the proposal comes from the text only.')
+    const steps: FillStep[] = []
+    const textFields = image ? rest : fields
+    if (Object.keys(textFields).length) steps.push({ fields: textFields })
+    // no model = the engine's Vision model reads it
+    if (image && appearance) steps.push({ fields: { appearance }, image, model: vision.override, limits: tasks.requestForModel('fill', text, vision.active), what: 'Fill empty (Appearance from the portrait)' })
+    await d.runFillSteps(steps)
   }
   return { busy: d.busy === 'fill', run: (section?: SectionKey) => { void run(section) } }
 }
@@ -161,31 +205,6 @@ export function StructureButton({ busy, onClick, variant = 'outline', disabled, 
       {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
       {busy ? (progress ? t('ct.reading', progress) : t('ct.readingBare')) : t('ct.structure')}
     </Button>
-  )
-}
-
-/** The whole-profile "Fill empty" button and the portrait model picker. */
-export function FillControls({ busy, disabled, onFill, vision, member }: { busy: boolean; disabled?: boolean; onFill: () => void; vision: VisionModel; member?: boolean }) {
-  const t = useT()
-  const none = vision.models.length === 0 && !vision.engineRef
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button variant="outline" size="sm" className="w-fit" disabled={busy || disabled} onClick={onFill} title={t('ct.fillTip')}>
-        {busy ? <CircleNotch className="size-4 animate-spin" aria-hidden="true" /> : <MagicWand className="size-4" aria-hidden="true" />}
-        {busy ? t('ct.filling') : t('ct.fill')}
-      </Button>
-      {!member && <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title={none ? 'No connected model reads pictures; Fill empty uses the text only.' : 'A model that reads the portrait for Fill empty'}>
-        Portrait:
-        <Select value={none ? 'none' : vision.value} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
-          <SelectTrigger size="sm" className="h-7 max-w-60 text-xs" aria-label="Portrait model"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="settings">{vision.settingsLabel}</SelectItem>
-            <SelectItem value="none">Don't read</SelectItem>
-            {vision.models.map((m) => <SelectItem key={m.ref} value={m.ref}>{`${m.provider} · ${m.id}`}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </span>}
-    </div>
   )
 }
 
@@ -206,10 +225,12 @@ function fillLines(profile: Profile): string[] {
 
 /** The proposal: the text it would write (Structure it) or the values for the
  *  empty fields (Fill empty), with Accept and Discard. */
-export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: {
+export function ProfileDraftPanel({ draft, before, mode, free, onAccept, onDiscard }: {
   draft: ProfileDraft
   before: { description: string; personality: string }
   mode: 'character' | 'persona'
+  /** Free write is on: Accept on a Fill empty leaves the text alone, on a Structure it switches Free write off */
+  free?: boolean
   onAccept: () => void
   onDiscard: () => void
 }) {
@@ -221,7 +242,11 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     ref.current?.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
   }, [draft])
-  const by = draft.model ? ` by ${modelName(draft.model)}` : ''
+  const names = [...new Set((draft.models?.length ? draft.models : draft.model ? [draft.model] : []).map(modelName))]
+  const by = names.length ? ` by ${names.join(' and ')}` : ''
+  const partial = fill && draft.read
+    ? ` Only part of the card fit the model's window: it read ${draft.read.used.toLocaleString()} of ${draft.read.total.toLocaleString()} characters of Description and Personality, picked for these fields. A model with a bigger window, or a higher "Card text per call" under Models, reads more.`
+    : ''
   const block = (title: string, now: string, after: string) => (
     <div className="flex min-w-0 flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
@@ -236,8 +261,8 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
   if (fill) {
     const lines = fillLines(draft.profile)
     summary = draft.replace
-      ? `${lines.length} value${lines.length === 1 ? '' : 's'} read from the picture${by}. Accepting replaces these fields${mode === 'character' ? '; the old text goes to Versions' : ''}.`
-      : `${lines.length} value${lines.length === 1 ? '' : 's'} proposed${by}. Only empty fields get them; nothing you wrote is replaced.${mode === 'character' ? ' The current text goes to Versions.' : ''}`
+      ? `${lines.length} value${lines.length === 1 ? '' : 's'} read from the picture${by}. Accepting replaces these fields${mode === 'character' ? (free ? '; Free write is on, so Description and Personality stay as they are' : '; the old text goes to Versions') : ''}.${partial}`
+      : `${lines.length} value${lines.length === 1 ? '' : 's'} proposed${by}. Only empty fields get them; nothing you wrote is replaced.${mode === 'character' ? (free ? ' Free write is on, so Description and Personality stay as they are.' : ' The current text goes to Versions.') : ''}${partial}`
     body = (
       <ul className="flex max-h-72 flex-col gap-1 overflow-auto rounded-md border border-border bg-background/60 p-2 text-xs">
         {lines.map((l) => <li key={l} className="break-words">{l}</li>)}
@@ -247,7 +272,7 @@ export function ProfileDraftPanel({ draft, before, mode, onAccept, onDiscard }: 
     const next = { ...draft.profile, ...(draft.cast?.length ? { cast: draft.cast } : {}), notes: draft.leftover }
     const filled = Object.keys(draft.profile).length
     const people = draft.cast?.length ? `${draft.cast.length + 1} characters found (${[draft.profile, ...draft.cast].map((m, i) => profileName(m, i)).join(', ')})` : ''
-    summary = `${people}${draft.cast?.length ? '' : `${filled} section${filled === 1 ? '' : 's'} filled`}${by}. Text that fit no field stays as notes. Accepting rewrites ${mode === 'persona' ? 'the description' : 'Description and Personality'}${draft.cast?.length ? ', one part per character,' : ''} as shown${mode === 'character' ? '; the current text goes to Versions' : ''}.`
+    summary = `${people}${draft.cast?.length ? '' : `${filled} section${filled === 1 ? '' : 's'} filled`}${by}. Text that fit no field stays as notes. Accepting rewrites ${mode === 'persona' ? 'the description' : 'Description and Personality'}${draft.cast?.length ? ', one part per character,' : ''} as shown${mode === 'character' ? '; the current text goes to Versions' : ''}.${free ? ' This also switches Free write off.' : ''}`
     if (mode === 'persona') {
       const notes = [draft.leftover?.description ?? '', draft.leftover?.personality ?? ''].map((x) => x.trim()).filter(Boolean).join('\n\n')
       body = block('Description would become', before.description, compileProfileText({ ...draft.profile, notes: { description: notes } }))

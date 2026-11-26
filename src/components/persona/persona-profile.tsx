@@ -3,9 +3,7 @@ import { toast } from 'sonner'
 import { ListChecks } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { InfoTip } from '@/components/ui/info-tip'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type { useConfirm } from '@/components/ui/confirm'
 type ConfirmOptions = Parameters<ReturnType<typeof useConfirm>[0]>[0]
@@ -25,7 +23,9 @@ import { ProfileForm } from '@/components/profile/profile-form'
 import { ReadPictureDialog } from '@/components/profile/read-picture-dialog'
 import { CardModelPanel } from '@/components/character/card-model-panel'
 import type { CardTasksState } from '@/components/character/use-card-tasks'
-import { FillControls, ProfileDraftPanel, StructureButton, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
+import { ProfileActionCell, ProfileActions, ProfileIntro } from '@/components/profile/profile-actions'
+import { ProfileDraftPanel, hasPortrait, useFillEmpty, useProfileDraft, useVisionModel } from '@/components/character/structure-draft'
+import { shortModel } from '@/lib/utils'
 
 /** The persona's profile logic, held by the page so the Core and Profile tabs share one draft:
  *  "Structure it", "Fill empty" and the questionnaire all write through `write`/`save`, and an edit
@@ -41,8 +41,8 @@ export function usePersonaProfile(p: Persona, update: (patch: Partial<Persona>) 
       toast.success('Persona profile filled.')
     }
   }, (kind) => tasks.requestFor(kind, p.description))
-  const vision = useVisionModel()
-  const fill = useFillEmpty(draft, profile, p.avatar, vision)
+  const vision = useVisionModel(tasks)
+  const fill = useFillEmpty(draft, profile, p.avatar, vision, tasks, p.description)
   const [readOpen, setReadOpen] = useState(false)
   const [reading, setReading] = useState(false)
   const approved = useRef(false)
@@ -94,24 +94,26 @@ export function PersonaProfilePanel({ p, state, tasks, onAsk }: { p: Persona; st
   const { profile, draft, vision, fill, readOpen, setReadOpen, reading, setReading, save } = state
   return (
     <div className="flex flex-col gap-3" data-testid="persona-profile-panel">
-      <CardModelPanel tasks={tasks} c={{ description: p.description }} />
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex min-h-10 items-center gap-2 text-xs text-muted-foreground">
-          <Switch checked={!!profile.free} onCheckedChange={(v) => save({ ...profile, free: v })} aria-label="Free write" />
-          {t('personas.page.freeWrite')}
-        </label>
-        <InfoTip label="About the profile">Fill in the fields and the description is written from them, so you do not have to compose it yourself. Turn on Free write to edit the description by hand instead.</InfoTip>
-        <div className="flex flex-wrap items-center gap-2 md:ml-auto">
-          <FillControls busy={fill.busy} disabled={!!draft.busy} onFill={() => fill.run()} vision={vision} />
-          <StructureButton busy={draft.busy === 'structure'} disabled={!!draft.busy} progress={draft.progress} onClick={() => void draft.runStructure()} />
-          <Button variant="outline" size="sm" className="h-8 max-md:h-11" onClick={onAsk}>
-            <ListChecks className="size-3.5" aria-hidden="true" />{p.profile ? t('personas.page.editAnswers') : t('personas.page.fiveQuestions')}
-          </Button>
-        </div>
-      </div>
-      {profile.free && <p className="text-xs text-muted-foreground">Free write is on: the fields are saved but do not change the description.</p>}
+      <ProfileIntro mode="persona" free={!!profile.free} onFree={(v) => save({ ...profile, free: v })} />
+      <CardModelPanel tasks={tasks} c={{ description: p.description }} vision={vision} hasPortrait={hasPortrait(p.avatar)} saves="now" />
+      <ProfileActions
+        textModel={tasks.resolved.model ? shortModel(tasks.resolved.model) : ''}
+        vision={vision}
+        hasPortrait={hasPortrait(p.avatar)}
+        busy={!!draft.busy || fill.busy || reading}
+        structure={{ run: () => void draft.runStructure(), busy: draft.busy === 'structure', progress: draft.progress }}
+        fill={{ run: () => fill.run(), busy: fill.busy, member: false }}
+        read={{ open: () => setReadOpen(true), busy: reading }}
+        extra={
+          <ProfileActionCell hint="Answer a few questions and the profile is written from your answers.">
+            <Button variant="outline" size="sm" className="w-fit max-md:h-10" onClick={onAsk}>
+              <ListChecks className="size-4" aria-hidden="true" />{p.profile ? t('personas.page.editAnswers') : t('personas.page.fiveQuestions')}
+            </Button>
+          </ProfileActionCell>
+        }
+      />
       {draft.draft && (
-        <ProfileDraftPanel draft={draft.draft} before={{ description: p.description, personality: '' }} mode="persona" onAccept={draft.accept} onDiscard={draft.drop} />
+        <ProfileDraftPanel draft={draft.draft} before={{ description: p.description, personality: '' }} mode="persona" free={!!profile.free} onAccept={draft.accept} onDiscard={draft.drop} />
       )}
       <ProfileForm
         p={profile}
@@ -129,7 +131,7 @@ export function PersonaProfilePanel({ p, state, tasks, onAsk }: { p: Persona; st
         busy={reading}
         onRead={(fields, image, model, replace) => {
           setReading(true)
-          void draft.runFill(fields, image, model, replace).finally(() => setReading(false))
+          void draft.runFillSteps([{ fields, image, model, replace, limits: tasks.requestForModel('fill', p.description, vision.reader) }]).finally(() => setReading(false))
         }}
       />
     </div>

@@ -403,6 +403,23 @@ function SectionFields({ id, p, save, mode }: { id: FormId; p: Profile; save: Sa
   }
 }
 
+/** What a switched-off section means, in the words of the screen. Some sections start off by themselves. */
+function offText(id: string, mode: Mode): string {
+  const text = mode === 'persona' ? 'the description' : 'Description and Personality'
+  const why = id === 'sexuality' ? ' It starts off until you turn it on.' : id === 'trauma' || id === 'circles' ? ' It starts off until one of its fields is filled.' : ''
+  return `Off: these fields are kept but not written into ${text}, so chats do not see them. Fill empty skips this section.${why}`
+}
+
+/** The section's on/off switch with its words beside it: "In chats" says what the switch decides. */
+function InChatsSwitch({ s, on, p, save }: { s: SectionMeta; on: boolean; p: Profile; save: Save }) {
+  return (
+    <label className="flex min-h-10 shrink-0 items-center gap-1.5 text-xs text-muted-foreground md:min-h-0">
+      <Switch checked={on} onCheckedChange={(v) => save({ ...p, sections: { ...p.sections, [s.id]: v } })} aria-label={`Use ${s.title} in chats`} />
+      In chats
+    </label>
+  )
+}
+
 function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
   s: SectionMeta; p: Profile; save: Save; mode: Mode; fill?: FillControl; anchor: string; on: boolean; count: [number, number] | null
   /** the persona page folds each section into a row with a fill ring; the card editor shows them open */
@@ -432,9 +449,7 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
               <MagicWand className="size-3.5" aria-hidden="true" /><span className="max-md:sr-only">Fill empty</span>
             </Button>
           )}
-          {s.switchable && (
-            <Switch checked={on} onCheckedChange={(v) => save({ ...p, sections: { ...p.sections, [s.id]: v } })} aria-label={`${s.title} section`} />
-          )}
+          {s.switchable && <InChatsSwitch s={s} on={on} p={p} save={save} />}
         </div>
         {fold.open && (
           <div id={bodyId} className="flex flex-col gap-3 px-3">
@@ -445,7 +460,7 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
               </Button>
             )}
             {s.hint && <p className="text-xs text-muted-foreground">{s.hint}</p>}
-            {on ? <SectionFields id={s.id} p={p} save={save} mode={mode} /> : <p className="text-xs text-muted-foreground">Off: kept, but nothing from it goes into the text.</p>}
+            {on ? <SectionFields id={s.id} p={p} save={save} mode={mode} /> : <p className="text-xs text-muted-foreground">{offText(s.id, mode)}</p>}
           </div>
         )}
       </section>
@@ -472,17 +487,11 @@ function SectionCard({ s, p, save, mode, fill, anchor, on, count, fold }: {
               {fill.readPicture.busy ? t('ct.readingPicture') : t('ct.readPicture')}
             </Button>
           )}
-          {s.switchable && (
-            <Switch
-              checked={on}
-              onCheckedChange={(v) => save({ ...p, sections: { ...p.sections, [s.id]: v } })}
-              aria-label={`${s.title} section`}
-            />
-          )}
+          {s.switchable && <InChatsSwitch s={s} on={on} p={p} save={save} />}
         </div>
       </div>
       {s.hint && <p className="text-xs text-muted-foreground">{s.hint}</p>}
-      {on ? <SectionFields id={s.id} p={p} save={save} mode={mode} /> : <p className="text-xs text-muted-foreground">Off: kept, but nothing from it goes into the text.</p>}
+      {on ? <SectionFields id={s.id} p={p} save={save} mode={mode} /> : <p className="text-xs text-muted-foreground">{offText(s.id, mode)}</p>}
     </section>
   )
 }

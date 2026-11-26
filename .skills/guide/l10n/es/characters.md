@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Personajes, personas y grupos
 
 Todo con lo que juegas vive en cuatro secciones: Characters, Groups, Personas y Marketplace. Esta página explica para qué sirve cada una; los artículos de ayuda *Your characters*, *The card editor tabs* y *Groups of characters* tienen los detalles.
@@ -10,13 +10,27 @@ Una tarjeta es un personaje: descripción, personalidad, escenario y un primer m
 El editor tiene seis pestañas:
 
 - **Core**: el texto de la tarjeta, el diálogo y el saludo.
-- **Profile**: la misma descripción dividida en campos estructurados (identidad, apariencia, objetivos). Cada guardado los escribe de vuelta en el texto de la tarjeta. Una tarjeta de narrador puede describir aquí a todo un reparto.
+- **Profile**: la misma descripción dividida en campos estructurados (identidad, apariencia, objetivos). Cada guardado los escribe de vuelta en el texto de la tarjeta. Una tarjeta de narrador puede describir aquí a todo un reparto. Consulta "La pestaña Profile" más abajo.
 - **Soul**: cómo reacciona el personaje ante ti, más sus hábitos. Consulta [[soul]].
 - **Memory**: chats terminados que el personaje recuerda. Consulta [[memory]].
 - **Lorebook**: libros vinculados a esta tarjeta.
 - **More**: colores y voces, sprites (consulta [[sprites]]), galería, regex, ajustes avanzados.
 
 Una tarjeta puede interpretar a varios personajes a la vez (un narrador o director de juego). En Colors, "Voices" da a cada hablante su propio color. Si no indicas ninguna voz, el chat lo hace por ti: una tarjeta que contiene varios personajes (secciones con el nombre de cada uno) colorea por sí sola las líneas de cada personaje, cada uno con un color distinto, guardado con el chat. En cualquier otro chat, abre el menú del chat, "Voice colors", y activa el interruptor; "Spread colors" da un color distinto a cada persona que no hayas elegido. Esto necesita el panel Relationship, que proporciona la lista de personajes. Cuando se pintan las voces, una línea toma el color de quien la dice: el nombre con el que empieza ("Rhea:"), un nombre junto a un verbo de habla ("— No —dice Esh") o un ella o él que señala al único personaje de ese género mencionado antes en la misma respuesta ("— Bien —dice ella"). Un hablante que no está en la lista (alguien de paso, nombrado solo en la historia) recibe un color propio, siempre el mismo, apartado de los colores ya usados. Una línea que no nombra a nadie conserva el color del hablante anterior; antes de que se nombre a alguien, queda el color del tema. Si la historia llama a un personaje con otro nombre que la tarjeta (la tarjeta dice "Afrodita", la historia dice "Ada"), el chat puede listar a dos personas y colorearlas por separado. Dos formas de unirlas: en el panel Relationship abre el menú del personaje y elige "Same person as...", o añade a la tarjeta una línea como "Also called: Ada", para que el nombre se conozca desde la primera respuesta. Una palabra corta entre comillas en medio de una frase ("lo llamó «traición» y se fue") se lee como término, no como habla, y no se colorea. Para ver por qué una línea recibió su color, abre el menú del chat, "Voice colors", y activa "Show who speaks and why": una pequeña marca tras cada cita indica el hablante y la regla.
+
+## La pestaña Profile
+
+La pestaña es un formulario que escribe la Description y la Personality de la tarjeta, que es lo que leen los chats. Se abre con una línea que lo dice, y el interruptor "Free write" debajo: con Free write activado escribes tú la Description y la Personality y los campos dejan de cambiarlas (se conservan, pero los chats no las ven). Aceptar "Structure it" desactiva Free write de nuevo.
+
+Cada sección excepto Identity y Notes tiene un interruptor "In chats". Una sección desactivada conserva sus campos pero no escribe texto, así que los chats no la ven y cada chat lleva menos tokens; "Fill empty" también la salta. Sexuality, Trauma y Circles empiezan desactivadas hasta que las actives o las rellenes.
+
+Hay tres botones bajo el panel "Models", cada uno con el modelo que usa escrito debajo:
+
+- "Structure it" ordena el texto de la tarjeta en los campos. Lee una tarjeta larga por partes.
+- "Fill empty" propone valores solo para los campos vacíos. El retrato solo acompaña a los campos de Appearance, hacia el modelo de imagen; todo lo demás va al modelo de texto sin la imagen. Una petición de ambos son dos llamadas y una propuesta que revisar. En una tarjeta más larga que la ventana del modelo, lee las partes que importan para los campos que rellena (el texto de Personality para rasgos, miedos y objetivos, la Description para el aspecto y los antecedentes), y la propuesta dice cuánto de la tarjeta leyó.
+- "Read from picture" reescribe los campos de Appearance a partir del retrato o de una imagen que adjuntes. "Rewrite fields that are already filled" está marcado a menos que lo desmarques, y la ventana recuerda tu elección.
+
+"Models" contiene dos elecciones para esta tarjeta, guardadas con "Save changes": el modelo de texto (Structure it, Fill empty, la valoración de Soul) y "Reading the portrait". "Don't send the portrait" mantiene Fill empty solo texto; Read from picture sigue funcionando. Una elección para cada tarjeta está en Roleplay settings, "Card tasks".
 
 ## Personas
 

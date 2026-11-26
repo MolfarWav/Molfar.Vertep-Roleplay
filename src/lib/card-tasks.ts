@@ -9,6 +9,10 @@ import type { ModelInfo } from '@/lib/types'
 /** A card's own task settings, kept in `characters/<id>/card-tasks.json` (not in the card, so a shared card carries none). */
 export interface CardTasks {
   model?: string
+  /** The model that reads this card's portrait (Read from picture, the looks fields of Fill empty): 'none' = Fill
+   *  empty never sends the portrait, 'settings' = the engine's Vision model chosen on purpose, else a model ref.
+   *  Unset = the choice an older build kept in this browser, else the engine's Vision model. */
+  visionModel?: string
   /** Tokens of the card sent in one call; unset = what the model's window allows. */
   maxInput?: number
   /** Tokens of the reply; unset = the task's usual size, kept inside the model's real maximum. */
@@ -86,4 +90,4 @@ export function mergeTasks(cur: CardTasks, patch: Partial<CardTasks>): CardTasks
 }
 
 export const sameTasks = (a: CardTasks, b: CardTasks): boolean =>
-  (a.model ?? '') === (b.model ?? '') && (a.maxInput ?? 0) === (b.maxInput ?? 0) && (a.maxOutput ?? 0) === (b.maxOutput ?? 0)
+  (a.model ?? '') === (b.model ?? '') && (a.visionModel ?? '') === (b.visionModel ?? '') && (a.maxInput ?? 0) === (b.maxInput ?? 0) && (a.maxOutput ?? 0) === (b.maxOutput ?? 0)

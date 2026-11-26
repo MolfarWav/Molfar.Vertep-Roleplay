@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Personages, persona's en groepen
 
 Alles waarmee je speelt, staat in vier secties: Personages, Groepen, Persona's en Marktplaats. Deze pagina legt uit waarvoor elk dient; de Help-artikelen *Je personages*, *De tabbladen van de kaarteditor* en *Groepen personages* bevatten de details.
@@ -10,13 +10,27 @@ Een kaart is een personage: beschrijving, persoonlijkheid, scenario en een eerst
 De editor heeft zes tabbladen:
 
 - **Core**: de kaarttekst, dialoog en begroeting.
-- **Profile**: dezelfde beschrijving opgesplitst in gestructureerde velden (identiteit, uiterlijk, doelen). Elke opslag schrijft ze terug naar de kaarttekst. Een vertellerskaart kan hier een hele cast beschrijven.
+- **Profile**: dezelfde beschrijving opgesplitst in gestructureerde velden (identiteit, uiterlijk, doelen). Elke opslag schrijft ze terug naar de kaarttekst. Een vertellerskaart kan hier een hele cast beschrijven. Zie "Het tabblad Profile" hieronder.
 - **Soul**: hoe het personage op je reageert, plus gewoonten. Zie [[soul]].
 - **Memory**: afgeronde chats die het personage zich herinnert. Zie [[memory]].
 - **Lorebook**: boeken die aan deze kaart zijn gekoppeld.
 - **More**: kleuren en stemmen, sprites (zie [[sprites]]), galerij, regex, geavanceerde instellingen.
 
 Een kaart kan meerdere personages tegelijk spelen (een verteller of spelleider). Onder Colors geeft "Voices" elke spreker zijn eigen kleur. Als je geen stemmen opgeeft, doet de chat het voor je: een kaart met meerdere personages (secties vernoemd naar elk) kleurt de regels van elk personage vanzelf, elk met een andere kleur, bewaard bij de chat. In elke andere chat open je het chatmenu, "Voice colors", en zet je de schakelaar aan; "Spread colors" geeft iedereen die je niet hebt gekozen een andere kleur. Dit vereist het Relationship-dashboard, dat de lijst met personages levert. Als stemmen zijn ingekleurd, krijgt een regel de kleur van wie hem uitspreekt: de naam waarmee hij opent ("Rhea:"), een naam naast een spreekwerkwoord ("— Nee, — zegt Esh"), of een zij of hij die wijst naar het ene personage van dat geslacht dat eerder in hetzelfde antwoord is genoemd ("— Goed, — zegt ze"). Een spreker die helemaal niet op de lijst staat (een voorbijganger die alleen in het verhaal wordt genoemd) krijgt een eigen kleur, telkens dezelfde, los van de kleuren die al gebruikt worden. Een regel die niemand noemt, houdt de kleur van de vorige spreker; voordat iemand is genoemd, blijft de themakleur. Als het verhaal een personage met een andere naam noemt dan de kaart (de kaart heet "Aphrodite", het verhaal zegt "Ada"), kan de chat twee personen tonen en ze apart kleuren. Twee manieren om ze één te maken: open in het Relationship-dashboard het menu van het personage en kies "Same person as...", of voeg aan de kaart een regel toe zoals "Also called: Ada", zodat de naam vanaf het eerste antwoord bekend is. Een kort woord tussen aanhalingstekens midden in een zin ("noemde het «verraad» en vertrok") wordt als term gelezen, niet als spraak, en krijgt geen kleur. Om te zien waarom een regel zijn kleur kreeg, open je het chatmenu, "Voice colors", en zet je "Show who speaks and why" aan: een klein teken na elk citaat noemt de spreker en de regel.
+
+## Het tabblad Profile
+
+Het tabblad is een formulier dat de Description en Personality van de kaart schrijft, en dat is wat chats lezen. Het opent met een regel die dat zegt, en de schakelaar "Free write" eronder: met Free write aan schrijf je Description en Personality zelf en stoppen de velden met ze te wijzigen (ze worden bewaard, maar chats zien ze niet). "Structure it" accepteren zet Free write weer uit.
+
+Elke sectie behalve Identity en Notes heeft een schakelaar "In chats". Een sectie die uit staat, houdt zijn velden maar schrijft geen tekst, dus chats zien hem niet en elke chat draagt minder tokens; "Fill empty" slaat hem ook over. Sexuality, Trauma en Circles beginnen uit tot je ze aanzet of vult.
+
+Drie knoppen staan onder het paneel "Models", elk met het model dat het gebruikt eronder geschreven:
+
+- "Structure it" sorteert de tekst van de kaart in de velden. Het leest een lange kaart in delen.
+- "Fill empty" stelt waarden voor alleen lege velden voor. Het portret gaat alleen mee met de Appearance-velden, naar het beeldmodel; al het andere gaat naar het tekstmodel zonder de afbeelding. Een verzoek voor beide is twee aanroepen en één voorstel om te beoordelen. Op een kaart die langer is dan het venster van het model leest het de delen die ertoe doen voor de velden die het vult (de Personality-tekst voor eigenschappen, angsten en doelen, de Description voor uiterlijk en achtergrond), en het voorstel zegt hoeveel van de kaart het heeft gelezen.
+- "Read from picture" herschrijft de Appearance-velden vanuit het portret of een afbeelding die je toevoegt. "Rewrite fields that are already filled" is aangevinkt tenzij je het uitvinkt, en het venster onthoudt je keuze.
+
+"Models" bevat twee keuzes voor deze kaart, opgeslagen met "Save changes": het tekstmodel (Structure it, Fill empty, de Soul-beoordeling) en "Reading the portrait". "Don't send the portrait" houdt Fill empty alleen tekst; Read from picture werkt nog steeds. Een keuze voor elke kaart staat in Roleplay settings, "Card tasks".
 
 ## Persona's
 

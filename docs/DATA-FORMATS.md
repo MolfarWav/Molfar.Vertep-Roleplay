@@ -115,14 +115,14 @@ before the first heading or a cast stops it, and the card is left as it came). C
 `adoptMarkedSections` in `src/lib/profile.ts`.
 
 **The model for a card's tasks.** Not part of the card: `characters/<id>/card-tasks.json`
-(`{ "model": "<ref>", "maxInput": <tokens>, "maxOutput": <tokens> }`, every key optional; the file is absent when
+(`{ "model": "<ref>", "visionModel": "<ref>" | "none" | "settings", "maxInput": <tokens>, "maxOutput": <tokens> }`, every key optional; the file is absent when
 the card has no choice of its own). It is read and written by the profile plugin (`GET/PUT /profile/card-tasks`)
-and saved by the editor's Save changes. Structure it, Fill empty and the Soul rating run on: the model in the
+and saved by the editor's Save changes. `visionModel` is the model that reads this card's portrait: `none` = Fill empty does not send the portrait (Read from picture still reads, with the engine's Vision model), `settings` = the engine's Vision model on purpose, a ref = that model; absent = the choice an older build kept in the browser (`rp.profile.visionModel`), else the Vision model. Structure it, Fill empty and the Soul rating run on: the model in the
 request (an unsaved pick) -> the card's `model` -> the app-wide `ui.cardTasks.model` in `settings.json` (Settings,
 Card tasks) -> the Dashboard's `sensorModel` -> the app's default `model` (the automatic Soul rating of a chat's characters,
 `soulModel` in the relations plugin, also tries the chat's own model between `sensorModel` and the default; Rate now has no chat). The editor sends the model's real limits
 with a request (`limits: { inputChars, outputTokens }`); a card longer than `inputChars` is read in parts
-(`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft.
+(`/profile/structure` with `part`, answers `{ part, parts, done }`) and the parts' proposals are merged into one draft. Fill empty is one call: on a card longer than `inputChars` it sends the pieces that matter for the fields it asks (sections that write Personality: lists, behaviors, goals, trauma, sexuality read the Personality text first; the others the Description; a request for both takes pieces from each) and the draft carries `read: { used, total }`, the characters of Description and Personality sent and held.
 
 **The card's long memory.** Not part of the card either: `characters/<id>/memory.json`, written by the Litopys
 plugin (`GET/PUT/DELETE /litopys/card-memory`) and edited in the card's Memory tab; it is never in `card.json` or in
@@ -461,7 +461,7 @@ proposal in `data/profile-drafts/<id>.json` (`kind: "structure"`); accepting it 
 sections, puts the text that fit no field in `notes`, and saves the old text as a version.
 "Fill empty" asks the model for the empty fields of the switched-on sections (or one section) and files
 `kind: "fill"`; accepting it writes only fields that are still empty, never relationships, and saves the
-old text as a version. The portrait goes along to the engine's Vision model (Settings) unless the request names a model; "Read from picture" (`replace: true`) rewrites filled appearance fields.
+old text as a version, unless Free write is on (the text did not change). The app sends the portrait only with the `appearance` fields, to the card's picture model (the request's `model`, else the engine's Vision model) with that model's own `limits`; every other field is a call without the picture to the card's task model. A request for both is two calls: the second names the draft the first filed with `mergeAt` (its `at`), and its values join that draft (`models` lists both models). "Read from picture" (`replace: true`) rewrites filled appearance fields.
 
 ## Personas: `data/personas/<id>.json`
 
@@ -1596,7 +1596,7 @@ Pass-through JSON: `id, name, avatar, title, description, pronouns, lorebookIds,
 |---|---|
 | `tags` | Names of the persona's tags (strings). A tag marked `asFolder` in the shared tag list (`library.json`, entries with `scope: "persona"`) is also a folder: the persona is in every folder it has a tag for. |
 | `gallery` | `string[]` of stored media urls: portraits generated for the persona. `avatar` is the one in use. |
-| `cardTasks` | `{ model?, maxInput?, maxOutput? }`: the model for this persona's Structure it and Fill empty, same shape as a character's card tasks. |
+| `cardTasks` | `{ model?, visionModel?, maxInput?, maxOutput? }`: the models for this persona's Structure it, Fill empty and portrait reading, same shape as a character's card tasks. |
 | `ownLorebookId` | The one of `lorebookIds` that is the persona's own book, or missing. The id is also in `lorebookIds`, so the prompt engine, which reads `lorebookIds`, is unchanged. Unlinking it clears this field; deleting the book clears it too. |
 | `lorebook` | Only in an exported file (Personas > Export, Backup): the own book inline, in the stored book shape of `lorebooks/<id>.json` without its `id`. Import stores it as a new book (a new id, a name that does not clash: `Name (2)`), sets `ownLorebookId` to it, links it first and removes the old own id from `lorebookIds`. It is never kept in `personas/<id>.json`. A persona can only own one book; every other id in `lorebookIds` is a plain link and travels as an id only. |
 | `folderId` | Not used. |

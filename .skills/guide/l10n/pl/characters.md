@@ -1,4 +1,4 @@
-<!-- source: 4066c9341af1 -->
+<!-- source: 59593d4e7cf8 -->
 # Postacie, persony i grupy
 
 Wszystko, czym grasz, znajduje się w czterech sekcjach: Characters, Groups, Personas i Marketplace. Ta strona mówi, do czego służy każda z nich; szczegóły znajdziesz w artykułach pomocy *Your characters*, *The card editor tabs* i *Groups of characters*.
@@ -10,13 +10,27 @@ Karta to postać: opis, osobowość, scena i pierwsza wiadomość. Tag zapisany 
 Edytor ma sześć zakładek:
 
 - **Core**: tekst karty, dialog i powitanie.
-- **Profile**: ten sam opis podzielony na ustrukturyzowane pola (tożsamość, wygląd, cele). Każdy zapis wpisuje je z powrotem do tekstu karty. Karta narratora może tu opisać całą obsadę.
+- **Profile**: ten sam opis podzielony na ustrukturyzowane pola (tożsamość, wygląd, cele). Każdy zapis wpisuje je z powrotem do tekstu karty. Karta narratora może tu opisać całą obsadę. Zobacz „Zakładka Profile” poniżej.
 - **Soul**: jak postać reaguje na ciebie, plus nawyki. Zobacz [[soul]].
 - **Memory**: zakończone czaty, które postać pamięta. Zobacz [[memory]].
 - **Lorebook**: księgi powiązane z tą kartą.
 - **More**: kolory i głosy, sprites (zobacz [[sprites]]), galeria, regex, ustawienia zaawansowane.
 
 Karta może odgrywać kilka postaci naraz (narrator lub mistrz gry). W sekcji Colors opcja „Voices" daje każdemu mówcy własny kolor. Jeśli nie wymienisz żadnych głosów, czat zrobi to za ciebie: karta zawierająca kilka postaci (sekcje nazwane po każdej z nich) sama koloruje kwestie każdej postaci, każdą innym kolorem, zachowanym wraz z czatem. W każdym innym czacie otwórz menu czatu, „Voice colors", i włącz przełącznik; „Spread colors" daje każdemu, kogo nie wybrałeś, inny kolor. Wymaga to Dashboardu Relationship, który dostarcza listę postaci. Gdy głosy są pokolorowane, linia dostaje kolor tego, kto ją mówi: imię, którym się zaczyna („Rhea:"), imię obok czasownika mowy („— Nie, — mówi Esh"), albo ona lub on wskazujący na jedyną postać tej płci wymienioną wcześniej w tej samej odpowiedzi („— Dobrze, — mówi ona"). Mówca, którego nie ma na liście (przechodzień wspomniany tylko w historii), dostaje własny kolor, za każdym razem ten sam, z dala od kolorów już użytych. Linia, która nikogo nie nazywa, zachowuje kolor poprzedniego mówcy; zanim ktokolwiek zostanie wymieniony, zostaje kolor motywu. Jeśli historia nazywa postać inaczej niż karta (karta: „Afrodyta", historia: „Ada"), czat może wypisać dwie osoby i pokolorować je osobno. Dwa sposoby, by uczynić je jedną: w Dashboardzie Relationship otwórz menu postaci i wybierz „Same person as...", albo dodaj do karty linijkę w rodzaju „Also called: Ada", aby imię było znane od pierwszej odpowiedzi. Krótkie słowo w cudzysłowie w środku zdania („nazwał to «zdradą» i odszedł") jest czytane jako termin, nie jako mowa, i nie dostaje koloru. Aby zobaczyć, dlaczego linia dostała kolor, otwórz menu czatu, „Voice colors", i włącz „Show who speaks and why": mały znak za każdym cytatem wskazuje mówcę i regułę.
+
+## Zakładka Profile
+
+Zakładka to formularz, który zapisuje Description i Personality karty, czyli to, co czytają czaty. Otwiera się z linijką, która to mówi, i przełącznikiem „Free write" pod nią: przy włączonym Free write sam piszesz Description i Personality, a pola przestają je zmieniać (są zachowane, ale czaty ich nie widzą). Zaakceptowanie „Structure it" ponownie wyłącza Free write.
+
+Każda sekcja oprócz Identity i Notes ma przełącznik „In chats". Sekcja wyłączona zachowuje swoje pola, ale nie zapisuje tekstu, więc czaty jej nie widzą i każdy czat niesie mniej tokenów; „Fill empty" też ją pomija. Sexuality, Trauma i Circles zaczynają wyłączone, dopóki ich nie włączysz lub nie wypełnisz.
+
+Trzy przyciski znajdują się pod panelem „Models", każdy z używanym przez siebie modelem zapisanym pod nim:
+
+- „Structure it" sortuje tekst karty do pól. Długą kartę czyta w częściach.
+- „Fill empty" proponuje wartości tylko dla pustych pól. Portret idzie wraz z polami Appearance, do modelu obrazu; wszystko inne trafia do modelu tekstowego bez obrazu. Prośba o jedno i drugie to dwa wywołania i jedna propozycja do przejrzenia. Na karcie dłuższej niż okno modelu czyta części, które mają znaczenie dla wypełnianych pól (tekst Personality dla cech, lęków i celów, Description dla wyglądu i tła), a propozycja mówi, ile karty przeczytała.
+- „Read from picture" przepisuje pola Appearance z portretu lub obrazu, który załączysz. „Rewrite fields that are already filled" jest zaznaczone, dopóki tego nie odznaczysz, a okno pamięta twój wybór.
+
+„Models" zawiera dwa wybory dla tej karty, zapisywane przez „Save changes": model tekstowy (Structure it, Fill empty, ocena Soul) i „Reading the portrait". „Don't send the portrait" utrzymuje Fill empty jako tekstowe; Read from picture nadal działa. Wybór dla każdej karty jest w ustawieniach Roleplay, „Card tasks".
 
 ## Persony
 
