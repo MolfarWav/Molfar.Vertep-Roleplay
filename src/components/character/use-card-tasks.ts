@@ -91,6 +91,12 @@ export function useCardTasks(owner: TasksOwner) {
     limits: requestLimits(limits(kind), text, estimateTokens(text)),
   }), [edit.model, limits])
 
-  return { edit, setEdit, saved, loaded, resolved, info, limits, requestFor, side, appModel }
+  /** The request's limits for a call that goes to another model than the card's (the picture model): that model's own window, not the card's overrides. */
+  const requestForModel = useCallback((kind: TaskKind, text: string, ref: string | null | undefined) => {
+    const other = ref ? models.find((m) => m.ref === ref) ?? null : null
+    return requestLimits(taskLimits(other, {}, kind), text, estimateTokens(text))
+  }, [models])
+
+  return { edit, setEdit, saved, loaded, resolved, info, limits, requestFor, requestForModel, side, appModel }
 }
 export type CardTasksState = ReturnType<typeof useCardTasks>

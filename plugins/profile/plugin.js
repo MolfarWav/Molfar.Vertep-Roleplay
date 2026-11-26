@@ -14,6 +14,11 @@
  *   POST   /profile/fill {target, fields, image?, model?, replace?, member?}  fill empty fields, file the draft
  *          (member: {index, name}: fill the card's index-th other character (1 = the first in `cast`), found in the text by name)
  *          (replace: "Read from picture" describes the listed fields anew, filled or not)
+ *          (mergeAt: the `at` of the fill draft the previous call of the same Fill empty filed; this call's values join it
+ *           as one proposal. The app sends the portrait only with the Appearance fields, to the picture model, and the
+ *           other fields to the card's task model, so one Fill empty can be two calls)
+ *          (a card longer than limits.inputChars: the call reads the pieces that matter for the fields asked, Personality
+ *           text first for fields that write Personality, and the draft says `read: {used, total}` characters)
  *          (merge: a persona's fill joins the structure draft already filed for it, and the one draft stays kind "structure":
  *           how the new-persona interview writes the sketch and then the details as ONE proposal to review)
  *   POST   /profile/persona-ideas {idea?, image?, wish?}      three drafts of a new persona from a few words (and a picture),
@@ -24,7 +29,8 @@
  *   GET    /profile/draft?characterId= | ?personaId= | ?groupId=  the draft, or null
  *   DELETE /profile/draft?characterId= | ?personaId= | ?groupId=  discard it
  *   GET    /profile/card-tasks?characterId=                     the card's own task settings and the model that will run
- *   PUT    /profile/card-tasks {characterId, model?, maxInput?, maxOutput?}  save them (characters/<id>/card-tasks.json)
+ *   PUT    /profile/card-tasks {characterId, model?, visionModel?, maxInput?, maxOutput?}  save them
+ *          (visionModel: "none", "settings" or a model ref: the model that reads the portrait for this card) (characters/<id>/card-tasks.json)
  *
  * The model for a card's tasks: the one named in the request (an unsaved pick in the editor), else the card's own
  * (card-tasks.json), else the app-wide "Card tasks" model (settings.json ui.cardTasks.model), else the Dashboard
@@ -197,6 +203,13 @@ function personaText(p) {
   ].filter(Boolean).join("\n\n");
 }
 
+/** The picture model a card reads its portrait with: "none" (the portrait is not sent by Fill empty), "settings"
+ *  (the engine's Vision model, chosen on purpose) or a model ref; "" when nothing valid is set. */
+function visionPick(v) {
+  const x = str(v);
+  return x === "none" || x === "settings" || MODEL_REF.test(x) ? x : "";
+}
+
 const cardTasksPath = (id) => "characters/" + id + "/card-tasks.json";
 
 /** The card's own task settings: {model?, maxInput?, maxOutput?}; empty when it has none. */
@@ -205,6 +218,8 @@ export function readCardTasks(fsx, id) {
   const o = isObj(raw) ? raw : {};
   const out = {};
   if (MODEL_REF.test(str(o.model))) out.model = str(o.model);
+  const vm = visionPick(o.visionModel);
+  if (vm) out.visionModel = vm;
   for (const k of ["maxInput", "maxOutput"]) if (Number.isFinite(Number(o[k])) && Number(o[k]) > 0) out[k] = Math.floor(Number(o[k]));
   return out;
 }
@@ -300,6 +315,65 @@ export function cardParts(card, max) {
   }
   if (cur.length || !groups.length) groups.push(cur);
   return groups.map((g, i) => [name, ...g, ...(i === 0 ? context : [])].join("\n\n"));
+}
+
+/** The profile sections whose lines go into the card's Personality; the others go into its Description. */
+const PERSONALITY_SECTIONS = new Set(["lists", "behaviors", "goals", "trauma", "sexuality"]);
+
+/** The card's text for a Fill empty call, picked for the fields it asks about (GitHub #529). A card that fits `max`
+ *  goes whole, as `cardParts` has it. A longer one is cut into pieces and the call takes the pieces that matter:
+ *  fields that write Personality (traits, behaviors, goals...) read the Personality text first, the others the
+ *  Description, and a request for both takes pieces from each in turn. Scenario and example dialogue stay as
+ *  context. `used` and `total` count the characters of Description and Personality sent and held. */
+export function cardTextFor(card, max, fields) {
+  const parts = cardParts(card, max);
+  const name = "Card: " + (str(card.name) || "unnamed");
+  // small pieces, so both texts can have a share of one window
+  const pieceMax = Math.max(400, Math.floor((max - 200) / 4));
+  const pieces = [];
+  for (const [label, v] of [["Description", card.description], ["Personality", card.personality]]) {
+    const t = str(v);
+    if (t) splitText(t, pieceMax).forEach((text, i) => pieces.push({ label, i, text }));
+  }
+  const total = pieces.reduce((n, p) => n + p.text.length, 0);
+  if (parts.length < 2) return { text: parts[0], used: total, total, partial: false };
+  const context = [
+    str(card.scenario) ? "Scenario (context only, do not move it)\n" + cut(str(card.scenario), 1500) : "",
+    str(card.mes_example) ? "Example dialogue (for speech only)\n" + cut(str(card.mes_example), 1500) : "",
+  ].filter(Boolean);
+  const asked = Object.keys(isObj(fields) ? fields : {});
+  const wantPers = asked.filter((k) => PERSONALITY_SECTIONS.has(k)).length;
+  const wantDesc = asked.length - wantPers;
+  const lead = wantPers > wantDesc ? "Personality" : "Description";
+  const other = lead === "Description" ? "Personality" : "Description";
+  const ofLabel = (label) => pieces.filter((p) => p.label === label);
+  const first = ofLabel(lead);
+  const second = wantPers > 0 && wantDesc > 0 ? ofLabel(other) : [];
+  const order = [];
+  for (let i = 0; i < Math.max(first.length, second.length); i++) {
+    if (first[i]) order.push(first[i]);
+    if (second[i]) order.push(second[i]);
+  }
+  // when only one text matters, the other follows and fills what is left of the window
+  if (!second.length) order.push(...ofLabel(other));
+  let room = max - name.length - context.reduce((n, c) => n + c.length + 2, 0);
+  const taken = new Set();
+  const closed = new Set();
+  for (const p of order) {
+    if (closed.has(p.label)) continue;
+    const cost = p.text.length + p.label.length + 16;
+    if (cost > room) {
+      closed.add(p.label);
+      continue;
+    }
+    taken.add(p);
+    room -= cost;
+  }
+  if (!taken.size && order.length) taken.add(order[0]);
+  const chosen = pieces.filter((p) => taken.has(p));
+  const used = chosen.reduce((n, p) => n + p.text.length, 0);
+  const segs = chosen.map((p) => p.label + (p.i ? " (continued)" : "") + "\n" + p.text);
+  return { text: [name, ...segs, ...context].join("\n\n"), used, total, partial: used < total };
 }
 
 /** For a character picked by name: the parts of the card that mention them (as many as fit `max`), else the first part. */
@@ -562,23 +636,34 @@ function fillRoute(req, host) {
     const head = b.replace === true && img
       ? "\n\nDescribe these fields from the attached picture; where the text says otherwise, the picture wins (these fields are NOT empty, rewrite them):\n"
       : "\n\nEmpty fields to fill:\n";
+    // a long card: the pieces that matter for these fields, and how much of the text that was
+    const sel = t.kind === "persona" || member ? null : cardTextFor(src, limits.inputChars, fields);
     host.llm.request("fill", {
       ...(model ? { model } : {}),
       systemPrompt: FILL_SYSTEM,
-      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : member ? partsAbout(src, limits.inputChars, member.name) : cardParts(src, limits.inputChars)[0]) + (member ? memberLead(member.name) : "") + head + ask }],
+      messages: [{ role: "user", content: (t.kind === "persona" ? personaText(src) : member ? partsAbout(src, limits.inputChars, member.name) : sel.text) + (member ? memberLead(member.name) : "") + head + ask }],
       ...(img ? { images: [img] } : {}),
       presetParams: { temperature: 0.7, max_tokens: limits.outputTokens },
     });
-    return { __llmPending: true, stash: { replace: b.replace === true && !!img, ...(member ? { member: member.index } : {}) } };
+    return { __llmPending: true, stash: { replace: b.replace === true && !!img, ...(member ? { member: member.index } : {}), ...(sel && sel.partial ? { read: { used: sel.used, total: sel.total } } : {}) } };
   }
   const draft = draftFromReply(r);
   if (draft.error) return ok({ ok: false, error: draft.error });
   const profile = onlyFields(draft.profile, fields);
   if (!Object.keys(profile).length) return ok({ ok: false, error: "the reply filled none of the empty fields" });
   const stash = isObj(req.stash) ? req.stash : {};
-  let filed = { ...draft, kind: "fill", ...(stash.replace ? { replace: true } : {}), ...(Number.isInteger(stash.member) ? { member: stash.member } : {}), profile, leftover: undefined };
+  let filed = { ...draft, kind: "fill", ...(stash.replace ? { replace: true } : {}), ...(Number.isInteger(stash.member) ? { member: stash.member } : {}), ...(isObj(stash.read) ? { read: stash.read } : {}), profile, leftover: undefined };
   delete filed.leftover;
   delete filed.cast;
+  // the second call of one Fill empty (the portrait's looks after the text, or the reverse): the app names the
+  // draft the first call filed, and the two proposals become one for the user to review
+  if (Number.isFinite(b.mergeAt)) {
+    const before = readJson(fsx, draftPath(t), null);
+    if (isObj(before) && before.kind === "fill" && before.at === b.mergeAt && before.member === filed.member && isObj(before.profile)) {
+      const models = [...new Set([...(Array.isArray(before.models) ? before.models : [str(before.model)]), str(filed.model)].filter(Boolean))];
+      filed = { ...filed, profile: mergeProfile(before.profile, profile), ...(models.length ? { model: models[0], models } : {}), ...(isObj(before.read) || isObj(filed.read) ? { read: filed.read || before.read } : {}) };
+    }
+  }
   if (t.kind === "persona" && b.merge === true) {
     const before = readJson(fsx, draftPath(t), null);
     if (isObj(before) && before.kind === "structure" && isObj(before.profile) && before.partial !== true) {
@@ -928,6 +1013,7 @@ function cardTasksRoute(req, fsx) {
   if (req.method === "PUT") {
     const next = {};
     if (MODEL_REF.test(str(b.model))) next.model = str(b.model);
+    if (visionPick(b.visionModel)) next.visionModel = visionPick(b.visionModel);
     for (const k of ["maxInput", "maxOutput"]) if (Number.isFinite(Number(b[k])) && Number(b[k]) > 0) next[k] = Math.min(1000000, Math.floor(Number(b[k])));
     if (Object.keys(next).length) fsx.write(cardTasksPath(id), JSON.stringify(next, null, 2));
     else fsx.remove(cardTasksPath(id));

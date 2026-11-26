@@ -608,6 +608,10 @@ export interface ProfileDraft {
   replace?: boolean
   at?: number
   model?: string
+  /** every model that wrote it: a Fill empty with the portrait is two calls, the picture model's and the card's */
+  models?: string[]
+  /** a Fill empty that could not send the whole card text: the characters of Description and Personality it read, of the card's total */
+  read?: { used: number; total: number }
   note?: string
   profile: Profile
   /** Structure it on a narrator card: the card's other characters, one profile each (`Profile.cast`) */
@@ -716,7 +720,8 @@ export function acceptFill(c: Pick<Character, 'cardExtras' | 'versions' | 'descr
   const cast = castOf(prev)
   // a fill for another character of the card goes to that one; one whose place is gone is dropped, not put on the first
   const next = at < 0 ? mergeFill(prev, draft.profile, draft.replace === true) : at < cast.length ? { ...prev, cast: cast.map((m, i) => (i === at ? mergeFill(m, draft.profile) : m)) } : prev
-  return { ...applyProfile(c, next, now), versions: [versionOf(c, label, now), ...c.versions] }
+  // under Free write the card's text does not change, so there is nothing to put in Versions
+  return { ...applyProfile(c, next, now), ...(prev.free ? {} : { versions: [versionOf(c, label, now), ...c.versions] }) }
 }
 
 /** A profile with nothing in it: no field, no relationship, no note (a character just added, still unnamed). */

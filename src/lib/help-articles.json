@@ -26,8 +26,8 @@
         "uk": "Відкрийте картку, потім вкладку Profile."
       },
       "details": {
-        "en": "The fields are only a form. The model and every export still read plain Description and Personality, so cards stay compatible. Empty fields write nothing; a switched-off section keeps its fields but writes no text. If you edit Description or Personality by hand after Profile wrote them, the tab notices and asks: keep your additions, rewrite, or switch to Free write (Profile stays but stops writing the card). One card can hold several characters — a narrator card — and each gets the same fields.",
-        "uk": "Поля — лише форма. Модель та експорт читають звичайний текст опису й характеру, тож картки лишаються сумісними. Порожні поля нічого не пишуть; вимкнена секція зберігає поля, але тексту не додає. Змінили опис чи характер вручну після запису з Profile? Вкладка помітить і спитає, що робити. Варіанти: лишити ваші доповнення, переписати чи перейти у «Вільний текст» — профіль лишається, але картку більше не пише. На одній картці може бути кілька персонажів — картка оповідача — кожен має ті самі поля."
+        "en": "The fields are only a form. The model and every export still read plain Description and Personality, so cards stay compatible. Empty fields write nothing; a section switched off with its \"In chats\" switch keeps its fields but writes no text, so chats do not see them (this saves tokens), and Fill empty skips it. Sexuality, Trauma and Circles start off until you turn them on or fill them. The tab opens with a line saying that the fields write Description and Personality, and Free write sits under it. Three buttons act on the card: Structure it sorts the text into the fields, Fill empty proposes values for empty fields, and Read from picture rewrites Appearance from the portrait; under each is the model it uses (the Models panel sets them). If you edit Description or Personality by hand after Profile wrote them, the tab notices and asks: keep your additions, rewrite, or switch to Free write (Profile stays but stops writing the card). One card can hold several characters — a narrator card — and each gets the same fields. Fill empty on a card longer than the model's window sends the parts that matter for the fields it fills (the Personality text for traits, fears and goals, the Description for looks and background), and the proposal says how much of the card was read.",
+        "uk": "Поля — лише форма. Модель та експорт читають звичайний текст опису й характеру, тож картки лишаються сумісними. Порожні поля нічого не пишуть; секція, вимкнена перемикачем «In chats», зберігає поля, але тексту не додає, тож чати їх не бачать (це заощаджує токени), а «Fill empty» її пропускає. «Sexuality», «Trauma» і «Circles» спершу вимкнені, доки їх не ввімкнете або не заповните. Вкладка починається рядком про те, що поля пишуть опис і характер, а під ним — «Free write». Три кнопки діють на картку: «Structure it» розкладає текст по полях, «Fill empty» пропонує значення для порожніх полів, «Read from picture» переписує Appearance за портретом; під кожною написано, яку модель вона бере (їх задає панель «Моделі»). Змінили опис чи характер вручну після запису з Profile? Вкладка помітить і спитає, що робити. Варіанти: лишити ваші доповнення, переписати чи перейти у «Вільний текст» — профіль лишається, але картку більше не пише. На одній картці може бути кілька персонажів — картка оповідача — кожен має ті самі поля. «Fill empty» на картці, довшій за вікно моделі, надсилає частини, що важливі для полів, які він заповнює (текст Personality для рис, страхів і цілей, Description для вигляду й минулого), і пропозиція каже, скільки картки прочитано."
       },
       "related": [
         "help.card-editor",
@@ -36,37 +36,37 @@
       "sources": [
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "71-71",
+          "lines": "68-71",
           "quote": "Every save COMPILES it into `description` and `personality`"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "72-73",
+          "lines": "70-73",
           "quote": "Empty fields never reach the text"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "97-97",
+          "lines": "94-97",
           "quote": "An off section keeps its fields and writes nothing"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "99-99",
+          "lines": "96-99",
           "quote": "Free write: the profile is kept but no longer writes the card"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "101-101",
+          "lines": "98-101",
           "quote": "A different hash means the text was edited by hand"
         },
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "100-100",
+          "lines": "97-100",
           "quote": "More characters on the same card (a narrator card that describes several people)"
         },
         {
           "path": "src/components/character/card-model-panel.tsx",
-          "lines": "19-19",
+          "lines": "18-21",
           "quote": "\"Model for this card's tasks\" (GitHub #104): the model Structure it"
         }
       ]
@@ -286,17 +286,17 @@
       "sources": [
         {
           "path": "docs/DATA-FORMATS.md",
-          "lines": "100-100",
+          "lines": "97-100",
           "quote": "More characters on the same card (a narrator card that describes several people)"
         },
         {
           "path": "src/components/profile/profile-form.tsx",
-          "lines": "85-85",
+          "lines": "82-85",
           "quote": "{ id: 'identity', title: 'Identity', Icon: IdentificationCard, accent: 'sky', switchable: false }"
         },
         {
           "path": "src/components/character/card-model-panel.tsx",
-          "lines": "44-44",
+          "lines": "55-58",
           "quote": "CollapsibleContent className=\"flex flex-col gap-3 border-t border-border p-3\""
         }
       ]
@@ -7327,8 +7327,8 @@
         "uk": "Налаштування Roleplay → Завдання картки. Модель однієї картки: редактор картки, вкладка «Профіль», «Модель для завдань картки»."
       },
       "details": {
-        "en": "Card tasks sets the model for three jobs on a card: Structure it (sorts the card's text into the Profile fields), Fill empty (writes the Profile fields that are still empty) and the Soul rating (the Soul values of the card's characters). Read from picture has its own model choice next to that button; this setting does not change it.\n\nEach job takes the first model that is set, in this order: the model picked for the card in its editor, this setting, the Dashboard sensor's model, the app's default model. A card's own pick is saved with Save changes. It is kept outside the card file, so a shared card does not carry it. Personas have the same choice on their page.\n\nWhen this setting is empty, it reads \"Dashboard sensor model, then the app default\". Pick a model to use it for every card that has none of its own. If no model is set anywhere, the card shows \"No model set\". This setting does not change the model that writes the chat replies.\n\n- The Rate now button on the Soul tab does not use the chat's model: after the card and this setting and the sensor, it uses the app default.\n- A rating that runs by itself for a chat's characters can use that chat's model, when no sensor model is set, before the app default.",
-        "uk": "Завдання картки — модель для трьох дій: «Structure it», «Fill empty» і оцінки Soul. «Structure it» розкладає текст картки по полях профілю, «Fill empty» заповнює порожні поля, а оцінка Soul оцінює риси персонажів картки.\n\n«Read from picture» має власний вибір моделі поруч із кнопкою; цей параметр його не змінює.\n\nКожна дія бере першу задану модель у такому порядку: модель картки, цей параметр, модель сенсора Dashboard, модель застосунку за замовчуванням.\n\nМодель картки вибирають у редакторі, на вкладці «Профіль». Вона зберігається кнопкою «Зберегти зміни» і не входить до файлу картки, тож спільна картка її не несе. Персона має той самий вибір на своїй сторінці.\n\nКоли параметр порожній, тут написано «Модель сенсора Dashboard, потім модель за замовчуванням». Оберіть модель, щоб вона працювала для всіх карток без власної. Якщо моделі немає взагалі, на картці написано «Модель не задана». Цей параметр не змінює модель, яка пише відповіді в чаті.\n\n- Кнопка «Оцінити зараз» на вкладці «Душа» не бере модель чату. Після картки, цього параметра й сенсора вона бере модель застосунку.\n- Оцінка, яка запускається сама для персонажів чату, може взяти модель цього чату, якщо сенсор не заданий. Це раніше за модель застосунку."
+        "en": "Card tasks sets the model for three jobs on a card: Structure it (sorts the card's text into the Profile fields), Fill empty (writes the Profile fields that are still empty) and the Soul rating (the Soul values of the card's characters). The Profile tab also has a Models panel with a second choice, \"Reading the portrait\": the model that reads this card's portrait for Read from picture and, in Fill empty, for the Appearance fields only. Every other field of Fill empty goes to the card's text model, without the picture. It is saved with Save changes, for this card only.\n\nEach job takes the first model that is set, in this order: the model picked for the card in its editor, this setting, the Dashboard sensor's model, the app's default model. A card's own pick is saved with Save changes. It is kept outside the card file, so a shared card does not carry it. Personas have the same choice on their page.\n\nWhen this setting is empty, it reads \"Dashboard sensor model, then the app default\". Pick a model to use it for every card that has none of its own. If no model is set anywhere, the card shows \"No model set\". This setting does not change the model that writes the chat replies.\n\n- The Rate now button on the Soul tab does not use the chat's model: after the card and this setting and the sensor, it uses the app default.\n- A rating that runs by itself for a chat's characters can use that chat's model, when no sensor model is set, before the app default.",
+        "uk": "Завдання картки — модель для трьох дій: «Structure it», «Fill empty» і оцінки Soul. «Structure it» розкладає текст картки по полях профілю, «Fill empty» заповнює порожні поля, а оцінка Soul оцінює риси персонажів картки.\n\nНа вкладці «Профіль» є ще панель «Моделі» з другим вибором, «Читання портрета»: модель, що читає портрет цієї картки для «Read from picture» і, у «Fill empty», лише для полів Appearance. Усі інші поля «Fill empty» йдуть до текстової моделі картки, без картинки. Цей вибір теж зберігається кнопкою «Зберегти зміни» і лише для цієї картки; цей параметр його не змінює.\n\nКожна дія бере першу задану модель у такому порядку: модель картки, цей параметр, модель сенсора Dashboard, модель застосунку за замовчуванням.\n\nМодель картки вибирають у редакторі, на вкладці «Профіль». Вона зберігається кнопкою «Зберегти зміни» і не входить до файлу картки, тож спільна картка її не несе. Персона має той самий вибір на своїй сторінці.\n\nКоли параметр порожній, тут написано «Модель сенсора Dashboard, потім модель за замовчуванням». Оберіть модель, щоб вона працювала для всіх карток без власної. Якщо моделі немає взагалі, на картці написано «Модель не задана». Цей параметр не змінює модель, яка пише відповіді в чаті.\n\n- Кнопка «Оцінити зараз» на вкладці «Душа» не бере модель чату. Після картки, цього параметра й сенсора вона бере модель застосунку.\n- Оцінка, яка запускається сама для персонажів чату, може взяти модель цього чату, якщо сенсор не заданий. Це раніше за модель застосунку."
       },
       "related": [
         "kb.card-editor",
@@ -7339,53 +7339,53 @@
       "sources": [
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4482-4482",
+          "lines": "4955-4958",
           "quote": "'ct.app.nav': 'Card tasks',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4484-4484",
+          "lines": "4957-4960",
           "quote": "Structure it, Fill empty and the Soul rating use this model when a card has none of its own."
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4485-4485",
+          "lines": "4958-4961",
           "quote": "'ct.app.follow': 'Dashboard sensor model, then the app default',"
         },
         {
           "path": "src/lib/i18n.ts",
-          "lines": "4470-4470",
-          "quote": "'ct.covers': 'Used by Structure it, Fill empty and the Soul rating of this card."
+          "lines": "5452-5455",
+          "quote": "'ct.picTitle': 'Reading the portrait',"
         },
         {
           "path": "src/components/views/settings-view.tsx",
-          "lines": "139-139",
+          "lines": "137-140",
           "quote": "{ id: \"card-tasks\", label: t(\"ct.app.nav\", resolveLanguage(settings.language)) },"
         },
         {
           "path": "src/lib/card-tasks.ts",
-          "lines": "22-22",
+          "lines": "23-26",
           "quote": "if (pick) return { model: pick, source: 'card' }"
         },
         {
           "path": "plugins/profile/plugin.js",
-          "lines": "220-220",
+          "lines": "232-235",
           "quote": "if (app) return { model: app, source: \"app\" };"
         },
         {
           "path": "plugins/relations/plugin.js",
-          "lines": "7123-7123",
+          "lines": "7201-7204",
           "quote": "(isObj(ui.cardTasks) ? str(ui.cardTasks.model) : \"\")"
         },
         {
           "path": "src/components/dashboard/soul-tab.tsx",
-          "lines": "427-427",
+          "lines": "424-427",
           "quote": "j<{ ok?: boolean; added?: unknown; error?: string }>('/dashboard/soul/rate'"
         },
         {
           "path": "src/components/character/structure-draft.tsx",
-          "lines": "92-92",
-          "quote": "'settings' (the default) = the engine's Vision model,"
+          "lines": "129-129",
+          "quote": "'none' = Fill empty never sends the portrait,"
         }
       ]
     },

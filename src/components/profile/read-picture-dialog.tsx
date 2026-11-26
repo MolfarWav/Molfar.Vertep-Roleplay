@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { readImage } from '@/lib/charx'
 import { APPEARANCE, emptyFields, skippedFields, type Profile } from '@/lib/profile'
 import { hasPortrait, toBase64, type Image, type VisionModel } from '@/components/character/structure-draft'
@@ -13,6 +12,15 @@ import { hasPortrait, toBase64, type Image, type VisionModel } from '@/component
 const TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const MAX_BYTES = 6 * 1024 * 1024
 const label = (m: { provider: string; id: string }) => `${m.provider} · ${m.id}`
+
+/** Whether Rewrite is ticked: on unless the user turned it off, and the choice is remembered in this browser. */
+const REPLACE_KEY = 'rp.profile.readReplace'
+function readReplace(): boolean {
+  try { return localStorage.getItem(REPLACE_KEY) !== 'off' } catch { return true }
+}
+function rememberReplace(on: boolean) {
+  try { if (on) localStorage.removeItem(REPLACE_KEY); else localStorage.setItem(REPLACE_KEY, 'off') } catch { /* storage blocked */ }
+}
 
 /** "Read from picture": a vision model describes the appearance fields from the
  *  portrait (or a picture picked here). The picture goes only into this one
@@ -27,17 +35,17 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
   onRead: (fields: Record<string, string[]>, image: Image, model: string | undefined, replace: boolean) => void
 }) {
   const [picked, setPicked] = useState<{ url: string; image: Image } | null>(null)
-  const [replace, setReplace] = useState(true)
+  const [replace, setReplace] = useState(readReplace)
   const fileInput = useRef<HTMLInputElement>(null)
   const checkId = useId()
   // a fresh start each time it opens: no picture left over from another card
-  useEffect(() => { if (open) { setPicked(null); setReplace(true) } }, [open])
+  useEffect(() => { if (open) { setPicked(null); setReplace(readReplace()) } }, [open])
 
   const portrait = hasPortrait(avatar) ? avatar : null
   const shown = picked?.url ?? portrait
   const none = vision.models.length === 0 && !vision.engineRef
-  // "Don't read" belongs to Fill empty; here the picture is the point
-  const reader = vision.override ?? vision.engineRef ?? ''
+  // "Don't read" is about Fill empty; this button is a deliberate act, so it reads with the engine's Vision model then
+  const reader = vision.reader
 
   const pick = (file: File | undefined) => {
     if (!file) return
@@ -97,16 +105,10 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Model</Label>
-            <Select value={vision.override ?? 'settings'} onValueChange={(v) => vision.setValue(v ? String(v) : 'settings')} disabled={none}>
-              <SelectTrigger className="w-full text-sm" aria-label="Vision model"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="settings">{vision.settingsLabel}</SelectItem>
-                {vision.models.map((m) => <SelectItem key={m.ref} value={m.ref}>{label(m)}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          <p className="text-sm" data-testid="read-picture-model">
+            {reader ? <>Reads with <span className="font-medium">{vision.named(reader)}</span>.</> : 'No connected model reads pictures.'}
+            <span className="block text-xs text-muted-foreground">The model is chosen under Models, at the top of the Profile tab.</span>
+          </p>
 
           <div className="flex flex-col gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
             <p className="flex items-start gap-2 text-sm">
@@ -119,8 +121,11 @@ export function ReadPictureDialog({ open, onOpenChange, profile, avatar, vision,
           </div>
 
           <div className="flex items-start gap-2">
-            <Checkbox id={checkId} checked={replace} onCheckedChange={(v) => setReplace(v === true)} />
-            <Label htmlFor={checkId} className="text-sm font-normal leading-snug">Rewrite fields that are already filled</Label>
+            <Checkbox id={checkId} checked={replace} onCheckedChange={(v) => { setReplace(v === true); rememberReplace(v === true) }} />
+            <Label htmlFor={checkId} className="flex flex-col items-start gap-0.5 text-sm font-normal leading-snug">
+              Rewrite fields that are already filled
+              <span className="text-xs text-muted-foreground">{replace ? 'Replaces every Appearance field with what the picture shows. Untick to fill only the empty ones.' : 'Fills only the empty Appearance fields. Tick to replace all of them.'}</span>
+            </Label>
           </div>
         </div>
         <DialogFooter>
