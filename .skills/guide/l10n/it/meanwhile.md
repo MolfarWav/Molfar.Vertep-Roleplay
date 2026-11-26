@@ -1,4 +1,4 @@
-<!-- source: bea962ecf922 -->
+<!-- source: b6e3ca620392 -->
 # Nel frattempo: la vita fuori scena
 
 Nel frattempo permette a chi non è nella scena di fare cose mentre la storia va avanti: Bram vende un cavallo al porto, Ada nasconde il registro, un fronte si avvicina di un passo al suo obiettivo. È una versione di prova, disattivata per impostazione predefinita.
@@ -11,7 +11,7 @@ Apri il pannello **World** della chat e trova la scheda **Meanwhile**. Attiva "L
 
 Un passaggio viene eseguito dopo una risposta quando sono arrivate almeno due nuove risposte e o è iniziata una nuova scena o l'orologio della storia si è spostato di sei ore. Un passaggio è una chiamata al modello. Usa un modello suo se ne hai impostato uno, altrimenti quello del World DM, del sensore del Dashboard, della Library, della chat, dell'app. La scheda dice quale. "Run a pass now" ne esegue uno subito.
 
-Un passaggio chiede fino a tre piccoli eventi. L'app controlla ciascuno: le persone devono essere quelle che la chat conosce, mai il tuo personaggio e mai qualcuno che è nella scena, e gli effetti devono venire da una lista breve. Un evento che non supera un controllo viene scartato del tutto, e il registro dice perché. Viene scartato anche un evento che ripete ciò che un evento precedente sulla stessa persona aveva già detto («repeats an earlier event»). Se un modello non risponde nulla, il passaggio riprova una volta con più spazio; un passaggio che fallisce aspetta dieci minuti.
+Un passaggio chiede fino a tre piccoli eventi. Legge la scena appena chiusa, i fili aperti del Dashboard, i fronti e, per ogni persona, il punto in cui il World DM l'ha lasciata, così che un evento la porti avanti invece di ripetere il momento in cui è rimasta. L'app controlla ciascuno: le persone devono essere quelle che la chat conosce, mai il tuo personaggio e mai qualcuno che è nella scena, e gli effetti devono venire da una lista breve. Un evento che non supera un controllo viene scartato del tutto, e il registro dice perché. Viene scartato anche un evento che ripete ciò che un evento precedente sulla stessa persona aveva già detto («repeats an earlier event»). Se un modello non risponde nulla, il passaggio riprova una volta con più spazio; un passaggio che fallisce aspetta dieci minuti.
 
 ## Cosa mostra la scheda
 

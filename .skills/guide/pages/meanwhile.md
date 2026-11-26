@@ -10,7 +10,7 @@ Open the chat's **World** sheet and find the card **Meanwhile**. Switch on "Let 
 
 A pass runs after a reply when at least two new replies have come and either a new scene began or the story clock moved by six hours. One pass is one model call. It uses its own model if you set one, else the World DM's, the Dashboard sensor's, the Library's, the chat's, the app's. The card says which. "Run a pass now" runs one at once.
 
-A pass asks for up to three small events. The app checks each one: the people must be ones the chat knows, never your character and never anyone who is in the scene, and the effects must come from a short list. An event that fails a check is dropped whole, and the log says why. An event that says again what an earlier event about the same person already said is dropped too ("repeats an earlier event"). If a model answers nothing, the pass tries once more with more room; a pass that fails waits ten minutes.
+A pass asks for up to three small events. It reads the scene that just closed, the Dashboard's open threads, the fronts and, for each person, where the World DM last left them, so an event carries them forward instead of replaying the moment they were left in. The app checks each one: the people must be ones the chat knows, never your character and never anyone who is in the scene, and the effects must come from a short list. An event that fails a check is dropped whole, and the log says why. An event that says again what an earlier event about the same person already said is dropped too ("repeats an earlier event"). If a model answers nothing, the pass tries once more with more room; a pass that fails waits ten minutes.
 
 ## What the card shows
 
