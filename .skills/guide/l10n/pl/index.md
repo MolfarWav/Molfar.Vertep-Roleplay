@@ -1,4 +1,4 @@
-<!-- source: 9a740481b21b -->
+<!-- source: 13a545b9069c -->
 # Roleplay: przegląd
 
 Roleplay to aplikacja do opowiadania historii w Molfar Vertep: przechowujesz karty postaci, prowadzisz z nimi czaty, a aplikacja śledzi scenę, pamięta historię i prowadzi świat wokół ciebie. Ta strona to mapa. Wbudowana **Help** aplikacji (w panelu bocznym) ma krótki artykuł do niemal każdego ekranu; ten przewodnik wyjaśnia, jak wszystko do siebie pasuje. Modele i połączenia ustawia się nie tutaj, lecz w głównych Ustawieniach: zobacz [[vertep:models]].
@@ -18,7 +18,7 @@ Ustawienia samego Roleplay nie mają pozycji w panelu. Otwórz je przyciskiem "R
 
 ## Wewnątrz czatu
 
-Nagłówek czatu zawiera narzędzia historii: **Note** (notatka autora), **Fired** (co trafiło do promptu, zobacz [[memory]]), **Record** i **World**. Przycisk **Backstage** obok menu otwiera nad czatem miejsca, które tworzą tę historię: kartę tej postaci, preset, jej lorebooki, Library i World tego czatu oraz co trafiło do promptu. Zamknij szufladę, a zostaniesz na tej samej wiadomości. Szuflady po stronie twórcy (Lorebooks, Library, World, Presets i pozostałe sekcje tego piętra oraz Dashboard settings) noszą mały znaczek **Backstage** i nieco inny odcień strony, więc na pierwszy rzut oka widać, że jesteś za kulisami. Pigułka obok otwiera zakładki Preset, Persona, Model i Agents tego czatu. Przycisk "More" przy każdej wiadomości otwiera jej akcje, a menu "+" obok pola wiadomości zawiera Polish, Regenerate with a hint, Stage direction, generowanie obrazów i więcej.
+Nagłówek czatu zawiera narzędzia historii: **Note** (notatka autora), **Fired** (co trafiło do promptu, zobacz [[memory]]), **Record** i **World**. Przycisk **Backstage** obok menu otwiera nad czatem miejsca, które tworzą tę historię: kartę tej postaci, preset, jej lorebooki, Library i World tego czatu oraz co trafiło do promptu. Zamknij szufladę, a zostaniesz na tej samej wiadomości. Szuflady po stronie twórcy (Lorebooks, Library, World, Presets i pozostałe sekcje tego piętra oraz Dashboard settings) noszą mały znaczek **Backstage** i nieco inny odcień strony, więc na pierwszy rzut oka widać, że jesteś za kulisami. Pigułka obok otwiera zakładki Preset, Persona, Model i Agents tego czatu. W karcie Preset **Saved setups** zapisuje twoje wybory dla presetu pod nazwą: wczytaj jeden jednym dotknięciem, zapisz wybory czatu pod nową nazwą i oznacz gwiazdką ten, od którego zaczynają nowe czaty z tym presetem. Przycisk "More" przy każdej wiadomości otwiera jej akcje, a menu "+" obok pola wiadomości zawiera Polish, Regenerate with a hint, Stage direction, generowanie obrazów i więcej.
 
 Trzej pomocnicy obserwują historię i kosztują dodatkowe wywołania modelu, więc warto ich znać:
 
