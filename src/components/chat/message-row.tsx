@@ -41,6 +41,7 @@ import type { Chat, Character, Message, Persona, RegexScript, ToolPart } from '@
 import { estimateTokens, formatCost, formatTokens, knownCost } from '@/lib/tokens'
 import { DEFAULT_AVATAR, cn, copyText, onImageError, readableNameColor, shortModel } from '@/lib/utils'
 import { toast } from 'sonner'
+import { messageTotal } from '@/lib/chat-page'
 
 const ACTION_ICONS: Record<MessageActionId, typeof Copy> = {
   copy: Copy, translate: Translate, speak: SpeakerHigh, bookmark: BookmarkSimple, fork: GitBranch, genData: Info, peek: Scan,
@@ -598,7 +599,9 @@ export const MessageRow = memo(function MessageRow({
   // a player's message of directions alone has no words to count
   if (settings.showTokens && !isStreamingThis && !(isUser && !rawContent && message.directions?.length)) meta.push({ k: "tokens", node: <span>{realUsage ? realUsage.output : tokens}t</span> })
   if (settings.showCost && !isStreamingThis && msgCost != null) meta.push({ k: "cost", node: <span>{formatCost(msgCost)}</span> })
-  if (settings.showMessageIds) meta.push({ k: "id", node: <span>#{index}</span> })
+  // `index` is the place among the messages held; a long chat holds its newest only, so numbers count from `firstIndex`
+  const place = (chat.firstIndex ?? 0) + index
+  if (settings.showMessageIds) meta.push({ k: "id", node: <span>#{place}</span> })
 
   const canAct = !editing && !isStreamingThis && !slidePhase
   const showSwipes = !readOnly && !isUser && (isLast || settings.swipeCountAllMessages) && message.swipes.length >= 1 && !isStreamingThis
@@ -609,7 +612,7 @@ export const MessageRow = memo(function MessageRow({
       case 'copy': copyBody(); break
       case 'translate': if (message.translation) setMessageTranslation(chat.id, message.id, null); else void translate(); break
       case 'speak': speak(); break
-      case 'bookmark': toggleBookmark(chat.id, message.id, t('msg.bookmarkAt', { n: index })); break
+      case 'bookmark': toggleBookmark(chat.id, message.id, t('msg.bookmarkAt', { n: place })); break
       case 'fork': void forkAndOpen(chat.id, message.id); toast.success(t('msg.branched')); break
       case 'genData': setGenOpen(true); break
       case 'peek': setPeekOpen(true); break
@@ -622,7 +625,7 @@ export const MessageRow = memo(function MessageRow({
     }
   }
   const actionGroups = messageActions({
-    isUser, index, count: chat.messages.length,
+    isUser, index: place, count: messageTotal(chat),
     hidden: !!message.hidden, bookmarked: !!message.bookmarked,
     translated: !!message.translation, translating: translateBusy, speaking: isSpeaking,
   })
@@ -1071,7 +1074,7 @@ export const MessageRow = memo(function MessageRow({
         onOpenChange={setPeekOpen}
         chatId={chat.id}
         messageId={message.id}
-        title={`Prompt peek: message #${index}`}
+        title={`Prompt peek: message #${place}`}
       />
 
       {/* Generation data */}

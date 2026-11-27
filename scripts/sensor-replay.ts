@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { chatMessages, chatSave } from "../src/lib/chat-store.js";
 
 const args = process.argv.slice(2);
 const flag = (n: string) => {
@@ -78,8 +79,18 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "sensor-replay-"));
 fs.cpSync(path.join(corpus, "root"), root, { recursive: true });
 const labels = JSON.parse(fs.readFileSync(path.join(corpus, "labels.json"), "utf8"));
 const chatId: string = labels.chat;
-const lines = fs.readFileSync(path.join(root, "chats", chatId + ".jsonl"), "utf8").trim().split("\n");
+// the corpus chat through the store (src/lib/chat-store.js): a long one keeps its older messages in parts
+const corpusFs = (root: string) => ({
+  read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
+  write: (rel: string, content: string) => {
+    fs.mkdirSync(path.dirname(path.resolve(root, rel)), { recursive: true });
+    fs.writeFileSync(path.resolve(root, rel), content, "utf8");
+  },
+  list: (rel: string) => fs.readdirSync(path.resolve(root, rel)).sort(),
+  remove: (rel: string) => fs.rmSync(path.resolve(root, rel), { recursive: true, force: true }),
+});
 const meta = JSON.parse(fs.readFileSync(path.join(root, "chats", chatId + ".meta.json"), "utf8"));
+const allMsgs = chatMessages(corpusFs(root), chatId, meta);
 fs.rmSync(path.join(root, "dashboard", "state"), { recursive: true, force: true });
 // --prompt old: a user who saved their own sensor prompt (the previous default, changed) keeps it; --no-preset: a chat without a preset
 if (flag("--prompt") === "old") {
@@ -167,7 +178,7 @@ if (typeof labels.maxTurns === "number") turnKeys = turnKeys.slice(0, labels.max
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 const knownPersons = labels.persons ? new Set<string>([...(labels.persons.expected ?? []), ...(labels.persons.maybe ?? [])].map(norm)) : null;
 for (const k of turnKeys) {
-  fs.writeFileSync(path.join(root, "chats", chatId + ".jsonl"), lines.slice(0, k + 1).join("\n") + "\n");
+  chatSave(corpusFs(root), chatId, { ...meta }, allMsgs.slice(0, k + 1));
   await update();
   const snap = lastSnap();
   const row: Row = { turn: k, must: 0, mustOk: 0, idBreaks: [], bad: [], dups: [], phantoms: [], outfit: {}, objects: [], names: [], dupPersons: [] };

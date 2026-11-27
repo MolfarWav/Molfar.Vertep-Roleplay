@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { chatUnpack } from "../src/lib/chat-store.js";
 import { BUILD_SYSTEM, CHRONICLER_SYSTEM, INVENT_SYSTEM, applyLevel, buildInput, castBrief, chunkSources, dmInput, handleRoute, listRecipes, recipeOf, startPlan, startSources } from "../plugins/world/plugin.js";
 
 function memFs(files: Record<string, string> = {}) {
@@ -407,7 +408,7 @@ describe("world start: the chat's own scenario and first message", () => {
     p = allText(engine("POST", "/prompt/preview", { chatId: id, userText: "hi" }));
     expect(p).toContain("At the card's hut.");
     expect(p).toContain("At the Red Tower.");
-    const msgs = fs.readFileSync(path.join(root, "chats", id + ".jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    const msgs = fs.readFileSync(path.join(root, "chats", id + ".jsonl"), "utf8").trim().split("\n").map((l) => chatUnpack(JSON.parse(l)));
     expect(msgs[0].swipes[0]).toMatch(/^The lantern burns, /);
     expect(msgs[0].swipes.some((t: string) => t.startsWith("Hi,"))).toBe(true);
     expect(msgs[0].swipe).toBe(0);

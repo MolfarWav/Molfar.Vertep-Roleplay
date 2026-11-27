@@ -19,6 +19,7 @@ import { fetchLitChat, type LitChapter } from '@/components/library/litopys-api'
 import { ChatRecordSheet } from '@/components/library/chat-record-sheet'
 import { DEFAULT_AVATAR, cn } from '@/lib/utils'
 import type { Character, Chat } from '@/lib/types'
+import { messageTotal } from '@/lib/chat-page'
 
 /** A chat's portrait: the card's, or for a group a collage of its members (violet ring). */
 export function ChatAvatar({ owner, members, size }: { owner: Character | undefined; members: Character[]; size: number }) {
@@ -115,8 +116,9 @@ export function ChatPanel({ chat, onDelete, onRename, onArchive }: { chat: Chat;
     [isGroup, owner, characters],
   )
 
-  // the transcript (last lines, size) and the story record load when a chat is picked
-  useEffect(() => { void ensureChatMessages(chat.id) }, [chat.id, ensureChatMessages])
+  // the transcript (last lines, size) and the story record load when a chat is picked; the history's size and the
+  // exports count every message, so the whole chat (lib/chat-page.ts)
+  useEffect(() => { void ensureChatMessages(chat.id, { whole: true }) }, [chat.id, ensureChatMessages])
   useEffect(() => {
     let alive = true
     setChapters(null)
@@ -126,7 +128,7 @@ export function ChatPanel({ chat, onDelete, onRename, onArchive }: { chat: Chat;
 
   const shown = chat.messages.filter((m) => !m.picture && m.role !== 'system')
   const last = shown.slice(-3)
-  const msgCount = chat.messages.length > 0 ? chat.messages.length : chat.messageCount ?? 0
+  const msgCount = messageTotal(chat)
   const persona = personas.find((p) => p.id === chat.personaId) ?? personas.find((p) => p.isDefault)
   const preset = presets.find((p) => p.id === chat.presetId) ?? presets.find((p) => p.isDefault)
   const modelRef = chat.model || appModel || ''

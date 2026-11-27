@@ -20,7 +20,7 @@ export function ArchivedBanner({ chat }: { chat: Chat }) {
         <Button variant="outline" size="sm" className="max-sm:h-10" onClick={() => unarchiveChat(chat.id)}>
           {t('chat.archived.unarchive')}
         </Button>
-        <Button variant="ghost" size="sm" className="max-sm:size-10 max-sm:px-0" aria-label={t('chat.archived.download')} onClick={() => exportChatTxt(chat, characters)}>
+        <Button variant="ghost" size="sm" className="max-sm:size-10 max-sm:px-0" aria-label={t('chat.archived.download')} onClick={async () => { await useApp.getState().ensureChatMessages(chat.id, { whole: true }); exportChatTxt(useApp.getState().chats.find((c) => c.id === chat.id) ?? chat, characters) }}>
           <DownloadSimple className="size-4" aria-hidden="true" /><span className="max-sm:sr-only">{t('chat.archived.download')}</span>
         </Button>
       </div>

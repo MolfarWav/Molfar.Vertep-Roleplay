@@ -22,6 +22,7 @@ import { parseChatLog } from "@/lib/chat-log-text"
 import { importBackupFile } from "@/lib/backup-assets"
 import type { Chat, ID } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { messageTotal } from '@/lib/chat-page'
 
 function downloadText(text: string, filename: string, mime = "text/plain") {
   saveFile(new Blob([text], { type: mime }), filename)
@@ -65,7 +66,7 @@ function previewLine(chat: Chat): string {
 
 /** Transcript length, or the list meta's count when it is not loaded. */
 function msgCount(chat: Chat): number {
-  return chat.messages.length > 0 ? chat.messages.length : chat.messageCount ?? 0
+  return messageTotal(chat)
 }
 
 function fmtDate(ts: number): string {
@@ -315,7 +316,7 @@ export function ManageChatsDialog({
   useEffect(() => {
     if (!open) return
     for (const c of useApp.getState().chats) {
-      if (c.characterId === characterId) void ensureChatMessages(c.id)
+      if (c.characterId === characterId) void ensureChatMessages(c.id, { whole: true })
     }
   }, [open, characterId, ensureChatMessages])
 

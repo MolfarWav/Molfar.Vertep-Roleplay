@@ -26,7 +26,8 @@ export function ScenesCard({ chat, onRefresh }: { chat: LitChat; onRefresh: () =
   const open = async (tab: 'suggested' | 'hand') => {
     setBusy(true)
     try {
-      await ensure(chat.chatId)
+      // the scene picker numbers every message of the chat
+      await ensure(chat.chatId, { whole: true })
       setDialog(tab)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { chatUnpack } from "../src/lib/chat-store.js";
 
 const engineUrl = new URL("../plugins/engine/plugin.js", import.meta.url).href;
 const E = (await import(engineUrl)) as { handleRoute: Function; cutStateTag: (t: unknown) => { text: string; body: string | null; closed: boolean }; cutPlanTag: (t: unknown, stopped?: boolean) => string };
@@ -87,7 +88,8 @@ const newChat = async (mock: ReturnType<typeof mockHost>, body: Record<string, u
   const r = await drive(mock, { method: "POST", path: "/chats", body });
   return (r.json.meta as { id: string }).id;
 };
-const lines = (id: string) => fs.readFileSync(path.join(root, "chats", `${id}.jsonl`), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+// the saved lines in their full shape (on disk the chosen swipe is stored once, src/lib/chat-store.js)
+const lines = (id: string) => fs.readFileSync(path.join(root, "chats", `${id}.jsonl`), "utf8").trim().split("\n").map((l) => chatUnpack(JSON.parse(l)));
 const fastFile = (id: string) => path.join(root, "dashboard/fast", `${id}.json`);
 const readFast = (id: string) => JSON.parse(fs.readFileSync(fastFile(id), "utf8"));
 const say = (mock: ReturnType<typeof mockHost>, text: string, parts?: unknown[]) => { mock.state.answer = parts ? { text, parts } : { text }; };

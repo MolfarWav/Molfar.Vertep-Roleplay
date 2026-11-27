@@ -1,3 +1,4 @@
+import { messageTotal } from './chat-page'
 // The Chats page list: sorting and the time groups (pinned, today, this week,
 // earlier). Pure, so the page and the tests share one definition.
 
@@ -17,7 +18,7 @@ export const LONG_CHAT_MESSAGES = 100
 export const QUIET_DAYS = 7
 export function suggestArchive(c: { archived?: boolean; pinned?: boolean; updatedAt: number; messageCount?: number; messages?: unknown[] }, now: number = Date.now()): boolean {
   if (isArchived(c) || c.pinned) return false
-  const n = c.messages && c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0
+  const n = c.messages ? messageTotal(c) : c.messageCount ?? 0
   return n >= LONG_CHAT_MESSAGES && now - c.updatedAt >= QUIET_DAYS * DAY
 }
 

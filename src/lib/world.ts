@@ -647,9 +647,10 @@ export async function setWorldOverride(chatId: string, o: { scenario?: WorldScen
 
 /** The chat's own scenario (null = the card's) and whether the player has written in it yet. */
 export async function loadWorldScenario(chatId: string): Promise<{ scenario: WorldScenario | null; started: boolean }> {
-  const r = await j<{ meta?: { worldScenario?: WorldScenario }; messages?: { role?: string }[] }>(`/chats/${encodeURIComponent(chatId)}`)
+  // no messages: the answer says whether the player has written (an older plugin sends every message, and that says it too)
+  const r = await j<{ meta?: { worldScenario?: WorldScenario }; messages?: { role?: string }[]; hasUser?: boolean }>(`/chats/${encodeURIComponent(chatId)}?tail=0`)
   const sc = r.meta?.worldScenario
-  return { scenario: sc && typeof sc.text === 'string' && sc.text ? sc : null, started: (r.messages ?? []).some((m) => m.role === 'user') }
+  return { scenario: sc && typeof sc.text === 'string' && sc.text ? sc : null, started: typeof r.hasUser === 'boolean' ? r.hasUser : (r.messages ?? []).some((m) => m.role === 'user') }
 }
 
 // ---------- backgrounds: a set per world, named images, picked by scene ----------

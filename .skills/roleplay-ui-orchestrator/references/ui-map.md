@@ -5,7 +5,7 @@ Pick the lightest layer that can carry the change. Most requests end in layer 1.
 ## Layer 1 — `apps/roleplay/data/` (live in ~1s, never conflicts with updates)
 - `settings.json` — `{ model, personaId, ui }`. Whole AppSettings: themeMode + activeThemeId, fonts, scale, hotkeys, display/chat/streaming, TTS, translation, summary, memory. Edit any key, UI applies live.
 - `library.json` — `{ qrSets, themes, backgrounds, tags, folders, connectionProfiles }`. Theme presets, backgrounds, quick-replies, tags, folders.
-- `characters/<id>/card.json`, `chats/*.jsonl + .meta.json`, `groups/`, `presets/`, `lorebooks/`, `regex/`, `personas/`, `databank/` — content entities. Keep shapes identical; hydrate is tolerant, not a migrator. Files starting with `_` are AI-only templates, copy to non-underscore name to create.
+- `characters/<id>/card.json`, `chats/*.jsonl + .meta.json` (a chat of more than 200 messages keeps its older messages in `chats/<id>.parts/<n>.jsonl` with an `index.json`: the `.jsonl` alone is only its newest messages; read and write through `src/lib/chat-store.js`), `groups/`, `presets/`, `lorebooks/`, `regex/`, `personas/`, `databank/` — content entities. Keep shapes identical; hydrate is tolerant, not a migrator. Files starting with `_` are AI-only templates, copy to non-underscore name to create.
 
 ## Layer 2 — new plugin `apps/roleplay/plugins/<your-id>/`
 - `manifest.json` {permissions} + `plugin.js` (ESM only: `export function handleRoute(req, host)`). Routes live under `/v1/apps/roleplay/<path>`, first responder wins, so namespace own prefix. Permissions: routes, tools, llm, store, fs, schedule, hooks, network.

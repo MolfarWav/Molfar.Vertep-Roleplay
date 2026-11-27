@@ -5,13 +5,15 @@
  *   characters/<id>/card.json        personas/<id>.json
  *   presets/<id>.json                regex/<id>.json
  *   groups/<id>.json                 lorebooks/<id>.json
- *   chats/<id>.jsonl + <id>.meta.json
+ *   chats/<id>.jsonl + <id>.meta.json (+ <id>.parts/<n>.jsonl, the older messages of a long chat)
  *   settings.json {model, personaId}
  *   preset-defaults.json {presetId: picks}   the user's own default choices per preset
  *
  * Messages are a FLAT list with per-message swipes (classic studio shape):
  *   {id, name, charId, role: "user"|"char", text, at, swipes:[], swipe,
  *    extra?: {model, usage}}
+ * On disk the chosen swipe is stored once (in text) and a long chat lies in parts:
+ * loadChat/saveChat go through the chat store (src/lib/chat-store.js, Molfar.Vertep#537).
  * Chat meta: {id, title, characterId, groupId, presetId, personaId, model,
  *   authorNote, lorebookIds, folderId, pinned, archived, createdAt, updatedAt, tainted}
  *
@@ -31,6 +33,632 @@
  */
 
 // ---------- tiny utils ----------
+// ==== BEGIN GENERATED: src/lib/chat-store.js (bun scripts/sync-chat-store.ts) ====
+/**
+ * A chat's transcript on disk (Molfar.Vertep#537). Pasted into every plugin that reads or writes transcripts by
+ * `bun scripts/sync-chat-store.ts`: edit this file, run the script, commit all. No imports, no host calls but `fsx`.
+ *
+ * - One copy of the chosen text. A line keeps `text`; `swipes[swipe]` is stored as null when it is the same text, and a
+ *   message with one version stores no `swipes` at all. A greeting keeps both, since its swipes are raw (`{{user}}`) and
+ *   `text` is expanded. Reading puts the full shape back, so every reader sees what it always saw.
+ * - Pieces. A chat of more than CHAT_TAIL_MAX messages (or CHAT_TAIL_CHARS of lines) keeps its older messages in closed
+ *   parts, `chats/<id>.parts/<n>.jsonl`, and only the live tail `chats/<id>.jsonl` is rewritten on a send. A part is
+ *   rewritten only when a message in it changed. The meta lists the parts (`transcript.parts`) and carries what the
+ *   chat list shows (`count`, `preview`, `hasUser`), so the list reads no transcript.
+ * - Read on touch. `chats/<id>.parts/index.json` keeps the light fields of every message in the parts (id, swipe, role,
+ *   name, flags: everything but CHAT_HEAVY). A read gives the tail's messages whole and the parts' messages as stand-ins
+ *   with those fields; the first read or write of a heavy field (`text`, `swipes`, `extra`, ...) of one of them reads its
+ *   part and fills every message of that part. A reader that needs only the message keys, or only the newest messages,
+ *   never reads an old part. A save leaves a part alone when none of its stand-ins was touched.
+ * - Order. A save that changes the set of parts writes the new parts and the index, then the meta, then the tail, then
+ *   the meta again, and removes the parts no longer listed last. A reader that comes in between sees a message twice
+ *   (once in a part, once in the old tail), never a hole; the reader keeps one copy of each id, the newer file's. The
+ *   index is trusted for a part only when its `rev` is the one the meta lists.
+ */
+
+const CHAT_TAIL_MAX = 200;
+const CHAT_PART_MSGS = 100;
+// JS characters of lines: at most about three bytes each, so a part stays well under the engine's 4 MB write cap
+const CHAT_PART_CHARS = 600000;
+const CHAT_TAIL_CHARS = 900000;
+/** The fields a stand-in leaves in its part until something touches them. */
+const CHAT_HEAVY = ["text", "swipes", "extra", "translation", "attachments", "directions", "reasoning", "mes", "parts", "tools"];
+
+const chatTailPath = (id) => "chats/" + id + ".jsonl";
+const chatMetaPath = (id) => "chats/" + id + ".meta.json";
+const chatPartsDir = (id) => "chats/" + id + ".parts";
+const chatPartPath = (id, n) => chatPartsDir(id) + "/" + n + ".jsonl";
+const chatIndexPath = (id) => chatPartsDir(id) + "/index.json";
+
+const chatIsObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const chatHasId = (m) => m.id !== undefined && m.id !== null && m.id !== "";
+const CHAT_HEAVY_SET = new Set(CHAT_HEAVY);
+// what a read leaves on its array (not enumerable, so it never reaches JSON): the file texts it read, so a save of the
+// same array rewrites only the files whose text changed without reading them again
+const CHAT_READ = "__chatRead";
+// what a stand-in carries until it is filled (not enumerable): { view, n, pos, row, len }
+const CHAT_STUB = "__chatStub";
+const CHAT_LOST = "__chatLost";
+// where a message of a closed part came from (not enumerable, kept after a fill): { n, pos, rev }
+const CHAT_FROM = "__chatFrom";
+const chatSame = (a, b) => a === b || (typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
+
+/** A message as it is kept on disk: the chosen text once. `m` is not changed. */
+function chatPack(m) {
+  if (!chatIsObj(m) || typeof m.text !== "string" || !Array.isArray(m.swipes) || !Number.isInteger(m.swipe)) return m;
+  if (m.swipes[m.swipe] !== m.text) return m;
+  const o = Object.assign({}, m);
+  if (m.swipes.length === 1 && m.swipe === 0) delete o.swipes;
+  else {
+    o.swipes = m.swipes.slice();
+    o.swipes[m.swipe] = null;
+  }
+  return o;
+}
+
+/** A line as read back, in its full shape (changed in place and returned). */
+function chatUnpack(m) {
+  if (!chatIsObj(m) || typeof m.text !== "string" || !Number.isInteger(m.swipe)) return m;
+  if (!Array.isArray(m.swipes)) {
+    if (m.swipe === 0) m.swipes = [m.text];
+  } else if (m.swipes[m.swipe] === null) m.swipes[m.swipe] = m.text;
+  return m;
+}
+
+/** The parts the meta lists: [{n, count, first, last, user, rev}]. */
+function chatPartsOf(meta) {
+  const t = chatIsObj(meta) && chatIsObj(meta.transcript) ? meta.transcript : null;
+  if (!t || !Array.isArray(t.parts)) return [];
+  return t.parts.filter((p) => chatIsObj(p) && Number.isInteger(p.n) && p.n > 0);
+}
+
+function chatReadMeta(fsx, id) {
+  try {
+    const m = JSON.parse(fsx.read(chatMetaPath(id)));
+    return chatIsObj(m) ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Part numbers on disk, for a meta that does not say (one written before parts, or rebuilt by hand). */
+function chatPartsOnDisk(fsx, id) {
+  let names = [];
+  try {
+    names = fsx.list(chatPartsDir(id)) || [];
+  } catch {
+    return [];
+  }
+  return names
+    .map((f) => /^([1-9][0-9]*)\.jsonl$/.exec(f))
+    .filter(Boolean)
+    .map((x) => Number(x[1]))
+    .sort((a, b) => a - b);
+}
+
+/** The messages of one file's text, in full shape; lines that do not parse are left out. */
+function chatParseLines(s) {
+  const out = [];
+  for (const line of s.split("\n")) {
+    if (!line.trim()) continue;
+    let m;
+    try {
+      m = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (chatIsObj(m)) out.push(chatUnpack(m));
+  }
+  return out;
+}
+
+/**
+ * What the engine reported for the chosen versions of some messages (`extra.usage`): how many had a usage, tokens in
+ * and out, tokens read from the provider's cache, and the cost of those whose cost is known (as the page counts it: a
+ * `costTotal` of 0 with tokens is not a known cost). Kept per part in the index, so the page's chat totals need no old
+ * part.
+ */
+function chatUseOf(msgs, into) {
+  const u = into || { n: 0, tin: 0, tout: 0, cached: 0, cost: 0, costN: 0 };
+  for (const m of msgs) {
+    const x = chatIsObj(m) && chatIsObj(m.extra) ? m.extra.usage : null;
+    if (!chatIsObj(x)) continue;
+    const i = Number(x.input) || 0;
+    const o = Number(x.output) || 0;
+    u.n++;
+    u.tin += i;
+    u.tout += o;
+    u.cached += Number(x.cacheRead) || 0;
+    if (x.costTotal != null && !(x.costTotal === 0 && i + o > 0)) {
+      u.cost += Number(x.costTotal) || 0;
+      u.costN++;
+    }
+  }
+  return u;
+}
+const chatUseAdd = (u, v) => {
+  for (const k of ["n", "tin", "tout", "cached", "cost", "costN"]) u[k] += Number(v[k]) || 0;
+  return u;
+};
+
+/**
+ * The usage totals (see chatUseOf) of the first `k` messages of a read: a whole part from its index entry, the rest
+ * message by message. The page adds these to what it counts in the messages it holds.
+ */
+function chatUseBefore(msgs, k) {
+  const read = msgs && msgs[CHAT_READ];
+  const index = (read && read.index) || {};
+  const u = chatUseOf([]);
+  let i = 0;
+  while (i < k) {
+    const o = chatIsObj(msgs[i]) ? msgs[i][CHAT_FROM] : null;
+    const e = o && o.pos === 0 ? index[o.n] : null;
+    const len = e && chatIsObj(e.use) ? e.rows.length : 0;
+    const end = len ? msgs[i + len - 1] : null;
+    const eo = chatIsObj(end) ? end[CHAT_FROM] : null;
+    if (len && i + len <= k && eo && eo.n === o.n && eo.pos === len - 1) {
+      chatUseAdd(u, e.use);
+      i += len;
+      continue;
+    }
+    chatUseOf([msgs[i]], u);
+    i++;
+  }
+  return u;
+}
+
+/** A message's light fields, in its key order, heavy ones as 0 (what the index keeps). */
+function chatRowOf(m) {
+  const row = {};
+  for (const k of Object.keys(m)) row[k] = CHAT_HEAVY_SET.has(k) ? 0 : m[k];
+  return row;
+}
+
+/** One part of a view, read once: its messages by id and by place. */
+function chatPartOf(view, n) {
+  let p = view.parts.get(n);
+  if (p) return p;
+  const rel = chatPartPath(view.id, n);
+  const s = String(view.fsx.read(rel));
+  view.raw[rel] = s;
+  const msgs = chatParseLines(s);
+  const byId = new Map();
+  for (const m of msgs) if (chatHasId(m) && !byId.has(String(m.id))) byId.set(String(m.id), m);
+  p = { msgs, byId };
+  view.parts.set(n, p);
+  return p;
+}
+
+/** Fill a stand-in from its part: its heavy fields, and the light ones nobody changed since the read. */
+function chatFill(m) {
+  const s = m[CHAT_STUB];
+  if (!s) return;
+  delete m[CHAT_STUB];
+  let full = null;
+  try {
+    const p = chatPartOf(s.view, s.n);
+    full = (chatHasId(m) && p.byId.get(String(m.id))) || p.msgs[s.pos] || null;
+    if (full && chatHasId(m) && String(full.id) !== String(m.id)) full = null;
+  } catch {}
+  if (!full) {
+    // the part changed or went since the read: find the message in the files as they are now
+    try {
+      const got = chatCollect(s.view.fsx, s.view.id, chatListed(s.view.fsx, s.view.id, chatReadMeta(s.view.fsx, s.view.id)), null);
+      full = got.out.find((x) => chatHasId(x) && chatHasId(m) && String(x.id) === String(m.id)) || null;
+    } catch {}
+  }
+  if (!full) {
+    Object.defineProperty(m, CHAT_LOST, { value: true, enumerable: false, configurable: true });
+    full = {};
+  }
+  // only the heavy fields still waiting for their part: one a caller set on the stand-in (a field the message did not
+  // have, e.g. a first translation) is the caller's and stays
+  for (const k of Object.keys(m)) {
+    if (!CHAT_HEAVY_SET.has(k)) continue;
+    const d = Object.getOwnPropertyDescriptor(m, k);
+    if (!d || !d.get) continue;
+    if (k in full) Object.defineProperty(m, k, { value: full[k], writable: true, enumerable: true, configurable: true });
+    else delete m[k];
+  }
+  // a heavy field the read had and the caller deleted stays deleted; one the part gained since the read comes in
+  for (const k of Object.keys(full)) {
+    if (CHAT_HEAVY_SET.has(k)) {
+      if (!(k in m) && !(k in s.row)) m[k] = full[k];
+    } else if (!(k in m) ? !(k in s.row) : chatSame(m[k], s.row[k])) m[k] = full[k];
+  }
+}
+
+/** A stand-in for a message of part `n` at `pos`, from its index row. */
+function chatStub(view, n, pos, row, len) {
+  const m = {};
+  for (const k of Object.keys(row)) {
+    if (!CHAT_HEAVY_SET.has(k)) {
+      m[k] = row[k];
+      continue;
+    }
+    Object.defineProperty(m, k, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        chatFill(m);
+        return m[k];
+      },
+      set(v) {
+        chatFill(m);
+        m[k] = v;
+      },
+    });
+  }
+  Object.defineProperty(m, CHAT_STUB, { value: { view, n, pos, row, len }, enumerable: false, configurable: true });
+  return m;
+}
+
+/**
+ * Where a message of a closed part lies: { n, pos, rev } (its part, its place in it, the part's rev), or null for a
+ * message of the tail, one made since the read, or a part without a rev. A part's messages change only with its rev,
+ * so whatever is worked out from them once can be kept by (n, rev, pos).
+ */
+function chatOrigin(m) {
+  const o = chatIsObj(m) ? m[CHAT_FROM] : null;
+  return o && Number.isInteger(o.rev) ? o : null;
+}
+
+/** A stand-in nobody touched: its heavy fields unread and its light fields as the index has them. */
+function chatIntact(m, id) {
+  const s = chatIsObj(m) ? m[CHAT_STUB] : null;
+  if (!s || s.view.id !== id) return null;
+  const keys = Object.keys(m);
+  const rowKeys = Object.keys(s.row);
+  if (keys.length !== rowKeys.length) return null;
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    if (k !== rowKeys[i]) return null;
+    if (CHAT_HEAVY_SET.has(k)) {
+      const d = Object.getOwnPropertyDescriptor(m, k);
+      if (!d || !d.get) return null;
+    } else if (!chatSame(m[k], s.row[k])) return null;
+  }
+  return s;
+}
+
+/** The index of the parts, by number, when it is the one the meta lists: {n: {rev, lens, rows}}. */
+function chatTrustedIndex(fsx, id, meta) {
+  const parts = chatPartsOf(meta);
+  if (!parts.length) return {};
+  let ix = null;
+  try {
+    ix = JSON.parse(fsx.read(chatIndexPath(id)));
+  } catch {
+    return {};
+  }
+  if (!chatIsObj(ix) || ix.v !== 1 || !Array.isArray(ix.parts)) return {};
+  const out = {};
+  for (const p of parts) {
+    const e = ix.parts.find((x) => chatIsObj(x) && x.n === p.n);
+    if (!e || !Number.isInteger(p.rev) || e.rev !== p.rev || !Array.isArray(e.rows) || e.rows.length !== p.count) continue;
+    if (!Array.isArray(e.lens) || e.lens.length !== e.rows.length || !e.rows.every(chatIsObj)) continue;
+    out[p.n] = e;
+  }
+  return out;
+}
+
+/** The part numbers to read: the meta's, or those on disk for a meta without the record. */
+function chatListed(fsx, id, meta) {
+  return chatIsObj(meta) && chatIsObj(meta.transcript) ? chatPartsOf(meta).map((p) => p.n) : chatPartsOnDisk(fsx, id);
+}
+
+/** The messages of the listed parts and the tail; parts with a trusted index entry as stand-ins (`index` null: none). */
+function chatCollect(fsx, id, nums, index, revs) {
+  const view = { fsx, id, raw: {}, parts: new Map(), index: index || {} };
+  const from = (m, n, pos) => Object.defineProperty(m, CHAT_FROM, { value: { n, pos, rev: revs ? revs[n] : undefined }, enumerable: false, configurable: true });
+  const out = [];
+  const at = new Map();
+  let missing = false;
+  const put = (m) => {
+    if (chatHasId(m)) {
+      const k = String(m.id);
+      // the same message in two files (a save in progress): the later file's copy, at the earlier place
+      if (at.has(k)) {
+        out[at.get(k)] = m;
+        return;
+      }
+      at.set(k, out.length);
+    }
+    out.push(m);
+  };
+  for (const n of nums) {
+    const e = index && index[n];
+    if (e) {
+      e.rows.forEach((row, pos) => put(from(chatStub(view, n, pos, row, e.lens[pos]), n, pos)));
+      continue;
+    }
+    let p;
+    try {
+      p = chatPartOf(view, n);
+    } catch {
+      missing = true;
+      continue;
+    }
+    p.msgs.forEach((m, pos) => put(from(m, n, pos)));
+  }
+  try {
+    const s = String(fsx.read(chatTailPath(id)));
+    view.raw[chatTailPath(id)] = s;
+    for (const m of chatParseLines(s)) put(m);
+  } catch {}
+  return { out, view, missing };
+}
+
+/**
+ * The chat's messages in order (the closed parts, then the tail), each in its full shape as far as any reader can
+ * tell: a message of a part is read from its file when one of its heavy fields is first touched. Lines that do not
+ * parse are left out. `meta` is the chat's meta when the caller has it (undefined: read it here).
+ */
+function chatMessages(fsx, id, meta) {
+  let m = meta === undefined ? chatReadMeta(fsx, id) : meta;
+  const revs = (x) => Object.fromEntries(chatPartsOf(x).map((p) => [p.n, p.rev]));
+  let got = chatCollect(fsx, id, chatListed(fsx, id, m), chatTrustedIndex(fsx, id, m), revs(m));
+  // a listed part went away: a save finished between our two reads; read again by its meta
+  if (got.missing) {
+    m = chatReadMeta(fsx, id);
+    got = chatCollect(fsx, id, chatListed(fsx, id, m), chatTrustedIndex(fsx, id, m), revs(m));
+  }
+  Object.defineProperty(got.out, CHAT_READ, { value: { id, raw: got.view.raw, index: got.view.index }, enumerable: false });
+  return got.out;
+}
+
+/** { meta, msgs } of a chat, or null when it has no meta. */
+function chatRead(fsx, id) {
+  const meta = chatReadMeta(fsx, id);
+  if (!meta) return null;
+  return { meta, msgs: chatMessages(fsx, id, meta) };
+}
+
+/** Which parts of a read were read from their files (for checks and measurements). */
+function chatPartsRead(msgs) {
+  const r = msgs && msgs[CHAT_READ];
+  if (!r) return [];
+  return Object.keys(r.raw)
+    .map((rel) => /\/([1-9][0-9]*)\.jsonl$/.exec(rel))
+    .filter(Boolean)
+    .map((x) => Number(x[1]))
+    .sort((a, b) => a - b);
+}
+
+/** What the chat list shows, from the messages. */
+function chatSummaryOf(msgs, count) {
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  return {
+    count,
+    preview: last && chatIsObj(last) ? String(last.text || "").slice(0, 160) : "",
+    hasUser: msgs.some((m) => chatIsObj(m) && m.role === "user"),
+  };
+}
+
+/**
+ * The chat list's numbers for one chat: the meta's own when the tail on disk is the one the meta was written with
+ * (`tailSize` is that file's size from fs.stat; null when unknown), else read from the files.
+ */
+function chatSummary(fsx, id, meta, tailSize) {
+  const t = chatIsObj(meta) && chatIsObj(meta.transcript) ? meta.transcript : null;
+  if (t && Number.isInteger(t.count) && Number.isInteger(t.tailSize) && t.tailSize === tailSize) {
+    return { count: t.count, preview: String(t.preview || ""), hasUser: t.hasUser === true };
+  }
+  const parts = chatPartsOf(meta);
+  if (t && parts.length && parts.every((p) => Number.isInteger(p.count))) {
+    // the tail changed behind the meta's back (an older app, a hand edit): the parts' own numbers and the tail
+    let lines = [];
+    try {
+      lines = String(fsx.read(chatTailPath(id))).split("\n").filter((l) => l.trim());
+    } catch {}
+    let last = null;
+    for (let i = lines.length - 1; i >= 0 && !last; i--) {
+      try {
+        last = JSON.parse(lines[i]);
+      } catch {}
+    }
+    return {
+      count: parts.reduce((a, p) => a + p.count, 0) + lines.length,
+      preview: last && chatIsObj(last) ? String(last.text || "").slice(0, 160) : "",
+      hasUser: parts.some((p) => p.user === true) || lines.some((l) => l.includes('"role":"user"')),
+    };
+  }
+  const msgs = chatMessages(fsx, id, meta);
+  return chatSummaryOf(msgs, msgs.length);
+}
+
+/** Write `text` to `rel` unless the file already holds it (`raw` = what a read of the same array saw). */
+function chatWriteIfChanged(fsx, rel, text, raw) {
+  if (raw && Object.prototype.hasOwnProperty.call(raw, rel)) {
+    if (raw[rel] === text) return false;
+  } else {
+    try {
+      if (String(fsx.read(rel)) === text) return false;
+    } catch {}
+  }
+  fsx.write(rel, text);
+  return true;
+}
+
+/**
+ * Where the parts of `msgs` fall: [{n, from, to, kept}] (`to` exclusive); the rest is the tail. An old part keeps its
+ * number and its place: it ends after its last message, or, when that one is gone, before the first message of what
+ * came after it. A part whose end cannot be found runs on into the next one (the next number goes), and an emptied part
+ * goes. Messages past the old parts close into new parts, numbered above `top`, while the tail is too long.
+ */
+function chatPlan(prev, tailFirst, top, msgs, lenOf) {
+  let total = 0;
+  for (let k = 0; k < msgs.length; k++) total += lenOf(k);
+  if (msgs.length <= CHAT_TAIL_MAX && total <= CHAT_TAIL_CHARS) return [];
+  const first = new Map();
+  msgs.forEach((m, k) => {
+    if (chatIsObj(m) && chatHasId(m) && !first.has(String(m.id))) first.set(String(m.id), k);
+  });
+  const parts = [];
+  let at = 0;
+  let open = 0;
+  for (let i = 0; i < prev.length; i++) {
+    const p = prev[i];
+    const where = (id) => {
+      if (id === undefined || id === null || id === "") return -1;
+      const k = first.get(String(id));
+      return k === undefined || k < at ? -1 : k;
+    };
+    let end = -1;
+    const j = where(p.last);
+    if (j >= 0) end = j + 1;
+    else {
+      const q = where(i + 1 < prev.length ? prev[i + 1].first : tailFirst);
+      if (q >= 0) end = q;
+    }
+    const n = open || p.n;
+    if (end < 0) {
+      open = n;
+      continue;
+    }
+    open = 0;
+    if (end > at) {
+      parts.push({ n, from: at, to: end, kept: true });
+      at = end;
+    }
+  }
+  let left = msgs.length - at;
+  let chars = 0;
+  for (let k = at; k < msgs.length; k++) chars += lenOf(k);
+  while (left > CHAT_TAIL_MAX || chars > CHAT_TAIL_CHARS) {
+    let end = at;
+    let c = 0;
+    // at least one message to a part, at least one left in the tail
+    while (end < msgs.length - 1 && end - at < CHAT_PART_MSGS && (end === at || c + lenOf(end) <= CHAT_PART_CHARS)) {
+      c += lenOf(end);
+      end++;
+    }
+    if (end === at) break;
+    parts.push({ n: ++top, from: at, to: end, kept: false });
+    left -= end - at;
+    chars -= c;
+    at = end;
+  }
+  return parts;
+}
+
+/**
+ * Save a chat: its parts (only those whose text changed; a part none of whose stand-ins was touched is not even
+ * rebuilt), the index, the tail, and the meta (its `transcript` is set here). Throws when a file cannot be written,
+ * and when a message of the read could not be found in its part any more (nothing is written then).
+ */
+function chatSave(fsx, id, meta, msgs) {
+  const read = msgs[CHAT_READ];
+  const raw = read && read.id === id ? read.raw : null;
+  const lines = new Array(msgs.length);
+  const stubs = msgs.map((m) => chatIntact(m, id));
+  const line = (k) => {
+    if (lines[k] === undefined) {
+      const m = msgs[k];
+      if (chatIsObj(m) && m[CHAT_LOST]) throw new Error("chat " + id + " changed while it was read: a message of the read is gone from its part; nothing was saved");
+      lines[k] = JSON.stringify(chatPack(m));
+      if (chatIsObj(m) && m[CHAT_LOST]) throw new Error("chat " + id + " changed while it was read: a message of the read is gone from its part; nothing was saved");
+    }
+    return lines[k];
+  };
+  const lenOf = (k) => (stubs[k] ? stubs[k].len : line(k).length);
+  const known = chatIsObj(meta.transcript);
+  const prev = chatPartsOf(meta);
+  const prevBy = new Map(prev.map((p) => [p.n, p]));
+  // a meta that lost its record (rebuilt by hand) leaves parts on disk it does not name: none is kept, all go
+  const onDisk = known ? prev.map((p) => p.n) : chatPartsOnDisk(fsx, id);
+  const top = Math.max(0, ...prev.map((p) => p.n), ...onDisk);
+  const plan = chatPlan(known ? prev : [], known ? meta.transcript.tailFirst : undefined, top, msgs, lenOf);
+  // a part whose stand-ins are all there, untouched and in their place, is the file it was
+  const untouched = (p) => {
+    const old = prevBy.get(p.n);
+    if (!p.kept || !old || old.count !== p.to - p.from || !Number.isInteger(old.rev)) return false;
+    for (let k = p.from; k < p.to; k++) if (!stubs[k] || stubs[k].n !== p.n || stubs[k].pos !== k - p.from) return false;
+    return true;
+  };
+  const same = plan.map(untouched);
+  // every line that will be written is built before the first write, so a message that went missing stops the save
+  const tailFrom = plan.length ? plan[plan.length - 1].to : 0;
+  plan.forEach((p, i) => {
+    if (!same[i]) for (let k = p.from; k < p.to; k++) line(k);
+  });
+  for (let k = tailFrom; k < msgs.length; k++) line(k);
+  const text = (a, b) => (b > a ? lines.slice(a, b).join("\n") + "\n" : "");
+  const listed = [];
+  const entries = [];
+  // an index entry without the usage totals is written again with them
+  let indexOld = false;
+  plan.forEach((p, i) => {
+    const old = prevBy.get(p.n);
+    let rev = old && Number.isInteger(old.rev) ? old.rev : 0;
+    if (same[i]) {
+      // the entry the stand-ins came from (a copied array of them still knows its read)
+      const had = stubs[p.from].view.index ? stubs[p.from].view.index[p.n] : null;
+      if (!(had && chatIsObj(had.use))) indexOld = true;
+      const use = had && chatIsObj(had.use) ? had.use : chatUseOf(msgs.slice(p.from, p.to));
+      entries.push({ n: p.n, rev, lens: stubs.slice(p.from, p.to).map((s) => s.len), rows: stubs.slice(p.from, p.to).map((s) => s.row), use });
+    } else {
+      const rel = chatPartPath(id, p.n);
+      const wrote = p.kept && rev > 0 ? chatWriteIfChanged(fsx, rel, text(p.from, p.to), raw) : (fsx.write(rel, text(p.from, p.to)), true);
+      if (wrote || !rev) rev++;
+      entries.push({ n: p.n, rev, lens: lines.slice(p.from, p.to).map((l) => l.length), rows: msgs.slice(p.from, p.to).map(chatRowOf), use: chatUseOf(msgs.slice(p.from, p.to)) });
+    }
+    listed.push({
+      n: p.n,
+      count: p.to - p.from,
+      first: msgs[p.from].id,
+      last: msgs[p.to - 1].id,
+      user: msgs.slice(p.from, p.to).some((m) => chatIsObj(m) && m.role === "user"),
+      rev,
+    });
+  });
+  if (listed.length && (indexOld || !(same.every(Boolean) && listed.length === prev.length && listed.every((p, i) => p.n === prev[i].n)))) {
+    chatWriteIfChanged(fsx, chatIndexPath(id), JSON.stringify({ v: 1, parts: entries }), raw);
+  }
+  const tailFirst = tailFrom < msgs.length && chatIsObj(msgs[tailFrom]) ? msgs[tailFrom].id : undefined;
+  const writeMeta = (tailSize) => {
+    meta.transcript = { v: 1, ...chatSummaryOf(msgs, msgs.length), tailSize, ...(tailFirst !== undefined ? { tailFirst } : {}), parts: listed };
+    fsx.write(chatMetaPath(id), JSON.stringify(meta, null, 2) + "\n");
+  };
+  const was = new Set(onDisk);
+  const keep = new Set(listed.map((p) => p.n));
+  // a new part is on record before the tail gives up the messages it holds
+  if (listed.some((p) => !was.has(p.n))) writeMeta(null);
+  chatWriteIfChanged(fsx, chatTailPath(id), text(tailFrom, msgs.length), raw);
+  let tailSize = null;
+  try {
+    const st = typeof fsx.stat === "function" ? fsx.stat(chatTailPath(id)) : null;
+    if (st && Number.isInteger(st.size)) tailSize = st.size;
+  } catch {}
+  writeMeta(tailSize);
+  // a part no longer listed goes last, once nothing points at it
+  if (!keep.size) {
+    if (onDisk.length) {
+      try {
+        fsx.remove(chatPartsDir(id));
+      } catch {}
+    }
+  } else {
+    for (const n of onDisk) {
+      if (keep.has(n)) continue;
+      try {
+        fsx.remove(chatPartPath(id, n));
+      } catch {}
+    }
+  }
+}
+
+/** Remove a chat's transcript: the tail and every part (the meta and other files are the caller's). */
+function chatRemove(fsx, id) {
+  try {
+    fsx.remove(chatTailPath(id));
+  } catch {}
+  try {
+    fsx.remove(chatPartsDir(id));
+  } catch {}
+}
+// ==== END GENERATED: chat-store ====
+
 const uid = (p) => (p || "e") + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 const slug = (s) =>
   String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "item";
@@ -2928,8 +3556,10 @@ export function presenceOfLine(line, dash) {
  * `secret.knownBy` from the start; heard: a message of the line whose text has a reveal word teaches everyone present
  * for it (`presence`, from presenceOfLine) and its author (a message with no snapshot: the author only); manual: the
  * chat's list. A hand removal beats the other three. `match(text, word)` tests a reveal word (the scan's key matcher).
+ * `seen` ({ get(origin), put(origin, word) }, optional) keeps what a message of a closed part gave, so a turn does not
+ * read every old part of a long chat to find out again (chat-store.js `chatOrigin`).
  */
-export function loreKnowers({ secret, key, line, presence, manual, userName, match, happened }) {
+export function loreKnowers({ secret, key, line, presence, manual, userName, match, happened, seen }) {
   const out = [];
   const removed = (manual && manual.remove && manual.remove[key]) || [];
   const push = (row) => {
@@ -2941,9 +3571,15 @@ export function loreKnowers({ secret, key, line, presence, manual, userName, mat
     const test = typeof match === "function" ? match : (t, w) => String(t).toLowerCase().includes(String(w).toLowerCase());
     for (let i = 0; i < line.length; i++) {
       const m = line[i];
-      const text = m && typeof m.text === "string" ? m.text : "";
-      if (!text) continue;
-      const word = secret.reveal.find((w) => test(text, w));
+      const from = seen ? chatOrigin(m) : null;
+      const kept = from ? seen.get(from) : undefined;
+      let word = "";
+      if (kept !== undefined) word = kept;
+      else {
+        const text = m && typeof m.text === "string" ? m.text : "";
+        word = (text && secret.reveal.find((w) => test(text, w))) || "";
+        if (from) seen.put(from, word);
+      }
       if (!word) continue;
       const author = m.role === "user" || m.pending ? String(userName || m.name || "") : String(m.name || "");
       const there = presence && presence[i] ? [...presence[i]] : [];
@@ -2999,6 +3635,7 @@ export function cardNameSet(card) {
  */
 export function loreContext(fsx, meta, line, userName, voice) {
   const chatId = meta && typeof meta.id === "string" ? meta.id : "";
+  const scans = /^[A-Za-z0-9_-]{1,128}$/.test(chatId) ? revealScans(fsx, chatId) : null;
   let base = null;
   const load = () => {
     if (base) return base;
@@ -3014,9 +3651,64 @@ export function loreContext(fsx, meta, line, userName, voice) {
       // the scan's own matcher: whole words, word forms and the other script, as the entry's keys use them
       const eff = { ...entry, wordForms: typeof entry.wordFormsOverride === "boolean" ? entry.wordFormsOverride : true };
       const match = (text, word) => keyMatch(String(text).toLowerCase(), word, eff, null, String(text));
-      return loreKnowers({ secret, key, line, presence: b.presence, manual: b.manual, userName, match, happened: b.happened.get(key) });
+      const seen = scans ? scans.forEntry(eff, secret.reveal) : null;
+      return loreKnowers({ secret, key, line, presence: b.presence, manual: b.manual, userName, match, happened: b.happened.get(key), seen });
+    },
+    /** Keep what this scan found in closed parts (call once the scan is done). */
+    flush() {
+      if (scans) scans.save();
     },
   };
+}
+
+/**
+ * The reveal words found in the closed parts of one chat (Molfar.Vertep#537), on this device only (`.cache/`, no git,
+ * backup or sync): per part and its rev, per secret entry (its fields and reveal words), the word each message gave
+ * ("" = none). A part changes only with its rev, so a long chat's old messages are scanned once, not on every turn.
+ */
+const REVEAL_SCANS_DIR = ".cache/chat-scans/";
+function revealScans(fsx, chatId) {
+  const rel = REVEAL_SCANS_DIR + chatId + ".json";
+  let data = null;
+  let dirty = false;
+  const load = () => {
+    if (data) return data;
+    try { data = JSON.parse(fsx.read(rel)); } catch {}
+    if (!data || data.v !== 1 || !data.parts || typeof data.parts !== "object") data = { v: 1, parts: {} };
+    return data;
+  };
+  return {
+    forEntry(eff, reveal) {
+      const { content: _c, ...rest } = eff || {};
+      const sig = scanSig(JSON.stringify([rest, reveal]));
+      return {
+        get(o) {
+          const p = load().parts[o.n];
+          if (!p || p.rev !== o.rev || !p.sigs[sig]) return undefined;
+          const w = p.sigs[sig][o.pos];
+          return typeof w === "string" ? w : undefined;
+        },
+        put(o, word) {
+          const d = load();
+          let p = d.parts[o.n];
+          if (!p || p.rev !== o.rev) p = d.parts[o.n] = { rev: o.rev, sigs: {} };
+          (p.sigs[sig] || (p.sigs[sig] = {}))[o.pos] = word;
+          dirty = true;
+        },
+      };
+    },
+    save() {
+      if (!dirty) return;
+      dirty = false;
+      try { fsx.write(rel, JSON.stringify(data)); } catch { /* a cache: the next turn scans again */ }
+    },
+  };
+}
+/** A short stable name for a text (FNV-1a, 32 bits). */
+function scanSig(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36) + "." + s.length.toString(36);
 }
 
 function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts) {
@@ -3683,22 +4375,29 @@ function readBoundBooks(fsx, bound) {
   return out;
 }
 
+/** The chat's meta and its messages (all parts and the tail, chat-store.js), or null when it has no meta. A line that does
+ *  not parse is left out (it used to empty the whole chat for the route that read it). */
 function loadChat(fsx, id) {
-  const meta = (() => { try { return JSON.parse(fsx.read("chats/" + id + ".meta.json")); } catch { return null; } })();
-  if (!meta) return null;
-  let msgs = [];
-  try {
-    msgs = fsx.read("chats/" + id + ".jsonl").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
-  } catch { /* new chat */ }
-  return { meta, msgs };
+  return chatRead(fsx, id);
+}
+/** Messages [from, to) of a chat for the page: where they start, how many the chat has, and the usage totals of the
+ *  ones before them (only those messages and an index of the older ones are read, chat-store.js). */
+function chatPage(msgs, from, to) {
+  // whether the player has written: roles are in the index, so this reads no old part
+  return { messages: msgs.slice(from, to), firstIndex: from, total: msgs.length, hasUser: msgs.some((m) => m && m.role === "user"), ...(from > 0 ? { older: chatUseBefore(msgs, from) } : {}) };
+}
+/** A page size from a query value: a whole number from 0 up, `fallback` when there is none. */
+function pageLimit(v, fallback) {
+  const n = Math.floor(Number(v));
+  return v === undefined || v === null || v === "" || !Number.isFinite(n) ? fallback : Math.max(0, Math.min(n, 100000));
 }
 // the old Memory's keys; they go once Litopys holds the chat (its sweep took the vault in)
 const OLD_MEMORY_KEYS = ["summary", "memoryCutoffMessageId", "compactions", "memoryExtractedAt"];
+/** Writes only the files whose text changed: the tail on a send, a part when a message in it changed, and the meta. */
 function saveChat(fsx, id, meta, msgs) {
   meta.updatedAt = Date.now();
   if (OLD_MEMORY_KEYS.some((k) => k in meta) && litopysHolds(fsx, id)) for (const k of OLD_MEMORY_KEYS) delete meta[k];
-  fsx.write("chats/" + id + ".jsonl", msgs.map((m) => JSON.stringify(m)).join("\n") + (msgs.length ? "\n" : ""));
-  fsx.write("chats/" + id + ".meta.json", JSON.stringify(meta, null, 2) + "\n");
+  chatSave(fsx, id, meta, msgs);
 }
 
 // ---------- prompt assembly ----------
@@ -4608,6 +5307,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
     return { names, several: names.size !== 1 };
   })();
   const loreLine = msgs.filter((m) => m && m.role !== "system" && m.hidden !== true).concat(pendingUserText ? [{ role: "user", text: String(pendingUserText), pending: true }] : []);
+  const loreCtx = loreContext(fsx, meta, loreLine, userName, loreVoice);
   const wi = activateWorldInfo(fsx, meta, anScan.length && anScan[0] ? wiScanBase.concat([{ text: anScan[0] }]) : wiScanBase, persona?.lorebookIds || [], wiBudgetChars(preset),
     // dry runs (peek) read timed effects but never consume them; the speaker
     // card fields + persona text feed entries with matchSources
@@ -4616,7 +5316,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       scanVec: opts && opts.scanVec ? opts.scanVec : null,
       scanModel: opts && opts.scanModel ? String(opts.scanModel) : "",
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
-      lore: loreContext(fsx, meta, loreLine, userName, loreVoice),
+      lore: loreCtx,
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
       excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [])],
@@ -4628,6 +5328,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
         persona: persona ? persona.description : null,
       },
     });
+  loreCtx.flush();
 
   // the chat's picks for this preset's variables ({{name}}, {{#if}}, section conditions)
   const presetVars = resolvePresetVars(preset, meta);
@@ -6236,8 +6937,10 @@ export function handleRoute(req, host) {
     const wanted = req.query && req.query.chat ? String(req.query.chat) : "";
     let activeChat = null;
     if (wanted) {
-      const full = sub("/chats/" + wanted);
-      if (full && full.meta) activeChat = { meta: full.meta, messages: full.messages ?? [] };
+      // ?tail=N: only its newest N messages (GET /chats/:id?tail=N)
+      const tail = req.query && req.query.tail !== undefined ? { tail: req.query.tail } : {};
+      const full = handleRoute({ method: "GET", path: "/chats/" + wanted, query: tail, body: null }, host).json;
+      if (full && full.meta) activeChat = { meta: full.meta, messages: full.messages ?? [], ...(full.firstIndex !== undefined ? { firstIndex: full.firstIndex, total: full.total, ...(full.older ? { older: full.older } : {}) } : {}) };
     }
     // Summaries, not cards: every card.json whole (texts, books, a portrait as a data URL)
     // ran the sandbox out of memory at ~700 characters and the app no longer started (#46).
@@ -6385,7 +7088,7 @@ export function handleRoute(req, host) {
             if (!f.endsWith(".meta.json")) continue;
             const meta = readJson("chats/" + f, null);
             if (meta && meta.characterId === id && !meta.groupId) {
-              try { fsx.remove("chats/" + meta.id + ".jsonl"); } catch {}
+              chatRemove(fsx, meta.id);
               try { fsx.remove("chats/" + meta.id + ".meta.json"); } catch {}
               try { fsx.remove("chats/" + meta.id + ".memories.json"); } catch {}
             }
@@ -6405,7 +7108,7 @@ export function handleRoute(req, host) {
         if (!f.endsWith(".meta.json")) continue;
         const meta = readJson("chats/" + f, null);
         if (meta && (meta.groupId === id || meta.characterId === id)) {
-          try { fsx.remove("chats/" + meta.id + ".jsonl"); } catch {}
+          chatRemove(fsx, meta.id);
           try { fsx.remove("chats/" + meta.id + ".meta.json"); } catch {}
           try { fsx.remove("chats/" + meta.id + ".memories.json"); } catch {}
         }
@@ -7318,20 +8021,26 @@ export function handleRoute(req, host) {
           .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
       } catch {}
       // list payload carries a preview + count so chat lists render without
-      // fetching every transcript (the studio UI shows both per chat)
-      for (const m of metas) {
+      // fetching every transcript (the studio UI shows both per chat). The meta
+      // keeps them (chat-store.js), good while the tail on disk is the one it was
+      // written with: one stat call for all tails, a transcript read only for a
+      // chat changed behind the meta's back. The boot sweep deletes chats that
+      // were created and never went anywhere, so it needs hasUser here.
+      let sizes = [];
+      try {
+        const st = typeof fsx.stat === "function" ? fsx.stat(metas.map((m) => chatTailPath(m.id))) : null;
+        if (Array.isArray(st)) sizes = st.map((x) => (x && Number.isInteger(x.size) ? x.size : null));
+      } catch {}
+      metas.forEach((m, i) => {
         try {
-          const lines = fsx.read("chats/" + m.id + ".jsonl").split("\n").filter((l) => l.trim());
-          m.messageCount = lines.length;
-          const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
-          m.preview = last ? String(last.text || "").slice(0, 160) : "";
-          // the boot sweep deletes chats that were created and never went
-          // anywhere. It cannot read a transcript it did not load, so it needs
-          // to know here whether the user ever spoke. A raw substring test
-          // keeps this list cheap: these lines are engine-written JSON.
-          m.hasUser = lines.some((l) => l.includes('"role":"user"'));
+          const s = chatSummary(fsx, m.id, m, sizes[i] === undefined ? null : sizes[i]);
+          m.messageCount = s.count;
+          m.preview = s.preview;
+          m.hasUser = s.hasUser;
         } catch { m.messageCount = 0; m.preview = ""; m.hasUser = false; }
-      }
+        // the store's record is the engine's own business, not the list's
+        delete m.transcript;
+      });
       return ok({ chats: metas });
     }
 
@@ -7524,7 +8233,20 @@ const toolX = (r) => ({
       const line = litopysLine(chat.msgs);
       const count = litopysCut(fsx, meta.id, line);
       const litCut = { count, upTo: count > 0 ? line[count - 1].id : null };
-      return ok({ meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+      const out = { meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, members: members.map((m) => ({ id: m.id, name: m.name })) };
+      // ?tail=N: the newest N messages only (Molfar.Vertep#537), with where they start in the chat, how many it has, and
+      // the usage totals of the messages before them (the header's cost and tokens); the older ones come page by page
+      // from GET /chats/:id/messages. Without it, every message, as before.
+      if (req.query && req.query.tail !== undefined) return ok({ ...out, ...chatPage(chat.msgs, Math.max(0, chat.msgs.length - pageLimit(req.query.tail, 0)), chat.msgs.length) });
+      return ok({ ...out, messages: chat.msgs });
+    }
+    // older messages, a page at a time: ?before=<message id> (none: the newest) &limit=N (0: every one before it)
+    if (op === "messages" && !seg[3] && req.method === "GET") {
+      const q = req.query || {};
+      const end = q.before ? chat.msgs.findIndex((m) => m.id === String(q.before)) : chat.msgs.length;
+      if (end < 0) return err(404, "message not found");
+      const n = pageLimit(q.limit, 100);
+      return ok(chatPage(chat.msgs, n === 0 ? 0 : Math.max(0, end - n), end));
     }
 
     if (!op && req.method === "PATCH") {
@@ -7601,7 +8323,7 @@ const toolX = (r) => ({
         if (pristineOpening(meta, chat.msgs)) {
           const reopened = reopenGreetings(fsx, meta, chat.msgs);
           if (JSON.stringify(reopened) !== JSON.stringify(chat.msgs)) {
-            fsx.write("chats/" + id + ".jsonl", reopened.map((m) => JSON.stringify(m)).join("\n") + "\n");
+            chatSave(fsx, id, meta, reopened);
           }
         }
       }
@@ -7686,6 +8408,7 @@ const toolX = (r) => ({
       // a branch of an archived chat (#263) is a chat to play in: the status stays with the original
       delete nmeta.archived;
       for (const k of OLD_MEMORY_KEYS) delete nmeta[k];
+      delete nmeta.transcript;
       const msgs = chat.msgs.slice(0, idx + 1).map((m) => ({ ...m }));
       // preset notes go along only where their message did
       if (Array.isArray(nmeta.presetNotes)) {
@@ -7699,8 +8422,9 @@ const toolX = (r) => ({
     }
 
     if (!op && req.method === "DELETE") {
-      try { fsx.remove("chats/" + id + ".jsonl"); } catch {}
+      chatRemove(fsx, id);
       try { fsx.remove("chats/" + id + ".meta.json"); } catch {}
+      try { fsx.remove(REVEAL_SCANS_DIR + id + ".json"); } catch {}
       // the facts vault belongs to the chat
       try { fsx.remove("chats/" + id + ".memories.json"); } catch {}
       // so do its world book and the DM's state (plugins/world)

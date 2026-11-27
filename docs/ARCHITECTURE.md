@@ -288,6 +288,8 @@ interface MemoryEntry {
 | `POST /chats/:id/impersonate` | Draft user's reply |
 | `POST /chats/:id/image-prompt` | Generate description for image |
 
+**Reading a chat by pages** (Molfar.Vertep#537): `GET /chats/:id?tail=N` gives the newest N messages with `firstIndex` (where they start in the chat), `total`, `hasUser` and `older` (the usage totals of the messages before them); `GET /chats/:id/messages?before=<id>&limit=N` gives the page before a message (`limit=0`: every message before it). Without `tail`, `GET /chats/:id` gives every message, as before. The page opens a chat, refreshes it after a reply and on `look_changed` by its tail, and merges a fresh tail over the older pages it holds (`src/lib/chat-page.ts`).
+
 ### 3.3 Swipe — Reply Variants
 
 **Swipe** is a variant of an AI reply. Each message can have multiple swipes, stored in `Message.swipes[]`. The UI shows one active swipe at a time (`activeSwipe` index).
@@ -324,6 +326,7 @@ interface MemoryEntry {
    - `setSwipe(chatId, messageId, index)` — switches locally (optimistic), then commits to engine
    - `addSwipe(chatId)` — calls `regenerate()` to make a new variant
    - `deleteSwipe(chatId, messageId, swipeIndex)` — removes a variant
+6. **On disk** (`src/lib/chat-store.js`, Molfar.Vertep#537): the line keeps `text`, and `swipes[swipe]` is stored as `null` when it is the same text (a message with one version stores no `swipes`); every reader gets the shape above back. A long chat keeps its older messages in `chats/<id>.parts/<n>.jsonl` and a send rewrites only `chats/<id>.jsonl`, the newest ones. See `docs/DATA-FORMATS.md`, Chats.
 
 **Key behaviors:**
 - **Pristine chat** (no user messages yet): Swiping past end wraps around and cycles greetings
