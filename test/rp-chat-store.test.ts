@@ -306,6 +306,29 @@ describe("old parts are read on touch", () => {
     expect(back[260].text).toBe("A copy.");
     expect(back[11].text).toBe(c.msgs[11].text);
   });
+  it("a heavy field an old message did not have, set through its stand-in, is saved", () => {
+    const { fsx, c } = long();
+    // m11 and m13 are user messages: no translation, no extra
+    expect("translation" in c.msgs[10]).toBe(false);
+    c.msgs[10].translation = "A first translation.";
+    c.msgs[12].extra = { note: "new" };
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    const back = S.chatRead(fsx, "c1")!.msgs;
+    expect(back[10].translation).toBe("A first translation.");
+    expect(back[10].text).toBe(c.msgs[10].text);
+    expect(back[12].extra).toEqual({ note: "new" });
+  });
+  it("a heavy field deleted from a stand-in stays deleted", () => {
+    const { fsx, c, msgs } = long();
+    // m152 is a reply: it has extra
+    expect(c.msgs[151].id).toBe("m152");
+    delete c.msgs[151].extra;
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    const back = S.chatRead(fsx, "c1")!.msgs;
+    expect(back[151].extra).toBeUndefined();
+    expect(back[151].text).toBe(msgs[151].text);
+    expect(back[153].extra).toEqual(msgs[153].extra);
+  });
   it("an index that is not the meta's for a part makes that part read whole", () => {
     const { fsx } = long();
     const ix = readJson("chats/c1.parts/index.json");

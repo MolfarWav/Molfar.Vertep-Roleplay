@@ -312,14 +312,19 @@ function chatFill(m) {
     Object.defineProperty(m, CHAT_LOST, { value: true, enumerable: false, configurable: true });
     full = {};
   }
+  // only the heavy fields still waiting for their part: one a caller set on the stand-in (a field the message did not
+  // have, e.g. a first translation) is the caller's and stays
   for (const k of Object.keys(m)) {
     if (!CHAT_HEAVY_SET.has(k)) continue;
+    const d = Object.getOwnPropertyDescriptor(m, k);
+    if (!d || !d.get) continue;
     if (k in full) Object.defineProperty(m, k, { value: full[k], writable: true, enumerable: true, configurable: true });
     else delete m[k];
   }
+  // a heavy field the read had and the caller deleted stays deleted; one the part gained since the read comes in
   for (const k of Object.keys(full)) {
     if (CHAT_HEAVY_SET.has(k)) {
-      if (!(k in m)) m[k] = full[k];
+      if (!(k in m) && !(k in s.row)) m[k] = full[k];
     } else if (!(k in m) ? !(k in s.row) : chatSame(m[k], s.row[k])) m[k] = full[k];
   }
 }
