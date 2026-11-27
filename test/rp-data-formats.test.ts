@@ -80,4 +80,15 @@ describe("docs/DATA-FORMATS.md names every field the app writes", () => {
     expect(missing(out.prompts.flatMap((s) => Object.keys(s)))).toEqual([]);
     expect(missing(Object.keys(out.prompt_order[0]!))).toEqual([]);
   });
+  it("chats: a message line and the store's record in the meta", async () => {
+    const S = await import("../src/lib/chat-store.js");
+    const files: Record<string, string> = {};
+    const fsx = { read: (r: string) => { if (!(r in files)) throw new Error("no " + r); return files[r]!; }, write: (r: string, t: string) => { files[r] = t; }, list: () => [], remove: () => {} };
+    const msgs = Array.from({ length: 250 }, (_, i) => ({ id: "m" + i, name: "Aria", charId: "aria", role: i % 2 ? "char" : "user", text: "Line " + i, at: i, swipes: ["Other " + i, "Line " + i], swipe: 1, extra: { swipeMeta: [{}, {}] } }));
+    S.chatSave(fsx, "c", { id: "c" }, msgs);
+    const meta = JSON.parse(files["chats/c.meta.json"]!);
+    expect(missing(Object.keys(meta.transcript))).toEqual([]);
+    expect(missing(Object.keys(meta.transcript.parts[0]))).toEqual([]);
+    expect(missing(Object.keys(JSON.parse(files["chats/c.parts/1.jsonl"]!.split("\n")[0]!)))).toEqual([]);
+  });
 });

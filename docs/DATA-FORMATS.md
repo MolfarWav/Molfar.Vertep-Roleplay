@@ -532,6 +532,33 @@ did not change that key. `order` lists member ids in this chat's speaking order 
 last). Set with `PATCH /chats/<id>` `{ turns }` (the whole object; `null` = follow the group again) or at creation,
 `POST /chats` `{ groupId, turns }`. A narrator always answers, whatever `mode` says.
 
+## Chats: `data/chats/<id>.meta.json`, `<id>.jsonl` and `<id>.parts/`
+
+A chat is its meta (`<id>.meta.json`: title, card or group, persona, preset, model and the keys in the sections
+below) and its messages, one JSON object per line. Read and write messages through the chat store,
+`src/lib/chat-store.js` (pasted into the plugins by `bun scripts/sync-chat-store.ts`): `chatRead` and
+`chatMessages` give every message in its full shape, `chatSave` writes. A plugin or script that reads
+`<id>.jsonl` by itself sees only the newest part of a long chat (Molfar.Vertep#537).
+
+- A message: `{ id, name, charId, role, text, at, swipes, swipe, extra, hidden, greeting, picture, attachments, translation, directions }`,
+  most of them optional; `role` is `user`, `char` or `system`. `text` is the shown text, macros filled in. `swipes` are
+  the versions of a reply, kept raw (a greeting's `{{user}}` stays), `swipe` is the chosen one, and `extra.swipeMeta[i]`
+  belongs to `swipes[i]`.
+- The chosen text is stored once. When `swipes[swipe]` is the same text as `text`, the line has `null` in that
+  slot, and a message with one version (`swipes: [text]`, `swipe: 0`) has no `swipes`. A greeting whose raw text
+  differs from `text` keeps both. The store puts the full shape back on read; a hand edit may write either shape.
+- A long chat (more than 200 messages, or about 900,000 characters of lines) keeps its older messages in closed
+  parts, `chats/<id>.parts/1.jsonl`, `2.jsonl`, ... (about 100 messages each; numbers only grow), and
+  `chats/<id>.jsonl` holds the newest messages: the only file a send rewrites. A part is rewritten only when a
+  message in it changes. A chat cut back below the limit is one file again.
+- `transcript` in the meta is the store's record, written with every save: `{ v, count, preview, hasUser, tailSize, tailFirst, parts }`,
+  each of `parts` `{ n, count, first, last, user }` (the part file's number, how many messages, the ids of its first
+  and last message, whether the player speaks in it). `count`, `preview` and `hasUser` are what the chat list shows,
+  good while the tail's size is still `tailSize` (the list re-reads a tail changed behind the meta). Leave it to the
+  store; a meta without it makes the store look in `<id>.parts/` for the parts.
+- Going back to a Roleplay version older than parts: close the app and run `bun scripts/chat-join.ts <data dir>`,
+  which joins every chat back into one whole file.
+
 ### Per-chat prompt switches
 A chat's meta can have a `promptBoard` object, `{ v: 1, off?: string[], history? }`, listing prompt parts this
 chat leaves out. Absent = everything on (today's behaviour). Keys in `off` are `section:<id>` (a preset section),

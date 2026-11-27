@@ -146,7 +146,8 @@ on the persona's page; `lib/persona-new.ts` and `lib/persona-new-api.ts`) and Fr
 JSON goes through the import, anything else becomes the description, cut at 12000 characters, and the page opens on Profile and starts
 Structure it by `pendingStructure`). The questionnaire is the no-model path.
 State is a zustand store (lib/store.ts) hydrated from the engine and mirrored
-to it on every change. Messages are a FLAT list with swipes.
+to it on every change. Messages are a FLAT list with swipes; on disk the chosen
+swipe is stored once and a long chat lies in parts (docs/DATA-FORMATS.md, Chats).
 
 Home (`views/home-view.tsx`, blocks in `components/home/block-*.tsx`) is a bento: continue (the one filled button), a random
 library card, a Marketplace card (`lib/home-market.ts`, one request an hour, left out when offline or switched off), a
@@ -415,7 +416,9 @@ a tip in the same change; without one, nobody finds it.
 All app behavior (chats, swipes, presets, world info, characters, import)
 lives in plugins/ as engine plugins over the plugin API; the UI talks to
 /v1/apps/roleplay/* routes and the WS bus (app_stream deltas for live
-replies). Chats are flat JSONL with swipes; each character is one card.json.
+replies). Chats are flat JSONL with swipes, read and written through the chat
+store (src/lib/chat-store.js, pasted into plugins by scripts/sync-chat-store.ts);
+each character is one card.json.
 src/lib/engine.ts owns every route call + the studio↔engine adapters; the store
 actions are thin wrappers (optimistic write → API call → refresh). A feature
 without a working backend is marked unavailable in the UI, never stubbed.
@@ -452,7 +455,8 @@ data/
 ├─ characters/<id>/card.json   full character cards (portable card fields + `studio` bag:
 │                       favorites, colors, stats, sprites, gallery, versions,
 │                       descVariants/personalityVariants/scenarioVariants)
-├─ chats/<id>.jsonl     one message per line; <id>.meta.json holds title,
+├─ chats/<id>.jsonl     one message per line (the newest ones of a long chat; the
+│                       older lie in <id>.parts/<n>.jsonl); <id>.meta.json holds title,
 │                       folderId, pinned, personaId, presetId, model, branch
 │                       parentage (parentChatId/parentMessageId), summary,
 │                       fieldVariantSelection (which card alternate this chat sends)

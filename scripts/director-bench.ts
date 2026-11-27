@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { chatMessages, chatSave } from "../src/lib/chat-store.js";
 
 const args = process.argv.slice(2);
 const flag = (n: string) => {
@@ -339,9 +340,20 @@ if (mode === "router") {
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "director-bench-"));
 fs.cpSync(path.join(corpus, "root"), root, { recursive: true });
+// the corpus chat through the store (src/lib/chat-store.js): a long one keeps its older messages in parts
+const corpusFs = (root: string) => ({
+  read: (rel: string) => fs.readFileSync(path.resolve(root, rel), "utf8"),
+  write: (rel: string, content: string) => {
+    fs.mkdirSync(path.dirname(path.resolve(root, rel)), { recursive: true });
+    fs.writeFileSync(path.resolve(root, rel), content, "utf8");
+  },
+  list: (rel: string) => fs.readdirSync(path.resolve(root, rel)).sort(),
+  remove: (rel: string) => fs.rmSync(path.resolve(root, rel), { recursive: true, force: true }),
+});
 const chatId = fs.readdirSync(path.join(root, "chats")).find((f) => f.endsWith(".jsonl"))!.replace(/\.jsonl$/, "");
-const lines = fs.readFileSync(path.join(root, "chats", chatId + ".jsonl"), "utf8").trim().split("\n");
 const meta = JSON.parse(fs.readFileSync(path.join(root, "chats", chatId + ".meta.json"), "utf8"));
+const allMsgs = chatMessages(corpusFs(root), chatId, meta);
+const lines = allMsgs.map((m: unknown) => JSON.stringify(m));
 const cfg = JSON.parse(fs.readFileSync(path.join(root, "dashboard", "config.json"), "utf8"));
 out.sensorModel = cfg.sensorModel ?? meta.model;
 for (const d of ["dashboard/state", "registry", "_debug"]) fs.rmSync(path.join(root, d), { recursive: true, force: true });
@@ -451,7 +463,7 @@ const range = flag("--turns") ? flag("--turns")!.split("-").map(Number) : null;
 const charLines = lines.map((l, i) => [JSON.parse(l), i] as const).filter(([m]) => m.role === "char").map(([, i]) => i);
 const turns = range ? charLines.filter((k) => k >= range[0]! && k <= (range[1] ?? range[0]!)) : charLines;
 for (const k of turns) {
-  fs.writeFileSync(path.join(root, "chats", chatId + ".jsonl"), lines.slice(0, k + 1).join("\n") + "\n");
+  chatSave(corpusFs(root), chatId, { ...meta }, allMsgs.slice(0, k + 1));
   const rec: any = { k, calls: [] };
   const t0 = Date.now();
   await update(rec);

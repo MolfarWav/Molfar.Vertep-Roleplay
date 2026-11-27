@@ -324,6 +324,7 @@ interface MemoryEntry {
    - `setSwipe(chatId, messageId, index)` — switches locally (optimistic), then commits to engine
    - `addSwipe(chatId)` — calls `regenerate()` to make a new variant
    - `deleteSwipe(chatId, messageId, swipeIndex)` — removes a variant
+6. **On disk** (`src/lib/chat-store.js`, Molfar.Vertep#537): the line keeps `text`, and `swipes[swipe]` is stored as `null` when it is the same text (a message with one version stores no `swipes`); every reader gets the shape above back. A long chat keeps its older messages in `chats/<id>.parts/<n>.jsonl` and a send rewrites only `chats/<id>.jsonl`, the newest ones. See `docs/DATA-FORMATS.md`, Chats.
 
 **Key behaviors:**
 - **Pristine chat** (no user messages yet): Swiping past end wraps around and cycles greetings
