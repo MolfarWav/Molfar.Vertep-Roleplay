@@ -152,6 +152,61 @@ function chatParseLines(s) {
   return out;
 }
 
+/**
+ * What the engine reported for the chosen versions of some messages (`extra.usage`): how many had a usage, tokens in
+ * and out, tokens read from the provider's cache, and the cost of those whose cost is known (as the page counts it: a
+ * `costTotal` of 0 with tokens is not a known cost). Kept per part in the index, so the page's chat totals need no old
+ * part.
+ */
+function chatUseOf(msgs, into) {
+  const u = into || { n: 0, tin: 0, tout: 0, cached: 0, cost: 0, costN: 0 };
+  for (const m of msgs) {
+    const x = chatIsObj(m) && chatIsObj(m.extra) ? m.extra.usage : null;
+    if (!chatIsObj(x)) continue;
+    const i = Number(x.input) || 0;
+    const o = Number(x.output) || 0;
+    u.n++;
+    u.tin += i;
+    u.tout += o;
+    u.cached += Number(x.cacheRead) || 0;
+    if (x.costTotal != null && !(x.costTotal === 0 && i + o > 0)) {
+      u.cost += Number(x.costTotal) || 0;
+      u.costN++;
+    }
+  }
+  return u;
+}
+const chatUseAdd = (u, v) => {
+  for (const k of ["n", "tin", "tout", "cached", "cost", "costN"]) u[k] += Number(v[k]) || 0;
+  return u;
+};
+
+/**
+ * The usage totals (see chatUseOf) of the first `k` messages of a read: a whole part from its index entry, the rest
+ * message by message. The page adds these to what it counts in the messages it holds.
+ */
+function chatUseBefore(msgs, k) {
+  const read = msgs && msgs[CHAT_READ];
+  const index = (read && read.index) || {};
+  const u = chatUseOf([]);
+  let i = 0;
+  while (i < k) {
+    const o = chatIsObj(msgs[i]) ? msgs[i][CHAT_FROM] : null;
+    const e = o && o.pos === 0 ? index[o.n] : null;
+    const len = e && chatIsObj(e.use) ? e.rows.length : 0;
+    const end = len ? msgs[i + len - 1] : null;
+    const eo = chatIsObj(end) ? end[CHAT_FROM] : null;
+    if (len && i + len <= k && eo && eo.n === o.n && eo.pos === len - 1) {
+      chatUseAdd(u, e.use);
+      i += len;
+      continue;
+    }
+    chatUseOf([msgs[i]], u);
+    i++;
+  }
+  return u;
+}
+
 /** A message's light fields, in its key order, heavy ones as 0 (what the index keeps). */
 function chatRowOf(m) {
   const row = {};
@@ -289,7 +344,7 @@ function chatListed(fsx, id, meta) {
 
 /** The messages of the listed parts and the tail; parts with a trusted index entry as stand-ins (`index` null: none). */
 function chatCollect(fsx, id, nums, index, revs) {
-  const view = { fsx, id, raw: {}, parts: new Map() };
+  const view = { fsx, id, raw: {}, parts: new Map(), index: index || {} };
   const from = (m, n, pos) => Object.defineProperty(m, CHAT_FROM, { value: { n, pos, rev: revs ? revs[n] : undefined }, enumerable: false, configurable: true });
   const out = [];
   const at = new Map();
@@ -343,7 +398,7 @@ function chatMessages(fsx, id, meta) {
     m = chatReadMeta(fsx, id);
     got = chatCollect(fsx, id, chatListed(fsx, id, m), chatTrustedIndex(fsx, id, m), revs(m));
   }
-  Object.defineProperty(got.out, CHAT_READ, { value: { id, raw: got.view.raw }, enumerable: false });
+  Object.defineProperty(got.out, CHAT_READ, { value: { id, raw: got.view.raw, index: got.view.index }, enumerable: false });
   return got.out;
 }
 
@@ -526,16 +581,22 @@ function chatSave(fsx, id, meta, msgs) {
   const text = (a, b) => (b > a ? lines.slice(a, b).join("\n") + "\n" : "");
   const listed = [];
   const entries = [];
+  // an index entry without the usage totals is written again with them
+  let indexOld = false;
   plan.forEach((p, i) => {
     const old = prevBy.get(p.n);
     let rev = old && Number.isInteger(old.rev) ? old.rev : 0;
     if (same[i]) {
-      entries.push({ n: p.n, rev, lens: stubs.slice(p.from, p.to).map((s) => s.len), rows: stubs.slice(p.from, p.to).map((s) => s.row) });
+      // the entry the stand-ins came from (a copied array of them still knows its read)
+      const had = stubs[p.from].view.index ? stubs[p.from].view.index[p.n] : null;
+      if (!(had && chatIsObj(had.use))) indexOld = true;
+      const use = had && chatIsObj(had.use) ? had.use : chatUseOf(msgs.slice(p.from, p.to));
+      entries.push({ n: p.n, rev, lens: stubs.slice(p.from, p.to).map((s) => s.len), rows: stubs.slice(p.from, p.to).map((s) => s.row), use });
     } else {
       const rel = chatPartPath(id, p.n);
       const wrote = p.kept && rev > 0 ? chatWriteIfChanged(fsx, rel, text(p.from, p.to), raw) : (fsx.write(rel, text(p.from, p.to)), true);
       if (wrote || !rev) rev++;
-      entries.push({ n: p.n, rev, lens: lines.slice(p.from, p.to).map((l) => l.length), rows: msgs.slice(p.from, p.to).map(chatRowOf) });
+      entries.push({ n: p.n, rev, lens: lines.slice(p.from, p.to).map((l) => l.length), rows: msgs.slice(p.from, p.to).map(chatRowOf), use: chatUseOf(msgs.slice(p.from, p.to)) });
     }
     listed.push({
       n: p.n,
@@ -546,7 +607,7 @@ function chatSave(fsx, id, meta, msgs) {
       rev,
     });
   });
-  if (listed.length && !(same.every(Boolean) && listed.length === prev.length && listed.every((p, i) => p.n === prev[i].n))) {
+  if (listed.length && (indexOld || !(same.every(Boolean) && listed.length === prev.length && listed.every((p, i) => p.n === prev[i].n)))) {
     chatWriteIfChanged(fsx, chatIndexPath(id), JSON.stringify({ v: 1, parts: entries }), raw);
   }
   const tailFirst = tailFrom < msgs.length && chatIsObj(msgs[tailFrom]) ? msgs[tailFrom].id : undefined;
@@ -4314,6 +4375,17 @@ function readBoundBooks(fsx, bound) {
 function loadChat(fsx, id) {
   return chatRead(fsx, id);
 }
+/** Messages [from, to) of a chat for the page: where they start, how many the chat has, and the usage totals of the
+ *  ones before them (only those messages and an index of the older ones are read, chat-store.js). */
+function chatPage(msgs, from, to) {
+  // whether the player has written: roles are in the index, so this reads no old part
+  return { messages: msgs.slice(from, to), firstIndex: from, total: msgs.length, hasUser: msgs.some((m) => m && m.role === "user"), ...(from > 0 ? { older: chatUseBefore(msgs, from) } : {}) };
+}
+/** A page size from a query value: a whole number from 0 up, `fallback` when there is none. */
+function pageLimit(v, fallback) {
+  const n = Math.floor(Number(v));
+  return v === undefined || v === null || v === "" || !Number.isFinite(n) ? fallback : Math.max(0, Math.min(n, 100000));
+}
 // the old Memory's keys; they go once Litopys holds the chat (its sweep took the vault in)
 const OLD_MEMORY_KEYS = ["summary", "memoryCutoffMessageId", "compactions", "memoryExtractedAt"];
 /** Writes only the files whose text changed: the tail on a send, a part when a message in it changed, and the meta. */
@@ -6860,8 +6932,10 @@ export function handleRoute(req, host) {
     const wanted = req.query && req.query.chat ? String(req.query.chat) : "";
     let activeChat = null;
     if (wanted) {
-      const full = sub("/chats/" + wanted);
-      if (full && full.meta) activeChat = { meta: full.meta, messages: full.messages ?? [] };
+      // ?tail=N: only its newest N messages (GET /chats/:id?tail=N)
+      const tail = req.query && req.query.tail !== undefined ? { tail: req.query.tail } : {};
+      const full = handleRoute({ method: "GET", path: "/chats/" + wanted, query: tail, body: null }, host).json;
+      if (full && full.meta) activeChat = { meta: full.meta, messages: full.messages ?? [], ...(full.firstIndex !== undefined ? { firstIndex: full.firstIndex, total: full.total, ...(full.older ? { older: full.older } : {}) } : {}) };
     }
     // Summaries, not cards: every card.json whole (texts, books, a portrait as a data URL)
     // ran the sandbox out of memory at ~700 characters and the app no longer started (#46).
@@ -8154,7 +8228,20 @@ const toolX = (r) => ({
       const line = litopysLine(chat.msgs);
       const count = litopysCut(fsx, meta.id, line);
       const litCut = { count, upTo: count > 0 ? line[count - 1].id : null };
-      return ok({ meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, messages: chat.msgs, members: members.map((m) => ({ id: m.id, name: m.name })) });
+      const out = { meta: { ...meta, litopysCut: litCut, promptCut: lastPromptCut(fsx, meta.id, line) }, members: members.map((m) => ({ id: m.id, name: m.name })) };
+      // ?tail=N: the newest N messages only (Molfar.Vertep#537), with where they start in the chat, how many it has, and
+      // the usage totals of the messages before them (the header's cost and tokens); the older ones come page by page
+      // from GET /chats/:id/messages. Without it, every message, as before.
+      if (req.query && req.query.tail !== undefined) return ok({ ...out, ...chatPage(chat.msgs, Math.max(0, chat.msgs.length - pageLimit(req.query.tail, 0)), chat.msgs.length) });
+      return ok({ ...out, messages: chat.msgs });
+    }
+    // older messages, a page at a time: ?before=<message id> (none: the newest) &limit=N (0: every one before it)
+    if (op === "messages" && !seg[3] && req.method === "GET") {
+      const q = req.query || {};
+      const end = q.before ? chat.msgs.findIndex((m) => m.id === String(q.before)) : chat.msgs.length;
+      if (end < 0) return err(404, "message not found");
+      const n = pageLimit(q.limit, 100);
+      return ok(chatPage(chat.msgs, n === 0 ? 0 : Math.max(0, end - n), end));
     }
 
     if (!op && req.method === "PATCH") {

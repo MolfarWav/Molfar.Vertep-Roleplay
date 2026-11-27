@@ -11,6 +11,7 @@ import { ChatQuote } from '@/components/chat/chat-preview-text'
 import { DEFAULT_AVATAR } from '@/lib/utils'
 import { CreateButtons } from '@/components/home/home-actions'
 import { BlockCard } from '@/components/home/home-frame'
+import { messageTotal } from '@/lib/chat-page'
 
 export function ContinueBlock() {
   const t = useT()
@@ -40,7 +41,7 @@ export function ContinueBlock() {
   const persona = personas.find((p) => p.id === chat.personaId)
   const bookId = character.embeddedLorebookId ?? character.linkedLorebookIds?.[0] ?? null
   const book = bookId ? lorebooks.find((b) => b.id === bookId) : null
-  const count = chat.messages.length > 0 ? chat.messages.length : chat.messageCount ?? 0
+  const count = messageTotal(chat)
   const title = chat.title.trim() || character.name
   // a card with no picture of its own carries the default one; a summary's portrait may still be on its way
   const hasArt = (!!character.avatar && character.avatar !== DEFAULT_AVATAR) || character.avatarLazy === true

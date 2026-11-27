@@ -59,7 +59,9 @@ export function TranslationTab() {
   // (same route, same provider) — sequential so one provider isn't hammered
   const translateChat = async () => {
     const s = useApp.getState()
-    const chat = s.chats.find((c) => c.id === s.activeChatId)
+    // every message of the chat: one held by its newest messages loads the rest first (lib/chat-page.ts)
+    if (s.activeChatId) await s.ensureChatMessages(s.activeChatId, { whole: true })
+    const chat = useApp.getState().chats.find((c) => c.id === s.activeChatId)
     if (!chat) { toast.error('Open a chat first'); return }
     const todo = chat.messages.filter((m) => !m.hidden && !m.translation && (m.swipes[m.activeSwipe]?.content ?? '').trim())
     if (!todo.length) { toast.info('Nothing to translate', { description: 'Every visible message already has a translation.' }); return }
@@ -93,7 +95,9 @@ export function TranslationTab() {
 
   const clearChat = async () => {
     const s = useApp.getState()
-    const chat = s.chats.find((c) => c.id === s.activeChatId)
+    // every message of the chat: one held by its newest messages loads the rest first (lib/chat-page.ts)
+    if (s.activeChatId) await s.ensureChatMessages(s.activeChatId, { whole: true })
+    const chat = useApp.getState().chats.find((c) => c.id === s.activeChatId)
     if (!chat) { toast.error('Open a chat first'); return }
     const todo = chat.messages.filter((m) => m.translation)
     if (!todo.length) { toast.info('No translations to clear'); return }

@@ -557,9 +557,11 @@ below) and its messages, one JSON object per line. Read and write messages throu
   rewritten). `count`, `preview` and `hasUser` are what the chat list shows,
   good while the tail's size is still `tailSize` (the list re-reads a tail changed behind the meta). Leave it to the
   store; a meta without it makes the store look in `<id>.parts/` for the parts.
-- `chats/<id>.parts/index.json` is `{ v, parts: [{ n, rev, lens, rows }] }`: for each part, the light fields of its
+- `chats/<id>.parts/index.json` is `{ v, parts: [{ n, rev, lens, rows, use }] }`: for each part, the light fields of its
   messages (`rows`, each message with its heavy fields `text`, `swipes`, `extra`, `translation`, `attachments`,
-  `directions`, `reasoning`, `mes`, `parts`, `tools` written as `0`) and each line's length (`lens`). It is
+  `directions`, `reasoning`, `mes`, `parts`, `tools` written as `0`), each line's length (`lens`) and the usage totals
+  of the part's chosen versions (`use`: `{ n, tin, tout, cached, cost, costN }`, what the page's chat header adds for
+  the messages it has not loaded). It is
   rewritten only when a part changes, and trusted for a part only when its `rev` is the meta's. With it a read gives
   a part's messages as stand-ins that read their part on the first touch of a heavy field: a plugin that needs only
   the ids, roles and swipe numbers of the whole chat, or the texts of the newest messages, reads no old part. Walk

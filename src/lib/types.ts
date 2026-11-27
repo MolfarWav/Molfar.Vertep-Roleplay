@@ -261,6 +261,10 @@ export interface ChatBranch {
   messageCount: number
 }
 
+/** What the engine reported for the chosen versions of some messages (the server's chatUseOf in src/lib/chat-store.js):
+ *  how many had a usage, tokens in and out, tokens read from the cache, and the known cost of `costN` of them. */
+export interface ChatUse { n: number; tin: number; tout: number; cached: number; cost: number; costN: number }
+
 export interface Chat {
   id: ID
   characterId: ID
@@ -289,6 +293,13 @@ export interface Chat {
   }
   litopysCut?: { count: number; upTo: string | null }
   promptCut?: { count: number; upTo: string | null } | null
+  /** Molfar.Vertep#537: a long chat loads by pages (lib/chat-page.ts). Where `messages[0]` stands in the whole chat;
+   *  absent or 0 = `messages` starts at the chat's first message. */
+  firstIndex?: number
+  /** how many messages the whole chat had when the page last asked (absent: `messages` is all of it) */
+  total?: number
+  /** the usage totals of the messages before `firstIndex` (the header's cost and tokens count them too) */
+  olderUse?: ChatUse
   temporary: boolean
   folderId: ID | null
   /** pinned to the top of the Chats page */

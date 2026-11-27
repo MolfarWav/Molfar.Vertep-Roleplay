@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils'
 import { useAttention } from '@/lib/attention'
 import { NeedsYouBadge } from '@/components/shell/needs-you-badge'
 import type { Character, Chat } from '@/lib/types'
+import { messageTotal } from '@/lib/chat-page'
 
 const SORT_KEY = 'rp.chats.sort'
 const readSort = (): ChatSort => {
@@ -98,7 +99,7 @@ export function ChatsView() {
   const chatFolders = folders.filter((f) => f.scope === 'chats')
   const byId = useMemo(() => new Map(characters.map((c) => [c.id, c])), [characters])
   const ownerOf = (c: Chat) => byId.get(c.characterId)
-  const sizeOf = (c: Chat) => (c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0)
+  const sizeOf = (c: Chat) => messageTotal(c)
   const setSort = (s: ChatSort) => {
     setSortState(s)
     try { localStorage.setItem(SORT_KEY, s) } catch { /* storage blocked */ }
@@ -133,7 +134,7 @@ export function ChatsView() {
         const owner = byId.get(c.characterId)
         return c.title.toLowerCase().includes(q) || !!owner?.name.toLowerCase().includes(q) || (c.preview ?? '').toLowerCase().includes(q)
       })
-    return sortChats(list, sort, (c) => (c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0), (c) => byId.get(c.characterId)?.name ?? '')
+    return sortChats(list, sort, (c) => messageTotal(c), (c) => byId.get(c.characterId)?.name ?? '')
   }, [chats, characters, query, activeFolderId, filter, kind, sort, byId, personaOnly, showArchive])
   const sections = useMemo(() => groupChats(filtered, sort), [filtered, sort])
 

@@ -253,7 +253,8 @@ export interface EngineBootstrap {
    *  load one chat at a time through /chats/:id (see ensureChatMessages). */
   chats: EngineChatMeta[]
   /** The chat the client asked for, so opening the app is still one request. */
-  activeChat: { meta: EngineChatMeta; messages: EngineMessage[] } | null
+  /** the chat about to be shown: its newest messages when the boot asked for a tail (lib/chat-page.ts) */
+  activeChat: { meta: EngineChatMeta; messages: EngineMessage[]; firstIndex?: number; total?: number; older?: import('./types').ChatUse } | null
   /** Characters not in the list yet (the index ran out of time): ask /characters/summaries again.
    *  Absent before Roleplay 4.49.0's plugin. */
   charactersPending?: number
@@ -289,9 +290,10 @@ export function fetchCharacterAvatars(ids: string[]): Promise<{ avatars: Record<
 }
 
 /** `chatId` asks for that chat's transcript inline — pass the one about to be
- *  shown so the first paint needs no follow-up fetch. */
-export function fetchBootstrap(chatId?: string | null): Promise<EngineBootstrap> {
-  return j<EngineBootstrap>(chatId ? `/bootstrap?chat=${encodeURIComponent(chatId)}` : '/bootstrap')
+ *  shown so the first paint needs no follow-up fetch; `tail`: only its newest messages (Molfar.Vertep#537). */
+export function fetchBootstrap(chatId?: string | null, tail?: number): Promise<EngineBootstrap> {
+  if (!chatId) return j<EngineBootstrap>('/bootstrap')
+  return j<EngineBootstrap>(`/bootstrap?chat=${encodeURIComponent(chatId)}${tail !== undefined ? `&tail=${tail}` : ''}`)
 }
 
 /** A starred model of the engine's quick switch (set in the shell's Settings), with an optional name. */
@@ -1179,7 +1181,7 @@ export interface PromptBoardConfig { v: 1; off?: string[]; history?: PromptBoard
 export const DEFAULT_PROMPT_HISTORY: PromptBoardHistory = { lastN: 0, only: 'all', thinking: true }
 
 export async function getChatPromptBoard(chatId: string): Promise<PromptBoardConfig | null> {
-  const r = await j<{ meta: { promptBoard?: PromptBoardConfig } }>(`/chats/${encodeURIComponent(chatId)}`)
+  const r = await j<{ meta: { promptBoard?: PromptBoardConfig } }>(`/chats/${encodeURIComponent(chatId)}?tail=0`)
   return r.meta.promptBoard ?? null
 }
 
@@ -1205,7 +1207,7 @@ export async function setChatMemoryOwner(chatId: string, owner: 'persona' | 'wor
 export type ChatMemorySources = Record<string, boolean>
 
 export async function getChatMemorySources(chatId: string): Promise<ChatMemorySources | null> {
-  const r = await j<{ meta: { memory?: { sources?: ChatMemorySources } } }>(`/chats/${encodeURIComponent(chatId)}`)
+  const r = await j<{ meta: { memory?: { sources?: ChatMemorySources } } }>(`/chats/${encodeURIComponent(chatId)}?tail=0`)
   return r.meta.memory?.sources ?? null
 }
 

@@ -133,7 +133,8 @@ describe("a send right after a Stop (#384)", () => {
         });
       }
       // the clean-up after a Stop reads the chat again: slow, so the next send gets in before it ends
-      if (m === "GET" && /\/chats\/D$/.test(url)) return refresh.promise;
+      // (it asks for the newest messages, ?tail=N: Molfar.Vertep#537)
+      if (m === "GET" && /\/chats\/D(\?|$)/.test(url)) return refresh.promise;
       return Promise.resolve(json({}));
     };
     useApp.setState({ chats: [chat("D")], streaming: null, composerDrafts: {} });

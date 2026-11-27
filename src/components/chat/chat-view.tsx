@@ -88,6 +88,7 @@ import { ManageChatsDialog } from './manage-chats-dialog'
 import { MarqueeText } from '@/components/ui/marquee-text'
 import { ChatDetailsButton, type ChatCache } from './chat-details'
 import { SceneBefore } from './scene-heading'
+import { hasOlder, messageTotal } from '@/lib/chat-page'
 
 /** The chat look. Only 'stage' exists today; a later 'vn' look switches the class and the markup here. */
 const look: 'stage' | 'vn' = 'stage'
@@ -255,7 +256,12 @@ export function ChatView() {
   const gsNow = chat?.groupSettings
   const autoMode = (gsNow?.autoMode ?? false) && !(gsNow?.activation === 'manual' && gsNow.generationMode !== 'narrator')
   const autoDelaySec = Math.max(2, chat?.groupSettings?.autoDelaySec ?? 5)
-  const msgCount = chat?.messages.length ?? 0
+  // the whole chat's count (a long chat holds only its newest messages, lib/chat-page.ts)
+  const msgCount = chat ? messageTotal(chat) : 0
+  // where the first message held stands in the whole chat: numbers on screen count from the chat's start
+  const base = chat?.firstIndex ?? 0
+  const ensureChatMessages = useApp((s) => s.ensureChatMessages)
+  const loadEarlierMessages = useApp((s) => s.loadEarlierMessages)
   // what the chat carries and the counters of the header's story tools (#109); the width decides how much of them the header shows
   const carries = useCarries(chat?.id ?? '', chat?.authorNote.text ?? '', msgCount)
   const worldDot = useWorldDot(chat?.id ?? '')
@@ -423,10 +429,11 @@ export function ChatView() {
     if (s.deleteMode !== prev.deleteMode && !anchorRef.current) keepPlace()
   }), [])
 
-  // a committed turn lands: follow it while pinned
+  // a committed turn lands: follow it while pinned (by the newest message: an older page put in front is no turn)
+  const newestId = chat?.messages[chat.messages.length - 1]?.id
   useEffect(() => {
     if (pinnedRef.current) scrollToBottom(true)
-  }, [chat?.messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [newestId, chat?.messages.length === 0]) // eslint-disable-line react-hooks/exhaustive-deps
   // Stream growth follows through a STORE subscription rather than a render
   // dependency: a token delta then costs one scrollTop write instead of a
   // re-render of the header, the composer and every visible row. Thinking
@@ -506,6 +513,9 @@ export function ChatView() {
   )
   const chatIndex = charChats.findIndex((c) => c.id === chat?.id)
 
+  // find and the bookmarks look through every message: a chat held by its newest ones loads the rest first
+  const wantsWhole = !!chat && hasOlder(chat) && ((findOpen && !!findQuery.trim()) || bookmarksOpen)
+  useEffect(() => { if (wantsWhole && chat) void ensureChatMessages(chat.id, { whole: true }) }, [wantsWhole, chat?.id, ensureChatMessages]) // eslint-disable-line react-hooks/exhaustive-deps
   // every occurrence, not every message: the counter and the arrows step
   // word by word the way browser find does
   const matches = useMemo(() => {
@@ -669,6 +679,9 @@ export function ChatView() {
       if (c != null) { cost += c; n++ }
       if (usage) { tin += usage.input; tout += usage.output; cachedAll += usage.cacheRead ?? 0; usageN++ }
     }
+    // the messages before the first one held, from the server's totals (lib/chat-page.ts)
+    const older = chat.olderUse
+    if (older) { cost += older.cost; n += older.costN; tin += older.tin; tout += older.tout; cachedAll += older.cached; usageN += older.n }
     const lastUsage = lastAssistant?.swipes[lastAssistant.activeSwipe]?.usage
     // the engine's input leaves out what the provider read from its cache, so the prompt is the sum
     const cache: ChatCache | null = lastUsage
@@ -689,7 +702,9 @@ export function ChatView() {
     if (!chat?.presetNotes?.length || !chat.messages.length) return out
     const ids = new Set(chat.messages.map((m) => m.id))
     const lastId = chat.messages[chat.messages.length - 1].id
+    const older = hasOlder(chat)
     for (const n of chat.presetNotes) {
+      if (older && n.after && !ids.has(n.after)) continue
       const k = n.after && ids.has(n.after) ? n.after : lastId
       out.set(k, [...(out.get(k) ?? []), n])
     }
@@ -1079,13 +1094,18 @@ export function ChatView() {
             } : {}),
           } as React.CSSProperties}
         >
-          {startIdx > 0 && (
+          {(startIdx > 0 || hasOlder(chat)) && (
             <button
               type="button"
-              onClick={() => { keepPlace(); setVisibleCount((c) => c + pageSize) }}
+              data-testid="load-earlier"
+              onClick={() => {
+                if (startIdx > 0) { keepPlace(); setVisibleCount((c) => c + pageSize); return }
+                // the held messages are all shown: the page before them comes from the server
+                void loadEarlierMessages(chat.id).then((ok) => { if (ok) { keepPlace(); setVisibleCount((c) => c + pageSize) } })
+              }}
               className="mx-auto mb-2 rounded-full border border-border bg-card px-4 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              Load earlier messages ({startIdx} earlier)
+              Load earlier messages ({base + startIdx} earlier)
             </button>
           )}
           {chat.messages.slice(startIdx).map((msg, sliceIdx) => {
@@ -1154,8 +1174,8 @@ export function ChatView() {
                           className="mt-3 size-4 shrink-0 accent-[var(--destructive)]"
                           aria-label={
                             isCutoff
-                              ? `Message ${i + 1} is the delete cutoff, clear selection`
-                              : `Delete message ${i + 1} and everything below it`
+                              ? `Message ${base + i + 1} is the delete cutoff, clear selection`
+                              : `Delete message ${base + i + 1} and everything below it`
                           }
                         />
                         <div className="pointer-events-none min-w-0 flex-1 opacity-95">
@@ -1179,10 +1199,10 @@ export function ChatView() {
                 {!deleteMode && notesAfter.get(msg.id)?.map((n) => <PresetNoteLine key={n.id} note={n} />)}
                 {!deleteMode && <AgentNotes chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
                 {!deleteMode && <ChangesNote chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
-                {!deleteMode && <DiceNote chatId={chat.id} message={msg} index={i} before={[chat.messages[i - 1]?.id ?? '', chat.messages[i - 2]?.id ?? '']} />}
+                {!deleteMode && <DiceNote chatId={chat.id} message={msg} index={base + i} before={[chat.messages[i - 1]?.id ?? '', chat.messages[i - 2]?.id ?? '']} />}
                 {!deleteMode && <DirectionNote chatId={chat.id} message={msg} />}
                 {!deleteMode && <LeakNote chatId={chat.id} message={msg} last={i === chat.messages.length - 1} />}
-                {i === 0 && !deleteMode && !msg.edited && <OpeningHint chatId={chat.id} opening={carries.mine?.carries?.opening} />}
+                {base + i === 0 && !deleteMode && !msg.edited && <OpeningHint chatId={chat.id} opening={carries.mine?.carries?.opening} />}
                 {i === chat.messages.length - 1 && !deleteMode && <DashLiveLine chatId={chat.id} />}
               </div>
             )
@@ -1211,9 +1231,12 @@ export function ChatView() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() =>
-                setCutoffId(cutoffIdx === 0 ? null : (chat.messages[0]?.id ?? null))
-              }
+              onClick={async () => {
+                if (cutoffIdx === 0 && !hasOlder(chat)) { setCutoffId(null); return }
+                // all of it: a chat held by its newest messages loads the rest first
+                if (hasOlder(chat)) await ensureChatMessages(chat.id, { whole: true })
+                setCutoffId(useApp.getState().chats.find((c) => c.id === chat.id)?.messages[0]?.id ?? null)
+              }}
               disabled={chat.messages.length === 0}
             >
               {cutoffIdx === 0 ? 'Clear' : 'Select all'}
@@ -1415,7 +1438,7 @@ export function ChatView() {
             <div className="rounded-md border border-primary/60 bg-accent p-2.5 text-sm">
               <span className="font-medium">{chat.title}</span>
               <Badge variant="secondary" className="ml-2">current</Badge>
-              <p className="text-xs text-muted-foreground">{chat.messages.length} messages</p>
+              <p className="text-xs text-muted-foreground">{messageTotal(chat)} messages</p>
             </div>
             {/* the current chat's branch neighborhood: its forks, its sibling
                 branches (same fork point), and the chat it forked from */}
@@ -1437,7 +1460,7 @@ export function ChatView() {
               >
                 {c.parentChatId && <GitBranch className="size-3.5 text-muted-foreground" aria-hidden="true" />}
                 <span className="min-w-0 flex-1 truncate">{c.title}</span>
-                <span className="text-xs text-muted-foreground">{c.messages.length > 0 ? c.messages.length : c.messageCount ?? 0} msgs</span>
+                <span className="text-xs text-muted-foreground">{messageTotal(c)} msgs</span>
               </button>
             ))}
           </div>

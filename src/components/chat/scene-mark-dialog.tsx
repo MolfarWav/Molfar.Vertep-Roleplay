@@ -17,6 +17,8 @@ import {
 import { useT } from '@/hooks/use-t'
 import { cn } from '@/lib/utils'
 import type { Chat } from '@/lib/types'
+import { useApp } from '@/lib/store'
+import { hasOlder } from '@/lib/chat-page'
 
 /** Set a run of messages apart as a scene of its own: the story record never folds it into a longer one and is told it matters. */
 export function SceneMarkDialog({
@@ -37,6 +39,9 @@ export function SceneMarkDialog({
   // the store lets go of a chat's messages when the chat's record is refreshed (a saved scene does that): keep the last list
   const lastMessages = useRef(chat.messages)
   if (chat.messages.length > 0) lastMessages.current = chat.messages
+  // its numbers count the whole story line: a chat held by its newest messages loads the rest (lib/chat-page.ts)
+  const older = hasOlder(chat)
+  useEffect(() => { if (older) void useApp.getState().ensureChatMessages(chat.id, { whole: true }) }, [older, chat.id])
   const messages = lastMessages.current
   const line = useMemo(
     () => messages.filter((m) => !m.hidden && (m.role === 'user' || m.role === 'assistant')),

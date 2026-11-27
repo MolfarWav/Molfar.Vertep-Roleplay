@@ -57,13 +57,13 @@ describe("keepShownTranscript", () => {
 
 describe("reloading the open chat", () => {
   it("a transcript read mid-write (no messages) leaves the loaded messages in place", async () => {
-    routes = (c) => (c.path === "/chats/c1" ? json({ meta, messages: [] }) : null);
+    routes = (c) => (c.path.split("?")[0] === "/chats/c1" ? json({ meta, messages: [] }) : null);
     await useApp.getState().reloadChat("c1");
     await settle();
     expect(shownCount()).toBe(6);
   });
   it("a real snapshot still replaces the messages", async () => {
-    routes = (c) => (c.path === "/chats/c1" ? json({ meta, messages: msgs(8) }) : null);
+    routes = (c) => (c.path.split("?")[0] === "/chats/c1" ? json({ meta, messages: msgs(8) }) : null);
     await useApp.getState().reloadChat("c1");
     await settle();
     expect(shownCount()).toBe(8);

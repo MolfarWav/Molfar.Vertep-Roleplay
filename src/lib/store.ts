@@ -39,7 +39,7 @@ import {
   cardToCharacter, cardPatch, characterToCard, groupToCharacter,
   fetchCharacterSummaries, fetchCharacterCard, fetchCharacterAvatars, type EngineCard,
   fetchBookSummaries, fetchBook,
-  engineChatToUI, chatPatchOf, chatGroupSettings, mergeChatTurns, NEW_GROUP_DYNAMICS,
+  engineChatToUI, engineMessageToUI, chatPatchOf, chatGroupSettings, mergeChatTurns, NEW_GROUP_DYNAMICS,
   type EngineChatMeta, type EngineMessage, type EngineConnectionInfo,
   enginePersonaToUI, presetToEngine, enginePresetToUI,
   lorebookToEngine, engineLorebookToUI, regexToEngine, engineRegexToUI, updateMessageDirections,
@@ -60,6 +60,7 @@ import { attentionOn, claimFailure, dismissKeys, lookingAt, pollAttention, setDa
 import { rowDismissKey, type InboxRow } from './attention-core'
 import { openLettersDialog } from './letters-dialog'
 import { keepShownTranscript } from './chat-snapshot'
+import { chatTail, hasOlder, mergeTail, messageTotal, pageFields, prependPage } from './chat-page'
 
 export type ViewKey =
   | 'home' | 'chats' | 'characters' | 'groups' | 'marketplace' | 'personas' | 'presets' | 'lorebooks' | 'litopys' | 'canvas' | 'world'
@@ -226,7 +227,10 @@ interface AppState {
   closeDrawer: () => void
   navigate: (v: ViewKey) => void
   openChat: (chatId: ID) => void
-  ensureChatMessages: (chatId: ID) => Promise<void>
+  /** Load a chat's newest messages when none are held; `whole`: every message (find, bookmarks, export, select all). */
+  ensureChatMessages: (chatId: ID, opts?: { whole?: boolean }) => Promise<void>
+  /** The page of messages before the first one held (Molfar.Vertep#537); false when there was none or it failed. */
+  loadEarlierMessages: (chatId: ID) => Promise<boolean>
   closeChat: () => void
   openCharacter: (charId: ID | null) => void
   /** Open a card's editor in its own section: a group in Groups, any other card in Characters. */
@@ -766,7 +770,7 @@ export const useApp = create<AppState>()(
           const [boot, modelList, engineConnections] = await Promise.all([
             // the chat about to be shown rides along, so the first paint needs
             // no follow-up fetch
-            fetchBootstrap(get().activeChatId),
+            fetchBootstrap(get().activeChatId, chatTail(get().settings.messagesToLoad || 50)),
             fetchModels(),
             fetchEngineConnections(),
           ])
@@ -834,7 +838,7 @@ export const useApp = create<AppState>()(
           const inlineId = boot.activeChat?.meta?.id ?? null
           const chatsFull = boot.chats.map((m) =>
             inlineId && m.id === inlineId
-              ? engineChatToUI(boot.activeChat!.meta, boot.activeChat!.messages ?? [])
+              ? { ...engineChatToUI(boot.activeChat!.meta, boot.activeChat!.messages ?? []), ...pageFields(boot.activeChat, (boot.activeChat!.messages ?? []).length) }
               : engineChatToUI(m, []),
           )
           // abandoned empty chats (created, never touched — at most a
@@ -935,6 +939,8 @@ export const useApp = create<AppState>()(
           const chatsOut = withBranches.map((c) => {
             if (liveLocal && c.id === liveChatId) return liveLocal
             if (shownLocal && c.id === shownId && keepShownTranscript(shownLocal, c.messages.length)) return { ...shownLocal, branches: c.branches }
+            // the snapshot brings the shown chat's newest messages: older pages the reader loaded stay
+            if (shownLocal && c.id === shownId && c.messages.length) return mergeTail(shownLocal, c)
             return c
           })
           // lastChatAt for character cards
@@ -1297,15 +1303,47 @@ export const useApp = create<AppState>()(
           return get().runAutoExecutes('onChatChange', chatId)
         })
       },
-      ensureChatMessages: async (chatId) => {
+      ensureChatMessages: async (chatId, opts) => {
         const chat = get().chats.find((c) => c.id === chatId)
-        if (!chat || chat.messages.length > 0) return
+        if (!chat) return
+        const whole = opts?.whole === true
+        if (chat.messages.length > 0 && !(whole && hasOlder(chat))) return
         const seqAtStart = mutateSeq
         try {
-          const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+          if (chat.messages.length > 0) {
+            // the rest of a chat held by its newest messages: everything before the first one held
+            const first = chat.messages[0]!.id
+            const r = await j<PageReply>(`/chats/${encodeURIComponent(chatId)}/messages?before=${encodeURIComponent(first)}&limit=0`)
+            if (mutateSeq !== seqAtStart) return
+            const held = get().chats.find((c) => c.id === chatId)
+            if (!held) return
+            const page = { messages: (r.messages ?? []).map(engineMessageToUI), ...pageFields(r, (r.messages ?? []).length) }
+            const next = prependPage(held, page)
+            if (next) set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? next : c)) }))
+            else await loadWhole(set, get, chatId)
+            return
+          }
+          const q = whole ? '' : `?tail=${chatTail(get().settings.messagesToLoad || 50)}`
+          const r = await j<PageReply & { meta: EngineChatMeta }>(`/chats/${encodeURIComponent(chatId)}${q}`)
           if (mutateSeq !== seqAtStart) return
-          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
+          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...uiChat(get, r.meta, r.messages ?? []), ...pageFields(r, (r.messages ?? []).length) } : c)) }))
         } catch { /* the list payload already gave us what it could */ }
+      },
+      loadEarlierMessages: async (chatId) => {
+        const chat = get().chats.find((c) => c.id === chatId)
+        if (!chat || !hasOlder(chat) || !chat.messages.length) return false
+        const seqAtStart = mutateSeq
+        try {
+          const limit = chatTail(get().settings.messagesToLoad || 50)
+          const r = await j<PageReply>(`/chats/${encodeURIComponent(chatId)}/messages?before=${encodeURIComponent(chat.messages[0]!.id)}&limit=${limit}`)
+          if (mutateSeq !== seqAtStart) return false
+          const held = get().chats.find((c) => c.id === chatId)
+          if (!held) return false
+          const next = prependPage(held, { messages: (r.messages ?? []).map(engineMessageToUI), ...pageFields(r, (r.messages ?? []).length) })
+          if (!next) { await refreshChat(set, get, chatId); return false }
+          set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? next : c)) }))
+          return true
+        } catch { return false }
       },
       closeChat: () => {
         // drawer stays as-is: closing the chat under an open section drawer
@@ -2793,15 +2831,35 @@ function uiChat(get: GetFn, meta: EngineChatMeta, msgs: EngineMessage[]): Chat {
   return chat
 }
 
+/** A server answer that may be one page of a chat (lib/chat-page.ts). */
+type PageReply = { messages?: EngineMessage[]; firstIndex?: number; total?: number; older?: Chat['olderUse'] }
+
 async function refreshChat(set: SetFn, get: GetFn, chatId: ID) {
   const seqAtStart = mutateSeq
   try {
-    const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+    // the newest messages only (Molfar.Vertep#537): the older pages the reader loaded stay (mergeTail)
+    const r = await j<PageReply & { meta: EngineChatMeta }>(`/chats/${encodeURIComponent(chatId)}?tail=${chatTail(get().settings.messagesToLoad || 50)}`)
     if (mutateSeq !== seqAtStart) return // an optimistic mutation is ahead of this snapshot
     // a transcript read mid-write parses as empty: keep what is loaded (chat-snapshot.ts)
-    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId && !keepShownTranscript(c, (r.messages ?? []).length) ? uiChat(get, r.meta, r.messages ?? []) : c)) }))
+    set((s) => ({
+      chats: s.chats.map((c) => {
+        if (c.id !== chatId || keepShownTranscript(c, (r.messages ?? []).length)) return c
+        const fresh = { ...uiChat(get, r.meta, r.messages ?? []), ...pageFields(r, (r.messages ?? []).length) }
+        return c.messages.length ? mergeTail(c, fresh) : fresh
+      }),
+    }))
   } catch { /* chat may be gone */ }
   void refreshLists(set, get)
+}
+
+/** Every message of a chat, when an older page no longer fits what is held. */
+async function loadWhole(set: SetFn, get: GetFn, chatId: ID) {
+  const seqAtStart = mutateSeq
+  try {
+    const r = await j<{ meta: EngineChatMeta; messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+    if (mutateSeq !== seqAtStart) return
+    set((s) => ({ chats: s.chats.map((c) => (c.id === chatId ? { ...uiChat(get, r.meta, r.messages ?? []), firstIndex: 0, total: (r.messages ?? []).length } : c)) }))
+  } catch { /* chat may be gone */ }
 }
 
 async function refreshLists(set: SetFn, get: GetFn) {
@@ -2835,7 +2893,7 @@ function attachBranches(all: Chat[]): Chat[] {
       .filter((x) => x.parentChatId === c.id)
       .map((x): ChatBranch => ({
         id: x.id, name: x.title, parentMessageId: x.parentMessageId ?? '',
-        createdAt: x.createdAt, messageCount: x.messages.length > 0 ? x.messages.length : x.messageCount ?? 0,
+        createdAt: x.createdAt, messageCount: messageTotal(x),
       })),
   }))
 }
@@ -3029,7 +3087,7 @@ function watchForCommit(chatId: ID, base: ReturnType<typeof commitBaseline>, onL
   const check = async () => {
     if (stopped || document.visibilityState !== 'visible') return
     try {
-      const r = await j<{ messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}`)
+      const r = await j<{ messages: EngineMessage[] }>(`/chats/${encodeURIComponent(chatId)}?tail=20`)
       if (stopped) return
       if (hasLanded(base, r.messages ?? [])) return onLanded()
       // the run ended without a reply (failed, or the server restarted): "Writing" used to
