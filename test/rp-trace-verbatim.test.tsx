@@ -23,6 +23,11 @@ describe("the word-for-word fold in the memory trace (#184)", () => {
     expect(html).toContain("4.3");
     expect(renderToStaticMarkup(<LitopysFolds lit={lit([{ chat: "c1", title: "The harbour", words: 3, text: "…a heron…" }])} t={t} />)).not.toContain("memtrace.verbatimMeaning");
   });
+  it("marks a passage picked inside that chapter by its own vector, of how many (#539)", () => {
+    const html = renderToStaticMarkup(<LitopysFolds lit={lit([{ chat: "c1", title: "The harbour", words: 1, text: "…a heron…", meaning: 4.26, closest: { of: 3, cos: 0.81 } } as never])} t={t} />);
+    expect(html).toContain("memtrace.verbatimClosest {&quot;n&quot;:3}");
+    expect(renderToStaticMarkup(<LitopysFolds lit={lit([{ chat: "c1", title: "The harbour", words: 1, text: "…a heron…", meaning: 4.26 }])} t={t} />)).not.toContain("memtrace.verbatimClosest");
+  });
   it("has no fold when the array is empty or absent (an older plugin)", () => {
     expect(renderToStaticMarkup(<LitopysFolds lit={lit([])} t={t} />)).not.toContain("memtrace.foldVerbatim");
     expect(renderToStaticMarkup(<LitopysFolds lit={lit()} t={t} />)).not.toContain("memtrace.foldVerbatim");

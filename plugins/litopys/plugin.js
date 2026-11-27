@@ -5879,7 +5879,7 @@ export function pruneOrphans(fsx, store, files) {
     }
   }
 
-  for (const dir of [CHAT_DIR, VECTOR_DIR, LEGACY_VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR, FAR_DIR]) {
+  for (const dir of [CHAT_DIR, VECTOR_DIR, LEGACY_VECTOR_DIR, "litopys/insert/", RING_DIR, FIRED_DIR, EMBED_WANT_DIR, RECALL_DIR, RECALL_VECTOR_DIR, FAR_DIR]) {
     let list = [];
     try {
       list = fsx.list(dir);
@@ -5889,9 +5889,11 @@ export function pruneOrphans(fsx, store, files) {
     for (const f of list) {
       if (!f.endsWith(".json")) continue;
       // a long chat's vectors go on in `<chatId>.p2.json`, ...: they live and die with the main file's chat
-      const id = dir === VECTOR_DIR || dir === LEGACY_VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.(t|none)$/, "") : f.slice(0, -5);
+      let id = dir === VECTOR_DIR || dir === LEGACY_VECTOR_DIR || dir === RECALL_VECTOR_DIR ? f.slice(0, -5).replace(/\.p\d+$/, "") : dir === RECALL_DIR ? f.slice(0, -5).replace(/\.(t|q|none)$/, "") : f.slice(0, -5);
       // a Data Bank file's embed request is not a chat's (#184 DB-vec): the tick ends it when its file is gone
       if (dir === EMBED_WANT_DIR && id.startsWith(SHELF_WANT)) continue;
+      // a request for the vectors of a chat's passages (#539) lives and dies with that chat
+      if (dir === EMBED_WANT_DIR && id.startsWith(RECALL_WANT)) id = id.slice(RECALL_WANT.length);
       if (!live.has(id)) {
         try {
           fsx.remove(dir + f);
@@ -6073,6 +6075,11 @@ function kickEmbedWants(fsx, host) {
     // a Data Bank file's request (#184 DB-vec)
     if (chatId.startsWith(SHELF_WANT)) {
       kickShelfWant(fsx, host, chatId.slice(SHELF_WANT.length));
+      return;
+    }
+    // the passages of an earlier chat's chapter that door B opened (#539)
+    if (chatId.startsWith(RECALL_WANT)) {
+      kickRecallWant(fsx, host, chatId.slice(RECALL_WANT.length));
       return;
     }
     // the Prompt board has Litopys off for this chat: the request is dropped, a switch back on asks again
@@ -6686,6 +6693,15 @@ export function onTick(_ctx, host) {
             finishShelfBatch(fsx, host, shelfId, host.llm.embedResults[key], host.llm.embedInfo && host.llm.embedInfo[key]);
           } catch (e) {
             embedStoreFailed(fsx, host, SHELF_WANT + shelfId, e);
+          }
+          return;
+        }
+        if (key.startsWith(RECALL_KEY)) {
+          const id = key.slice(RECALL_KEY.length);
+          try {
+            finishRecallBatch(fsx, id, host.llm.embedResults[key], host.llm.embedInfo && host.llm.embedInfo[key]);
+          } catch (e) {
+            embedStoreFailed(fsx, host, RECALL_WANT + id, e);
           }
           return;
         }
@@ -8521,11 +8537,15 @@ function farPart({ fsx, farChain, firstIdx, total, here, knowers, groups, voices
 // share rare words with what is being said now, and puts one or two of them in the prompt, labelled as older than the facts.
 // Words only: a chunk is let in by rare shared words (vectors may reorder it later, not admit it). Off by default.
 const RECALL_DIR = "litopys/recall/";
-const RECALL_V = 2;
+// v3 (#539): the index keeps where each passage lies (its first and last message, the pieces of a long message, a hash of
+// its text), not the text; a picked passage is read from the chat itself, so a reply reads only the part it lies in. v2
+// kept a copy of every passage in `<id>.t.json`; such an index still answers until the tick rebuilds it.
+const RECALL_V = 3;
 /** The rarest words are the ones that find a passage: a stem in at most this many chunks of its chat is indexed. */
 const RECALL_RARE_DF = 6;
 const RECALL_CHAIN_MAX = 40;
-const RECALL_CHUNKS_MAX = 2400;
+/** About 8 MB of text in passages of RECALL_CHUNK_CHARS; a longer chat gets bigger passages, up to RECALL_CHUNK_CHARS_MAX. */
+const RECALL_CHUNKS_MAX = 12000;
 const RECALL_CHUNK_CHARS = 700;
 const RECALL_CHUNK_CHARS_MAX = 2000;
 /** One index file stays well below the engine's 4 MB plugin write limit. */
@@ -8585,8 +8605,12 @@ function recallPieces(line, size) {
 
 /**
  * The passages of one chat: its active line cut into chunks of about RECALL_CHUNK_CHARS characters, never across a chapter
- * (a chunk carries the `cast` of its chapter, so the speaker filter of the story applies to it), and the index of the rare
- * stems. A chat too long for RECALL_CHUNKS_MAX chunks gets bigger chunks. Pure: `st` is the chat's Litopys record or null.
+ * (a chunk carries the `cast` of its chapter, so the speaker filter of the story applies to it) and never across a closed
+ * part of the chat (so reading one back reads one part), and the index of the rare stems. A chunk says where it lies: its
+ * first and last message (`a`, `b`), the first piece of `a` when it starts inside a long message (`o`), the end piece of `b`
+ * when it stops inside one (`e`), and the hash of its text (`h`), which tells a reader that the messages changed since.
+ * A chat too long for RECALL_CHUNKS_MAX chunks gets bigger chunks (`z`, the size the pieces were cut at). Pure: `st` is the
+ * chat's Litopys record or null.
  */
 export function recallBuild(msgs, st) {
   const line = activeLine(msgs);
@@ -8599,39 +8623,13 @@ export function recallBuild(msgs, st) {
   }
   const lines = line.map(recallLine);
   const total = lines.reduce((n, l) => n + l.length, 0);
-  const size = clamp(Math.ceil(total / (RECALL_CHUNKS_MAX - 100)), RECALL_CHUNK_CHARS, RECALL_CHUNK_CHARS_MAX);
-  const chunks = [];
-  let buf = [];
-  let bufLen = 0;
-  let bufFrom = null;
-  let bufTo = null;
-  let bufCh = null;
-  const flush = () => {
-    if (buf.length) {
-      const cast = arr(bufCh && bufCh.cast).map(str).filter(Boolean);
-      chunks.push({ t: buf.join("\n"), a: str(bufFrom), b: str(bufTo), ...(cast.length ? { c: cast } : {}), ...(bufCh && str(bufCh.id) ? { k: str(bufCh.id) } : {}) });
-    }
-    buf = [];
-    bufLen = 0;
-    bufFrom = null;
-    bufTo = null;
-    bufCh = null;
-  };
-  for (let i = 0; i < line.length; i++) {
-    if (!lines[i]) continue;
-    if (buf.length && chapAt[i] !== bufCh) flush();
-    for (const piece of recallPieces(lines[i], size)) {
-      if (buf.length && bufLen + piece.length + 1 > size) flush();
-      if (!buf.length) {
-        bufFrom = line[i].id;
-        bufCh = chapAt[i];
-      }
-      buf.push(piece);
-      bufLen += piece.length + 1;
-      bufTo = line[i].id;
-    }
+  let size = clamp(Math.ceil(total / (RECALL_CHUNKS_MAX - 100)), RECALL_CHUNK_CHARS, RECALL_CHUNK_CHARS_MAX);
+  // a message longer than a chunk leaves a short one behind it, so the count is known only after the cut: cut again bigger
+  let chunks = recallCut(line, lines, chapAt, size);
+  while (chunks.length > RECALL_CHUNKS_MAX && size < RECALL_CHUNK_CHARS_MAX) {
+    size = Math.min(RECALL_CHUNK_CHARS_MAX, Math.ceil(size * 1.4));
+    chunks = recallCut(line, lines, chapAt, size);
   }
-  flush();
   const capped = chunks.slice(0, RECALL_CHUNKS_MAX);
   const df = new Map();
   const where = new Map();
@@ -8646,16 +8644,107 @@ export function recallBuild(msgs, st) {
   // rare means rare in this chat: a word in a tenth of the chunks (at most RECALL_RARE_DF of them) is not a detail
   const rareMax = clamp(Math.floor(capped.length * 0.1), 1, RECALL_RARE_DF);
   for (const [s, n] of df) if (n <= rareMax) p[s] = where.get(s);
-  return { chunks: capped, p };
+  return { chunks: capped, p, z: size, ...(chunks.length > capped.length ? { cut: chunks.length - capped.length } : {}) };
 }
 
-/** Writes the two files of a chat's index (postings and texts); false when it does not fit. */
-function recallSave(fsx, chatId, title, rev, built) {
-  const head = JSON.stringify({ v: RECALL_V, rev, built: Date.now(), n: built.chunks.length, title: cut(str(title), 80), p: built.p });
-  const body = JSON.stringify({ v: RECALL_V, chunks: built.chunks });
-  if (head.length > RECALL_FILE_MAX || body.length > RECALL_FILE_MAX) return false;
-  fsx.write(RECALL_DIR + chatId + ".t.json", body);
+/** The line cut into chunks of at most `size` characters (see recallBuild). */
+function recallCut(line, lines, chapAt, size) {
+  const chunks = [];
+  let buf = [];
+  let bufLen = 0;
+  let bufFrom = null;
+  let bufTo = null;
+  let bufCh = null;
+  let bufPart = 0;
+  let bufO = 0;
+  let bufE = 0;
+  let bufEAll = 0;
+  const flush = () => {
+    if (buf.length) {
+      const t = buf.join("\n");
+      const cast = arr(bufCh && bufCh.cast).map(str).filter(Boolean);
+      chunks.push({
+        t,
+        a: str(bufFrom),
+        b: str(bufTo),
+        ...(bufO ? { o: bufO } : {}),
+        ...(bufE < bufEAll ? { e: bufE } : {}),
+        h: fnv1a(t),
+        ...(cast.length ? { c: cast } : {}),
+        ...(bufCh && str(bufCh.id) ? { k: str(bufCh.id) } : {}),
+      });
+    }
+    buf = [];
+    bufLen = 0;
+    bufFrom = null;
+    bufTo = null;
+    bufCh = null;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (!lines[i]) continue;
+    const o = chatOrigin(line[i]);
+    const part = o ? o.n : 0;
+    if (buf.length && (chapAt[i] !== bufCh || part !== bufPart)) flush();
+    const pieces = recallPieces(lines[i], size);
+    pieces.forEach((piece, k) => {
+      if (buf.length && bufLen + piece.length + 1 > size) flush();
+      if (!buf.length) {
+        bufFrom = line[i].id;
+        bufCh = chapAt[i];
+        bufPart = part;
+        bufO = k;
+      }
+      buf.push(piece);
+      bufLen += piece.length + 1;
+      bufTo = line[i].id;
+      bufE = k + 1;
+      bufEAll = pieces.length;
+    });
+  }
+  flush();
+  return chunks;
+}
+
+/**
+ * What tells the tick that a chat's text changed behind its index: the closed parts with their revs, and the size of the
+ * live tail (from fs.stat, else from the meta). An edit of an old part changes its rev; a new message changes the tail.
+ */
+function recallSigOf(fsx, chatId, meta) {
+  const parts = chatPartsOf(meta)
+    .map((p) => p.n + ":" + p.rev)
+    .join(",");
+  let size = "";
+  try {
+    const s = typeof fsx.stat === "function" ? fsx.stat(chatTailPath(chatId)) : null;
+    if (s && Number.isFinite(s.size)) size = String(s.size);
+  } catch {}
+  if (!size && isObj(meta) && isObj(meta.transcript) && Number.isInteger(meta.transcript.tailSize)) size = String(meta.transcript.tailSize);
+  return parts + "|" + size;
+}
+
+/**
+ * Writes a chat's index, no text: `<id>.json` the postings (read by every reply of a chat that continues it), `<id>.q.json`
+ * where each passage lies (read only when a passage of the chat is picked or door B opens one of its chapters). The second
+ * file is written first and carries the head's `built`, so a reader that comes in between sees a pair that does not match
+ * and uses neither. False when one does not fit a file.
+ */
+function recallSave(fsx, chatId, title, rev, sig, built) {
+  const at = Date.now();
+  const q = JSON.stringify({ v: RECALL_V, built: at, q: built.chunks.map(({ t, ...rest }) => rest) });
+  const head = JSON.stringify({ v: RECALL_V, rev, sig, built: at, n: built.chunks.length, z: built.z, title: cut(str(title), 80), ...(built.cut ? { cut: built.cut } : {}), p: built.p });
+  if (head.length > RECALL_FILE_MAX || q.length > RECALL_FILE_MAX) return false;
+  fsx.write(RECALL_DIR + chatId + ".q.json", q);
   fsx.write(RECALL_DIR + chatId + ".json", head);
+  // the vectors of passages that are gone (the chat was edited, or cut anew) are dropped
+  try {
+    const have = loadRecallVectors(fsx, chatId);
+    const keep = new Set(built.chunks.map((c) => c.h));
+    if (Object.keys(have).some((h) => !keep.has(h))) saveRecallVectors(fsx, chatId, Object.fromEntries(Object.entries(have).filter(([h]) => keep.has(h))));
+  } catch {}
+  // the text copy of a v2 index is not needed any more
+  try {
+    fsx.remove(RECALL_DIR + chatId + ".t.json");
+  } catch {}
   return true;
 }
 
@@ -8664,53 +8753,121 @@ export function recallIndexChat(fsx, chatId) {
   const rc = readChat(fsx, chatId);
   if (!rc) return null;
   const st = loadChatFile(fsx, chatId);
-  const built = recallBuild(rc.msgs, st);
+  const sig = recallSigOf(fsx, chatId, rc.meta);
   const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
+  const mark = RECALL_DIR + chatId + ".none.json";
+  // the marker goes down before the work: a chat so long that its build runs out of the call's time is not tried again on
+  // every tick (it stays as for a chat with nothing to index until its record or text changes)
+  fsx.write(mark, JSON.stringify({ v: RECALL_V, rev, sig, trying: true }));
+  const built = recallBuild(rc.msgs, st);
   const title = str(rc.meta && rc.meta.title);
-  if (!built.chunks.length || !recallSave(fsx, chatId, title, rev, built)) {
-    // nothing to index (empty, or too big for a file): remembered for this revision so the tick and the replies do not try again
+  if (!built.chunks.length || !recallSave(fsx, chatId, title, rev, sig, built)) {
+    // nothing to index (empty, or too big for a file): remembered for this revision and text so the tick and the replies do not try again
     try {
-      fsx.write(RECALL_DIR + chatId + ".none.json", JSON.stringify({ v: RECALL_V, rev }));
+      fsx.write(mark, JSON.stringify({ v: RECALL_V, rev, sig }));
     } catch {}
     return null;
   }
-  return { v: RECALL_V, rev, n: built.chunks.length, title, p: built.p };
+  try {
+    fsx.remove(mark);
+  } catch {}
+  return readJson(fsx, RECALL_DIR + chatId + ".json", null);
 }
 
-/** The index of a chat, built on first use. A finished chat is not read again until the tick sees its record change. */
+/** An index a reply can use: v3, or a v2 one with its text file (until the tick rebuilds it). */
+const recallUsable = (have) => isObj(have) && isObj(have.p) && (have.v === RECALL_V || have.v === 2);
+
+/** The index of a chat, built on first use. A finished chat is not read again until the tick sees its record or text change. */
 function recallIndexOf(fsx, chatId) {
   const have = readJson(fsx, RECALL_DIR + chatId + ".json", null);
-  if (isObj(have) && have.v === RECALL_V && isObj(have.p)) return have;
+  if (recallUsable(have)) return have;
   if (recallMissed(fsx, chatId)) return null;
   return recallIndexChat(fsx, chatId);
 }
 
-/** A chat with nothing to index (empty, or too big for a file) is not tried again on every tick: a marker file says so for the rev. */
-function recallMissed(fsx, chatId) {
+/**
+ * A chat with nothing to index (empty, or too big for a file) is not tried again on every tick: a marker file says so for
+ * the rev and the text. A marker of an older version is tried again once (v3 fits chats v2 had to give up on).
+ */
+function recallMissed(fsx, chatId, meta) {
   const mark = readJson(fsx, RECALL_DIR + chatId + ".none.json", null);
-  if (!isObj(mark)) return false;
+  if (!isObj(mark) || mark.v !== RECALL_V) return false;
   const st = loadChatFile(fsx, chatId);
-  return mark.rev === (st && Number.isFinite(st.rev) ? st.rev : 0);
+  if (mark.rev !== (st && Number.isFinite(st.rev) ? st.rev : 0)) return false;
+  const m = meta === undefined ? readJson(fsx, "chats/" + chatId + ".meta.json", null) : meta;
+  return mark.sig === recallSigOf(fsx, chatId, m);
 }
 
 /**
  * The tick keeps the indexes of the chats other chats continue: one chat a tick, rebuilt when its Litopys record has a new
- * revision (a rebuild, an edit) since the index was made. Chats that no chat continues are never indexed.
+ * revision (a rebuild, an edit), when its text changed (a part's rev, the tail's size), or when the index is of an older
+ * version. Chats that no chat continues are never indexed.
  */
 export function recallRefresh(fsx) {
   const links = loadLinks(fsx);
   const sources = [...new Set(Object.values(links).map((l) => str(l && l.from)).filter(Boolean))];
   for (const id of sources) {
+    const meta = readJson(fsx, "chats/" + id + ".meta.json", null);
+    if (!isObj(meta)) continue;
     const have = readJson(fsx, RECALL_DIR + id + ".json", null);
     const st = loadChatFile(fsx, id);
     const rev = st && Number.isFinite(st.rev) ? st.rev : 0;
     // no index yet (a link made before the setting was on, or before 4.100.0): made here, one chat a tick
-    if (isObj(have) && have.v === RECALL_V && have.rev === rev) continue;
-    if (!isObj(have) && recallMissed(fsx, id)) continue;
+    if (isObj(have) && have.v === RECALL_V && have.rev === rev && have.sig === recallSigOf(fsx, id, meta)) continue;
+    if (!(isObj(have) && have.v === RECALL_V) && recallMissed(fsx, id, meta)) continue;
     recallIndexChat(fsx, id);
     return id;
   }
   return null;
+}
+
+/**
+ * The passages of one indexed chat: `at(i)` the light fields of passage i (first and last message, cast, chapter), `text(i)`
+ * the same with its text `t`, or null when its messages are gone or changed since the index was made (the hash no longer
+ * matches: such a passage is left out, never shown changed). A v3 index reads the text from the chat through the chat store,
+ * so a passage of an old part reads that part only, and a short chat its one file; a v2 index reads its text file once.
+ */
+export function recallPassages(fsx, chatId, index) {
+  if (index.v !== RECALL_V) {
+    let chunks = null;
+    const all = () => chunks || (chunks = arr((readJson(fsx, RECALL_DIR + chatId + ".t.json", null) || {}).chunks));
+    const at = (i) => (isObj(all()[i]) ? all()[i] : null);
+    return { count: () => all().length, at, text: (i) => (at(i) && str(at(i).t) ? at(i) : null) };
+  }
+  let q = null;
+  const list = () => {
+    if (q) return q;
+    const f = readJson(fsx, RECALL_DIR + chatId + ".q.json", null);
+    q = isObj(f) && f.v === RECALL_V && f.built === index.built ? arr(f.q) : [];
+    return q;
+  };
+  const z = clamp(intOf(index.z, RECALL_CHUNK_CHARS), RECALL_CHUNK_CHARS, RECALL_CHUNK_CHARS_MAX);
+  let line = null;
+  let place = null;
+  const at = (i) => (isObj(list()[i]) ? list()[i] : null);
+  const text = (i) => {
+    const c = at(i);
+    if (!c) return null;
+    if (!line) {
+      const rc = readChat(fsx, chatId);
+      line = rc ? activeLine(rc.msgs) : [];
+      place = new Map();
+      line.forEach((m, j) => place.set(str(m.id), j));
+    }
+    const from = place.get(str(c.a));
+    const to = place.get(str(c.b));
+    if (from === undefined || to === undefined || to < from) return null;
+    const pieces = [];
+    for (let j = from; j <= to; j++) {
+      const l = recallLine(line[j]);
+      if (!l) continue;
+      const all = recallPieces(l, z);
+      pieces.push(...all.slice(j === from ? intOf(c.o, 0) : 0, j === to && Number.isInteger(c.e) ? c.e : all.length));
+    }
+    const t = pieces.join("\n");
+    return t && fnv1a(t) === c.h ? { ...c, t } : null;
+  };
+  return { count: () => list().length, at, text };
 }
 
 /** P(X >= k) for a Poisson count with mean `lambda`, summed from the head so a tiny tail does not vanish. */
@@ -8778,6 +8935,86 @@ function recallExcerpt(text, stems, max) {
  * chat continues nothing. `voices` (the speaking character's names, keyed like `key`) keeps out a passage of a chapter the
  * speaker did not witness. At most RECALL_EXCERPTS passages, together within `budget` tokens.
  */
+// ---------- door B's order inside a chapter: a vector per passage (#539) ----------
+// Door B opens an old chapter by meaning and the words pick the passage. When several passages of that chapter share a rare
+// word with the scene, the one nearest to the scene by meaning is taken. Vectors are asked for only then, and only for the
+// passages of that chapter (a few thousand tokens), never for a whole archived chat: one of 5000 messages has some 10000.
+const RECALL_VECTOR_DIR = ".cache/litopys/recall-vectors/";
+/** The embed request of a chat's passages: `litopys/embed-want/rv_<chatId>.json`; the engine's answer comes back under RECALL_KEY. */
+const RECALL_WANT = "rv_";
+const RECALL_KEY = "lit_rv_";
+/** One request asks for at most this many passages (a long chapter's rest is asked for when it is opened again). */
+const RECALL_VECTORS_ASK = 64;
+
+/** The vectors of a chat's passages: `{ <passage hash>: { vector, m } }`, split past one file as a chat's chapter vectors are. */
+export function loadRecallVectors(fsx, chatId) {
+  return splitRead(fsx, RECALL_VECTOR_DIR, chatId, "") || {};
+}
+function saveRecallVectors(fsx, chatId, map) {
+  splitWrite(fsx, RECALL_VECTOR_DIR, chatId, map, "", (e) => (isObj(e) && Array.isArray(e.vector) ? { ...e, vector: e.vector.map((n) => Math.round(n * 1e4) / 1e4) } : e));
+}
+
+/** Ask the tick for the vectors of these passages (by hash), unless the last embeddings call failed; one request a chat. */
+function wantRecallVectors(fsx, chatId, hashes) {
+  if (!hashes.length || !embedAllowed(fsx)) return;
+  const rel = EMBED_WANT_DIR + RECALL_WANT + chatId + ".json";
+  const w = readJson(fsx, rel, null);
+  // a batch on its way is let be: what it lacks is asked for the next time the chapter is opened
+  if (isObj(w) && w.more === true) return;
+  fsx.write(rel, JSON.stringify({ more: true, at: 0, batch: null, hs: hashes.slice(0, RECALL_VECTORS_ASK), asked: Date.now() }));
+}
+
+/** The tick sends a request of passages to the engine: their texts, read from the chat as a reply reads them. */
+function kickRecallWant(fsx, host, chatId) {
+  const name = RECALL_WANT + chatId;
+  if (typeof host.llm.embed !== "function") return endEmbedWant(fsx, name);
+  const w = readJson(fsx, EMBED_WANT_DIR + name + ".json", null);
+  const index = readJson(fsx, RECALL_DIR + chatId + ".json", null);
+  if (!isObj(w) || !Array.isArray(w.hs) || !isObj(index) || index.v !== RECALL_V) return endEmbedWant(fsx, name);
+  const ps = recallPassages(fsx, chatId, index);
+  const byHash = new Map();
+  for (let i = 0, n = ps.count(); i < n; i++) {
+    const c = ps.at(i);
+    if (c && !byHash.has(str(c.h))) byHash.set(str(c.h), i);
+  }
+  const batch = [];
+  const texts = [];
+  for (const h of w.hs.map(str)) {
+    if (!byHash.has(h) || batch.includes(h)) continue;
+    const c = ps.text(byHash.get(h));
+    if (!c) continue;
+    batch.push(h);
+    texts.push(c.t);
+  }
+  if (!texts.length) return endEmbedWant(fsx, name);
+  fsx.write(EMBED_WANT_DIR + name + ".json", JSON.stringify({ more: true, at: Date.now(), batch, hs: w.hs }));
+  host.llm.embed(RECALL_KEY + chatId, { texts, kinds: texts.map(() => "document") });
+}
+
+/** The engine's vectors for a request of passages: kept by hash with their model; one batch ends the request. */
+function finishRecallBatch(fsx, chatId, vectors, info) {
+  const name = RECALL_WANT + chatId;
+  const w = readJson(fsx, EMBED_WANT_DIR + name + ".json", null);
+  if (!vectors) {
+    setEmbedStatus(fsx, false);
+    return endEmbedWant(fsx, name);
+  }
+  const batch = isObj(w) && Array.isArray(w.batch) ? w.batch.map(str) : [];
+  const model = isObj(info) ? str(info.model) : "";
+  const map = loadRecallVectors(fsx, chatId);
+  let n = 0;
+  batch.forEach((h, k) => {
+    const v = Array.isArray(vectors) ? vectors[k] : null;
+    if (!h || !Array.isArray(v) || !v.length) return;
+    map[h] = { vector: v, ...(model ? { m: model } : {}) };
+    n++;
+  });
+  if (n) saveRecallVectors(fsx, chatId, map);
+  const first = Array.isArray(vectors) && Array.isArray(vectors[0]) ? vectors[0] : null;
+  setEmbedStatus(fsx, n > 0, { model, via: isObj(info) ? str(info.via) : "", dim: first ? first.length : 0 });
+  endEmbedWant(fsx, name);
+}
+
 /**
  * Door B (#264): the old chapters that lie unusually close, by meaning, to the scene. The pool is every chapter that has a vector of
  * this model in the nearest MEANING_CHATS earlier chats; a chapter is let in when its cosine is `zMin` deviations above the pool's
@@ -8816,31 +9053,61 @@ export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n)
   const scanStems = recallStemsOf(scanText);
   if (scanStems.length < 3) return null;
   const found = [];
+  const indexes = new Map();
   chain.forEach((id, near) => {
     const index = recallIndexOf(fsx, id);
     if (!index) return;
+    indexes.set(id, index);
     for (const c of recallCandidates(index, scanStems)) found.push({ id, near, title: index.title, ...c });
   });
+  // the passages of a chat are read once a reply, and only those that are looked at
+  const passages = new Map();
+  const passagesOf = (id) => {
+    if (!passages.has(id)) passages.set(id, recallPassages(fsx, id, indexes.get(id)));
+    return passages.get(id);
+  };
+  const vectors = new Map();
+  const recallVectorsOf = (id) => {
+    if (!vectors.has(id)) vectors.set(id, loadRecallVectors(fsx, id));
+    return vectors.get(id);
+  };
   // door B: a chapter the scene's vector opened lends its passages that share a rare word with the scan. The words still decide
   // WHICH passage and that there is one: a chapter with no shared rare word brings nothing (vectors alone never let a passage in)
   if (isObj(meaning) && Array.isArray(meaning.vec)) {
     for (const r of meaningRegions({ fsx, chain, vec: meaning.vec, model: str(meaning.model), zMin: Number.isFinite(meaning.z) ? meaning.z : MEANING_Z })) {
-      const index = recallIndexOf(fsx, r.id);
-      if (!index || !isObj(index.p)) continue;
-      const chunks = arr((readJson(fsx, RECALL_DIR + r.id + ".t.json", null) || {}).chunks);
-      let best = null;
-      chunks.forEach((chunk, i) => {
-        if (!isObj(chunk) || chunk.k !== r.chapterId) return;
+      const index = indexes.get(r.id);
+      if (!index) continue;
+      const ps = passagesOf(r.id);
+      const inChapter = [];
+      const cands = [];
+      for (let i = 0, n = ps.count(); i < n; i++) {
+        const chunk = ps.at(i);
+        if (!chunk || chunk.k !== r.chapterId) continue;
+        inChapter.push(chunk);
         const stems = scanStems.filter((s) => Array.isArray(index.p[s]) && index.p[s].includes(i));
-        if (stems.length && (!best || stems.length > best.stems.length)) best = { i, stems };
-      });
-      if (best && !found.some((f) => f.id === r.id && f.i === best.i)) found.push({ id: r.id, near: r.near, title: index.title, i: best.i, n: best.stems.length, stems: best.stems, w: 0, z: Math.round(r.z * 10) / 10 });
+        if (stems.length) cands.push({ i, stems, h: str(chunk.h) });
+      }
+      if (!cands.length) continue;
+      // several passages share a word: the one nearest to the scene by meaning, when all of them have a vector of the scene's
+      // model (#539); else the first with the most shared words, and the chapter's passages are asked for their vectors
+      let best = null;
+      if (cands.length > 1) {
+        const model = str(meaning.model);
+        const rv = recallVectorsOf(r.id);
+        const usable = (e) => isObj(e) && Array.isArray(e.vector) && (!model || !str(e.m) || e.m === model);
+        const scored = cands.map((c) => ({ ...c, cos: usable(rv[c.h]) ? cosine(rv[c.h].vector, meaning.vec) : null }));
+        if (scored.every((x) => x.cos !== null)) best = { ...scored.reduce((a, b) => (b.cos > a.cos ? b : a)), of: scored.length };
+        else wantRecallVectors(fsx, r.id, inChapter.filter((c) => !usable(rv[str(c.h)])).map((c) => str(c.h)));
+      }
+      if (!best) best = cands.reduce((a, b) => (b.stems.length > a.stems.length ? b : a));
+      if (!found.some((f) => f.id === r.id && f.i === best.i)) {
+        found.push({ id: r.id, near: r.near, title: index.title, i: best.i, n: best.stems.length, stems: best.stems, w: 0, z: Math.round(r.z * 10) / 10, ...(best.of ? { cos: Math.round(best.cos * 100) / 100, of: best.of } : {}) });
+      }
     }
   }
   if (!found.length) return null;
   // the best match first; a tie goes to the nearer chat and the later passage
   found.sort((a, b) => b.w - a.w || b.n - a.n || a.near - b.near || b.i - a.i);
-  const texts = new Map();
   const head = "[Earlier in this story, word for word: passages of an earlier chat that share rare words with what is being said now. The facts and what has happened since are newer and win over them.]";
   const room = Math.max(60, clamp(intOf(budget, VERBATIM_BUDGET), VERBATIM_MIN, VERBATIM_MAX) - estimateTokens(head));
   const parts = [];
@@ -8848,10 +9115,11 @@ export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n)
   let spent = 0;
   for (const f of found.slice(0, RECALL_PICKED)) {
     if (parts.length >= RECALL_EXCERPTS) break;
-    if (!texts.has(f.id)) texts.set(f.id, arr((readJson(fsx, RECALL_DIR + f.id + ".t.json", null) || {}).chunks));
-    const chunk = texts.get(f.id)[f.i];
-    if (!isObj(chunk) || !str(chunk.t)) continue;
-    if (!witnessed({ cast: chunk.c }, voices, key)) continue;
+    const light = passagesOf(f.id).at(f.i);
+    // who may hear it is known from the index: a passage the speaker did not witness is not read at all
+    if (!light || !witnessed({ cast: light.c }, voices, key)) continue;
+    const chunk = passagesOf(f.id).text(f.i);
+    if (!chunk) continue;
     const label = 'From "' + (str(f.title) || f.id) + '":\n';
     const left = room - spent - estimateTokens(label);
     if (left < 40) break;
@@ -8860,7 +9128,7 @@ export function verbatimFor({ fsx, chatId, scanText, voices, key = (n) => str(n)
     const tokens = estimateTokens(part);
     if (tokens > room - spent) continue;
     parts.push(part);
-    rows.push({ c: f.id, i: f.i, t: cut(str(f.title), 80), a: str(chunk.a), b: str(chunk.b), w: f.w, n: f.n, ...(f.z !== undefined ? { z: f.z } : {}), x: recallExcerpt(chunk.t, f.stems, 240) });
+    rows.push({ c: f.id, i: f.i, t: cut(str(f.title), 80), a: str(chunk.a), b: str(chunk.b), w: f.w, n: f.n, ...(f.z !== undefined ? { z: f.z } : {}), ...(f.of ? { cos: f.cos, of: f.of } : {}), x: recallExcerpt(chunk.t, f.stems, 240) });
     spent += tokens;
   }
   if (!parts.length) return null;
@@ -11537,7 +11805,7 @@ export function verbatimRows(_fsx, insertFile) {
   const rows = isObj(insertFile) && isObj(insertFile.verbatim) ? arr(insertFile.verbatim.rows) : [];
   return rows
     .filter((r) => isObj(r) && SAFE_ID.test(str(r.c)))
-    .map((r) => ({ chat: str(r.c), title: str(r.t), words: Number(r.n) || 0, text: str(r.x), ...(Number.isFinite(r.z) ? { meaning: r.z } : {}) }));
+    .map((r) => ({ chat: str(r.c), title: str(r.t), words: Number(r.n) || 0, text: str(r.x), ...(Number.isFinite(r.z) ? { meaning: r.z } : {}), ...(Number.isFinite(r.cos) && Number(r.of) > 1 ? { closest: { of: Number(r.of), cos: r.cos } } : {}) }));
 }
 
 /**

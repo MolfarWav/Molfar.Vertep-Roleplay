@@ -39,7 +39,7 @@ export interface TraceChapter {
 }
 
 /** One word-for-word passage of an earlier chat that was put into the newest reply (#184): the chat's title, how many rare words it shares with what was being said, and the excerpt shown (about 240 characters, may start or end with "…"). */
-export interface TraceVerbatim { chat: string; title: string; words: number; text: string; /** set when the chapter was opened by meaning (#264): how many deviations above the pool's mean it lay */ meaning?: number }
+export interface TraceVerbatim { chat: string; title: string; words: number; text: string; /** set when the chapter was opened by meaning (#264): how many deviations above the pool's mean it lay */ meaning?: number; /** several passages of that chapter shared a word and this one lay nearest to the scene by meaning (#539): of how many, and its cosine */ closest?: { of: number; cos: number } }
 
 /** The far part of a long backstory the newest reply carried (#288): chats `first` to `last` of the story, condensed. */
 export interface TraceFar { chats: number; first: number; last: number; tokens: number; turns: number; facts: number; units: number }
@@ -230,7 +230,7 @@ export function buildReport(title: string, tr: MemoryTrace, now = Date.now()): s
     const far = farIn(lit)
     if (far) out.push('', `Far backstory: chats ${farRange(far)} of the story, condensed (~${far.tokens} tok.): ${far.turns} turning point(s), ${far.facts} fact(s), ${far.units} arc line(s)`)
     const vb = verbatimIn(lit)
-    if (vb.length) out.push('', `Earlier, word for word (${vb.length}):`, ...vb.map((v) => `- "${v.title || v.chat}" shares ${v.words} rare word${v.words === 1 ? '' : 's'}: ${cut(v.text.replace(/\s+/g, ' '), 260)}`))
+    if (vb.length) out.push('', `Earlier, word for word (${vb.length}):`, ...vb.map((v) => `- "${v.title || v.chat}" shares ${v.words} rare word${v.words === 1 ? '' : 's'}${v.meaning !== undefined ? `, chapter close by meaning (z ${v.meaning.toFixed(1)})` : ''}${v.closest ? `, closest by meaning of ${v.closest.of} (cos ${v.closest.cos.toFixed(2)})` : ''}: ${cut(v.text.replace(/\s+/g, ' '), 260)}`))
   }
   const db = tr.databank
   out.push('', 'Data Bank:')

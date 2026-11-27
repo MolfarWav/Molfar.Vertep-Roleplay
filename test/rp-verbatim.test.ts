@@ -167,8 +167,9 @@ describe("verbatim recall: the index", () => {
     const long: Msg[] = [];
     for (let i = 0; i < 6000; i++) long.push(i % 2 ? U("u" + i, "Line " + i + " " + "word ".repeat(200)) : C("a" + i, "Aria", "Reply " + i + " " + "text ".repeat(200)));
     const big = L.recallBuild(long, null);
-    expect(big.chunks.length).toBeLessThanOrEqual(2400);
-    expect(big.chunks.length).toBeGreaterThan(1000);
+    expect(big.chunks.length).toBeLessThanOrEqual(12000);
+    expect(big.chunks.length).toBeGreaterThan(2400);
+    expect(big.cut).toBeUndefined();
   });
 
   it("is rebuilt by the tick when the chat's record has a new revision, and swept with the chat", () => {
@@ -181,7 +182,7 @@ describe("verbatim recall: the index", () => {
     const store = { chats: {} };
     L.pruneOrphans(m.host.fs, store, ["now.jsonl", "second.jsonl", "third.jsonl", "fourth.jsonl", "fifth.jsonl"]);
     expect(exists("litopys/recall/first.json")).toBe(false);
-    expect(exists("litopys/recall/first.t.json")).toBe(false);
+    expect(exists("litopys/recall/first.q.json")).toBe(false);
   });
 });
 
@@ -193,7 +194,7 @@ describe("verbatim recall: the index is made when the chat is archived", () => {
     expect(exists("litopys/recall/first.json")).toBe(false);
     chainOf(["first", "now"]);
     expect(exists("litopys/recall/first.json")).toBe(true);
-    expect(exists("litopys/recall/first.t.json")).toBe(true);
+    expect(exists("litopys/recall/first.t.json")).toBe(false);
   });
 
   it("with the switch off the link builds nothing", () => {
