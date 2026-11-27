@@ -55,7 +55,7 @@ function chat(n: number, size = 80, prefix = "m"): M[] {
 const meta = (id: string, extra: M = {}) => ({ id, title: "Test", characterId: "aria", userName: "You", createdAt: 1, updatedAt: 1, ...extra });
 const ids = (msgs: M[]) => msgs.map((m) => m.id);
 const lines = (rel: string) => fs.readFileSync(abs(rel), "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
-const partFiles = (id: string) => (exists(`chats/${id}.parts`) ? fs.readdirSync(abs(`chats/${id}.parts`)).sort((a, b) => parseInt(a) - parseInt(b)) : []);
+const partFiles = (id: string) => (exists(`chats/${id}.parts`) ? fs.readdirSync(abs(`chats/${id}.parts`)).filter((f) => f.endsWith(".jsonl")).sort((a, b) => parseInt(a) - parseInt(b)) : []);
 /** Save, then read back the way every plugin does. */
 function roundTrip(fsx: M, id: string, msgs: M[], mt: M = meta(id)) {
   S.chatSave(fsx, id, mt, msgs);
@@ -168,7 +168,7 @@ describe("a long chat in parts", () => {
     writes.length = 0;
     c.msgs.push(...chat(1, 80, "x"));
     S.chatSave(fsx, "c1", c.meta, c.msgs);
-    expect(writes).toEqual(["chats/c1.parts/2.jsonl", "chats/c1.meta.json", "chats/c1.jsonl", "chats/c1.meta.json"]);
+    expect(writes).toEqual(["chats/c1.parts/2.jsonl", "chats/c1.parts/index.json", "chats/c1.meta.json", "chats/c1.jsonl", "chats/c1.meta.json"]);
     expect(lines("chats/c1.jsonl").length).toBe(101);
     expect(S.chatRead(fsx, "c1")!.msgs.length).toBe(301);
   });
@@ -179,7 +179,7 @@ describe("a long chat in parts", () => {
     writes.length = 0;
     c.msgs[150] = { ...c.msgs[150], text: "Edited.", swipes: ["Edited."], swipe: 0 };
     S.chatSave(fsx, "c1", c.meta, c.msgs);
-    expect(writes).toEqual(["chats/c1.parts/2.jsonl", "chats/c1.meta.json"]);
+    expect(writes).toEqual(["chats/c1.parts/2.jsonl", "chats/c1.parts/index.json", "chats/c1.meta.json"]);
     expect(S.chatRead(fsx, "c1")!.msgs[150].text).toBe("Edited.");
   });
   it("a deleted last message of a part moves the part's end, and keeps its number", () => {
@@ -246,6 +246,103 @@ describe("a long chat in parts", () => {
     S.chatRemove(fsx, "c1");
     expect(exists("chats/c1.jsonl") || exists("chats/c1.parts")).toBe(false);
     expect(exists("chats/c1.meta.json")).toBe(true);
+  });
+});
+
+describe("old parts are read on touch", () => {
+  /** A long chat saved, and read back the way a plugin reads it. */
+  function long(n = 450) {
+    const h = host();
+    const msgs = chat(n);
+    S.chatSave(h.fsx, "c1", meta("c1"), msgs);
+    return { ...h, msgs, c: S.chatRead(h.fsx, "c1")! };
+  }
+  it("the keys of every message and the tail's texts read no old part", () => {
+    const { c, msgs } = long();
+    expect(c.msgs.map((m) => m.id + "#" + m.swipe)).toEqual(msgs.map((m) => m.id + "#" + m.swipe));
+    expect(c.msgs.filter((m) => m.role === "user" && m.hidden !== true).length).toBe(225);
+    expect(c.msgs.slice(-100).map((m) => m.text)).toEqual(msgs.slice(-100).map((m) => m.text));
+    expect(S.chatPartsRead(c.msgs)).toEqual([]);
+  });
+  it("a heavy field of an old message reads its part only, and gives the stored text", () => {
+    const { c, msgs } = long();
+    expect(c.msgs[150].text).toBe(msgs[150].text);
+    expect(c.msgs[151].swipes).toEqual(msgs[151].swipes);
+    expect(S.chatPartsRead(c.msgs)).toEqual([2]);
+    expect(JSON.parse(JSON.stringify(c.msgs))).toEqual(msgs);
+    expect(S.chatPartsRead(c.msgs)).toEqual([1, 2, 3]);
+  });
+  it("a send after such a read writes the tail and the meta, and reads no old part", () => {
+    const { fsx, writes, c } = long();
+    writes.length = 0;
+    c.msgs.push({ id: "n1", role: "user", name: "You", text: "And?", at: 1, swipes: ["And?"], swipe: 0 });
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    expect(writes).toEqual(["chats/c1.jsonl", "chats/c1.meta.json"]);
+    expect(S.chatPartsRead(c.msgs)).toEqual([]);
+    // the same from a copied array (a delete, a filter)
+    const again = S.chatRead(fsx, "c1")!;
+    writes.length = 0;
+    S.chatSave(fsx, "c1", again.meta, again.msgs.filter((m) => m.id !== "n1"));
+    expect(writes).toEqual(["chats/c1.jsonl", "chats/c1.meta.json"]);
+    expect(S.chatPartsRead(again.msgs)).toEqual([]);
+  });
+  it("a change to a light field of an old message is saved", () => {
+    const { fsx, c } = long();
+    c.msgs[150].hidden = true;
+    c.msgs[20].swipe = 0;
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    const back = S.chatRead(fsx, "c1")!.msgs;
+    expect(back[150].hidden).toBe(true);
+    expect(back[150].text).toBe(c.msgs[150].text);
+    expect(back[20].swipe).toBe(0);
+  });
+  it("a heavy field set through a stand-in, or a copy put in its place, is saved", () => {
+    const { fsx, c } = long();
+    c.msgs[10].text = "Set in place.";
+    c.msgs[260] = { ...c.msgs[260], text: "A copy.", swipes: ["A copy."], swipe: 0 };
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    const back = S.chatRead(fsx, "c1")!.msgs;
+    expect(back[10].text).toBe("Set in place.");
+    expect(back[260].text).toBe("A copy.");
+    expect(back[11].text).toBe(c.msgs[11].text);
+  });
+  it("an index that is not the meta's for a part makes that part read whole", () => {
+    const { fsx } = long();
+    const ix = readJson("chats/c1.parts/index.json");
+    ix.parts[1].rev = 99;
+    fs.writeFileSync(abs("chats/c1.parts/index.json"), JSON.stringify(ix));
+    const c = S.chatRead(fsx, "c1")!;
+    expect(S.chatPartsRead(c.msgs)).toEqual([2]);
+    fs.writeFileSync(abs("chats/c1.parts/index.json"), "{broken");
+    expect(S.chatPartsRead(S.chatRead(fsx, "c1")!.msgs)).toEqual([1, 2, 3]);
+  });
+  it("a part changed after the read gives its new text; a message gone from it stops the save", () => {
+    const { fsx, c } = long();
+    const other = S.chatRead(fsx, "c1")!;
+    other.msgs[150].text = "Changed elsewhere.";
+    S.chatSave(fsx, "c1", other.meta, other.msgs);
+    expect(c.msgs[150].text).toBe("Changed elsewhere.");
+    const third = S.chatRead(fsx, "c1")!;
+    S.chatSave(fsx, "c1", third.meta, third.msgs.filter((m) => m.id !== "m260"));
+    const before = fs.readFileSync(abs("chats/c1.jsonl"), "utf8");
+    c.msgs.push({ id: "late", role: "user", name: "You", text: "Late.", at: 1, swipes: ["Late."], swipe: 0 });
+    // m260 is gone from its part: its stand-in has no text, and a save of this read would write it back without one
+    expect(c.msgs[259].id).toBe("m260");
+    expect(c.msgs[259].text).toBeUndefined();
+    expect(() => S.chatSave(fsx, "c1", c.meta, c.msgs)).toThrow(/changed while it was read/);
+    expect(fs.readFileSync(abs("chats/c1.jsonl"), "utf8")).toBe(before);
+  });
+  it("a chat saved before the index reads whole and gets one on its next save", () => {
+    const { fsx } = long();
+    fs.rmSync(abs("chats/c1.parts/index.json"));
+    const mt = readJson("chats/c1.meta.json");
+    for (const p of mt.transcript.parts) delete p.rev;
+    fs.writeFileSync(abs("chats/c1.meta.json"), JSON.stringify(mt));
+    const c = S.chatRead(fsx, "c1")!;
+    expect(S.chatPartsRead(c.msgs)).toEqual([1, 2, 3]);
+    S.chatSave(fsx, "c1", c.meta, c.msgs);
+    expect(readJson("chats/c1.meta.json").transcript.parts.map((p: M) => p.rev)).toEqual([1, 1, 1]);
+    expect(S.chatPartsRead(S.chatRead(fsx, "c1")!.msgs)).toEqual([]);
   });
 });
 
@@ -334,5 +431,86 @@ describe("the copies in the plugins", () => {
       const outside = src.slice(0, src.indexOf("// ==== BEGIN GENERATED: src/lib/chat-store.js")) + src.slice(src.indexOf("// ==== END GENERATED: chat-store ===="));
       expect(outside).not.toMatch(/fsx\.(read|write)\("chats\/" \+ \w+ \+ "\.jsonl"/);
     }
+  });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const lit = (await import("../plugins/litopys/plugin.js")) as any;
+describe("readers that keep what old parts gave", () => {
+  /** A long chat with a reveal word in part 1, saved twice (the second save finds the index), read back. */
+  function long() {
+    const h = host();
+    const msgs = chat(450);
+    msgs[41] = { ...msgs[41], text: "Aria shows the silver pendant to You.", swipes: ["Aria shows the silver pendant to You."], swipe: 0 };
+    S.chatSave(h.fsx, "c1", meta("c1"), msgs);
+    return h;
+  }
+  /** What a reader keeps by where a message lies: the store's origin is the key. */
+  function keeper() {
+    const kept = new Map<string, string>();
+    const k = (o: M) => o.n + ":" + o.rev + ":" + o.pos;
+    return { get: (o: M) => kept.get(k(o)), put: (o: M, w: string) => kept.set(k(o), w), size: () => kept.size };
+  }
+  it("a message of a closed part tells where it lies; a message of the tail does not", () => {
+    const { fsx } = long();
+    const c = S.chatRead(fsx, "c1")!;
+    expect(S.chatOrigin(c.msgs[150])).toEqual({ n: 2, pos: 50, rev: 1 });
+    expect(S.chatOrigin(c.msgs[449])).toBeNull();
+    c.msgs[150].text;
+    expect(S.chatOrigin(c.msgs[150])).toEqual({ n: 2, pos: 50, rev: 1 });
+  });
+  it("who heard a secret: the second turn reads no old part and finds the same", () => {
+    const { fsx } = long();
+    const seen = keeper();
+    const ask = () => {
+      const c = S.chatRead(fsx, "c1")!;
+      const knowers = eng.loreKnowers({ secret: { knownBy: [], reveal: ["pendant"], cover: "", happens: "" }, key: "b#1", line: c.msgs, presence: [], manual: null, userName: "You", happened: null, seen });
+      return { knowers, read: S.chatPartsRead(c.msgs) };
+    };
+    const first = ask();
+    expect(first.knowers).toEqual([{ name: "Aria", how: "heard", word: "pendant" }]);
+    expect(first.read).toEqual([1, 2, 3]);
+    expect(seen.size()).toBe(300);
+    const second = ask();
+    expect(second.knowers).toEqual(first.knowers);
+    expect(second.read).toEqual([]);
+    // without the keeper, the same answer
+    const c = S.chatRead(fsx, "c1")!;
+    expect(eng.loreKnowers({ secret: { knownBy: [], reveal: ["pendant"], cover: "", happens: "" }, key: "b#1", line: c.msgs, presence: [], manual: null, userName: "You", happened: null })).toEqual(first.knowers);
+  });
+  it("a chapter checked against unchanged parts is not read again; an edit in its part makes it stale", () => {
+    const { fsx } = long();
+    const chapterOf = (line: M[], id: string, a: number, b: number) => ({ id, from: line[a].id, to: line[b].id, sig: lit.chapterSig(line.slice(a, b + 1)) });
+    const first = S.chatRead(fsx, "c1")!;
+    const line0 = lit.activeLine(first.msgs);
+    const st = { chapters: [chapterOf(line0, "ch1", 0, 79), chapterOf(line0, "ch2", 80, 189), chapterOf(line0, "ch3", 190, 299)] };
+    const kept = new Map<string, string>();
+    const checked = { get: (ch: M) => kept.get(ch.id), put: (ch: M, key: string) => kept.set(ch.id, key) };
+    expect(lit.markStale(st, lit.activeLine(first.msgs), checked)).toBe(false);
+    expect(S.chatPartsRead(first.msgs)).toEqual([1, 2, 3]);
+    const again = S.chatRead(fsx, "c1")!;
+    expect(lit.markStale(st, lit.activeLine(again.msgs), checked)).toBe(false);
+    expect(S.chatPartsRead(again.msgs)).toEqual([]);
+    // a chapter that runs into the tail (which changes with every send) is read again, and only its parts
+    const into = { chapters: [chapterOf(line0, "ch4", 250, 319)] };
+    const third = S.chatRead(fsx, "c1")!;
+    lit.markStale(into, lit.activeLine(third.msgs), checked);
+    expect(S.chatPartsRead(third.msgs)).toEqual([3]);
+    const edit = S.chatRead(fsx, "c1")!;
+    edit.msgs[50].text = "Changed in an old part.";
+    S.chatSave(fsx, "c1", edit.meta, edit.msgs);
+    const after = S.chatRead(fsx, "c1")!;
+    expect(lit.markStale(st, lit.activeLine(after.msgs), checked)).toBe(true);
+    expect(st.chapters.map((ch: M) => ch.stale === true)).toEqual([true, false, false]);
+  });
+  it("the chat's own word counts read only the newest messages", () => {
+    const { fsx } = long();
+    const c = S.chatRead(fsx, "c1")!;
+    const share = lit.chatWordShare(c.msgs);
+    expect(S.chatPartsRead(c.msgs)).toEqual([3]);
+    const whole = JSON.parse(JSON.stringify(c.msgs));
+    const old = whole.filter((m: M) => m && typeof m.text === "string" && m.text.trim()).slice(-200);
+    expect(old.length).toBe(200);
+    for (const w of ["harvest", "aria", "line", "pendant"]) expect(share(w)).toBe(lit.chatWordShare(old)(w));
   });
 });

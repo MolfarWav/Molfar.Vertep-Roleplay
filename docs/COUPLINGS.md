@@ -20,6 +20,7 @@ Date: 2026-11-05.
 - **Enforced in:** `scripts/sync-chat-store.ts` `PLUGINS` `outOfDate`; `chatSave` `chatPlan` `chatCollect`.
 - **Fails in:** `test/rp-chat-store.test.ts` (the copies match; no plugin reads or writes a `.jsonl` outside the store; a reader in the middle of a save); `test/rp-data-formats.test.ts` (case "chats").
 - **Why / history:** Molfar.Vertep#537: every send rewrote the whole file, a long chat hit the engine's 4 MB write cap, and the chosen text was stored twice.
+- **Read on touch:** a read gives the messages of closed parts as stand-ins (`chats/<id>.parts/index.json`) that read their part when a heavy field (`CHAT_HEAVY`: `text`, `swipes`, `extra`, ...) is first read or set; `chatSave` leaves a part none of whose stand-ins was touched. A reader that loops over every message's `text` (a filter before a `slice(-n)`, a sum of all lengths) reads every part again on each call: walk back from the newest message, or keep the result by `chatOrigin` (engine `revealScans` for reveal words, Litopys `checkedChapters` for chapter sigs). `test/rp-chat-store.test.ts` ("old parts are read on touch", "readers that keep what old parts gave") checks both.
 - **Trap:** `<id>.jsonl` alone is only the newest part of a long chat. Code that lists `chats/` must skip `<id>.parts` folders (filtering by `.meta.json` or `.jsonl` does). A new plugin that reads chats must be added to `PLUGINS`.
 
 ### Names in helper requests (`expandNames`, #156)

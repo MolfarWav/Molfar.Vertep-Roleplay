@@ -552,10 +552,21 @@ below) and its messages, one JSON object per line. Read and write messages throu
   `chats/<id>.jsonl` holds the newest messages: the only file a send rewrites. A part is rewritten only when a
   message in it changes. A chat cut back below the limit is one file again.
 - `transcript` in the meta is the store's record, written with every save: `{ v, count, preview, hasUser, tailSize, tailFirst, parts }`,
-  each of `parts` `{ n, count, first, last, user }` (the part file's number, how many messages, the ids of its first
-  and last message, whether the player speaks in it). `count`, `preview` and `hasUser` are what the chat list shows,
+  each of `parts` `{ n, count, first, last, user, rev }` (the part file's number, how many messages, the ids of its first
+  and last message, whether the player speaks in it, and `rev`, which goes up by one each time the part file is
+  rewritten). `count`, `preview` and `hasUser` are what the chat list shows,
   good while the tail's size is still `tailSize` (the list re-reads a tail changed behind the meta). Leave it to the
   store; a meta without it makes the store look in `<id>.parts/` for the parts.
+- `chats/<id>.parts/index.json` is `{ v, parts: [{ n, rev, lens, rows }] }`: for each part, the light fields of its
+  messages (`rows`, each message with its heavy fields `text`, `swipes`, `extra`, `translation`, `attachments`,
+  `directions`, `reasoning`, `mes`, `parts`, `tools` written as `0`) and each line's length (`lens`). It is
+  rewritten only when a part changes, and trusted for a part only when its `rev` is the meta's. With it a read gives
+  a part's messages as stand-ins that read their part on the first touch of a heavy field: a plugin that needs only
+  the ids, roles and swipe numbers of the whole chat, or the texts of the newest messages, reads no old part. Walk
+  from the newest message back when you need the newest ones (`filter(...).slice(-n)` touches every text). Whatever
+  is worked out from a part's messages can be kept by `chatOrigin(m)` (`{ n, pos, rev }`): two such keeps live
+  in `.cache/` (this device only): `.cache/chat-scans/<chatId>.json` (the engine: which old messages hold a secret
+  entry's reveal word) and `.cache/litopys/checked/<chatId>.json` (Litopys: chapters checked against unchanged parts).
 - Going back to a Roleplay version older than parts: close the app and run `bun scripts/chat-join.ts <data dir>`,
   which joins every chat back into one whole file.
 
