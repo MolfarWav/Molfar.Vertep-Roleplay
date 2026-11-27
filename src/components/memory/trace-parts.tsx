@@ -105,6 +105,7 @@ export function VerbatimRow({ v, t }: { v: TraceVerbatim; t: T }) {
       <span className="flex shrink-0 flex-wrap items-center gap-1.5">
         <Chip tone="sky">{t('memtrace.verbatimShares', { n: v.words })}</Chip>
         {v.meaning !== undefined && <Chip tone="violet">{t('memtrace.verbatimMeaning', { z: v.meaning.toFixed(1) })}</Chip>}
+        {v.closest && <Chip tone="violet">{t('memtrace.verbatimClosest', { n: v.closest.of })}</Chip>}
       </span>
     </li>
   )
