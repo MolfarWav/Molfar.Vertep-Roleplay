@@ -175,3 +175,27 @@ describe("an older file: agent blocks written before stories (#540)", () => {
     expect(sent("b1")).toContain("user wrote it");
   });
 });
+
+describe("a block the user writes for one story (#542)", () => {
+  it("with scope story and a chat of the card it acts in that story only; without, in every chat", () => {
+    expect(put({ op: "add", section: "goals", kind: "added", title: "A boat", text: "She saves for a boat.", scope: "story", chatId: "a1" }).status ?? 200).toBe(200);
+    put({ op: "add", section: "goals", kind: "added", title: "Songs", text: "She sings at dusk." });
+    const [mine, all] = disk().entries;
+    expect(mine).toMatchObject({ origin: "user", scope: "story", from: { chatId: "a1", title: "Chat a1" } });
+    expect(all.scope).toBeUndefined();
+    expect(sent("a1")).toContain("saves for a boat");
+    expect(sent("b1")).not.toContain("saves for a boat");
+    expect(sent("b1")).toContain("sings at dusk");
+    // it can go to every chat later, and back, like an agent's
+    expect(put({ op: "scope", id: mine.id, scope: "card" }).status ?? 200).toBe(200);
+    expect(sent("b1")).toContain("saves for a boat");
+    expect(put({ op: "scope", id: mine.id, scope: "story" }).status ?? 200).toBe(200);
+    expect(sent("b1")).not.toContain("saves for a boat");
+  });
+
+  it("refuses a chat that does not exist or is another card's, and writes nothing", () => {
+    fs.writeFileSync(path.join(root, "chats", "z1.meta.json"), JSON.stringify({ id: "z1", title: "Other", characterId: "bob" }));
+    for (const chatId of ["nope1", "z1", ""]) expect(put({ op: "add", section: "goals", kind: "added", text: "No.", scope: "story", chatId }).status).toBe(400);
+    expect(fs.existsSync(path.join(root, "characters/aria/growth.json"))).toBe(false);
+  });
+});

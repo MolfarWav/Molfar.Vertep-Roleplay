@@ -248,3 +248,24 @@ describe("the chat picker's search (#540)", async () => {
     expect(searchMatches(hay, "   ")).toBe(true);
   });
 });
+
+describe("the add form says where a block will act (#542)", async () => {
+  const { GrowthForm } = await import("../src/components/character/memory-growth");
+  const blank = { section: "personality" as const, kind: "changed" as const, title: "", text: "", basis: "", of: "" };
+  const form = (where?: { chatTitle: string | null; name: string }) => renderToStaticMarkup(<GrowthForm t={tt} initial={blank} submitLabel="Add" onCancel={() => {}} onSubmit={async () => true} where={where} />);
+  it("with a chat picked: a choice, that chat's story first and checked, every chat second", () => {
+    const html = form({ chatTitle: "Beach day", name: "Aria" });
+    expect(html).toContain("Only “Beach day”");
+    expect(html).toContain("Every chat of Aria");
+    expect(html).toMatch(/data-testid="mem-grow-form-where-story"[^>]*checked|checked[^>]*data-testid="mem-grow-form-where-story"/);
+  });
+  it("with all chats shown: one line that it goes into every chat; on a card with one chat, nothing", () => {
+    expect(form({ chatTitle: null, name: "Aria" })).toContain("This block goes into every chat of Aria.");
+    const none = form();
+    expect(none).not.toContain("mem-grow-form-where");
+  });
+  it("addPatch sends the chat only for a story block", () => {
+    expect(addPatch(blank as never, "a1")).toMatchObject({ op: "add", scope: "story", chatId: "a1" });
+    expect(addPatch(blank as never)).not.toHaveProperty("scope");
+  });
+});

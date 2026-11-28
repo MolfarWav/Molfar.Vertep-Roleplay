@@ -4303,6 +4303,16 @@ function growthRoute(req, host) {
     if (str(b.title)) e.title = clip(str(b.title), GROWTH.title);
     if (str(b.basis)) e.basis = clip(str(b.basis), GROWTH.basis);
     if (ofPick()) e.of = ofPick();
+    // a block the user writes for one story (#542): `scope: "story"` with the chat it is for, a chat of this card (alone or in a
+    // group it is in); it acts there and in the chats that continue it, like an agent's. Without it the block acts in every chat.
+    if (str(b.scope) === "story") {
+      const cid = str(b.chatId);
+      const meta = AG_CHAT.test(cid) ? readJsonAt(fsx, "chats/" + cid + ".meta.json", null) : null;
+      const gi = isObj(meta) ? groupInfo(fsx, meta) : null;
+      if (!isObj(meta) || !(soloCardOf(meta) === cardId || (gi && gi.memberIds.includes(cardId)))) return bad("chatId: a chat of this card is required for a story block");
+      e.from = { chatId: cid, title: str(meta.title).slice(0, 120), at: e.at };
+      e.scope = "story";
+    }
     g.next++;
     g.entries.push(e);
   } else if (op === "accept" || op === "edit" || op === "on" || op === "delete" || op === "revert") {

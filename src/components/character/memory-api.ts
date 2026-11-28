@@ -204,7 +204,8 @@ export interface GrowthView {
 export interface GrowthFields { section: GrowthSection; kind: GrowthKind; title?: string; text: string; basis?: string; of?: string }
 
 export type GrowthPatch =
-  | ({ op: 'add' } & GrowthFields)
+  /** `scope: 'story'` with `chatId` writes the block for that chat's story only (#542); without it, every chat */
+  | ({ op: 'add'; scope?: 'story'; chatId?: string } & GrowthFields)
   | { op: 'accept'; id: string }
   | ({ op: 'edit'; id: string } & Partial<GrowthFields>)
   | { op: 'on'; id: string; on: boolean }
