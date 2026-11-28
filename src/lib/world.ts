@@ -47,13 +47,15 @@ export interface WorldRun {
 /** GET /world/state: what the sheet shows. The records themselves are not sent: the world is the DM's. */
 export interface WorldView {
   /** profile: the player's own profile on this level ("" = the level's built-in one) */
-  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; /** the pause after a big event, in replies (-1 = the profile decides) */ breather?: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** a person who is due waits up to a few replies for a new place or a time jump before coming back (#496; on unless switched off, an older plugin leaves it out) */ castBoundary?: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean }
+  settings: { level: WorldLevel; carrySource: WorldCarrySource; everyN: number; recordsEveryN: number; stagnation: number; onTransition: boolean; onPlace: boolean; insert: boolean; textMax: number; changesMax: number; profile: string; dice: WorldDiceMode | ''; diceStat: WorldDiceStat | ''; diceChance: number; diceTilt: WorldDiceTilt | ''; diceLife: number; dicePace: number; /** the pause after a big event, in replies (-1 = the profile decides) */ breather?: number; diceShow: boolean; /** how often a person who has been away comes back (#424) */ cast: WorldCastFreq; /** a mark under each reply that had a person come back, with who, why and the dice */ castShow: boolean; /** the code tidy-up of things that played out (#424, step 3) */ tidy: boolean; /** new people drawn from the cast deck (#424, step 4) */ castDeck: boolean; /** a person who is due waits up to a few replies for a new place or a time jump before coming back (#496; on unless switched off, an older plugin leaves it out) */ castBoundary?: boolean; /** how many people a Start or a refill writes per faction (1 to 4) */ castPer: number; /** how long a card of the deck is */ castLen: WorldCastLen; /** what the DM may write as a thing (#425): all, only a clue, hidden or promised one, none */ things: WorldThings; /** the DM may raise proposals from what the player removes and rewrites */ learn: boolean; /** rules about the story also reach the reply model (#428) */ learnWriter?: boolean; /** secret threads (#545): how many (0 = off), replies between hints (0 = events only), a mark under a hinted reply */ secrets?: number; hintEvery?: number; secretShow?: boolean }
   /** the dice in force: this chat's own setting over the profile's option; null when the DM is off */
   dice: { mode: WorldDiceMode; stat: WorldDiceStat; chance: number; tilt: WorldDiceTilt; life: number; pace: number } | null
   /** the pause after a big event in force (replies; the chat's own over the profile's), and how many replies it still holds; absent below the event levels */
   breather?: number
   pause?: number
   ready: WorldLevel[]
+  /** secret threads (#545): counts and the hint timer only; an older plugin leaves it out */
+  secrets?: { count: number; nextIn: number | null; held: string | null }
   /** the profile in force: a level's id or an own profile's id; null when off */
   profile: string | null
   records: number
@@ -141,6 +143,19 @@ export async function saveWorldSettings(chatId: string, patch: Partial<WorldView
   const v = await j<WorldView>('/world/settings', { method: 'PUT', body: JSON.stringify({ chatId, ...patch }) })
   keepView(chatId, v)
   return v
+}
+
+/** One secret thread (#545), as GET /world/secrets shows it behind the spoiler. */
+export interface WorldSecret { id: string; idea: string; surfaced: string[]; hint: string; hintUsed: boolean; status: 'active' | 'done'; by: 'dm' | 'player' }
+export interface WorldSecretLine { at: number; what: 'added' | 'hint' | 'held' | 'event' | 'event-dropped' | 'done' | 'dropped' | 'edited'; id: string; why?: string; text?: string }
+export interface WorldSecrets { secrets: WorldSecret[]; next: string | null; log: WorldSecretLine[] }
+
+export async function loadWorldSecrets(chatId: string): Promise<WorldSecrets> {
+  return j<WorldSecrets>(`/world/secrets?chatId=${encodeURIComponent(chatId)}`)
+}
+
+export async function postWorldSecret(chatId: string, op: 'edit' | 'drop' | 'next', id: string, extra?: { idea: string; hint: string }): Promise<WorldSecrets> {
+  return j<WorldSecrets>('/world/secrets', { method: 'POST', body: JSON.stringify({ chatId, op, id, ...extra }) })
 }
 
 /** How often a person who has been away is brought back: off, rare (about 60 replies of silence), normal (about 30), often (about 15). */
@@ -688,7 +703,7 @@ export async function nameBackgroundImage(image: { data: string; mimeType: strin
 export interface WorldDiceRoll {
   at: number
   /** 'life' = the world-intervenes roll (tier says how big); 'pace' = the pacing check (readiness in `value`); 'cast' = a person came back (#424); otherwise the action's roll */
-  kind?: 'life' | 'pace' | 'cast'
+  kind?: 'life' | 'pace' | 'cast' | 'secret'
   /** cast: who, which record, how big (small, medium, big), why (the silence, or the Life die), the silence so far and the one that made them due, the weight, what came of it */
   id?: string
   band?: 'small' | 'medium' | 'big'
@@ -733,9 +748,9 @@ export interface WorldDiceRoll {
 }
 
 /** The chat's last rolls, oldest first, and whether the chat shows them under the replies (dice, and the cast's own switch). */
-export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceRoll[]; show: boolean; castShow: boolean }> {
-  const r = await j<{ rolls: WorldDiceRoll[]; show?: boolean; castShow?: boolean }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)
-  return { rolls: r.rolls, show: r.show === true, castShow: r.castShow === true }
+export async function loadWorldDice(chatId: string): Promise<{ rolls: WorldDiceRoll[]; show: boolean; castShow: boolean; secretShow: boolean }> {
+  const r = await j<{ rolls: WorldDiceRoll[]; show?: boolean; castShow?: boolean; secretShow?: boolean }>(`/world/dice?chatId=${encodeURIComponent(chatId)}`)
+  return { rolls: r.rolls, show: r.show === true, castShow: r.castShow === true, secretShow: r.secretShow === true }
 }
 
 /** One person of the bench as GET /world/cast reads them. */
@@ -812,14 +827,14 @@ export async function adoptWorldBench(chatId: string, lang?: string): Promise<{ 
   return j('/world/bench', { method: 'POST', body: JSON.stringify({ chatId, ...(lang ? { lang } : {}) }) })
 }
 
-interface DiceLiveState { chats: Record<string, { rolls: WorldDiceRoll[]; show: boolean; castShow: boolean }> }
+interface DiceLiveState { chats: Record<string, { rolls: WorldDiceRoll[]; show: boolean; castShow: boolean; secretShow: boolean }> }
 /** The newest read of each chat's rolls, for the marks under the replies. */
 export const useDiceLive = create<DiceLiveState>(() => ({ chats: {} }))
 
 /** Read the chat's rolls into the live store; a chat that does not show them is not read again until it is opened. */
 export async function refreshDice(chatId: string, force = false): Promise<void> {
   const known = useDiceLive.getState().chats[chatId]
-  if (known && !known.show && !known.castShow && !force) return
+  if (known && !known.show && !known.castShow && !known.secretShow && !force) return
   try {
     const r = await loadWorldDice(chatId)
     useDiceLive.setState((s) => ({ chats: { ...s.chats, [chatId]: r } }))

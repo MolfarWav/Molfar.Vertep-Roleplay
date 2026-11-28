@@ -692,6 +692,15 @@ player switches it on for that chat. It writes:
     input ("Stirred since the last look ...", worded by the clock stage) and then lets the flag go. Set only when the profile's `clocks` is `code`.
   - Code clocks (profile option `clocks: "code"`): every `clockEvery` replies read, each active front rolls a d6 (`tickClocks`, seeded by chat and the run's
     `upTo`, so a rerun rolls the same): 1-2 nothing, 3-4 +1 segment, 5-6 +1 segment and `stirred`. The model's own tick ops are ignored.
+  - Secret threads (Molfar.Vertep#545): `settings.secrets` (0-3, 0 = off), `settings.hintEvery` (0-30 replies, default 6, 0 = events only),
+    `settings.secretShow` (a mark under a hinted reply). State, all optional: `secrets` `[{ id: "s1", idea (300), surfaced: [up to 4], hint (200),
+    status: "active"|"done", by: "dm"|"player", at, hintAfter?, hintedAt?, editedAt? }]`, `nextSecret`, `secretOrigins` (the last 2 events'
+    thread ids, "" = not a thread's; an event may be a thread's only when both are ""), `secretMark` `{ after, id }` (the message the last
+    hint followed; `id` "" only starts the clock), `secretLog` (last 30 `{ at, what, id, why?, text? }`), `secretNext` (the player's
+    "send next"), `secretGone` (dropped by the player, kept out by a rollback). `secrets`, `nextSecret`, `secretOrigins`, `secretLog` are
+    core keys of the rollback. The text leaves the plugin only through `GET /world/secrets`; `GET /world/state` has `secrets: { count,
+    nextIn, held }`. A saved world of the library keeps the settings, never the threads. The dice log gets `{ kind: "secret" }` rows
+    with no content.
   - The pause after a big event (Molfar.Vertep 2026-11-23): `settings.breather` (replies, 0-20; -1 or absent = the profile's `options.breather`,
     default 4; 0 = no pause) and `breath` (optional, `{ after }`: the key `<id>#<swipe>` of the message the reply that carried the last big
     event followed). A big event is a hard DM event or a `major` life roll that was sent. That reply and the next `breather` replies are

@@ -7,10 +7,21 @@ import { mergeArticles, type ArticleEntry, type Tip, type Tour } from './guide'
 import articles from './help-articles.json'
 
 /** This build's version: keep equal to manifest.json (a test checks it). */
-export const APP_VERSION = '4.166.1'
+export const APP_VERSION = '4.167.0'
 
 const HAND_TIPS: Tip[] = [
   // What's new
+  {
+    id: 'new.world-secrets',
+    since: '4.167.0',
+    help: 'world',
+    keywords: { en: 'world dm secret threads hidden plot through-line mystery hint spoiler arcs chapters memory', uk: 'майстер світу дм секретні нитки прихований сюжет таємниця підказка спойлер арки розділи пам’ять' },
+    title: { en: 'World DM: secret threads', uk: 'Майстер світу: секретні нитки' },
+    body: {
+      en: 'The DM can now keep up to three hidden through-lines and play them with events and quiet hints. Switch them on in the World panel, card Secret threads (levels above Chronicler); Show (spoilers) reveals them. Also: older chapters are sent as they are while they fit, an arc only when they do not.',
+      uk: 'Майстер світу тепер може вести до трьох прихованих наскрізних ліній і розігрувати їх подіями та тихими підказками. Увімкніть у панелі World, картка «Секретні нитки» (рівні вище Chronicler); «Показати (спойлери)» відкриває їх. Також: старіші розділи надсилаються як є, поки вміщуються, а арка лише коли ні.',
+    },
+  },
   {
     id: 'new.profile-models',
     since: '4.162.0',

@@ -398,6 +398,8 @@ export interface LitConfig {
   chapter: string
   /** M4d arcs; arcThreshold 0 = twice the budget */
   arcMode: LitArcMode
+  /** #543: chapters ride while they fit; arcs only when they do not (default on) */
+  arcsWhenNeeded?: boolean
   /** 'pending': the Library offers to switch arcs to automatic, once (an install that kept "ask") */
   arcNotice?: 'pending' | 'done'
   /** 'ask': every proposal waits for a click; 'risky': every one is applied by itself and can be undone except the risky ones; 'quiet': a pin or a rewrite is applied by itself and can be undone */

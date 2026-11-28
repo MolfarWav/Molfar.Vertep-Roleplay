@@ -4,6 +4,12 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.167.0 (2026-11-28)
+
+- New: **the World DM can keep secret threads (Molfar.Vertep#545).** Up to three hidden through-lines the DM creates and plays, switched on per chat (World panel, card **Secret threads**, levels above Chronicler). The writing model never gets a thread, only an event dealt for one (at most one in three) and a quiet hint on a timer of its own (every 6 replies by default). Behind **Show (spoilers)**: the threads, edit, drop, "send the hint next" and a log of what was sent or held and why. Tried on a few small models with a synthetic story: results depend on the DM model; one that spends its whole answer on thinking cannot run the DM at all, and a small one may still write a thread into the book.
+- New: **the World DM is told how long each open quest has waited (Molfar.Vertep#544),** so it can move or pay off an old one.
+- Changed: **older chapters are sent as they are while they fit the memory size (Molfar.Vertep#543).** An arc takes their place only when they do not (switch **Send chapters while they fit** in the Litopys settings, on by default). **Arcs: Off** now also stops sending arcs already made and merging them again.
+
 ## 4.166.1 (2026-11-28)
 
 - Fixed: **an admitted affair or lie now costs trust (Molfar.Vertep#394).** On real sensor models a confession ("I've been sleeping with your sister") was booked as telling an uncomfortable truth, so trust and respect went **up**, and a character walking in on the user's character kissing someone else was booked as that kiss alone. The sensor is now told that the user's character's own wrongs, admitted or discovered, are those wrongs. The other direction (a character cheating on the user's character no longer drops that character's trust) held in every run. A sensor prompt you changed yourself keeps your text.

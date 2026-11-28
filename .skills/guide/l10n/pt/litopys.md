@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: o registro da história
 
 Litopys (a crônica) é a memória longa de um chat. Ela lê a história em segundo plano e escreve um capítulo para cada cena encerrada, além dos fatos que a história estabeleceu. Quando um chat fica longo demais para a janela do modelo, o registro leva a história adiante. Use para histórias longas; você não precisa iniciá-lo.
@@ -76,3 +76,7 @@ Se você editar mensagens depois que um capítulo foi escrito, esse capítulo é
 ## Relacionado
 
 O cartão de um personagem também pode guardar memória de chats encerrados: veja [[memory]]. Os artigos da Ajuda *Litopys: chapters and proposals*, *Facts and proposals* e *Overview vs Details* cobrem as telas.
+
+## Arcs
+
+Um **arc** é uma forma mais curta de vários capítulos antigos. Ele toma o lugar deles só quando os capítulos não cabem mais no tamanho da memória (a opção **Send chapters while they fit**, Library, Litopys settings, bloco **Arcs**, ligada por padrão). Com **Arcs** em **Off**, nenhum é feito e os que já foram feitos não são enviados.

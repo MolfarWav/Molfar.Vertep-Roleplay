@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: het verhaalverslag
 
 Litopys (de kroniek) is het langetermijngeheugen van één chat. Het leest het verhaal op de achtergrond en schrijft een hoofdstuk voor elke afgeronde scène, plus de feiten die het verhaal heeft vastgesteld. Wanneer een chat te lang wordt voor het venster van het model, draagt het verslag het verhaal verder. Gebruik het voor lange verhalen; je hoeft het niet te starten.
@@ -76,3 +76,7 @@ Als je berichten bewerkt nadat een hoofdstuk is geschreven, wordt dat hoofdstuk 
 ## Gerelateerd
 
 De kaart van een personage kan ook geheugen van afgeronde chats bewaren: zie [[memory]]. De Help-artikelen *Litopys: chapters and proposals*, *Facts and proposals* en *Overview vs Details* behandelen de schermen.
+
+## Arcs
+
+Een **arc** is een kortere vorm van verschillende oudere chapters. Hij neemt hun plaats alleen in wanneer de chapters niet meer in het geheugen passen (de schakelaar **Send chapters while they fit**, Library, Litopys settings, blok **Arcs**, standaard aan). Met **Arcs** op **Off** worden er geen gemaakt en worden de al gemaakte niet verstuurd.

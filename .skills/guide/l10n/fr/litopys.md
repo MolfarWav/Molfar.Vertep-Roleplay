@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys : la chronique de l'histoire
 
 Litopys (la chronique) est la longue mémoire d'un chat. Elle lit l'histoire en arrière-plan et écrit un chapitre pour chaque scène terminée, ainsi que les faits que l'histoire a établis. Quand un chat devient trop long pour la fenêtre du modèle, la chronique fait avancer l'histoire. Utilisez-la pour les longues histoires ; vous n'avez pas besoin de l'activer.
@@ -76,3 +76,7 @@ Si vous modifiez des messages après qu'un chapitre a été écrit, ce chapitre 
 ## En lien
 
 La carte d'un personnage peut aussi garder la mémoire des chats terminés : voir [[memory]]. Les articles d'aide *Litopys: chapters and proposals*, *Facts and proposals* et *Overview vs Details* couvrent les écrans.
+
+## Arcs
+
+Un **arc** est une forme plus courte de plusieurs anciens chapitres. Il ne les remplace que lorsque les chapitres ne tiennent plus dans la taille de mémoire (le commutateur **Send chapters while they fit**, Library, Litopys settings, bloc **Arcs**, activé par défaut). Avec **Arcs** réglé sur **Off**, aucun n'est créé et ceux déjà créés ne sont pas envoyés.

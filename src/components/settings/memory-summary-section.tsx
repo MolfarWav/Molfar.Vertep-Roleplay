@@ -288,8 +288,9 @@ export function MemorySummarySection({ inDialog = false }: { inDialog?: boolean 
             <option value="auto">{t('lit.set.arcAuto')}</option>
             <option value="off">{t('lit.set.arcOff')}</option>
           </select>
-          <p className="text-xs text-muted-foreground">{t('lit.set.arcHint')}</p>
+          <p className="text-xs text-muted-foreground">{t(cfg.arcMode === 'off' ? 'lit.set.arcOffHint' : 'lit.set.arcHint')}</p>
         </Field>
+        {cfg.arcMode !== 'off' && switchRow('lit-arc-when-needed', t('lit.set.arcWhenNeeded'), t('lit.set.arcWhenNeededHint'), cfg.arcsWhenNeeded !== false, (v) => save({ arcsWhenNeeded: v }))}
         <div className="grid gap-3 sm:grid-cols-2">
           {keyField('arcKeep', { id: 'lit-arc-keep', label: t('lit.set.arcKeep'), min: 1, max: 50 })}
           {keyField('arcThreshold', { id: 'lit-arc-threshold', label: t('lit.set.arcThreshold'), hint: t('lit.set.arcThresholdHint', { n: 2 * cfg.budget }), unit: t('lit.unit.tokens'), min: 0, max: 40000 })}

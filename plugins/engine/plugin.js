@@ -3219,6 +3219,8 @@ function hookInsertTable(fsx, chatId, meta, windowTokens) {
       if (set.insert !== false && set.level !== "off" && set.level !== "chronicler") {
         add("world event", Math.ceil(400 / 3.5));
         if (set.dice) add("world dice", 60);
+        // a quiet hint of a secret thread (#545; the world plugin has the same row)
+        if (set.secrets > 0) add("world secret", 120);
       }
       // a person who has been away comes back (#424): the note, at every level but off (the world plugin has the same row: change them together)
       // with a cast deck that has cards, the note of a new person carries the longest card's text and want plus about 110 tokens of frame (the world plugin has the same rule)
