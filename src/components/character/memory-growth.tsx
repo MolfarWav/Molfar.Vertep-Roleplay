@@ -105,6 +105,12 @@ export interface StoryRead { title: string | null; reading: boolean; onRead: () 
 /** The chat the block is narrowed to (#540): null = every chat. `chats` are the picker's rows; `onPick` chooses one, `onAll` goes back. */
 export interface ChatView { chatId: string | null; title: string; chats: PickerChat[]; onPick: (id: string) => void; onAll: () => void }
 
+/** The newest message's text, for a chat whose list preview is empty (an opened chat holds its messages instead). */
+const lastLine = (msgs: { swipes: { content: string }[]; activeSwipe: number }[]) => {
+  const m = msgs[msgs.length - 1]
+  return m ? (m.swipes[m.activeSwipe]?.content ?? '').slice(0, 160) : ''
+}
+
 /** The chat the Memory tab last showed for a card, per viewer (a small choice, not a setting). */
 const CHAT_KEY = (cardId: string) => `rp-mem-grow-chat:${cardId}`
 const readChatChoice = (cardId: string): string | null => {
@@ -219,7 +225,8 @@ export function GrowthBlock({ card }: { card: Character }) {
     ? {
         chatId,
         title: chosen ? chosen.title || t('mem.untitled') : '',
-        chats: ofCard.map((c) => ({ id: c.id, title: c.title || t('mem.untitled'), name: groups.get(c.characterId) ?? card.name, updatedAt: c.updatedAt })),
+        // the card's own chats lead with their title (the card's name would repeat on every row); a group chat says the group
+        chats: ofCard.map((c) => ({ id: c.id, title: c.title || t('mem.untitled'), name: groups.get(c.characterId) ?? '', updatedAt: c.updatedAt, preview: c.preview || lastLine(c.messages) })),
         onPick: (id) => pick(id),
         onAll: () => pick(null),
       }
@@ -305,6 +312,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
             allLabel={t('mem.grow.chat.all')}
             note={countIn}
             label={t('mem.grow.chat')}
+            searchPlaceholder={t('mem.grow.chat.search')}
             testId="mem-grow-chat-picker"
             className="h-10 w-full sm:w-80"
           />

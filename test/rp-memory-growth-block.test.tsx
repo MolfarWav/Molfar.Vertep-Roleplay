@@ -235,3 +235,16 @@ describe("narrowed to one chat (#540)", () => {
     expect(one).toContain("From the chat “Aria”<");
   });
 });
+
+describe("the chat picker's search (#540)", async () => {
+  const { searchMatches } = await import("../src/components/canvas/chat-picker");
+  it("every word, in any order, anywhere in the row; an empty search keeps every row", () => {
+    const hay = "winter at the spring 2 days ago · 7 msgs 26 nov the wolves howl beyond the pass.";
+    expect(searchMatches(hay, "winter spring")).toBe(true);
+    expect(searchMatches(hay, "Spring  WINTER")).toBe(true);
+    expect(searchMatches(hay, "wolves 7 msgs")).toBe(true);
+    expect(searchMatches(hay, "26 nov")).toBe(true);
+    expect(searchMatches(hay, "winter beach")).toBe(false);
+    expect(searchMatches(hay, "   ")).toBe(true);
+  });
+});

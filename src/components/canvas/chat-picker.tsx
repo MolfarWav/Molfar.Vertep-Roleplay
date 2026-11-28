@@ -5,15 +5,21 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { cn } from '@/lib/utils'
 import { useT, useRelativeTime } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
+import { resolveLanguage } from '@/lib/i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 export interface PickerChat {
   id: string
   title: string
-  /** the character's or the group's name; '' when unknown */
+  /** the character's or the group's name; '' when unknown, or when every row is the same character's (the title leads then) */
   name: string
   updatedAt?: number
+  /** the start of the newest message: shown as a third line and searched, so chats with the same title can be told apart (#540) */
+  preview?: string
 }
+
+/** A message's start as one plain line: no markdown marks, no line breaks. */
+const plainLine = (s: string) => s.replace(/[*_~`#>]+/g, '').replace(/\s+/g, ' ').trim()
 
 /** One chat as the picker shows it: the name once, then what tells it apart from the character's other chats. */
 function useRows(chats: PickerChat[]) {
@@ -21,6 +27,7 @@ function useRows(chats: PickerChat[]) {
   const rel = useRelativeTime()
   const storeChats = useApp((s) => s.chats)
   const characters = useApp((s) => s.characters)
+  const lang = resolveLanguage(useApp((s) => s.settings.language))
   return useMemo(() => {
     const byId = new Map(storeChats.map((c) => [c.id, c]))
     const groups = new Set(characters.filter((c) => c.isGroup).map((c) => c.id))
@@ -38,10 +45,17 @@ function useRows(chats: PickerChat[]) {
           count ? t('chats.msgs', { n: count }) : '',
         ].filter(Boolean).join(' · ')
         const second = [own, when].filter(Boolean).join(' · ')
-        return { id: c.id, main, own, when, second, group: !!full && groups.has(full.characterId), search: `${name} ${title}`.toLowerCase() }
+        const preview = c.preview ? plainLine(c.preview) : ''
+        // what a search finds: the names, when and how long (also the date itself, "27 Nov"), and the newest message
+        const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString(lang, { day: 'numeric', month: 'short' }) : ''
+        const search = [name, title, when, date, preview].join(' ').toLowerCase()
+        return { id: c.id, main, own, when, second, preview, group: !!full && groups.has(full.characterId), search }
       })
-  }, [chats, storeChats, characters, rel, t])
+  }, [chats, storeChats, characters, rel, t, lang])
 }
+
+/** A row matches when every word of the search is in it, in any order: "winter spring" finds "Winter at the spring" (#540). */
+export const searchMatches = (hay: string, search: string) => search.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.toLowerCase().includes(w))
 
 /** The row id of the optional "every chat" choice; never a chat id (those have no colon). */
 const ALL = ':all'
@@ -53,7 +67,7 @@ const ALL = ':all'
  * at the end of a row (the Memory tab's "3 blocks", #540).
  */
 export function ChatPicker({
-  chats, value, onChange, onAll, className, allLabel, note, label, testId,
+  chats, value, onChange, onAll, className, allLabel, note, label, testId, searchPlaceholder,
 }: {
   chats: PickerChat[]
   /** the chosen chat; null = none yet, or every chat when `allLabel` is given */
@@ -67,6 +81,8 @@ export function ChatPicker({
   note?: (id: string | null) => string
   /** what the button is called for a screen reader */
   label?: string
+  /** the search box's hint, when the default ("by character or chat title") does not fit */
+  searchPlaceholder?: string
   testId?: string
 }) {
   const t = useT()
@@ -100,10 +116,10 @@ export function ChatPicker({
       <PopoverContent align="start" className="w-[26rem] max-w-[calc(100vw-1.5rem)] gap-0 p-0">
         <Command
           className="max-h-[min(24rem,var(--available-height,24rem))]"
-          filter={(_value, search, keywords) => (keywords?.[0] ?? '').includes(search.trim().toLowerCase()) ? 1 : 0}
+          filter={(_value, search, keywords) => (searchMatches(keywords?.[0] ?? '', search) ? 1 : 0)}
         >
           {/* on a computer typing searches at once; on a phone the keyboard waits for a tap on the box */}
-          <CommandInput placeholder={t('canvas.prompt.search')} autoFocus={!isMobile} />
+          <CommandInput placeholder={searchPlaceholder ?? t('canvas.prompt.search')} autoFocus={!isMobile} />
           <CommandList>
             <CommandEmpty>{t('canvas.prompt.noChats')}</CommandEmpty>
             {allLabel && (
@@ -137,6 +153,7 @@ export function ChatPicker({
                     )}
                   </span>
                   {r.second && <span className="block truncate text-xs text-muted-foreground">{r.second}</span>}
+                  {r.preview && <span className="block truncate text-xs text-muted-foreground/80" data-testid="chat-picker-preview">{r.preview}</span>}
                 </span>
                 {note && <span className="shrink-0 text-xs text-muted-foreground">{note(r.id)}</span>}
               </CommandItem>
