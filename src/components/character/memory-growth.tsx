@@ -87,11 +87,11 @@ export const editPatch = (id: string, v: GrowthFields): GrowthPatch => ({
   ...(v.of !== undefined ? { of: v.of } : {}),
 })
 
-/** The body of an add call: only what is filled in is sent. */
-export const addPatch = (v: GrowthFields): GrowthPatch => {
+/** The body of an add call: only what is filled in is sent; `forChat` writes it for that chat's story only (#542). */
+export const addPatch = (v: GrowthFields, forChat?: string): GrowthPatch => {
   const title = v.kind === 'added' ? (v.title ?? '').trim() : ''
   const basis = (v.basis ?? '').trim()
-  return { op: 'add', section: v.section, kind: v.kind, text: v.text.trim(), ...(title ? { title } : {}), ...(basis ? { basis } : {}), ...(v.of ? { of: v.of } : {}) }
+  return { op: 'add', section: v.section, kind: v.kind, text: v.text.trim(), ...(title ? { title } : {}), ...(basis ? { basis } : {}), ...(v.of ? { of: v.of } : {}), ...(forChat ? { scope: 'story' as const, chatId: forChat } : {}) }
 }
 
 /** The form's value for "the card as a whole" (a Select cannot hold an empty one). */
@@ -295,9 +295,9 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
   const revert = async (e: GrowthEntry) => {
     if (await act({ op: 'revert', id: e.id })) toast.success(t('mem.grow.reverted'))
   }
-  /** Saves the add form. */
-  const add = async (v: GrowthFields) => {
-    const ok = await act(addPatch(v))
+  /** Saves the add form: for the picked chat's story only, or for every chat (#542). */
+  const add = async (v: GrowthFields, story: boolean) => {
+    const ok = await act(addPatch(v, story && here ? here : undefined))
     if (ok) { setAdding(false); toast.success(t('mem.grow.added')) }
     return ok
   }
@@ -428,7 +428,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
             </div>
           )}
           {adding ? (
-            <GrowthForm key="new" t={t} sections={data.sections} cast={data.cast} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '', of: '' }} submitLabel={t('mem.grow.form.add')} onCancel={() => setAdding(false)} onSubmit={(v) => add(v)} />
+            <GrowthForm key="new" t={t} sections={data.sections} cast={data.cast} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '', of: '' }} submitLabel={t('mem.grow.form.add')} where={view ? { chatTitle: here ? view.title : null, name: card.name } : undefined} onCancel={() => setAdding(false)} onSubmit={(v, _accept, story) => add(v, story)} />
           ) : (
             <div className="flex flex-col gap-3">
               <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} />
@@ -511,7 +511,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
 
 /** Who wrote a block, and from which chat; `when` (the date it was written) is added when several chats of the card share that title (#540). */
 const origin = (e: GrowthEntry, t: T, when = '') => {
-  if (e.origin === 'user') return t('mem.grow.by.user')
+  if (e.origin === 'user') return e.scope === 'story' && e.from?.title ? t('mem.grow.by.user.chat', { title: e.from.title }) : t('mem.grow.by.user')
   if (!e.from?.title) return t('mem.grow.from.agent')
   const story = e.state === 'proposed' && e.scope === 'story'
   if (when) return t(story ? 'mem.grow.from.chat.storyDate' : 'mem.grow.from.chatDate', { title: e.from.title, date: when })
@@ -555,16 +555,21 @@ function FoldText({ text, t, muted }: { text: string; t: T; muted?: boolean }) {
 
 /** The form for one block: add (under the list) and edit (in the dialog). It is not a <form>: Enter makes a new line in the text,
  *  Ctrl+Enter or the button saves, Esc cancels. A proposal can also be saved and accepted at once (`acceptLabel`). */
-export function GrowthForm({ t, sections, cast, initial, submitLabel, acceptLabel, onCancel, onSubmit, bare }: { t: T; sections?: readonly string[]; cast?: readonly string[]; initial: GrowthFields; submitLabel: string; acceptLabel?: string; onCancel: () => void; onSubmit: (v: GrowthFields, thenAccept: boolean) => Promise<boolean>; bare?: boolean }) {
+/**
+ * The add and edit form. `where` (adding, on a card with two or more chats, #542): with a chat picked above, a choice between that
+ * chat's story (the default) and every chat; with all chats shown, one line that the block goes into every chat.
+ */
+export function GrowthForm({ t, sections, cast, initial, submitLabel, acceptLabel, onCancel, onSubmit, bare, where }: { t: T; sections?: readonly string[]; cast?: readonly string[]; initial: GrowthFields; submitLabel: string; acceptLabel?: string; onCancel: () => void; onSubmit: (v: GrowthFields, thenAccept: boolean, story: boolean) => Promise<boolean>; bare?: boolean; where?: { chatTitle: string | null; name: string } }) {
   const uid = useId()
   const [v, setV] = useState<GrowthFields>(initial)
+  const [story, setStory] = useState(true)
   const [busy, setBusy] = useState(false)
   const missing = !v.text.trim()
   const list = (sections?.length ? sections : SECTION_ORDER) as GrowthSection[]
   const submit = async (thenAccept: boolean) => {
     if (missing || busy) return
     setBusy(true)
-    try { await onSubmit(v, thenAccept) } finally { setBusy(false) }
+    try { await onSubmit(v, thenAccept, !!where?.chatTitle && story) } finally { setBusy(false) }
   }
   const keys = (e: React.KeyboardEvent, multi: boolean) => {
     if (e.key === 'Escape') { e.stopPropagation(); onCancel() }
@@ -631,6 +636,25 @@ export function GrowthForm({ t, sections, cast, initial, submitLabel, acceptLabe
         <label htmlFor={`${uid}-basis`} className="text-caption font-medium">{t('mem.grow.form.basis')}</label>
         <Input id={`${uid}-basis`} value={v.basis ?? ''} maxLength={GROWTH_BASIS_MAX} placeholder={t('mem.grow.form.basis.ph')} className="max-md:h-10" onChange={(e) => setV({ ...v, basis: e.target.value })} onKeyDown={(e) => keys(e, false)} />
       </div>
+      {where && (where.chatTitle !== null ? (
+        <fieldset className="flex flex-col gap-2" data-testid="mem-grow-form-where">
+          <legend className="mb-1 text-caption font-medium">{t('mem.grow.where')}</legend>
+          {([
+            { id: 'story', on: true, title: t('mem.grow.form.where.story', { title: where.chatTitle }), hint: t('mem.grow.form.where.story.hint') },
+            { id: 'card', on: false, title: t('mem.grow.where.mode.card', { name: where.name }), hint: t('mem.grow.where.mode.card.hint') },
+          ] as const).map((m) => (
+            <label key={m.id} className="flex min-h-10 cursor-pointer items-start gap-3 rounded-md border border-border p-2.5 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <input type="radio" name={`${uid}-where`} className="mt-1 size-4 accent-primary" checked={story === m.on} onChange={() => setStory(m.on)} data-testid={`mem-grow-form-where-${m.id}`} />
+              <span className="min-w-0">
+                <span className="block break-words text-body font-medium">{m.title}</span>
+                <span className="block text-caption text-muted-foreground">{m.hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : (
+        <p className="text-caption text-muted-foreground" data-testid="mem-grow-form-where-all">{t('mem.grow.form.where.all', { name: where.name })}</p>
+      ))}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" className="max-md:h-10" disabled={missing || busy} onClick={() => void submit(false)}>{submitLabel}</Button>
         {acceptLabel && <Button size="sm" variant="outline" className="max-md:h-10" disabled={missing || busy} onClick={() => void submit(true)}>{acceptLabel}</Button>}
