@@ -20,11 +20,12 @@ function PopoverContent({
   side = "bottom",
   sideOffset = 4,
   initialFocus,
+  collisionAvoidance,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
+    "align" | "alignOffset" | "side" | "sideOffset" | "collisionAvoidance"
   >) {
   // no auto-focus into text fields on open (mobile keyboards) — see popup-focus
   const popupRef = React.useRef<HTMLDivElement | null>(null)
@@ -35,6 +36,7 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        collisionAvoidance={collisionAvoidance}
         className="isolate z-50"
       >
         <PopoverPrimitive.Popup

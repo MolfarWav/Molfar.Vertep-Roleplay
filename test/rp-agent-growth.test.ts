@@ -121,7 +121,7 @@ describe("proposing a block (#396)", () => {
     useAgent("grower");
     expect(run().ran[0]).toMatchObject({ agent: "grower", status: "ok" });
     const g = growthOf();
-    expect(g.v).toBe(2);
+    expect(g.v).toBe(3);
     expect(g.entries).toHaveLength(1);
     expect(g.entries[0]).toMatchObject({ id: "g1", section: "personality", kind: "changed", text: "She sits next to you and does not pull away.", title: "I stay by the fire.", state: "proposed", on: true, origin: "agent", agent: "grower" });
     expect(g.entries[0].from).toMatchObject({ chatId: "c1", title: "Night in the keep" });
@@ -247,7 +247,7 @@ describe("what the user decides, and what goes into the prompt (#396)", () => {
     expect(a.growth.entries[0]).toMatchObject({ id: "g1", section: "other", kind: "changed", text: "Was: Cold. Now: Warm." });
     expect(a.growth.entries[1].text).toBe("Keeps a diary.");
     expect(a.growth.inject.maxTokens).toBe(800);
-    expect(a.growth.v).toBe(2);
+    expect(a.growth.v).toBe(3);
   });
 
   it("the routes refuse what makes no sense, cut the texts and keep the card alone", () => {
@@ -309,6 +309,20 @@ describe("the ready agent 'Character growth' (#396)", () => {
     expect(later[0]).toContain("[personality] Open now");
     expect(later[0]).toContain("waiting for the user");
   });
+  it("in another chat of the card, even one with the same title, the question carries only that chat's blocks (#540)", () => {
+    install();
+    fs.writeFileSync(path.join(root, "characters/aria/growth.json"), JSON.stringify({ v: 3, next: 2, entries: [{ id: "g1", section: "personality", kind: "changed", title: "Open now", text: "She says what she feels.", on: true, state: "accepted", origin: "agent", from: { chatId: "c1", title: "Night in the keep", at: 1 }, scope: "story", at: 1 }] }));
+    // makeChat gives every chat the same title: the id tells them apart, never the name
+    makeChat("c2", Array.from({ length: 16 }, (_, i): [string, string] => [i % 2 ? "char" : "user", "other " + i]));
+    const there: string[] = [];
+    runChat("c2", (q) => { there.push(JSON.stringify(q)); return { text: JSON.stringify(nothing) }; });
+    expect(there[0]).toContain("(nothing yet)");
+    expect(there[0]).not.toContain("Open now");
+    replies(8);
+    const here: string[] = [];
+    runChat("c1", (q) => { here.push(JSON.stringify(q)); return { text: JSON.stringify(nothing) }; });
+    expect(here[0]).toContain("[personality] Open now");
+  });
 });
 
 describe("the hand button: Update from the story (#396)", () => {
@@ -353,6 +367,18 @@ describe("the hand button: Update from the story (#396)", () => {
     const e = growthOf().entries.find((x: Json) => x.agent === "hand");
     expect(e.revises).toBeTruthy();
     expect(r.done.json!.refused.join(" ")).toContain("already there");
+  });
+
+  it("another chat of the card is not told what the first one changed, and the same text there is not 'already there' (#540)", () => {
+    put({ op: "add", section: "behaviors", kind: "added", title: "Night walks", text: "She walks the walls at night." });
+    asStoryOf("g1", "c1");
+    makeChat("c2", CHAT);
+    const r = update({ cardId: "aria", chatId: "c2" }, answerWith([{ section: "behaviors", kind: "added", title: "Night walks", text: "She walks the walls at night." }]));
+    const prompt = r.asked[0][1].messages[0].content as string;
+    expect(prompt).toContain("(nothing yet)");
+    expect(prompt).not.toContain("walks the walls");
+    expect(r.done.json!.added).toBe(1);
+    expect(growthOf().entries.filter((e: Json) => e.text === "She walks the walls at night.").map((e: Json) => e.from.chatId).sort()).toEqual(["c1", "c2"]);
   });
 
   it("a model that sends no JSON, or no answer, stores nothing and says so", () => {

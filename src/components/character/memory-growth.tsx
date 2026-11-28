@@ -12,7 +12,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/hooks/use-t'
-import type { MsgKey } from '@/lib/i18n'
+import { ChatPicker, type PickerChat } from '@/components/canvas/chat-picker'
+import { type MsgKey, resolveLanguage } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import type { Character } from '@/lib/types'
 import {
@@ -27,6 +28,8 @@ import {
   GROWTH_MIN_TOKENS,
   GROWTH_TEXT_MAX,
   GROWTH_TITLE_MAX,
+  growthActs,
+  growthReach,
   loadGrowth,
   putGrowth,
   updateGrowthFromStory,
@@ -97,7 +100,32 @@ const CARD_ITSELF = '_card'
 const sectionLabel = (t: T, s: string) => t(`mem.grow.sec.${SECTION_ORDER.includes(s as GrowthSection) ? s : 'other'}` as MsgKey)
 
 /** The hand button "Update from the story": the chat it reads (null = the card has none), whether a read is running, and the click. */
-export interface StoryRead { title: string | null; reading: boolean; onRead: () => void }
+export interface StoryRead { title: string | null; reading: boolean; onRead: () => void; /** the chat was picked above, not the newest one */ chosen?: boolean }
+
+/** The chat the block is narrowed to (#540): null = every chat. `chats` are the picker's rows; `onPick` chooses one, `onAll` goes back. */
+export interface ChatView {
+  chatId: string | null; title: string; chats: PickerChat[]; onPick: (id: string) => void; onAll: () => void
+  /** the list shows only the chats that have blocks (remembered for every card) */
+  onlyWith?: boolean; onOnlyWith?: (on: boolean) => void
+}
+
+/** The newest message's text, for a chat whose list preview is empty (an opened chat holds its messages instead). */
+const lastLine = (msgs: { swipes: { content: string }[]; activeSwipe: number }[]) => {
+  const m = msgs[msgs.length - 1]
+  return m ? (m.swipes[m.activeSwipe]?.content ?? '').slice(0, 160) : ''
+}
+
+/** The chat the Memory tab last showed for a card, per viewer (a small choice, not a setting). */
+const CHAT_KEY = (cardId: string) => `rp-mem-grow-chat:${cardId}`
+const readChatChoice = (cardId: string): string | null => {
+  try { return localStorage.getItem(CHAT_KEY(cardId)) } catch { return null }
+}
+const ONLY_KEY = 'rp-mem-grow-chat-only'
+const readOnlyWith = () => { try { return localStorage.getItem(ONLY_KEY) === '1' } catch { return false } }
+const keepOnlyWith = (on: boolean) => { try { if (on) localStorage.setItem(ONLY_KEY, '1'); else localStorage.removeItem(ONLY_KEY) } catch { /* private mode */ } }
+const keepChatChoice = (cardId: string, chatId: string | null) => {
+  try { if (chatId) localStorage.setItem(CHAT_KEY(cardId), chatId); else localStorage.removeItem(CHAT_KEY(cardId)) } catch { /* private mode */ }
+}
 
 /** The button and the line under it that says which chat it reads (or why it cannot). */
 function ReadStory({ story, name, t }: { story: StoryRead; name: string; t: T }) {
@@ -107,7 +135,7 @@ function ReadStory({ story, name, t }: { story: StoryRead; name: string; t: T })
         {story.reading ? <CircleNotch className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <BookOpenText aria-hidden="true" />}
         {story.reading ? t('mem.grow.update.busy') : t('mem.grow.update')}
       </Button>
-      <p className="text-caption text-muted-foreground">{story.title === null ? t('mem.grow.update.noChat', { name }) : t('mem.grow.update.hint', { title: story.title })}</p>
+      <p className="text-caption text-muted-foreground">{story.title === null ? t('mem.grow.update.noChat', { name }) : t(story.chosen ? 'mem.grow.update.hint.chosen' : 'mem.grow.update.hint', { title: story.title })}</p>
     </div>
   )
 }
@@ -122,18 +150,33 @@ export function GrowthBlock({ card }: { card: Character }) {
   const alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
 
+  // the chats of this card: its own and those of a group it is in (#450); temporary chats are left out
+  const chats = useApp((st) => st.chats)
+  const characters = useApp((st) => st.characters)
+  const groups = new Map(characters.filter((c) => c.isGroup && c.members?.includes(card.id)).map((c) => [c.id, c.name]))
+  const ofCard = chats.filter((c) => (c.characterId === card.id || groups.has(c.characterId)) && !c.temporary).sort((x, y) => y.updatedAt - x.updatedAt)
+  // the chat the block is narrowed to (#540), remembered per card; a chat that is gone means every chat
+  const [picked, setPicked] = useState<string | null>(() => readChatChoice(card.id))
+  useEffect(() => { setPicked(readChatChoice(card.id)) }, [card.id])
+  const chosen = picked && ofCard.length > 1 ? (ofCard.find((c) => c.id === picked) ?? null) : null
+  const chatId = chosen?.id ?? null
+  const pick = (id: string | null) => { setPicked(id); keepChatChoice(card.id, id) }
+  const [onlyWith, setOnlyWith] = useState(readOnlyWith)
+
   const load = useCallback(() => {
     setLoadError(null)
-    loadGrowth(card.id)
+    loadGrowth(card.id, chatId ?? undefined)
       .then((v) => { if (alive.current) setData(v) })
       .catch((e) => { if (alive.current) setLoadError(e instanceof Error && e.message ? e.message : String(e)) })
-  }, [card.id])
-  useEffect(() => { setData(null); load() }, [load])
+  }, [card.id, chatId])
+  // a new card starts from the loading state; another chat of the same card keeps the list until its answer comes
+  useEffect(() => { setData(null) }, [card.id])
+  useEffect(() => { load() }, [load])
 
   const act: Act = async (patch) => {
     setBusy((n) => n + 1)
     try {
-      const v = await putGrowth(card.id, patch)
+      const v = await putGrowth(card.id, patch, chatId ?? undefined)
       if (alive.current) setData(v)
       return true
     } catch (e) {
@@ -144,18 +187,16 @@ export function GrowthBlock({ card }: { card: Character }) {
     }
   }
 
-  // the hand button reads the newest chat this card is in: with it alone, or in a group (the blocks are about this card only)
-  const chats = useApp((st) => st.chats)
-  const characters = useApp((st) => st.characters)
-  const groupIds = new Set(characters.filter((c) => c.isGroup && c.members?.includes(card.id)).map((c) => c.id))
-  const storyChat = chats.filter((c) => (c.characterId === card.id || groupIds.has(c.characterId)) && !c.temporary).sort((x, y) => y.updatedAt - x.updatedAt)[0] ?? null
+  // the hand button reads the chosen chat, else the newest chat this card is in: alone, or in a group (the blocks are about this card only)
+  const storyChat = chosen ?? ofCard[0] ?? null
   const [reading, setReading] = useState(false)
   const readStory = async () => {
     if (!storyChat || reading) return
     setReading(true)
     try {
       const v = await updateGrowthFromStory(card.id, storyChat.id)
-      if (alive.current) setData(v)
+      // the answer is about the whole card: read it again for the chosen chat, so the numbers are that chat's
+      if (alive.current) { setData(v); if (chatId) load() }
       if (v.added > 0) toast.success(t('mem.grow.update.done', { n: v.added }))
       else toast(t('mem.grow.update.none'))
     } catch (e) {
@@ -186,13 +227,25 @@ export function GrowthBlock({ card }: { card: Character }) {
       </Block>
     )
   }
-  // the chats the "Where it acts" dialog lists: this card's own and those of a group it is in (#450)
-  const cardChats: CardChat[] = chats.filter((c) => (c.characterId === card.id || groupIds.has(c.characterId)) && !c.temporary).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt }))
-  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} chats={cardChats} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory() }} />
+  // the chats the "Where it acts" dialog lists (#450), and the picker's rows (#540): two chats or more, or there is nothing to pick
+  const cardChats: CardChat[] = ofCard.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt }))
+  const view: ChatView | undefined = ofCard.length > 1
+    ? {
+        chatId,
+        title: chosen ? chosen.title || t('mem.untitled') : '',
+        // the card's own chats lead with their title (the card's name would repeat on every row); a group chat says the group
+        chats: ofCard.map((c) => ({ id: c.id, title: c.title || t('mem.untitled'), name: groups.get(c.characterId) ?? '', updatedAt: c.updatedAt, preview: c.preview || lastLine(c.messages) })),
+        onPick: (id) => pick(id),
+        onAll: () => pick(null),
+        onlyWith,
+        onOnlyWith: (on) => { setOnlyWith(on); keepOnlyWith(on) },
+      }
+    : undefined
+  return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} chats={cardChats} view={view} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory(), chosen: !!chosen }} />
 }
 
 /** The block itself, from a loaded list. Split from `GrowthBlock` so it renders without a server. */
-export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean; story?: StoryRead; chats?: CardChat[] }) {
+export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }: { card: Pick<Character, 'id' | 'name'>; data: GrowthView; t: T; act: Act; busy: boolean; story?: StoryRead; chats?: CardChat[]; view?: ChatView }) {
   const [confirm, confirmDialog] = useConfirm()
   // the block whose "Where it acts" dialog is open (read again from the list, so it shows what is saved)
   const [whereId, setWhereId] = useState<string | null>(null)
@@ -202,9 +255,23 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
   // a switch moves at once; the server's answer settles it, and a failure drops the entry so it springs back
   const [pending, setPending] = useState<Record<string, boolean>>({})
 
+  const lang = resolveLanguage(useApp((s) => s.settings.language))
   const { growth, tokens } = data
   const entries = growth.entries
-  const { proposed, accepted } = splitGrowth(entries)
+  // narrowed to one chat (#540): only the blocks that act there (the server's reasons when it sent them for that chat)
+  const here = view?.chatId ?? null
+  const actsIn = (e: GrowthEntry, chat: string) => growthActs((chat === here ? data.reach?.[e.id] : undefined) ?? growthReach(e, chat))
+  const shown = here ? entries.filter((e) => actsIn(e, here)) : entries
+  const hidden = entries.length - shown.length
+  const { proposed, accepted } = splitGrowth(shown)
+  const allAccepted = here ? splitGrowth(entries).accepted : accepted
+  const blocksIn = (chat: string | null) => (chat ? allAccepted.filter((e) => actsIn(e, chat)).length : allAccepted.length)
+  const countIn = (chat: string | null) => t('mem.grow.chat.count', { n: blocksIn(chat) })
+  const withBlocks = view ? view.chats.filter((c) => blocksIn(c.id) > 0).length : 0
+  // chats of the card that share a title (the default title is the card's name): a block's origin line then also gives its date
+  const titles = new Map<string, number>()
+  for (const c of chats) titles.set(c.title, (titles.get(c.title) ?? 0) + 1)
+  const fromWhen = (e: GrowthEntry) => (e.from && (titles.get(e.from.title) ?? 0) > 1 && e.from.at ? new Date(e.from.at).toLocaleDateString(lang, { day: 'numeric', month: 'short' }) : '')
   // a card that voices several characters shows a portrait for each: the card's own blocks first, then one heading per character (#450)
   const ofs = [...new Set([...(accepted.some((e) => !e.of) ? [''] : []), ...(data.cast ?? []), ...accepted.map((e) => e.of ?? '')])].filter((o) => accepted.some((e) => (e.of ?? '') === o))
   const byOf = ofs.map((o) => ({ of: o, groups: groupBySection(accepted.filter((e) => (e.of ?? '') === o), data.sections?.length ? data.sections : SECTION_ORDER) }))
@@ -246,6 +313,26 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
     <Block tone="sky" icon={TrendUp} title={t('mem.grow')} count={accepted.length}>
       <p className="text-caption text-muted-foreground">{t('mem.grow.hint', { name: card.name })}</p>
 
+      {view && (
+        <div className="flex flex-col gap-1" data-testid="mem-grow-chat">
+          <span className="text-caption font-medium" aria-hidden="true">{t('mem.grow.chat')}</span>
+          <ChatPicker
+            chats={view.chats}
+            value={view.chatId}
+            onChange={view.onPick}
+            onAll={view.onAll}
+            allLabel={t('mem.grow.chat.all')}
+            note={countIn}
+            label={t('mem.grow.chat')}
+            searchPlaceholder={t('mem.grow.chat.search')}
+            narrow={view.onOnlyWith ? { label: t('mem.grow.chat.onlyWith', { n: withBlocks }), on: !!view.onlyWith, onChange: view.onOnlyWith, test: (id) => blocksIn(id) > 0, empty: t('mem.grow.chat.noneWith') } : undefined}
+            testId="mem-grow-chat-picker"
+            className="h-10 w-full sm:w-80"
+          />
+          <p className="text-caption text-muted-foreground">{t('mem.grow.chat.hint')}</p>
+        </div>
+      )}
+
       {proposed.length > 0 && (
         <section className="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-2.5" aria-labelledby={`${card.id}-grow-waiting`} data-testid="mem-grow-waiting">
           <header>
@@ -269,7 +356,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
                       <FoldText text={target.text} t={t} muted />
                     </div>
                   )}
-                  <span className="break-words text-caption text-muted-foreground">{origin(e, t)}</span>
+                  <span className="break-words text-caption text-muted-foreground">{origin(e, t, fromWhen(e))}</span>
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" className="max-md:h-10" disabled={busy} onClick={() => void accept(e)}><Check aria-hidden="true" />{t(target ? 'mem.grow.accept.update' : 'mem.grow.accept')}</Button>
                     <Button size="sm" variant="outline" className="max-md:h-10" disabled={busy} onClick={() => setEditing(e)}><PencilSimple aria-hidden="true" />{t('mem.grow.edit')}</Button>
@@ -282,13 +369,14 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
         </section>
       )}
 
-      {none && !adding ? (
+      {(none || shown.length === 0) && !adding ? (
         <Empty className="gap-3 border border-dashed border-border p-5" data-testid="mem-grow-empty">
           <EmptyHeader>
-            <EmptyDescription>{t('mem.grow.empty', { name: card.name })}</EmptyDescription>
+            <EmptyDescription>{none ? t('mem.grow.empty', { name: card.name }) : t('mem.grow.chat.empty', { title: view?.title ?? '' })}</EmptyDescription>
           </EmptyHeader>
           <AddButton onClick={() => setAdding(true)} label={t('mem.grow.add')} primary />
           {story && <ReadStory story={story} name={card.name} t={t} />}
+          {!none && view && <Button variant="outline" size="sm" className="w-fit max-md:h-10" onClick={view.onAll} data-testid="mem-grow-show-all">{t('mem.grow.chat.showAll')}</Button>}
         </Empty>
       ) : (
         <>
@@ -311,7 +399,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
                           <Chips e={e} t={t} />
                         </div>
                         <FoldText text={e.text} t={t} muted={!on} />
-                        <span className="break-words text-caption text-muted-foreground">{origin(e, t)}</span>
+                        <span className="break-words text-caption text-muted-foreground">{origin(e, t, fromWhen(e))}</span>
                         <WhereChip entry={e} name={card.name} label={growthLabel(e)} t={t} onOpen={() => setWhereId(e.id)} />
                       </div>
                       <DropdownMenu>
@@ -333,6 +421,12 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
           ))}
           </div>
           ))}
+          {here && hidden > 0 && view && (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-2.5 sm:flex-row sm:items-center sm:justify-between" data-testid="mem-grow-hidden">
+              <p className="text-caption text-muted-foreground">{t('mem.grow.chat.hidden', { n: hidden })}</p>
+              <Button variant="outline" size="sm" className="w-fit shrink-0 max-md:h-10" onClick={view.onAll} data-testid="mem-grow-show-all">{t('mem.grow.chat.showAll')}</Button>
+            </div>
+          )}
           {adding ? (
             <GrowthForm key="new" t={t} sections={data.sections} cast={data.cast} initial={{ section: 'personality', kind: 'changed', title: '', text: '', basis: '', of: '' }} submitLabel={t('mem.grow.form.add')} onCancel={() => setAdding(false)} onSubmit={(v) => add(v)} />
           ) : (
@@ -369,9 +463,16 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
             </span>
           </label>
           <p className="text-caption text-muted-foreground" data-testid="mem-grow-cost">
-            {growth.inject.enabled ? t('mem.grow.cost', { used: tokens.used, room: tokens.room }) : t('mem.grow.inject.off')}
+            {!growth.inject.enabled
+              ? t('mem.grow.inject.off')
+              : here
+                ? t('mem.grow.cost.chat', { used: tokens.used, room: tokens.room })
+                : view
+                  ? t('mem.grow.cost.all', { used: tokens.used, room: tokens.room })
+                  : t('mem.grow.cost', { used: tokens.used, room: tokens.room })}
           </p>
-          {growth.inject.enabled && tokens.omitted > 0 && (
+          {/* with every chat shown the numbers add up all the stories, so "does not fit" would be about no real chat */}
+          {growth.inject.enabled && tokens.omitted > 0 && (here || !view) && (
             <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-caption text-foreground" role="status" data-testid="mem-grow-omitted">
               <Warning className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300" weight="fill" aria-hidden="true" />
               <span>{t('mem.grow.omitted', { n: tokens.omitted })} {t('mem.grow.omitted.hint')}</span>
@@ -408,7 +509,14 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [] }: { ca
   )
 }
 
-const origin = (e: GrowthEntry, t: T) => (e.origin === 'user' ? t('mem.grow.by.user') : e.from?.title ? t(e.state === 'proposed' && e.scope === 'story' ? 'mem.grow.from.chat.story' : 'mem.grow.from.chat', { title: e.from.title }) : t('mem.grow.from.agent'))
+/** Who wrote a block, and from which chat; `when` (the date it was written) is added when several chats of the card share that title (#540). */
+const origin = (e: GrowthEntry, t: T, when = '') => {
+  if (e.origin === 'user') return t('mem.grow.by.user')
+  if (!e.from?.title) return t('mem.grow.from.agent')
+  const story = e.state === 'proposed' && e.scope === 'story'
+  if (when) return t(story ? 'mem.grow.from.chat.storyDate' : 'mem.grow.from.chatDate', { title: e.from.title, date: when })
+  return t(story ? 'mem.grow.from.chat.story' : 'mem.grow.from.chat', { title: e.from.title })
+}
 
 /** The small tags of a block: its section (in a proposal, where no section heading is above it) and whether it updates the card or adds to it. */
 function Chips({ e, t, section }: { e: GrowthEntry; t: T; section?: boolean }) {

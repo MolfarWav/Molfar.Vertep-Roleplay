@@ -178,3 +178,73 @@ describe("GrowthBody", () => {
     expect(html).toContain("max-md:h-10");
   });
 });
+
+describe("narrowed to one chat (#540)", () => {
+  type ChatView = import("../src/components/character/memory-growth").ChatView;
+  // three chats with the same title: the card's name is the default title
+  const chats = ["a1", "a2", "a3"].map((id, i) => ({ id, title: "Aria", updatedAt: 10 - i }));
+  const from = (chatId: string, at = Date.UTC(2026, 10, 13)) => ({ from: { chatId, title: "Aria", at }, scope: "story" as const, origin: "agent" as const });
+  const A1 = entry("g1", { ...from("a1"), text: "From the first story." });
+  const A2 = entry("g2", { ...from("a2", Date.UTC(2026, 10, 27)), section: "goals", text: "From the second story." });
+  const CARD = entry("g3", { section: "background", text: "Written by hand for every chat." });
+  const WAIT = entry("g4", { ...from("a2"), state: "proposed", text: "Waiting in the second story." });
+  const pickView = (chatId: string | null): ChatView => ({ chatId, title: chatId ? "Aria" : "", chats: chats.map((c) => ({ ...c, name: "Aria" })), onPick: () => {}, onAll: () => {} });
+  const renderIn = (chatId: string | null, entries = [A1, A2, CARD, WAIT], reach?: GrowthView["reach"]) =>
+    renderToStaticMarkup(<GrowthBody card={{ id: "aria", name: "Aria" }} data={{ ...view(entries), ...(reach ? { reach } : {}) }} t={tt} act={async () => true} busy={false} chats={chats} view={pickView(chatId)} />);
+
+  it("no picker without a view (a card with one chat), and every block with one", () => {
+    expect(render(view([A1, A2]))).not.toContain('data-testid="mem-grow-chat"');
+    const all = renderIn(null);
+    expect(all).toContain('data-testid="mem-grow-chat-picker"');
+    expect(all).toContain("All chats");
+    for (const s of ["From the first story.", "From the second story.", "Written by hand", "Waiting in the second story."]) expect(all).toContain(s);
+    expect(all).not.toContain('data-testid="mem-grow-hidden"');
+    expect(all).toContain("All blocks together: 120 of 1500 tokens.");
+  });
+
+  it("a chosen chat shows only what acts there, says how many are hidden, and its own token line", () => {
+    const html = renderIn("a1");
+    expect(html).toContain("From the first story.");
+    expect(html).toContain("Written by hand");
+    expect(html).not.toContain("From the second story.");
+    expect(html).not.toContain("Waiting in the second story.");
+    expect(html).toContain("2 blocks are hidden");
+    expect(html).toContain("Show all chats");
+    expect(html).toContain("This chat gets 120 of 1500 tokens.");
+  });
+
+  it("the server's reasons win: a block switched off in this chat is hidden", () => {
+    const html = renderIn("a1", [A1, CARD], { g1: "source", g3: "skipped" });
+    expect(html).not.toContain("Written by hand");
+    expect(html).toContain("1 block is hidden");
+  });
+
+  it("a chat where nothing acts says so, with Add and Show all chats", () => {
+    const html = renderIn("a3", [A1, A2]);
+    expect(html).toContain("No blocks act in “Aria” yet.");
+    expect(html).toContain('data-testid="mem-grow-show-all"');
+    expect(html).toContain("Add a block");
+  });
+
+  it("chats that share a title: the origin line gives the date the block was written", () => {
+    const html = renderIn(null, [A1, A2]);
+    expect(html).toMatch(/From the chat “Aria”, (13 Nov|Nov 13)/);
+    expect(html).toMatch(/From the chat “Aria”, (27 Nov|Nov 27)/);
+    // titles that differ need no date
+    const one = renderToStaticMarkup(<GrowthBody card={{ id: "aria", name: "Aria" }} data={view([A1])} t={tt} act={async () => true} busy={false} chats={[{ id: "a1", title: "Aria", updatedAt: 1 }, { id: "a2", title: "Beach day", updatedAt: 2 }]} />);
+    expect(one).toContain("From the chat “Aria”<");
+  });
+});
+
+describe("the chat picker's search (#540)", async () => {
+  const { searchMatches } = await import("../src/components/canvas/chat-picker");
+  it("every word, in any order, anywhere in the row; an empty search keeps every row", () => {
+    const hay = "winter at the spring 2 days ago · 7 msgs 26 nov the wolves howl beyond the pass.";
+    expect(searchMatches(hay, "winter spring")).toBe(true);
+    expect(searchMatches(hay, "Spring  WINTER")).toBe(true);
+    expect(searchMatches(hay, "wolves 7 msgs")).toBe(true);
+    expect(searchMatches(hay, "26 nov")).toBe(true);
+    expect(searchMatches(hay, "winter beach")).toBe(false);
+    expect(searchMatches(hay, "   ")).toBe(true);
+  });
+});
