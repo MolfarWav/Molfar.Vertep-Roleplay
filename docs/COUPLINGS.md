@@ -322,3 +322,8 @@ Date: 2026-11-05.
 - **Fails in:** `test/rp-meanwhile-memory.test.ts` (who gets it, the player never, off, canonical names, the cap, parity with `factDraft`, a swipe, the whole reply hook).
 - **Why / history:** #449, M2a; design in the engine repo `.fork/handoff/meanwhile-449/DESIGN.md`.
 - **Trap:** a change to the event's fields in the Meanwhile plugin needs the same change in `meanwhileFacts`. The Dashboard's leak check reads only the stored facts, so it does not look at these. The Library's Facts tab and the "Who knows" map do not list them either.
+
+## A World DM secret hint waits for Direction (Molfar.Vertep#545)
+
+- `plugins/world` `directionQueued` reads `direction/state/<chatId>.json` (`on`, `next.after`) and repeats `dueAfter` of `plugins/direction`: World runs first and Direction does not yield to a hint, so the hint waits. Change the shape of `next` or the due rule and change both.
+- The reserve row "world secret" (120 tokens) is in `plugins/world` `insertCeiling` and in `plugins/engine` `hookInsertTable`.

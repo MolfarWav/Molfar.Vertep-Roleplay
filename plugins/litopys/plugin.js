@@ -1711,6 +1711,8 @@ export const DEFAULT_CONFIG = {
   // (a merge only adds an arc over its chapters, nothing is deleted); an install that already had Litopys data
   // keeps "ask" until its owner switches (stampInstall)
   arcMode: "auto",
+  // #543: the original chapters ride while they fit the memory size; arcs take their place only when they do not
+  arcsWhenNeeded: true,
   // "pending": the Library offers an install that kept "ask" to switch to "auto", once; "done": nothing to offer
   arcNotice: "done",
   // wave 1: "ask" waits for a click on every proposal; "quiet" applies a pin or a rewrite by itself and logs it with an Undo.
@@ -2094,6 +2096,7 @@ export function loadConfig(fsx) {
   cfg.linkBudget = clamp(intOf(cfg.linkBudget, 800), 0, 3000);
   cfg.arcMode = ARC_MODES.includes(cfg.arcMode) ? cfg.arcMode : DEFAULT_CONFIG.arcMode;
   cfg.arcNotice = cfg.arcNotice === "pending" ? "pending" : "done";
+  cfg.arcsWhenNeeded = cfg.arcsWhenNeeded !== false;
   cfg.proposals = PROPOSAL_MODES.includes(cfg.proposals) ? cfg.proposals : DEFAULT_CONFIG.proposals;
   cfg.autoConsolidate = typeof cfg.autoConsolidate === "boolean" ? cfg.autoConsolidate : null;
   cfg.foldFacts = cfg.foldFacts === true;
@@ -2199,6 +2202,7 @@ export function patchConfig(fsx, body) {
     next.arcNotice = "done";
   }
   if (b.arcNotice !== undefined) next.arcNotice = "done";
+  if (b.arcsWhenNeeded !== undefined) next.arcsWhenNeeded = b.arcsWhenNeeded !== false && b.arcsWhenNeeded !== "off";
   if (b.proposals !== undefined) next.proposals = PROPOSAL_MODES.includes(str(b.proposals)) ? str(b.proposals) : DEFAULT_CONFIG.proposals;
   if (b.autoConsolidate !== undefined) next.autoConsolidate = typeof b.autoConsolidate === "boolean" ? b.autoConsolidate : null;
   if (b.foldFacts !== undefined) next.foldFacts = b.foldFacts === true;
@@ -3742,7 +3746,8 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   if (!active.length && !allBefore.length) return null;
   // M4d: a fresh arc whose chapters all left the prompt rides in their place, never beside them
   const beforeIds = new Set(allBefore.map((ch) => ch.id));
-  const arcs = freshArcs(st).filter((a) => a.chapterIds.every((id) => beforeIds.has(id)));
+  // #543: with arcs off, existing ones stay in the file but never in the prompt
+  const arcs = cfg && cfg.arcMode === "off" ? [] : freshArcs(st).filter((a) => a.chapterIds.every((id) => beforeIds.has(id)));
   const held = new Set(arcs.flatMap((a) => a.chapterIds));
   for (const a of arcs) ranges.set(a.id, { fromIdx: Math.min(...a.chapterIds.map((id) => ranges.get(id).fromIdx)), toIdx: Math.max(...a.chapterIds.map((id) => ranges.get(id).toIdx)) });
   const beforeCut = allBefore.filter((ch) => !held.has(ch.id));
@@ -3846,9 +3851,17 @@ export function buildInsert({ st, line, dash, meta, cfg, scanText, speakerName, 
   // the next chapter closes; the facts ride in the tail.
   const allChapters = byStory([...beforeCut, ...arcs]);
   const allFacts = [...a, ...b, ...d];
-  const fullHead = allChapters.length ? ["[Story record (Litopys): the story so far, up to the messages below. " + (cfg.remembers || REMEMBERS) + "]", ...allChapters.map(chapterLine)].join("\n") : "";
+  const headOf = (list) => (list.length ? ["[Story record (Litopys): the story so far, up to the messages below. " + (cfg.remembers || REMEMBERS) + "]", ...list.map(chapterLine)].join("\n") : "");
+  const fullHead = headOf(allChapters);
   const fullTail = allFacts.length ? ["[Story record (Litopys): what stays true. " + (cfg.remembers || REMEMBERS) + "]", "Facts:", ...allFacts.map(factLine)].join("\n") : "";
-  if (estimateTokens([fullHead, fullTail].filter(Boolean).join("\n\n")) <= budget) return result(allFacts, allChapters, fullHead, fullTail, true);
+  const fits = (head) => estimateTokens([head, fullTail].filter(Boolean).join("\n\n")) <= budget;
+  // #543: an arc is the shorter form of its chapters, wanted only when the chapters themselves do not fit
+  if (arcs.length && cfg.arcsWhenNeeded !== false) {
+    const chapters = byStory(allBefore);
+    const head = headOf(chapters);
+    if (fits(head)) return result(allFacts, chapters, head, fullTail, true);
+  }
+  if (fits(fullHead)) return result(allFacts, allChapters, fullHead, fullTail, true);
 
   // Ranked: each item goes in whole or not at all; a group stops at its first item that does not fit
   const facts = [];
@@ -7109,6 +7122,8 @@ function snoozed(st, plan) {
 export function arcWork(st, line, cfg, now) {
   if (isObj(st.rebuild)) return null;
   if (isObj(st.arcFail) && Number(st.arcFail.retryAt) > now) return null;
+  // off means no call at all, a stale arc included (#543)
+  if (cfg.arcMode === "off") return null;
   const fresh = new Set(freshArcs(st));
   for (const a of arr(st.arcs)) {
     if (fresh.has(a)) continue;
@@ -7116,7 +7131,6 @@ export function arcWork(st, line, cfg, now) {
     if (members.length < 2 || !members.every(usable)) continue;
     return { replaces: a.id, chapters: members };
   }
-  if (cfg.arcMode === "off") return null;
   if (isObj(st.arcAsk)) {
     const ids = new Set(arr(st.arcAsk.chapterIds));
     const chapters = st.chapters.filter((ch) => ids.has(ch.id));
@@ -7352,6 +7366,7 @@ export function arcRoute(fsx, body) {
     const arc = arr(st.arcs).find((a) => a.id === str(b.id));
     if (!arc) return { status: 404, json: { error: "no such arc" } };
     if (op === "rewrite") {
+      if (cfg.arcMode === "off") return { status: 409, json: { error: "arcs are off" } };
       arc.stale = true;
       delete st.arcFail;
       woke = true;

@@ -75,3 +75,7 @@ If you edit messages after a chapter was written, that chapter is marked stale a
 ## Related
 
 A character's card can keep memory of finished chats too: see [[memory]]. The Help articles *Litopys: chapters and proposals*, *Facts and proposals* and *Overview vs Details* cover the screens.
+
+## Arcs
+
+An **arc** is a shorter form of several older chapters. It takes their place only when the chapters no longer fit the memory size (the switch **Send chapters while they fit**, Library, Litopys settings, block **Arcs**, on by default). With **Arcs** set to **Off**, none are made and the ones already made are not sent.

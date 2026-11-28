@@ -758,7 +758,7 @@ export const CAST_FREQ = ["off", "rare", "normal", "often"];
 // the cast deck (#424, step 4): cards of new people, how long a card is, and how many a Start or a refill asks for per faction
 export const CAST_LENS = ["short", "normal", "long"];
 
-export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true };
+export const DEFAULT_SETTINGS = { level: "off", everyN: 5, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true, secrets: 0, hintEvery: 6, secretShow: false };
 // model = the play model (runs after replies), buildModel = the one that builds worlds (P3 Start)
 // imageModel: the backgrounds' image model ("" = the app's, Settings > Images); autoBackground: new chats in a
 // world switch backgrounds by scene (off by default, user 2026-10-19: it changes how the chat looks)
@@ -1783,6 +1783,10 @@ function cleanSettings(s) {
     learn: typeof b.learn === "boolean" ? b.learn : DEFAULT_SETTINGS.learn,
     // the rules about the story (from events the player swiped away, or written so) also reach the writing model (#428)
     learnWriter: typeof b.learnWriter === "boolean" ? b.learnWriter : DEFAULT_SETTINGS.learnWriter,
+    // secret threads (#545): how many the DM keeps (0 = off), the replies between their hints (0 = events only), a mark under a hinted reply
+    secrets: Number.isFinite(Number(b.secrets)) ? clamp(Math.round(Number(b.secrets)), 0, SECRETS_MAX) : DEFAULT_SETTINGS.secrets,
+    hintEvery: b.hintEvery !== "" && b.hintEvery !== null && Number.isFinite(Number(b.hintEvery)) ? clamp(Math.round(Number(b.hintEvery)), 0, HINT_EVERY_MAX) : DEFAULT_SETTINGS.hintEvery,
+    secretShow: b.secretShow === true,
   };
 }
 
@@ -2103,6 +2107,7 @@ export function normalizeState(raw, chatId) {
   if (isObj(s.castWait) && Number.isInteger(s.castWait.n) && s.castWait.n >= 0) out.castWait = { n: s.castWait.n };
   // the message the last big event's reply followed: the pause after it counts the replies since (see pauseLeft)
   if (isObj(s.breath) && typeof s.breath.after === "string" && s.breath.after) out.breath = { after: cut(s.breath.after, 80) };
+  normalizeSecrets(s, out);
   if (DIRECTIONS.includes(s.direction)) out.direction = s.direction;
   if (typeof s.transitionKey === "string") out.transitionKey = s.transitionKey;
   out.carry = cleanCarry(s.carry);
@@ -2299,7 +2304,7 @@ export function unreadMessages(msgs, lastKey) {
 const SNAP_DIR = "world/snaps/";
 const SNAP_MAX = 8;
 const SNAP_BYTES = 1500000;
-const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "recent", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "castWait", "tidy", "tidyLog"];
+const CORE_KEYS = ["lastKey", "levelKey", "nextId", "nextFront", "entities", "fronts", "event", "recent", "direction", "transitionKey", "carry", "regIds", "lastChange", "lastPlace", "lastPlaceId", "sweepAsked", "clockReplies", "deck", "cast", "castBuild", "castLog", "entrance", "lastEntrance", "castWait", "tidy", "tidyLog", "secrets", "nextSecret", "secretOrigins", "secretLog"];
 const snapPath = (chatId) => SNAP_DIR + chatId + ".json";
 const cloneJson = (v) => JSON.parse(JSON.stringify(v));
 
@@ -2401,6 +2406,7 @@ function undoFrom(state, snaps, i) {
   const mine = state.entities.filter((e) => e.by === "player" && Number.isFinite(e.at) && e.at > snap.at);
   const nextId = state.nextId;
   const nextFront = state.nextFront;
+  const mineSecrets = { list: arr(state.secrets).filter((x) => x.editedAt > snap.at), next: state.nextSecret };
   for (const k of CORE_KEYS) {
     if (snap.core[k] === undefined) delete state[k];
     else state[k] = cloneJson(snap.core[k]);
@@ -2418,6 +2424,7 @@ function undoFrom(state, snaps, i) {
     if (j >= 0) state.entities[j] = e;
     else if (state.entities.length < ENTITIES_MAX) state.entities.push(e);
   }
+  keepPlayerSecrets(state, mineSecrets, snap.at);
   const undone = new Set(snaps.slice(i).map((x) => x.upTo));
   state.log = state.log.map((r) => (isObj(r) && undone.has(r.key) && !r.error ? { ...r, undone: true } : r));
 }
@@ -3363,7 +3370,10 @@ export function systemFor(levelOrProfile, settings, recordsOnly) {
   const fin = (text) => withLimits(sensorKeeps ? withoutCarry(text) + "\n- Do not record what the characters wear or hold in their hands: the scene tracker keeps that." : text, limits);
   // a records-only run (a place change, or the records' own cadence) leaves the fronts and the event alone
   if (!LEVEL_RULES[profile.base] || recordsOnly) return fin([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT].join("\n"));
-  return fin([keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT].join("\n"));
+  const level = [keeper, ...SPACE_RULES, ...CHRONICLER_OUTPUT, "", blockText(profile, "level"), blockText(profile, "shared"), ...LEVEL_OUTPUT];
+  // secret threads (#545): added only when the chat has them, so every other chat's prompt stays as it was
+  if (settings && settings.secrets > 0) level.push("", ...secretRules(settings.secrets));
+  return fin(level.join("\n"));
 }
 
 function profileView(fsx, p, used, defaultId) {
@@ -3426,7 +3436,7 @@ const cutMiddle = (s, max) => (s.length <= max ? s : s.slice(0, Math.floor((max 
 const frontLine = (f) => f.id + " · " + f.name + " · clock " + f.clock + "/" + f.size + (f.goal ? ": " + f.goal : "");
 
 /** The user message of a DM run. extra (levels above the chronicler): fronts, the pending event, the scene, the Dashboard's threads. */
-export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause, recent }) {
+export function dmInput({ cards, userName, entities, msgs, level, fronts, event, direction, threads, cap, catchingUp, options, deck, place, placeId, carry, sweep, tracked, since, full, removed, soon, learned, pause, recent, secrets }) {
   const active = entities.filter((e) => e.status === "active");
   const past = entities.filter((e) => e.status === "past");
   const lines = msgs
@@ -3451,7 +3461,7 @@ export function dmInput({ cards, userName, entities, msgs, level, fronts, event,
     ...(carry === undefined ? [] : ["What the characters wear and carry now" + (isObj(carry) && Object.keys(carry).length ? "\n" + Object.entries(carry).map(([w, c]) => carryLine(w === "user" && userName ? userName : w, c)).join("\n") : ": nothing recorded yet.")]),
     ...(sweep && (arr(sweep.places).length || arr(sweep.things).length) ? [sweepInput(sweep)] : []),
     ...(arr(tracked).length ? [trackedInput(tracked)] : []),
-    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause, recent }) : []),
+    ...(level && LEVEL_RULES[level] ? levelInput({ fronts, event, direction, threads, options, deck, earlier: earlier.length > 0, pause, recent, secrets }) : []),
     ...(catchingUp ? ["This is an older part of the story, read to catch up; newer parts come in the next runs. Record the world, move the fronts if time passed, but send no event: event null."] : []),
     ...(earlier.length && level && LEVEL_RULES[level]
       ? ["Already read in earlier runs, after the event was sent (the event may have happened here)\n" + earlier.map((m) => "[" + (m.role === "user" ? userName || "user" : str(m.name) || "narrator") + "] " + cutMiddle(String(m.text).trim(), earlierCap)).join("\n")]
@@ -3490,7 +3500,7 @@ export function clockStage(f) {
   return r < 1 / 3 ? "early: only a subtle rumour or a small sign" : r < 2 / 3 ? "growing: a visible development people talk about" : "late: unmistakable, it touches the characters' lives";
 }
 
-function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause, recent }) {
+function levelInput({ fronts, event, direction, threads, options, deck, earlier, pause, recent, secrets }) {
   const o = options || DEFAULT_OPTIONS;
   const active = arr(fronts).filter((f) => f.status === "active");
   const out = ["Fronts" + (active.length ? "\n" + active.map(frontLine).join("\n") : ": none yet.")];
@@ -3510,9 +3520,14 @@ function levelInput({ fronts, event, direction, threads, options, deck, earlier,
   else if (event) out.push("Event still waiting for a reply (keep it, or replace it with a better one): " + event.text);
   if (direction) out.push("Scene direction now (from the scene tracker): " + direction + ".");
   if (pause > 0) out.push("A big event just hit the story: the next " + pause + " " + (pause === 1 ? "reply is" : "replies are") + " its pause, with no new danger. An event you send now waits until the pause is over: make it the aftermath, a consequence or a quiet clue, never a new danger.");
-  if (arr(threads).length) out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
+  if (arr(threads).length) {
+    out.push("Open threads (what the characters care about now): " + threads.join("; ") + ".");
+    // #544: how long each has waited, when the Dashboard says
+    if (threads.some((t) => t.includes(THREAD_AGE))) out.push("One that has waited long is a good one to move or pay off.");
+  }
   const shown = arr(recent).filter((e) => isObj(e) && str(e.text));
   if (shown.length) out.push("Events the story already showed, oldest first. A new event must be a different kind of thing, not the same situation, trick or twist again:\n" + shown.map((e) => "- " + str(e.text)).join("\n"));
+  if (secrets) out.push(...secretInput(secrets, Array.isArray(deck)));
   return out;
 }
 
@@ -3521,7 +3536,15 @@ function dashThreads(fsx, chatId, scene) {
   if (!scene) return [];
   const dash = readJson(fsx, "dashboard/state/" + chatId + ".json", null);
   const sn = isObj(dash) && isObj(dash.snapshots) ? dash.snapshots[scene.key] : null;
-  return arr(sn && sn.threads).filter((t) => isObj(t) && t.status !== "resolved" && str(t.text)).map((t) => cut(str(t.text), 160)).slice(0, 6);
+  return arr(sn && sn.threads).filter((t) => isObj(t) && t.status !== "resolved" && str(t.text)).map((t) => cut(str(t.text), 160) + threadAge(sn, t)).slice(0, 6);
+}
+
+const THREAD_AGE = " (open for ";
+
+/** " (open for N turns)" from the snapshot's turn and the thread's `since` (both Dashboard turns), "" when unknown or new. */
+function threadAge(sn, t) {
+  const n = Math.round(Number(sn.turn) - Number(t.since));
+  return n >= 1 ? THREAD_AGE + n + (n === 1 ? " turn)" : " turns)") : "";
 }
 
 /** The preset a chat replies with, as the chat plugin picks it (for the thinking settings). */
@@ -3907,7 +3930,7 @@ export function tickClocks(state, replies, every, now, seed) {
  * waits while the old one is pending. No event in an explicit scene, none in combat below
  * antagonist. Returns how many fronts changed.
  */
-export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks, useDeck, place, placeId }) {
+export function applyLevel(state, out, { level, direction, now, catchingUp, codeClocks, useDeck, place, placeId, secrets }) {
   const at = now || Date.now();
   let changes = 0;
   const said = DIRECTIONS.includes(str(out.direction).toLowerCase()) ? str(out.direction).toLowerCase() : null;
@@ -3950,14 +3973,266 @@ export function applyLevel(state, out, { level, direction, now, catchingUp, code
     else if (out.delivered === false) state.event = null;
   }
   const quiet = dir === "explicit" || (dir === "combat" && !FIGHT_LEVELS.includes(level));
+  // an event that serves a secret thread (#545) is the DM's own text and takes no card; one that was not allowed is dropped
+  const sid = secrets && isObj(out.event) ? str(out.event.secret) : "";
+  const allowed = !!sid && secretEventAllowed(state) && activeSecrets(state).some((x) => x.id === sid);
+  if (sid && !allowed) logSecret(state, { what: "event-dropped", id: sid, at });
   // with the deck on, only a card of the deck becomes the event, and it is used up
-  const card = useDeck && isObj(out.event) ? arr(state.deck).find((c) => c.id === str(out.event.deck)) : null;
-  const text = useDeck ? (card ? card.text : "") : isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
+  const card = !sid && useDeck && isObj(out.event) ? arr(state.deck).find((c) => c.id === str(out.event.deck)) : null;
+  const own = isObj(out.event) ? cut(str(out.event.text), EVENT_MAX) : "";
+  const text = sid ? (allowed ? own : "") : useDeck ? (card ? card.text : "") : own;
   if (card && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) state.deck = state.deck.filter((c) => c !== card);
   if (text && !quiet && !catchingUp && (!state.event || state.event.sent === 0)) {
+    // which of the last events came from a thread: an event that replaces a waiting one replaces its place here too
+    if (secrets) {
+      const origins = arr(state.secretOrigins).slice(state.event ? 0 : -(SECRET_GAP), state.event ? -1 : undefined);
+      state.secretOrigins = [...origins, sid].slice(-SECRET_GAP);
+      if (sid) logSecret(state, { what: "event", id: sid, at, text });
+    }
     state.event = { text, hard: HARD_LEVELS.includes(level), sent: 0, retried: false, at, ...(placeKey(place) ? { place: placeKey(place) } : {}), ...(REF_ID.test(str(placeId)) ? { placeId: str(placeId) } : {}) };
   }
   return changes;
+}
+
+// ---------- secret threads (#545) ----------
+// Up to three hidden through-lines the DM keeps and plays. The reply model never gets a thread itself: only the events
+// the DM deals for one (at most one event in three) and a quiet hint on a timer of its own. The player sees them behind
+// a spoiler (GET /world/secrets); nothing else in the app carries their text.
+export const SECRETS_MAX = 3;
+export const HINT_EVERY_MAX = 30;
+// an event may come from a thread only when none of this many events before it did
+const SECRET_GAP = 2;
+const SECRET_IDEA_MAX = 300;
+const SECRET_HINT_MAX = 200;
+const SECRET_SURFACED_MAX = 4;
+const SECRET_DONE_KEEP = 3;
+const SECRET_LOG_MAX = 30;
+const SECRET_ID = /^s\d{1,6}$/;
+export const SECRET_LABEL = "World DM · secret hint";
+export const SECRET_HINT_NOTE = "[A quiet detail for this reply, if it fits: {hint} Show it in passing; do not explain it or draw attention to it, and never mention where this note came from.]";
+
+function secretRules(limit) {
+  return [
+    "Secret threads: besides the fronts you keep up to " + limit + " hidden through-line" + (limit === 1 ? "" : "s") + " of this story that only you know. A thread is larger than one scene, something the story can be strung on; light or grave, as your level and the genre ask.",
+    "- Never write a thread, or what it hides, into records, fronts, the summary or any other key: only into secrets.",
+    "- When fewer than " + limit + " are active, add one that grows out of what the story already holds.",
+    "- Each active thread has a next hint: one small concrete detail the next scene can show, never an explanation.",
+    "- When the story has shown a hint or moved a thread, say in surfaced what is now out, and write a new hint.",
+    "- A finished thread is done.",
+    'One more key in the same object: "secrets":[{"op":"add","idea":"...","hint":"..."},{"op":"update","id":"s1","surfaced":"...","hint":"..."},{"op":"done","id":"s1"}]',
+    'An event may serve a thread, only when the input allows it: "event":{"text":"...","secret":"s1"}.',
+  ];
+}
+
+function secretInput({ list, canEvent }, deck) {
+  const line = (x) => x.id + " · " + x.idea + (x.surfaced.length ? " | out so far: " + x.surfaced.join("; ") : "") + (x.hint ? " | " + (x.hintAfter ? "hint given to the story, write a new one: " : "next hint: ") + x.hint : " | no hint: write one");
+  const out = ["Secret threads (only yours)" + (list.length ? ":\n" + list.map(line).join("\n") : ": none yet.")];
+  if (!canEvent) out.push("This run's event must not serve a thread.");
+  else if (list.length) out.push("This run's event may serve a thread." + (deck ? " Such an event is your own text with its secret id, not a card of the deck." : ""));
+  return out;
+}
+
+const activeSecrets = (state) => arr(state.secrets).filter((x) => x.status === "active");
+const secretEventAllowed = (state) => !arr(state.secretOrigins).slice(-SECRET_GAP).some(Boolean);
+
+function logSecret(state, row) {
+  state.secretLog = [...arr(state.secretLog), { at: Date.now(), ...row }].slice(-SECRET_LOG_MAX);
+}
+
+function cleanSecret(x) {
+  if (!isObj(x) || !SECRET_ID.test(str(x.id)) || !str(x.idea)) return null;
+  return {
+    id: str(x.id),
+    idea: cut(str(x.idea), SECRET_IDEA_MAX),
+    surfaced: arr(x.surfaced).map((s) => cut(str(s), 160)).filter(Boolean).slice(-SECRET_SURFACED_MAX),
+    hint: cut(str(x.hint), SECRET_HINT_MAX),
+    status: x.status === "done" ? "done" : "active",
+    by: x.by === "player" ? "player" : "dm",
+    at: num(x.at),
+    // the message the reply that carried the current hint followed (a key); a new hint clears it
+    ...(str(x.hintAfter) ? { hintAfter: cut(str(x.hintAfter), 80) } : {}),
+    ...(num(x.hintedAt) ? { hintedAt: num(x.hintedAt) } : {}),
+    ...(num(x.editedAt) ? { editedAt: num(x.editedAt) } : {}),
+  };
+}
+
+function normalizeSecrets(s, out) {
+  const list = arr(s.secrets).map(cleanSecret).filter(Boolean);
+  if (list.length) out.secrets = list;
+  const next = Math.max(Number.isInteger(s.nextSecret) ? s.nextSecret : 1, list.reduce((m, x) => Math.max(m, Number(x.id.slice(1)) || 0), 0) + 1);
+  if (next > 1) out.nextSecret = next;
+  const origins = arr(s.secretOrigins).map((x) => (SECRET_ID.test(str(x)) ? str(x) : "")).slice(-SECRET_GAP);
+  if (origins.length) out.secretOrigins = origins;
+  if (isObj(s.secretMark) && str(s.secretMark.after)) out.secretMark = { after: cut(str(s.secretMark.after), 80), id: SECRET_ID.test(str(s.secretMark.id)) ? str(s.secretMark.id) : "" };
+  const log = arr(s.secretLog).filter((r) => isObj(r) && str(r.what)).slice(-SECRET_LOG_MAX);
+  if (log.length) out.secretLog = log;
+  if (SECRET_ID.test(str(s.secretNext))) out.secretNext = str(s.secretNext);
+  const gone = arr(s.secretGone).filter((d) => isObj(d) && SECRET_ID.test(str(d.id))).slice(-20);
+  if (gone.length) out.secretGone = gone;
+}
+
+/** After a rollback: what the player edited or dropped since the snapshot stays so; ids are never handed out twice. */
+function keepPlayerSecrets(state, mine, since) {
+  const gone = new Set(arr(state.secretGone).filter((d) => d.at > since).map((d) => d.id));
+  let list = arr(state.secrets).filter((x) => !gone.has(x.id));
+  for (const x of mine.list) if (!gone.has(x.id)) list = list.some((y) => y.id === x.id) ? list.map((y) => (y.id === x.id ? x : y)) : [...list, x];
+  if (list.length) state.secrets = list;
+  else delete state.secrets;
+  if (mine.next) state.nextSecret = Math.max(mine.next, state.nextSecret || 1);
+}
+
+/** The DM's thread ops. Returns true when a thread was added or finished (the run's summary is then not kept). */
+function applySecrets(state, ops, { limit, now, upTo }) {
+  let list = arr(state.secrets);
+  let changed = false;
+  for (const raw of arr(ops).slice(0, 10)) {
+    if (!isObj(raw)) continue;
+    const hint = cut(str(raw.hint), SECRET_HINT_MAX);
+    if (str(raw.op) === "add") {
+      const idea = cut(str(raw.idea), SECRET_IDEA_MAX);
+      if (!idea || list.filter((x) => x.status === "active").length >= limit) continue;
+      const n = state.nextSecret || 1;
+      state.nextSecret = n + 1;
+      list = [...list, { id: "s" + n, idea, surfaced: [], hint, status: "active", by: "dm", at: now }];
+      // the first hint of a chat waits its full turn from the reply this run read
+      if (upTo && !list.slice(0, -1).some((y) => y.status === "active")) state.secretMark = { after: upTo, id: "" };
+      logSecret(state, { what: "added", id: "s" + n, at: now });
+      changed = true;
+      continue;
+    }
+    const x = list.find((y) => y.status === "active" && y.id === str(raw.id));
+    if (!x) continue;
+    if (str(raw.op) === "done") {
+      list = list.map((y) => (y === x ? { ...x, status: "done" } : y));
+      logSecret(state, { what: "done", id: x.id, at: now });
+      changed = true;
+    } else if (str(raw.op) === "update") {
+      const out = cut(str(raw.surfaced), 160);
+      const next = { ...x, surfaced: out && !x.surfaced.includes(out) ? [...x.surfaced, out].slice(-SECRET_SURFACED_MAX) : x.surfaced };
+      if (hint && hint !== x.hint) {
+        next.hint = hint;
+        delete next.hintAfter;
+      }
+      list = list.map((y) => (y === x ? next : y));
+    }
+  }
+  const done = list.filter((x) => x.status === "done").slice(-SECRET_DONE_KEEP);
+  list = list.filter((x) => x.status === "active" || done.includes(x));
+  if (list.length) state.secrets = list;
+  return changed;
+}
+
+/** A Direction beat or rule waiting to ride this reply (read only: World runs first and Direction does not yield to a hint). */
+function directionQueued(fsx, chatId, msgs, op) {
+  const d = readJson(fsx, "direction/state/" + chatId + ".json", null);
+  if (!isObj(d) || d.on !== true || !isObj(d.next)) return false;
+  // Direction's own rule: the note rides the first reply after the one it was decided on
+  const at = msgs.findIndex((m) => keyOf(m) === str(d.next.after));
+  if (at < 0) return false;
+  let count = msgs.slice(at + 1).filter(isReply).length;
+  if (op === "swipe" && count > 0 && isReply(msgs[msgs.length - 1])) count--;
+  return count === 0;
+}
+
+/**
+ * Adds the hint to this reply when it is due. Which thread: the player's "send next", else the one hinted longest ago.
+ * A swipe of the reply that carried one gets the same one again. Held (and logged) when the reply already carries
+ * something from the world or from Direction, and in a fight.
+ */
+function sendSecretHint(fsx, state, { chat, op, anchorMsg, anchorIdx, dir, parts, castSent }) {
+  const every = state.settings.hintEvery;
+  if (!anchorMsg) return;
+  const anchor = keyOf(anchorMsg);
+  const usable = activeSecrets(state).slice(0, state.settings.secrets).filter((x) => x.hint);
+  const mark = state.secretMark;
+  const forced = usable.find((x) => x.id === state.secretNext) || null;
+  const again = !forced && mark && mark.id && mark.after === anchor ? usable.find((x) => x.id === mark.id && x.hintAfter === anchor) || null : null;
+  let pick = forced || again;
+  if (!pick) {
+    if (!(every > 0)) return;
+    // a mark that names no thread only starts the clock: the reply right after it is not "the same reply again"
+    if (mark && !mark.id && mark.after === anchor && every > 1) return;
+    if (pauseLeft(mark, chat.msgs, anchorIdx, every - 1) > 0) return;
+    pick = usable.filter((x) => !x.hintAfter || x.hintAfter === anchor).sort((a, b) => (a.hintedAt || 0) - (b.hintedAt || 0))[0] || null;
+    if (!pick) return;
+  }
+  const why = parts.some((p) => p.label === "World DM") ? "event"
+    : castSent ? "return"
+    : parts.some((p) => p.label === "Life") ? "life"
+    : directionQueued(fsx, state.chatId, chat.msgs, op) ? "direction"
+    : dir === "combat" ? "fight"
+    : "";
+  if (why) {
+    const last = arr(state.secretLog).slice(-1)[0];
+    if (!(last && last.what === "held" && last.why === why && last.after === anchor)) {
+      logSecret(state, { what: "held", id: pick.id, why, after: anchor });
+      saveState(fsx, state);
+    }
+    return;
+  }
+  parts.push({ kind: "plugin", label: SECRET_LABEL, text: SECRET_HINT_NOTE.replace("{hint}", () => (/[.!?…]$/.test(pick.hint) ? pick.hint : pick.hint + ".")) });
+  state.secrets = state.secrets.map((x) => (x.id === pick.id ? { ...x, hintAfter: anchor, hintedAt: Date.now() } : x));
+  state.secretMark = { after: anchor, id: pick.id };
+  delete state.secretNext;
+  logSecret(state, { what: "hint", id: pick.id, text: pick.hint, after: anchor });
+  saveState(fsx, state);
+  const msgs = chat.msgs;
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  // the mark under the reply: that a hint went, never what it was
+  logDice(fsx, state.chatId, { at: Date.now(), kind: "secret", n: msgs.length, last: last ? keyOf(last) : "", lastSwipes: last && Array.isArray(last.swipes) ? last.swipes.length : 0, op, inserted: true });
+}
+
+/** What the card may show without a spoiler. `nextIn`: replies until a hint may go (1 = the next one), null when none will. */
+function secretStatus(state, msgs) {
+  const s = state.settings;
+  const active = activeSecrets(state).slice(0, s.secrets);
+  const waiting = active.some((x) => x.hint && !x.hintAfter);
+  const last = arr(state.secretLog).slice(-1)[0];
+  return {
+    count: active.length,
+    nextIn: state.secretNext ? 1 : s.secrets > 0 && s.hintEvery > 0 && waiting ? pauseLeft(state.secretMark, msgs, msgs.length, s.hintEvery - 1) + 1 : null,
+    held: last && last.what === "held" ? last.why : null,
+  };
+}
+
+function secretsView(state) {
+  return {
+    secrets: arr(state.secrets).map((x) => ({ id: x.id, idea: x.idea, surfaced: x.surfaced, hint: x.hint, hintUsed: !!x.hintAfter, status: x.status, by: x.by })),
+    next: state.secretNext || null,
+    log: arr(state.secretLog).slice().reverse().map((r) => ({ at: r.at, what: r.what, id: str(r.id), ...(r.why ? { why: r.why } : {}), ...(r.text ? { text: r.text } : {}) })),
+  };
+}
+
+/** GET {chatId}: the spoiler view. POST {chatId, op: edit|drop|next, id, idea?, hint?}. */
+function secretsRoute(req, host) {
+  const b = req.method === "GET" ? req.query || {} : body(req);
+  const chatId = String(b.chatId || "");
+  if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
+  if (!readChat(host.fs, chatId)) return ok({ error: "no such chat" }, 404);
+  const { state } = loadState(host.fs, chatId);
+  if (req.method === "GET") return ok(secretsView(state));
+  const x = arr(state.secrets).find((y) => y.id === str(b.id));
+  if (!x) return ok({ error: "no such thread" }, 404);
+  const op = str(b.op);
+  if (op === "drop") {
+    state.secrets = state.secrets.filter((y) => y !== x);
+    state.secretGone = [...arr(state.secretGone), { id: x.id, at: Date.now() }].slice(-20);
+    if (state.secretNext === x.id) delete state.secretNext;
+    logSecret(state, { what: "dropped", id: x.id });
+  } else if (op === "edit") {
+    const idea = cut(str(b.idea), SECRET_IDEA_MAX);
+    if (!idea) return ok({ error: "idea required" }, 400);
+    const hint = b.hint === undefined ? x.hint : cut(str(b.hint), SECRET_HINT_MAX);
+    const next = { ...x, idea, hint, by: "player", editedAt: Date.now() };
+    if (hint !== x.hint) delete next.hintAfter;
+    state.secrets = state.secrets.map((y) => (y === x ? next : y));
+    logSecret(state, { what: "edited", id: x.id });
+  } else if (op === "next") {
+    if (x.status !== "active" || !x.hint) return ok({ error: "this thread has no hint to send" }, 409);
+    state.secretNext = x.id;
+  } else return ok({ error: "op must be edit, drop or next" }, 400);
+  saveState(host.fs, state);
+  return ok(secretsView(state));
 }
 
 // ---------- the insert: the event rides one reply ----------
@@ -5158,7 +5433,7 @@ function diceRoute(req, host) {
   if (!CHAT_ID.test(chatId)) return ok({ error: "chatId required" }, 400);
   const raw = readJson(host.fs, dicePath(chatId), null);
   const { state } = loadState(host.fs, chatId);
-  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true, castShow: state.settings.castShow === true });
+  return ok({ rolls: isObj(raw) ? arr(raw.rolls).filter(isObj) : [], show: state.settings.diceShow === true, castShow: state.settings.castShow === true, secretShow: state.settings.secretShow === true });
 }
 
 /**
@@ -5186,6 +5461,8 @@ export function insertCeiling(ctx, host) {
   if (set.insert !== false && set.level !== "off" && set.level !== "chronicler") {
     rows.push({ id: "world event", tokens: Math.ceil(EVENT_MAX / 3.5) });
     if (set.dice) rows.push({ id: "world dice", tokens: 60 });
+    // a quiet hint of a secret thread (#545): at most SECRET_HINT_MAX characters plus its frame (the engine plugin has the same row)
+    if (set.secrets > 0) rows.push({ id: "world secret", tokens: 120 });
   }
   // a person coming back: the note; with a deck that has cards, the note of a new person carries the card's text (the longest card's room)
   if (set.level !== "off" && (set.cast === "rare" || set.cast === "normal" || set.cast === "often")) rows.push({ id: "world cast", tokens: Math.max(160, deckNoteTokens(set, w.cast)) });
@@ -5349,6 +5626,8 @@ export function llmRequest(ctx, host) {
         }
       }
     }
+    // a quiet hint of a secret thread (#545), on its own timer
+    if (events && state.settings.secrets > 0 && chat) sendSecretHint(fsx, state, { chat, op, anchorMsg, anchorIdx, dir, parts, castSent });
     if (!parts.length) return null;
     return { messages: withLast(req.messages, parts.map((p) => p.text).join("\n\n")), promptSources: { parts } };
   } catch (e) {
@@ -7867,6 +8146,8 @@ function stateView(state, msgs, cfg, scene, play, fsx) {
   const unread = unreadMessages(msgs, state.lastKey);
   return {
     settings: state.settings,
+    // secret threads (#545): counts and the timer only; what they hold comes from GET /world/secrets
+    secrets: secretStatus(state, msgs),
     // the DM's memory for the chat panel's line and the dots: rules in force, proposals waiting
     learn: fsx ? learnCounts(fsx, state) : { on: true, rules: 0, waiting: 0 },
     // the dice in force (the chat's own over the profile's), for the sheet
@@ -8021,7 +8302,7 @@ function settingsRoute(req, host) {
   // a save that does not touch the level (the dice, a limit) must not switch off a chat that is on by default
   if (!existed && b.level === undefined && b.profile === undefined && autoOn(host.fs, chat.meta)) state.settings = startSettings(host.fs, state.settings);
   const patch = {};
-  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "breather", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter"]) if (b[k] !== undefined) patch[k] = b[k];
+  for (const k of ["level", "everyN", "recordsEveryN", "stagnation", "onTransition", "onPlace", "insert", "textMax", "changesMax", "carrySource", "dice", "diceStat", "diceChance", "diceTilt", "diceLife", "dicePace", "breather", "diceShow", "cast", "castShow", "tidy", "castDeck", "castBoundary", "castPer", "castLen", "things", "learn", "learnWriter", "secrets", "hintEvery", "secretShow"]) if (b[k] !== undefined) patch[k] = b[k];
   // a profile picks the level too: a built-in one is the level itself, an own one runs on its base
   if (b.profile !== undefined) {
     const p = str(b.profile) ? loadProfile(host.fs, str(b.profile)) : null;
@@ -8044,6 +8325,8 @@ function settingsRoute(req, host) {
   if (next.cast === "off" || next.level === "off" || (!next.castDeck && state.entrance && state.entrance.src === "deck" && !(state.entrance.sent > 0))) delete state.entrance;
   // a level with no events drops a waiting one
   if ((next.level === "off" || next.level === "chronicler") && state.event) state.event = null;
+  // threads switched on: the first hint waits its full turn from here
+  if (next.secrets > 0 && !(state.settings.secrets > 0) && chat.msgs.length) state.secretMark = { after: keyOf(chat.msgs[chat.msgs.length - 1]), id: "" };
   state.settings = next;
   saveState(host.fs, state);
   const cfg = loadConfig(host.fs);
@@ -8173,6 +8456,8 @@ function updateRoute(req, host) {
   const cast = castOf(runReg, cards);
   const tracked = trackedThings(state, scene, runReg, sweep);
   const play = playModel(fsx, cfg, chat.meta);
+  // secret threads (#545): a full run of a level with events keeps and plays them
+  const runSecrets = !recordsOnly && level !== "chronicler" && state.settings.secrets > 0;
   // what this run reads: every unread message (cut to a fair share), or the oldest part when far behind
   const take = takeUnread(unread);
   const catchingUp = take.rest.length > 0;
@@ -8187,7 +8472,7 @@ function updateRoute(req, host) {
   const ask = (k, maxTokens) => {
     host.llm.request(k, {
       ...(play.model ? { model: play.model } : {}),
-      systemPrompt: systemFor(profile || level, state.settings, recordsOnly),
+      systemPrompt: systemFor(profile || level, runSecrets ? state.settings : { ...state.settings, secrets: 0 }, recordsOnly),
       messages: [{ role: "user", content: expandNamesFor(fsx, chat.meta, dmInput({
         cards: cast, userName, entities: state.entities, msgs: take.msgs, cap: take.cap, catchingUp, level: recordsOnly ? "chronicler" : level, options, place: scene && scene.place, placeId: scene && scene.placeId, sweep, tracked, full: fullIds, removed: removedNames(state, 30), learned: learnedInput(state.settings, state.learned, loadLearned(fsx), state), soon: soonWho, carry: state.settings.carrySource === "dm" ? state.carry : undefined,
         deck: options.deck ? state.deck || [] : null,
@@ -8195,6 +8480,7 @@ function updateRoute(req, host) {
         fronts: state.fronts, event: state.event, direction: directionOf(state, scene),
         threads: THREAD_LEVELS.includes(level) ? dashThreads(fsx, chatId, scene) : [],
         recent: state.recent,
+        secrets: runSecrets ? { list: activeSecrets(state), canEvent: secretEventAllowed(state) } : null,
         // the next reply follows the newest message; the pause counts from there
         pause: HARD_LEVELS.includes(level) ? pauseLeft(state.breath, chat.msgs, chat.msgs.length, breatherOf(profile, state.settings)) : 0,
       })) }],
@@ -8235,7 +8521,8 @@ function updateRoute(req, host) {
   };
   if (r.error || !str(r.text)) return fail(classifyError(r, limit));
   const out = parseReply(r.text);
-  if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", details: cut(str(r.text), 1200) });
+  // the raw reply may spell out a secret thread, so it is not kept for a chat that has them
+  if (!out) return fail({ code: "not-json", message: "The DM's reply was not JSON. Small models often fail at this: pick a stronger play model.", ...(runSecrets ? {} : { details: cut(str(r.text), 1200) }) });
   // the world as it stands now, for a rollback if the message this run reads up to goes away
   pushSnap(fsx, state, str(stash.upTo) || upTo, chat.msgs);
   const touched = new Set();
@@ -8244,13 +8531,14 @@ function updateRoute(req, host) {
   const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
   const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
   regFlush(fsx, rc);
+  const threadsChanged = runSecrets ? applySecrets(state, out.secrets, { limit: state.settings.secrets, now: Date.now(), upTo: str(stash.upTo) || upTo }) : false;
   // the reasons the DM gave for people who may come back soon (only for those it was told about)
   applyReturns(state, out.returns, new Set(soon), Date.now());
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
   const codeClocks = options.clocks === "code";
   // a full run showed the DM the fronts stirred by the last ticks; they are let go before the new ticks
   if (!recordsOnly) for (const f of state.fronts) delete f.stirred;
-  let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck, place: scene && scene.place, placeId: scene && scene.placeId }) : 0;
+  let moved = level !== "chronicler" && !recordsOnly ? applyLevel(state, out, { level, direction: scene && scene.direction, now: Date.now(), catchingUp, codeClocks, useDeck: !!options.deck, secrets: runSecrets, place: scene && scene.place, placeId: scene && scene.placeId }) : 0;
   if (level !== "chronicler" && codeClocks) moved += tickClocks(state, take.msgs.filter(isReply).length, options.clockEvery, Date.now(), chatId + "|clock|" + (str(stash.upTo) || upTo));
   if (scene && scene.direction === "transition") state.transitionKey = scene.key;
   state.lastKey = str(stash.upTo) || upTo;
@@ -8271,7 +8559,7 @@ function updateRoute(req, host) {
   if (str(r.model)) state.lastModel = str(r.model);
   delete state.lastError;
   const behind = catchingUp ? unreadMessages(chat.msgs, state.lastKey).length : 0;
-  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: shorten(str(out.summary), 600), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
+  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: threadsChanged ? "" : shorten(str(out.summary), 600), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
   count(usage);
   if (changes || state.entities.length) {
     writeBook(fsx, state, str(chat.meta.title));
@@ -8589,6 +8877,7 @@ export function handleRoute(req, host) {
   if (path === "/world/chats" && req.method === "GET") return chatsRoute(req, host);
   if (path === "/world/runs" && req.method === "GET") return runsRoute(req, host);
   if (path === "/world/dice" && req.method === "GET") return diceRoute(req, host);
+  if (path === "/world/secrets" && (req.method === "GET" || req.method === "POST")) return secretsRoute(req, host);
   if (path === "/world/test" && req.method === "POST") return testRoute(req, host);
   if (path === "/world/profiles" && ["GET", "PUT", "DELETE"].includes(req.method)) return profilesRoute(req, host);
   if (path === "/world/records" && req.method === "PUT") return recordsRoute(req, host);

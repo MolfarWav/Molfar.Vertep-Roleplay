@@ -41,7 +41,7 @@ describe("arcs smoke", () => {
     expect(view.arcs[0].stale).toBe(false);
     expect(view.arcs[0].fromNo).toBe(1);
     expect(view.arcs[0].toNo).toBe(80);
-    const ins = L.buildInsert({ st: L.loadChatFile(m.host.fs, "ch1"), line: ln, dash: null, meta: { userName: "You" }, cfg: { ...L.loadConfig(m.host.fs), budget: 4000 }, scanText: "mill", speakerName: "Aria" });
+    const ins = L.buildInsert({ st: L.loadChatFile(m.host.fs, "ch1"), line: ln, dash: null, meta: { userName: "You" }, cfg: { ...L.loadConfig(m.host.fs), budget: 4000, arcsWhenNeeded: false }, scanText: "mill", speakerName: "Aria" });
     expect(ins.arcs).toBe(1);
     expect(ins.text).toContain("The mill quarrel");
     expect(ins.text).not.toContain("Part 1:");

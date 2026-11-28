@@ -207,3 +207,45 @@ describe("the full record", () => {
     expect(readJson("litopys/insert/c1.json").full).toBeUndefined();
   });
 });
+
+describe("chapters before arcs (#543)", () => {
+  const withArc = () => {
+    const { st, line, cfg } = chat(100, { budget: 16000, perChapter: 0 });
+    const members = st.chapters.slice(0, 3);
+    (st as any).arcs = [{ id: "a1", label: "The early days", text: "Rhea settled the harbour matter.", chapterIds: members.map((c: any) => c.id), sig: L.arcSig(members), at: 1 }];
+    const build = (over: Record<string, unknown> = {}) =>
+      L.buildInsert({ st, line, dash: { snapshots: {} }, meta: { userName: "Me" }, cfg: { ...cfg, ...over }, scanText: "tower oath storm", speakerName: "Rhea", used: {} });
+    return { st, line, cfg, build };
+  };
+
+  it("sends the chapters while they fit, and the arc when they do not", () => {
+    const { build } = withArc();
+    const roomy = build();
+    expect(roomy).toMatchObject({ arcs: 0, full: true });
+    expect(roomy.head).not.toContain("The early days");
+    const tight = build({ budget: roomy.tokens - 1 });
+    expect(tight).toMatchObject({ arcs: 1, full: true });
+    expect(tight.head).toContain("The early days");
+  });
+
+  it("keeps the old behaviour with the switch off", () => {
+    const { build } = withArc();
+    expect(build({ arcsWhenNeeded: false })).toMatchObject({ arcs: 1, full: true });
+  });
+
+  it("arcs off: an existing arc is not sent, not even when tight, and a stale one is not merged again", () => {
+    const { st, line, cfg, build } = withArc();
+    const roomy = build({ arcMode: "off" });
+    expect(roomy.arcs).toBe(0);
+    expect(build({ arcMode: "off", budget: roomy.tokens - 1 }).arcs).toBe(0);
+    (st as any).arcs[0].stale = true;
+    expect(L.arcWork(st, line, { ...cfg, arcMode: "off" }, Date.now())).toBe(null);
+    expect(L.arcWork(st, line, { ...cfg, arcMode: "auto" }, Date.now())).toMatchObject({ replaces: "a1" });
+  });
+
+  it("the switch is saved, on by default", () => {
+    const { host } = mockHost();
+    expect(route(host, "GET", "/litopys/config").json.arcsWhenNeeded).toBe(true);
+    expect(route(host, "PUT", "/litopys/config", { arcsWhenNeeded: false }).json.arcsWhenNeeded).toBe(false);
+  });
+});

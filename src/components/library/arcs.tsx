@@ -139,6 +139,8 @@ export function ArcCard({ chat, arc, onChat, disabled, children }: {
   const [confirm, confirmDialog] = useConfirm()
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // #543: off keeps the arc in the record and out of the prompt, and nothing merges it again
+  const off = chat.arcState?.mode === 'off'
 
   const handle = async (fn: () => Promise<LitChat>, successMessage?: string) => {
     setBusy(true)
@@ -172,7 +174,8 @@ export function ArcCard({ chat, arc, onChat, disabled, children }: {
                 {t('lit.arc.range', { from: arc.fromNo, to: arc.toNo })}
               </span>
             )}
-            {arc.stale && <Badge variant="outline" className={cn('text-[10px]', TONE.stale)}>{t('lit.arc.stale')}</Badge>}
+            {off && <Badge variant="outline" className="text-xs" data-testid={`arc-off-${arc.id}`}>{t('lit.arc.off')}</Badge>}
+            {!off && arc.stale && <Badge variant="outline" className={cn('text-[10px]', TONE.stale)}>{t('lit.arc.stale')}</Badge>}
           </div>
           <p className="mt-1.5 text-sm whitespace-pre-wrap break-words">{arc.text}</p>
         </div>
@@ -185,10 +188,12 @@ export function ArcCard({ chat, arc, onChat, disabled, children }: {
             }
           />
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuItem disabled={busy} onClick={() => void handle(() => rewriteLitArc(chat.chatId, arc.id), t('lit.arc.rewriteToast'))}>
-              <ArrowsClockwise className="size-3.5" aria-hidden="true" />
-              {t('lit.arc.rewrite')}
-            </DropdownMenuItem>
+            {!off && (
+              <DropdownMenuItem disabled={busy} onClick={() => void handle(() => rewriteLitArc(chat.chatId, arc.id), t('lit.arc.rewriteToast'))}>
+                <ArrowsClockwise className="size-3.5" aria-hidden="true" />
+                {t('lit.arc.rewrite')}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant="destructive"
               disabled={busy}
@@ -203,12 +208,14 @@ export function ArcCard({ chat, arc, onChat, disabled, children }: {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-          <Button size="xs" variant="ghost" disabled={disabled || busy} onClick={() => void handle(() => rewriteLitArc(chat.chatId, arc.id), t('lit.arc.rewriteToast'))}>
-            <ArrowsClockwise className="size-3.5" aria-hidden="true" />
-            {t('lit.arc.rewrite')}
-          </Button>
-        </div>
+        {!off && (
+          <div className="hidden md:flex opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+            <Button size="xs" variant="ghost" disabled={disabled || busy} onClick={() => void handle(() => rewriteLitArc(chat.chatId, arc.id), t('lit.arc.rewriteToast'))}>
+              <ArrowsClockwise className="size-3.5" aria-hidden="true" />
+              {t('lit.arc.rewrite')}
+            </Button>
+          </div>
+        )}
       </div>
       {children && (
         <>

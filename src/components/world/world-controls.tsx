@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Fold } from '@/components/ui/fold'
 import { Section, Chip } from '@/components/ui/section'
 import { NumControl, Segmented, SettingRow } from '@/components/ui/setting-row'
+import { SecretsCard } from '@/components/world/world-secrets'
 import { Switch } from '@/components/ui/switch'
 import { TONES } from '@/components/ui/tone'
 import { DiceFields } from './dice-fields'
@@ -481,6 +482,9 @@ export function WorldControls({
     </Section>
   )
 
+  // Secret threads (#545): at the event levels, like the card above; an older plugin has no such view
+  const secretsCard = (events || !on) && view.secrets && <SecretsCard chatId={chatId} view={view} save={save} on={on} />
+
   // Card 4: people coming back (#424). Every level has it; the DM off dims it.
   const castCard = <CastCard chatId={chatId} view={view} save={save} on={on} />
 
@@ -627,6 +631,7 @@ export function WorldControls({
             {whenCard}
             {writesCard}
             {addsCard}
+            {secretsCard}
             {castCard}
             {deckCard}
             {tidyCard}

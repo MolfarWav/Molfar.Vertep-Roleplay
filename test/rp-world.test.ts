@@ -79,7 +79,7 @@ describe("world state", () => {
       ],
       log: [1, { at: 1 }],
     }, "c1");
-    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", castShow: false, tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true });
+    expect(s.settings).toEqual({ level: "off", everyN: 50, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "off", castShow: false, tidy: true, castDeck: false, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true, secrets: 0, hintEvery: 6, secretShow: false });
     expect(s.entities.map((e) => [e.id, e.kind, e.status, e.aliases])).toEqual([["n1", "person", "active", []], ["n7", "fact", "past", ["Cee"]]]);
     expect(s.nextId).toBe(8);
     expect(s.log).toEqual([{ at: 1 }]);
@@ -164,7 +164,7 @@ describe("routes", () => {
     expect(route(m.host, "POST", "/world/update", { chatId: "c1" }).json).toEqual({ ok: true, skipped: "off" });
     expect(route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "boss" }).status).toBe(400);
     const on = route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "chronicler", everyN: 1 }).json;
-    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "normal", castShow: false, tidy: true, castDeck: true, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true });
+    expect(on.settings).toEqual({ level: "chronicler", everyN: 1, recordsEveryN: 0, stagnation: 6, onTransition: true, onPlace: true, insert: true, textMax: 900, changesMax: 12, carrySource: "sensor", profile: "", dice: "", diceStat: "", diceChance: 0, diceTilt: "", diceLife: -1, dicePace: -1, breather: -1, diceShow: false, cast: "normal", castShow: false, tidy: true, castDeck: true, castBoundary: true, castPer: 2, castLen: "normal", things: "all", learn: true, learnWriter: true, secrets: 0, hintEvery: 6, secretShow: false });
     // reads the last two messages (everyN * 2, at least 2), not the whole chat
     expect(JSON.parse(m.files["world/state/c1.json"]!).lastKey).toBe("m2#0");
   });
@@ -623,6 +623,19 @@ describe("the dice (code rolls before the reply)", () => {
 });
 
 describe("a run above the chronicler", () => {
+  it("says how long a thread has waited, only when the Dashboard knows (#544)", () => {
+    const threads = [
+      { id: "t1", text: "Cross the pass unseen", status: "open", since: 3 },
+      { id: "t2", text: "Find the ferryman", status: "open", since: 12 },
+    ];
+    const m = memHost({ ...seed(), "dashboard/state/c1.json": dashState({ "m4#0": { ...calm("social", { threads }), turn: 12 } }) });
+    route(m.host, "PUT", "/world/settings", { chatId: "c1", level: "director", everyN: 1, fromStart: true });
+    route(m.host, "POST", "/world/update", { chatId: "c1", auto: true });
+    const input = m.requests[0]!.spec.messages[0].content;
+    expect(input).toContain("Cross the pass unseen (open for 9 turns); Find the ferryman.");
+    expect(input).toContain("One that has waited long is a good one to move or pay off.");
+  });
+
   it("director: sends fronts, threads and the direction, keeps the event; explicit freezes even World turn", () => {
     const dash = { "dashboard/state/c1.json": dashState({ "m4#0": calm("social", { threads: [{ id: "t1", text: "Cross the pass unseen", status: "open" }] }) }) };
     const m = memHost({ ...seed(), ...dash });

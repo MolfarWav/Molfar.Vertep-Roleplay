@@ -248,7 +248,8 @@ describe("omniscience: chapters follow who witnessed them (#184 P2)", () => {
     return st;
   };
   const head = (st: any, voices?: Set<string>) => {
-    const r = L.buildInsert({ st, line, dash: null, meta: { userName: "Jude" }, cfg: { ...L.DEFAULT_CONFIG, budget: 4000 }, scanText: "go", speakerName: "Aria", used: {}, voices });
+    const r = L.buildInsert({ st, line, dash: null, meta: { userName: "Jude" }, // arcs ride even where the chapters would fit (#543 is off here): the test is about who may see an arc
+      cfg: { ...L.DEFAULT_CONFIG, budget: 4000, arcsWhenNeeded: false }, scanText: "go", speakerName: "Aria", used: {}, voices });
     return r ? r.head + "\n" + r.tail : "";
   };
 
