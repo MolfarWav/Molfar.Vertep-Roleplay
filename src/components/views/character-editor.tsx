@@ -45,7 +45,7 @@ import { useCardDraft } from '@/components/character/use-card-draft'
 import { useCardTasks } from '@/components/character/use-card-tasks'
 import { DraftDialogs } from '@/components/character/draft-dialogs'
 import { estimateTokens, formatTokens, uid } from '@/lib/tokens'
-import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, storeImageAsset } from '@/lib/engine'
+import { characterToExportCard, fileToDataUrl, fetchEdgeVoices, imageAsDataUrl, storeImageAsset } from '@/lib/engine'
 import { dominantColor } from '@/lib/image-gen'
 import { ImageViewer } from '@/components/ui/image-viewer'
 import { speakText, edgeVoiceLabel, ENGINE_VOICES } from '@/lib/tts'
@@ -217,6 +217,14 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
     try {
       up({ avatar: await fileToDataUrl(file, 512) })
       toast.success('Avatar updated')
+    } catch (e) { toast.error(String((e as Error).message ?? e)) }
+  }
+
+  // a drawn or gallery picture is a stored link: the card keeps its own small copy (#541)
+  const usePicture = async (url: string, done: string) => {
+    try {
+      up({ avatar: await imageAsDataUrl(url) })
+      toast.success(done)
     } catch (e) { toast.error(String((e as Error).message ?? e)) }
   }
 
@@ -660,7 +668,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
             {!c.isGroup && (
               <TabsContent value="soul" keepMounted className="min-w-0">
                 <ErrorBoundary resetKey={c.id} what="The soul">
-                  <SoulTab key={c.id} c={character} active={tab === 'soul'} onStatus={setSoulStatus} />
+                  <SoulTab key={c.id} c={character} tasks={tasks} active={tab === 'soul'} onStatus={setSoulStatus} />
                 </ErrorBoundary>
               </TabsContent>
             )}
@@ -781,7 +789,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
                           <CaretRight className="size-4" aria-hidden="true" />
                         </Button>
                         {lightboxItem.type === 'image' && (
-                          <Button variant="outline" size="sm" onClick={() => { up({ avatar: lightboxItem.url }); toast.success('Set as avatar') }}>
+                          <Button variant="outline" size="sm" onClick={() => void usePicture(lightboxItem.url, 'Set as avatar')}>
                             <ImageIcon className="size-4" aria-hidden="true" /> Set as avatar
                           </Button>
                         )}
@@ -986,7 +994,7 @@ export function CharacterEditor({ character, onClose }: { character: Character; 
         name={c.name}
         card={{ name: c.name, description: c.description, personality: c.personality, scenario: c.scenario }}
         onGenerated={(url) => up({ gallery: [...c.gallery, { id: uid('gal'), url, type: 'image', caption: 'Drawn portrait' }] })}
-        onUse={(url) => { up({ avatar: url }); toast.success('Avatar updated') }}
+        onUse={(url) => void usePicture(url, 'Avatar updated')}
       />
     </div>
   )

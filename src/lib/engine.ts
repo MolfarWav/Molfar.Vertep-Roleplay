@@ -1892,6 +1892,15 @@ export function fileToDataUrl(file: File | Blob, max = 192, opts: { alpha?: bool
   })
 }
 
+/** Any image the app can show (a stored /v1/assets path or a data URL) as a small data URL. A card keeps its
+ *  portrait only as one: the characters route drops a served link, "not the image" (Molfar.Vertep#541). */
+export async function imageAsDataUrl(src: string, max = 512): Promise<string> {
+  if (src.startsWith('data:')) return fileToDataUrl(dataUrlToBlob(src), max)
+  const res = await fetch(src)
+  if (!res.ok) throw new Error(`could not read the picture (${res.status})`)
+  return fileToDataUrl(await res.blob(), max)
+}
+
 function dataUrlToBlob(dataUrl: string): Blob {
   const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl)
   if (!m) throw new Error('not a data URL')

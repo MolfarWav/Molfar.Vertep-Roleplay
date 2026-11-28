@@ -34,7 +34,7 @@
  *  DELETE /dashboard/events                back to the default vocabulary
  *
  * Souls (docs/SOUL.md): who a character is. A card holds them; a rating call proposes them.
- *  POST   /dashboard/soul/rate {characterId, chatId?, auto?}  rate a card's main characters (two-phase)
+ *  POST   /dashboard/soul/rate {characterId, chatId?, auto?, taskModel?}  rate a card's main characters (two-phase)
  *  GET    /dashboard/soul-draft?characterId=                  the proposal of a card, or null
  *  GET    /dashboard/soul-drafts                              cards with a proposal waiting: [{characterId, at, n, failed}] (the "needs you" inbox, #55)
  *  DELETE /dashboard/soul-draft?characterId=[&accepted=1[&name=]]  dismiss it, or remove it (or one name) once accepted
@@ -1373,6 +1373,9 @@ export const JOURNAL_PEOPLE_RULE =
 // What counts as an event (#394): only the user's character's deeds, and the kind of contact by what the text shows.
 const EVENT_DEEDS_RULE =
   "- Events are only what the user's character does. When a character wrongs the user's character (cheats on them, lies to them, leaves them, betrays them), that is the character's deed: never report it as an event of the user's character, and the character's trust in the user must not fall for it. Show it in that character's mood, or use \"other\".";
+// The other direction (#394, seen on real models 2026-11-28): an admitted affair was booked as "told_truth" and raised trust.
+const EVENT_ADMITTED_RULE =
+  "- The user's character's own wrongs do count: when a character learns of one here (the user's character admits it, or is caught), report that wrong with \"to\" that character (\"unfaithful\", \"caught_lying\", \"betrayed_secret\"). Admitting cheating, a lie or a betrayal is that wrong, never \"told_truth\".";
 const EVENT_CONTACT_RULE =
   "- Pick a contact event by what the text shows. A kiss on the forehead, cheek or hand, or a quick friendly one is \"tender_kiss\"; \"kiss\" is only a romantic kiss; a hug or being held is \"hug\". Never use a romantic or sexual event for tender or friendly contact.";
 
@@ -1406,6 +1409,7 @@ export const DEFAULT_PROMPTS = {
     "- One entry for each thing the user's character did toward a character (\"from\": \"user\"), and for scene events that touch a character (danger, novelty; \"from\" left out). Most turns have 0 to 3.",
     "- Between two other characters, name no event: describe it in \"edges\".",
     EVENT_DEEDS_RULE,
+    EVENT_ADMITTED_RULE,
     EVENT_CONTACT_RULE,
     "- \"to\" is a character name. \"quote\" is a short line from the text (under 15 words).",
     "- weight. routine: ordinary for this scene. significant: those involved will still remember it tomorrow. pivotal: it changes how they stand to each other for good (a life saved, a vow, a betrayal).",
@@ -1472,8 +1476,10 @@ export const DEFAULT_PROMPTS = {
 // The twentieth sensor prompt (before the deeds rule and the contact rule: events by whose deed they are, kinds of kiss).
 // The twenty-first sensor prompt (before quests got a "done when" and closed when done, failed or dropped, #400).
 // The twenty-second sensor prompt (before the clock rules: a duration the text states, time as the end of the messages, a day only for a jump; Molfar.Vertep#406).
+// The twenty-fifth sensor prompt (before the user's character's admitted or discovered wrongs were named, Molfar.Vertep#394).
+const SENSOR_PROMPT_25 = DEFAULT_PROMPTS.sensor.replace(EVENT_ADMITTED_RULE + "\n", "");
 // The twenty-fourth sensor prompt (before someone shut out or left behind while the others went on counted as out of the scene, Molfar.Vertep#499).
-const SENSOR_PROMPT_24 = DEFAULT_PROMPTS.sensor.replace(
+const SENSOR_PROMPT_24 = SENSOR_PROMPT_25.replace(
   "present unless the text shows them leaving or the talk ending, or the scene shutting them out: someone left behind or outside while the others go on (the doors close on them, the car drives off, a door is shut in their face) is out of the scene until they act or speak with the others again, even if they shout or are heard from outside. A narrator who only tells the story is not a person in the scene. struck: anyone who left, was shut out or left behind, fell asleep,",
   "present unless the text shows them leaving or the talk ending. A narrator who only tells the story is not a person in the scene. struck: anyone who left, fell asleep,",
 );
@@ -1553,7 +1559,7 @@ const sensorFromParts = (stored) =>
 // "Story, move" before 4.26.1: no anchor in the scene
 const NUDGE_PROMPT_1 =
   "[For this reply only: do not just react to the last message. Let the world or another character act on their own and make something concrete happen that moves the story forward{threads}. Stay in character and in the scene; never mention this note.]";
-export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22, SENSOR_PROMPT_23, SENSOR_PROMPT_24], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
+export const PAST_DEFAULT_PROMPTS = { sensor: [SENSOR_PROMPT_1, SENSOR_PROMPT_2, SENSOR_PROMPT_3, SENSOR_PROMPT_4, SENSOR_PROMPT_5, SENSOR_PROMPT_6, SENSOR_PROMPT_7, SENSOR_PROMPT_8, SENSOR_PROMPT_9, SENSOR_PROMPT_10, SENSOR_PROMPT_11, SENSOR_PROMPT_12, SENSOR_PROMPT_13, SENSOR_PROMPT_14, SENSOR_PROMPT_15, SENSOR_PROMPT_16, SENSOR_PROMPT_17, SENSOR_PROMPT_18, SENSOR_PROMPT_19, SENSOR_PROMPT_20, SENSOR_PROMPT_21, SENSOR_PROMPT_22, SENSOR_PROMPT_23, SENSOR_PROMPT_24, SENSOR_PROMPT_25], soul: [SOUL_PROMPT_1, SOUL_PROMPT_2, SOUL_PROMPT_3], nudge: [NUDGE_PROMPT_1], nudgeTwist: [], fast: [FAST_PROMPT_1, FAST_PROMPT_2] };
 const PROMPT_KEYS = Object.keys(DEFAULT_PROMPTS);
 
 // the journal's two fields in the output shape: a thought in each chars entry, and the people lines (one list, top level)
@@ -7864,7 +7870,8 @@ function callParams(fsx, cfg, meta, temperature) {
 function askSoul(host, cfg, cardId, meta, key, opts) {
   const fsx = host.fs;
   const o = isObj(opts) ? opts : {};
-  const model = soulModel(fsx, cfg, meta, cardId);
+  // a model named by the request (the editor's unsaved or just-made pick, #505) wins over the saved chain
+  const model = str(o.model) || soulModel(fsx, cfg, meta, cardId);
   const userName = meta ? userNameOf(fsx, meta) : "";
   const rateNames = Array.isArray(o.names) ? o.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : undefined;
   host.llm.request(key, {
@@ -9256,6 +9263,7 @@ function rateRoute(req, host) {
   // names parameter: extract and clean
   const cleaned = Array.isArray(b.names) ? b.names.slice(0, 12).filter((n) => typeof n === "string").map((n) => cut(n.trim(), 60)).filter(Boolean) : [];
   const names = cleaned.length ? cleaned : undefined;
+  const picked = typeof b.taskModel === "string" && /^[^\s]{1,200}$/.test(b.taskModel) ? b.taskModel : "";
   // with names, treat auto: true as not auto (the button asked for it)
   const isAuto = parseBool(b.auto) === true && !names;
   if (isAuto && !needsRating(fsx, cardId, cfg)) return ok({ skipped: true });
@@ -9265,11 +9273,11 @@ function rateRoute(req, host) {
   const key = retry ? "soul_rate_retry" : "soul_rate";
   const r = host.llm.results[key];
   if (!r) {
-    askSoul(host, cfg, cardId, chat ? chat.meta : null, key, { names });
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, key, { names, model: picked });
     return { __llmPending: true, stash: { retry, names } };
   }
   if (!retry && r.error && isRateLimit(r)) {
-    askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry", { names });
+    askSoul(host, cfg, cardId, chat ? chat.meta : null, "soul_rate_retry", { names, model: picked });
     return { __llmPending: true, stash: { retry: true, names } };
   }
   const card = readCard(fsx, cardId);
