@@ -79,6 +79,15 @@ export function useCardTasks(owner: TasksOwner) {
     }
   }, [ownerId, edit])
 
+  /** The card's own model, written at once (the Soul tab's "Choose another model", #505): the other settings
+   *  stay as saved, and an unsaved change of them stays unsaved. */
+  const saveModel = useCallback(async (model: string): Promise<void> => {
+    if (!loaded) throw new Error(t('soul.pickNotReady'))
+    const r = await j<{ own?: CardTasks }>('/profile/card-tasks', { method: 'PUT', body: JSON.stringify({ characterId: ownerId, ...mergeTasks(saved, { model }) }) })
+    setSaved(r.own ?? {})
+    setEditState((cur) => mergeTasks(cur, { model }))
+  }, [loaded, ownerId, saved, t])
+
   const discard = useCallback(() => setEditState(saved), [saved])
 
   const side: SideDraft = useMemo(() => ({ dirty, label: t('ct.sideLabel'), panel: 'profile', save, discard }), [dirty, t, save, discard])
@@ -97,6 +106,6 @@ export function useCardTasks(owner: TasksOwner) {
     return requestLimits(taskLimits(other, {}, kind), text, estimateTokens(text))
   }, [models])
 
-  return { edit, setEdit, saved, loaded, resolved, info, limits, requestFor, requestForModel, side, appModel }
+  return { edit, setEdit, saveModel, saved, loaded, resolved, info, limits, requestFor, requestForModel, side, appModel }
 }
 export type CardTasksState = ReturnType<typeof useCardTasks>

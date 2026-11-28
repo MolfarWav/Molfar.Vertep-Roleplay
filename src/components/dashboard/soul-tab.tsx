@@ -28,6 +28,7 @@ import { NeedsYouSwitch } from '@/components/shell/needs-you-switch'
 import { SoulForm, type VocabEvent } from './soul-form'
 import { SoulGuests } from './soul-guests'
 import { SoulModelPicker } from './soul-model-picker'
+import type { CardTasksState } from '@/components/character/use-card-tasks'
 import { mk, type Effect } from './effect-text'
 
 const CLASS_COLORS: Record<SoulClass, string> = {
@@ -55,9 +56,10 @@ export type SoulStatus = 'unrated' | 'pending' | 'failed' | null
 const UNRATED_POLL_MS = 10_000
 const UNRATED_POLL_FOR_MS = 5 * 60_000
 
-export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean; onStatus?: (status: SoulStatus) => void }) {
+export function SoulTab({ c, tasks, active, onStatus }: { c: Character; tasks: CardTasksState; active: boolean; onStatus?: (status: SoulStatus) => void }) {
   const t = useT()
   const updateCharacter = useApp((s) => s.updateCharacter)
+  const updateSettings = useApp((s) => s.updateSettings)
   const lorebooks = useApp((s) => s.lorebooks)
   const chats = useApp((s) => s.chats)
   const [confirm, confirmDialog] = useConfirm()
@@ -86,7 +88,6 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   // the card+proposal whose kind guess was already applied
   const kindDone = useRef('')
   const [ratingName, setRatingName] = useState<string | null>(null)
-  const [sensorModel, setSensorModel] = useState('')
   const [newName, setNewName] = useState('')
 
   const [draft, setDraft] = useState<SoulDraft | null>(null)
@@ -154,8 +155,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   useEffect(() => {
     void loadDraft()
     void loadGuests()
-    void j<{ events?: VocabEvent[]; sensorModel?: unknown }>('/dashboard/config')
-      .then((r) => { setSensorModel(typeof r.sensorModel === 'string' ? r.sensorModel : ''); return r })
+    void j<{ events?: VocabEvent[] }>('/dashboard/config')
       .then((r) => setEvents(Array.isArray(r.events)
         ? r.events.filter((e) => e && typeof e.id === 'string').map((e) => ({ id: e.id, family: String(e.family ?? ''), meaning: e.meaning }))
         : null))
@@ -421,11 +421,12 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   }
 
   // ── rating ──
-  const rateNow = async () => {
+  // `model`: the editor's unsaved or just-made pick; without one the plugin follows the saved chain
+  const rateNow = async (model = tasks.edit.model) => {
     setRating(true)
     try {
-      const r = await j<{ ok?: boolean; added?: unknown; error?: string }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id }) })
-      if (r.ok === false) toast.error(r.error || t('soul.ratingFailed'))
+      const r = await j<{ ok?: boolean; added?: unknown; error?: string; draft?: { error?: string } }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id, ...(model ? { taskModel: model } : {}) }) })
+      if (r.ok === false) toast.error(r.error || `${t('soul.ratingFailed')} ${r.draft?.error ?? ''}`.trim())
       else if (Array.isArray(r.added) && r.added.length === 0) toast.info(t('soul.noneNew'))
       await loadDraft()
     } catch (e) {
@@ -440,7 +441,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
   const rateName = async (name: string) => {
     setRatingName(name)
     try {
-      const r = await j<{ ok?: boolean; error?: string }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id, names: [name] }) })
+      const r = await j<{ ok?: boolean; error?: string }>('/dashboard/soul/rate', { method: 'POST', body: JSON.stringify({ characterId: c.id, names: [name], ...(tasks.edit.model ? { taskModel: tasks.edit.model } : {}) }) })
       if (r.ok === false) { toast.error(r.error || t('soul.ratingFailed')); await loadDraft(); return }
       const fresh = await j<{ draft?: unknown }>(`/dashboard/soul-draft?characterId=${encodeURIComponent(c.id)}`)
       const next = normalizeDraft(fresh.draft)
@@ -475,17 +476,24 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
     await rateName(name)
   }
 
-  /** "Choose another model": the pick becomes the dashboard's sensor model, then the rating runs again. */
-  const pickSensorModel = async (ref: string) => {
+  /** "Choose another model": the pick replaces the model in force where that one is set (the app-wide Card tasks
+   *  model, else this card's own), then the rating runs again. The Dashboard's sensor model is never changed (#505). */
+  const pickModel = async (ref: string) => {
     try {
-      await j('/dashboard/config', { method: 'PUT', body: JSON.stringify({ sensorModel: ref }) })
-      setSensorModel(ref)
+      if (tasks.resolved.source === 'app') updateSettings({ cardTasks: { model: ref } })
+      else await tasks.saveModel(ref)
     } catch (e) {
       toast.error(errMsg(e))
       return
     }
-    await rateNow()
+    await rateNow(ref)
   }
+
+  const modelLine = (
+    <p className="min-w-0 break-all font-mono text-caption text-muted-foreground" data-testid="soul-model">
+      {t('soul.modelLine', { model: tasks.resolved.model || t('ct.none'), source: t(`ct.src.${tasks.resolved.source}`) })}
+    </p>
+  )
 
 
   const taken = new Set([
@@ -569,14 +577,15 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
           <div className="min-w-0 break-words">
             <b>{t('soul.ratingFailed')}</b> {draft.error}
             {draft.model && <p className="mt-1 font-mono text-caption text-muted-foreground">{t('soul.failedModel', { model: draft.model })}</p>}
-            <p className="mt-1 font-mono text-caption text-muted-foreground">{t('soul.sensorModel', { model: sensorModel || t('soul.chatModel') })}</p>
+            <div className="mt-1">{modelLine}</div>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <Button variant="outline" size="sm" className="rounded-none" disabled={rating || unavailable} onClick={() => void rateNow()}>
+            <Button variant="outline" size="sm" className="rounded-none max-md:h-10" disabled={rating || unavailable} onClick={() => void rateNow()}>
               {rating && <CircleNotch className="animate-spin" aria-hidden="true" />}{t('soul.retry')}
             </Button>
-            <SoulModelPicker disabled={rating || unavailable} onPick={(ref) => void pickSensorModel(ref)} />
+            <SoulModelPicker disabled={rating || unavailable || !tasks.loaded} onPick={(ref) => void pickModel(ref)} />
           </div>
+          <p className="text-muted-foreground">{t(tasks.resolved.source === 'app' ? 'soul.pickApp' : 'soul.pickCard')}</p>
         </div>
       )}
       <SoulGuests guests={shownGuests} soulNames={Object.keys(work)} minor={minor} onGive={giveSoul} onSame={sameAs} onHide={hide} onUnhide={unhide} />
@@ -592,6 +601,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
               </Button>
             )}
           </div>
+          {!failed && !unavailable && modelLine}
         </div>
       ) : (
         <div data-guide="soul.chars" className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('soul.chars')}>
@@ -695,6 +705,7 @@ export function SoulTab({ c, active, onStatus }: { c: Character; active: boolean
           </div>
         </div>
       )}
+      {!isEmpty && !failed && !unavailable && modelLine}
 
       {selSoul && selName && blank.has(selName) && !pendingNames.includes(selName) && !byHand.has(selName) ? (
         <div className="flex flex-col items-start gap-2 border border-dashed border-border p-4" data-testid="soul-not-rated">

@@ -1,5 +1,5 @@
 // A small searchable list of the app's models, for "Choose another model" on a
-// failed rating: the pick becomes the dashboard's sensor model.
+// failed call: the caller decides where the pick is saved.
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'

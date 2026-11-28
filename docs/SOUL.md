@@ -98,7 +98,8 @@ A proposal never touches `card.json`. It is one file per card,
 The plugin rates by itself (setting "Rate characters automatically", on by default) after a
 card is imported, and on the first update of a chat whose card has no soul and no proposal
 file. In that update it rates first, then runs the sensor with the new souls, so start values
-count from the first snapshot. One call per card, on the sensor model (empty = the chat's model).
+count from the first snapshot. One call per card, on the model for the card's tasks (`soulModel`: the card's own, the app-wide Card tasks,
+the sensor model, the chat's, the app default).
 
 Molfar ("Rate with Molfar" in the Soul tab) writes the same file with `"by": "molfar"`.
 Rate from what the sources say: the card's description, personality, scenario and first
@@ -112,11 +113,12 @@ go to `aliases`; put seen names that deserve no soul in `minor`. Write `cue`, `c
 
 ## Routes (plugin `relations`)
 
-- `POST /dashboard/soul/rate` with `{ characterId, chatId?, auto?, names? }` → `{ ok, draft, added }`:
+- `POST /dashboard/soul/rate` with `{ characterId, chatId?, auto?, names?, taskModel? }` → `{ ok, draft, added }`:
   without `names` rates the card's main characters that have no soul yet and merges them into the
   proposal file (`added` = the names it proposed, maybe none; a failure leaves a live proposal
   untouched); with `names` rates those (saved souls too). With `auto: true` it runs only when the
-  setting is on and the card has no soul and no proposal file (else `{ skipped: true }`).
+  setting is on and the card has no soul and no proposal file (else `{ skipped: true }`). `taskModel` runs this
+  call on that model instead of the saved chain (the editor's unsaved or just-made pick).
 - `GET /dashboard/soul-draft?characterId=<id>` → `{ draft }` (normalized, filed under the card's
   souls, without proposals equal to the saved souls; or `null`).
   `DELETE` the same path dismisses it (writes `dismissedAt`); `DELETE ...&accepted=1` removes the file;

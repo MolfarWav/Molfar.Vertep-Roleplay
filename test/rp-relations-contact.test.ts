@@ -18,7 +18,7 @@ describe("contact events and deeds (#394)", () => {
     expect(text).toContain("cheats on them");
     expect(text).toContain("\"tender_kiss\"");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.at(-5)).not.toContain("tender_kiss");
-    expect(past.at(-5)!.length).toBeLessThan(past.at(-4)!.length);
+    expect(past.at(-6)).not.toContain("tender_kiss");
+    expect(past.at(-6)!.length).toBeLessThan(past.at(-5)!.length);
   });
 });

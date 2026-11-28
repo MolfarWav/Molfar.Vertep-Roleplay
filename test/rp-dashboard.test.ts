@@ -3501,13 +3501,22 @@ describe("presence guard", () => {
 });
 
 describe("the sensor prompt default", () => {
+  it("names the user's character's admitted or discovered wrongs; the version before is a past default (#394)", () => {
+    const text = P.DEFAULT_PROMPTS.sensor as string;
+    const before = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-1)!;
+    expect(text).toContain('is that wrong, never "told_truth"');
+    expect(before).not.toContain("told_truth");
+    expect(before).toContain("Events are only what the user's character does");
+    expect(text.split("\n").filter((l) => !before.split("\n").includes(l))).toHaveLength(1);
+  });
+
   it("strikes someone the scene shut out or left behind; the version before is a past default (#499)", () => {
     const text = P.DEFAULT_PROMPTS.sensor as string;
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
     expect(text).toContain("or the scene shutting them out");
     expect(text).toContain("the doors close on them, the car drives off");
     expect(text).toContain("struck: anyone who left, was shut out or left behind");
-    const before = past.at(-1)!;
+    const before = past.at(-2)!;
     expect(before).not.toContain("shut out");
     expect(before).toContain("stays present unless the text shows them leaving or the talk ending. A narrator");
     expect(before).not.toBe(text);
@@ -3518,7 +3527,7 @@ describe("the sensor prompt default", () => {
     expect(text).toContain("acts, speaks or is addressed");
     expect(text).toContain("Everyone in the Previous state stays present");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    expect(past.length).toBe(24);
+    expect(past.length).toBe(25);
     expect(past[4]).toContain("Keep up to three open threads");
     expect(text).toContain("the open thread limits given in the input");
     expect(text).not.toContain("three open threads");
@@ -5026,9 +5035,9 @@ describe("scene boundary and note weight (memory M2)", () => {
     expect(P.readScene({ new: false }, { new: false, direction: "explicit", before: "domestic" })).toEqual({ new: false, label: "", direction: "explicit", before: "domestic" });
     expect(P.readScene({ new: true, direction: "domestic" }, { direction: "explicit", before: "domestic" })).toEqual({ new: true, label: "", direction: "domestic" });
     // the ninth default (before the direction) still counts as the default
-    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-16)!;
+    const ninth = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-17)!;
     expect(ninth).not.toContain("Direction:");
-    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-15)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
+    expect((P.PAST_DEFAULT_PROMPTS.sensor as string[]).at(-16)!.replace(/\n\nDirection:[\s\S]*?(?=\n\nKnowledge:)/, "")).toBe(ninth);
     writeChat("c1", three());
     update(mockHost([withScene(null)]), "c1");
     expect(readStateFile("c1").snapshots["m3#0"].scene).toEqual({ new: false });
@@ -5058,7 +5067,7 @@ describe("scene boundary and note weight (memory M2)", () => {
     const system = String(mock.requests[0].req.systemPrompt);
     expect(system).toContain('"scene": { "new": false');
     expect(system).toContain("everyday|important|key");
-    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-19)[0];
+    const old = (P.PAST_DEFAULT_PROMPTS.sensor as string[]).slice(-20)[0];
     expect(old).not.toContain("scene: new is true");
     expect(old).toContain("Keep open threads, up to the open thread limit");
   });
@@ -5112,10 +5121,10 @@ describe("facts the sensor wrote that cannot be kept (#97)", () => {
     expect(text).toContain("the full list of the other characters, never the user's character itself");
     expect(text).toContain("who: the character who learned it, one of those present and never the user's character");
     const past = P.PAST_DEFAULT_PROMPTS.sensor as string[];
-    const before = past.at(-14)!;
+    const before = past.at(-15)!;
     expect(before).not.toContain("never the user's character itself");
     expect(before).toContain("(who, what)");
-    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-15));
+    expect(before.replace(" Never list a thread you resolve in the same report.", "")).toBe(past.at(-16));
   });
 
   it("counts the facts written for the user's character and for someone not in the scene, and says so in the view", () => {

@@ -16,7 +16,7 @@ Only main characters get a soul. Passers-by the story invents are left without o
 
 ## Automatic rating and proposals
 
-By default the app proposes a soul for a card that has none: right after import, and on the first Dashboard update of a chat. A model reads the card, the lorebooks and recent messages. A proposal is not saved into the card. A banner shows "Proposal (automatic)" with "Review", "Accept all" and "Dismiss"; or "Save soul" on a single character. Until you decide, the proposal already acts in play as a provisional soul. "Dismiss" stops automatic rating for this card. If a rating fails, the banner shows "Retry" and "Choose another model". Waiting proposals also appear in the Inbox.
+By default the app proposes a soul for a card that has none: right after import, and on the first Dashboard update of a chat. A model reads the card, the lorebooks and recent messages. A proposal is not saved into the card. A banner shows "Proposal (automatic)" with "Review", "Accept all" and "Dismiss"; or "Save soul" on a single character. Until you decide, the proposal already acts in play as a provisional soul. "Dismiss" stops automatic rating for this card. If a rating fails, the banner shows "Retry" and "Choose another model", and names the model that failed and the one in force. A model you choose there replaces the one in force where it is set: the app-wide "Card tasks" model if that is what runs, otherwise this card's own (Profile tab, "Models"). The Dashboard's sensor model is left as it is. Waiting proposals also appear in the Inbox.
 
 ## Can I rate again from the screen?
 
@@ -25,6 +25,6 @@ Yes, with the same button. The one rating button in the Soul tab changes its lab
 - With no character selected, or one that has no saved soul yet: "Rate now". It rates only the characters that have no soul; if none are left it only says there is nothing new. Rating a character that has no soul yet can also be done with "Rate this character".
 - With a character that already has a saved soul selected: "Rate again". It asks a model for a fresh soul for that one character and shows it as an update to review next to the saved one. If you have unsaved edits it first asks "Rate again?" because they would be replaced. If the new rating equals the saved soul, you are told there is nothing to change.
 
-Nothing is overwritten until you press "Save soul". The model used is the Dashboard's "Sensor model" (the chat's model if empty); the "Rate characters automatically" switch in the Dashboard settings only controls the automatic first rating, not this button.
+Nothing is overwritten until you press "Save soul". The rating runs on the card's own model (Profile tab, "Models"), else the app-wide "Card tasks" model, else the Dashboard's "Sensor model", else the app's default model (the automatic rating of a chat also tries the chat's model before the default). A line on the tab names the one in force and where it comes from. The "Rate characters automatically" switch in the Dashboard settings only controls the automatic first rating, not this button.
 
 You can also ask Molfar in its own chat to rate or adjust a soul; it writes the same kind of proposal ([[vertep:molfar]]).

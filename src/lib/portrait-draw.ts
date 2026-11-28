@@ -1,9 +1,8 @@
 // Portraits for cards that have none. The description comes from the profile plugin (one text-model call that
 // reads the card), the picture from the engine's image route (the picked model: a local ComfyUI or Forge, or an
-// API model), and the result is kept as a light /v1/assets URL. Nothing here writes a card: the caller stores the
-// URL. Bulk drawing runs one card after another (one image server serves them all) through the common progress card.
+// API model), and the result comes back as a /v1/assets URL. Nothing here writes a card. Bulk drawing runs one card after another (one image server serves them all) through the common progress card.
 
-import { j } from '@/lib/engine'
+import { imageAsDataUrl, j } from '@/lib/engine'
 import { buildImagePrompt, generateImage, type GeneratedImage, type ImageGenSettings, type ImageTarget } from '@/lib/image-gen'
 import { forEachImport } from '@/lib/import-progress'
 
@@ -63,14 +62,14 @@ export async function drawCardPortrait(characterId: string, ig: ImageGenSettings
 
 /**
  * Draw the portraits `items` are missing, one unit per card through the progress card (Cancel lands between cards).
- * `apply` stores a finished URL. A card that fails is listed with the reason and the run goes on.
+ * `apply` stores the finished portrait, handed over as a data URL: a card keeps nothing else (#541). A card that fails is listed with the reason and the run goes on.
  */
 export async function drawCardPortraits(
   title: string,
   items: readonly { id: string; name?: string }[],
   ig: ImageGenSettings,
   target: ImageTarget,
-  apply: (id: string, url: string) => void,
+  apply: (id: string, avatar: string) => void,
 ): Promise<{ done: number; failed: number }> {
   let done = 0
   let failed = 0
@@ -81,7 +80,7 @@ export async function drawCardPortraits(
     async (x) => {
       try {
         const img = await drawCardPortrait(x.id, ig, target)
-        apply(x.id, img.url)
+        apply(x.id, await imageAsDataUrl(img.url))
         done++
         return true
       } catch (e) {
