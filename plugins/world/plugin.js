@@ -4014,9 +4014,12 @@ export const SECRET_HINT_NOTE = "[A quiet detail for this reply, if it fits: {hi
 function secretRules(limit) {
   return [
     "Secret threads: besides the fronts you keep up to " + limit + " hidden through-line" + (limit === 1 ? "" : "s") + " of this story that only you know. A thread is larger than one scene, something the story can be strung on; light or grave, as your level and the genre ask.",
-    "- Never write a thread, or what it hides, into records, fronts, the summary or any other key: only into secrets.",
-    "- When fewer than " + limit + " are active, add one that grows out of what the story already holds.",
-    "- Each active thread has a next hint: one small concrete detail the next scene can show, never an explanation.",
+    "- Never write a thread, or what it hides or points to, into records, fronts, the summary or any other key: only into secrets. A record says only what the story itself has shown, not what it may mean.",
+    "- When fewer than " + limit + " are active, add one that grows out of what the story already holds: a definite answer (who is behind what, and why), not a feeling that something is hidden.",
+    "- Write the idea, the hints and surfaced in the language of the story.",
+    "- Each active thread has a next hint: one small concrete thing to see or hear in the next scene.",
+    "- A hint and a thread's event only show: they never name, explain or point to the answer.",
+    "- An event that touches a thread in any way is that thread's event and carries its secret id.",
     "- When the story has shown a hint or moved a thread, say in surfaced what is now out, and write a new hint.",
     "- A finished thread is done.",
     'One more key in the same object: "secrets":[{"op":"add","idea":"...","hint":"..."},{"op":"update","id":"s1","surfaced":"...","hint":"..."},{"op":"done","id":"s1"}]',
@@ -4027,7 +4030,7 @@ function secretRules(limit) {
 function secretInput({ list, canEvent }, deck) {
   const line = (x) => x.id + " · " + x.idea + (x.surfaced.length ? " | out so far: " + x.surfaced.join("; ") : "") + (x.hint ? " | " + (x.hintAfter ? "hint given to the story, write a new one: " : "next hint: ") + x.hint : " | no hint: write one");
   const out = ["Secret threads (only yours)" + (list.length ? ":\n" + list.map(line).join("\n") : ": none yet.")];
-  if (!canEvent) out.push("This run's event must not serve a thread.");
+  if (!canEvent) out.push("This run's event must not serve a thread: it has nothing to do with any of them.");
   else if (list.length) out.push("This run's event may serve a thread." + (deck ? " Such an event is your own text with its secret id, not a card of the deck." : ""));
   return out;
 }
@@ -4081,10 +4084,9 @@ function keepPlayerSecrets(state, mine, since) {
   if (mine.next) state.nextSecret = Math.max(mine.next, state.nextSecret || 1);
 }
 
-/** The DM's thread ops. Returns true when a thread was added or finished (the run's summary is then not kept). */
+/** The DM's thread ops: add up to the limit, update, done. */
 function applySecrets(state, ops, { limit, now, upTo }) {
   let list = arr(state.secrets);
-  let changed = false;
   for (const raw of arr(ops).slice(0, 10)) {
     if (!isObj(raw)) continue;
     const hint = cut(str(raw.hint), SECRET_HINT_MAX);
@@ -4097,7 +4099,6 @@ function applySecrets(state, ops, { limit, now, upTo }) {
       // the first hint of a chat waits its full turn from the reply this run read
       if (upTo && !list.slice(0, -1).some((y) => y.status === "active")) state.secretMark = { after: upTo, id: "" };
       logSecret(state, { what: "added", id: "s" + n, at: now });
-      changed = true;
       continue;
     }
     const x = list.find((y) => y.status === "active" && y.id === str(raw.id));
@@ -4105,7 +4106,6 @@ function applySecrets(state, ops, { limit, now, upTo }) {
     if (str(raw.op) === "done") {
       list = list.map((y) => (y === x ? { ...x, status: "done" } : y));
       logSecret(state, { what: "done", id: x.id, at: now });
-      changed = true;
     } else if (str(raw.op) === "update") {
       const out = cut(str(raw.surfaced), 160);
       const next = { ...x, surfaced: out && !x.surfaced.includes(out) ? [...x.surfaced, out].slice(-SECRET_SURFACED_MAX) : x.surfaced };
@@ -4119,7 +4119,6 @@ function applySecrets(state, ops, { limit, now, upTo }) {
   const done = list.filter((x) => x.status === "done").slice(-SECRET_DONE_KEEP);
   list = list.filter((x) => x.status === "active" || done.includes(x));
   if (list.length) state.secrets = list;
-  return changed;
 }
 
 /** A Direction beat or rule waiting to ride this reply (read only: World runs first and Direction does not yield to a hint). */
@@ -8531,7 +8530,7 @@ function updateRoute(req, host) {
   const carried = state.settings.carrySource === "dm" ? applyCarry(state, out.carry, { cards, userName, now: Date.now(), rc }) : [];
   const changes = applyReport(state, out, { cards, userName, now: Date.now(), touched, rc }) + carried.length;
   regFlush(fsx, rc);
-  const threadsChanged = runSecrets ? applySecrets(state, out.secrets, { limit: state.settings.secrets, now: Date.now(), upTo: str(stash.upTo) || upTo }) : false;
+  if (runSecrets) applySecrets(state, out.secrets, { limit: state.settings.secrets, now: Date.now(), upTo: str(stash.upTo) || upTo });
   // the reasons the DM gave for people who may come back soon (only for those it was told about)
   applyReturns(state, out.returns, new Set(soon), Date.now());
   state.lastChange = { at: Date.now(), ids: [...touched].slice(0, CHANGED_MAX), carry: carried };
@@ -8559,7 +8558,8 @@ function updateRoute(req, host) {
   if (str(r.model)) state.lastModel = str(r.model);
   delete state.lastError;
   const behind = catchingUp ? unreadMessages(chat.msgs, state.lastKey).length : 0;
-  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: threadsChanged ? "" : shorten(str(out.summary), 600), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
+  // the summary is shown to the player, and models name a thread in it: none is kept while a thread is live
+  state.log = [...state.log, { ...run, key: state.lastKey, changes, fronts: moved, summary: runSecrets && activeSecrets(state).length ? "" : shorten(str(out.summary), 600), ...(behind ? { behind } : {}) }].slice(-LOG_MAX);
   count(usage);
   if (changes || state.entities.length) {
     writeBook(fsx, state, str(chat.meta.title));

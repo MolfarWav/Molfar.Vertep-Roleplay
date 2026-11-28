@@ -92,6 +92,8 @@ describe("the DM run", () => {
     expect(m.requests[0]!.spec.messages[0].content).toContain("hint given to the story, write a new one: " + HINT);
     expect(stateOf(m).secrets[0]).toMatchObject({ surfaced: ["A token was found."], hint: "He hums her song" });
     expect(stateOf(m).secrets[0].hintAfter).toBeUndefined();
+    // a live thread: the run's summary is not kept, whatever the run did
+    expect(stateOf(m).log.at(-1).summary).toBe("");
     m.files["chats/c1.jsonl"] = jsonl(line(8));
     run(m, { secrets: [{ op: "done", id: "s1" }], summary: "s" });
     expect(stateOf(m).secrets[0].status).toBe("done");
