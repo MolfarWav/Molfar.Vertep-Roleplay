@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: 이야기 기록
 
 Litopys(연대기)는 한 채팅의 긴 기억입니다. 배경에서 이야기를 읽고 완성된 장면마다 한 챕터를 쓰며, 이야기가 확립한 사실들도 기록합니다. 채팅이 모델의 창에 비해 너무 길어지면, 이 기록이 이야기를 앞으로 이어 갑니다. 긴 이야기에 사용하세요. 직접 시작할 필요는 없습니다.
@@ -76,3 +76,7 @@ Memory는 단어로 사실과 챕터를 찾습니다. 임베딩 모델이 있으
 ## 관련
 
 등장인물의 카드도 완료된 채팅의 기억을 보관할 수 있습니다. [[memory]]를 보세요. 도움말 문서 *Litopys: chapters and proposals*, *Facts and proposals*, *Overview vs Details*가 화면들을 다룹니다.
+
+## Arcs
+
+**arc**는 여러 예전 챕터의 더 짧은 형태입니다. 챕터가 더 이상 메모리 크기에 맞지 않을 때만 그 자리를 대신합니다(Library, Litopys settings, **Arcs** 블록의 **Send chapters while they fit** 스위치, 기본은 켜짐). **Arcs**를 **Off**로 두면 아무것도 만들어지지 않고, 이미 만들어진 것도 보내지지 않습니다.

@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: hikâye kaydı
 
 Litopys (vakayiname), bir sohbetin uzun hafızasıdır. Hikâyeyi arka planda okur ve tamamlanan her sahne için bir bölüm, ayrıca hikâyenin kurduğu olguları yazar. Bir sohbet modelin penceresi için fazla uzadığında, kayıt hikâyeyi ileri taşır. Uzun hikâyeler için kullanın; başlatmanıza gerek yok.
@@ -76,3 +76,7 @@ Bir bölüm yazıldıktan sonra mesajları düzenlerseniz, o bölüm bayat olara
 ## İlgili
 
 Bir karakterin kartı bitmiş sohbetlerin hafızasını da tutabilir: bkz. [[memory]]. *Litopys: chapters and proposals*, *Facts and proposals* ve *Overview vs Details* yardım makaleleri ekranları kapsar.
+
+## Arcs
+
+Bir **arc**, birkaç eski bölümün daha kısa bir biçimidir. Yalnızca bölümler artık bellek boyutuna sığmadığında onların yerini alır (**Send chapters while they fit** anahtarı, Library, Litopys settings, **Arcs** bloğu, varsayılan olarak açık). **Arcs** **Off** olarak ayarlandığında hiçbiri oluşturulmaz ve zaten oluşturulmuş olanlar gönderilmez.

@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys：故事记录
 
 Litopys（编年史）是一个聊天的长期记忆。它在后台阅读故事，为每个完成的场景写下一章，并记录故事已确立的事实。当聊天长到超出模型的窗口时，记录会带着故事继续向前。用它来处理长篇故事；你不需要手动启动它。
@@ -77,3 +77,7 @@ Memory 按词语查找事实和章节。有了嵌入模型，它还会按含义�
 ## 相关
 
 角色的卡片也可以保留已完成聊天的记忆：见 [[memory]]。帮助文章 *Litopys: chapters and proposals*、*Facts and proposals* 和 *Overview vs Details* 介绍了这些界面。
+
+## Arcs
+
+**arc** 是若干旧章节的更短形式。只有当章节不再适合记忆大小时，它才会取代它们（开关 **Send chapters while they fit**，Library，Litopys settings，块 **Arcs**，默认开启）。将 **Arcs** 设为 **Off** 后，不会创建任何 arc，已经创建的也不会被发送。

@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: der Geschichtsverlauf
 
 Litopys (die Chronik) ist das Langzeitgedächtnis eines Chats. Sie liest die Geschichte im Hintergrund und schreibt für jede abgeschlossene Szene ein Kapitel, dazu die Fakten, die die Geschichte etabliert hat. Wenn ein Chat zu lang für das Fenster des Modells wird, trägt der Verlauf die Geschichte weiter. Nutze ihn für lange Geschichten; du musst ihn nicht starten.
@@ -76,3 +76,7 @@ Wenn du Nachrichten bearbeitest, nachdem ein Kapitel geschrieben wurde, wird die
 ## Verwandtes
 
 Die Karte einer Figur kann auch Memory über abgeschlossene Chats behalten: siehe [[memory]]. Die Help-Artikel *Litopys: chapters and proposals*, *Facts and proposals* und *Overview vs Details* behandeln die Bildschirme.
+
+## Arcs
+
+Ein **arc** ist eine kürzere Form von mehreren älteren Kapiteln. Er tritt nur an ihre Stelle, wenn die Kapitel nicht mehr in die Speichergröße passen (der Schalter **Send chapters while they fit**, Library, Litopys settings, Block **Arcs**, standardmäßig an). Mit **Arcs** auf **Off** werden keine erstellt und die bereits erstellten nicht gesendet.

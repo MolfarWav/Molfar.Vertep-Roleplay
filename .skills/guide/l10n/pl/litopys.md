@@ -1,4 +1,4 @@
-<!-- source: c1705720c727 -->
+<!-- source: 4c61df5366c2 -->
 # Litopys: kronika opowieści
 
 Litopys (kronika) to długa pamięć jednego czatu. Czyta opowieść w tle i pisze rozdział dla każdej zakończonej sceny oraz fakty, które opowieść ustanowiła. Gdy czat staje się zbyt długi dla okna modelu, kronika niesie opowieść dalej. Używaj jej do długich opowieści; nie musisz jej uruchamiać.
@@ -76,3 +76,7 @@ Jeśli edytujesz wiadomości po napisaniu rozdziału, ten rozdział jest oznacza
 ## Powiązane
 
 Karta postaci może też trzymać pamięć zakończonych czatów: zobacz [[memory]]. Artykuły pomocy *Litopys: chapters and proposals*, *Facts and proposals* i *Overview vs Details* opisują te ekrany.
+
+## Arcs
+
+**Arc** to krótsza forma kilku starszych rozdziałów. Zastępuje je tylko wtedy, gdy rozdziały przestają mieścić się w rozmiarze pamięci (przełącznik **Send chapters while they fit**, Library, Litopys settings, blok **Arcs**, domyślnie włączony). Przy **Arcs** ustawionym na **Off** żadne nie są tworzone, a te już utworzone nie są wysyłane.
