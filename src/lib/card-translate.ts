@@ -220,7 +220,7 @@ export const hasTranslationRecord = (c: Pick<Character, 'cardExtras'>): boolean 
 
 // ── a lorebook ────────────────────────────────────────────────────────────
 
-export type BookJob = { entry: number; part: 'content' | 'memo' | 'keys' | 'secondaryKeys'; text: string }
+export type BookJob = { entry: number; part: 'content' | 'memo' | 'keys' | 'secondaryKeys' | 'moreKeys'; block?: number; text: string }
 
 /** The texts of a book's entries: content, comment (memo), and the key lists
  *  as one comma line each (regex keys are patterns, not words: left alone). */
@@ -236,6 +236,10 @@ export function planBookJobs(book: Pick<Lorebook, 'entries'>): BookJob[] {
       if (keys.length) jobs.push({ entry, part: 'keys', text: keys.join(', ') })
       const sec = e.secondaryKeys.filter((k) => k.trim())
       if (sec.length) jobs.push({ entry, part: 'secondaryKeys', text: sec.join(', ') })
+      e.moreKeys?.forEach((b, block) => {
+        const words = b.keys.filter((k) => k.trim())
+        if (words.length) jobs.push({ entry, part: 'moreKeys', block, text: words.join(', ') })
+      })
     }
   })
   return jobs
@@ -285,6 +289,12 @@ export function applyBookResults(
     } else if (job.part === 'memo') {
       if (e.memo !== job.text) skipped++
       else if (ans !== e.memo) { if (e.title === e.memo) e.title = ans; e.memo = ans; changed++ }
+    } else if (job.part === 'moreKeys') {
+      const at = job.block ?? 0
+      const block = e.moreKeys?.[at]
+      if (!block) return
+      const merged = mergeKeys(block.keys, splitKeys(ans))
+      if (merged.length !== block.keys.length) { e.moreKeys = e.moreKeys!.map((b, n) => (n === at ? { ...b, keys: merged } : b)); changed++ }
     } else {
       const field = job.part
       const merged = mergeKeys(e[field], splitKeys(ans))

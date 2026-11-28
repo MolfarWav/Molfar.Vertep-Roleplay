@@ -20,6 +20,7 @@ texts themselves load `card-craft` (characters) or `lorebook-craft` (worlds).
 - Group: `apps/roleplay/data/groups/<id>.json` (not a card: members, shared scenario,
   openings, per-member settings, the group's own books; fields in DATA-FORMATS, "Groups").
 - Files starting with `_` are AI-only templates: copy, never edit.
+- Limit an entry only when the user asks: `"sceneFilter": { "places": [names], "present": [names], "times": [...], "weather": [...] }` makes it eligible only in such a scene (a room counts as part of its building; `placesExclude`, `presentExclude`, `weatherExclude` turn a list into "except"; it needs the Dashboard), and `"moreKeys": [{ "logic": "NOT_ANY", "keys": [...] }]` adds up to 4 more key rules that must all hold.
 - A lorebook entry may be secret: `"secret": { "knownBy": [names], "cover": "what the others see", "reveal": [words], "happens": "one sentence" }`
   (DATA-FORMATS, "Entry fields"). A character who does not know it gets `cover` instead of `content` (nothing when
   `cover` is empty); a narrator gets the truth with a marker. Who knows grows in the chat by itself (a `reveal` word said

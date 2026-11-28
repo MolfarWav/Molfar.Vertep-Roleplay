@@ -2958,23 +2958,43 @@ function isConstantEntry(entry) {
  *  `secondary` = the secondary keys that hit; `fail: "secondary"` when the
  *  primary hit but the selective logic did not hold. Probability is the
  *  caller's (rolled once per activation). */
+/** How many key blocks an entry may carry besides its secondary keys (#547). */
+const WI_MORE_MAX = 4;
+
+/**
+ * An entry's key blocks in order: the secondary keys, then `moreKeys` (#547: `[{ logic, keys }]`). Every block must
+ * hold. A block with no keys says nothing and is left out. `block` is its number as the editor counts it (1 first).
+ */
+export function wiKeyBlocks(entry) {
+  const out = [];
+  const add = (keys, name, block) => {
+    if (Array.isArray(keys) && keys.length) out.push({ keys, name: WI_LOGIC[name] != null ? name : "AND_ANY", block });
+  };
+  add(entry.secondaryKeys, entry.selectiveLogic, 1);
+  const more = Array.isArray(entry.moreKeys) ? entry.moreKeys.slice(0, WI_MORE_MAX) : [];
+  more.forEach((m, i) => { if (m && typeof m === "object") add(m.keys, m.logic, i + 2); });
+  return out;
+}
+
 function wiEntryMatch(entry, scanText, rawText, countAll, skipPrimary, sc) {
   const keys = entry.keys || [];
-  const secondary = entry.secondaryKeys || [];
-  const logic = WI_LOGIC[entry.selectiveLogic] != null ? WI_LOGIC[entry.selectiveLogic] : 0;
+  const blocks = wiKeyBlocks(entry);
   const caseBlind = !(entry && wiCaseSensitive(entry));
   const raw = caseBlind ? null : rawText;
   // skipPrimary: a vector let the entry in, only the secondary keys are tested
   const key = skipPrimary ? "" : keys.find((k) => keyMatch(scanText, k, entry, raw, rawText, sc));
   if (key == null) return null;
-  const hits = secondary.filter((k) => keyMatch(scanText, k, entry, raw, rawText, sc));
+  const hits = [];
+  for (const b of blocks) {
+    const found = b.keys.filter((k) => keyMatch(scanText, k, entry, raw, rawText, sc));
+    const logic = WI_LOGIC[b.name];
+    const n = found.length;
+    const bad = (logic === 0 && n < 1) || (logic === 3 && n < b.keys.length) || (logic === 2 && n > 0) || (logic === 1 && n === b.keys.length);
+    if (bad) return { key: String(key), secondary: found.map(String), fail: "secondary", logic: b.name, block: b.block };
+    for (const k of found) hits.push(k);
+  }
   // group scoring ranks members by how many of their keys hit
   const score = countAll ? keys.filter((k) => keyMatch(scanText, k, entry, raw, rawText, sc)).length + hits.length : 0;
-  if (secondary.length) {
-    const n = hits.length;
-    const bad = (logic === 0 && n < 1) || (logic === 3 && n < secondary.length) || (logic === 2 && n > 0) || (logic === 1 && n === secondary.length);
-    if (bad) return { key: String(key), secondary: hits.map(String), fail: "secondary" };
-  }
   return { key: String(key), secondary: hits.map(String), score };
 }
 /** One winner per inclusion group among this pass's newly fired entries:
@@ -3551,6 +3571,182 @@ export function presenceOfLine(line, dash) {
   return out;
 }
 
+// ---------- scene conditions on lorebook entries (#547) ----------
+
+/** The parts of the day the Dashboard's clock names (mirrors BAND_WORDS in plugins/relations). */
+const WI_BANDS = ["dawn", "morning", "late morning", "day", "evening", "night"];
+const sceneWords = (v) => (typeof v === "string" ? v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() : "");
+const sceneList = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()).slice(0, 40) : []);
+
+/** An entry's scene conditions (`sceneFilter`), cleaned; null when it has none. */
+export function wiSceneFilter(entry) {
+  const f = entry && entry.sceneFilter;
+  if (!f || typeof f !== "object") return null;
+  const out = {
+    places: sceneList(f.places), placesExclude: f.placesExclude === true,
+    present: sceneList(f.present), presentExclude: f.presentExclude === true,
+    times: sceneList(f.times).map((x) => x.toLowerCase()).filter((x) => WI_BANDS.includes(x)),
+    weather: sceneList(f.weather), weatherExclude: f.weatherExclude === true,
+  };
+  return out.places.length || out.present.length || out.times.length || out.weather.length ? out : null;
+}
+
+/**
+ * The Dashboard's reading the scene stands on: the newest snapshot on the line, else what the chat carried over from
+ * the one it continues. Null when nothing was read (the Dashboard is off, or has not run yet).
+ */
+export function snapshotOfLine(line, dash) {
+  const snaps = dash && dash.snapshots && typeof dash.snapshots === "object" ? dash.snapshots : null;
+  if (snaps && Array.isArray(line)) {
+    for (let i = line.length - 1; i >= 0; i--) {
+      const m = line[i];
+      const s = m && m.id ? snaps[m.id + "#" + (Number.isFinite(m.swipe) ? m.swipe : 0)] : null;
+      if (s && typeof s === "object") return s;
+    }
+  }
+  const from = dash && dash.inherited && dash.inherited.off !== true ? dash.inherited.snap : null;
+  return from && typeof from === "object" ? from : null;
+}
+
+/**
+ * What a scene condition is compared with: { place, names, present, band, weather }. `place` is the Dashboard's own
+ * place line; `names` every other name that place answers to (the registry's spellings, the World DM's record and
+ * the bigger places it is inside, so a room counts as part of its building). `present` is null when nobody read the
+ * scene, [] when the user's character is alone.
+ */
+export function sceneOfSnapshot(snap, world, registry) {
+  const clock = snap && snap.clock && typeof snap.clock === "object" ? snap.clock : {};
+  const place = typeof clock.place === "string" ? clock.place.trim() : "";
+  const ents = registry && Array.isArray(registry.entities) ? registry.entities : [];
+  const byId = new Map(ents.filter((e) => e && e.id).map((e) => [e.id, e]));
+  const canon = (id) => {
+    let cur = byId.get(id);
+    for (let i = 0; cur && cur.merged && i < 10; i++) cur = byId.get(cur.merged) || cur;
+    return cur ? cur.id : id;
+  };
+  const spellings = (e) => (e ? [e.name, ...(Array.isArray(e.aliases) ? e.aliases.map((a) => (typeof a === "string" ? a : a && a.text)) : [])].filter((x) => typeof x === "string" && x.trim()) : []);
+  const names = new Set();
+  const addName = (n) => { const k = sceneWords(n); if (k) names.add(k); };
+  const placeId = typeof clock.placeId === "string" && clock.placeId ? canon(clock.placeId) : "";
+  if (placeId) spellings(byId.get(placeId)).forEach(addName);
+
+  const records = world && Array.isArray(world.entities) ? world.entities.filter((e) => e && e.kind === "place" && e.status === "active") : [];
+  const links = world && world.regIds && typeof world.regIds === "object" ? world.regIds : {};
+  const namesOf = (r) => [r.name, ...(Array.isArray(r.aliases) ? r.aliases : [])].filter((x) => typeof x === "string" && x.trim());
+  const answers = (r, k) => namesOf(r).some((n) => sceneWords(n) === k);
+  // the record of the scene's place: by registry id, else by name, else the longest name inside the place line
+  const line = " " + sceneWords(place) + " ";
+  let found = placeId ? records.filter((r) => links[r.id] && canon(links[r.id]) === placeId) : [];
+  if (!found.length && place) {
+    const exact = records.filter((r) => answers(r, sceneWords(place)));
+    if (exact.length) found = exact;
+    else {
+      let best = null;
+      let score = 0;
+      for (const r of records) for (const n of namesOf(r)) {
+        const k = sceneWords(n);
+        const s = (r.size === "spot" ? 1000 : 0) + k.length;
+        if (k.length >= 4 && s > score && line.includes(" " + k + " ")) { best = r; score = s; }
+      }
+      if (best) found = [best];
+    }
+  }
+  // the record, then everything it is inside
+  const seen = new Set();
+  const todo = [...found];
+  while (todo.length && seen.size < 12) {
+    const r = todo.shift();
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    namesOf(r).forEach(addName);
+    if (links[r.id]) spellings(byId.get(canon(links[r.id]))).forEach(addName);
+    if (typeof r.inside === "string" && r.inside.trim()) {
+      addName(r.inside);
+      const k = sceneWords(r.inside);
+      todo.push(...records.filter((x) => x !== r && answers(x, k)));
+    }
+  }
+
+  let present = null;
+  if (snap && Array.isArray(snap.present)) {
+    present = [];
+    for (const n of snap.present) {
+      if (typeof n !== "string" || !n.trim()) continue;
+      const k = sceneWords(n);
+      const e = ents.find((x) => x.kind === "person" && spellings(x).some((a) => sceneWords(a) === k));
+      present.push([n.trim(), ...(e ? spellings(byId.get(canon(e.id)) || e) : [])]);
+    }
+  }
+  const band = typeof clock.band === "string" ? clock.band.trim().toLowerCase() : "";
+  return {
+    place, names: [...names], present,
+    band: WI_BANDS.includes(band) ? band : "",
+    weather: typeof clock.weather === "string" ? clock.weather.trim() : "",
+  };
+}
+
+/** Whether the words of a condition stand in a line of the scene: whole words, word forms and the other script, as keys do. */
+function sceneSays(text, word) {
+  return !!text && !!keyMatch(String(text).toLowerCase(), word, { wordForms: true }, null, String(text));
+}
+
+/**
+ * Why a scene condition holds an entry back, or null when all of them hold: { reason, detail: { want, have, exclude } }.
+ * A part of the scene nobody read (`have` empty and `unknown`) holds an "only here" condition back and lets an
+ * "everywhere except" one through.
+ */
+export function wiSceneStop(filter, scene) {
+  const s = scene || { place: "", names: [], present: null, band: "", weather: "" };
+  const stop = (reason, want, have, exclude, unknown) => ({ reason, detail: { want, have, exclude, ...(unknown ? { unknown: true } : {}) } });
+  const check = (reason, want, exclude, unknown, hit, have) => {
+    if (!want.length) return null;
+    if (unknown) return exclude ? null : stop(reason, want, "", exclude, true);
+    return want.some(hit) === exclude ? stop(reason, want, have, exclude, false) : null;
+  };
+  const named = (w) => {
+    const k = sceneWords(w);
+    return s.names.includes(k) || s.names.some((n) => (" " + n + " ").includes(" " + k + " ")) || sceneSays(s.place, w);
+  };
+  const there = (w) => (s.present || []).some((spelled) => spelled.some((n) => sameKnower(n, w)));
+  return check("place", filter.places, filter.placesExclude, !s.place, named, s.place)
+    || check("present", filter.present, filter.presentExclude, !s.present, there, (s.present || []).map((x) => x[0]).join(", "))
+    || check("time", filter.times, false, !s.band, (w) => w === s.band, s.band)
+    || check("weather", filter.weather, filter.weatherExclude, !s.weather, (w) => sceneSays(s.weather, w), s.weather);
+}
+
+/**
+ * The scene of one scan, read only when an entry asks for it. `typed` (the keyword test) states parts of the scene by
+ * hand: { place?, present?: [names], time?, weather? }; each one given wins over the chat's own reading.
+ */
+export function sceneContext(fsx, meta, line, typed) {
+  const chatId = meta && typeof meta.id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(meta.id) ? meta.id : "";
+  let cached;
+  return {
+    get() {
+      if (cached !== undefined) return cached;
+      const dash = chatId ? jsonAt(fsx, "dashboard/state/" + chatId + ".json") : null;
+      const read = chatId ? snapshotOfLine(line, dash) : null;
+      const t = typed && typeof typed === "object" ? typed : {};
+      const place = typeof t.place === "string" ? t.place.trim().slice(0, 200) : "";
+      const present = sceneList(t.present);
+      const time = typeof t.time === "string" && WI_BANDS.includes(t.time) ? t.time : "";
+      const weather = typeof t.weather === "string" ? t.weather.trim().slice(0, 200) : "";
+      let snap = read;
+      if (place || present.length || time || weather) {
+        const clock = { ...(read && read.clock) };
+        if (place) { clock.place = place; delete clock.placeId; }
+        if (time) clock.band = time;
+        if (weather) clock.weather = weather;
+        snap = { ...(read || {}), clock, ...(present.length ? { present } : {}) };
+      }
+      cached = snap
+        ? sceneOfSnapshot(snap, chatId ? jsonAt(fsx, "world/state/" + chatId + ".json") : null, chatId ? jsonAt(fsx, "registry/" + chatId + ".json") : null)
+        : null;
+      return cached;
+    },
+  };
+}
+
 /**
  * Who knows a secret entry in this chat, as [{name, how: "start" | "heard" | "manual", word?}]:
  * `secret.knownBy` from the start; heard: a message of the line whose text has a reveal word teaches everyone present
@@ -3798,7 +3994,8 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
       const hit = names.some((x) => speakerKeys.has(x)) || tags.some((t) => speakerTags.has(t));
       if (entry.characterFilterExclude === true ? hit : !hit) return { reason: "character", detail: entry.characterFilterExclude === true ? "excluded" : "not listed" };
     }
-    return null;
+    const where = wiSceneFilter(entry);
+    return where ? wiSceneStop(where, options.scene && typeof options.scene.get === "function" ? options.scene.get() : null) : null;
   };
 
   // flattened, order-sorted entries with stable per-book ids
@@ -4009,14 +4206,14 @@ function activateWorldInfo(fsx, meta, dialogue, extraBookIds, budgetChars, opts)
           else if (constant) why = { via: "constant" };
           else if (vecScore != null) {
             // a vector lets the entry past its primary keys only: the secondary keys still decide
-            const sec = (entry.secondaryKeys || []).length ? matchEntry(item, win, firstPass, true) : null;
-            if (sec && sec.fail) { block(item, "secondary", { key: "", secondary: sec.secondary, detail: entry.selectiveLogic || "AND_ANY", via: "vector", score: vecScore }); continue; }
+            const sec = wiKeyBlocks(entry).length ? matchEntry(item, win, firstPass, true) : null;
+            if (sec && sec.fail) { block(item, "secondary", { key: "", secondary: sec.secondary, detail: sec.logic, ...(sec.block > 1 ? { block: sec.block } : {}), via: "vector", score: vecScore }); continue; }
             why = { via: "vector", score: vecScore, ...(sec && sec.secondary.length ? { secondary: sec.secondary } : {}) };
           }
           else {
             const m = matchEntry(item, win, firstPass);
             if (!m) continue;
-            if (m.fail) { block(item, "secondary", { key: m.key, secondary: m.secondary, detail: entry.selectiveLogic || "AND_ANY" }); continue; }
+            if (m.fail) { block(item, "secondary", { key: m.key, secondary: m.secondary, detail: m.logic, ...(m.block > 1 ? { block: m.block } : {}) }); continue; }
             why = { via: "key", key: m.key, ...(m.secondary.length ? { secondary: m.secondary } : {}) };
             score = m.score || 0;
           }
@@ -5317,6 +5514,7 @@ function assemble(fsx, meta, msgs, speaker, pendingUserText, opts) {
       scanModel: opts && opts.scanModel ? String(opts.scanModel) : "",
       speaker: { id: (speaker && speaker.id) || meta.characterId || null, name: charName, tags: speakerCard && speakerCard.tags },
       lore: loreCtx,
+      scene: sceneContext(fsx, meta, loreLine),
       genTypes,
       characterBookIds: cardBookIds(members.map((m) => m.card)),
       excludeBookIds: [...(meta.groupId ? groupExcludedBookIds(chatGroup(fsx, meta), members, (!narrating && speaker && speaker.id) || null) : [])],
@@ -7515,6 +7713,7 @@ export function handleRoute(req, host) {
           return loreContext(fsx, chat.meta, line, chatPersona(fsx, chat.meta).userName, { names, several: narr || names.size !== 1 });
         })(),
         genTypes: ["normal"],
+        scene: sceneContext(fsx, chat.meta, chat.msgs.filter((m) => m && m.role !== "system" && m.hidden !== true)),
         characterBookIds: cardBookIds(members.map((m) => m.card)),
         sources: (() => {
           const card = lead ? lead.card : null;
@@ -7557,6 +7756,7 @@ export function handleRoute(req, host) {
       sources: card ? { description: card.description, personality: card.personality, scenario: card.scenario } : {},
       speaker: card ? { id: chat.meta.characterId, name: card.name, tags: card.tags } : null,
       genTypes: ["normal"],
+      scene: sceneContext(fsx, chat ? chat.meta : {}, chat ? chat.msgs.filter((m) => m && m.role !== "system" && m.hidden !== true) : [], b.scene),
       characterBookIds: card ? cardBookIds([card]) : [],
     });
     return ok({ fired: wi.trace, skipped: wi.skipped, blocked: wi.blocked, usedChars: wi.used, budgetChars: wi.budgetChars });
@@ -7714,6 +7914,8 @@ export function handleRoute(req, host) {
             matchCharacterPersonality: ms.personality === true,
             matchScenario: ms.scenario === true,
             matchPersonaDescription: ms.persona === true,
+            ...(Array.isArray(entry.moreKeys) && entry.moreKeys.length ? { molfarMoreKeys: entry.moreKeys } : {}),
+            ...(entry.sceneFilter ? { molfarScene: entry.sceneFilter } : {}),
           };
         });
         const bookName = book.name || f.replace(/\.json$/, "");

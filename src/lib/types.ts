@@ -609,6 +609,21 @@ export interface Preset {
 // ── Lorebooks / world info ──
 export type EntryStatus = 'constant' | 'normal' | 'vectorized'
 export type EntryLogic = 'AND_ANY' | 'AND_ALL' | 'NOT_ANY' | 'NOT_ALL'
+/** One extra key block of an entry: a rule and its words (#547). Every block must hold. */
+export interface LoreKeyBlock {
+  logic: EntryLogic
+  keys: string[]
+}
+/** Conditions on the scene (#547), read from the Dashboard: each filled list must hold, any word of a list is enough. */
+export interface LoreSceneFilter {
+  places: string[]
+  placesExclude: boolean
+  present: string[]
+  presentExclude: boolean
+  times: ('dawn' | 'morning' | 'late morning' | 'day' | 'evening' | 'night')[]
+  weather: string[]
+  weatherExclude: boolean
+}
 export type EntryPosition = 'before_char' | 'after_char' | 'before_em' | 'after_em' | 'before_an' | 'after_an' | 'at_depth' | 'before_examples' | 'after_examples'
 
 export interface LoreEntry {
@@ -621,6 +636,10 @@ export interface LoreEntry {
   keysRegex: boolean
   secondaryKeys: string[]
   logic: EntryLogic
+  /** more key blocks besides the secondary keys, all of which must hold (at most 4) */
+  moreKeys?: LoreKeyBlock[]
+  /** the entry fires only in such a scene */
+  sceneFilter?: LoreSceneFilter
   status: EntryStatus
   content: string
   position: EntryPosition

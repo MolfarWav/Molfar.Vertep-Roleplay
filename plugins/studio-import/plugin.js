@@ -1048,6 +1048,8 @@ function embeddedBookToWorld(raw) {
       ...(x.character_filter && typeof x.character_filter === "object" ? { characterFilter: x.character_filter } : {}),
       ...(Array.isArray(x.triggers) ? { triggers: x.triggers } : {}),
       ...(x.molfar_secret && typeof x.molfar_secret === "object" && !Array.isArray(x.molfar_secret) ? { molfarSecret: x.molfar_secret } : {}),
+      ...(Array.isArray(x.molfar_more_keys) ? { molfarMoreKeys: x.molfar_more_keys } : {}),
+      ...(x.molfar_scene && typeof x.molfar_scene === "object" && !Array.isArray(x.molfar_scene) ? { molfarScene: x.molfar_scene } : {}),
     };
   });
   return { entries };
@@ -1111,6 +1113,9 @@ function normalizeBook(raw, fallbackName) {
       } : {}),
       // Molfar's own secret entry (who knows, cover, reveal words); a plain ST book never has it
       ...(e.molfarSecret && typeof e.molfarSecret === "object" && !Array.isArray(e.molfarSecret) ? { secret: e.molfarSecret } : {}),
+      // Molfar's extra key blocks and scene conditions (#547)
+      ...(Array.isArray(e.molfarMoreKeys) && e.molfarMoreKeys.length ? { moreKeys: e.molfarMoreKeys } : {}),
+      ...(e.molfarScene && typeof e.molfarScene === "object" && !Array.isArray(e.molfarScene) ? { sceneFilter: e.molfarScene } : {}),
       ...(Array.isArray(e.triggers) && e.triggers.length ? { triggerFilters: e.triggers.filter((t) => typeof t === "string") } : {}),
       ...(e.excludeRecursion === true ? { nonRecursable: true } : {}),
       ...(e.ignoreBudget === true ? { ignoreBudget: true } : {}),

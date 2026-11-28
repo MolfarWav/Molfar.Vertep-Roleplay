@@ -7,16 +7,17 @@ import { Switch } from '@/components/ui/switch'
 import { Fold } from '@/components/ui/fold'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { NumControl, Segmented, SettingRow } from '@/components/ui/setting-row'
+import { BAND_KEY, KeyBlocks, SceneConditions } from '@/components/lore/entry-conditions'
 import { CharacterPicker, TagPicker } from '@/components/lore/entry-pickers'
 import { KeyChips } from '@/components/lore/key-chips'
-import { POSITION_CHOICES, POSITION_KEY, POSITION_SHORT_KEY, LOGIC_KEY, TRIGGER_TYPES, canonicalPosition } from '@/components/lore/lore-labels'
+import { POSITION_CHOICES, POSITION_KEY, POSITION_SHORT_KEY, TRIGGER_TYPES, canonicalPosition } from '@/components/lore/lore-labels'
 import { useT } from '@/hooks/use-t'
 import {
-  groupsSummary, hasChainLimits, matchSummary, onlyWhenSummary, secretSummary, staysSummary, triOf, triValue, waitsOf, waitsValue, whereSummary,
+  groupsSummary, hasChainLimits, matchSummary, onlyWhenSummary, sceneSummary, secretSummary, staysSummary, triOf, triValue, waitsOf, waitsValue, whereSummary,
 } from '@/lib/lore-entry'
 import { useApp } from '@/lib/store'
 import type { MsgKey } from '@/lib/i18n'
-import type { EntryLogic, EntryPosition, LoreEntry } from '@/lib/types'
+import type { EntryPosition, LoreEntry } from '@/lib/types'
 
 const GEN_KEY: Record<(typeof TRIGGER_TYPES)[number], MsgKey> = {
   normal: 'lore.ed.gen.normal',
@@ -36,10 +37,8 @@ const SOURCE_KEY = {
 type SourceName = keyof typeof SOURCE_KEY
 const SOURCES = Object.keys(SOURCE_KEY) as SourceName[]
 
-const LOGICS: EntryLogic[] = ['AND_ANY', 'AND_ALL', 'NOT_ANY', 'NOT_ALL']
-
 /**
- * The five folds under the always-visible part of the entry panel. Each is a sibling (no fold inside a fold), shows a
+ * The folds under the always-visible part of the entry panel. Each is a sibling (no fold inside a fold), shows a
  * one-line summary while closed and remembers its own open state. Every setting of the old editor is here, grouped by
  * what it does for the player: where the entry goes, when it is allowed, how long it stays, how it chains with other
  * entries, and how its keys are matched.
@@ -146,6 +145,7 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
         tone="violet"
         summary={onlyWhenSummary({
           secondaryCount: e.secondaryKeys.length,
+          moreCount: e.moreKeys?.filter((b) => b.keys.length).length,
           probability: e.probability,
           speakers: speakerNames,
           speakerExclude: e.characterFilterExclude,
@@ -153,24 +153,7 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
           kinds,
         }, t)}
       >
-        {block(t('lore.ed.secondaryKeys'),
-          <KeyChips
-            id={`lore-second-${e.id}`}
-            keys={e.secondaryKeys}
-            onChange={(secondaryKeys) => onChange({ secondaryKeys })}
-            label={t('lore.ed.secondaryKeys')}
-            placeholder={t('lore.ed.keysPlaceholder')}
-          />,
-          t('lore.ed.secondaryHint'),
-        )}
-        {selectRow(t('lore.ed.logic'),
-          <Select value={e.logic} onValueChange={(v) => v && onChange({ logic: v as EntryLogic })}>
-            <SelectTrigger className="h-8 w-56 max-w-full text-body max-md:h-10" aria-label={t('lore.ed.logic')}><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {LOGICS.map((l) => <SelectItem key={l} value={l}>{t(LOGIC_KEY[l])}</SelectItem>)}
-            </SelectContent>
-          </Select>,
-        )}
+        <KeyBlocks entry={e} onChange={onChange} />
         {numRow(t('lore.ed.trigger'), e.probability, 0, 100, (p) => onChange({ probability: p, useProbability: p < 100 }), t('lore.ed.triggerHint'))}
         {block(t('lore.ed.characters'),
           <CharacterPicker ids={e.characterFilter} onChange={(characterFilter) => onChange({ characterFilter })} />,
@@ -197,6 +180,23 @@ export function EntryFolds({ entry: e, onChange }: { entry: LoreEntry; onChange:
           </div>,
           t('lore.ed.triggersHint'),
         )}
+      </Fold>
+
+      <Fold
+        id="lore-entry-scene"
+        title={t('lore.ed.scene')}
+        tone="emerald"
+        summary={sceneSummary({
+          places: e.sceneFilter?.places ?? [],
+          placesExclude: !!e.sceneFilter?.placesExclude,
+          present: e.sceneFilter?.present ?? [],
+          presentExclude: !!e.sceneFilter?.presentExclude,
+          times: (e.sceneFilter?.times ?? []).map((b) => t(BAND_KEY[b])),
+          weather: e.sceneFilter?.weather ?? [],
+          weatherExclude: !!e.sceneFilter?.weatherExclude,
+        }, t)}
+      >
+        <SceneConditions entry={e} onChange={onChange} />
       </Fold>
 
       <Fold

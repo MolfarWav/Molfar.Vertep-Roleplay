@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { LoreStatusIcon } from '@/components/lore-status-icon'
 import { TONES, type ToneName } from '@/components/ui/tone'
 import { LOGIC_KEY, POSITION_KEY, canonicalPosition } from '@/components/lore/lore-labels'
+import { BAND_KEY } from '@/components/lore/entry-conditions'
+import type { SceneBand } from '@/lib/lore-conditions'
 import type { EntryLogic } from '@/lib/types'
 
 type T = (key: MsgKey, vars?: Record<string, string | number>) => string
@@ -55,18 +57,40 @@ export function WhyChips({ r }: { r: WIFiredRow }) {
   )
 }
 
+const SCENE_KEY = {
+  place: ['lore.block.place', 'lore.block.placeExcept', 'lore.block.placeUnknown'],
+  present: ['lore.block.present', 'lore.block.presentExcept', 'lore.block.presentUnknown'],
+  time: ['lore.block.time', 'lore.block.time', 'lore.block.timeUnknown'],
+  weather: ['lore.block.weather', 'lore.block.weatherExcept', 'lore.block.weatherUnknown'],
+} as const satisfies Record<'place' | 'present' | 'time' | 'weather', readonly [MsgKey, MsgKey, MsgKey]>
+
+/** A scene condition that did not hold: what it asked for, and what the scene has (or that nobody read it). */
+function sceneText(reason: keyof typeof SCENE_KEY, d: WIBlockedRow['detail'], t: T): string {
+  const o = typeof d === 'object' && d ? d : { want: [], have: '', exclude: false }
+  const [only, except, unknown] = SCENE_KEY[reason]
+  const want = reason === 'time' ? o.want.map((b) => (b in BAND_KEY ? t(BAND_KEY[b as SceneBand]) : b)) : o.want
+  const have = reason === 'time' && o.have in BAND_KEY ? t(BAND_KEY[o.have as SceneBand]) : o.have
+  const vars = { want: want.join(', '), have: have || t('lore.block.nobody') }
+  return t(o.unknown ? unknown : o.exclude ? except : only, vars)
+}
+
 /** The reason a matching entry was held back, in words. */
 export function blockedText(r: WIBlockedRow, t: T): string {
-  const d = r.detail
+  const d = typeof r.detail === 'object' ? undefined : r.detail
   switch (r.reason) {
     case 'delay': return t('lore.block.delay', { n: d ?? '' })
     case 'cooldown': return t('lore.block.cooldown', { n: d ?? '' })
     case 'recursion_delay': return t('lore.block.recursionDelay', { n: d ?? '' })
     case 'non_recursable': return t('lore.block.nonRecursable')
     case 'secondary': {
-      const logic = typeof d === 'string' && d in LOGIC_KEY ? t(LOGIC_KEY[d as EntryLogic]) : String(d ?? '')
+      const rule = typeof d === 'string' && d in LOGIC_KEY ? t(LOGIC_KEY[d as EntryLogic]) : String(d ?? '')
+      const logic = r.block ? t('lore.block.conditionN', { n: r.block, rule }) : rule
       return r.via === 'vector' ? t('lore.block.secondaryVector', { score: scoreText(r.score), logic }) : t('lore.block.secondary', { logic })
     }
+    case 'place':
+    case 'present':
+    case 'time':
+    case 'weather': return sceneText(r.reason, r.detail, t)
     case 'probability': return t('lore.block.probability', { n: d ?? '' })
     case 'group': return t('lore.block.group', { group: String(d ?? ''), winner: r.winner ?? '' })
     case 'character': return d === 'excluded' ? t('lore.block.speakerExcluded') : t('lore.block.speakerNotListed')

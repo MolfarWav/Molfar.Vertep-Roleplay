@@ -119,8 +119,31 @@ export function whereSummary(i: WhereInput, tr: Tr): string {
   return parts.join(SEP)
 }
 
+export interface SceneSummaryInput {
+  places: string[]
+  placesExclude: boolean
+  present: string[]
+  presentExclude: boolean
+  /** the translated parts of the day */
+  times: string[]
+  weather: string[]
+  weatherExclude: boolean
+}
+
+/** "any scene", or "at Tavern · with Mira · night · weather: rain" */
+export function sceneSummary(i: SceneSummaryInput, tr: Tr): string {
+  const parts: string[] = []
+  if (i.places.length) parts.push(tr(i.placesExclude ? 'lore.sum.notAt' : 'lore.sum.at', { names: i.places.join(', ') }))
+  if (i.present.length) parts.push(tr(i.presentExclude ? 'lore.sum.without' : 'lore.sum.with', { names: i.present.join(', ') }))
+  if (i.times.length) parts.push(i.times.join(', '))
+  if (i.weather.length) parts.push(tr(i.weatherExclude ? 'lore.sum.notWeather' : 'lore.sum.weather', { names: i.weather.join(', ') }))
+  return parts.length ? parts.join(SEP) : tr('lore.sum.anyScene')
+}
+
 export interface OnlyWhenInput {
   secondaryCount: number
+  /** key blocks added besides the secondary keys */
+  moreCount?: number
   probability: number
   /** the names of the speakers the entry is limited to (empty = anyone) */
   speakers: string[]
@@ -133,6 +156,7 @@ export interface OnlyWhenInput {
 /** "no second keys · any speaker · 100%" */
 export function onlyWhenSummary(i: OnlyWhenInput, tr: Tr): string {
   const parts: string[] = [i.secondaryCount > 0 ? tr('lore.sum.second', { n: i.secondaryCount }) : tr('lore.sum.noSecond')]
+  if (i.moreCount) parts.push(tr('lore.sum.more', { n: i.moreCount }))
   if (i.speakers.length === 0) parts.push(tr('lore.sum.anySpeaker'))
   else parts.push(tr(i.speakerExclude ? 'lore.sum.except' : 'lore.sum.only', { names: i.speakers.join(', ') }))
   if (i.tags.length > 0) parts.push(tr('lore.sum.tags', { tags: i.tags.join(', ') }))

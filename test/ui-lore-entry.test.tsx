@@ -1,4 +1,4 @@
-// The entry panel, rendered to static markup (no DOM library here): the always-visible part, the five sibling folds with
+// The entry panel, rendered to static markup (no DOM library here): the always-visible part, the sibling folds with
 // their summaries, the key chips and the row that says which entry the panel shows. Clicks and Escape are checked by
 // their markup (the aria, the button types), not by running them.
 import { describe, expect, it } from "bun:test";
@@ -94,12 +94,12 @@ describe("entry panel", () => {
   });
 });
 
-describe("the six folds", () => {
-  it("are six sibling folds, each with its own id, and none inside another", () => {
+describe("the folds", () => {
+  it("are seven sibling folds, each with its own id, and none inside another", () => {
     const html = panel(entry());
     const folds = html.match(/data-slot="fold"/g) ?? [];
-    expect(folds.length).toBe(6);
-    for (const id of ["lore-entry-where", "lore-entry-only-when", "lore-entry-secret", "lore-entry-stays", "lore-entry-groups", "lore-entry-match"]) {
+    expect(folds.length).toBe(7);
+    for (const id of ["lore-entry-where", "lore-entry-only-when", "lore-entry-scene", "lore-entry-secret", "lore-entry-stays", "lore-entry-groups", "lore-entry-match"]) {
       expect(html).toContain(`data-testid="fold-${id}"`);
     }
   });
@@ -166,5 +166,27 @@ describe("key chips", () => {
   it("the input carries the field's name and hides its placeholder once there are keys", () => {
     expect(chips([])).toContain('placeholder="Type a word"');
     expect(chips(["tide"])).not.toContain('placeholder="Type a word"');
+  });
+});
+
+describe("conditions (#547)", () => {
+  it("Only when holds the secondary keys and each added condition, with an add button", () => {
+    const html = withOpenFold("lore-entry-only-when", () => panel(entry({ secondaryKeys: ["lock"], moreKeys: [{ logic: "NOT_ANY", keys: ["guard"] }] })));
+    expect(html.match(/data-testid="key-block"/g)?.length).toBe(1);
+    expect(html).toContain(">guard<");
+    expect(hasEither(html, "lore.ed.addCondition")).toBe(true);
+  });
+
+  it("at the cap the add button gives way to a line that says so", () => {
+    const more = Array.from({ length: 4 }, () => ({ logic: "AND_ANY" as const, keys: ["x"] }));
+    const html = withOpenFold("lore-entry-only-when", () => panel(entry({ moreKeys: more })));
+    expect(hasEither(html, "lore.ed.addCondition")).toBe(false);
+  });
+
+  it("the scene fold says any scene, or what it asks for, while closed", () => {
+    expect(hasEither(panel(entry()), "lore.sum.anyScene")).toBe(true);
+    const html = panel(entry({ sceneFilter: { places: ["Tavern"], placesExclude: false, present: [], presentExclude: false, times: ["night"], weather: [], weatherExclude: false } }));
+    expect(html).toContain("Tavern");
+    expect(hasEither(html, "lore.sum.anyScene")).toBe(false);
   });
 });

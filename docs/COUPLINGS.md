@@ -176,6 +176,13 @@ Date: 2026-11-05.
 - **Fails in:** `test/rp-knowledge-invariants.test.ts`.
 - **Trap:** a new contact kind in the sensor (`contactOf`) needs both lists, or the note and the check skip it silently.
 
+### Lorebook scene conditions and key blocks (Molfar.Vertep#547)
+- **Touches:** `wiKeyBlocks`, `wiEntryMatch`, `wiSceneFilter`, `snapshotOfLine`, `sceneOfSnapshot`, `wiSceneStop`, `sceneContext` and `activateWorldInfo` (`filterOut`, the vector path, `options.scene`) in `plugins/engine`; the Dashboard state `dashboard/state/<chat>.json` (`snapshots[*].clock` and `present`, `inherited.snap`), `world/state/<chat>.json` (place records, `regIds`) and `registry/<chat>.json`, all read only; `src/lib/lore-conditions.ts`, `entry-conditions.tsx`, `why-rows.tsx`, `keyword-test.tsx`; `lorebookToEngine`, `lorebookToCharacterBook`, `studio-import`.
+- **Must stay true:** the caps and the day parts are the same in the plugin and the app (`WI_MORE_MAX` = `MORE_KEYS_MAX`; `WI_BANDS` = `SCENE_BANDS` = the relations plugin's `BAND_WORDS`). The place record is found as `placeRecordOf` in `plugins/world` finds it (registry id, then name, then the longest name inside the line).
+- **Enforced in:** the functions above.
+- **Fails in:** `test/rp-lore-conditions.test.ts`, `test/rp-lore-conditions-app.test.ts`.
+- **Trap:** a change to the snapshot's `clock` or `present`, or to a World place record's `inside`, silently stops entries from firing: the only sign is the held-back row in "What fired".
+
 ### Secret lorebook entries (Molfar.Vertep#416)
 - **Touches:** `secretOf`, `secretView`, `loreKnowers`, `presenceOfLine`, `happenedOfLine`, `loreContext`, `cardNameSet`, the `lore-known` routes and `activateWorldInfo` (its `contentOf`, the blocked reason `secret`, the fired row's `secret`/`knowers`) in `plugins/engine`; the Dashboard state file `dashboard/state/<chat>.json` (read, `snapshots[*].present` and `snapshots[*].happened`; the relations plugin writes `happened` from `watchedHappenings` and `watchText`, which read the books' `secret.happens` and add one section to the sensor prompt); `lore-known/<chat>.json`; the entry editor fold and the What fired Secrets fold (`src/`).
 - **Must stay true:** who knows is computed from the chat at every scan, never stored except the hand list, so a swipe or an edit leaves nothing stale. The cover replaces the content in the prompt AND in recursion. The voice rule mirrors Litopys `soleVoice`: several names on the card (`cardNameSet` = Litopys `cardNamesOf`), a group narrator or append turn = several voices = the truth, marked.

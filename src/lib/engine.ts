@@ -15,6 +15,7 @@ import { uid } from './tokens'
 import { cleanPlaceMap as placeMapOf } from './place-map'
 import { flushDraft } from './drafts'
 import { cleanFolder, cleanFolderList, cleanFolderTones } from './lore-folders'
+import { cleanMoreKeys, cleanSceneFilter } from './lore-conditions'
 import { beginImport } from './import-progress'
 import { t } from './i18n'
 import { defaultSamplers, DEFAULT_COMPACT_HISTORY, EMPTY_PROMPT_FORMAT, GENERATION_TYPES } from './seed'
@@ -926,6 +927,8 @@ export function lorebookToCharacterBook(b: Lorebook): Record<string, unknown> {
         ...(e.triggerFilters.length ? { triggers: e.triggerFilters } : {}),
         ...(e.secret ? { molfar_secret: e.secret } : {}),
         ...(e.latch ? { molfar_latch: true } : {}),
+        ...(e.moreKeys?.some((b) => b.keys.length) ? { molfar_more_keys: e.moreKeys.filter((b) => b.keys.length) } : {}),
+        ...(e.sceneFilter ? { molfar_scene: e.sceneFilter } : {}),
       },
     })),
   }
@@ -1296,6 +1299,7 @@ export interface WIFiredRow {
 export type WIBlockReason =
   | 'delay' | 'cooldown' | 'recursion_delay' | 'non_recursable' | 'secondary'
   | 'probability' | 'group' | 'character' | 'trigger' | 'secret'
+  | 'place' | 'present' | 'time' | 'weather'
 export interface WIBlockedRow {
   book: string
   bookId?: string
@@ -1305,7 +1309,10 @@ export interface WIBlockedRow {
   /** a hit by meaning that the secondary keys held back: how it got that far, and its score (#253) */
   via?: 'vector'
   score?: number
-  detail?: string | number
+  /** a scene condition (place, present, time, weather) carries what it wanted and what the scene has */
+  detail?: string | number | { want: string[]; have: string; exclude: boolean; unknown?: boolean }
+  /** which key block failed, when it is not the secondary keys (2 = the first added one) */
+  block?: number
   key?: string
   secondary?: string[]
   winner?: string
@@ -1361,11 +1368,11 @@ export async function fetchWIStatus(chatId: string): Promise<WIStatus> {
 
 /** The keyword test: the real scanner on pasted text, against the editor's
  *  own (possibly unsaved) books. A chat lends its timed state and card. */
-export async function wiTest(opts: { text: string; books: EngineLorebook[]; chatId?: string }, signal?: AbortSignal): Promise<WITestResult> {
+export async function wiTest(opts: { text: string; books: EngineLorebook[]; chatId?: string; scene?: { place?: string; present?: string[]; time?: string; weather?: string } }, signal?: AbortSignal): Promise<WITestResult> {
   const limits = opts.chatId ? await limitsOfChat(opts.chatId) : {}
   return j('/wi-test', {
     method: 'POST',
-    body: JSON.stringify({ text: opts.text, books: opts.books, ...(opts.chatId ? { chatId: opts.chatId } : {}), ...limits }),
+    body: JSON.stringify({ text: opts.text, books: opts.books, ...(opts.chatId ? { chatId: opts.chatId } : {}), ...(opts.scene ? { scene: opts.scene } : {}), ...limits }),
     signal,
   })
 }
@@ -1661,7 +1668,7 @@ const LORE_ENTRY_KNOWN = new Set([
   'sticky', 'cooldown', 'delay', 'enabled', 'characterFilter', 'characterFilterExclude', 'tagFilter', 'triggerFilters',
   'nonRecursable', 'preventFurtherRecursion', 'ignoreBudget', 'delayUntilRecursion', 'automationId', 'matchSources',
   'scanDepthOverride', 'caseSensitiveOverride', 'caseSensitive', 'wholeWordsOverride', 'matchWholeWords',
-  'groupScoringOverride', 'wordFormsOverride', 'folder', 'secret', 'latch',
+  'groupScoringOverride', 'wordFormsOverride', 'folder', 'secret', 'latch', 'moreKeys', 'sceneFilter',
 ])
 const LORE_BOOK_KNOWN = new Set([
   'id', 'name', 'folderId', 'folders', 'folderTones', 'globalActive', 'linkedCharacterIds', 'entries', 'settings', 'vectorized', 'isEmbedded', 'formatTemplate',
@@ -1727,6 +1734,8 @@ export function lorebookToEngine(b: Lorebook): EngineLorebook {
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
       ...(e.secret ? { secret: e.secret } : {}),
       ...(e.latch ? { latch: true } : {}),
+      ...(cleanMoreKeys(e.moreKeys) ? { moreKeys: cleanMoreKeys(e.moreKeys) } : {}),
+      ...(cleanSceneFilter(e.sceneFilter) ? { sceneFilter: cleanSceneFilter(e.sceneFilter) } : {}),
     })),
   }
 }
@@ -1770,6 +1779,8 @@ export function engineLorebookToUI(b: EngineLorebook, id: string): Lorebook {
       ...(cleanFolder(e.folder) ? { folder: cleanFolder(e.folder) } : {}),
       ...(cleanSecret(e.secret) ? { secret: cleanSecret(e.secret) } : {}),
       ...(e.latch === true ? { latch: true } : {}),
+      ...(cleanMoreKeys(e.moreKeys) ? { moreKeys: cleanMoreKeys(e.moreKeys) } : {}),
+      ...(cleanSceneFilter(e.sceneFilter) ? { sceneFilter: cleanSceneFilter(e.sceneFilter) } : {}),
       ...(extraOf(e, LORE_ENTRY_KNOWN) ? { extra: extraOf(e, LORE_ENTRY_KNOWN) } : {}),
     })),
     settings: (b.settings as Lorebook['settings']) ?? {

@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+- Added: **more conditions on a lorebook entry (Molfar.Vertep#547).** Besides the secondary keys an entry takes up to four more key blocks ("Add condition"), all of which must hold. A new group, **Only in this scene**, limits an entry to a place (a room counts as part of its building), to who is in the scene, to a time of day and to weather, read from the Dashboard. "What fired" says which condition held an entry back, and the keyword test lets you state the scene by hand.
+
 ## 4.166.1 (2026-11-28)
 
 - Fixed: **an admitted affair or lie now costs trust (Molfar.Vertep#394).** On real sensor models a confession ("I've been sleeping with your sister") was booked as telling an uncomfortable truth, so trust and respect went **up**, and a character walking in on the user's character kissing someone else was booked as that kiss alone. The sensor is now told that the user's character's own wrongs, admitted or discovered, are those wrongs. The other direction (a character cheating on the user's character no longer drops that character's trust) held in every run. A sensor prompt you changed yourself keeps your text.
