@@ -145,3 +145,33 @@ describe("what a chat is told about the blocks (#450)", () => {
     expect(get({ chatId: "b1" }).tokens).toMatchObject({ live: 1, sent: 0 });
   });
 });
+
+describe("an older file: agent blocks written before stories (#540)", () => {
+  const old = (chatId: string, extra: Json = {}): Json => ({ from: { chatId, title: "Chat " + chatId, at: 1 }, ...extra });
+
+  it("an agent's block with no scope is bound to the chat it came from, and saved so on the next write", () => {
+    writeGrowth([block("g1", "She hums when she cooks.", old("a1")), block("g2", "Second block.", old("a1"))]);
+    expect(get().growth.entries[0].scope).toBe("story");
+    expect(sent("a1")).toContain("hums when she cooks");
+    expect(sent("b1")).not.toContain("hums when she cooks");
+    put({ op: "on", id: "g2", on: true });
+    expect(disk().v).toBe(3);
+    expect(disk().entries[0].scope).toBe("story");
+  });
+
+  it("'every chat' chosen after that stays: a v3 file is not bound again", () => {
+    writeGrowth([block("g1", "She hums when she cooks.", old("a1"))]);
+    put({ op: "scope", id: "g1", scope: "card" });
+    expect(disk().v).toBe(3);
+    expect(get().growth.entries[0].scope).toBeUndefined();
+    expect(sent("b1")).toContain("hums when she cooks");
+  });
+
+  it("a block from a deleted chat, and a block the user wrote, stay card-wide", () => {
+    writeGrowth([block("g1", "From a chat that is gone.", old("gone1")), block("g2", "The user wrote it.", old("a1", { origin: "user" }))]);
+    const g = get().growth.entries;
+    expect(g.map((e: Json) => e.scope)).toEqual([undefined, undefined]);
+    expect(sent("b1")).toContain("chat that is gone");
+    expect(sent("b1")).toContain("user wrote it");
+  });
+});

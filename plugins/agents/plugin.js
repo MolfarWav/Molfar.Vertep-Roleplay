@@ -2386,7 +2386,7 @@ function sourceValue(fsx, chat, give, last) {
   if (src === "myPrevious") return typeof last === "string" && last ? last : undefined;
   if (src === "litopysFacts") return litopysFactsText(fsx, meta, give);
   if (src === "lorebook") return lorebookText(fsx, meta, msgs, give);
-  if (src === "growth") return growthText(fsx, meta);
+  if (src === "growth") return growthText(fsx, meta, str(chat.chatId) || str(meta.id));
   return undefined; // summary, and anything this host does not know
 }
 
@@ -3778,12 +3778,13 @@ export function handleRoute(req, host) {
 //
 // characters/<id>/growth.json, written only by this plugin (the plugin host has no plugin-to-plugin calls, so one writer
 // means no lost update against Litopys, which owns characters/<id>/memory.json). It is not part of card.json or an export.
-//   { v: 2, next: <n>, entries: [ { id: "g1", section, kind: "changed"|"added", title?, text, basis?, prev?: [text],
+//   { v: 3, next: <n>, entries: [ { id: "g1", section, kind: "changed"|"added", title?, text, basis?, prev?: [text],
 //     revises?: <id>, on, state: "proposed"|"accepted", origin: "agent"|"user", agent?, runKey?, from?: { chatId, title, at },
 //     scope?: "story", chats?: [chatId], skip?: [chatId], at } ], inject: { enabled, maxTokens } }
 // Where a block acts (#450): with no scope it acts in every chat of the card (as before). scope "story" (a block an agent or the hand
 // button wrote) acts in the chat it came from (from.chatId) and in the chats that continue it (litopys/links.json), plus the chats
-// the user chose (chats); skip lists chats where the block is off whatever the scope says.
+// the user chose (chats); skip lists chats where the block is off whatever the scope says. v3 (#540): reading an older file binds
+// an agent's unscoped block to its chat when that chat still exists (readGrowth).
 // An entry is a BLOCK of the portrait, named by the sections of the Profile tab: a "changed" block says how that part of the
 // character is now, an "added" block is something that came out in the story (a relationship, a secret, a skill, the past).
 // v1 entries { was, now } are read as one "changed" block of the section "other". A "proposed" block waits for the user and is
@@ -3876,7 +3877,18 @@ function readGrowth(fsx, cardId) {
   const inj = isObj(o.inject) ? o.inject : {};
   const room = Number.isInteger(inj.maxTokens) ? Math.max(GROWTH.roomMin, Math.min(GROWTH.roomMax, inj.maxTokens)) : GROWTH.room;
   const next = Math.max(Number.isInteger(o.next) ? o.next : 1, 1 + Math.max(0, ...entries.map((e) => Number(e.id.slice(1)))));
-  return { v: 2, next, entries, inject: { enabled: inj.enabled !== false, maxTokens: room, remind: inj.remind === true } };
+  // v3 (#540): a block an agent wrote before stories existed (#450) has no scope and so acted in every chat of the card. It is
+  // bound to the chat it came from, when that chat still exists (a block from a deleted chat stays card-wide rather than act
+  // nowhere). Only a file older than v3: choosing "every chat" later removes `scope`, and that choice must stay.
+  if (!(Number.isInteger(o.v) && o.v >= 3)) {
+    const alive = new Map();
+    const exists = (id) => {
+      if (!alive.has(id)) alive.set(id, isObj(readJsonAt(fsx, "chats/" + id + ".meta.json", null)));
+      return alive.get(id);
+    };
+    for (const e of entries) if (e.origin === "agent" && !e.scope && e.from && AG_CHAT.test(e.from.chatId) && exists(e.from.chatId)) e.scope = "story";
+  }
+  return { v: 3, next, entries, inject: { enabled: inj.enabled !== false, maxTokens: room, remind: inj.remind === true } };
 }
 
 const cardExists = (fsx, cardId) => AG_CHAT.test(cardId) && isObj(readJsonAt(fsx, "characters/" + cardId + "/card.json", null));
@@ -4097,12 +4109,15 @@ function growthAnswer(fsx, cardId, chatId) {
  * What is already written about how the card's character changed, as one line a block (newest 20), for the Input source
  * `growth`. "(nothing yet)" when there is nothing, so a card that asks for it still runs the first time; undefined in a group chat.
  */
-function growthText(fsx, meta) {
+function growthText(fsx, meta, chatId) {
   const cardId = soloCardOf(meta);
-  return cardId ? growthTextOf(fsx, cardId) : undefined;
+  return cardId ? growthTextOf(fsx, cardId, chatId) : undefined;
 }
-function growthTextOf(fsx, cardId) {
-  const rows = readGrowth(fsx, cardId).entries.slice(-20).map((e) => {
+/** With a chat: only the blocks that act in it (#540), so a story is never told what another story of the card changed. */
+function growthTextOf(fsx, cardId, chatId) {
+  const g = readGrowth(fsx, cardId);
+  const seen = AG_CHAT.test(str(chatId)) ? growthForChat(g, str(chatId), readLinks(fsx)) : g;
+  const rows = seen.entries.slice(-20).map((e) => {
     const body = e.text.replace(/\s+/g, " ");
     return "- [" + (e.of ? e.of + ", " : "") + e.section + (e.kind === "added" ? ", new" : "") + "] " + (e.title ? e.title + ": " : "") + clip(body, 220) + (e.state === "proposed" ? " (waiting for the user)" : "");
   });
@@ -4169,7 +4184,8 @@ function applyGrowthWrites(fsx, view, agentId, writes, turnKey, perRun = GROWTH.
     }
     const f = open(cardId);
     const g = f.g;
-    if (g.entries.some((e) => e.text.toLowerCase() === text.toLowerCase())) { refused.push("growth: already there"); continue; }
+    // "already there" means already in THIS story: the same text in another chat's block does not stop it (#540)
+    if (g.entries.some((e) => e.text.toLowerCase() === text.toLowerCase() && growthActs(growthReach(e, str(view.chatId), readLinks(fsx))))) { refused.push("growth: already there"); continue; }
     if (g.entries.length >= GROWTH.entries) { refused.push("growth: the list is full (" + GROWTH.entries + ")"); break; }
     const section = GROWTH_SECTIONS.includes(str(w.section)) ? str(w.section) : "other";
     const kind = str(w.kind) === "added" ? "added" : "changed";
@@ -4239,7 +4255,7 @@ function growthUpdateRoute(req, host) {
     const cast = castOf(fsx, cardId);
     // a card that voices several characters: each block is about one of them and says which (#450)
     const castnote = cast ? "\n\nThis card voices several characters: " + cast.map((c) => c.name).join(", ") + ". Each block is about exactly ONE of them, never the narrator itself: add \"who\" to the block with that name, spelled as written here, and write only about that character." : "";
-    const parts = { card: cardText || "(no card text)", known: growthTextOf(fsx, cardId), story, name: cast ? "the characters voiced by " + (name || "this card") : name || "the character", castnote };
+    const parts = { card: cardText || "(no card text)", known: growthTextOf(fsx, cardId, chatId), story, name: cast ? "the characters voiced by " + (name || "this card") : name || "the character", castnote };
     // one pass, so text inside the card or the story that looks like a slot is never filled
     const prompt = GROWTH_UPDATE_PROMPT.replace(/{{(card|known|story|name|castnote)}}/g, (_m, k) => parts[k]);
     const model = trialModel(fsx, view.meta, "fast", "growth", "");
