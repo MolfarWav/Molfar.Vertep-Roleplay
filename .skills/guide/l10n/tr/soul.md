@@ -1,4 +1,4 @@
-<!-- source: e0c72ba92f2d -->
+<!-- source: 15cfc6de4c0b -->
 # Bir karakterin soul'u
 
 Bir soul, bir karakterin size karşı mizacıdır: hikâye başlarken size nasıl davrandığı, her duygunun ne kadar hızlı büyüdüğü ve onu daha çok inciten ya da memnun eden şeyler. Dashboard'un ilişki sayılarının girdisidir ([[dashboard]]). Bir karakterin kendi tarzında tepki vermesini istiyorsanız veya bir önerinin neden göründüğünü merak ediyorsanız bu sayfaya ihtiyacınız var.
@@ -17,7 +17,7 @@ Yalnızca ana karakterler soul alır. Hikâyenin uydurduğu gelip geçenler bile
 
 ## Otomatik derecelendirme ve öneriler
 
-Varsayılan olarak uygulama, soul'u olmayan bir kart için bir soul önerir: içe aktarmadan hemen sonra ve bir sohbetin ilk Dashboard güncellemesinde. Bir model kartı, lorebook'ları ve yakın mesajları okur. Bir öneri karta kaydedilmez. Bir başlık "Proposal (automatic)" gösterir; "Review", "Accept all" ve "Dismiss" ile; ya da tek bir karakterde "Save soul". Siz karar verene kadar öneri oyunda geçici bir soul olarak zaten etkindir. "Dismiss" bu kart için otomatik derecelendirmeyi durdurur. Bir derecelendirme başarısız olursa başlık "Retry" ve "Choose another model" gösterir. Bekleyen öneriler Inbox'ta da görünür.
+Varsayılan olarak uygulama, soul'u olmayan bir kart için bir soul önerir: içe aktarmadan hemen sonra ve bir sohbetin ilk Dashboard güncellemesinde. Bir model kartı, lorebook'ları ve yakın mesajları okur. Bir öneri karta kaydedilmez. Bir başlık "Proposal (automatic)" gösterir; "Review", "Accept all" ve "Dismiss" ile; ya da tek bir karakterde "Save soul". Siz karar verene kadar öneri oyunda geçici bir soul olarak zaten etkindir. "Dismiss" bu kart için otomatik derecelendirmeyi durdurur. Bir derecelendirme başarısız olursa başlık "Retry" ve "Choose another model" gösterir ve başarısız olan model ile yürürlükte olanı adlandırır. Orada seçtiğiniz bir model, ayarlandığı yerde yürürlükte olanın yerini alır: eğer çalışan uygulama genelindeki "Card tasks" modeliyse o, aksi halde bu kartın kendi modeli (Profile sekmesi, "Models"). Dashboard'un sensör modeli olduğu gibi bırakılır. Bekleyen öneriler Inbox'ta da görünür.
 
 ## Ekrandan yeniden derecelendirebilir miyim?
 
@@ -26,6 +26,6 @@ Evet, aynı düğmeyle. Soul sekmesindeki tek derecelendirme düğmesi etiketini
 - Hiçbir karakter seçili değilken veya henüz kayıtlı soul'u olmayan biri seçiliyken: "Rate now". Yalnızca soul'u olmayan karakterleri derecelendirir; hiç kalmadıysa yalnızca yeni bir şey olmadığını söyler. Henüz soul'u olmayan bir karakteri derecelendirmek "Rate this character" ile de yapılabilir.
 - Zaten kayıtlı soul'u olan bir karakter seçiliyken: "Rate again". O tek karakter için bir modelden yeni bir soul ister ve onu kayıtlı olanın yanında gözden geçirilecek bir güncelleme olarak gösterir. Kaydedilmemiş düzenlemeleriniz varsa önce "Rate again?" diye sorar; çünkü onlar değiştirilecektir. Yeni derecelendirme kayıtlı soul ile aynıysa değişecek bir şey olmadığı söylenir.
 
-"Save soul"e basana kadar hiçbir şeyin üzerine yazılmaz. Kullanılan model Dashboard'un "Sensor model"idir (boşsa sohbetin modeli); Dashboard ayarlarındaki "Rate characters automatically" anahtarı yalnızca otomatik ilk derecelendirmeyi kontrol eder, bu düğmeyi değil.
+"Save soul"e basana kadar hiçbir şeyin üzerine yazılmaz. Derecelendirme kartın kendi modelinde (Profile sekmesi, "Models"), yoksa uygulama genelindeki "Card tasks" modelinde, yoksa Dashboard'un "Sensor model"inde, yoksa uygulamanın varsayılan modelinde çalışır (bir sohbetin otomatik derecelendirmesi de varsayılandan önce sohbetin modelini dener). Sekmedeki bir satır yürürlükte olanı ve nereden geldiğini adlandırır. Dashboard ayarlarındaki "Rate characters automatically" anahtarı yalnızca otomatik ilk derecelendirmeyi kontrol eder, bu düğmeyi değil.
 
 Ayrıca Molfar'dan kendi sohbetinde bir soul'u derecelendirmesini veya ayarlamasını isteyebilirsiniz; aynı türde öneriyi yazar ([[vertep:molfar]]).
