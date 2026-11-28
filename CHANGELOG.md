@@ -4,6 +4,8 @@ Changes on top of upstream Roleplay 4.18.2 (`b509845`).
 
 ## Unreleased
 
+## 4.166.0 (2026-11-28)
+
 - New: **a block you write in How they changed can be for one story (Molfar.Vertep#542).** With a chat picked in the block's Chat picker, Add a block asks where the block acts: **Only "<that chat>"** (the default: that chat and the chats that continue it) or **Every chat of <card>**; with all chats shown, the form says the block goes into every chat. Before, a block you wrote always acted in every chat, even with one chat picked. Such a block says "Written by you for the chat ..." and can go to every chat, or back, under Where it acts. The `add` operation of `PUT /agents/growth` takes `scope: "story"` with `chatId` (a chat of this card; anything else is refused). Files: `plugins/agents/plugin.js` (`growthRoute`), `src/components/character/memory-growth.tsx` (`GrowthForm` `where`, `addPatch`), `memory-api.ts`, `src/lib/i18n.ts`; `docs/DATA-FORMATS.md`; guide page Memory; tests `test/rp-agent-growth-scope.test.ts`, `test/rp-memory-growth-block.test.tsx`.
 
 ## 4.165.0 (2026-11-28)
