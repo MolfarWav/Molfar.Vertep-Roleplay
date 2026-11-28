@@ -103,7 +103,11 @@ const sectionLabel = (t: T, s: string) => t(`mem.grow.sec.${SECTION_ORDER.includ
 export interface StoryRead { title: string | null; reading: boolean; onRead: () => void; /** the chat was picked above, not the newest one */ chosen?: boolean }
 
 /** The chat the block is narrowed to (#540): null = every chat. `chats` are the picker's rows; `onPick` chooses one, `onAll` goes back. */
-export interface ChatView { chatId: string | null; title: string; chats: PickerChat[]; onPick: (id: string) => void; onAll: () => void }
+export interface ChatView {
+  chatId: string | null; title: string; chats: PickerChat[]; onPick: (id: string) => void; onAll: () => void
+  /** the list shows only the chats that have blocks (remembered for every card) */
+  onlyWith?: boolean; onOnlyWith?: (on: boolean) => void
+}
 
 /** The newest message's text, for a chat whose list preview is empty (an opened chat holds its messages instead). */
 const lastLine = (msgs: { swipes: { content: string }[]; activeSwipe: number }[]) => {
@@ -116,6 +120,9 @@ const CHAT_KEY = (cardId: string) => `rp-mem-grow-chat:${cardId}`
 const readChatChoice = (cardId: string): string | null => {
   try { return localStorage.getItem(CHAT_KEY(cardId)) } catch { return null }
 }
+const ONLY_KEY = 'rp-mem-grow-chat-only'
+const readOnlyWith = () => { try { return localStorage.getItem(ONLY_KEY) === '1' } catch { return false } }
+const keepOnlyWith = (on: boolean) => { try { if (on) localStorage.setItem(ONLY_KEY, '1'); else localStorage.removeItem(ONLY_KEY) } catch { /* private mode */ } }
 const keepChatChoice = (cardId: string, chatId: string | null) => {
   try { if (chatId) localStorage.setItem(CHAT_KEY(cardId), chatId); else localStorage.removeItem(CHAT_KEY(cardId)) } catch { /* private mode */ }
 }
@@ -154,6 +161,7 @@ export function GrowthBlock({ card }: { card: Character }) {
   const chosen = picked && ofCard.length > 1 ? (ofCard.find((c) => c.id === picked) ?? null) : null
   const chatId = chosen?.id ?? null
   const pick = (id: string | null) => { setPicked(id); keepChatChoice(card.id, id) }
+  const [onlyWith, setOnlyWith] = useState(readOnlyWith)
 
   const load = useCallback(() => {
     setLoadError(null)
@@ -229,6 +237,8 @@ export function GrowthBlock({ card }: { card: Character }) {
         chats: ofCard.map((c) => ({ id: c.id, title: c.title || t('mem.untitled'), name: groups.get(c.characterId) ?? '', updatedAt: c.updatedAt, preview: c.preview || lastLine(c.messages) })),
         onPick: (id) => pick(id),
         onAll: () => pick(null),
+        onlyWith,
+        onOnlyWith: (on) => { setOnlyWith(on); keepOnlyWith(on) },
       }
     : undefined
   return <GrowthBody card={card} data={data} t={t} act={act} busy={busy > 0} chats={cardChats} view={view} story={{ title: storyChat ? storyChat.title || t('mem.untitled') : null, reading, onRead: () => void readStory(), chosen: !!chosen }} />
@@ -255,7 +265,9 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
   const hidden = entries.length - shown.length
   const { proposed, accepted } = splitGrowth(shown)
   const allAccepted = here ? splitGrowth(entries).accepted : accepted
-  const countIn = (chat: string | null) => t('mem.grow.chat.count', { n: chat ? allAccepted.filter((e) => actsIn(e, chat)).length : allAccepted.length })
+  const blocksIn = (chat: string | null) => (chat ? allAccepted.filter((e) => actsIn(e, chat)).length : allAccepted.length)
+  const countIn = (chat: string | null) => t('mem.grow.chat.count', { n: blocksIn(chat) })
+  const withBlocks = view ? view.chats.filter((c) => blocksIn(c.id) > 0).length : 0
   // chats of the card that share a title (the default title is the card's name): a block's origin line then also gives its date
   const titles = new Map<string, number>()
   for (const c of chats) titles.set(c.title, (titles.get(c.title) ?? 0) + 1)
@@ -313,6 +325,7 @@ export function GrowthBody({ card, data, t, act, busy, story, chats = [], view }
             note={countIn}
             label={t('mem.grow.chat')}
             searchPlaceholder={t('mem.grow.chat.search')}
+            narrow={view.onOnlyWith ? { label: t('mem.grow.chat.onlyWith', { n: withBlocks }), on: !!view.onlyWith, onChange: view.onOnlyWith, test: (id) => blocksIn(id) > 0, empty: t('mem.grow.chat.noneWith') } : undefined}
             testId="mem-grow-chat-picker"
             className="h-10 w-full sm:w-80"
           />

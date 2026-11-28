@@ -5,6 +5,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { cn } from '@/lib/utils'
 import { useT, useRelativeTime } from '@/hooks/use-t'
 import { useApp } from '@/lib/store'
+import { Switch } from '@/components/ui/switch'
 import { resolveLanguage } from '@/lib/i18n'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -67,7 +68,7 @@ const ALL = ':all'
  * at the end of a row (the Memory tab's "3 blocks", #540).
  */
 export function ChatPicker({
-  chats, value, onChange, onAll, className, allLabel, note, label, testId, searchPlaceholder,
+  chats, value, onChange, onAll, className, allLabel, note, label, testId, searchPlaceholder, narrow,
 }: {
   chats: PickerChat[]
   /** the chosen chat; null = none yet, or every chat when `allLabel` is given */
@@ -83,16 +84,20 @@ export function ChatPicker({
   label?: string
   /** the search box's hint, when the default ("by character or chat title") does not fit */
   searchPlaceholder?: string
+  /** a switch under the search that keeps only the chats `test` lets through (the Memory tab's "only chats with blocks", #540);
+   *  the caller keeps it on or off, so it is remembered where the caller wants; `empty` is said when no chat passes */
+  narrow?: { label: string; on: boolean; onChange: (on: boolean) => void; test: (id: string) => boolean; empty: string }
   testId?: string
 }) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
-  const rows = useRows(chats)
-  const current = rows.find((r) => r.id === value)
+  const all = useRows(chats)
+  const current = all.find((r) => r.id === value)
+  const rows = narrow?.on ? all.filter((r) => narrow.test(r.id)) : all
   // chats with the same name and title (a new chat takes the card's name): the button also says when and how long, or the
   // three "Aria" chats would look the same once one is picked (#540)
-  const twin = !!current && rows.some((r) => r.id !== current.id && r.main === current.main && r.own === current.own)
+  const twin = !!current && all.some((r) => r.id !== current.id && r.main === current.main && r.own === current.own)
   const shown = current ? null : allLabel && value === null ? allLabel : null
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -113,15 +118,24 @@ export function ChatPicker({
         {current?.group && <UsersThree className="size-3.5 shrink-0 text-muted-foreground" aria-label={t('canvas.prompt.group')} />}
         <CaretUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[26rem] max-w-[calc(100vw-1.5rem)] gap-0 p-0">
+      {/* a dropdown: above or below the button, never beside it (a list whose height changes as you type or filter jumped to
+          the right of the button when neither fitted); the list scrolls inside the room it gets (#540) */}
+      <PopoverContent align="start" collisionAvoidance={{ fallbackAxisSide: 'none' }} className="w-[26rem] max-w-[calc(100vw-1.5rem)] gap-0 p-0">
         <Command
           className="max-h-[min(24rem,var(--available-height,24rem))]"
           filter={(_value, search, keywords) => (searchMatches(keywords?.[0] ?? '', search) ? 1 : 0)}
         >
           {/* on a computer typing searches at once; on a phone the keyboard waits for a tap on the box */}
           <CommandInput placeholder={searchPlaceholder ?? t('canvas.prompt.search')} autoFocus={!isMobile} />
+          {narrow && (
+            <label className="flex min-h-9 cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 text-sm max-md:min-h-10" data-testid="chat-picker-narrow">
+              <Switch size="sm" checked={narrow.on} onCheckedChange={(v) => narrow.onChange(v)} />
+              <span className="min-w-0 flex-1">{narrow.label}</span>
+            </label>
+          )}
           <CommandList>
             <CommandEmpty>{t('canvas.prompt.noChats')}</CommandEmpty>
+            {narrow?.on && rows.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground" data-testid="chat-picker-narrow-empty">{narrow.empty}</p>}
             {allLabel && (
               <CommandItem
                 value={ALL}
