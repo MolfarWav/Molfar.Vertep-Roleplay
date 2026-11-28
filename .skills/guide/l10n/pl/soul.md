@@ -1,4 +1,4 @@
-<!-- source: e0c72ba92f2d -->
+<!-- source: 15cfc6de4c0b -->
 # Dusza postaci
 
 Dusza to temperament postaci wobec ciebie: jak cię traktuje, gdy historia się zaczyna, jak szybko rośnie każde uczucie i co ją bardziej rani albo cieszy. To wejście liczb relacji Pulpitu ([[dashboard]]). Ta strona jest ci potrzebna, jeśli chcesz, żeby postać reagowała po swojemu, albo jeśli zastanawiasz się, skąd wzięła się propozycja.
@@ -17,7 +17,7 @@ Tylko główne postacie dostają duszę. Przechodnie, których wymyśla historia
 
 ## Automatyczne ocenianie i propozycje
 
-Domyślnie aplikacja proponuje duszę dla karty, która jej nie ma: zaraz po imporcie i przy pierwszej aktualizacji Pulpitu czatu. Model czyta kartę, księgi wiedzy i ostatnie wiadomości. Propozycja nie jest zapisywana do karty. Baner pokazuje „Proposal (automatic)” z „Review”, „Accept all” i „Dismiss”; albo „Save soul” przy pojedynczej postaci. Dopóki nie zdecydujesz, propozycja już działa w grze jako dusza tymczasowa. „Dismiss” zatrzymuje automatyczne ocenianie dla tej karty. Jeśli ocenianie się nie powiedzie, baner pokazuje „Retry” i „Choose another model”. Oczekujące propozycje pojawiają się też w Skrzynce odbiorczej.
+Domyślnie aplikacja proponuje duszę dla karty, która jej nie ma: zaraz po imporcie i przy pierwszej aktualizacji Pulpitu czatu. Model czyta kartę, księgi wiedzy i ostatnie wiadomości. Propozycja nie jest zapisywana do karty. Baner pokazuje „Proposal (automatic)” z „Review”, „Accept all” i „Dismiss”; albo „Save soul” przy pojedynczej postaci. Dopóki nie zdecydujesz, propozycja już działa w grze jako dusza tymczasowa. „Dismiss” zatrzymuje automatyczne ocenianie dla tej karty. Jeśli ocenianie się nie powiedzie, baner pokazuje „Retry” i „Choose another model” oraz podaje nazwę modelu, który zawiódł, i tego, który obowiązuje. Wybrany tam model zastępuje ten obowiązujący tam, gdzie jest ustawiony: model „Card tasks” dla całej aplikacji, jeśli to on działa, w przeciwnym razie własny model tej karty (zakładka Profile, „Models”). Model sensora Pulpitu pozostaje bez zmian. Oczekujące propozycje pojawiają się też w Skrzynce odbiorczej.
 
 ## Czy mogę ocenić ponownie z ekranu?
 
@@ -26,6 +26,6 @@ Tak, tym samym przyciskiem. Jedyny przycisk oceniania na karcie Soul zmienia ety
 - Gdy nie wybrano postaci lub wybrana nie ma jeszcze zapisanej duszy: „Rate now”. Ocenia tylko postacie bez duszy; jeśli żadnych nie ma, mówi tylko, że nie ma nic nowego. Ocenianie postaci bez duszy można też wykonać przez „Rate this character”.
 - Gdy wybrano postać, która już ma zapisaną duszę: „Rate again”. Prosi model o świeżą duszę dla tej jednej postaci i pokazuje ją jako aktualizację do przejrzenia obok zapisanej. Jeśli masz niezapisane zmiany, najpierw pyta „Rate again?”, bo zostałyby zastąpione. Jeśli nowa ocena jest równa zapisanej duszy, dostajesz informację, że nie ma nic do zmiany.
 
-Nic nie jest nadpisywane, dopóki nie naciśniesz „Save soul”. Używany model to „Sensor model” Pulpitu (model czatu, jeśli pusty); przełącznik „Rate characters automatically” w ustawieniach Pulpitu steruje tylko automatycznym pierwszym ocenianiem, nie tym przyciskiem.
+Nic nie jest nadpisywane, dopóki nie naciśniesz „Save soul”. Ocenianie działa na własnym modelu karty (zakładka Profile, „Models”), w przeciwnym razie na modelu „Card tasks” dla całej aplikacji, w przeciwnym razie na „Sensor model” Pulpitu, w przeciwnym razie na domyślnym modelu aplikacji (automatyczne ocenianie czatu próbuje też modelu czatu przed domyślnym). Wiersz na zakładce podaje nazwę tego obowiązującego i skąd pochodzi. Przełącznik „Rate characters automatically” w ustawieniach Pulpitu steruje tylko automatycznym pierwszym ocenianiem, nie tym przyciskiem.
 
 Możesz też poprosić Molfara w jego własnym czacie o ocenienie lub poprawienie duszy; pisze ten sam rodzaj propozycji ([[vertep:molfar]]).

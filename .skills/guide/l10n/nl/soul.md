@@ -1,4 +1,4 @@
-<!-- source: e0c72ba92f2d -->
+<!-- source: 15cfc6de4c0b -->
 # Ziel van een personage
 
 Een ziel is het temperament van een personage tegenover jou: hoe ze je behandelen wanneer het verhaal begint, hoe snel elk gevoel groeit, en wat hen meer kwetst of pleziert. Het is de invoer van de relatienummers van het Dashboard ([[dashboard]]). Je hebt deze pagina nodig als je wilt dat een personage op zijn eigen manier reageert, of als je je afvraagt waarom een voorstel verscheen.
@@ -17,7 +17,7 @@ Alleen hoofdpersonages krijgen een ziel. Voorbijgangers die het verhaal verzint,
 
 ## Automatische beoordeling en voorstellen
 
-Standaard stelt de app een ziel voor voor een kaart die er geen heeft: direct na importeren, en bij de eerste Dashboard-update van een chat. Een model leest de kaart, de lorebooks en recente berichten. Een voorstel wordt niet in de kaart opgeslagen. Een banner toont "Voorstel (automatisch)" met "Beoordelen", "Alles accepteren" en "Negeren"; of "Ziel opslaan" bij één personage. Tot je beslist, werkt het voorstel al in het spel als voorlopige ziel. "Negeren" stopt automatische beoordeling voor deze kaart. Als een beoordeling mislukt, toont de banner "Opnieuw proberen" en "Kies een ander model". Wachtende voorstellen verschijnen ook in de Inbox.
+Standaard stelt de app een ziel voor voor een kaart die er geen heeft: direct na importeren, en bij de eerste Dashboard-update van een chat. Een model leest de kaart, de lorebooks en recente berichten. Een voorstel wordt niet in de kaart opgeslagen. Een banner toont "Voorstel (automatisch)" met "Beoordelen", "Alles accepteren" en "Negeren"; of "Ziel opslaan" bij één personage. Tot je beslist, werkt het voorstel al in het spel als voorlopige ziel. "Negeren" stopt automatische beoordeling voor deze kaart. Als een beoordeling mislukt, toont de banner "Opnieuw proberen" en "Kies een ander model", en noemt het model dat mislukte en het model dat van kracht is. Een model dat je daar kiest vervangt het model dat van kracht is waar dat is ingesteld: het app-brede "Card tasks"-model als dat draait, anders het eigen model van deze kaart (tabblad Profiel, "Models"). Het sensormodel van het Dashboard blijft zoals het is. Wachtende voorstellen verschijnen ook in de Inbox.
 
 ## Kan ik opnieuw beoordelen vanaf het scherm?
 
@@ -26,6 +26,6 @@ Ja, met dezelfde knop. De ene beoordeelknop in het tabblad Ziel verandert zijn l
 - Zonder geselecteerd personage, of een zonder opgeslagen ziel: "Nu beoordelen". Het beoordeelt alleen de personages zonder ziel; als er geen over zijn, zegt het alleen dat er niets nieuws is. Een personage dat nog geen ziel heeft, kan ook worden beoordeeld met "Beoordeel dit personage".
 - Met een personage dat al een opgeslagen ziel heeft geselecteerd: "Opnieuw beoordelen". Het vraagt een model om een verse ziel voor dat ene personage en toont die als een update om naast de opgeslagen ziel te beoordelen. Als je niet-opgeslagen bewerkingen hebt, vraagt het eerst "Opnieuw beoordelen?" omdat ze zouden worden vervangen. Als de nieuwe beoordeling gelijk is aan de opgeslagen ziel, krijg je te horen dat er niets te wijzigen is.
 
-Niets wordt overschreven totdat je op "Ziel opslaan" drukt. Het gebruikte model is het "Sensormodel" van het Dashboard (het chatmodel indien leeg); de schakelaar "Personages automatisch beoordelen" in de Dashboard-instellingen regelt alleen de automatische eerste beoordeling, niet deze knop.
+Niets wordt overschreven totdat je op "Ziel opslaan" drukt. De beoordeling draait op het eigen model van de kaart (tabblad Profiel, "Models"), anders het app-brede "Card tasks"-model, anders het "Sensormodel" van het Dashboard, anders het standaardmodel van de app (de automatische beoordeling van een chat probeert ook het chatmodel voor het standaardmodel). Een regel op het tabblad noemt het model dat van kracht is en waar het vandaan komt. De schakelaar "Personages automatisch beoordelen" in de Dashboard-instellingen regelt alleen de automatische eerste beoordeling, niet deze knop.
 
 Je kunt Molfar ook in zijn eigen chat vragen om een ziel te beoordelen of aan te passen; het schrijft hetzelfde soort voorstel ([[vertep:molfar]]).

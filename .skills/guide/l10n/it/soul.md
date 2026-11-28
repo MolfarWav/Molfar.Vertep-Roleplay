@@ -1,4 +1,4 @@
-<!-- source: e0c72ba92f2d -->
+<!-- source: 15cfc6de4c0b -->
 # Anima di un personaggio
 
 Un'anima è il temperamento di un personaggio verso di te: come ti tratta all'inizio della storia, quanto velocemente cresce ogni sentimento e cosa lo ferisce o gli piace di più. È l'input dei numeri di relazione della Dashboard ([[dashboard]]). Ti serve questa pagina se vuoi che un personaggio reagisca a modo suo, o se ti chiedi perché è apparsa una proposta.
@@ -17,7 +17,7 @@ Solo i personaggi principali ricevono un'anima. I passanti che la storia inventa
 
 ## Valutazione automatica e proposte
 
-Per impostazione predefinita l'app propone un'anima per una scheda che non ne ha: subito dopo l'importazione e al primo aggiornamento della Dashboard di una chat. Un modello legge la scheda, i lorebook e i messaggi recenti. Una proposta non viene salvata nella scheda. Un banner mostra "Proposta (automatica)" con "Esamina", "Accetta tutto" e "Ignora"; oppure "Salva anima" su un singolo personaggio. Finché non decidi, la proposta agisce già nel gioco come anima provvisoria. "Ignora" ferma la valutazione automatica per questa scheda. Se una valutazione fallisce, il banner mostra "Riprova" e "Scegli un altro modello". Le proposte in attesa compaiono anche nella Posta in arrivo.
+Per impostazione predefinita l'app propone un'anima per una scheda che non ne ha: subito dopo l'importazione e al primo aggiornamento della Dashboard di una chat. Un modello legge la scheda, i lorebook e i messaggi recenti. Una proposta non viene salvata nella scheda. Un banner mostra "Proposta (automatica)" con "Esamina", "Accetta tutto" e "Ignora"; oppure "Salva anima" su un singolo personaggio. Finché non decidi, la proposta agisce già nel gioco come anima provvisoria. "Ignora" ferma la valutazione automatica per questa scheda. Se una valutazione fallisce, il banner mostra "Riprova" e "Scegli un altro modello", e indica il modello che ha fallito e quello in vigore. Un modello che scegli lì sostituisce quello in vigore dove è impostato: il modello "Card tasks" a livello di app se è quello che viene eseguito, altrimenti quello della scheda stessa (scheda Profilo, "Models"). Il modello sensore della Dashboard viene lasciato com'è. Le proposte in attesa compaiono anche nella Posta in arrivo.
 
 ## Posso valutare di nuovo dalla schermata?
 
@@ -26,6 +26,6 @@ Sì, con lo stesso pulsante. L'unico pulsante di valutazione nella scheda Anima 
 - Senza personaggio selezionato, o con uno che non ha ancora un'anima salvata: "Valuta ora". Valuta solo i personaggi che non hanno anima; se non ne resta nessuno dice solo che non c'è nulla di nuovo. Valutare un personaggio che non ha ancora un'anima si può fare anche con "Valuta questo personaggio".
 - Con un personaggio che ha già un'anima salvata selezionato: "Valuta di nuovo". Chiede a un modello un'anima nuova per quel solo personaggio e la mostra come aggiornamento da esaminare accanto a quella salvata. Se hai modifiche non salvate chiede prima "Valutare di nuovo?" perché verrebbero sostituite. Se la nuova valutazione è uguale all'anima salvata, ti viene detto che non c'è nulla da cambiare.
 
-Nulla viene sovrascritto finché non premi "Salva anima". Il modello usato è il "Modello sensore" della Dashboard (quello della chat se vuoto); l'interruttore "Valuta i personaggi automaticamente" nelle impostazioni della Dashboard controlla solo la prima valutazione automatica, non questo pulsante.
+Nulla viene sovrascritto finché non premi "Salva anima". La valutazione viene eseguita sul modello della scheda stessa (scheda Profilo, "Models"), altrimenti sul modello "Card tasks" a livello di app, altrimenti sul "Modello sensore" della Dashboard, altrimenti sul modello predefinito dell'app (anche la valutazione automatica di una chat prova prima il modello della chat rispetto a quello predefinito). Una riga nella scheda indica quello in vigore e da dove proviene. L'interruttore "Valuta i personaggi automaticamente" nelle impostazioni della Dashboard controlla solo la prima valutazione automatica, non questo pulsante.
 
 Puoi anche chiedere a Molfar nella sua chat di valutare o regolare un'anima; scrive lo stesso tipo di proposta ([[vertep:molfar]]).

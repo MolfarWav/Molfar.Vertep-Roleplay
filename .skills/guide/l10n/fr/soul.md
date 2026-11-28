@@ -1,4 +1,4 @@
-<!-- source: e0c72ba92f2d -->
+<!-- source: 15cfc6de4c0b -->
 # Âme d'un personnage
 
 Une âme est le tempérament d'un personnage envers vous : comment il vous traite au début de l'histoire, à quelle vitesse chaque sentiment grandit, et ce qui le blesse ou lui plaît davantage. C'est l'entrée des nombres de relation du Tableau de bord ([[dashboard]]). Vous avez besoin de cette page si vous voulez qu'un personnage réagisse à sa manière, ou si vous vous demandez pourquoi une proposition est apparue.
@@ -17,7 +17,7 @@ Seuls les personnages principaux reçoivent une âme. Les passants inventés par
 
 ## Évaluation automatique et propositions
 
-Par défaut, l'application propose une âme pour une carte qui n'en a pas : juste après l'import, et à la première mise à jour du Tableau de bord d'une discussion. Un modèle lit la carte, les livres de connaissances et les messages récents. Une proposition n'est pas enregistrée dans la carte. Une bannière montre « Proposition (automatique) » avec « Examiner », « Tout accepter » et « Ignorer » ; ou « Enregistrer l'âme » sur un seul personnage. Tant que vous n'avez pas décidé, la proposition agit déjà en jeu comme âme provisoire. « Ignorer » arrête l'évaluation automatique pour cette carte. Si une évaluation échoue, la bannière montre « Réessayer » et « Choisir un autre modèle ». Les propositions en attente apparaissent aussi dans la Boîte de réception.
+Par défaut, l'application propose une âme pour une carte qui n'en a pas : juste après l'import, et à la première mise à jour du Tableau de bord d'une discussion. Un modèle lit la carte, les livres de connaissances et les messages récents. Une proposition n'est pas enregistrée dans la carte. Une bannière montre « Proposition (automatique) » avec « Examiner », « Tout accepter » et « Ignorer » ; ou « Enregistrer l'âme » sur un seul personnage. Tant que vous n'avez pas décidé, la proposition agit déjà en jeu comme âme provisoire. « Ignorer » arrête l'évaluation automatique pour cette carte. Si une évaluation échoue, la bannière montre « Réessayer » et « Choisir un autre modèle », et nomme le modèle qui a échoué et celui en vigueur. Un modèle que vous choisissez ici remplace celui en vigueur là où il est défini : le modèle « Card tasks » de toute l'application si c'est lui qui tourne, sinon celui de cette carte (onglet Profile, « Models »). Le modèle capteur du Tableau de bord reste tel quel. Les propositions en attente apparaissent aussi dans la Boîte de réception.
 
 ## Puis-je évaluer à nouveau depuis l'écran ?
 
@@ -26,6 +26,6 @@ Oui, avec le même bouton. L'unique bouton d'évaluation de l'onglet Âme change
 - Sans personnage sélectionné, ou avec un personnage qui n'a pas encore d'âme enregistrée : « Évaluer maintenant ». Il n'évalue que les personnages sans âme ; s'il n'en reste aucun, il dit seulement qu'il n'y a rien de nouveau. Évaluer un personnage qui n'a pas encore d'âme peut aussi se faire avec « Évaluer ce personnage ».
 - Avec un personnage qui a déjà une âme enregistrée sélectionné : « Évaluer à nouveau ». Il demande au modèle une âme neuve pour ce seul personnage et la montre comme mise à jour à examiner à côté de l'âme enregistrée. Si vous avez des modifications non enregistrées, il demande d'abord « Évaluer à nouveau ? » car elles seraient remplacées. Si la nouvelle évaluation est égale à l'âme enregistrée, on vous dit qu'il n'y a rien à changer.
 
-Rien n'est écrasé avant que vous appuyiez sur « Enregistrer l'âme ». Le modèle utilisé est le « Modèle capteur » du Tableau de bord (celui de la discussion s'il est vide) ; l'interrupteur « Évaluer les personnages automatiquement » des réglages du Tableau de bord ne contrôle que la première évaluation automatique, pas ce bouton.
+Rien n'est écrasé avant que vous appuyiez sur « Enregistrer l'âme ». L'évaluation tourne sur le modèle de la carte elle-même (onglet Profile, « Models »), sinon le modèle « Card tasks » de toute l'application, sinon le « Modèle capteur » du Tableau de bord, sinon le modèle par défaut de l'application (l'évaluation automatique d'une discussion essaie aussi le modèle de la discussion avant celui par défaut). Une ligne sur l'onglet nomme celui en vigueur et son origine. L'interrupteur « Évaluer les personnages automatiquement » des réglages du Tableau de bord ne contrôle que la première évaluation automatique, pas ce bouton.
 
 Vous pouvez aussi demander à Molfar dans sa propre discussion d'évaluer ou d'ajuster une âme ; il écrit le même genre de proposition ([[vertep:molfar]]).
